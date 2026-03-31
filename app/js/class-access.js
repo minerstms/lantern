@@ -67,7 +67,7 @@
     var url = apiBase + '/api/class-access/state' + (token ? '?token=' + encodeURIComponent(token) : '');
     var headers = {};
     if (token) headers['X-Class-Token'] = token;
-    fetch(url, { headers: headers })
+    fetch(url, { credentials: 'include', headers: headers })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         var state = res && res.ok ? res : { ok: false, accessState: 'live_locked_no_session', tokenValid: false };

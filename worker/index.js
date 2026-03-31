@@ -88,7 +88,7 @@ export default {
     const path = (url.pathname || '/').replace(/\/$/, '') || '/';
     if (request.method === 'OPTIONS') {
       let o = corsHeaders;
-      if (path.startsWith('/api/pilot') || path.startsWith('/api/auth') || path.startsWith('/api/admin')) o = corsForPilot(request);
+      if (path.startsWith('/api/pilot') || path.startsWith('/api/auth') || path.startsWith('/api/admin') || path.startsWith('/api/class-access')) o = corsForPilot(request);
       else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
       return new Response(null, { status: 204, headers: o });
     }
@@ -176,11 +176,12 @@ export default {
       }
     }
     if (path.startsWith('/api/class-access')) {
+      const classAccessCors = corsForPilot(request);
       try {
-        return await handleClassAccessRoutes(request, url, path, env, cors);
+        return await handleClassAccessRoutes(request, url, path, env, classAccessCors);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
+        return jsonResponse({ ok: false, error: message }, 400, classAccessCors);
       }
     }
     if (path.startsWith('/api/beta-reports')) {
@@ -1250,6 +1251,29 @@ function isLockHours(env) {
   }
 }
 
+/**
+ * If the request carries a valid pilot JWT for an active student account, returns the DB row; else null.
+ * Same validation pattern as GET /api/pilot/me (cookie + JWT + lantern_pilot_accounts).
+ */
+async function getPilotActiveStudentForClassAccess(request, env, db) {
+  const secret = env.PILOT_SESSION_SECRET;
+  if (!secret || String(secret).trim() === '') return null;
+  const rawCookie = request.headers.get('Cookie') || '';
+  const jwt = getCookieValue(rawCookie, PILOT_COOKIE_NAME);
+  if (!jwt) return null;
+  const payload = await verifyPilotJwt(jwt, secret);
+  if (!payload || !payload.sub) return null;
+  const row = await db
+    .prepare('SELECT username, role, is_active FROM lantern_pilot_accounts WHERE username = ?')
+    .bind(String(payload.sub))
+    .first();
+  if (!row) return null;
+  const ia = row.is_active != null ? Number(row.is_active) : 1;
+  if (ia === 0) return null;
+  if (String(row.role || '').trim() !== 'student') return null;
+  return row;
+}
+
 async function handleClassAccessRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -1431,6 +1455,19 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     ).bind(now).first();
 
     if (!token) {
+      const studentRow = await getPilotActiveStudentForClassAccess(request, env, db);
+      if (studentRow) {
+        return jsonResponse(
+          {
+            ok: true,
+            mode: 'live',
+            accessState: 'live_student_login_access',
+            tokenValid: true,
+          },
+          200,
+          cors
+        );
+      }
       return jsonResponse({
         ok: true,
         mode: 'live',
@@ -1443,6 +1480,19 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       'SELECT t.expires_at, t.revoked_at, s.is_active, s.revoked_at AS session_revoked FROM class_access_tokens t JOIN class_access_sessions s ON s.id = t.session_id WHERE t.token = ?'
     ).bind(token).first();
     if (!tokenRow || tokenRow.revoked_at || tokenRow.session_revoked || tokenRow.is_active !== 1 || tokenRow.expires_at <= now) {
+      const studentRow = await getPilotActiveStudentForClassAccess(request, env, db);
+      if (studentRow) {
+        return jsonResponse(
+          {
+            ok: true,
+            mode: 'live',
+            accessState: 'live_student_login_access',
+            tokenValid: true,
+          },
+          200,
+          cors
+        );
+      }
       const accessState = (tokenRow && (tokenRow.revoked_at || tokenRow.session_revoked)) ? 'live_session_revoked' : 'live_token_expired';
       return jsonResponse({
         ok: true,
