@@ -1,9 +1,32 @@
 /**
  * Lantern class access — one source of truth for access state and gate UI.
  * Worker-enforced; frontend only displays and collects code. (No visible demo/simulation UI.)
+ *
+ * Temporary dev bypass: set window.LANTERN_DEBUG_CLASS_ACCESS = true before class-access.js runs
+ * (or any time before bootstrap) to skip the gate and treat access as resolved without a class code.
  */
 (function (global) {
   var STORAGE_KEY = 'lantern_class_access_token';
+
+  /** Read at call time so the flag can be set after this file loads. */
+  function isDebugClassAccessBypass() {
+    try {
+      var w = typeof global !== 'undefined' ? global : null;
+      return !!(w && w.LANTERN_DEBUG_CLASS_ACCESS === true);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function debugResolvedState() {
+    return {
+      ok: true,
+      accessState: 'debug_bypass',
+      tokenValid: true,
+      mode: 'debug',
+      message: 'LANTERN_DEBUG_CLASS_ACCESS',
+    };
+  }
 
   function getStoredToken() {
     try {
@@ -35,7 +58,12 @@
     } else if (!token) {
       token = getStoredToken();
     }
-    if (!apiBase || typeof callback !== 'function') return;
+    if (typeof callback !== 'function') return;
+    if (isDebugClassAccessBypass()) {
+      callback(debugResolvedState());
+      return;
+    }
+    if (!apiBase) return;
     var url = apiBase + '/api/class-access/state' + (token ? '?token=' + encodeURIComponent(token) : '');
     var headers = {};
     if (token) headers['X-Class-Token'] = token;
@@ -142,8 +170,7 @@
     }
   }
 
-  var DEBUG = (typeof window !== 'undefined' && window.LANTERN_DEBUG_CLASS_ACCESS) || (typeof global !== 'undefined' && global.LANTERN_DEBUG_CLASS_ACCESS);
-  function log() { if (DEBUG && typeof console !== 'undefined' && console.log) console.log.apply(console, ['[class-access]'].concat([].slice.call(arguments))); }
+  function log() { if (isDebugClassAccessBypass() && typeof console !== 'undefined' && console.log) console.log.apply(console, ['[class-access]'].concat([].slice.call(arguments))); }
 
   /**
    * Single bootstrap for class access: read token, call state API, show gate or content.
@@ -156,6 +183,16 @@
     if (!gateWrap) return;
     var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
     var contentWrap = document.getElementById('classAccessContentWrap');
+    if (isDebugClassAccessBypass()) {
+      log('bootstrap: LANTERN_DEBUG_CLASS_ACCESS — bypass gate, treat as resolved');
+      gateWrap.style.display = 'none';
+      setContentVisible(contentWrap);
+      renderBanner('classAccessBannerEl');
+      try {
+        document.dispatchEvent(new CustomEvent('lantern-class-access-resolved', { detail: { state: debugResolvedState(), tokenValid: true } }));
+      } catch (e) {}
+      return;
+    }
     if (!apiBase) {
       log('bootstrap: no apiBase, showing content');
       setContentVisible(contentWrap);
