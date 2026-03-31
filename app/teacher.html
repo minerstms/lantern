@@ -941,11 +941,8 @@
         location.replace('/explore');
         return;
       }
-      if (r === 'admin') {
-        location.replace('/admin');
-        return;
-      }
-      if (r !== 'teacher') {
+      /* Teacher dashboard: teachers and admins (global). Admins use /admin for account tools; this page stays for approvals/missions. */
+      if (r !== 'teacher' && r !== 'admin') {
         location.replace('/login');
         return;
       }
