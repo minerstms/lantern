@@ -81,17 +81,6 @@
     var key = String(characterName || '').trim();
     if (!key) return false;
     var current = profiles[key] || {};
-    var nextAvatarParts = current.avatar_parts && typeof current.avatar_parts === 'object' ? current.avatar_parts : {};
-    if (updates.avatar_parts !== undefined && updates.avatar_parts && typeof updates.avatar_parts === 'object') {
-      nextAvatarParts = {
-        body: String(updates.avatar_parts.body || nextAvatarParts.body || '').trim(),
-        hair: String(updates.avatar_parts.hair || nextAvatarParts.hair || '').trim(),
-        face: String(updates.avatar_parts.face || nextAvatarParts.face || '').trim(),
-        top: String(updates.avatar_parts.top || nextAvatarParts.top || '').trim(),
-        bottom: String(updates.avatar_parts.bottom || nextAvatarParts.bottom || 'jeans').trim(),
-        accessory: String(updates.avatar_parts.accessory || nextAvatarParts.accessory || '').trim(),
-      };
-    }
     var merged = {
       display_name: updates.display_name !== undefined ? String(updates.display_name || '').trim() : (current.display_name || ''),
       hero_title: updates.hero_title !== undefined ? String(updates.hero_title || '').trim() : (current.hero_title || ''),
@@ -100,7 +89,6 @@
       frame: updates.frame !== undefined ? String(updates.frame || 'none').trim() : (current.frame || 'none'),
       theme: updates.theme !== undefined ? String(updates.theme || 'default').trim() : (current.theme || 'default'),
       featured_post_id: updates.featured_post_id !== undefined ? String(updates.featured_post_id || '').trim() : (current.featured_post_id || ''),
-      avatar_parts: nextAvatarParts,
       custom_avatar: updates.custom_avatar !== undefined ? String(updates.custom_avatar || '').trim() : (current.custom_avatar || ''),
     };
     profiles[key] = merged;

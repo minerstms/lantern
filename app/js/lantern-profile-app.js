@@ -750,7 +750,6 @@
 
     var submissionsStatusFilter = 'all';
     var currentProfile = null;
-    var AVATAR_OPTIONS = ['🌟','⭐','✨','🎯','🚀','🎨','📚','🔥','💡','🌈']; // legacy emoji choices
     var FRAME_OPTIONS = [{ v: 'none', l: 'None' }, { v: 'gold', l: 'Gold' }, { v: 'blue', l: 'Blue' }, { v: 'green', l: 'Green' }, { v: 'purple', l: 'Purple' }];
     /* Supported profile themes: internal key and user-facing name. Same set drives body[data-theme] and hero theme tint/cards. */
     var THEME_OPTIONS = [
@@ -760,51 +759,6 @@
       { v: 'forest', l: 'Forest Green' },
       { v: 'violet', l: 'Cosmic Violet' }
     ];
-
-    // Avatar builder part options (first version)
-    var AVATAR_BODY_OPTIONS = [
-      { id: 'light', label: 'Light' },
-      { id: 'medium', label: 'Medium' },
-      { id: 'deep', label: 'Deep' },
-    ];
-    var AVATAR_HAIR_OPTIONS = [
-      { id: 'brown_short', label: 'Short Brown' },
-      { id: 'black_curly', label: 'Curly Black' },
-      { id: 'blonde_long', label: 'Long Blonde' },
-      { id: 'red_bun', label: 'Red Bun' },
-    ];
-    var AVATAR_FACE_OPTIONS = [
-      { id: 'smile', label: 'Smile' },
-      { id: 'confident', label: 'Confident' },
-      { id: 'thoughtful', label: 'Thoughtful' },
-    ];
-    var AVATAR_TOP_OPTIONS = [
-      { id: 'hoodie_blue', label: 'Blue Hoodie' },
-      { id: 'hoodie_purple', label: 'Purple Hoodie' },
-      { id: 'tee_orange', label: 'Orange Tee' },
-      { id: 'tee_green', label: 'Green Tee' },
-    ];
-    var AVATAR_BOTTOM_OPTIONS = [
-      { id: 'jeans', label: 'Jeans' },
-      { id: 'black', label: 'Black Pants' },
-      { id: 'grey', label: 'Grey Pants' },
-      { id: 'red', label: 'Red Pants' },
-    ];
-    var AVATAR_ACCESSORY_OPTIONS = [
-      { id: 'none', label: 'None' },
-      { id: 'headphones', label: 'Headphones' },
-      { id: 'glasses', label: 'Glasses' },
-      { id: 'star_pin', label: 'Star Pin' },
-    ];
-
-    var DEFAULT_AVATAR_PARTS = {
-      body: 'medium',
-      hair: 'brown_short',
-      face: 'smile',
-      top: 'hoodie_blue',
-      bottom: 'jeans',
-      accessory: 'none',
-    };
 
     /**
      * Map a profile post row to LanternCards feed model (Locker featured showcase only).
@@ -1542,57 +1496,6 @@
     }
 
     /* ===== PRESERVED: showProfile with new layout ===== */
-    function normalizeAvatarParts(parts){
-      var p = parts && typeof parts === 'object' ? parts : {};
-      var body = p.body || DEFAULT_AVATAR_PARTS.body;
-      var hair = p.hair || DEFAULT_AVATAR_PARTS.hair;
-      var face = p.face || DEFAULT_AVATAR_PARTS.face;
-      var top = p.top || DEFAULT_AVATAR_PARTS.top;
-      var bottom = p.bottom || DEFAULT_AVATAR_PARTS.bottom;
-      var accessory = p.accessory || DEFAULT_AVATAR_PARTS.accessory;
-      return { body: body, hair: hair, face: face, top: top, bottom: bottom, accessory: accessory };
-    }
-
-    function getDefaultAvatarPartsFromEmoji(emoji){
-      // Simple mapping from legacy emoji avatar to reasonable defaults
-      var e = String(emoji || '').trim();
-      if (!e) return Object.assign({}, DEFAULT_AVATAR_PARTS);
-      if (e === '🚀' || e === '🎯') return { body: 'medium', hair: 'brown_short', face: 'confident', top: 'hoodie_blue', bottom: 'jeans', accessory: 'none' };
-      if (e === '🎨' || e === '🌈') return { body: 'light', hair: 'blonde_long', face: 'smile', top: 'tee_orange', bottom: 'red', accessory: 'star_pin' };
-      if (e === '📚' || e === '💡') return { body: 'deep', hair: 'black_curly', face: 'thoughtful', top: 'tee_green', bottom: 'black', accessory: 'glasses' };
-      return Object.assign({}, DEFAULT_AVATAR_PARTS);
-    }
-
-    function buildAvatarFigureHTML(parts){
-      var p = normalizeAvatarParts(parts);
-      var cls = [
-        'avatarFigure',
-        'body-' + p.body,
-        'hair-' + p.hair,
-        'face-' + p.face,
-        'top-' + p.top,
-        'bottom-' + (p.bottom || 'jeans'),
-        p.accessory && p.accessory !== 'none' ? ('accessory-' + p.accessory) : 'accessory-none'
-      ].join(' ');
-      return '<div class="' + cls + '">' +
-        '<div class="avatarHead">' +
-          '<div class="avatarHair"></div>' +
-          '<div class="avatarFace"></div>' +
-          '<div class="avatarEye left"></div>' +
-          '<div class="avatarEye right"></div>' +
-          '<div class="avatarAccessoryIcon"></div>' +
-        '</div>' +
-        '<div class="avatarBody"></div>' +
-        '<div class="avatarBottom"></div>' +
-        '<div class="avatarFeet"></div>' +
-      '</div>';
-    }
-
-    function renderAvatarInto(el, parts){
-      if (!el) return;
-      el.innerHTML = buildAvatarFigureHTML(parts);
-    }
-
     /* Profile contains multiple optional feature modules; one failing module should not break the whole page. */
     function safeProfileStep(label, fn){
       try { fn(); } catch (err) { console.error('[Profile]', label, 'failed', err); }
@@ -1752,9 +1655,6 @@
         applyProfileHeroIdentity(studentProfileVM);
         el('bioEl').textContent = studentProfileVM.motto || 'Add a bio or tagline';
         el('bioEl').classList.toggle('placeholder', !studentProfileVM.motto);
-        var avatarParts = (p.avatar_parts && typeof p.avatar_parts === 'object')
-          ? normalizeAvatarParts(p.avatar_parts)
-          : getDefaultAvatarPartsFromEmoji(studentProfileVM.avatar);
         var contentEl = el('avatarContentEl');
         var revEl = el('avatarRevealEl');
         if (contentEl && revEl) {
@@ -1768,7 +1668,13 @@
             contentEl.innerHTML = '';
             contentEl.appendChild(img);
           } else {
-            renderAvatarInto(contentEl, avatarParts);
+            var fallbackEmoji = String(canon.emoji || studentProfileVM.avatar || '🌟').trim() || '🌟';
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.setAttribute('aria-hidden', 'true');
+            fallbackDiv.style.cssText = 'font-size:72px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%;';
+            fallbackDiv.textContent = fallbackEmoji;
+            contentEl.innerHTML = '';
+            contentEl.appendChild(fallbackDiv);
             requestAnimationFrame(function(){ revEl.classList.add('revealed'); });
           }
         }
@@ -2088,61 +1994,13 @@
       profileWired = true;
       var overlay = el('editProfileOverlay');
       var form = el('editProfileForm');
-      var avatarPicker = el('editProfileAvatarPicker');
       var framePicker = el('editProfileFramePicker');
       var themePicker = el('editProfileThemePicker');
       var featuredSelect = el('editProfileFeaturedPost');
-      var currentAvatarParts = null;
     var currentAvatarStatus = null;
     var avatarCropper = null;
     var avatarCropDataUrl = null;
     var avatarCropOpenGuard = false;
-
-      function buildAvatarPicker(selectedParts){
-        if (!avatarPicker) return;
-        var baseParts = selectedParts && typeof selectedParts === 'object'
-          ? normalizeAvatarParts(selectedParts)
-          : Object.assign({}, DEFAULT_AVATAR_PARTS);
-        currentAvatarParts = baseParts;
-        avatarPicker.innerHTML = '';
-
-        function buildRow(label, key, options){
-          var row = document.createElement('div');
-          row.className = 'cosmeticEquipRow';
-          var lbl = document.createElement('span');
-          lbl.style.color = 'var(--muted)';
-          lbl.style.fontWeight = '800';
-          lbl.textContent = label + ':';
-          row.appendChild(lbl);
-          options.forEach(function(opt){
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'cosmeticEquipBtn' + (baseParts[key] === opt.id ? ' equipped' : '');
-            btn.textContent = opt.label;
-            btn.style.width = 'auto';
-            btn.style.minWidth = '80px';
-            btn.dataset.value = opt.id;
-            btn.addEventListener('click', function(){
-              baseParts[key] = opt.id;
-              currentAvatarParts = normalizeAvatarParts(baseParts);
-              row.querySelectorAll('.cosmeticEquipBtn').forEach(function(b){ b.classList.remove('equipped'); });
-              btn.classList.add('equipped');
-              // live preview
-              var avatarContentEl = el('avatarContentEl');
-              if (avatarContentEl) renderAvatarInto(avatarContentEl, currentAvatarParts);
-            });
-            row.appendChild(btn);
-          });
-          avatarPicker.appendChild(row);
-        }
-
-        buildRow('Body', 'body', AVATAR_BODY_OPTIONS);
-        buildRow('Hair', 'hair', AVATAR_HAIR_OPTIONS);
-        buildRow('Face', 'face', AVATAR_FACE_OPTIONS);
-        buildRow('Top', 'top', AVATAR_TOP_OPTIONS);
-        buildRow('Bottom', 'bottom', AVATAR_BOTTOM_OPTIONS);
-        buildRow('Accessory', 'accessory', AVATAR_ACCESSORY_OPTIONS);
-      }
 
       function buildFramePicker(selected){
         if (!framePicker) return;
@@ -2412,10 +2270,6 @@
         var heroInput = el('editProfileHeroTitle');
         if (heroInput) heroInput.value = profile.hero_title || '';
         el('editProfileBio').value = profile.bio || '';
-        var avatarParts = (profile.avatar_parts && typeof profile.avatar_parts === 'object')
-          ? normalizeAvatarParts(profile.avatar_parts)
-          : getDefaultAvatarPartsFromEmoji(profile.avatar || (adopted && adopted.avatar) || '');
-        buildAvatarPicker(avatarParts);
         currentAvatarStatus = avatarStatus && avatarStatus.status ? avatarStatus.status : {};
         var uploadStatusEl = el('avatarUploadStatus');
         if (uploadStatusEl){
@@ -2525,15 +2379,6 @@
 
       if (el('editProfileCloseBtn')) el('editProfileCloseBtn').addEventListener('click', function(){ if (overlay) overlay.classList.remove('show'); });
       if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
-      var legacyToggle = el('legacyAvatarToggle');
-      var legacyContent = el('legacyAvatarContent');
-      if (legacyToggle && legacyContent){
-        legacyToggle.addEventListener('click', function(){
-          var isHidden = legacyContent.style.display === 'none';
-          legacyContent.style.display = isHidden ? 'block' : 'none';
-          legacyToggle.textContent = isHidden ? '▲ Legacy avatar (parts)' : '▼ Legacy avatar (parts)';
-        });
-      }
 
       function destroyAvatarCropper(){
         if (avatarCropper){
@@ -2720,12 +2565,10 @@
           var themeSel = themePicker && themePicker.querySelector('.opt.selected');
           var theme = themeSel ? themeSel.dataset.value : 'classic';
           var featuredPostId = featuredSelect ? (featuredSelect.value || '').trim() : '';
-          var avatarParts = currentAvatarParts || getDefaultAvatarPartsFromEmoji(adopted.avatar || '🌟');
           callSaveProfile(adopted.name, {
             display_name: displayName,
             hero_title: heroTitle,
             bio: bio,
-            avatar_parts: avatarParts,
             frame: frame,
             theme: theme,
             featured_post_id: featuredPostId

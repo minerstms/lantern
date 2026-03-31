@@ -385,122 +385,6 @@
     .profileHero.cosmetic-frame-champion .avatarFrame{ border-color: rgba(242,194,48,.9); box-shadow: 0 0 24px rgba(242,194,48,.3); }
     .profileHero.cosmetic-frame-nugget_seeker .avatarFrame{ border-color: rgba(242,194,48,.8); border-style: double; }
     .profileHero.cosmetic-frame-hallway_hero .avatarFrame{ border-color: rgba(156,100,255,.8); box-shadow: 0 0 20px rgba(156,100,255,.25); }
-    /* Roblox-esque 2D layered avatar: blocky, toy-like, game-character, front-facing */
-    .avatarFigure{
-      position: relative;
-      width: 128px;
-      height: 172px;
-      margin: 0 auto;
-      flex-shrink: 0;
-    }
-    .avatarHead{
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 52px;
-      height: 52px;
-      border-radius: 14px;
-      background: #f2c7a5;
-      box-shadow: inset 0 -3px 0 rgba(0,0,0,.1), 0 4px 8px rgba(0,0,0,.25);
-    }
-    .avatarBody{
-      position: absolute;
-      top: 48px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 64px;
-      height: 48px;
-      border-radius: 12px;
-      background: #1e63d6;
-      box-shadow: inset 0 -3px 0 rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.2);
-    }
-    .avatarBottom{
-      position: absolute;
-      top: 94px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60px;
-      height: 58px;
-      border-radius: 10px;
-      background: #2c3e50;
-      box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), 0 2px 4px rgba(0,0,0,.18);
-    }
-    .avatarFeet{
-      position: absolute;
-      top: 148px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 56px;
-      height: 18px;
-      border-radius: 50% 50% 8px 8px;
-      background: #1a1a1a;
-      box-shadow: inset 0 -2px 0 rgba(0,0,0,.3), 0 2px 4px rgba(0,0,0,.25);
-    }
-    .avatarHair{
-      position: absolute;
-      top: -2px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 58px;
-      height: 32px;
-      border-radius: 16px 16px 12px 12px;
-      background: #5b3b2a;
-      box-shadow: inset 0 -2px 0 rgba(0,0,0,.1);
-    }
-    .avatarFace{
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 32px;
-      height: 16px;
-      border-radius: 0 0 16px 16px;
-      border-bottom: 3px solid rgba(0,0,0,.5);
-    }
-    .avatarEye{
-      position: absolute;
-      top: 14px;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: rgba(0,0,0,.65);
-    }
-    .avatarEye.left{ left: 50%; margin-left: -12px; }
-    .avatarEye.right{ left: 50%; margin-left: 6px; }
-    .avatarAccessoryIcon{
-      position: absolute;
-      top: 4px;
-      right: 2px;
-      font-size: 20px;
-    }
-    .avatarFigure.body-light .avatarHead{ background: #f8d0b4; }
-    .avatarFigure.body-medium .avatarHead{ background: #e0a97a; }
-    .avatarFigure.body-deep .avatarHead{ background: #9a5a32; }
-    .avatarFigure.top-hoodie_blue .avatarBody{ background: #1e63d6; }
-    .avatarFigure.top-hoodie_purple .avatarBody{ background: #7b3fe4; }
-    .avatarFigure.top-tee_orange .avatarBody{ background: #ff9f43; }
-    .avatarFigure.top-tee_green .avatarBody{ background: #2ecc71; }
-    .avatarFigure.bottom-jeans .avatarBottom{ background: #2c5282; }
-    .avatarFigure.bottom-black .avatarBottom{ background: #1b1b1f; }
-    .avatarFigure.bottom-black .avatarFeet{ background: #0d0d0d; }
-    .avatarFigure.bottom-grey .avatarBottom{ background: #4a5568; }
-    .avatarFigure.bottom-red .avatarBottom{ background: #c53030; }
-    .avatarFigure.hair-brown_short .avatarHair{ background: #5b3b2a; height: 28px; }
-    .avatarFigure.hair-black_curly .avatarHair{ background: #1b1b1f; height: 30px; }
-    .avatarFigure.hair-blonde_long .avatarHair{ background: #f6d96b; height: 32px; }
-    .avatarFigure.hair-red_bun .avatarHair{ background: #d35400; height: 24px; }
-    .avatarFigure.face-confident .avatarFace{ border-bottom-width: 2px; }
-    .avatarFigure.face-thoughtful .avatarFace{ width: 22px; }
-    .avatarFigure.accessory-headphones .avatarAccessoryIcon::before{
-      content: '🎧';
-    }
-    .avatarFigure.accessory-glasses .avatarAccessoryIcon::before{
-      content: '👓';
-    }
-    .avatarFigure.accessory-star_pin .avatarAccessoryIcon::before{
-      content: '⭐';
-    }
     .cosmeticBadge{ position: absolute; top: -4px; left: -4px; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.3); display: flex; align-items: center; justify-content: center; font-size: 26px; pointer-events: none; }
     .cosmeticAccessory{ position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 36px; pointer-events: none; z-index: 2; }
     .cosmeticDecoration{ margin-top: -8px; font-size: 32px; pointer-events: none; opacity: .9; }
@@ -1727,13 +1611,6 @@
             <div id="avatarUploadStatus" style="margin-top:8px; font-size:19px; color:var(--muted); text-align:left;"></div>
             <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
           </div>
-          <div class="legacyAvatarSection" style="display:none; margin:12px 0;" aria-hidden="true">
-            <button type="button" class="btn small" id="legacyAvatarToggle" style="width:100%; text-align:left; justify-content:flex-start;">▼ Legacy avatar (parts)</button>
-            <div id="legacyAvatarContent" style="display:none; margin-top:10px;">
-              <label>Avatar parts</label>
-              <div class="avatarPicker" id="editProfileAvatarPicker"></div>
-            </div>
-          </div>
           <label>Profile frame</label>
           <div class="framePicker" id="editProfileFramePicker"></div>
           <label>Profile theme</label>
@@ -2479,7 +2356,6 @@
     var submissionsStatusFilter = 'all';
     var currentProfile = null;
     var TYPE_ICONS = { image: '📷', link: '🔗', video: '🎬', webapp: '📱', project: '📂' };
-    var AVATAR_OPTIONS = ['🌟','⭐','✨','🎯','🚀','🎨','📚','🔥','💡','🌈']; // legacy emoji choices
     var FRAME_OPTIONS = [{ v: 'none', l: 'None' }, { v: 'gold', l: 'Gold' }, { v: 'blue', l: 'Blue' }, { v: 'green', l: 'Green' }, { v: 'purple', l: 'Purple' }];
     /* Supported profile themes: internal key and user-facing name. Same set drives body[data-theme] and hero theme tint/cards. */
     var THEME_OPTIONS = [
@@ -2489,51 +2365,6 @@
       { v: 'forest', l: 'Forest Green' },
       { v: 'violet', l: 'Cosmic Violet' }
     ];
-
-    // Avatar builder part options (first version)
-    var AVATAR_BODY_OPTIONS = [
-      { id: 'light', label: 'Light' },
-      { id: 'medium', label: 'Medium' },
-      { id: 'deep', label: 'Deep' },
-    ];
-    var AVATAR_HAIR_OPTIONS = [
-      { id: 'brown_short', label: 'Short Brown' },
-      { id: 'black_curly', label: 'Curly Black' },
-      { id: 'blonde_long', label: 'Long Blonde' },
-      { id: 'red_bun', label: 'Red Bun' },
-    ];
-    var AVATAR_FACE_OPTIONS = [
-      { id: 'smile', label: 'Smile' },
-      { id: 'confident', label: 'Confident' },
-      { id: 'thoughtful', label: 'Thoughtful' },
-    ];
-    var AVATAR_TOP_OPTIONS = [
-      { id: 'hoodie_blue', label: 'Blue Hoodie' },
-      { id: 'hoodie_purple', label: 'Purple Hoodie' },
-      { id: 'tee_orange', label: 'Orange Tee' },
-      { id: 'tee_green', label: 'Green Tee' },
-    ];
-    var AVATAR_BOTTOM_OPTIONS = [
-      { id: 'jeans', label: 'Jeans' },
-      { id: 'black', label: 'Black Pants' },
-      { id: 'grey', label: 'Grey Pants' },
-      { id: 'red', label: 'Red Pants' },
-    ];
-    var AVATAR_ACCESSORY_OPTIONS = [
-      { id: 'none', label: 'None' },
-      { id: 'headphones', label: 'Headphones' },
-      { id: 'glasses', label: 'Glasses' },
-      { id: 'star_pin', label: 'Star Pin' },
-    ];
-
-    var DEFAULT_AVATAR_PARTS = {
-      body: 'medium',
-      hair: 'brown_short',
-      face: 'smile',
-      top: 'hoodie_blue',
-      bottom: 'jeans',
-      accessory: 'none',
-    };
 
     function buildUrlBlock(p){
       var safeUrl = esc(p.url || '');
@@ -3239,57 +3070,6 @@
     }
 
     /* ===== PRESERVED: showProfile with new layout ===== */
-    function normalizeAvatarParts(parts){
-      var p = parts && typeof parts === 'object' ? parts : {};
-      var body = p.body || DEFAULT_AVATAR_PARTS.body;
-      var hair = p.hair || DEFAULT_AVATAR_PARTS.hair;
-      var face = p.face || DEFAULT_AVATAR_PARTS.face;
-      var top = p.top || DEFAULT_AVATAR_PARTS.top;
-      var bottom = p.bottom || DEFAULT_AVATAR_PARTS.bottom;
-      var accessory = p.accessory || DEFAULT_AVATAR_PARTS.accessory;
-      return { body: body, hair: hair, face: face, top: top, bottom: bottom, accessory: accessory };
-    }
-
-    function getDefaultAvatarPartsFromEmoji(emoji){
-      // Simple mapping from legacy emoji avatar to reasonable defaults
-      var e = String(emoji || '').trim();
-      if (!e) return Object.assign({}, DEFAULT_AVATAR_PARTS);
-      if (e === '🚀' || e === '🎯') return { body: 'medium', hair: 'brown_short', face: 'confident', top: 'hoodie_blue', bottom: 'jeans', accessory: 'none' };
-      if (e === '🎨' || e === '🌈') return { body: 'light', hair: 'blonde_long', face: 'smile', top: 'tee_orange', bottom: 'red', accessory: 'star_pin' };
-      if (e === '📚' || e === '💡') return { body: 'deep', hair: 'black_curly', face: 'thoughtful', top: 'tee_green', bottom: 'black', accessory: 'glasses' };
-      return Object.assign({}, DEFAULT_AVATAR_PARTS);
-    }
-
-    function buildAvatarFigureHTML(parts){
-      var p = normalizeAvatarParts(parts);
-      var cls = [
-        'avatarFigure',
-        'body-' + p.body,
-        'hair-' + p.hair,
-        'face-' + p.face,
-        'top-' + p.top,
-        'bottom-' + (p.bottom || 'jeans'),
-        p.accessory && p.accessory !== 'none' ? ('accessory-' + p.accessory) : 'accessory-none'
-      ].join(' ');
-      return '<div class="' + cls + '">' +
-        '<div class="avatarHead">' +
-          '<div class="avatarHair"></div>' +
-          '<div class="avatarFace"></div>' +
-          '<div class="avatarEye left"></div>' +
-          '<div class="avatarEye right"></div>' +
-          '<div class="avatarAccessoryIcon"></div>' +
-        '</div>' +
-        '<div class="avatarBody"></div>' +
-        '<div class="avatarBottom"></div>' +
-        '<div class="avatarFeet"></div>' +
-      '</div>';
-    }
-
-    function renderAvatarInto(el, parts){
-      if (!el) return;
-      el.innerHTML = buildAvatarFigureHTML(parts);
-    }
-
     /* Profile contains multiple optional feature modules; one failing module should not break the whole page. */
     function safeProfileStep(label, fn){
       try { fn(); } catch (err) { console.error('[Profile]', label, 'failed', err); }
@@ -3435,9 +3215,6 @@
         applyProfileHeroIdentity(studentProfileVM);
         el('bioEl').textContent = studentProfileVM.motto || 'Add a bio or tagline';
         el('bioEl').classList.toggle('placeholder', !studentProfileVM.motto);
-        var avatarParts = (p.avatar_parts && typeof p.avatar_parts === 'object')
-          ? normalizeAvatarParts(p.avatar_parts)
-          : getDefaultAvatarPartsFromEmoji(studentProfileVM.avatar);
         var contentEl = el('avatarContentEl');
         var revEl = el('avatarRevealEl');
         if (contentEl && revEl) {
@@ -3451,7 +3228,13 @@
             contentEl.innerHTML = '';
             contentEl.appendChild(img);
           } else {
-            renderAvatarInto(contentEl, avatarParts);
+            var fallbackEmoji = String(canon.emoji || studentProfileVM.avatar || '🌟').trim() || '🌟';
+            var fallbackDiv = document.createElement('div');
+            fallbackDiv.setAttribute('aria-hidden', 'true');
+            fallbackDiv.style.cssText = 'font-size:72px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%;';
+            fallbackDiv.textContent = fallbackEmoji;
+            contentEl.innerHTML = '';
+            contentEl.appendChild(fallbackDiv);
             requestAnimationFrame(function(){ revEl.classList.add('revealed'); });
           }
         }
@@ -3768,61 +3551,13 @@
       profileWired = true;
       var overlay = el('editProfileOverlay');
       var form = el('editProfileForm');
-      var avatarPicker = el('editProfileAvatarPicker');
       var framePicker = el('editProfileFramePicker');
       var themePicker = el('editProfileThemePicker');
       var featuredSelect = el('editProfileFeaturedPost');
-      var currentAvatarParts = null;
     var currentAvatarStatus = null;
     var avatarCropper = null;
     var avatarCropDataUrl = null;
     var avatarCropOpenGuard = false;
-
-      function buildAvatarPicker(selectedParts){
-        if (!avatarPicker) return;
-        var baseParts = selectedParts && typeof selectedParts === 'object'
-          ? normalizeAvatarParts(selectedParts)
-          : Object.assign({}, DEFAULT_AVATAR_PARTS);
-        currentAvatarParts = baseParts;
-        avatarPicker.innerHTML = '';
-
-        function buildRow(label, key, options){
-          var row = document.createElement('div');
-          row.className = 'cosmeticEquipRow';
-          var lbl = document.createElement('span');
-          lbl.style.color = 'var(--muted)';
-          lbl.style.fontWeight = '800';
-          lbl.textContent = label + ':';
-          row.appendChild(lbl);
-          options.forEach(function(opt){
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'cosmeticEquipBtn' + (baseParts[key] === opt.id ? ' equipped' : '');
-            btn.textContent = opt.label;
-            btn.style.width = 'auto';
-            btn.style.minWidth = '80px';
-            btn.dataset.value = opt.id;
-            btn.addEventListener('click', function(){
-              baseParts[key] = opt.id;
-              currentAvatarParts = normalizeAvatarParts(baseParts);
-              row.querySelectorAll('.cosmeticEquipBtn').forEach(function(b){ b.classList.remove('equipped'); });
-              btn.classList.add('equipped');
-              // live preview
-              var avatarContentEl = el('avatarContentEl');
-              if (avatarContentEl) renderAvatarInto(avatarContentEl, currentAvatarParts);
-            });
-            row.appendChild(btn);
-          });
-          avatarPicker.appendChild(row);
-        }
-
-        buildRow('Body', 'body', AVATAR_BODY_OPTIONS);
-        buildRow('Hair', 'hair', AVATAR_HAIR_OPTIONS);
-        buildRow('Face', 'face', AVATAR_FACE_OPTIONS);
-        buildRow('Top', 'top', AVATAR_TOP_OPTIONS);
-        buildRow('Bottom', 'bottom', AVATAR_BOTTOM_OPTIONS);
-        buildRow('Accessory', 'accessory', AVATAR_ACCESSORY_OPTIONS);
-      }
 
       function buildFramePicker(selected){
         if (!framePicker) return;
@@ -4092,10 +3827,6 @@
         var heroInput = el('editProfileHeroTitle');
         if (heroInput) heroInput.value = profile.hero_title || '';
         el('editProfileBio').value = profile.bio || '';
-        var avatarParts = (profile.avatar_parts && typeof profile.avatar_parts === 'object')
-          ? normalizeAvatarParts(profile.avatar_parts)
-          : getDefaultAvatarPartsFromEmoji(profile.avatar || (adopted && adopted.avatar) || '');
-        buildAvatarPicker(avatarParts);
         currentAvatarStatus = avatarStatus && avatarStatus.status ? avatarStatus.status : {};
         var uploadStatusEl = el('avatarUploadStatus');
         if (uploadStatusEl){
@@ -4205,15 +3936,6 @@
 
       if (el('editProfileCloseBtn')) el('editProfileCloseBtn').addEventListener('click', function(){ if (overlay) overlay.classList.remove('show'); });
       if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
-      var legacyToggle = el('legacyAvatarToggle');
-      var legacyContent = el('legacyAvatarContent');
-      if (legacyToggle && legacyContent){
-        legacyToggle.addEventListener('click', function(){
-          var isHidden = legacyContent.style.display === 'none';
-          legacyContent.style.display = isHidden ? 'block' : 'none';
-          legacyToggle.textContent = isHidden ? '▲ Legacy avatar (parts)' : '▼ Legacy avatar (parts)';
-        });
-      }
 
       function destroyAvatarCropper(){
         if (avatarCropper){
@@ -4400,12 +4122,10 @@
           var themeSel = themePicker && themePicker.querySelector('.opt.selected');
           var theme = themeSel ? themeSel.dataset.value : 'classic';
           var featuredPostId = featuredSelect ? (featuredSelect.value || '').trim() : '';
-          var avatarParts = currentAvatarParts || getDefaultAvatarPartsFromEmoji(adopted.avatar || '🌟');
           callSaveProfile(adopted.name, {
             display_name: displayName,
             hero_title: heroTitle,
             bio: bio,
-            avatar_parts: avatarParts,
             frame: frame,
             theme: theme,
             featured_post_id: featuredPostId

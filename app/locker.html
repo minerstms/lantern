@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <!-- ===== TMS Lantern — Locker (native: Overview + Items + Store) ===== -->
-<html class="lantern-pilot-auth-pending">
+<html>
 <head>
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
-  <script src="js/lantern-pilot-auth.js"></script>
-  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Locker</title>
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">
@@ -95,7 +93,7 @@
     <!-- Locker tabpanel: Overview (#lockerPanelOverview) — profile .section / .sectionHd / .sectionBd + profile CSS; body = overviewMain slice. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
     <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabOverview" data-locker-surface="overview">
     <!-- ===== STUDENT PICKER (when no student selected) ===== -->
-    <div id="pickerCard" class="card" style="display:none;">
+    <div id="pickerCard" class="card">
       <div class="cardHd">
         <div class="h">Select Student</div>
       </div>
@@ -115,15 +113,6 @@
     <script>
     (function(){ var list=document.getElementById('characterList'); if(list){ list.querySelectorAll('.adopt-char-btn').forEach(function(btn){ btn.onclick=function(){ try{ var c={character_id:btn.dataset.id,name:btn.dataset.name,avatar:btn.dataset.avatar||'🌟'}; localStorage.setItem('LANTERN_ADOPTED_CHARACTER',JSON.stringify(c)); location.reload(); }catch(e){} }; }); } })();
     </script>
-
-    <div id="pilotLockerNeedCharacter" class="card" style="display:none;">
-      <div class="cardHd">
-        <div class="h">Profile</div>
-      </div>
-      <div class="cardBd">
-        <p class="note">No student character is linked to this pilot account yet. An operator can set <code>student_character_name</code> on the account, or add <strong>?devPicker=1</strong> to this page URL to show the local test student picker.</p>
-      </div>
-    </div>
 
     <!-- Create Test Student modal: temporary tester identity -->
     <div class="overlay" id="createTestStudentOverlay" style="display:none;">
@@ -520,13 +509,6 @@
             <div id="avatarUploadStatus" style="margin-top:8px; font-size:19px; color:var(--muted); text-align:left;"></div>
             <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
           </div>
-          <div class="legacyAvatarSection" style="display:none; margin:12px 0;" aria-hidden="true">
-            <button type="button" class="btn small" id="legacyAvatarToggle" style="width:100%; text-align:left; justify-content:flex-start;">▼ Legacy avatar (parts)</button>
-            <div id="legacyAvatarContent" style="display:none; margin-top:10px;">
-              <label>Avatar parts</label>
-              <div class="avatarPicker" id="editProfileAvatarPicker"></div>
-            </div>
-          </div>
           <label>Profile frame</label>
           <div class="framePicker" id="editProfileFramePicker"></div>
           <label>Profile theme</label>
@@ -608,37 +590,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script>
-  (function(){
-    window.LANTERN_DEV_STUDENT_PICKER = /[\?&]devPicker=1(?:&|$)/.test(location.search);
-    if (!window.LanternPilotAuth) {
-      document.documentElement.classList.remove('lantern-pilot-auth-pending');
-      return;
-    }
-    window.LanternPilotAuth.fetchMe().then(function(data){
-      if (!data || !data.ok || !data.authenticated) {
-        location.replace(window.LanternPilotAuth.loginUrlWithReturn());
-        return;
-      }
-      var r = (data.role || '').trim();
-      if (r === 'admin') {
-        location.replace('/admin');
-        return;
-      }
-      if (r === 'teacher') {
-        location.replace('/teacher');
-        return;
-      }
-      document.documentElement.classList.remove('lantern-pilot-auth-pending');
-      window.LanternPilotAuth.applyStudentStorageFromSession(data);
-      var devPicker = window.LANTERN_DEV_STUDENT_PICKER === true;
-      var pc = document.getElementById('pickerCard');
-      if (devPicker && pc) pc.style.display = '';
-      var cts = document.getElementById('createTestStudentBtn');
-      if (cts && !devPicker) cts.style.display = 'none';
-    });
-  })();
-  </script>
   <script src="sfx.js"></script>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-data.js"></script>
