@@ -1,0 +1,58 @@
+/* Shared ticker: topmost, full width, no pill/chip. Solid background for readability.
+   Canonical strip (Display / Explore): keep rhythm stable when the track is empty vs full. */
+#lanternTicker{
+  flex-shrink: 0;
+  width: 100%;
+}
+.lanternTicker{
+  width: 100%;
+  flex-shrink: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 8px 0;
+  background: #0f2744;
+  border-bottom: 2px solid rgba(255,255,255,.18);
+  overflow: hidden;
+}
+.lanternTickerWrap{
+  width: 100%;
+  overflow: hidden;
+}
+.lanternTickerTrack{
+  display: flex;
+  width: max-content;
+  align-items: center;
+  white-space: nowrap;
+  animation: lanternTickerScroll 360s linear infinite;
+}
+.lanternTickerTrack:hover{ animation-play-state: paused; }
+.lanternTickerTrack .lanternTickerCopy{ display: flex; flex-shrink: 0; align-items: center; }
+.lanternTickerItem{
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 clamp(20px, 2.5vw, 40px);
+  font-size: clamp(18px, 2.4vmin, 26px);
+  font-weight: 900;
+  color: #b9c6ea;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.lanternTickerItem span.lanternTickerText{ color: #eaf0ff; }
+.lanternTickerItemIcon{ display: inline-flex; align-items: center; flex-shrink: 0; }
+.lanternTickerItemIcon img{ width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
+.lanternTickerItemAvatar{
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: block;
+}
+.lanternTickerItemAvatar[src=""],
+.lanternTickerItemAvatar:not([src]){ display: none; }
+@keyframes lanternTickerScroll{
+  0%{ transform: translateX(0); }
+  100%{ transform: translateX(-50%); }
+}

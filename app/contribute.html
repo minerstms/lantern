@@ -1,0 +1,2892 @@
+<!-- ===== TMS Lantern — Contribute (Share News or Complete a Mission) ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TMS Lantern — Contribute</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-rails.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="stylesheet" href="css/lantern-reactions.css">
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --bad:#ff4d6d;
+      --line: rgba(255,255,255,.12);
+      --r: 18px;
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --fsBase: 22px;
+    }
+    *{box-sizing:border-box}
+    html,body{ min-height: 100%; margin: 0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    a{color:inherit}
+    /* Outer shell: lantern-header.css .wrap.lanternContent (same max-width + gutters as Lantern / Locker / Play) */
+    .wrap.lanternContent{ position: relative; }
+    /*
+     * Top chrome is NOT authored here — it is injected by js/lantern-nav.js into #lanternAppBarRoot (same as explore.html).
+     * Scope ALL form-field rules to .wrap.lanternContent so unscoped input[type="text"] cannot override the pill search
+     * (.lanternAppBarSearchInput) in the shared app bar.
+     */
+    .card{
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cardHd{ padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; }
+    .cardHd .h{ font-weight: 900; font-size: 26px; letter-spacing: .2px; }
+    .cardHdMini{ margin: 0; font-size: 20px; font-weight: 800; color: var(--muted); line-height: 1.35; max-width: 100%; }
+    .cardBd{ padding: 16px; }
+    #contributeUnifiedBd.cardBd{ padding: 10px 12px 12px; }
+    .wrap.lanternContent label{ display: block; font-weight: 800; color: var(--muted); font-size: 22px; margin: 0 0 6px 2px; }
+    .wrap.lanternContent input[type="text"],
+    .wrap.lanternContent select,
+    .wrap.lanternContent textarea,
+    .wrap.lanternContent input[type="url"]{
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--ink);
+      font-size: 22px;
+      font-family: inherit;
+    }
+    .wrap.lanternContent textarea{ min-height: 160px; resize: vertical; line-height: 1.5; }
+    .btn{
+      height: 56px;
+      padding: 0 24px;
+      border-radius: 14px;
+      border: 2px solid rgba(90,167,255,.4);
+      background: linear-gradient(180deg, rgba(90,167,255,.2), rgba(90,167,255,.08));
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.good{ border-color: rgba(56,208,124,.5); background: linear-gradient(180deg, rgba(56,208,124,.25), rgba(56,208,124,.1)); }
+    .btn.small{ padding: 6px 14px; font-size: 20px; height: auto; }
+    .btn.bad{ border-color: rgba(255,77,109,.5); background: linear-gradient(180deg, rgba(255,77,109,.2), rgba(255,77,109,.08)); }
+    .btn:disabled{ opacity: .5; cursor: not-allowed; filter: grayscale(0.4); }
+    .chooserGrid{ display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+    .chooserCard{
+      padding: 32px 24px;
+      border-radius: var(--r);
+      border: 2px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      text-align: center;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .chooserCard:hover{ transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.3); border-color: var(--accent); }
+    .chooserCard .icon{ font-size: 48px; margin-bottom: 12px; }
+    .chooserCard .title{ font-weight: 900; font-size: 28px; margin-bottom: 8px; }
+    .chooserCard .sub{ color: var(--muted); font-size: 22px; }
+    .toast{
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 24px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.85);
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      z-index: 9998;
+      display: none;
+    }
+    .newsImageDrop{ border: 2px dashed var(--line); border-radius: 14px; padding: 16px; background: rgba(0,0,0,.2); min-height: 100px; }
+    .newsImagePlaceholder{ color: var(--muted); font-size: 22px; text-align: center; padding: 20px; cursor: pointer; }
+    .newsImagePreviewWrap{ text-align: center; }
+    .newsImagePreviewWrap img{ max-width: 100%; max-height: 240px; border-radius: 12px; display: block; margin: 0 auto 10px; }
+    .newsImageActions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .cropperModal{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.85);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .cropperModal .cropperBox{ background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; max-width: 100%; max-height: 90vh; overflow: auto; }
+    .cropperModal .cropperTitle{ font-weight: 900; font-size: 26px; margin-bottom: 14px; }
+    .cropperModal .cropperImgWrap{ max-height: 60vh; margin: 0 auto 14px; background: #000; border-radius: 10px; overflow: hidden; }
+    .cropperModal .cropperImgWrap img{ max-width: 100%; display: block; }
+    .cropperModal .cropperActions{ display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    /* Mission picker: same lane label grammar as explore.html (sectionSubLane + .lanternScroller) */
+    .sectionSubLane{ font-size: 20px; font-weight: 800; margin-bottom: 8px; margin-top: 0; padding: 4px 0 0; line-height: 1.35; color: var(--muted); }
+    .sectionPlaceholder{ color: var(--muted); font-size: 22px; padding: 12px 0; }
+    .overlay{ position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .overlay.show{ display: flex; }
+    .modal{ background: var(--panel); border-radius: var(--r); padding: 20px; max-width: 480px; width: 100%; border: 1px solid var(--line); max-height: 90vh; overflow: auto; }
+    .modalHd{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .modalHd .h{ font-weight: 1000; font-size: 26px; }
+    .modalHd .x{ background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; padding: 4px; }
+    .missionCropperModal{ position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .missionCropperModal .missionCropperBox{ background: var(--panel); border-radius: var(--r); padding: 20px; max-width: 100%; width: 100%; max-width: 520px; border: 1px solid var(--line); }
+    .missionCropperModal .missionCropperTitle{ font-weight: 900; font-size: 26px; margin-bottom: 14px; }
+    .missionCropperModal .missionCropperImgWrap{ max-height: 60vh; margin: 0 auto 14px; background: #000; border-radius: 10px; overflow: hidden; }
+    .missionCropperModal .missionCropperImgWrap img{ max-width: 100%; display: block; }
+    .missionCropperModal .missionCropperActions{ display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .missionSubmitImageDrop{ border: 2px dashed var(--line); border-radius: var(--r); background: rgba(0,0,0,.2); padding: 16px; margin-top: 8px; margin-bottom: 8px; }
+    .missionSubmitImagePlaceholder{ cursor: pointer; font-size: 22px; font-weight: 800; color: var(--muted); text-align: center; padding: 12px 0; }
+    .missionSubmitImageDrop.dragover{ border-color: var(--accent); background: rgba(90,167,255,.08); }
+    .missionSubmitImagePreviewWrap{ margin-top: 8px; }
+    .missionSubmitImagePreviewWrap img{ max-height: 200px; max-width: 100%; border-radius: 12px; display: block; }
+    .missionSubmitImageActions{ margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .missionMediaPreviewWrap{ margin-top: 10px; }
+    .missionVideoPreview video{ max-height: 360px; max-width: 100%; border-radius: 12px; display: block; }
+    .missionLinkPreviewCard{ margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); font-size: 20px; }
+    .missionLinkPreviewCard a{ font-weight: 800; word-break: break-all; }
+
+    .contributeNewsInner{ display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px; }
+    .contributeNewsFormCol{ flex: 1 1 320px; min-width: 0; }
+    .contributeNewsPreviewCol{ flex: 0 0 320px; min-width: 280px; }
+    @media (max-width: 700px){ .contributeNewsPreviewCol{ flex: 1 1 100%; } }
+    .contributeNewsPreviewLabel{ font-weight: 900; font-size: 22px; color: var(--muted); margin-bottom: 10px; }
+    .contributeNewsPreviewCard{ min-height: 120px; }
+    .newsItem{ padding: 18px; margin-bottom: 0; border-radius: var(--r); border: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); }
+    .newsItem .newsTitle{ font-weight: 900; font-size: 26px; line-height: 1.2; margin-bottom: 8px; }
+    .newsItem .newsBody{ font-size: 22px; line-height: 1.45; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+    .newsItem .newsMeta{ font-size: 20px; color: var(--muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .newsItem .newsByline{ font-size: 22px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .newsItem .authorBadge{ display: inline-block; padding: 6px 12px; border-radius: 8px; font-weight: 900; font-size: 18px; }
+    .newsItem .authorBadge.student{ background: rgba(90,167,255,.2); border: 1px solid rgba(90,167,255,.4); }
+    .newsItem .authorBadge.teacher{ background: rgba(56,208,124,.2); border: 1px solid rgba(56,208,124,.4); }
+    .newsItem .authorBadge.staff{ background: rgba(156,100,255,.2); border: 1px solid rgba(156,100,255,.4); }
+    .newsItem .authorBadge.admin{ background: rgba(242,194,48,.2); border: 1px solid rgba(242,194,48,.4); }
+    .newsItem .newsCategory{ font-weight: 800; color: var(--accent); }
+    .newsItem .newsCardImageWrap{ margin-bottom: 12px; }
+    .newsItem .newsCardImage{ max-width: 100%; height: auto; border-radius: 12px; display: block; }
+    .newsItem .newsCardVideoWrap video{ max-width: 100%; max-height: 200px; border-radius: 12px; border: 1px solid var(--line); }
+    .newsItem .newsCardLinkWrap{ padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,.2); margin-bottom: 12px; }
+    .missionSubmitPreviewWrap{ margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .missionSubmitPreviewLabel{ font-weight: 900; font-size: 22px; color: var(--muted); margin-bottom: 10px; }
+    .studioShell{
+      border-radius: var(--r);
+      padding: 10px;
+      margin-top: 6px;
+      transition: box-shadow .35s ease, background .4s ease;
+      --completion: 0;
+    }
+    .studioShell[data-completion="0"]{ box-shadow: 0 0 0 1px rgba(255,255,255,.06); }
+    .studioShell[data-completion="1"]{ box-shadow: 0 0 20px rgba(90,167,255,.12); }
+    .studioShell[data-completion="2"]{ box-shadow: 0 0 28px rgba(90,167,255,.2); }
+    .studioShell[data-completion="3"]{ box-shadow: 0 0 36px rgba(56,208,124,.18); }
+    .studioShell.studio-ready-pulse{ animation: studioReadyBloom .9s ease-out; }
+    @keyframes studioReadyBloom{
+      0%{ box-shadow: 0 0 20px rgba(56,208,124,.3); }
+      50%{ box-shadow: 0 0 48px rgba(56,208,124,.45); }
+      100%{ box-shadow: 0 0 24px rgba(90,167,255,.15); }
+    }
+    .studioSparkleHost{ position: relative; }
+    .studioSparkle{
+      position: absolute; width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,.85); pointer-events: none; opacity: 0;
+      animation: studioSparklePop .7s ease-out forwards;
+    }
+    @keyframes studioSparklePop{
+      0%{ opacity: 0; transform: scale(0); }
+      30%{ opacity: 1; transform: scale(1.2); }
+      100%{ opacity: 0; transform: scale(0.3) translateY(-20px); }
+    }
+    /* 3-panel studio: breakout at #contributeWriteWrap so overflow:hidden ancestors do not clip side panes */
+    .containerStudio3Panel.studioThreeCols{
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: stretch;
+    }
+    /* Contribute Studio: fixed rows — base (applies all breakpoints; desktop refines in @media 900px) */
+    .contributeCenterInner{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .contributeMediaRow{
+      margin-top: 0;
+      padding-bottom: 4px;
+    }
+    .contributeCenterRow2{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px 14px;
+      align-items: start;
+      min-width: 0;
+    }
+    .contributeCreateFullRow{
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
+    @media (min-width: 720px){
+      .contributeCenterRow2{ grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+    }
+    .contributeSlotLeft,
+    .contributeSlotRight{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .missionSelectedMeta{
+      font-size: 20px;
+      line-height: 1.35;
+    }
+    /* Mission flow: State A = full-width picker rail only; State B = meta + response (no center rail) */
+    .missionPickerState{
+      display: none;
+      grid-column: 1 / -1;
+      width: 100%;
+      min-width: 0;
+      margin-bottom: 6px;
+    }
+    .contributeMainStudioRow.mission-flow-pick .contributeSlotLeft,
+    .contributeMainStudioRow.mission-flow-pick .contributeSlotRight{
+      display: none !important;
+    }
+    .contributeMainStudioRow.mission-flow-respond .missionPickerState{
+      display: none !important;
+    }
+    /* Card-parity: title → identity/category → body (matches opened news card order) */
+    #contributeNewsTitleBlock{
+      margin-bottom: 0;
+    }
+    #contributePostIdentityAuthor,
+    #contributePostIdentityCategory{
+      margin-bottom: 0;
+    }
+    /* Primary body: compact but readable; canonical card body is below title/identity on preview */
+    #contributeUnifiedBd textarea.studioBodyInput{
+      min-height: 120px !important;
+    }
+    #contributeUnifiedBd #profilePostCaption.studioBodyInput{
+      min-height: 88px !important;
+    }
+    #contributeUnifiedBd #newsTitle.studioHeadlineInput,
+    #contributeUnifiedBd input.studioHeadlineInput{
+      min-height: 52px;
+    }
+    .studioColLeft .studioSidePanelBd{
+      align-items: stretch;
+    }
+    /* Mobile: stack — Create first, then stream, then opened */
+    @media (max-width: 899px){
+      #contributeWriteWrap{
+        width: auto;
+        max-width: none;
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .containerStudio3Panel.studioThreeCols .studioColCenter{ order: -1; width: 100%; }
+      .containerStudio3Panel.studioThreeCols .studioColLeft{ order: 0; width: 100%; }
+      .containerStudio3Panel.studioThreeCols .studioColRight{ order: 1; width: 100%; }
+    }
+    /* Tablet + desktop: full-bleed write wrap + inner row fills it (avoids clip inside 980px .wrap) */
+    @media (min-width: 900px){
+      #contributeWriteWrap{
+        width: 100vw;
+        max-width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        padding-left: max(var(--lantern-pad-x), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--lantern-pad-x), env(safe-area-inset-right, 0px));
+        box-sizing: border-box;
+      }
+      #creationStudioShell{
+        width: 100%;
+        max-width: none;
+        margin-left: 0;
+        margin-right: 0;
+      }
+      .containerStudio3Panel.studioThreeCols{
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        gap: 16px 24px;
+        width: 100%;
+        max-width: none;
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
+        box-sizing: border-box;
+      }
+      .containerStudio3Panel.studioThreeCols .studioColLeft,
+      .containerStudio3Panel.studioThreeCols .studioColCenter,
+      .containerStudio3Panel.studioThreeCols .studioColRight{
+        order: 0;
+        min-width: 0;
+      }
+      .studioColLeft,
+      .studioColRight{
+        flex: 1 1 0;
+        min-width: 160px;
+        overflow-x: visible;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .studioColCenter{
+        flex: 0 0 auto;
+        width: min(100%, var(--lantern-page-max-width));
+        max-width: var(--lantern-page-max-width);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      /* Stage: opened preview fills pane (same surface contract as Explore) */
+      .studioColRight .studioSidePanelBd--preview{
+        align-items: stretch;
+      }
+      .studioColRight .studioOpenedPreviewHost{
+        width: 100%;
+        max-width: 100%;
+      }
+      .studioColCenter .studioCenterCard{
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        margin-top: 0;
+      }
+      .studioColCenter .studioCenterCard .cardHd{ flex-shrink: 0; }
+      .studioColCenter .studioCenterCard .cardBd.studioCenterScroll{
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: visible;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+      }
+      /* Center panel interior: two-column band — grid columns refined globally + 720px */
+      .contributeCenterRow2{
+        grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+      }
+      .contributeCenterColA,
+      .contributeCenterColB{
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+      }
+      .contributeVariantFields2col{
+        display: grid;
+        grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+        gap: 8px 14px;
+        align-items: start;
+      }
+      .contributeVariantShout2col{
+        display: grid;
+        grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+        gap: 8px 14px;
+        align-items: end;
+      }
+      .contributeFieldStack{
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      .contributeVariantFullRow{
+        grid-column: 1 / -1;
+      }
+      @media (max-width: 720px){
+        .contributeCenterRow2{ grid-template-columns: 1fr; }
+        .contributeVariantFields2col,
+        .contributeVariantShout2col{ grid-template-columns: 1fr; }
+      }
+      #studioFullPreview{
+        max-width: 100%;
+        overflow-x: hidden;
+        word-break: break-word;
+      }
+      .studioCol{ min-width: 0; }
+    }
+    @media (min-width: 1100px){
+      .containerStudio3Panel.studioThreeCols{
+        gap: 20px 28px;
+      }
+      /* Bounded studio height: vertical flex chain; overflow visible on X so 3-zone row is never clipped */
+      body.contributeStudioOpen #contributeWriteWrap{
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100dvh - 88px);
+        min-height: 0;
+        overflow-x: visible;
+        overflow-y: auto;
+      }
+      body.contributeStudioOpen #creationStudioShell{
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow-x: visible;
+        overflow-y: visible;
+      }
+      body.contributeStudioOpen .containerStudio3Panel.studioThreeCols{
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 100%;
+        overflow-x: visible;
+        overflow-y: visible;
+      }
+      body.contributeStudioOpen .studioColLeft{
+        min-height: 0;
+        overflow-x: visible;
+        overflow-y: auto;
+        align-self: stretch;
+      }
+      body.contributeStudioOpen .studioColRight{
+        min-height: 0;
+        overflow-x: visible;
+        overflow-y: auto;
+        align-self: stretch;
+      }
+      body.contributeStudioOpen .studioColCenter{
+        min-height: 0;
+        overflow-x: visible;
+        overflow-y: visible;
+      }
+    }
+    .studioCenterCard{
+      border: 2px solid rgba(90,167,255,.45);
+      box-shadow: 0 0 32px rgba(90,167,255,.12), 0 8px 28px rgba(0,0,0,.35);
+      background: linear-gradient(180deg, rgba(20,40,80,.5), rgba(10,18,36,.92));
+    }
+    .studioCenterCard .cardHd{
+      background: rgba(90,167,255,.12);
+      border-bottom: 1px solid rgba(90,167,255,.25);
+    }
+    .studioPanel--support{
+      opacity: 0.94;
+    }
+    .studioSidePanel.card{
+      margin-top: 0;
+      border: 1px solid rgba(255,255,255,.1);
+      background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+      box-shadow: 0 6px 20px rgba(0,0,0,.22);
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .studioSidePanelHd{
+      padding: 10px 12px 8px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .studioSidePanelTitle{
+      font-weight: 900;
+      font-size: 22px;
+      color: rgba(234,240,255,.88);
+      margin: 0 0 4px 0;
+      letter-spacing: .02em;
+    }
+    .studioPanelMicro{
+      margin: 0;
+      font-size: 20px;
+      font-weight: 800;
+      color: rgba(185,198,234,.78);
+      line-height: 1.35;
+    }
+    .studioSidePanelBd{
+      padding: 10px;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .studioSidePanelBd--preview{ padding: 10px; }
+    .studioSidePanelBd--preview .studioOpenedPreviewHost{
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .microLine{
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .studioEditorZone{
+      margin-bottom: 14px;
+      padding: 16px 14px 18px;
+      border-radius: 16px;
+      border: 2px solid rgba(90,167,255,.6);
+      background: rgba(8,14,28,.85);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 4px 24px rgba(0,0,0,.25);
+    }
+    .studioEditorZoneHd{
+      font-size: 28px;
+      font-weight: 1000;
+      color: #eaf0ff;
+      margin: 0 0 6px 0;
+      letter-spacing: .02em;
+    }
+    .studioEditorZoneSub{
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--muted);
+      margin: 0 0 12px 0;
+      line-height: 1.35;
+    }
+    .studioEditorZone label{
+      font-size: 20px;
+      color: #9dd4f0;
+      margin-top: 14px;
+    }
+    .studioEditorZone label:first-of-type{ margin-top: 0; }
+    #newsTitle.studioHeadlineInput,
+    input.studioHeadlineInput{
+      margin-top: 8px;
+      font-size: 26px !important;
+      font-weight: 800;
+      min-height: 52px;
+      padding: 12px 14px !important;
+      border: 2px solid rgba(90,167,255,.5) !important;
+      background: rgba(0,0,0,.45) !important;
+      color: #fff !important;
+    }
+    #newsBody.studioBodyInput,
+    textarea.studioBodyInput{
+      margin-top: 8px;
+      min-height: 160px;
+      font-size: 22px !important;
+      line-height: 1.45;
+      padding: 14px !important;
+      border: 2px solid rgba(90,167,255,.4) !important;
+      background: rgba(0,0,0,.45) !important;
+      color: #eaf0ff !important;
+    }
+    #newsTitle.studioHeadlineInput:focus,
+    #newsBody.studioBodyInput:focus{
+      outline: none;
+      border-color: rgba(56,208,124,.65) !important;
+      box-shadow: 0 0 0 3px rgba(56,208,124,.2);
+    }
+    .studioColLabel{ font-weight: 900; font-size: 22px; color: var(--muted); margin-bottom: 10px; }
+    .purposeChips{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .purposeChip{
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 2px solid var(--line);
+      background: rgba(0,0,0,.2);
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 20px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .purposeChip:hover, .purposeChip:focus{ border-color: var(--accent); outline: none; }
+    .purposeChip.selected{ border-color: var(--good); background: rgba(56,208,124,.15); }
+    .contributeFERPAReminder{
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: rgba(185,198,234,.88);
+      line-height: 1.35;
+    }
+    /* Stream rail (left): canonical .lanternScroller + LanternCards — active chip only */
+    #studioRailScroller .studioScrollerCardActive{
+      box-shadow: 0 0 0 2px rgba(90,167,255,.55), 0 8px 28px rgba(0,0,0,.35);
+    }
+    /* Opened preview: shell hosts one scroll surface (.lanternCardDetailModal.lanternSurface or .pollModal.lanternSurface) */
+    .studioOpenedPreviewHost{
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      padding: 0;
+      min-height: 0;
+      max-height: min(85vh, 800px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .studioOpenedPreviewInner{
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Poll opened — same classes + lanternSurface as explore.html (mountPollOpenedInto) */
+    #studioFullPreview .pollModalImageWrap,
+    #contributePreviewInner .pollModalImageWrap{
+      margin-bottom: 14px;
+      border-radius: 12px;
+      overflow: hidden;
+      max-height: 200px;
+    }
+    #studioFullPreview .pollModalImage,
+    #contributePreviewInner .pollModalImage{
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: cover;
+    }
+    #studioFullPreview .pollModal .pollChoiceBtn,
+    #contributePreviewInner .pollModal .pollChoiceBtn{
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 800;
+      cursor: default;
+      font-family: inherit;
+    }
+    #studioOpenedPreviewInner .lanternCardDetailModal--embedded{
+      max-width: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    #studioOpenedPreviewInner .lanternCardDetailModal--embedded .lanternCardDetailTitle{
+      margin-right: 0;
+    }
+    body.contributeStudioOpen #contributePreviewCompact{ display: none !important; }
+    #contributePreviewCompact{
+      max-height: min(88vh, 520px);
+      overflow: auto;
+    }
+    #contributePreviewInner{
+      width: max-content;
+      min-width: var(--lantern-rail-card-outer-width, 280px);
+      box-sizing: border-box;
+    }
+    .missionStudioFormPanel{
+      display: none;
+      margin-top: 8px;
+      border: 1px solid rgba(90,167,255,.35);
+      border-radius: var(--r);
+      background: linear-gradient(180deg, rgba(20,40,80,.35), rgba(10,18,36,.75));
+      padding: 16px 14px 18px;
+    }
+    .missionStudioFormPanel.missionStudioFormPanel--open{ display: block; }
+    .missionStudioFormPanel .missionStudioFormHd{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .missionStudioFormPanel .missionStudioFormTitle{
+      font-weight: 900;
+      font-size: 24px;
+      color: var(--ink);
+      margin: 0;
+    }
+    .composerTopBlock{
+      margin-bottom: 6px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    /* Featured article preview — same as opened story on Explore */
+    #studioFullPreview .newsFeatured{
+      padding: 24px;
+      border-radius: var(--r);
+      border: 2px solid rgba(90,167,255,.35);
+      background: linear-gradient(180deg, rgba(90,167,255,.12), rgba(90,167,255,.04));
+    }
+    #studioFullPreview .newsFeatured .newsTitle{ font-weight: 900; font-size: 32px; line-height: 1.2; margin-bottom: 8px; }
+    #studioFullPreview .newsFeatured .newsBody{ font-size: 24px; line-height: 1.45; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+    #studioFullPreview .newsByline{ font-size: 22px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    #studioFullPreview .newsCategory{ font-weight: 800; color: var(--accent); margin-bottom: 12px; }
+    #studioFullPreview .newsCardAuthorWrap{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.12);
+      flex-shrink: 0;
+      overflow: hidden;
+      vertical-align: middle;
+    }
+    #studioFullPreview .newsCardAuthorAvatar{ width: 100%; height: 100%; object-fit: cover; }
+    #studioFullPreview .newsCardAuthorInitials{
+      display: none;
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+    #studioFullPreview .newsCardAuthorWrap.show-initials .newsCardAuthorAvatar{ display: none !important; }
+    #studioFullPreview .newsCardAuthorWrap.show-initials .newsCardAuthorInitials{
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+    #studioFullPreview .authorBadge{
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 900;
+      font-size: 18px;
+    }
+    #studioFullPreview .authorBadge.student{ background: rgba(90,167,255,.2); border: 1px solid rgba(90,167,255,.4); }
+    #studioFullPreview .authorBadge.teacher{ background: rgba(56,208,124,.2); border: 1px solid rgba(56,208,124,.4); }
+    #studioFullPreview .authorBadge.staff{ background: rgba(156,100,255,.2); border: 1px solid rgba(156,100,255,.4); }
+    #studioFullPreview .authorBadge.admin{ background: rgba(242,194,48,.2); border: 1px solid rgba(242,194,48,.4); }
+    #studioFullPreview .newsCardImageWrap{
+      margin-bottom: 12px;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 12px;
+      background: rgba(0,0,0,.2);
+    }
+    #studioFullPreview .newsCardImage{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      max-width: none;
+    }
+    #studioFullPreview .newsCardVideoWrap{
+      margin-bottom: 12px;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.2);
+    }
+    #studioFullPreview .newsCardVideoWrap video{
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      object-fit: cover;
+      display: block;
+    }
+  </style>
+</head>
+<body class="page-has-ticker contribute-page">
+  <script src="js/lantern-canonical-route-boot.js"></script>
+  <!-- Canonical app header: js/lantern-nav.js → #lanternAppBarRoot (identical pipeline to explore.html). Do not duplicate markup/CSS here. -->
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent contributePageWrap">
+    <div id="contributeWriteWrap">
+      <div id="creationStudioShell" class="studioShell" data-completion="0">
+        <div class="containerStudio3Panel studioThreeCols">
+          <aside class="studioCol studioColLeft studioPanel--support" aria-label="Stream preview">
+            <div class="card studioSidePanel">
+              <div class="studioSidePanelHd">
+                <div class="studioSidePanelTitle">In the stream</div>
+                <p class="studioPanelMicro">Happening rail · highlighted</p>
+              </div>
+              <div class="studioSidePanelBd">
+                <div id="studioRailScroller" data-lantern-rail-host="true" data-scroller-aria-label="Stream preview"></div>
+              </div>
+            </div>
+          </aside>
+          <div class="studioCol studioColCenter studioPanel--primary">
+    <div class="card studioCenterCard" id="contributeMainCard">
+      <div class="cardHd">
+        <div class="h">Create</div>
+        <p class="cardHdMini">Teacher-reviewed · track status in <strong>Locker</strong> (Overview) under <strong>My Articles</strong> · read published stories on <a href="explore.html" style="color:var(--accent);font-weight:800;">Lantern (Explore)</a></p>
+      </div>
+      <div class="cardBd studioCenterScroll" id="contributeUnifiedBd">
+        <div class="contributeCenterInner">
+        <div class="composerTopBlock">
+        <label for="contributeTypeSelect">What are you submitting?</label>
+        <select id="contributeTypeSelect" style="margin-bottom:12px;">
+          <option value="post">Post (school news)</option>
+          <option value="shoutout">Shout-out</option>
+          <option value="poll">Poll</option>
+          <option value="profile_post">Profile post (locker)</option>
+          <option value="mission">Complete a mission</option>
+        </select>
+        <p id="contributeTypeHelper" class="studioPanelMicro" style="margin:0;"></p>
+        </div>
+
+        <div id="contributeMediaBlock" class="contributeMediaRow">
+          <label id="contributeMediaLabel" for="newsUnifiedMediaMount">Picture, video, or link</label>
+          <p class="microLine" id="contributeMediaHint">Optional · polls: image or fallback below</p>
+          <div id="contributeMediaMountWrap">
+          <div id="newsUnifiedMediaMount"></div>
+          </div>
+          <p id="contributeMediaTypePlaceholder" class="microLine" style="display:none;"></p>
+          <video id="newsVideoPreviewEl" controls preload="metadata" style="display:none;position:absolute;width:0;height:0;pointer-events:none;opacity:0;" aria-hidden="true"></video>
+        </div>
+
+        <div class="contributeCenterRow2 contributeMainStudioRow" id="contributeMainStudioRow">
+          <div id="missionPickerState" class="missionPickerState" style="display:none;" aria-hidden="true">
+            <p class="studioPanelMicro" style="margin-bottom:10px;">Swipe the rail to browse open missions. Tap a card to start.</p>
+            <div class="sectionSubLane">Open missions</div>
+            <div id="contributeMissionRail" data-lantern-rail-host="true" data-scroller-aria-label="Open missions">
+              <p class="sectionPlaceholder">Loading missions…</p>
+            </div>
+          </div>
+          <div class="contributeCenterCol contributeSlotLeft" id="contributeSlotLeft">
+        <div id="variantPost" class="contributeVariant">
+          <div class="contributeFieldStack">
+              <label for="newsPhotoCredit">Photo credit</label>
+              <input type="text" id="newsPhotoCredit" placeholder="Optional" maxlength="200" />
+          </div>
+        </div>
+
+        <div id="variantShoutout" class="contributeVariant" style="display:none;">
+          <div class="contributeFieldStack">
+              <input type="hidden" id="contributeShoutReason" value="" />
+              <label for="shoutTypeSelect">What kind of shout-out?</label>
+              <select id="shoutTypeSelect">
+                <option value="">— Pick one —</option>
+                <option value="kindness">Kindness</option>
+                <option value="effort">Effort</option>
+                <option value="teamwork">Teamwork</option>
+                <option value="helping">Helping out</option>
+                <option value="great_work">Great work</option>
+              </select>
+          </div>
+        </div>
+
+        <div id="variantPollLeft" class="contributeVariant" style="display:none;">
+          <div id="pollFallbackWrap" style="display:none;margin-top:0;">
+            <label for="pollFallbackSelect">Poll card art · if no upload</label>
+            <select id="pollFallbackSelect">
+              <option value="poll">Poll (default)</option>
+              <option value="news">News style</option>
+              <option value="creation">Creation</option>
+              <option value="generic">Generic</option>
+              <option value="shoutout">Shout-out style</option>
+              <option value="explain">Explain</option>
+            </select>
+          </div>
+          <p class="studioPanelMicro" style="margin:4px 0 0 0;">Fallback · 2–5 choices below</p>
+        </div>
+
+        <div id="variantProfilePostLeft" class="contributeVariant" style="display:none;">
+          <div class="contributeFieldStack">
+              <label for="profilePostType">Post type</label>
+              <select id="profilePostType" style="width:100%;margin-bottom:0;font-size:22px;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:inherit;">
+                <option value="image">Image</option>
+                <option value="link">Link</option>
+                <option value="video">Video</option>
+                <option value="webapp">Web App</option>
+                <option value="project">Project</option>
+              </select>
+              <div class="checkboxRow" style="margin-top:4px;display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" id="profilePostPinned" />
+                <label for="profilePostPinned" style="margin:0;font-size:22px;">Pin on profile</label>
+              </div>
+          </div>
+        </div>
+
+        <div id="contributePostIdentityAuthor" class="contributeVariant" style="display:none;">
+          <div class="contributeFieldStack">
+              <label for="newsAuthorType">I am submitting as</label>
+              <select id="newsAuthorType">
+                <option value="student">Student Reporter</option>
+                <option value="teacher">Teacher Contributor</option>
+                <option value="staff">Staff Announcement</option>
+                <option value="admin">Admin Update</option>
+              </select>
+          </div>
+        </div>
+
+        <div id="missionRespondMetaLeft" class="contributeVariant" style="display:none;">
+          <div id="missionSelectedMeta" class="missionSelectedMeta" style="display:none;"></div>
+        </div>
+          </div>
+          <div class="contributeCenterCol contributeSlotRight" id="contributeSlotRight">
+        <div id="contributeShoutRecipientWrap" class="contributeVariant" style="display:none;">
+          <div class="contributeFieldStack">
+              <label for="shoutRecipient">Recognizing (name)</label>
+              <input type="text" id="shoutRecipient" placeholder="Name, class, team…" maxlength="200" />
+          </div>
+        </div>
+        <div id="contributeNewsTitleBlock" style="display:none;">
+          <label for="newsTitle">Title</label>
+          <input type="text" id="newsTitle" class="studioHeadlineInput" autocomplete="off" placeholder="Headline…" maxlength="200" />
+        </div>
+        <div id="contributePostIdentityCategory" class="contributeVariant" style="display:none;">
+          <div class="contributeFieldStack">
+              <label for="newsCategorySelect">Why you’re writing</label>
+              <select id="newsCategorySelect">
+                <option value="">— Pick one —</option>
+                <option value="Events|happened">Something that happened</option>
+                <option value="Events|coming_up">Something coming up</option>
+                <option value="Student Spotlight|student_success">Student success</option>
+                <option value="School News|school_update">School update</option>
+                <option value="Announcements|should_know">Something people should know</option>
+              </select>
+              <input type="hidden" id="contributeDerivedCategory" value="" />
+          </div>
+        </div>
+
+        <div id="variantPollRight" class="contributeVariant" style="display:none;">
+          <label for="pollQuestion">Question</label>
+          <input type="text" id="pollQuestion" class="studioHeadlineInput" placeholder="What do you want to ask?" maxlength="500" />
+        </div>
+
+        <div id="variantProfilePostRight" class="contributeVariant" style="display:none;">
+          <label for="profilePostTitle">Title</label>
+          <input type="text" id="profilePostTitle" class="studioHeadlineInput" placeholder="Post title" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+          <label for="profilePostUrl" style="margin-top:0;">URL (image, link, video, or app)</label>
+          <input type="url" id="profilePostUrl" placeholder="https://…" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+          <label for="profilePostCaption" style="margin-top:10px;">Caption</label>
+          <textarea id="profilePostCaption" class="studioBodyInput" placeholder="Optional caption" rows="6" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;"></textarea>
+        </div>
+
+        <div id="variantMissionRight" class="contributeVariant" style="display:none;">
+          <div id="missionStudioFormPanel" class="missionStudioFormPanel" aria-hidden="true">
+            <div class="missionStudioFormHd">
+              <h3 class="missionStudioFormTitle" id="missionSubmitTitle">Complete Mission</h3>
+              <button type="button" class="btn small" id="missionSubmitCloseBtn" aria-label="Back to mission list">Back to missions</button>
+            </div>
+            <div id="missionSubmitFormWrap">
+              <div id="missionSubmitTextWrap">
+                <label id="missionSubmitLabel">Your response</label>
+                <textarea id="missionSubmitContent" placeholder="Enter your response..." style="min-height:100px;"></textarea>
+                <p id="missionSubmitMinCharsHint" class="studioPanelMicro" style="display:none;margin-top:8px;color:var(--warn);font-size:22px;"></p>
+              </div>
+              <input type="hidden" id="missionSubmitImageUrl" value="" />
+              <input type="url" id="missionSubmitVideoUrl" placeholder="" style="display:none;" aria-hidden="true" />
+              <input type="url" id="missionSubmitUrl" placeholder="" style="display:none;" aria-hidden="true" />
+              <img id="missionSubmitImageUploadPreviewImg" alt="" style="display:none;position:absolute;width:0;height:0;opacity:0;" />
+              <div id="missionSubmitVideoPreview" class="missionMediaPreviewWrap" style="display:none;position:absolute;width:0;height:0;overflow:hidden;">
+                <video id="missionSubmitVideoPreviewEl" preload="metadata"></video>
+              </div>
+              <div id="missionSubmitLinkPreview" style="display:none;"><a id="missionSubmitLinkPreviewA" href="#"></a></div>
+              <div id="missionUnifiedMediaOuter" style="display:none;">
+                <label id="missionUnifiedMediaLabel" style="display:block;font-weight:800;margin-bottom:8px;font-size:22px;">Add photo, video, or link</label>
+                <div id="missionUnifiedMediaMount"></div>
+              </div>
+              <div id="missionSubmitPollWrap" style="display:none;">
+                <label for="missionSubmitPollQuestion" style="font-size:22px;">Poll question</label>
+                <input type="text" id="missionSubmitPollQuestion" placeholder="What do you want to ask the school?" maxlength="500" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+                <p style="margin:14px 0 6px 0;font-weight:800;color:var(--muted);font-size:22px;">Answer choices (2–4)</p>
+                <input type="text" id="missionSubmitPollChoice1" placeholder="Choice 1" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+                <input type="text" id="missionSubmitPollChoice2" placeholder="Choice 2" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+                <input type="text" id="missionSubmitPollChoice3" placeholder="Choice 3 (optional)" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+                <input type="text" id="missionSubmitPollChoice4" placeholder="Choice 4 (optional)" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+                <label style="margin-top:14px;font-size:22px;">Poll image (required)</label>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+                  <input type="url" id="missionSubmitPollImageUrl" placeholder="Image URL or library" style="flex:1;min-width:0;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+                  <button type="button" class="btn small" id="missionSubmitPollLibraryBtn">Library</button>
+                </div>
+                <div id="missionSubmitPollImagePreview" style="display:none;margin-top:10px;"><img id="missionSubmitPollImagePreviewImg" alt="" style="max-height:160px;border-radius:12px;" /></div>
+              </div>
+              <div id="missionSubmitBugReportWrap" style="display:none;">
+                <label for="missionSubmitBugReportDesc" style="font-size:22px;">Description (required)</label>
+                <textarea id="missionSubmitBugReportDesc" placeholder="Describe the bug or issue…" style="min-height:120px;width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;"></textarea>
+                <label for="missionSubmitBugReportScreenshot" style="margin-top:14px;font-size:22px;">Screenshot URL (optional)</label>
+                <input type="url" id="missionSubmitBugReportScreenshot" placeholder="https://…" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;margin-top:8px;" />
+              </div>
+              <button class="btn good" id="missionSubmitBtn" type="button" style="width:100%;margin-top:12px;">Submit mission</button>
+            </div>
+          </div>
+        </div>
+          </div>
+
+        <div id="contributePollAnswersRow" class="contributeVariant contributeCreateFullRow" style="display:none;">
+          <p class="microLine" style="margin:0 0 6px 0;font-weight:800;color:var(--muted);">Answer choices (2–5)</p>
+          <div id="pollOptionsWrap"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
+            <button type="button" class="btn small" id="pollAddOptionBtn">Add choice</button>
+            <button type="button" class="btn small" id="pollRemoveOptionBtn">Remove last</button>
+          </div>
+        </div>
+
+        <div id="sharedStoryBlock" class="contributeCreateFullRow">
+          <label for="newsBody" id="newsBodyLabel">Description</label>
+          <textarea id="newsBody" class="studioBodyInput" placeholder="Your story…" rows="6"></textarea>
+        </div>
+        </div>
+
+        <div class="contributeActionRow" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;align-items:stretch;">
+          <p class="contributeFERPAReminder" id="contributeFERPAReminder" role="note">⚠️ No last names or personal details.</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <button class="btn good" id="submitNewsBtn" type="button">Submit for approval</button>
+            <a href="locker.html" class="btn" style="text-decoration:none;display:inline-flex;">Back to Locker</a>
+          </div>
+        </div>
+        <div id="contributePreviewCompact" style="margin-top:18px;padding:14px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.15);display:none;">
+          <div class="microLine" style="margin-bottom:8px;">Compact preview</div>
+          <div id="contributePreviewInner"></div>
+        </div>
+        </div>
+      </div>
+    </div>
+          </div>
+          <aside class="studioCol studioColRight studioPanel--support" aria-label="Opened preview">
+            <div class="card studioSidePanel">
+              <div class="studioSidePanelHd">
+                <div class="studioSidePanelTitle">When opened</div>
+              </div>
+              <div class="studioSidePanelBd studioSidePanelBd--preview">
+                <div id="studioFullPreview" class="studioOpenedPreviewHost">
+                  <div id="studioOpenedPreviewInner" class="studioOpenedPreviewInner"></div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="cropperModal" class="cropperModal" style="display:none;">
+    <div class="cropperBox">
+      <div class="cropperTitle">Position your photo</div>
+      <div class="cropperImgWrap">
+        <img id="cropperImg" src="" alt="" style="max-width:100%; display:block;" />
+      </div>
+      <div class="cropperActions">
+        <button type="button" class="btn good" id="cropperUseBtn">Use Photo</button>
+        <button type="button" class="btn" id="cropperCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="missionCropperModal" class="missionCropperModal" style="display:none;">
+    <div class="missionCropperBox">
+      <div class="missionCropperTitle">Position your photo</div>
+      <div class="missionCropperImgWrap">
+        <img id="missionCropperImg" src="" alt="" style="max-width:100%; display:block;" />
+      </div>
+      <div class="missionCropperActions">
+        <button type="button" class="btn good" id="missionCropperUseBtn">Use Photo</button>
+        <button type="button" class="btn" id="missionCropperCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="missionSubmitLibraryModal" class="overlay" style="display:none;z-index:10002;">
+    <div class="modal" style="max-width:520px;background:var(--panel);border-radius:18px;padding:20px;border:1px solid var(--line);max-height:90vh;overflow:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;">
+        <div style="font-weight:900;font-size:26px;">Choose image</div>
+        <button type="button" class="btn small" id="missionSubmitLibraryCloseBtn">Close</button>
+      </div>
+      <div id="missionSubmitLibraryCategories" style="margin-bottom:12px;"></div>
+      <div id="missionSubmitLibraryImages" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;"></div>
+    </div>
+  </div>
+
+  <script src="js/lantern-data.js"></script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-scroller.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-reactions.js"></script>
+  <script src="js/lantern-card-ui.js"></script>
+  <script src="js/lantern-unified-media-field.js"></script>
+  <script src="js/lantern-submission-celebration.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); } } catch(e){} })();
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
+    var newsApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? String(window.LANTERN_AVATAR_API || '').replace(/\/$/, '') : '';
+    var missionsApiBase = (typeof window !== 'undefined' && (window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API)) ? String(window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API).replace(/\/$/, '') : '';
+
+    var el = function(id){ return document.getElementById(id); };
+    var toastEl = el('toast');
+
+    function getAdopted(){
+      try{
+        if (typeof localStorage === 'undefined' || !localStorage.getItem) return null;
+        var raw = localStorage.getItem(LS_ADOPTED);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        return obj && obj.name ? obj : null;
+      }catch(e){ return null; }
+    }
+
+    var FERPA_STUDENT_SUBMIT_MESSAGE = 'Your teacher will review this before posting. Make sure it does not include personal details.';
+
+    function toast(msg, durationMs){
+      if (!toastEl) return;
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(function(){ toastEl.style.display = 'none'; }, typeof durationMs === 'number' ? durationMs : 2400);
+    }
+
+    /* Studio fake rails MUST exist before first syncContributeTypeUI() → mountNewsUnifiedForType → onClear → updateStudioAll */
+    function getNewsAuthorLabel(type){
+      if (window.LanternCardUI && typeof window.LanternCardUI.newsRoleLabelFromAuthorType === 'function') {
+        return window.LanternCardUI.newsRoleLabelFromAuthorType(type);
+      }
+      if (type === 'student') return 'Student Reporter';
+      if (type === 'teacher') return 'Teacher Contributor';
+      if (type === 'staff') return 'Staff Announcement';
+      if (type === 'admin') return 'Admin Update';
+      return 'Student Reporter';
+    }
+    function appendStudioNewsCardToRail(rail, n, escFn, isActive){
+      if (!rail || !window.LanternCards || !window.LanternCards.specNewsRailCard || !window.LanternCards.createStudentCard) return;
+      var nc = window.LanternCards.createStudentCard(window.LanternCards.specNewsRailCard(n, escFn, getNewsAuthorLabel(n.author_type || 'student'), isActive));
+      if (nc) rail.appendChild(nc);
+    }
+    var STUDIO_FAKE_NEWS_RAIL = [
+      { id: '_sf1', title: 'Morning announcements', category: 'Announcements', author_name: 'Jamie', author_type: 'student', created_at: new Date().toISOString() },
+      { id: '_sf2', title: 'Art club showcase Friday', category: 'Events', author_name: 'Riley', author_type: 'student', created_at: new Date().toISOString() },
+      { id: '_sf3', title: 'Soccer — regional finals', category: 'Sports', author_name: 'Coach T', author_type: 'teacher', created_at: new Date().toISOString() },
+      { id: '_sf4', title: 'Library hours extended', category: 'School News', author_name: 'Staff', author_type: 'staff', created_at: new Date().toISOString() }
+    ];
+    var STUDIO_FAKE_POLL_RAIL = [
+      { id: '_fp1', question: 'Spirit week theme?', choices: ['Retro', 'Future', 'Nature'], image_url: '' },
+      { id: '_fp2', question: 'Friday movie vote', choices: ['Comedy', 'Action'], image_url: '' },
+      { id: '_fp3', question: 'Best lunch lineup?', choices: ['Taco', 'Pizza'], image_url: '' },
+      { id: '_fp4', question: 'Club fair interest?', choices: ['Yes', 'Maybe'], image_url: '' }
+    ];
+    var STUDIO_FAKE_MISSIONS = [
+      { id: '_studioM1', title: 'Spotlight mission', reward_amount: 2, description: '', image_url: '' },
+      { id: '_studioM2', title: 'Community challenge', reward_amount: 3, description: '', image_url: '' }
+    ];
+
+    function getContributeType(){ return (el('contributeTypeSelect') && el('contributeTypeSelect').value) || 'post'; }
+    var SHOUT_LABELS = { kindness: 'Kindness', effort: 'Effort', teamwork: 'Teamwork', helping: 'Helping out', great_work: 'Great work' };
+
+    function resetContributeFormPartial(){
+      if (el('newsCategorySelect')) el('newsCategorySelect').value = '';
+      el('contributeDerivedCategory').value = '';
+      el('contributeShoutReason').value = '';
+      if (el('shoutTypeSelect')) el('shoutTypeSelect').value = '';
+      if (el('shoutRecipient')) el('shoutRecipient').value = '';
+      if (el('newsTitle')) el('newsTitle').value = '';
+      if (el('newsBody')) el('newsBody').value = '';
+      if (el('newsPhotoCredit')) el('newsPhotoCredit').value = '';
+      if (el('pollQuestion')) el('pollQuestion').value = '';
+      if (el('profilePostType')) el('profilePostType').value = 'link';
+      if (el('profilePostTitle')) el('profilePostTitle').value = '';
+      if (el('profilePostCaption')) el('profilePostCaption').value = '';
+      if (el('profilePostUrl')) el('profilePostUrl').value = '';
+      if (el('profilePostPinned')) el('profilePostPinned').checked = false;
+      croppedNewsImageDataUrl = null;
+      fullNewsImageDataUrl = null;
+      newsLinkUrl = null;
+      if (newsVideoFile) {
+        var vid = el('newsVideoPreviewEl');
+        if (vid && vid.src && vid.src.indexOf('blob:') === 0) URL.revokeObjectURL(vid.src);
+        if (vid) vid.src = '';
+        newsVideoFile = null;
+      }
+      if (newsUnifiedField) newsUnifiedField.clearPreview();
+      rebuildPollOptionInputs(3);
+    }
+
+    function rebuildPollOptionInputs(n){
+      var w = el('pollOptionsWrap');
+      if (!w) return;
+      w.innerHTML = '';
+      var count = Math.max(2, Math.min(5, n || 3));
+      for (var i = 0; i < count; i++){
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'pollOptInput';
+        inp.placeholder = 'Choice ' + (i + 1);
+        inp.maxLength = 200;
+        inp.style.marginBottom = '6px';
+        w.appendChild(inp);
+      }
+    }
+    function getPollChoices(){
+      var w = el('pollOptionsWrap');
+      if (!w) return [];
+      return Array.prototype.slice.call(w.querySelectorAll('.pollOptInput')).map(function(i){ return (i.value || '').trim(); }).filter(Boolean);
+    }
+
+    var newsUnifiedPollMode = false;
+    var contributeMediaPollMode = null;
+    function mountNewsUnifiedForType(){
+      var mount = el('newsUnifiedMediaMount');
+      if (!mount || !window.LanternUnifiedMediaField) return;
+      var t = getContributeType();
+      if (t === 'profile_post' || t === 'mission') {
+        contributeMediaPollMode = null;
+        if (newsUnifiedField){ try { newsUnifiedField.destroy(); } catch(e){} newsUnifiedField = null; }
+        mount.innerHTML = '';
+        return;
+      }
+      var isPoll = t === 'poll';
+      if (contributeMediaPollMode === isPoll && newsUnifiedField) return;
+      contributeMediaPollMode = isPoll;
+      if (newsUnifiedField){ try { newsUnifiedField.destroy(); } catch(e){} newsUnifiedField = null; }
+      mount.innerHTML = '';
+      newsUnifiedPollMode = isPoll;
+      newsUnifiedField = window.LanternUnifiedMediaField.mount(mount, {
+        allowImage: true,
+        allowVideo: !isPoll,
+        allowLink: true,
+        emptyHelper: isPoll ? 'Add a poll image (or skip and pick a fallback below).' : 'Click here, then paste, drag a file, or choose one.',
+        focusedHelper: isPoll ? 'Photo or image link for your poll card.' : 'Ready — paste a picture, short video, or link.',
+        onImageFile: handleImageFile,
+        onVideoFile: isPoll ? function(){ toast('Polls use a picture or link, not video.'); } : handleVideoFile,
+        onLinkUrl: function(u){
+          if (isPoll) {
+            var v = window.LanternMedia && LanternMedia.isValidLinkUrl ? LanternMedia.isValidLinkUrl(u) : '';
+            if (!v) return;
+            var imgLike = /\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(v) || /\/api\/(media\/image|news\/image)\?/i.test(v);
+            if (!imgLike){ toast('Poll link should be an image URL.'); return; }
+          }
+          var vv = window.LanternMedia && LanternMedia.isValidLinkUrl ? LanternMedia.isValidLinkUrl(u) : '';
+          if (!vv) return;
+          newsLinkUrl = vv;
+          croppedNewsImageDataUrl = null;
+          fullNewsImageDataUrl = null;
+          if (newsVideoFile) {
+            var vid = el('newsVideoPreviewEl');
+            if (vid && vid.src && vid.src.indexOf('blob:') === 0) URL.revokeObjectURL(vid.src);
+            if (vid) vid.src = '';
+            newsVideoFile = null;
+          }
+          refreshContributeUnifiedPreview();
+          updateStudioAll();
+        },
+        onClear: function(){
+          croppedNewsImageDataUrl = null;
+          fullNewsImageDataUrl = null;
+          newsLinkUrl = null;
+          if (newsVideoFile) {
+            var vid = el('newsVideoPreviewEl');
+            if (vid && vid.src && vid.src.indexOf('blob:') === 0) URL.revokeObjectURL(vid.src);
+            if (vid) vid.src = '';
+            newsVideoFile = null;
+          }
+          updateStudioAll();
+        },
+      });
+      if (!mount._lanternContribUmDelegated) {
+        mount._lanternContribUmDelegated = true;
+        mount.addEventListener('click', function(ev){
+          if (ev.target.id === 'newsContribUmRemove' && newsUnifiedField) newsUnifiedField.clearPreview();
+          if (ev.target.id === 'newsContribUmReplace' && newsUnifiedField) { newsUnifiedField.clearPreview(); newsUnifiedField.openFilePicker(); }
+        });
+      }
+      refreshContributeUnifiedPreview();
+    }
+
+    function syncMissionCenterFlow(){
+      var row = el('contributeMainStudioRow');
+      var pick = el('missionPickerState');
+      var metaLeft = el('missionRespondMetaLeft');
+      if (!row) return;
+      row.classList.remove('mission-flow-pick', 'mission-flow-respond');
+      if (pick){
+        pick.style.display = 'none';
+        pick.setAttribute('aria-hidden', 'true');
+      }
+      if (metaLeft) metaLeft.style.display = 'none';
+      var t = getContributeType();
+      if (t !== 'mission') return;
+      if (!currentMissionForSubmit){
+        row.classList.add('mission-flow-pick');
+        if (pick){
+          pick.style.display = 'block';
+          pick.setAttribute('aria-hidden', 'false');
+        }
+      } else {
+        row.classList.add('mission-flow-respond');
+        if (metaLeft) metaLeft.style.display = 'block';
+      }
+    }
+
+    function syncContributeTypeUI(){
+      var t = getContributeType();
+      if (t !== 'mission' && currentMissionForSubmit){
+        closeMissionStudioPanel();
+      }
+      var vp = el('variantPost');
+      var vs = el('variantShoutout');
+      var vpolL = el('variantPollLeft');
+      var vpolR = el('variantPollRight');
+      var vprofL = el('variantProfilePostLeft');
+      var vprofR = el('variantProfilePostRight');
+      var vmR = el('variantMissionRight');
+      var ss = el('sharedStoryBlock');
+      var media = el('contributeMediaBlock');
+      var mountWrap = el('contributeMediaMountWrap');
+      var mediaPh = el('contributeMediaTypePlaceholder');
+      var fb = el('pollFallbackWrap');
+      var hint = el('contributeMediaHint');
+      var sub = el('submitNewsBtn');
+      var helpEl = el('contributeTypeHelper');
+      var HELP = {
+        post: 'School news · teacher review before publish.',
+        shoutout: 'Recognize someone · your message appears in the stream.',
+        poll: 'Ask the school · poll art in the media row, question in the grid, answer choices below.',
+        profile_post: 'Locker profile · type & pin on the left; title, URL, and caption on the right.',
+        mission: 'Pick a mission from the rail, then complete it — browse first, respond second.'
+      };
+      if (helpEl) helpEl.textContent = HELP[t] || '';
+      if (vp) vp.style.display = t === 'post' ? 'block' : 'none';
+      if (vs) vs.style.display = t === 'shoutout' ? 'block' : 'none';
+      if (vpolL) vpolL.style.display = t === 'poll' ? 'block' : 'none';
+      if (vpolR) vpolR.style.display = t === 'poll' ? 'block' : 'none';
+      if (vprofL) vprofL.style.display = t === 'profile_post' ? 'block' : 'none';
+      if (vprofR) vprofR.style.display = t === 'profile_post' ? 'block' : 'none';
+      if (vmR) vmR.style.display = t === 'mission' ? 'block' : 'none';
+      if (ss) ss.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
+      if (media) media.style.display = 'block';
+      if (mountWrap) mountWrap.style.display = (t === 'mission' || t === 'profile_post') ? 'none' : 'block';
+      if (mediaPh) {
+        if (t === 'profile_post') {
+          mediaPh.style.display = 'block';
+          mediaPh.textContent = 'Profile posts: set URL in the right column. Stream preview builds from that link.';
+        } else if (t === 'mission') {
+          mediaPh.style.display = 'block';
+          mediaPh.textContent = 'After you pick a mission, add photos, video, or links in the mission response area.';
+        } else {
+          mediaPh.style.display = 'none';
+          mediaPh.textContent = '';
+        }
+      }
+      if (fb) fb.style.display = t === 'poll' ? 'block' : 'none';
+      if (hint) {
+        if (t === 'poll') hint.textContent = 'Poll card image or link · or pick fallback art on the left';
+        else if (t === 'mission' || t === 'profile_post') hint.textContent = '';
+        else hint.textContent = 'Optional · posts & shout-outs';
+      }
+      if (sub){
+        sub.style.display = t === 'mission' ? 'none' : 'inline-flex';
+        sub.textContent = t === 'poll' ? 'Submit poll for approval' : (t === 'profile_post' ? 'Save profile post' : 'Submit for approval');
+      }
+      var bl = el('newsBodyLabel');
+      if (bl) bl.textContent = t === 'shoutout' ? 'Message' : 'Description';
+      var ntb = el('contributeNewsTitleBlock');
+      if (ntb) ntb.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
+      var pibA = el('contributePostIdentityAuthor');
+      var pibC = el('contributePostIdentityCategory');
+      if (pibA) pibA.style.display = t === 'post' ? 'block' : 'none';
+      if (pibC) pibC.style.display = t === 'post' ? 'block' : 'none';
+      var shrWrap = el('contributeShoutRecipientWrap');
+      if (shrWrap) shrWrap.style.display = t === 'shoutout' ? 'block' : 'none';
+      var pollAns = el('contributePollAnswersRow');
+      if (pollAns) pollAns.style.display = t === 'poll' ? 'block' : 'none';
+      if (document.body) {
+        document.body.classList.add('contributeStudioOpen');
+      }
+      mountNewsUnifiedForType();
+      if (t === 'mission') loadContributeMissions();
+      syncMissionCenterFlow();
+      updateStudioAll();
+    }
+
+    el('contributeTypeSelect').addEventListener('change', syncContributeTypeUI);
+    el('newsCategorySelect').addEventListener('change', function(){
+      var v = (el('newsCategorySelect').value || '').trim();
+      if (!v){ el('contributeDerivedCategory').value = ''; updateStudioAll(); return; }
+      var parts = v.split('|');
+      el('contributeDerivedCategory').value = parts[0] || 'School News';
+      updateStudioAll();
+    });
+    el('shoutTypeSelect').addEventListener('change', function(){
+      el('contributeShoutReason').value = (el('shoutTypeSelect').value || '').trim();
+      updateStudioAll();
+    });
+    el('pollAddOptionBtn').addEventListener('click', function(){
+      var n = el('pollOptionsWrap').querySelectorAll('.pollOptInput').length;
+      if (n >= 5){ toast('Maximum 5 choices.'); return; }
+      rebuildPollOptionInputs(n + 1);
+      updateStudioAll();
+    });
+    el('pollRemoveOptionBtn').addEventListener('click', function(){
+      var n = el('pollOptionsWrap').querySelectorAll('.pollOptInput').length;
+      if (n <= 2){ toast('Need at least 2 choices.'); return; }
+      rebuildPollOptionInputs(n - 1);
+      updateStudioAll();
+    });
+    if (el('pollQuestion')) el('pollQuestion').addEventListener('input', updateStudioAll);
+    if (el('pollOptionsWrap')) el('pollOptionsWrap').addEventListener('input', function(e){ if (e.target.classList && e.target.classList.contains('pollOptInput')) updateStudioAll(); });
+    if (el('pollFallbackSelect')) el('pollFallbackSelect').addEventListener('change', updateStudioAll);
+
+    // —— News path: Worker/API submit (shared with Locker My Articles) ——
+    var croppedNewsImageDataUrl = null;
+    var fullNewsImageDataUrl = null;
+    var newsCropperInstance = null;
+    var newsVideoFile = null;
+    var newsLinkUrl = null;
+    var newsUnifiedField = null;
+    function escNews(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+    function parseJsonResponse(r, okPredicate, fallbackError){
+      return r.text().then(function(text){
+        var data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (e) { return { ok: false, error: 'Invalid response from server' }; }
+        if (!r.ok) return { ok: false, error: (data && data.error) || r.statusText || ('HTTP ' + r.status) };
+        if (typeof okPredicate === 'function' ? okPredicate(data) : (data && data.id)) return Object.assign({ ok: true }, data);
+        return { ok: false, error: (data && data.error) || fallbackError || 'Request failed' };
+      });
+    }
+    function callUploadNewsImage(dataUrl, mimeType, fileName){
+      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(newsApiBase + '/api/news/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl || '', mime_type: mimeType || 'image/png', file_name: fileName || 'image.png' })
+      }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.image_r2_key != null; }, 'Image upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+    }
+    function callUploadNewsVideo(base64DataUrl, mimeType, fileName){
+      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(newsApiBase + '/api/news/upload-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video: base64DataUrl || '', mime_type: mimeType || 'video/mp4', file_name: fileName || 'video.mp4' })
+      }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.video_r2_key != null; }, 'Video upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+    }
+    function callCreateNewsArticle(payload){
+      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(newsApiBase + '/api/news/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
+        .then(function(r){ return parseJsonResponse(r, function(res){ return res && res.id; }, 'Create failed'); })
+        .catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+    }
+    function callResubmitNewsArticleHttp(payload){
+      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(newsApiBase + '/api/news/resubmit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
+        .then(function(r){
+          return r.text().then(function(text){
+            var data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { return { ok: false, error: 'Invalid response from server' }; }
+            if (!r.ok) return { ok: false, error: (data && data.error) || r.statusText || ('HTTP ' + r.status) };
+            if (data && data.ok === false) return { ok: false, error: (data && data.error) || 'Resubmit failed' };
+            return Object.assign({ ok: true }, data);
+          });
+        })
+        .catch(function(e){ return { ok: false, error: String(e && e.message || e) || 'Network error' }; });
+    }
+
+    function openCropperFromDataUrl(dataUrl){
+      fullNewsImageDataUrl = dataUrl;
+      var modal = el('cropperModal');
+      var imgEl = el('cropperImg');
+      if (!imgEl || !modal) return;
+      if (newsCropperInstance){ try { newsCropperInstance.destroy(); } catch(e){} newsCropperInstance = null; }
+      imgEl.src = dataUrl;
+      modal.style.display = 'flex';
+      imgEl.onload = function(){
+        if (newsCropperInstance){ try { newsCropperInstance.destroy(); } catch(e){} }
+        newsCropperInstance = window.Cropper ? new window.Cropper(imgEl, { aspectRatio: NaN, viewMode: 1, dragMode: 'move', autoCropArea: 0.8 }) : null;
+        if (!newsCropperInstance) toast('Crop not available. Use the photo as-is.');
+      };
+    }
+    function finishCropper(){
+      var modal = el('cropperModal');
+      if (!modal) return;
+      if (newsCropperInstance) {
+        try {
+          var thumbCanvas = newsCropperInstance.getCroppedCanvas({ maxWidth: 800, maxHeight: 600, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+          if (thumbCanvas && thumbCanvas.width > 0 && thumbCanvas.height > 0) {
+            croppedNewsImageDataUrl = thumbCanvas.toDataURL('image/png');
+          } else {
+            croppedNewsImageDataUrl = fullNewsImageDataUrl;
+          }
+        } catch (e) { croppedNewsImageDataUrl = fullNewsImageDataUrl; }
+        newsCropperInstance.destroy();
+        newsCropperInstance = null;
+      } else { croppedNewsImageDataUrl = fullNewsImageDataUrl; }
+      if (!croppedNewsImageDataUrl) croppedNewsImageDataUrl = fullNewsImageDataUrl;
+      modal.style.display = 'none';
+      refreshContributeUnifiedPreview();
+      updateStudioAll();
+    }
+    function refreshContributeUnifiedPreview(){
+      if (!newsUnifiedField) return;
+      if (croppedNewsImageDataUrl) {
+        newsUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><img src="' + escNews(croppedNewsImageDataUrl) + '" alt="Preview" /></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="newsContribUmReplace">Replace</button><button type="button" class="btn small bad" id="newsContribUmRemove">Remove</button></div>');
+        return;
+      }
+      var vEl = el('newsVideoPreviewEl');
+      if (newsVideoFile && vEl && vEl.src) {
+        newsUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><video controls preload="metadata" style="max-width:100%;max-height:200px;border-radius:12px;border:1px solid var(--line);" src="' + escNews(vEl.src) + '"></video></div><div class="lanternUnifiedMediaActions"><span style="font-weight:800;">' + escNews(newsVideoFile.name || 'Video') + '</span> <button type="button" class="btn small" id="newsContribUmReplace">Replace</button><button type="button" class="btn small bad" id="newsContribUmRemove">Remove</button></div>');
+        return;
+      }
+      if (newsLinkUrl) {
+        newsUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaLinkCard"><a href="' + escNews(newsLinkUrl) + '" target="_blank" rel="noopener noreferrer">' + escNews(newsLinkUrl) + '</a></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="newsContribUmReplace">Replace</button><button type="button" class="btn small bad" id="newsContribUmRemove">Remove</button></div>');
+        return;
+      }
+      newsUnifiedField.clearPreview();
+    }
+    function handleImageFile(file){
+      if (!file || !file.type.match(/^image\/(png|jpeg|jpg|webp|gif)$/)){ toast('Please choose an image (PNG, JPEG, WebP, or GIF).'); return; }
+      if (newsUnifiedField) newsUnifiedField.clearPreview();
+      newsVideoFile = null;
+      newsLinkUrl = null;
+      var v = el('newsVideoPreviewEl');
+      if (v && v.src && v.src.indexOf('blob:') === 0) URL.revokeObjectURL(v.src);
+      if (v) v.src = '';
+      croppedNewsImageDataUrl = null;
+      fullNewsImageDataUrl = null;
+      var reader = new FileReader();
+      reader.onload = function(){ openCropperFromDataUrl(reader.result); };
+      reader.readAsDataURL(file);
+    }
+    function handleVideoFile(file){
+      if (!file || !file.type.match(/^video\/(mp4|webm)$/)){ toast('Please choose an MP4 or WebM video.'); return; }
+      if (file.size > 25 * 1024 * 1024){ toast('Video too large. Max 25MB.'); return; }
+      croppedNewsImageDataUrl = null;
+      fullNewsImageDataUrl = null;
+      newsLinkUrl = null;
+      var prevUrl = el('newsVideoPreviewEl') && el('newsVideoPreviewEl').src ? el('newsVideoPreviewEl').src : null;
+      if (prevUrl && prevUrl.indexOf('blob:') === 0) URL.revokeObjectURL(prevUrl);
+      newsVideoFile = file;
+      var objUrl = URL.createObjectURL(file);
+      if (el('newsVideoPreviewEl')) el('newsVideoPreviewEl').src = objUrl;
+      refreshContributeUnifiedPreview();
+      updateStudioAll();
+    }
+    var pendingStudioMissionOpen = null;
+    var newsArticleResubmitId = null;
+    (function studioEntryDeepLink(){
+      try {
+        var q = new URLSearchParams(window.location.search || '');
+        var tp = (q.get('type') || '').trim().toLowerCase();
+        var sel = el('contributeTypeSelect');
+        if (sel && tp === 'mission') sel.value = 'mission';
+        if (sel && tp === 'poll') sel.value = 'poll';
+        if (sel && tp === 'post') sel.value = 'post';
+        if (sel && tp === 'shoutout') sel.value = 'shoutout';
+        if (sel && (tp === 'profile_post' || tp === 'profilepost')) sel.value = 'profile_post';
+        var rawN = sessionStorage.getItem('LANTERN_NEWS_ARTICLE_RESUBMIT');
+        if (rawN) {
+          sessionStorage.removeItem('LANTERN_NEWS_ARTICLE_RESUBMIT');
+          var obj = JSON.parse(rawN);
+          newsArticleResubmitId = obj && obj.id ? String(obj.id) : null;
+          if (sel) sel.value = 'post';
+          if (el('newsTitle') && obj) el('newsTitle').value = obj.title || '';
+          if (el('newsBody') && obj) el('newsBody').value = obj.body || '';
+        }
+        var rawM = sessionStorage.getItem('LANTERN_STUDIO_MISSION_OPEN');
+        if (rawM) {
+          sessionStorage.removeItem('LANTERN_STUDIO_MISSION_OPEN');
+          pendingStudioMissionOpen = JSON.parse(rawM);
+          if (sel) sel.value = 'mission';
+        }
+      } catch (e) {}
+    })();
+    rebuildPollOptionInputs(3);
+    syncContributeTypeUI();
+    if (newsArticleResubmitId && el('submitNewsBtn')) el('submitNewsBtn').textContent = 'Resubmit for approval';
+
+    var resubmitPollContribId = null;
+    (function checkResubmitParam(){
+      var params = new URLSearchParams(window.location.search || '');
+      var resubmitId = (params.get('resubmit') || '').trim();
+      var typeParam = (params.get('type') || '').trim();
+      if (!resubmitId || !newsApiBase) return;
+      var adopted = getAdopted();
+      if (!adopted || !adopted.name) return;
+      if (typeParam !== 'poll' && typeParam !== '') return;
+      var sel = el('contributeTypeSelect');
+      if (sel) sel.value = 'poll';
+      syncContributeTypeUI();
+      var characterNameForApi = getCharacterNameForApi() || adopted.name;
+      fetch(newsApiBase + '/api/polls/contributions/' + encodeURIComponent(resubmitId) + '?character_name=' + encodeURIComponent(characterNameForApi))
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (!res || !res.ok || !res.contribution) { toast('Could not load returned poll.'); return; }
+          var c = res.contribution;
+          resubmitPollContribId = c.id;
+          if (el('pollQuestion')) el('pollQuestion').value = c.question || '';
+          var choices = c.choices || [];
+          if (choices.length >= 2 && choices.length <= 5) {
+            rebuildPollOptionInputs(choices.length);
+            var inputs = (el('pollOptionsWrap') || {}).querySelectorAll ? el('pollOptionsWrap').querySelectorAll('.pollOptInput') : [];
+            for (var i = 0; i < choices.length && i < inputs.length; i++) inputs[i].value = choices[i] || '';
+          }
+          if (c.image_url) newsLinkUrl = c.image_url;
+          if (el('pollFallbackSelect')) el('pollFallbackSelect').value = (c.fallback_key || 'poll');
+          var subBtn = el('submitNewsBtn');
+          if (subBtn) subBtn.textContent = 'Resubmit for approval';
+          refreshContributeUnifiedPreview();
+          updateStudioAll();
+        })
+        .catch(function(){ toast('Could not load returned poll.'); });
+    })();
+
+    function updateStudioAll(){
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+      var ct = getContributeType();
+      var rail = el('studioRailScroller');
+      var openedEl = el('studioOpenedPreviewInner');
+      var prev = el('contributePreviewCompact');
+      var inner = el('contributePreviewInner');
+      if (ct === 'mission'){
+        if (!window.LanternCards || !rail || !openedEl) return;
+        var LUI = window.LanternCardUI;
+        var LCM = window.LanternCards;
+        rail.innerHTML = '';
+        STUDIO_FAKE_MISSIONS.forEach(function(fm){
+          var node = LCM.buildMissionSpotlightRailElement(fm);
+          if (!node) return;
+          var clone = node.cloneNode(true);
+          if (currentMissionForSubmit && String(currentMissionForSubmit.id) === String(fm.id)) clone.classList.add('studioScrollerCardActive');
+          rail.appendChild(clone);
+        });
+        if (currentMissionForSubmit){
+          var dup = STUDIO_FAKE_MISSIONS.some(function(f){ return String(f.id) === String(currentMissionForSubmit.id); });
+          if (!dup){
+            var nodeA = LCM.buildMissionSpotlightRailElement(currentMissionForSubmit);
+            if (nodeA){
+              var c2 = nodeA.cloneNode(true);
+              c2.classList.add('studioScrollerCardActive');
+              rail.appendChild(c2);
+            }
+          }
+        }
+        var mSt = currentMissionForSubmit ? String(currentMissionForSubmit.submission_type || '').trim() : '';
+        if (mSt === 'poll' && currentMissionForSubmit){
+          var mpq = (el('missionSubmitPollQuestion') && el('missionSubmitPollQuestion').value || '').trim() || 'Poll question';
+          var mchoices = [1,2,3,4].map(function(i){ return (el('missionSubmitPollChoice' + i) && el('missionSubmitPollChoice' + i).value || '').trim(); }).filter(Boolean);
+          var pollDraftM = {
+            id: 'preview-mission-poll',
+            question: mpq,
+            choices: mchoices.length >= 2 ? mchoices : ['Choice 1', 'Choice 2'],
+            image_url: (el('missionSubmitPollImageUrl') && el('missionSubmitPollImageUrl').value || '').trim(),
+            fallback_key: 'poll',
+            character_name: getAdoptedAccountKey(),
+            author_name: getAdoptedPublicDisplayName() || ''
+          };
+          rail.innerHTML = '';
+          [
+            [STUDIO_FAKE_POLL_RAIL[0], {}],
+            [pollDraftM, { isActive: true }],
+            [STUDIO_FAKE_POLL_RAIL[1], {}],
+            [STUDIO_FAKE_POLL_RAIL[2], {}]
+          ].forEach(function(pair){
+            var pn = LCM.createStudentCard(LCM.specPollRailCard(pair[0], pair[1]));
+            if (pn) rail.appendChild(pn);
+          });
+          openedEl.innerHTML = '';
+          if (LUI && LUI.mountPollOpenedInto) LUI.mountPollOpenedInto(openedEl, pollDraftM, esc);
+          if (prev) prev.style.display = 'none';
+          if (inner) inner.innerHTML = '';
+          requestAnimationFrame(function(){
+            var t = el('studioRailScroller');
+            var a = t && t.querySelector('.studioScrollerCardActive');
+            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+          });
+          return;
+        }
+        if (mSt === 'bug_report' && currentMissionForSubmit){
+          var mTitleB = currentMissionForSubmit.title || 'Bug report';
+          var bDesc = (el('missionSubmitBugReportDesc') && el('missionSubmitBugReportDesc').value || '').trim();
+          var bShot = (el('missionSubmitBugReportScreenshot') && el('missionSubmitBugReportScreenshot').value || '').trim();
+          var adoptedBug = getAdopted();
+          var charBug = getAdoptedAccountKey();
+          var bugPost = {
+            id: 'preview-mission-bug',
+            title: mTitleB,
+            caption: bDesc,
+            type: bShot ? 'image' : 'text',
+            created_at: new Date().toISOString(),
+            display_name: getAdoptedPublicDisplayName(),
+            character_name: charBug,
+            image_url: bShot,
+            video_url: '',
+            link_url: '',
+            url: bShot
+          };
+          openedEl.innerHTML = '';
+          function mountBugDetail(){
+            if (LUI && LUI.mountCreationDetailInto) LUI.mountCreationDetailInto(openedEl, bugPost, { characterName: charBug });
+          }
+          if (bugPost.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+            window.LanternAvatar.attachCanonicalAvatarsToItems([bugPost]).then(mountBugDetail);
+          } else {
+            mountBugDetail();
+          }
+          if (prev) prev.style.display = 'none';
+          if (inner) inner.innerHTML = '';
+          requestAnimationFrame(function(){
+            var t = el('studioRailScroller');
+            var a = t && t.querySelector('.studioScrollerCardActive');
+            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+          });
+          return;
+        }
+        var mTitle = (currentMissionForSubmit && currentMissionForSubmit.title) ? currentMissionForSubmit.title : 'Mission';
+        var mContent = (el('missionSubmitContent') && el('missionSubmitContent').value || '').trim();
+        var mImg = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+        if (!mImg && el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src) mImg = el('missionSubmitImageUploadPreviewImg').src;
+        var mVid = (typeof missionVideoUploadedUrl !== 'undefined' && missionVideoUploadedUrl) ? missionVideoUploadedUrl : ((el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim());
+        var mLink = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
+        var mDraftType = 'create';
+        if (mImg) mDraftType = 'image'; else if (mVid) mDraftType = 'video'; else if (mLink) mDraftType = 'link';
+        var charM = getAdoptedAccountKey();
+        var postModel = {
+          id: 'preview-mission',
+          title: mTitle,
+          caption: mContent,
+          type: mDraftType,
+          created_at: new Date().toISOString(),
+          display_name: getAdoptedPublicDisplayName(),
+          character_name: charM,
+          image_url: mImg,
+          video_url: mVid,
+          link_url: mLink,
+          url: mDraftType === 'link' ? mLink : (mDraftType === 'image' ? mImg : '')
+        };
+        openedEl.innerHTML = '';
+        function mountMissionPostDetail(){
+          if (LUI && LUI.mountCreationDetailInto) LUI.mountCreationDetailInto(openedEl, postModel, { characterName: charM });
+        }
+        if (postModel.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+          window.LanternAvatar.attachCanonicalAvatarsToItems([postModel]).then(mountMissionPostDetail);
+        } else {
+          mountMissionPostDetail();
+        }
+        if (prev) prev.style.display = 'none';
+        if (inner) inner.innerHTML = '';
+        requestAnimationFrame(function(){
+          var t = el('studioRailScroller');
+          var a = t && t.querySelector('.studioScrollerCardActive');
+          if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+        });
+        return;
+      }
+      if (!window.LanternCards) return;
+      var LC = window.LanternCards;
+      if (ct === 'poll'){
+        var adPollStudio = getAdopted();
+        var pq = (el('pollQuestion') && el('pollQuestion').value || '').trim() || 'Your question';
+        var choices = getPollChoices();
+        var pollImg = (newsLinkUrl && String(newsLinkUrl).trim()) || (croppedNewsImageDataUrl || '');
+        var fb = el('pollFallbackSelect') ? el('pollFallbackSelect').value : 'poll';
+        var pollDraft = {
+          id: 'preview-draft',
+          question: pq,
+          choices: choices.length ? choices : ['Choice 1', 'Choice 2', 'Choice 3'],
+          image_url: pollImg,
+          fallback_key: fb,
+          character_name: getAdoptedAccountKey(),
+          author_name: getAdoptedPublicDisplayName() || (adPollStudio && adPollStudio.name) || ''
+        };
+        function finishPollStudio(){
+          if (rail) {
+            rail.innerHTML = '';
+            [
+              [STUDIO_FAKE_POLL_RAIL[0], {}],
+              [STUDIO_FAKE_POLL_RAIL[1], {}],
+              [pollDraft, { isActive: true }],
+              [STUDIO_FAKE_POLL_RAIL[2], {}],
+              [STUDIO_FAKE_POLL_RAIL[3], {}]
+            ].forEach(function(pair){
+              var pnc = LC.createStudentCard(LC.specPollRailCard(pair[0], pair[1]));
+              if (pnc) rail.appendChild(pnc);
+            });
+          }
+          if (openedEl) {
+            openedEl.innerHTML = '';
+            if (window.LanternCardUI && window.LanternCardUI.mountPollOpenedInto) {
+              window.LanternCardUI.mountPollOpenedInto(openedEl, pollDraft, esc);
+            }
+          }
+          if (inner) {
+            inner.innerHTML = '';
+            if (window.LanternCardUI && window.LanternCardUI.mountPollOpenedInto) {
+              window.LanternCardUI.mountPollOpenedInto(inner, pollDraft, esc);
+            }
+          }
+          if (prev) prev.style.display = 'block';
+          requestAnimationFrame(function(){
+            var t = el('studioRailScroller');
+            var a = t && t.querySelector('.studioScrollerCardActive');
+            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+          });
+        }
+        if (pollDraft.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+          window.LanternAvatar.attachCanonicalAvatarsToItems([pollDraft]).then(finishPollStudio);
+        } else {
+          finishPollStudio();
+        }
+        return;
+      }
+      if (ct === 'profile_post'){
+        var pTitle = (el('profilePostTitle') && el('profilePostTitle').value || '').trim() || 'Profile post';
+        var pCap = (el('profilePostCaption') && el('profilePostCaption').value || '').trim();
+        var pUrl = (el('profilePostUrl') && el('profilePostUrl').value || '').trim();
+        var pType = (el('profilePostType') && el('profilePostType').value || 'link').trim();
+        var adP = getAdopted();
+        var nowIsoP = new Date().toISOString();
+        var profileDisplayName = getAdoptedPublicDisplayName();
+        var profileAccountKey = getAdoptedAccountKey();
+        var isImgUrl = /\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(pUrl) || /\/api\/(media\/image|news\/image)\?/i.test(pUrl);
+        var profDraft = {
+          id: 'preview-profile',
+          title: pTitle,
+          body: pCap,
+          category: 'Student Spotlight',
+          author_name: profileDisplayName,
+          character_name: profileAccountKey,
+          author_type: 'student',
+          created_at: nowIsoP,
+          approved_at: nowIsoP,
+          image_url: (pType === 'image' && pUrl && isImgUrl) ? pUrl : '',
+          video_url: (pType === 'video' && pUrl) ? pUrl : '',
+          link_url: (pType !== 'image' || !isImgUrl) ? pUrl : '',
+          photo_credit: ''
+        };
+        function finishProfilePostPreview(){
+          if (rail) {
+            rail.innerHTML = '';
+            appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[0], esc, false);
+            appendStudioNewsCardToRail(rail, profDraft, esc, true);
+            appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[1], esc, false);
+            appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[2], esc, false);
+          }
+          var profChar = profDraft.character_name || '';
+          var profOpts = { characterName: profChar };
+          if (openedEl && window.LanternCardUI && window.LanternCardUI.mountNewsDetailInto) {
+            openedEl.innerHTML = '';
+            window.LanternCardUI.mountNewsDetailInto(openedEl, profDraft, profOpts);
+          }
+          if (inner) {
+            inner.innerHTML = '';
+            if (!document.body.classList.contains('contributeStudioOpen') && window.LanternCardUI && window.LanternCardUI.mountNewsDetailInto) {
+              window.LanternCardUI.mountNewsDetailInto(inner, profDraft, profOpts);
+            }
+          }
+          if (prev) prev.style.display = 'block';
+          requestAnimationFrame(function(){
+            var t = el('studioRailScroller');
+            var a = t && t.querySelector('.studioScrollerCardActive');
+            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+          });
+        }
+        if ((profDraft.character_name || profDraft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+          window.LanternAvatar.attachCanonicalAvatarsToItems([profDraft]).then(finishProfilePostPreview);
+        } else {
+          finishProfilePostPreview();
+        }
+        return;
+      }
+      var title = (el('newsTitle') && el('newsTitle').value || '').trim();
+      var body = (el('newsBody') && el('newsBody').value || '').trim();
+      var category = ct === 'shoutout' ? 'Student Spotlight' : ((el('contributeDerivedCategory') && el('contributeDerivedCategory').value) || 'School News').trim();
+      var authorType = (el('newsAuthorType') && el('newsAuthorType').value || 'student').trim();
+      var photoCredit = (el('newsPhotoCredit') && el('newsPhotoCredit').value || '').trim();
+      var videoSrc = (el('newsVideoPreviewEl') && el('newsVideoPreviewEl').src || '').trim();
+      var hasVideo = newsVideoFile && videoSrc.indexOf('blob:') === 0;
+      var imageUrl = croppedNewsImageDataUrl || '';
+      var videoUrl = hasVideo ? videoSrc : '';
+      var linkUrl = (newsLinkUrl && String(newsLinkUrl).trim()) || '';
+      var headline = title || (ct === 'shoutout' ? 'Shout-out' : '');
+      var authorName = '';
+      if (authorType === 'student'){
+        authorName = getAdoptedPublicDisplayName();
+      } else {
+        authorName = authorType === 'teacher' ? 'Teacher' : authorType === 'staff' ? 'Staff' : 'Admin';
+      }
+      var nowIso = new Date().toISOString();
+      var newsDraft = {
+        id: 'preview-draft',
+        title: headline,
+        body: body,
+        category: category,
+        author_name: authorName,
+        character_name: authorType === 'student' ? getAdoptedAccountKey() : '',
+        author_type: authorType,
+        created_at: nowIso,
+        approved_at: nowIso,
+        image_url: imageUrl,
+        video_url: videoUrl,
+        link_url: linkUrl,
+        photo_credit: photoCredit
+      };
+      function finishNewsPreview(){
+        if (rail) {
+          rail.innerHTML = '';
+          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[0], esc, false);
+          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[1], esc, false);
+          appendStudioNewsCardToRail(rail, newsDraft, esc, true);
+          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[2], esc, false);
+          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[3], esc, false);
+        }
+        var newsOpts = { characterName: String(newsDraft.character_name || getAdoptedAccountKey() || '').trim() };
+        if (openedEl && window.LanternCardUI && window.LanternCardUI.mountNewsDetailInto) {
+          openedEl.innerHTML = '';
+          window.LanternCardUI.mountNewsDetailInto(openedEl, newsDraft, newsOpts);
+        }
+        if (inner) {
+          inner.innerHTML = '';
+          if (!document.body.classList.contains('contributeStudioOpen') && window.LanternCardUI && window.LanternCardUI.mountNewsDetailInto) {
+            window.LanternCardUI.mountNewsDetailInto(inner, newsDraft, newsOpts);
+          }
+        }
+        if (prev) prev.style.display = 'block';
+        requestAnimationFrame(function(){
+          var t = el('studioRailScroller');
+          var a = t && t.querySelector('.studioScrollerCardActive');
+          if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+        });
+      }
+      if ((newsDraft.character_name || newsDraft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+        window.LanternAvatar.attachCanonicalAvatarsToItems([newsDraft]).then(finishNewsPreview);
+      } else {
+        finishNewsPreview();
+      }
+    }
+    el('cropperUseBtn').addEventListener('click', finishCropper);
+    el('cropperCancelBtn').addEventListener('click', function(){ if (newsCropperInstance){ try { newsCropperInstance.destroy(); } catch(e){} newsCropperInstance = null; } fullNewsImageDataUrl = null; var m = el('cropperModal'); if (m) m.style.display = 'none'; });
+
+    [['newsTitle','input'],['newsBody','input'],['newsAuthorType','change'],['newsPhotoCredit','input']].forEach(function(pair){
+      var node = el(pair[0]);
+      if (node) node.addEventListener(pair[1], function(){ updateStudioAll(); });
+    });
+    var shoutRec = el('shoutRecipient');
+    if (shoutRec) shoutRec.addEventListener('input', updateStudioAll);
+    ['profilePostTitle','profilePostCaption','profilePostUrl'].forEach(function(pid){
+      var n = el(pid);
+      if (n) n.addEventListener('input', updateStudioAll);
+    });
+    var ppt = el('profilePostType');
+    if (ppt) ppt.addEventListener('change', updateStudioAll);
+    var ppp = el('profilePostPinned');
+    if (ppp) ppp.addEventListener('change', updateStudioAll);
+
+    el('submitNewsBtn').addEventListener('click', async function(){
+      var ct = getContributeType();
+      if (ct === 'poll'){
+        var adPoll = getAdopted();
+        if (!adPoll || !adPoll.name){ toast('Pick a student in Locker → Overview first.'); return; }
+        if (!newsApiBase){ toast('API not configured.'); return; }
+        var pq = (el('pollQuestion').value || '').trim();
+        var pch = getPollChoices();
+        if (!pq){ toast('Enter your poll question.'); return; }
+        if (pch.length < 2 || pch.length > 5){ toast('Enter 2 to 5 answer choices.'); return; }
+        var imgOut = null;
+        if (croppedNewsImageDataUrl){
+          var tr = await callUploadNewsImage(croppedNewsImageDataUrl, 'image/png', 'poll.png');
+          if (!tr || !tr.ok){ toast(tr && tr.error ? tr.error : 'Image upload failed'); return; }
+          imgOut = newsApiBase + '/api/news/image?key=' + encodeURIComponent(tr.image_r2_key);
+        } else if (newsLinkUrl && (/\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(newsLinkUrl) || /\/api\/(media\/image|news\/image)\?/i.test(newsLinkUrl))){
+          imgOut = newsLinkUrl.trim().slice(0, 500);
+        }
+        var fbk = (el('pollFallbackSelect') && el('pollFallbackSelect').value) || 'poll';
+        if (!imgOut && !fbk){ toast('Add a poll image or pick a fallback picture.'); return; }
+        var btnP = el('submitNewsBtn');
+        btnP.disabled = true;
+        var isResubmit = !!resubmitPollContribId;
+        var url = isResubmit ? (newsApiBase + '/api/polls/resubmit') : (newsApiBase + '/api/polls/contribute');
+        var characterNameForApi = getCharacterNameForApi() || adPoll.name;
+        var body = {
+          character_name: characterNameForApi,
+          question: pq.slice(0, 500),
+          choices: pch,
+          image_url: imgOut || null,
+          fallback_key: imgOut ? null : fbk
+        };
+        if (isResubmit) body.id = resubmitPollContribId;
+        var pres = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function(r){
+          return r.text().then(function(text){
+            var data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { return { ok: false, error: 'Invalid response from server' }; }
+            if (!r.ok) return { ok: false, error: (data && data.error) || ('HTTP ' + r.status) };
+            if (data && data.ok === false) return { ok: false, error: (data && data.error) || 'Submit failed' };
+            return Object.assign({ ok: true }, data);
+          });
+        }).catch(function(e){ return { ok: false, error: String(e && e.message || e) || 'Network error' }; });
+        btnP.disabled = false;
+        if (!pres || pres.ok === false){ toast((pres && pres.error) || 'Submit failed'); return; }
+        toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
+        resubmitPollContribId = null;
+        if (btnP) btnP.textContent = 'Submit poll for approval';
+        resetContributeFormPartial();
+        syncContributeTypeUI();
+        return;
+      }
+      if (ct === 'profile_post'){
+        var adPr = getAdopted();
+        if (!adPr || !adPr.name){ toast('Adopt a character first'); return; }
+        if (!createRun){ toast('Not available'); return; }
+        var pt = (el('profilePostType') && el('profilePostType').value || 'link').trim();
+        var ttl = (el('profilePostTitle') && el('profilePostTitle').value || '').trim();
+        var cap = (el('profilePostCaption') && el('profilePostCaption').value || '').trim();
+        var u = (el('profilePostUrl') && el('profilePostUrl').value || '').trim();
+        var pin = !!(el('profilePostPinned') && el('profilePostPinned').checked);
+        if (!ttl){ toast('Enter a title'); return; }
+        if (!u){ toast('Enter a URL'); return; }
+        var btnPr = el('submitNewsBtn');
+        btnPr.disabled = true;
+        var okPr = await new Promise(function(resolve){
+          createRun().withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve(null); }).createPost({
+            character_name: adPr.name,
+            type: pt,
+            title: ttl || 'Untitled',
+            caption: cap,
+            url: u,
+            pinned: pin
+          });
+        });
+        btnPr.disabled = false;
+        if (!okPr || (okPr.ok === false)){ toast((okPr && okPr.error) || 'Failed'); return; }
+        toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
+        resetContributeFormPartial();
+        syncContributeTypeUI();
+        return;
+      }
+      var titleRaw = (el('newsTitle').value || '').trim();
+      var bodyRaw = (el('newsBody').value || '').trim();
+      var category = (el('contributeDerivedCategory') && el('contributeDerivedCategory').value || '').trim();
+      var authorType = (el('newsAuthorType').value || 'student').trim();
+      var photoCredit = (el('newsPhotoCredit') && el('newsPhotoCredit').value) ? (el('newsPhotoCredit').value || '').trim() : '';
+      if (ct === 'post' && !category){ toast('Pick why you’re writing (dropdown).'); return; }
+      if (ct === 'shoutout'){
+        if (!(el('contributeShoutReason') && el('contributeShoutReason').value)){ toast('Pick what kind of shout-out'); return; }
+        var rec = (el('shoutRecipient') && el('shoutRecipient').value || '').trim();
+        if (!rec){ toast('Who or what are you recognizing?'); return; }
+        if (!bodyRaw){ toast('Write your shout-out message'); return; }
+      }
+      var title = titleRaw;
+      var body = bodyRaw;
+      if (ct === 'shoutout'){
+        var rk = el('contributeShoutReason').value || '';
+        var rl = SHOUT_LABELS[rk] || 'Shout-out';
+        var rec2 = (el('shoutRecipient').value || '').trim();
+        body = 'Shout-out (' + rl + ')\n\nRecognizing: ' + rec2 + '\n\n' + bodyRaw;
+        category = 'Student Spotlight';
+        if (!title) title = 'Shout-out: ' + rec2;
+      }
+      if (!title){ toast('Enter a title'); return; }
+      if (!body){ toast('Enter your story'); return; }
+      var adopted = getAdopted();
+      var authorName = '';
+      if (authorType === 'student'){
+        if (!adopted || !adopted.name){ toast('Adopt a character first to submit as Student Reporter.'); return; }
+        authorName = adopted.name;
+      } else { authorName = authorType === 'teacher' ? 'Teacher' : authorType === 'staff' ? 'Staff' : 'Admin'; }
+      var btn = el('submitNewsBtn');
+      btn.disabled = true;
+      var payload = { title: title, body: body, category: category, author_name: authorName, author_type: authorType, photo_credit: photoCredit };
+      if (newsVideoFile) {
+        var reader = new FileReader();
+        var dataUrl = await new Promise(function(resolve, reject){ reader.onload = function(){ resolve(reader.result); }; reader.onerror = reject; reader.readAsDataURL(newsVideoFile); });
+        var uploadRes = await callUploadNewsVideo(dataUrl, newsVideoFile.type || 'video/mp4', newsVideoFile.name || 'video.mp4');
+        if (!uploadRes || !uploadRes.ok) { btn.disabled = false; toast(uploadRes && uploadRes.error ? uploadRes.error : 'Video upload failed'); return; }
+        payload.video_r2_key = uploadRes.video_r2_key;
+      } else if (croppedNewsImageDataUrl) {
+        var thumbRes = await callUploadNewsImage(croppedNewsImageDataUrl, 'image/png', 'image.png');
+        if (!thumbRes || !thumbRes.ok) { btn.disabled = false; toast(thumbRes && thumbRes.error ? thumbRes.error : 'Image upload failed'); return; }
+        payload.image_r2_key = thumbRes.image_r2_key;
+        if (fullNewsImageDataUrl) {
+          var fullRes = await callUploadNewsImage(fullNewsImageDataUrl, 'image/png', 'full.png');
+          if (fullRes && fullRes.ok && fullRes.image_r2_key) payload.full_image_r2_key = fullRes.image_r2_key;
+        }
+      } else {
+        var mediaPayload = window.LanternMedia && window.LanternMedia.normalizeMediaPayload ? window.LanternMedia.normalizeMediaPayload({ link_url: newsLinkUrl }) : {};
+        if (mediaPayload.link_url) payload.link_url = mediaPayload.link_url;
+      }
+      var wasNewsResubmit = !!newsArticleResubmitId;
+      var res;
+      if (newsArticleResubmitId) {
+        res = await callResubmitNewsArticleHttp({ id: newsArticleResubmitId, title: title, body: body });
+      } else {
+        res = await callCreateNewsArticle(payload);
+      }
+      btn.disabled = false;
+      if (!res || res.ok === false || (!res.id && !wasNewsResubmit)){ toast((res && res.error) || 'Failed'); return; }
+      newsArticleResubmitId = null;
+      if (el('submitNewsBtn')) el('submitNewsBtn').textContent = 'Submit for approval';
+      el('newsTitle').value = '';
+      el('newsBody').value = '';
+      if (el('newsPhotoCredit')) el('newsPhotoCredit').value = '';
+      if (newsUnifiedField) newsUnifiedField.clearPreview();
+      var msg = wasNewsResubmit
+        ? (authorType === 'student' ? FERPA_STUDENT_SUBMIT_MESSAGE : 'Resubmitted! Pending review.')
+        : (res.status === 'approved' ? 'Published!' : (authorType === 'student' ? FERPA_STUDENT_SUBMIT_MESSAGE : 'Submitted! Your article is in the teacher review queue.'));
+      function doneContribute() {
+        resetContributeFormPartial();
+        syncContributeTypeUI();
+        toast(msg, msg === FERPA_STUDENT_SUBMIT_MESSAGE ? 5200 : undefined);
+      }
+      if (authorType === 'student' && window.LanternSubmissionCelebration && typeof window.LanternSubmissionCelebration.start === 'function') {
+        try {
+          window.LanternSubmissionCelebration.start({ onFinish: doneContribute });
+        } catch (e) {
+          doneContribute();
+        }
+      } else {
+        doneContribute();
+      }
+    });
+
+    // —— Mission path: fetch missions, list, in-studio form panel ——
+    var currentMissionForSubmit = null;
+    var currentMissionResubmitId = null;
+    var currentMissionMinChars = 0;
+    var missionVideoUploadedUrl = '';
+    var missionCropperInstance = null;
+    var missionCropperSourceDataUrl = null;
+    var missionUnifiedField = null;
+    function escM(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+    function destroyContributeMissionUnified(){
+      if (missionUnifiedField){ try { missionUnifiedField.destroy(); } catch(e){} missionUnifiedField = null; }
+    }
+    function syncContributeMissionUnifiedPreview(){
+      if (!missionUnifiedField) return;
+      var imgU = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      var upImg = el('missionSubmitImageUploadPreviewImg');
+      if (!imgU && upImg && upImg.src && (upImg.src.indexOf('data:') === 0 || upImg.src.indexOf('http') === 0)) imgU = upImg.src;
+      var vidU = (missionVideoUploadedUrl || (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim()) || '';
+      var linkU = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
+      if (imgU) {
+        missionUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><img src="' + escM(imgU) + '" alt="" style="max-width:100%;max-height:200px;border-radius:12px;" onerror="this.parentNode.innerHTML=\'&lt;p style=color:var(--muted)&gt;Preview unavailable&lt;/p&gt;\'" /></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="missionUmReplace">Replace</button><button type="button" class="btn small bad" id="missionUmRemove">Remove</button></div>');
+        return;
+      }
+      if (vidU) {
+        missionUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><video controls preload="metadata" style="max-width:100%;max-height:200px;border-radius:12px;border:1px solid var(--line);" src="' + escM(vidU) + '"></video></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="missionUmReplace">Replace</button><button type="button" class="btn small bad" id="missionUmRemove">Remove</button></div>');
+        return;
+      }
+      if (linkU) {
+        missionUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaLinkCard"><a href="' + escM(linkU) + '" target="_blank" rel="noopener">' + escM(linkU) + '</a></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="missionUmReplace">Replace</button><button type="button" class="btn small bad" id="missionUmRemove">Remove</button></div>');
+        return;
+      }
+      missionUnifiedField.resetEmptyVisual();
+    }
+    function mountContributeMissionUnified(allowsImage, allowsVideo, allowsLink){
+      var mount = el('missionUnifiedMediaMount');
+      if (!mount || !window.LanternUnifiedMediaField) return;
+      destroyContributeMissionUnified();
+      var lbl = el('missionUnifiedMediaLabel');
+      if (lbl) {
+        if (allowsImage && !allowsVideo && !allowsLink) lbl.textContent = 'Add a photo';
+        else if (allowsVideo && !allowsImage && !allowsLink) lbl.textContent = 'Add a short video or paste a video link';
+        else if (allowsLink && !allowsImage && !allowsVideo) lbl.textContent = 'Add a link';
+        else lbl.textContent = 'Add photo, video, or link';
+      }
+      missionUnifiedField = window.LanternUnifiedMediaField.mount(mount, {
+        allowImage: allowsImage,
+        allowVideo: allowsVideo,
+        allowLink: allowsLink,
+        libraryButton: allowsImage ? { label: 'Library', onClick: function(){ openMissionLibraryPicker('mission'); } } : null,
+        emptyHelper: 'Click here, then paste, drag a file, or choose one.',
+        focusedHelper: 'Ready for photo, video, or link.',
+        onPasteUrl: function(u){
+          u = String(u || '').trim().slice(0, 2000);
+          var imgLike = /\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(u) || /\/api\/(media\/image|news\/image)\?/i.test(u);
+          if (allowsImage && imgLike) {
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = u;
+            missionVideoUploadedUrl = '';
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+            if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+            if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+            syncContributeMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return true;
+          }
+          if (allowsLink) {
+            if (el('missionSubmitUrl')) el('missionSubmitUrl').value = u;
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+            missionVideoUploadedUrl = '';
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+            if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+            syncContributeMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return true;
+          }
+          if (allowsVideo) {
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = u;
+            missionVideoUploadedUrl = '';
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+            if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+            if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+            updateMissionVideoPreview();
+            return true;
+          }
+          return false;
+        },
+        onImageFile: function(f){
+          missionVideoUploadedUrl = '';
+          if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+          if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+          if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+          if (missionUnifiedField) missionUnifiedField.resetEmptyVisual();
+          handleMissionImageFile(f);
+        },
+        onVideoFile: function(f){
+          if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+          if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+          handleMissionVideoFile(f);
+        },
+        onLinkUrl: function(u){
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = String(u || '').trim().slice(0, 2000);
+          if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+          missionVideoUploadedUrl = '';
+          if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+          if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+          syncContributeMissionUnifiedPreview();
+          updateMissionSubmitPreview();
+        },
+        onClear: function(){
+          clearMissionImageUpload();
+          clearMissionVideo();
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+        },
+      });
+    }
+
+    /** Internal account key for Worker/API URLs (e.g. char3). Never use as visible label on cards. */
+    function getAdoptedAccountKey(){
+      var adopted = getAdopted();
+      if (!adopted) return '';
+      return String(adopted.character_id || adopted.name || '').trim();
+    }
+    /** Public display name — same package as Locker/Profile (display_name || name). */
+    function getAdoptedPublicDisplayName(){
+      var adopted = getAdopted();
+      if (!adopted) return '';
+      return String(adopted.display_name || adopted.name || '').trim();
+    }
+    function getCharacterNameForApi(){
+      return getAdoptedAccountKey();
+    }
+
+    function callGetActiveMissions(characterName){
+      if (missionsApiBase && characterName) {
+        return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName))
+          .then(function(r){ return r.json(); })
+          .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
+          .catch(function(){ return { ok: false, missions: [] }; });
+      }
+      return Promise.resolve({ ok: false, missions: [] });
+    }
+
+    function callSubmitMissionCompletion(missionId, characterName, submissionType, submissionContent){
+      if (missionsApiBase && missionId && characterName) {
+        return fetch(missionsApiBase + '/api/missions/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
+        }).then(function(r){
+          return r.text().then(function(text){
+            var data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { return { ok: false, error: 'Invalid response' }; }
+            if (!r.ok) return { ok: false, error: (data && data.error) || ('HTTP ' + r.status) };
+            if (data && data.ok === false) return { ok: false, error: (data && data.error) || 'Submit failed' };
+            return Object.assign({ ok: true }, data);
+          });
+        }).catch(function(e){ return { ok: false, error: String(e && e.message || e) || 'Network error' }; });
+      }
+      if (createRun && missionId && characterName) {
+        return new Promise(function(resolve){
+          createRun().withSuccessHandler(function(r){ resolve(r && r.ok !== false ? r : { ok: false, error: (r && r.error) || 'Failed' }); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitMissionCompletion({ mission_id: missionId, character_name: characterName, submission_type: submissionType || 'text', submission_content: String(submissionContent || '') });
+        });
+      }
+      return Promise.resolve({ ok: false, error: 'API not configured' });
+    }
+    function callResubmitMissionSubmission(subId, submissionContent){
+      if (missionsApiBase && subId) {
+        return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: subId, submission_content: submissionContent || '' })
+        }).then(function(r){
+          return r.text().then(function(text){
+            var data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { return { ok: false, error: 'Invalid response' }; }
+            if (!r.ok) return { ok: false, error: (data && data.error) || ('HTTP ' + r.status) };
+            if (data && data.ok === false) return { ok: false, error: (data && data.error) || 'Resubmit failed' };
+            return Object.assign({ ok: true }, data);
+          });
+        }).catch(function(e){ return { ok: false, error: String(e && e.message || e) || 'Network error' }; });
+      }
+      if (createRun && subId) {
+        return new Promise(function(resolve){
+          createRun().withSuccessHandler(function(r){ resolve(r && r.ok !== false ? r : { ok: false, error: (r && r.error) || 'Failed' }); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).resubmitMissionSubmission({ id: subId, submission_content: String(submissionContent || '') });
+        });
+      }
+      return Promise.resolve({ ok: false, error: 'API not configured' });
+    }
+
+    function callUploadMissionImage(dataUrl, mimeType, fileName){
+      if (!missionsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(missionsApiBase + '/api/news/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, mime_type: mimeType || 'image/png', file_name: fileName || 'image.png' })
+      }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.image_r2_key != null; }, 'Image upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+    }
+    function callUploadMissionVideo(base64DataUrl, mimeType, fileName){
+      if (!missionsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(missionsApiBase + '/api/news/upload-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video: base64DataUrl || '', mime_type: mimeType || 'video/mp4', file_name: fileName || 'video.mp4' })
+      }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.video_r2_key != null; }, 'Video upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+    }
+
+    var missionSubmitLibraryTarget = null;
+    function updateMissionPollImagePreview(){
+      var input = el('missionSubmitPollImageUrl');
+      var wrap = el('missionSubmitPollImagePreview');
+      var img = el('missionSubmitPollImagePreviewImg');
+      if (!input || !wrap) return;
+      var url = (input.value || '').trim();
+      if (!url){ wrap.style.display = 'none'; updateMissionSubmitPreview(); return; }
+      wrap.style.display = 'block';
+      if (img){ img.onerror = function(){ wrap.style.display = 'none'; }; img.onload = function(){ wrap.style.display = 'block'; }; img.src = url; }
+      updateMissionSubmitPreview();
+    }
+    function openMissionLibraryPicker(target){
+      missionSubmitLibraryTarget = target || 'mission';
+      var modal = el('missionSubmitLibraryModal');
+      if (!modal) return;
+      var apiBase = missionsApiBase || newsApiBase || '';
+      if (!apiBase){ toast('API not configured'); return; }
+      modal.style.display = 'flex';
+      modal.classList.add('show');
+      fetch(apiBase + '/api/media/library').then(function(r){ return r.json(); }).then(function(res){
+        if (!res || !res.ok || !res.categories){ toast('Could not load library'); return; }
+        var catDiv = el('missionSubmitLibraryCategories');
+        var imgDiv = el('missionSubmitLibraryImages');
+        if (!catDiv || !imgDiv) return;
+        catDiv.innerHTML = '';
+        imgDiv.innerHTML = '';
+        var categories = Object.keys(res.categories);
+        categories.forEach(function(cat){
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn small';
+          btn.textContent = cat;
+          btn.style.marginRight = '8px';
+          btn.style.marginBottom = '8px';
+          btn.addEventListener('click', function(){
+            imgDiv.innerHTML = '';
+            (res.categories[cat] || []).forEach(function(item){
+              var u = item.url || (apiBase + '/api/media/image?key=' + encodeURIComponent(item.key || ''));
+              var thumb = document.createElement('button');
+              thumb.type = 'button';
+              thumb.style.padding = '0';
+              thumb.style.border = '2px solid var(--line)';
+              thumb.style.borderRadius = '12px';
+              thumb.style.overflow = 'hidden';
+              thumb.style.background = 'transparent';
+              thumb.style.cursor = 'pointer';
+              var im = document.createElement('img');
+              im.src = u;
+              im.alt = '';
+              im.style.width = '100%';
+              im.style.height = '80px';
+              im.style.objectFit = 'cover';
+              im.style.display = 'block';
+              thumb.appendChild(im);
+              thumb.addEventListener('click', function(){
+                if (missionSubmitLibraryTarget === 'poll'){
+                  var pollInput = el('missionSubmitPollImageUrl');
+                  if (pollInput) pollInput.value = u;
+                  updateMissionPollImagePreview();
+                } else {
+                  var imgInput = el('missionSubmitImageUrl');
+                  if (imgInput) imgInput.value = u;
+                  syncContributeMissionUnifiedPreview();
+                }
+                var m = el('missionSubmitLibraryModal');
+                if (m){ m.style.display = 'none'; m.classList.remove('show'); }
+              });
+              imgDiv.appendChild(thumb);
+            });
+          });
+          catDiv.appendChild(btn);
+        });
+        if (categories.length > 0 && catDiv.querySelector('.btn')) catDiv.querySelector('.btn').click();
+      }).catch(function(){ toast('Could not load library'); });
+    }
+
+    function loadContributeMissions(){
+      var adopted = getAdopted();
+      var characterName = adopted ? (getCharacterNameForApi() || adopted.name) : '';
+      var railEl = el('contributeMissionRail');
+      if (!railEl || !window.LanternCards){
+        return;
+      }
+      var LCM = window.LanternCards;
+      if (!characterName){
+        railEl.innerHTML = '<p class="sectionPlaceholder"><a href="locker.html" style="color:var(--accent);font-weight:800;">Locker</a> · Overview · adopt</p>';
+        return;
+      }
+      railEl.innerHTML = '<p class="sectionPlaceholder">Loading missions…</p>';
+      callGetActiveMissions(characterName).then(function(res){
+        if (!res || !res.ok){
+          railEl.innerHTML = '<p class="sectionPlaceholder" style="color:var(--bad);">Load failed · check connection</p>';
+          return;
+        }
+        var missions = res.missions || [];
+        if (!missions.length){
+          railEl.innerHTML = '<p class="sectionPlaceholder">No open missions</p>';
+          return;
+        }
+        railEl.innerHTML = '';
+        missions.forEach(function(m){
+          var node = LCM.buildMissionSpotlightRailElement(m, {
+            studioActivate: true,
+            onActivate: function(mission){
+              openMissionSubmitModal(mission, null, '');
+            }
+          });
+          if (node) railEl.appendChild(node);
+        });
+        if (pendingStudioMissionOpen && pendingStudioMissionOpen.mission){
+          var pm = pendingStudioMissionOpen.mission;
+          var rid = pendingStudioMissionOpen.resubmitId || null;
+          var pf = pendingStudioMissionOpen.prefill;
+          pendingStudioMissionOpen = null;
+          var mid = pm && pm.id != null ? String(pm.id) : '';
+          var found = missions.filter(function(x){ return String(x.id) === mid; })[0];
+          openMissionSubmitModal(found || pm, rid, typeof pf === 'string' ? pf : '');
+        }
+      });
+    }
+
+    function openMissionCropper(dataUrl){
+      var modal = el('missionCropperModal');
+      var imgEl = el('missionCropperImg');
+      if (!modal || !imgEl) return;
+      missionCropperSourceDataUrl = dataUrl || null;
+      if (missionCropperInstance){ try { missionCropperInstance.destroy(); } catch(e){} missionCropperInstance = null; }
+      imgEl.src = dataUrl || '';
+      modal.style.display = 'flex';
+      imgEl.onload = function(){
+        if (typeof window.Cropper === 'undefined'){ toast('Crop tool unavailable'); modal.style.display = 'none'; return; }
+        missionCropperInstance = new window.Cropper(imgEl, { aspectRatio: NaN, viewMode: 1, dragMode: 'move', autoCropArea: 0.8 });
+      };
+    }
+    function finishMissionCropper(){
+      var modal = el('missionCropperModal');
+      var uploadPreviewImg = el('missionSubmitImageUploadPreviewImg');
+      var imageUrlEl = el('missionSubmitImageUrl');
+      if (!modal || !imageUrlEl || !missionsApiBase) return;
+      var dataUrlToUpload = null;
+      if (missionCropperInstance){
+        try {
+          var canvas = missionCropperInstance.getCroppedCanvas({ maxWidth: 800, maxHeight: 600, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+          if (canvas && canvas.width > 0 && canvas.height > 0) {
+            dataUrlToUpload = canvas.toDataURL('image/png');
+          } else if (missionCropperSourceDataUrl) {
+            dataUrlToUpload = missionCropperSourceDataUrl;
+          }
+        } catch(e){
+          if (missionCropperSourceDataUrl) dataUrlToUpload = missionCropperSourceDataUrl;
+        }
+        try { missionCropperInstance.destroy(); } catch(e){}
+        missionCropperInstance = null;
+      }
+      modal.style.display = 'none';
+      missionCropperSourceDataUrl = null;
+      if (!dataUrlToUpload){ toast('Could not crop image'); return; }
+      callUploadMissionImage(dataUrlToUpload, 'image/png', 'image.png').then(function(res){
+        if (res && res.ok && res.image_r2_key) {
+          imageUrlEl.value = missionsApiBase + '/api/news/image?key=' + encodeURIComponent(res.image_r2_key);
+          if (uploadPreviewImg) uploadPreviewImg.src = dataUrlToUpload;
+          syncContributeMissionUnifiedPreview();
+        } else { toast(res && res.error ? res.error : 'Image upload failed'); }
+        updateMissionSubmitPreview();
+      });
+    }
+    function handleMissionImageFile(file){
+      if (!file || !file.type || file.type.indexOf('image') !== 0) return;
+      var reader = new FileReader();
+      reader.onload = function(){ openMissionCropper(reader.result); };
+      reader.readAsDataURL(file);
+    }
+    function clearMissionImageUpload(){
+      var imageUrlEl = el('missionSubmitImageUrl');
+      var uploadPreviewImg = el('missionSubmitImageUploadPreviewImg');
+      if (imageUrlEl) imageUrlEl.value = '';
+      if (uploadPreviewImg) uploadPreviewImg.src = '';
+      syncContributeMissionUnifiedPreview();
+      updateMissionSubmitPreview();
+    }
+    function updateMissionVideoPreview(){
+      var input = el('missionSubmitVideoUrl');
+      var wrap = el('missionSubmitVideoPreview');
+      var video = el('missionSubmitVideoPreviewEl');
+      var url = (missionVideoUploadedUrl || (input && input.value || '').trim()) || '';
+      if (!wrap) return;
+      if (!url){ wrap.style.display = 'none'; syncContributeMissionUnifiedPreview(); updateMissionSubmitPreview(); return; }
+      wrap.style.display = 'block';
+      if (video){ video.style.display = ''; video.onerror = function(){}; video.onloadeddata = function(){}; video.src = url; }
+      syncContributeMissionUnifiedPreview();
+      updateMissionSubmitPreview();
+    }
+    function handleMissionVideoFile(file){
+      if (!file || !file.type.match(/^video\/(mp4|webm)$/)){ toast('Please choose an MP4 or WebM video.'); return; }
+      if (file.size > 25 * 1024 * 1024){ toast('Video too large. Max 25MB.'); return; }
+      if (!missionsApiBase){ toast('API not configured'); return; }
+      var reader = new FileReader();
+      reader.onload = function(){
+        callUploadMissionVideo(reader.result, file.type || 'video/mp4', file.name || 'video.mp4').then(function(res){
+          if (res && res.video_r2_key){
+            missionVideoUploadedUrl = missionsApiBase + '/api/news/video?key=' + encodeURIComponent(res.video_r2_key);
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+            updateMissionVideoPreview();
+          }
+          else { toast(res && res.error ? res.error : 'Video upload failed'); }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+    function clearMissionVideo(){ missionVideoUploadedUrl = ''; var urlEl = el('missionSubmitVideoUrl'); if (urlEl) urlEl.value = ''; updateMissionVideoPreview(); updateMissionSubmitPreview(); }
+    function updateMissionLinkPreview(){
+      var input = el('missionSubmitUrl');
+      var wrap = el('missionSubmitLinkPreview');
+      var a = el('missionSubmitLinkPreviewA');
+      if (!input || !wrap) return;
+      var url = (input.value || '').trim();
+      if (!url){ wrap.style.display = 'none'; syncContributeMissionUnifiedPreview(); updateMissionSubmitPreview(); return; }
+      wrap.style.display = 'block';
+      if (a){ a.href = url; a.textContent = url; }
+      syncContributeMissionUnifiedPreview();
+      updateMissionSubmitPreview();
+    }
+
+    function closeMissionStudioPanel(){
+      destroyContributeMissionUnified();
+      var metaEl = el('missionSelectedMeta');
+      if (metaEl) {
+        metaEl.style.display = 'none';
+        metaEl.innerHTML = '';
+      }
+      var panel = el('missionStudioFormPanel');
+      if (panel) {
+        panel.classList.remove('missionStudioFormPanel--open');
+        panel.setAttribute('aria-hidden', 'true');
+      }
+      var pw = el('missionSubmitPollWrap');
+      var bw = el('missionSubmitBugReportWrap');
+      if (pw) pw.style.display = 'none';
+      if (bw) bw.style.display = 'none';
+      if (el('missionSubmitPollQuestion')) el('missionSubmitPollQuestion').value = '';
+      ['missionSubmitPollChoice1','missionSubmitPollChoice2','missionSubmitPollChoice3','missionSubmitPollChoice4'].forEach(function(id){ if (el(id)) el(id).value = ''; });
+      if (el('missionSubmitPollImageUrl')) el('missionSubmitPollImageUrl').value = '';
+      if (el('missionSubmitPollImagePreview')) el('missionSubmitPollImagePreview').style.display = 'none';
+      if (el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = '';
+      if (el('missionSubmitBugReportScreenshot')) el('missionSubmitBugReportScreenshot').value = '';
+      currentMissionForSubmit = null;
+      currentMissionResubmitId = null;
+      currentMissionMinChars = 0;
+      syncMissionCenterFlow();
+    }
+
+    function openMissionSubmitModal(m, resubmitId, prefill){
+      currentMissionForSubmit = m;
+      currentMissionResubmitId = resubmitId || null;
+      destroyContributeMissionUnified();
+      var metaEl = el('missionSelectedMeta');
+      if (metaEl && m) {
+        metaEl.style.display = 'block';
+        var escM = function(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); };
+        var st = String(m.submission_type || 'response').trim();
+        var rew = m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : 0;
+        metaEl.innerHTML = '<div style="font-weight:900;font-size:22px;">' + escM(m.title || 'Mission') + '</div><div class="missionReward" style="margin-top:4px;">+' + escM(String(rew)) + ' nuggets</div><div class="studioPanelMicro" style="margin-top:6px;">Type: ' + escM(st) + '</div>';
+      }
+      var panel = el('missionStudioFormPanel');
+      var titleEl = el('missionSubmitTitle');
+      var labelEl = el('missionSubmitLabel');
+      var contentEl = el('missionSubmitContent');
+      var textWrap = el('missionSubmitTextWrap');
+      var urlEl = el('missionSubmitUrl');
+      var imageUrlEl = el('missionSubmitImageUrl');
+      var videoUrlEl = el('missionSubmitVideoUrl');
+      var pollWrap = el('missionSubmitPollWrap');
+      var bugWrap = el('missionSubmitBugReportWrap');
+      var stMission = String(m.submission_type || '').trim();
+      var isPollMission = stMission === 'poll';
+      var isBugMission = stMission === 'bug_report';
+      var allowsText = m.allows_text !== false && m.allows_text !== 0;
+      var allowsImage = !!(m.allows_image);
+      var allowsVideo = !!(m.allows_video);
+      var allowsLink = !!(m.allows_link);
+      var anyMed = !isPollMission && !isBugMission && (allowsImage || allowsVideo || allowsLink);
+      if (titleEl) titleEl.textContent = (currentMissionResubmitId ? 'Resubmit: ' : 'Complete: ') + (m.title || '');
+      if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
+      if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';
+      if (pollWrap) pollWrap.style.display = isPollMission ? 'block' : 'none';
+      if (bugWrap) bugWrap.style.display = isBugMission ? 'block' : 'none';
+      var outer = el('missionUnifiedMediaOuter');
+      if (outer) outer.style.display = anyMed ? 'block' : 'none';
+      var pf = (typeof prefill === 'string') ? prefill : '';
+      if (isPollMission) {
+        if (contentEl) contentEl.value = '';
+        if (imageUrlEl) imageUrlEl.value = '';
+        missionVideoUploadedUrl = '';
+        if (videoUrlEl) videoUrlEl.value = '';
+        if (urlEl) urlEl.value = '';
+        if (el('missionSubmitPollQuestion')) el('missionSubmitPollQuestion').value = '';
+        ['missionSubmitPollChoice1','missionSubmitPollChoice2','missionSubmitPollChoice3','missionSubmitPollChoice4'].forEach(function(id){ if (el(id)) el(id).value = ''; });
+        if (el('missionSubmitPollImageUrl')) el('missionSubmitPollImageUrl').value = '';
+        try {
+          var parsed = pf ? JSON.parse(pf) : null;
+          if (parsed && typeof parsed === 'object') {
+            if (el('missionSubmitPollQuestion')) el('missionSubmitPollQuestion').value = String(parsed.question || '').slice(0, 500);
+            var ch = Array.isArray(parsed.choices) ? parsed.choices : [];
+            var ids = ['missionSubmitPollChoice1','missionSubmitPollChoice2','missionSubmitPollChoice3','missionSubmitPollChoice4'];
+            for (var ci = 0; ci < ch.length && ci < ids.length; ci++) { if (el(ids[ci])) el(ids[ci]).value = String(ch[ci] || '').slice(0, 200); }
+            var imgU = (parsed.image_url || parsed.image || '').trim();
+            if (imgU && el('missionSubmitPollImageUrl')) el('missionSubmitPollImageUrl').value = imgU.slice(0, 500);
+          }
+        } catch (e1) {}
+        updateMissionPollImagePreview();
+        currentMissionMinChars = 0;
+        if (el('missionSubmitMinCharsHint')) el('missionSubmitMinCharsHint').style.display = 'none';
+        if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+        if (panel) { panel.classList.add('missionStudioFormPanel--open'); panel.setAttribute('aria-hidden', 'false'); }
+        updateMissionSubmitPreview();
+        syncMissionCenterFlow();
+        return;
+      }
+      if (isBugMission) {
+        if (contentEl) contentEl.value = '';
+        if (imageUrlEl) imageUrlEl.value = '';
+        missionVideoUploadedUrl = '';
+        if (videoUrlEl) videoUrlEl.value = '';
+        if (urlEl) urlEl.value = '';
+        if (el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = '';
+        if (el('missionSubmitBugReportScreenshot')) el('missionSubmitBugReportScreenshot').value = '';
+        try {
+          var bj = pf ? JSON.parse(pf) : null;
+          if (bj && typeof bj === 'object') {
+            if (el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = String(bj.description || bj.text || '').slice(0, 2000);
+            var shot = (bj.image_url || bj.image || '').trim();
+            if (shot && el('missionSubmitBugReportScreenshot')) el('missionSubmitBugReportScreenshot').value = shot.slice(0, 500);
+          } else if (pf) {
+            if (el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = pf.slice(0, 2000);
+          }
+        } catch (e2) {
+          if (pf && el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = pf.slice(0, 2000);
+        }
+        currentMissionMinChars = 0;
+        if (el('missionSubmitMinCharsHint')) el('missionSubmitMinCharsHint').style.display = 'none';
+        if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+        if (panel) { panel.classList.add('missionStudioFormPanel--open'); panel.setAttribute('aria-hidden', 'false'); }
+        updateMissionSubmitPreview();
+        syncMissionCenterFlow();
+        return;
+      }
+      if (contentEl) contentEl.value = (m.submission_type === 'text' || m.submission_type === 'confirmation' || allowsText) ? pf : '';
+      if (imageUrlEl) imageUrlEl.value = m.submission_type === 'image_url' ? pf : '';
+      missionVideoUploadedUrl = '';
+      if (videoUrlEl) videoUrlEl.value = '';
+      if (m.submission_type === 'video' && pf && pf.trim().indexOf('http') === 0) {
+        missionVideoUploadedUrl = pf.trim().slice(0, 2000);
+      } else if (allowsVideo && m.submission_type === 'link' && pf && pf.trim().indexOf('http') === 0 && !allowsImage && !allowsLink) {
+        if (videoUrlEl) videoUrlEl.value = pf.trim().slice(0, 2000);
+      }
+      if (urlEl) urlEl.value = (m.submission_type === 'link' && pf && pf.trim().indexOf('http') === 0) ? pf.trim().slice(0, 2000) : '';
+      if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+      var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
+      var enforceMin = allowsText && minChars > 0;
+      currentMissionMinChars = enforceMin ? minChars : 0;
+      var minCharsHint = el('missionSubmitMinCharsHint');
+      if (minCharsHint) {
+        if (allowsText && minChars > 0) {
+          minCharsHint.textContent = 'Minimum characters required: ' + minChars;
+          minCharsHint.style.display = 'block';
+        } else {
+          minCharsHint.style.display = 'none';
+        }
+      }
+      if (anyMed) mountContributeMissionUnified(allowsImage, allowsVideo, allowsLink);
+      updateMissionVideoPreview();
+      updateMissionLinkPreview();
+      if (panel) {
+        panel.classList.add('missionStudioFormPanel--open');
+        panel.setAttribute('aria-hidden', 'false');
+      }
+      updateMissionSubmitPreview();
+      syncMissionCenterFlow();
+    }
+
+    function updateMissionSubmitPreview(){
+      if (getContributeType() === 'mission') {
+        updateStudioAll();
+        return;
+      }
+    }
+
+    var missionCloseBtn = el('missionSubmitCloseBtn');
+    if (missionCloseBtn) missionCloseBtn.addEventListener('click', closeMissionStudioPanel);
+    el('missionCropperUseBtn').addEventListener('click', finishMissionCropper);
+    el('missionCropperCancelBtn').addEventListener('click', function(){ if (missionCropperInstance){ try { missionCropperInstance.destroy(); } catch(e){} missionCropperInstance = null; } el('missionCropperModal').style.display = 'none'; });
+    var missionUmMount = el('missionUnifiedMediaMount');
+    if (missionUmMount) {
+      missionUmMount.addEventListener('click', function(e){
+        if (e.target.id === 'missionUmRemove' && missionUnifiedField) {
+          missionUnifiedField.clearPreview();
+          updateMissionSubmitPreview();
+        }
+        if (e.target.id === 'missionUmReplace' && missionUnifiedField) {
+          missionUnifiedField.clearPreview();
+          missionUnifiedField.openFilePicker();
+          updateMissionSubmitPreview();
+        }
+      });
+    }
+    if (el('missionSubmitContent')) { el('missionSubmitContent').addEventListener('input', updateMissionSubmitPreview); el('missionSubmitContent').addEventListener('change', updateMissionSubmitPreview); }
+    ['missionSubmitPollQuestion','missionSubmitPollChoice1','missionSubmitPollChoice2','missionSubmitPollChoice3','missionSubmitPollChoice4','missionSubmitPollImageUrl','missionSubmitBugReportDesc','missionSubmitBugReportScreenshot'].forEach(function(mid){
+      var mn = el(mid);
+      if (mn){ mn.addEventListener('input', updateMissionSubmitPreview); mn.addEventListener('change', updateMissionSubmitPreview); }
+    });
+    if (el('missionSubmitPollLibraryBtn')) el('missionSubmitPollLibraryBtn').addEventListener('click', function(){ openMissionLibraryPicker('poll'); });
+    if (el('missionSubmitLibraryCloseBtn')) el('missionSubmitLibraryCloseBtn').addEventListener('click', function(){
+      var lm = el('missionSubmitLibraryModal');
+      if (lm){ lm.style.display = 'none'; lm.classList.remove('show'); }
+    });
+    var libModal = el('missionSubmitLibraryModal');
+    if (libModal) libModal.addEventListener('click', function(e){ if (e.target === libModal){ libModal.style.display = 'none'; libModal.classList.remove('show'); } });
+
+    el('missionSubmitBtn').addEventListener('click', async function(){
+      var adopted = getAdopted();
+      if (!adopted || !adopted.name){ toast('Adopt a character first'); return; }
+      if (!currentMissionForSubmit){ toast('No mission selected'); return; }
+      var m = currentMissionForSubmit;
+      var mst = String(m.submission_type || '').trim();
+      var btnM = el('missionSubmitBtn');
+      if (mst === 'poll'){
+        var pq = (el('missionSubmitPollQuestion') && el('missionSubmitPollQuestion').value || '').trim();
+        var pch = [1,2,3,4].map(function(i){ return (el('missionSubmitPollChoice' + i) && el('missionSubmitPollChoice' + i).value || '').trim(); }).filter(Boolean);
+        var pimg = (el('missionSubmitPollImageUrl') && el('missionSubmitPollImageUrl').value || '').trim();
+        if (!pq){ toast('Enter your poll question.'); return; }
+        if (pch.length < 2 || pch.length > 4){ toast('Enter 2 to 4 answer choices.'); return; }
+        if (!pimg){ toast('Add a poll image URL or pick from the library.'); return; }
+        var pollPayload = JSON.stringify({ question: pq.slice(0, 500), choices: pch.map(function(c){ return c.slice(0, 200); }), image_url: pimg.slice(0, 500) });
+        btnM.disabled = true;
+        var resP;
+        if (currentMissionResubmitId) resP = await callResubmitMissionSubmission(currentMissionResubmitId, pollPayload);
+        else resP = await callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, 'poll', pollPayload);
+        btnM.disabled = false;
+        if (!resP.ok){ toast(resP.error || 'Failed'); return; }
+        toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
+        closeMissionStudioPanel();
+        loadContributeMissions();
+        return;
+      }
+      if (mst === 'bug_report'){
+        var bdesc = (el('missionSubmitBugReportDesc') && el('missionSubmitBugReportDesc').value || '').trim();
+        var bimg = (el('missionSubmitBugReportScreenshot') && el('missionSubmitBugReportScreenshot').value || '').trim();
+        if (!bdesc){ toast('Description is required.'); return; }
+        var bugPayload = JSON.stringify({ description: bdesc.slice(0, 2000), image_url: bimg ? bimg.slice(0, 500) : '' });
+        btnM.disabled = true;
+        var resB;
+        if (currentMissionResubmitId) resB = await callResubmitMissionSubmission(currentMissionResubmitId, bugPayload);
+        else resB = await callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, 'bug_report', bugPayload);
+        btnM.disabled = false;
+        if (!resB.ok){ toast(resB.error || 'Failed'); return; }
+        toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
+        closeMissionStudioPanel();
+        loadContributeMissions();
+        return;
+      }
+      var allowsText = m.allows_text !== false && m.allows_text !== 0;
+      var allowsImage = !!(m.allows_image);
+      var allowsVideo = !!(m.allows_video);
+      var allowsLink = !!(m.allows_link);
+      var textVal = (el('missionSubmitContent') && el('missionSubmitContent').value || '').trim();
+      var imageVal = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      var videoVal = (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim();
+      var linkVal = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
+      var minChars = currentMissionMinChars;
+      var validText = allowsText && (minChars <= 0 ? textVal.length > 0 : textVal.length >= minChars);
+      var validImage = allowsImage && (imageVal.length > 0 || (el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src && String(el('missionSubmitImageUploadPreviewImg').src).trim().length > 0));
+      var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
+      var validLink = allowsLink && linkVal.length > 0;
+      var hasAnyValid = validText || validImage || validVideo || validLink;
+      if (!hasAnyValid) {
+        if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) toast('Minimum ' + minChars + ' characters required.');
+        else if (allowsText && !allowsImage && !allowsVideo && !allowsLink) toast('This mission requires a written response.');
+        else toast('Please add a valid submission before sending.');
+        return;
+      }
+      var mid = (m.id || '').trim();
+      if (mid === 'perm_show_something_cool' || mid === 'perm_report_good_news') {
+        if (!validImage) { toast('This mission requires an image.'); return; }
+      }
+      if (mid === 'perm_create_something') {
+        if (!validImage && !validVideo) { toast('This mission requires an image or video.'); return; }
+      }
+      var type = 'text';
+      var content = '';
+      if (allowsText && textVal){ type = 'text'; content = textVal; }
+      else if (allowsImage && imageVal){ type = 'image_url'; content = imageVal; }
+      else if (allowsVideo && missionVideoUploadedUrl){ type = 'video'; content = missionVideoUploadedUrl; }
+      else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }
+      else if (allowsLink && linkVal){ type = 'link'; content = linkVal; }
+      else if (allowsText){ type = 'text'; content = textVal; }
+      else if (allowsImage){ type = 'image_url'; content = imageVal; }
+      else if (allowsVideo){ type = missionVideoUploadedUrl ? 'video' : 'link'; content = missionVideoUploadedUrl || videoVal; }
+      else if (allowsLink){ type = 'link'; content = linkVal; }
+      if (m.submission_type === 'confirmation') type = 'confirmation';
+      btnM.disabled = true;
+      var res;
+      if (currentMissionResubmitId) {
+        res = await callResubmitMissionSubmission(currentMissionResubmitId, content);
+      } else {
+        res = await callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, type, content);
+      }
+      btnM.disabled = false;
+      if (!res.ok){ toast(res.error || 'Failed'); return; }
+      toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
+      closeMissionStudioPanel();
+      loadContributeMissions();
+    });
+  </script>
+  <script src="js/lantern-canonical-enforce.js"></script>
+</body>
+</html>

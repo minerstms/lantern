@@ -1,0 +1,1695 @@
+<!-- ===== TMS Lantern — Games ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <title>TMS Lantern — Games</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="prefetch" href="locker.html">
+  <link rel="prefetch" href="explore.html">
+  <link rel="prefetch" href="explore.html">
+  <link rel="prefetch" href="locker.html#store">
+  <link rel="prefetch" href="teacher.html">
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --bad:#ff4d6d;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --r: 18px;
+      --blue1:#0f3b86;
+      --blue2:#1e63d6;
+      --fsBase: 22px;
+      --fsButton: 28px;
+    }
+    *{box-sizing:border-box}
+    html,body{ min-height: 100%; margin: 0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        radial-gradient(900px 500px at 20% 30%, rgba(46,105,214,.18) 0%, rgba(46,105,214,0) 60%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    a{color:inherit}
+    /* Outer shell: lantern-header.css .wrap.lanternContent */
+
+    .gamesPageShell{ margin-bottom: 24px; position: relative; }
+    /* Match explore.html rail row titles: first label establishes page context */
+    .gamesPageShell .sectionHd{
+      font-weight: 900;
+      font-size: 26px;
+      margin-bottom: 4px;
+      letter-spacing: .2px;
+      padding: 14px var(--lantern-pad-x) 0;
+      color: var(--ink);
+    }
+    .gamesPageWalletRow{
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin: 0 0 8px;
+    }
+    .gamesPageWalletLink{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,204,102,.45);
+      background: rgba(255,204,102,.12);
+      text-decoration: none;
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+    .gamesPageWalletLink:hover{ background: rgba(255,204,102,.22); border-color: rgba(255,204,102,.65); }
+    .gamesPageWalletAmt{ color: #ffcc66; font-weight: 900; min-width: 1ch; font-size: 22px; }
+    .gamesPageWalletLbl{ color: var(--muted); font-size: 20px; font-weight: 800; }
+    .gamesRailSection{ margin-bottom: 28px; }
+    .gameLocked{ color: var(--bad); font-weight: 800; font-size: 22px; margin-bottom: 8px; text-align: center; }
+    .dailyHuntHint{
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(242,194,48,.4);
+      background: rgba(242,194,48,.12);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--warn);
+      text-align: center;
+    }
+    .dailyHuntHint.found{ border-color: rgba(56,208,124,.4); background: rgba(56,208,124,.12); color: var(--good); }
+    .dailyHuntNugget{
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 44px;
+      height: 44px;
+      font-size: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 5;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      animation: dailyHuntSparkle 2s ease-in-out infinite;
+      opacity: 0.82;
+    }
+    .dailyHuntNugget img{ width: 36px; height: 36px; object-fit: contain; }
+    .dailyHuntNugget:hover{ opacity: 1; transform: scale(1.12); }
+    .dailyHuntNugget:active{ transform: scale(0.95); }
+    @keyframes dailyHuntSparkle{
+      0%,100%{ filter: drop-shadow(0 0 6px rgba(242,194,48,.6)); opacity: 0.9; }
+      50%{ filter: drop-shadow(0 0 14px rgba(242,194,48,.9)); opacity: 1; }
+    }
+    .btn{
+      height: 52px;
+      padding: 0 20px;
+      border-radius: 14px;
+      border: 2px solid rgba(90,167,255,.4);
+      background: linear-gradient(180deg, rgba(90,167,255,.2), rgba(90,167,255,.08));
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.good{ border-color: rgba(56,208,124,.5); background: linear-gradient(180deg, rgba(56,208,124,.25), rgba(56,208,124,.1)); font-size: 24px; padding: 0 28px; height: 56px; }
+    .btn:disabled{ opacity: .6; cursor: not-allowed; }
+
+    .gameArea{
+      margin-top: 16px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: rgba(0,0,0,.2);
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+    .gameArea .big{ font-size: 36px; font-weight: 1000; }
+    .gameArea .tapZone{
+      width: 100%;
+      min-height: 180px;
+      border: 3px dashed var(--line);
+      border-radius: var(--r);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 900;
+      cursor: pointer;
+      user-select: none;
+    }
+    .gameArea .tapZone.ready{ border-color: var(--accent); background: rgba(90,167,255,.1); }
+    .gameArea .tapZone.go{ border-color: var(--good); background: rgba(56,208,124,.15); }
+    .gamesArcadeEmbeddedSurfaces{
+      margin: 12px 0 0;
+      max-width: 100%;
+    }
+    .memGrid{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .memCard{
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      border: 2px solid var(--line);
+      background: rgba(255,255,255,.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .memCard.flipped{ background: rgba(90,167,255,.2); }
+    .memCard.matched{ opacity: .5; cursor: default; }
+    .huntArea{
+      position: relative;
+      width: 100%;
+      min-height: 220px;
+      border: 2px solid var(--line);
+      border-radius: var(--r);
+      background: rgba(0,0,0,.3);
+    }
+    .huntNugget{
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      font-size: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .toast{
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.72);
+      border: 1px solid rgba(255,255,255,.12);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 22px;
+      z-index: 10000;
+      display: none;
+    }
+
+    /* Nugget Hunt fullscreen overlay */
+    .nuggetHuntOverlay{
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      box-sizing: border-box;
+    }
+    .nuggetHuntOverlay.open{ display: flex; }
+    .nuggetHuntOverlay .overlayTop{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: var(--lantern-page-max-width, 980px);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .nuggetHuntOverlay .difficultyRow{
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .nuggetHuntOverlay .difficultyBtn{
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 20px;
+      font-weight: 800;
+      border: 2px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .nuggetHuntOverlay .difficultyBtn.active{
+      border-color: var(--accent);
+      color: var(--ink);
+      background: rgba(90,167,255,.15);
+    }
+    .nuggetHuntOverlay .targetText{
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--warn);
+      flex: 1;
+      min-width: 200px;
+    }
+    .nuggetHuntOverlay .overlayTimer{
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+    .nuggetHuntOverlay .overlayBtns{
+      display: flex;
+      gap: 10px;
+    }
+    .nuggetHuntOverlay .overlayBtn{
+      height: 48px;
+      padding: 0 18px;
+      border-radius: 12px;
+      font-weight: 900;
+      font-size: 22px;
+      border: 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .nuggetHuntOverlay .overlayBtn.exit{
+      background: rgba(255,77,109,.25);
+      color: var(--bad);
+      border: 2px solid rgba(255,77,109,.5);
+    }
+    .nuggetHuntOverlay .overlayBtn.replay{
+      background: rgba(56,208,124,.2);
+      color: var(--good);
+      border: 2px solid rgba(56,208,124,.5);
+    }
+    .nuggetHuntOverlay .boardWrap{
+      flex: 1;
+      width: 100%;
+      max-width: var(--lantern-page-max-width, 980px);
+      min-height: 200px;
+      overflow: auto;
+      border: 2px solid var(--line);
+      border-radius: var(--r);
+      background: rgba(0,0,0,.25);
+      padding: 12px;
+    }
+    .nuggetHuntOverlay .iconGrid{
+      display: grid;
+      gap: 8px;
+      margin: 0 auto;
+      justify-content: center;
+    }
+    .nuggetHuntOverlay .iconCell{
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 10px;
+      border: 2px solid transparent;
+      transition: transform .08s ease, border-color .1s ease;
+    }
+    .nuggetHuntOverlay .iconCell:hover{ transform: scale(1.08); border-color: var(--accent); }
+    .nuggetHuntOverlay .iconCell:active{ transform: scale(0.96); }
+    .nuggetHuntOverlay .iconCell.wrong{ border-color: var(--bad); background: rgba(255,77,109,.2); animation: wrongShake 0.3s ease; }
+    @keyframes wrongShake{
+      0%,100%{ transform: translateX(0); }
+      25%{ transform: translateX(-6px); }
+      75%{ transform: translateX(6px); }
+    }
+    .nuggetHuntOverlay .resultBanner{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 24px 32px;
+      border-radius: var(--r);
+      font-size: 32px;
+      font-weight: 900;
+      text-align: center;
+      z-index: 10;
+      display: none;
+      pointer-events: none;
+    }
+    .nuggetHuntOverlay .resultBanner.show{ display: block; }
+    .nuggetHuntOverlay .resultBanner.win{ background: rgba(56,208,124,.25); border: 3px solid var(--good); color: var(--good); }
+    .nuggetHuntOverlay .resultBanner.lose{ background: rgba(255,77,109,.2); border: 3px solid var(--bad); color: var(--bad); }
+
+    /* Off-DOM play triggers — game scripts keep getElementById; cards proxy .click() here */
+    .gamesPlayTriggersHost{
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+      pointer-events: none;
+    }
+    .gamesPlayTriggersHost button{ position: absolute; opacity: 0; width: 1px; height: 1px; }
+
+    /* Culture game overlay: shared with .lanternOverlayBelowNav (header clearance) */
+    .cultureGameOverlay{
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    .cultureGameOverlay.open{ display: flex; }
+    .cultureGameOverlay .overlayTop{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: var(--lantern-space-md);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .cultureGameOverlay .overlayTitle{ font-weight: 900; font-size: 26px; }
+    .cultureGameOverlay .overlayScore{ font-size: 22px; font-weight: 800; color: var(--warn); }
+    .cultureGameOverlay .overlayBackBtn{
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-weight: 900;
+      font-size: 22px;
+      border: 2px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .cultureGameOverlay .gameBody{ width: 100%; max-width: 520px; min-height: 200px; }
+    .cultureGameOverlay .avatarMatchImgWrap{
+      width: 160px; height: 160px;
+      margin: 0 auto 24px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: linear-gradient(145deg, var(--blue1), var(--panel));
+      border: 4px solid rgba(90,167,255,.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    }
+    .cultureGameOverlay .avatarMatchImgWrap img{ width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
+    .cultureGameOverlay .avatarMatchImgWrap .avatarFallback{
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 0;
+      background: linear-gradient(145deg, var(--blue1), var(--panel));
+    }
+    .cultureGameOverlay .avatarMatchImgWrap .avatarFallback.avatarFallbackHidden{ display: none; }
+    .cultureGameOverlay .avatarMatchImgWrap .avatarInitial{
+      font-size: 64px; font-weight: 900; color: var(--accent); text-transform: uppercase; line-height: 1;
+      text-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    .cultureGameOverlay .avatarMatchImgWrap .avatarEmoji{ font-size: 72px; line-height: 1; }
+    .cultureGameOverlay .avatarMatchPrompt{ font-size: 24px; font-weight: 900; margin-bottom: 20px; color: var(--ink); }
+    .cultureGameOverlay .avatarMatchScoreRow{ display: flex; justify-content: center; gap: 24px; margin-bottom: 20px; font-size: 22px; font-weight: 800; }
+    .cultureGameOverlay .avatarMatchScoreRow .round{ color: var(--muted); }
+    .cultureGameOverlay .avatarMatchScoreRow .score{ color: var(--warn); }
+    .cultureGameOverlay .choiceBtn{
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 18px 24px;
+      margin-bottom: 14px;
+      border-radius: 14px;
+      border: 3px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      color: var(--ink);
+      font-size: 24px;
+      font-weight: 900;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color .15s ease, background .15s ease, transform .08s ease;
+    }
+    .cultureGameOverlay .choiceBtn:hover{ background: rgba(90,167,255,.25); border-color: var(--accent); transform: scale(1.02); }
+    .cultureGameOverlay .choiceBtn:active{ transform: scale(0.98); }
+    .cultureGameOverlay .choiceBtn.correct{ border-color: var(--good); background: rgba(56,208,124,.35); color: var(--ink); }
+    .cultureGameOverlay .choiceBtn.wrong{ border-color: var(--bad); background: rgba(255,77,109,.25); color: var(--ink); }
+    .cultureGameOverlay .triviaQuestion{ font-weight: 900; font-size: 24px; margin-bottom: var(--lantern-space-lg); line-height: 1.3; }
+    .cultureGameOverlay .resultMsg{ font-size: 28px; font-weight: 900; text-align: center; margin: 20px 0; }
+    .cultureGameOverlay .resultMsg.win{ color: var(--good); }
+    .cultureGameOverlay .avatarMatchResultScore{ font-size: 32px; margin-top: 12px; color: var(--warn); }
+
+  </style>
+</head>
+<body class="page-has-ticker">
+  <script src="js/lantern-canonical-route-boot.js"></script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent gamesPageWrap">
+    <div id="classAccessBannerEl" hidden aria-hidden="true"></div>
+    <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
+    <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
+    <div class="gamesPageShell">
+    <div id="dailyHuntHintEl" class="dailyHuntHint" style="display:none;"></div>
+    <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
+
+    <section class="gamesRailSection" aria-label="Featured games">
+      <div class="sectionHd">Featured Games</div>
+      <div id="gamesFeaturedScroller" data-lantern-rail-host="true" data-scroller-aria-label="Featured games"></div>
+    </section>
+
+    <section class="gamesRailSection" id="gamesSectionDaily" aria-label="Nugget games" data-help="games">
+      <div id="gamesArcadeScroller" data-lantern-rail-host="true" data-scroller-aria-label="Arcade games"></div>
+    </section>
+
+    <section class="gamesRailSection" data-help="culture_games" aria-label="Culture games">
+      <div id="gamesCultureScroller" data-lantern-rail-host="true" data-scroller-aria-label="Culture games"></div>
+    </section>
+
+    <section class="gamesRailSection" id="leaderboardSection" aria-label="Leaderboards">
+      <div id="leaderboardSummariesEl">
+        <div id="leaderboardSummariesScroller" data-lantern-rail-host="true" data-scroller-aria-label="Leaderboard summaries"></div>
+      </div>
+    </section>
+
+    <section class="gamesRailSection" id="gameHighlightsSection" aria-label="Weekly pace">
+      <div id="gameHighlightsScroller" data-lantern-rail-host="true" data-scroller-aria-label="This week pace"></div>
+    </section>
+
+    <div id="gamesPlayTriggersHost" class="gamesPlayTriggersHost" aria-hidden="true">
+      <button type="button" id="avatarMatchPlayBtn"></button>
+      <button type="button" id="handbookTriviaPlayBtn"></button>
+      <button type="button" id="localHistoryTriviaPlayBtn"></button>
+      <button type="button" id="reactionPlayBtn"></button>
+      <button type="button" id="clickrushPlayBtn"></button>
+      <button type="button" id="memoryPlayBtn"></button>
+      <button type="button" id="nuggetHuntPlayBtn"></button>
+    </div>
+
+    <div id="gamesArcadeEmbeddedSurfaces" class="gamesArcadeEmbeddedSurfaces" aria-hidden="true">
+      <div class="gameLocked" id="reactionLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameArea" id="reactionArea" style="display:none;"><div class="big" id="reactionMsg">Get ready...</div><div class="tapZone" id="reactionTapZone">Tap when you see GO</div></div>
+      <div class="gameLocked" id="clickrushLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameArea" id="clickrushArea" style="display:none;"><div class="big" id="clickrushCount">0</div><div class="big" id="clickrushTimer">10</div><div class="tapZone" id="clickrushTapZone">Tap here!</div></div>
+      <div class="gameLocked" id="memoryLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameArea" id="memoryArea" style="display:none;"><div class="memGrid" id="memoryGrid"></div></div>
+      <div class="gameLocked" id="nuggetHuntLocked" style="display:none;">Need at least 1 nugget to play.</div>
+    </div>
+
+    </div>
+  </div>
+
+  <!-- Nugget Hunt fullscreen overlay -->
+  <div class="nuggetHuntOverlay lanternOverlayBelowNav" id="nuggetHuntOverlay">
+    <div class="overlayTop">
+      <div class="targetText" id="nuggetHuntTargetText">Find the Golden Nugget</div>
+      <div class="difficultyRow" id="nuggetHuntDifficultyRow">
+        <button type="button" class="difficultyBtn" data-diff="easy">Easy</button>
+        <button type="button" class="difficultyBtn active" data-diff="medium">Medium</button>
+        <button type="button" class="difficultyBtn" data-diff="hard">Hard</button>
+      </div>
+      <div class="overlayTimer" id="nuggetHuntTimer">0:00</div>
+      <div class="overlayBtns">
+        <button type="button" class="overlayBtn exit" id="nuggetHuntExitBtn">Exit</button>
+        <button type="button" class="overlayBtn replay" id="nuggetHuntReplayBtn" style="display:none;">Replay</button>
+      </div>
+    </div>
+    <div class="boardWrap" id="nuggetHuntBoardWrap">
+      <div class="iconGrid" id="nuggetHuntIconGrid"></div>
+    </div>
+    <div class="resultBanner" id="nuggetHuntResultBanner"></div>
+  </div>
+  </div>
+
+  <!-- Culture games shared overlay -->
+  <div class="cultureGameOverlay lanternOverlayBelowNav" id="cultureGameOverlay">
+    <div class="overlayTop">
+      <span class="overlayTitle" id="cultureGameOverlayTitle">Game</span>
+      <span class="overlayScore" id="cultureGameOverlayScore"></span>
+      <button type="button" class="overlayBackBtn" id="cultureGameOverlayBackBtn">Back</button>
+    </div>
+    <div class="gameBody" id="cultureGameBody"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/lantern-game-content.js"></script>
+  <script src="js/lantern-data.js"></script>
+  <script src="js/class-access.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-scroller.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+    var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var run = createRun ? createRun() : null;
+    var el = function(id){ return document.getElementById(id); };
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+    function loadAdopted(){
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage.getItem) return null;
+        var raw = localStorage.getItem(LS_ADOPTED);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || !obj.name) return null;
+        if (obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
+          try { localStorage.removeItem(LS_ADOPTED); } catch(e) {}
+          return null;
+        }
+        return obj;
+      } catch(e){ return null; }
+    }
+
+    function redirectIfNoCharacter(){
+      if (!loadAdopted()) {
+        window.top.location.href = 'locker.html';
+        return false;
+      }
+      return true;
+    }
+
+    function toast(msg){
+      var t = el('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      clearTimeout(t._tid);
+      t._tid = setTimeout(function(){ t.style.display = 'none'; }, 2400);
+    }
+
+    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    function getBalance(){
+      var name = loadAdopted() && loadAdopted().name;
+      if (!name) return Promise.resolve(0);
+      if (economyApiBase) {
+        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name)).then(function(r){ return r.json(); }).then(function(res){
+          return (res && res.ok) ? (res.balance || 0) : 0;
+        }).catch(function(){ return 0; });
+      }
+      return new Promise(function(resolve){
+        if (!run) return resolve(0);
+        run.withSuccessHandler(function(r){ resolve(r.available || 0); }).withFailureHandler(function(){ resolve(0); }).storeGetBalance({ student_name: name });
+      });
+    }
+
+    function callEconomyTransact(characterName, delta, kind, source, note){
+      if (!economyApiBase) return Promise.resolve({ ok: false });
+      return fetch(economyApiBase + '/api/economy/transact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
+      }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+    }
+    function awardGameWinWithEconomy(characterName, gameName, nuggets, onSuccess, onFailure){
+      if (economyApiBase) {
+        callEconomyTransact(characterName, nuggets, 'game_win', 'GAME', (gameName || 'Game') + ' win').then(function(tRes){
+          if (!tRes || !tRes.ok) { if (onFailure) onFailure(); return; }
+          if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onSuccess) onSuccess(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets, economy_backend_charged: true });
+          else if (onSuccess) onSuccess();
+        });
+        return;
+      }
+      if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onFailure) onFailure(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets });
+      else if (onSuccess) onSuccess();
+    }
+    function spendAndPlay(gameName, onSuccess){
+      var adopted = loadAdopted();
+      if (!adopted) {
+        toast('Choose a character in Locker (Overview) to play.');
+        return;
+      }
+      if (economyApiBase) {
+        fetch(economyApiBase + '/api/economy/transact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ character_name: adopted.name, delta: -1, kind: 'game_play', source: '', note: gameName || 'Game', meta: {} })
+        }).then(function(r){ return r.json(); }).then(function(tRes){
+          if (tRes && tRes.ok){
+            if (run) {
+              run.withSuccessHandler(function(r){
+                if (r && r.ok && r.nuggets) callEconomyTransact(adopted.name, r.nuggets, 'first_game', 'MISSION', 'First Game Played');
+                refreshBalance();
+                onSuccess();
+              }).withFailureHandler(function(){ refreshBalance(); onSuccess(); }).completeFirstGame({ character_name: adopted.name, economy_backend_charged: true });
+            } else {
+              refreshBalance();
+              onSuccess();
+            }
+          } else if (tRes && tRes.error === 'insufficient') toast('Need at least 1 nugget to play.');
+          else toast('Couldn\'t start game. Try again.');
+        }).catch(function(){ toast('Couldn\'t start game. Try again.'); });
+        return;
+      }
+      if (!run) {
+        toast('Couldn\'t start game. Try again.');
+        return;
+      }
+      run.withSuccessHandler(function(r){
+        if (r && r.ok){
+          if (window.LANTERN_MISSIONS && window.LANTERN_MISSIONS.completeFirstGame) window.LANTERN_MISSIONS.completeFirstGame();
+          refreshBalance();
+          onSuccess();
+        } else if (r && r.error === 'insufficient'){
+          toast('Need at least 1 nugget to play.');
+        } else {
+          toast('Couldn\'t start game. Try again.');
+        }
+      }).withFailureHandler(function(){ toast('Couldn\'t start game. Try again.'); }).spendOnGame({ character_name: adopted.name, game_name: gameName });
+    }
+
+    var ARCADE_GAMES = [
+      { id: 'avatar-match', name: 'Avatar Match', description: 'Match the avatar to the correct character name. Score based on speed and correctness.', playBtnId: 'avatarMatchPlayBtn', cost: '', icon: '👤' },
+      { id: 'handbook-trivia', name: 'Handbook Trivia', description: 'Multiple-choice on school expectations and digital citizenship.', playBtnId: 'handbookTriviaPlayBtn', cost: '', icon: '📖' },
+      { id: 'local-history-trivia', name: 'Local History Trivia', description: 'Multiple-choice on local history and community pride.', playBtnId: 'localHistoryTriviaPlayBtn', cost: '', icon: '🏛️' },
+      { id: 'reaction', name: 'Reaction Tap', description: 'Wait for GO, then tap as fast as you can. Fastest time wins.', playBtnId: 'reactionPlayBtn', cost: '1 nugget', icon: '⚡' },
+      { id: 'clickrush', name: 'Nugget Click Rush', description: '10-second tap challenge. Tap as many times as you can!', playBtnId: 'clickrushPlayBtn', cost: '1 nugget', icon: '🖱️' },
+      { id: 'memory', name: 'Memory Match', description: 'Match the emoji pairs. Flip two cards at a time.', playBtnId: 'memoryPlayBtn', cost: '1 nugget', icon: '🧠' },
+      { id: 'nuggetHunt', name: 'Nugget Hunt', description: 'Find the special icon among decoys. Full-screen search.', playBtnId: 'nuggetHuntPlayBtn', cost: '1 nugget', icon: '🔍' }
+    ];
+    var ARCADE_LOWER_BETTER = ['Reaction Tap', 'Nugget Hunt'];
+    /** Featured Play now rail: same picks as before; full catalog in Daily + Culture rails. */
+    var HERO_PICK_GAME_IDS = ['avatar-match', 'reaction'];
+    var HERO_FEATURED_META = {
+      'avatar-match': 'Match the face — speed wins',
+      'reaction': 'GO flashes — tap first',
+      'handbook-trivia': 'Handbook quiz — tap to play',
+      'local-history-trivia': 'Local trivia — community pride',
+      'clickrush': '10-second tap sprint',
+      'memory': 'Flip pairs — clear the grid',
+      'nuggetHunt': 'Find the icon — hunt mode'
+    };
+    var gamesApiBaseForArcade = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? String(window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+
+    function mountGamesDom(){
+      if (!window.LanternCards || !window.LanternCards.specGameHubRailCard || !window.LanternCards.createStudentCard) {
+        window.LanternCanonicalFailClosed('LanternCards.specGameHubRailCard + createStudentCard required on games.html');
+      }
+      var LC = window.LanternCards;
+      var cultureRail = document.getElementById('gamesCultureScroller');
+      var arcadeRail = document.getElementById('gamesArcadeScroller');
+      if (!cultureRail || !arcadeRail) {
+        window.LanternCanonicalFailClosed('Missing #gamesCultureScroller or #gamesArcadeScroller');
+      }
+      var cultureSpec = [
+        { title: 'Avatar Match', icon: '👤', metaOne: 'Match the face — tap card to play', reportId: 'culture_avatar', playBtnId: 'avatarMatchPlayBtn', gameName: 'Avatar Match', ariaLabel: 'Play Avatar Match' },
+        { title: 'Handbook Trivia', icon: '📖', metaOne: 'School rules & digital life — tap to play', reportId: 'culture_handbook', playBtnId: 'handbookTriviaPlayBtn', gameName: 'Handbook Trivia', ariaLabel: 'Play Handbook Trivia' },
+        { title: 'Local History Trivia', icon: '🏛️', metaOne: 'Community pride — tap to play', reportId: 'culture_local', playBtnId: 'localHistoryTriviaPlayBtn', gameName: 'Local History Trivia', ariaLabel: 'Play Local History Trivia' }
+      ];
+      cultureRail.innerHTML = '';
+      for (var ci = 0; ci < 12; ci++) {
+        var cs = cultureSpec[ci % 3];
+        var cnode = LC.createStudentCard(LC.specGameHubRailCard({
+          title: cs.title,
+          icon: cs.icon,
+          metaOne: cs.metaOne,
+          rewardText: '🏆 Weekly leaderboard',
+          typeBadge: '🎮 Game',
+          reportId: cs.reportId + '_slot' + ci,
+          dataAttrs: { gamesProxyPlay: cs.playBtnId, gameName: cs.gameName },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: cs.ariaLabel
+        }));
+        if (cnode) cultureRail.appendChild(cnode);
+      }
+      var arcadeFullSpecs = [
+        {
+          title: 'Reaction Tap',
+          icon: '⚡',
+          metaOne: 'Wait for GO — then tap fast',
+          rewardText: '1 nugget · 🏆 weekly',
+          typeBadge: '🕹 Arcade',
+          reportId: 'arcade_reaction',
+          dataAttrs: { gamesProxyPlay: 'reactionPlayBtn', gameName: 'Reaction Tap' },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: 'Play Reaction Tap'
+        },
+        {
+          title: 'Nugget Click Rush',
+          icon: '🖱️',
+          metaOne: '10-second tap sprint',
+          rewardText: '1 nugget · 🏆 weekly',
+          typeBadge: '🕹 Arcade',
+          reportId: 'arcade_clickrush',
+          dataAttrs: { gamesProxyPlay: 'clickrushPlayBtn', gameName: 'Nugget Click Rush' },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: 'Play Nugget Click Rush'
+        },
+        {
+          title: 'Memory Match',
+          icon: '🧠',
+          metaOne: 'Flip pairs — clear the grid',
+          rewardText: '1 nugget · 🏆 weekly',
+          typeBadge: '🕹 Arcade',
+          reportId: 'arcade_memory',
+          dataAttrs: { gamesProxyPlay: 'memoryPlayBtn', gameName: 'Memory Match' },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: 'Play Memory Match'
+        },
+        {
+          title: 'Nugget Hunt',
+          icon: '🔍',
+          metaOne: 'Find the target in a sea of icons',
+          rewardText: '1 nugget · win up to +3',
+          typeBadge: '🕹 Arcade',
+          reportId: 'arcade_hunt',
+          dataAttrs: { gamesProxyPlay: 'nuggetHuntPlayBtn', gameName: 'Nugget Hunt' },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: 'Play Nugget Hunt'
+        }
+      ];
+      var arcadeFull = arcadeFullSpecs.map(function(as){ return LC.createStudentCard(LC.specGameHubRailCard(as)); }).filter(Boolean);
+      var arcadeLite = [
+        { title: 'Reaction Tap', icon: '⚡', metaOne: 'Quick play — same game', rewardText: '1 nugget · 🏆 weekly', typeBadge: '🕹 Arcade', reportId: 'arcade_reaction_dup', playBtnId: 'reactionPlayBtn', gameName: 'Reaction Tap', ariaLabel: 'Play Reaction Tap' },
+        { title: 'Nugget Click Rush', icon: '🖱️', metaOne: 'Quick play — same game', rewardText: '1 nugget · 🏆 weekly', typeBadge: '🕹 Arcade', reportId: 'arcade_clickrush_dup', playBtnId: 'clickrushPlayBtn', gameName: 'Nugget Click Rush', ariaLabel: 'Play Nugget Click Rush' },
+        { title: 'Memory Match', icon: '🧠', metaOne: 'Quick play — same game', rewardText: '1 nugget · 🏆 weekly', typeBadge: '🕹 Arcade', reportId: 'arcade_memory_dup', playBtnId: 'memoryPlayBtn', gameName: 'Memory Match', ariaLabel: 'Play Memory Match' },
+        { title: 'Nugget Hunt', icon: '🔍', metaOne: 'Quick play — same game', rewardText: '1 nugget · win up to +3', typeBadge: '🕹 Arcade', reportId: 'arcade_hunt_dup', playBtnId: 'nuggetHuntPlayBtn', gameName: 'Nugget Hunt', ariaLabel: 'Play Nugget Hunt' }
+      ];
+      var arcadeParts = arcadeFull.slice();
+      for (var ai = 0; ai < 8; ai++) {
+        var al = arcadeLite[ai % 4];
+        var an = LC.createStudentCard(LC.specGameHubRailCard({
+          title: al.title,
+          icon: al.icon,
+          metaOne: al.metaOne,
+          rewardText: al.rewardText,
+          typeBadge: al.typeBadge,
+          reportId: al.reportId + '_slot' + (4 + ai),
+          dataAttrs: { gamesProxyPlay: al.playBtnId, gameName: al.gameName },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: al.ariaLabel
+        }));
+        if (an) arcadeParts.push(an);
+      }
+      arcadeRail.innerHTML = '';
+      arcadeParts.forEach(function(ap){ arcadeRail.appendChild(ap); });
+      LC.enhanceReportControlsIn(cultureRail);
+      LC.enhanceReportControlsIn(arcadeRail);
+    }
+    mountGamesDom();
+
+    function fetchLeaderboardForGame(gameName, limit){
+      if (!gamesApiBaseForArcade) return Promise.resolve({ ok: false, entries: [] });
+      return fetch(gamesApiBaseForArcade + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=' + (limit || 5)).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, entries: [] }; });
+    }
+
+    function wireGamesHubCardClicks(){
+      var shell = document.querySelector('.gamesPageShell');
+      if (!shell || shell._gamesHubCardClickWired) return;
+      shell._gamesHubCardClickWired = true;
+      function gameAreaForProxyPlay(pid){
+        if (pid === 'reactionPlayBtn') return el('reactionArea');
+        if (pid === 'clickrushPlayBtn') return el('clickrushArea');
+        if (pid === 'memoryPlayBtn') return el('memoryArea');
+        return null;
+      }
+      function proxyPlayFromCard(card){
+        if (!card) return;
+        var pid = (card.getAttribute('data-games-proxy-play') || '').trim();
+        var target = pid && el(pid);
+        if (!target) return;
+        if (target.disabled) {
+          toast('Need at least 1 nugget to play.');
+          return;
+        }
+        target.click();
+      }
+      shell.addEventListener('click', function(e){
+        if (e.target.closest('.exploreCardReportBtn')) return;
+        if (e.target.closest('a.exploreCard')) return;
+        var card = e.target.closest('.gamesHubPlayCard[data-games-proxy-play]');
+        if (!card) return;
+        var pid = (card.getAttribute('data-games-proxy-play') || '').trim();
+        var ga = gameAreaForProxyPlay(pid);
+        if (ga){
+          var cs = window.getComputedStyle(ga);
+          var gaLive = cs.display !== 'none' && cs.visibility !== 'hidden';
+          if (gaLive && !e.target.closest('.gameArea')) return;
+        }
+        e.preventDefault();
+        proxyPlayFromCard(card);
+      });
+      shell.addEventListener('keydown', function(e){
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('.exploreCardReportBtn')) return;
+        var card = e.target.closest('.gamesHubPlayCard[data-games-proxy-play]');
+        if (!card || e.target !== card) return;
+        e.preventDefault();
+        proxyPlayFromCard(card);
+      });
+    }
+
+    function hydrateGameHubCardsLeaderMeta(){
+      var shell = document.querySelector('.gamesPageShell');
+      if (!shell || !gamesApiBaseForArcade) return;
+      shell.querySelectorAll('.gamesHubPlayCard[data-game-name][data-games-proxy-play]').forEach(function(card){
+        if (card.classList.contains('exploreCard--gamesLbSummary')) return;
+        var gn = card.getAttribute('data-game-name');
+        if (!gn) return;
+        fetchLeaderboardForGame(gn, 8).then(function(res){
+          var metaEl = card.querySelector('.exploreCardMetaOneLine');
+          var entries = (res && res.ok && res.entries) ? res.entries : [];
+          if (entries.length > 0){
+            var top = entries[0];
+            var scoreStr = top.score_display != null ? String(top.score_display) : String(top.score || '');
+            var leaderLine = '👑 #1 ' + (top.character_name || '') + ' · ' + scoreStr;
+            var tail = '🔥 ' + entries.length + ' on board · 🏆 weekly';
+            if (metaEl) metaEl.textContent = (leaderLine + ' · ' + tail).length > 76 ? (leaderLine + ' · +' + entries.length + ' · 🏆') : (leaderLine + ' · ' + tail);
+          } else {
+            if (metaEl) metaEl.textContent = 'Be first on the board this week · 🏆 Weekly leaderboard';
+          }
+        });
+      });
+    }
+
+    function renderGamesScroller(){
+      var scroller = el('gamesFeaturedScroller');
+      if (!scroller || !window.LanternCards) {
+        window.LanternCanonicalFailClosed('#gamesFeaturedScroller and LanternCards required');
+      }
+      var LC = window.LanternCards;
+      var featuredSlots = [];
+      for (var fi = 0; fi < 12; fi++) {
+        featuredSlots.push(ARCADE_GAMES[fi % ARCADE_GAMES.length]);
+      }
+      scroller.innerHTML = '';
+      featuredSlots.forEach(function(g, idx){
+        var metaOne = HERO_FEATURED_META[g.id] || (String(g.description || '').split('.')[0] || '').trim().slice(0, 72);
+        var rewardText = g.cost ? (String(g.cost) + ' · 🏆 weekly') : '🏆 Weekly leaderboard';
+        var reportId = 'feat_' + g.id + '_' + idx;
+        var fn = LC.createStudentCard(LC.specGameHubRailCard({
+          title: g.name,
+          icon: g.icon,
+          metaOne: metaOne,
+          rewardText: rewardText,
+          typeBadge: '⭐ Featured',
+          reportId: reportId,
+          extraClass: 'exploreCard--gamesFeatured',
+          dataAttrs: { gamesProxyPlay: g.playBtnId, gameName: g.name, routeSurface: 'games_featured', routeDetail: g.id },
+          role: 'button',
+          tabIndex: 0,
+          ariaLabel: 'Play ' + g.name
+        }));
+        if (fn) scroller.appendChild(fn);
+      });
+      LC.enhanceReportControlsIn(scroller);
+    }
+
+    function loadGameHighlights(){
+      var scroller = el('gameHighlightsScroller');
+      if (!scroller || !window.LanternCards) {
+        window.LanternCanonicalFailClosed('#gameHighlightsScroller and LanternCards required');
+      }
+      var LC = window.LanternCards;
+      if (!gamesApiBaseForArcade) {
+        scroller.innerHTML = '';
+        for (var hi = 0; hi < 12; hi++) {
+          var g = ARCADE_GAMES[hi % ARCADE_GAMES.length];
+          var hn = LC.createStudentCard(LC.specWeeklyPaceLinkCard('games.html', g.name, g.icon, 'Be first on the board this week', g.id + '_pace' + hi));
+          if (hn) scroller.appendChild(hn);
+        }
+        LC.enhanceReportControlsIn(scroller);
+        return;
+      }
+      Promise.all(ARCADE_GAMES.map(function(g){ return fetchLeaderboardForGame(g.name, 3).then(function(r){ return { game: g, res: r }; }); })).then(function(results){
+        scroller.innerHTML = '';
+        for (var hi = 0; hi < 12; hi++) {
+          var o = results[hi % results.length];
+          var g = o.game;
+          var entries = (o.res && o.res.ok && o.res.entries) ? o.res.entries : [];
+          var lowerBetter = ARCADE_LOWER_BETTER.indexOf(g.name) >= 0;
+          var line;
+          if (entries.length > 0) {
+            var top = entries[0];
+            line = lowerBetter ? (top.character_name + ' set the pace at ' + (top.score_display || top.score)) : (top.character_name + ' leads with ' + (top.score_display || top.score));
+          } else {
+            line = 'Be first on the board this week';
+          }
+          var hn2 = LC.createStudentCard(LC.specWeeklyPaceLinkCard('games.html', g.name, g.icon, line, g.id + '_pace' + hi));
+          if (hn2) scroller.appendChild(hn2);
+        }
+        LC.enhanceReportControlsIn(scroller);
+      });
+    }
+
+    function loadLeaderboardSummaries(){
+      var scroller = el('leaderboardSummariesScroller');
+      if (!scroller || !window.LanternCards) {
+        window.LanternCanonicalFailClosed('#leaderboardSummariesScroller and LanternCards required');
+      }
+      var LC = window.LanternCards;
+      if (!gamesApiBaseForArcade) {
+        scroller.innerHTML = '';
+        for (var li = 0; li < 12; li++) {
+          var g = ARCADE_GAMES[li % ARCADE_GAMES.length];
+          var ln = LC.createStudentCard(LC.specGamesLeaderboardSummaryCard(g.name, g.id + '_lb' + li, []));
+          if (ln) scroller.appendChild(ln);
+        }
+        LC.enhanceReportControlsIn(scroller);
+        return;
+      }
+      Promise.all(ARCADE_GAMES.map(function(g){ return fetchLeaderboardForGame(g.name, 5).then(function(r){ return { game: g, res: r }; }); })).then(function(results){
+        scroller.innerHTML = '';
+        for (var li = 0; li < 12; li++) {
+          var o = results[li % results.length];
+          var g = o.game;
+          var entries = (o.res && o.res.ok && o.res.entries) ? o.res.entries : [];
+          var ln2 = LC.createStudentCard(LC.specGamesLeaderboardSummaryCard(g.name, g.id + '_lb' + li, entries));
+          if (ln2) scroller.appendChild(ln2);
+        }
+        LC.enhanceReportControlsIn(scroller);
+      });
+    }
+
+    function initArcade(){
+      renderGamesScroller();
+      wireGamesHubCardClicks();
+      hydrateGameHubCardsLeaderMeta();
+      loadGameHighlights();
+      loadLeaderboardSummaries();
+    }
+
+    function refreshBalance(){
+      getBalance().then(function(n){
+        var wAmt = document.getElementById('gamesPageWalletAmt');
+        if (wAmt) wAmt.textContent = String(n);
+        var locked = n < 1;
+        ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+          var lockEl = el(g + 'Locked');
+          var playBtn = el(g + 'PlayBtn');
+          if (lockEl) lockEl.style.display = locked ? 'block' : 'none';
+          if (playBtn) playBtn.disabled = locked;
+        });
+      });
+    }
+
+    function tryPlay(gameName, showGameFn){
+      if (!loadAdopted()) {
+        toast('Choose a character in Locker (Overview) to play.');
+        return;
+      }
+      getBalance().then(function(n){
+        if (n < 1){ toast('Need at least 1 nugget to play.'); return; }
+        spendAndPlay(gameName, showGameFn);
+      });
+    }
+
+    var RESULT_DELAY_MS = 2500;
+
+    // ---- Reaction Tap: ready → playing → result → auto-reset → ready ----
+    (function(){
+      var playBtn = el('reactionPlayBtn');
+      var area = el('reactionArea');
+      var msg = el('reactionMsg');
+      var tapZone = el('reactionTapZone');
+      var goInterval = null;
+
+      function clearReactionState(){
+        if (goInterval) { clearInterval(goInterval); goInterval = null; }
+        tapZone._goShown = false;
+        tapZone._done = false;
+        tapZone._start = null;
+        tapZone._penaltyApplied = false;
+      }
+
+      function resetReactionGame(){
+        clearReactionState();
+        msg.textContent = 'Get ready...';
+        msg.style.color = '';
+        tapZone.className = 'tapZone';
+        tapZone.textContent = 'Wait for GO';
+        area.style.display = 'none';
+      }
+
+      function applyFalseStartPenalty(){
+        if (tapZone._penaltyApplied) return;
+        tapZone._penaltyApplied = true;
+        var adopted = loadAdopted();
+        if (!adopted || !run) return;
+        run.withSuccessHandler(function(res){
+          refreshBalance();
+        }).withFailureHandler(function(){
+          // ignore failures for penalty
+        }).spendOnGame({ character_name: adopted.name, game_name: 'Reaction Tap False Start' });
+      }
+
+      tapZone.addEventListener('click', function(){
+        if (tapZone._done) return;
+        if (!tapZone._goShown){
+          if (goInterval) { clearInterval(goInterval); goInterval = null; }
+          tapZone._done = true;
+          applyFalseStartPenalty();
+          msg.textContent = 'False Start';
+          msg.style.color = 'var(--bad)';
+          tapZone.textContent = 'False Start -1 nugget';
+          tapZone.className = 'tapZone';
+          setTimeout(resetReactionGame, RESULT_DELAY_MS);
+          return;
+        }
+        if (!tapZone._start) return;
+        tapZone._done = true;
+        var ms = Date.now() - tapZone._start;
+        msg.textContent = ms + ' ms';
+        msg.style.color = '';
+        tapZone.textContent = 'Done!';
+        tapZone.className = 'tapZone';
+        var adopted = loadAdopted();
+        if (adopted && run && run.recordGameResult) {
+          run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Reaction Tap', meta: { score: ms, score_display: ms + ' ms' } });
+        }
+        if (adopted) postLeaderboardScore('Reaction Tap', adopted.name, ms, ms + ' ms', function(){});
+        setTimeout(resetReactionGame, RESULT_DELAY_MS);
+      });
+
+      playBtn.addEventListener('click', function(){
+        tryPlay('Reaction Tap', function(){
+          playBtn.style.display = 'none';
+          area.style.display = 'flex';
+          msg.textContent = 'Get ready...';
+          msg.style.color = '';
+          tapZone.className = 'tapZone';
+          tapZone.textContent = 'Wait for GO';
+          tapZone._goShown = false;
+          tapZone._done = false;
+          tapZone._start = null;
+          tapZone._penaltyApplied = false;
+          var goAt = Date.now() + 2000 + Math.random() * 3000;
+          if (goInterval) { clearInterval(goInterval); goInterval = null; }
+          goInterval = setInterval(function(){
+            if (Date.now() >= goAt){
+              clearInterval(goInterval);
+              goInterval = null;
+              tapZone._goShown = true;
+              msg.textContent = 'GO!';
+              tapZone.className = 'tapZone go';
+              tapZone.textContent = 'TAP NOW!';
+              tapZone._start = Date.now();
+            }
+          }, 50);
+        });
+      });
+    })();
+
+    // ---- Nugget Click Rush: ready → playing → result → auto-reset → ready ----
+    (function(){
+      var playBtn = el('clickrushPlayBtn');
+      var area = el('clickrushArea');
+      var countEl = el('clickrushCount');
+      var timerEl = el('clickrushTimer');
+      var tapZone = el('clickrushTapZone');
+      var tickInterval = null;
+
+      function clearClickRushState(){
+        if (tickInterval) { clearInterval(tickInterval); tickInterval = null; }
+      }
+
+      function resetClickRushGame(){
+        clearClickRushState();
+        area.style.display = 'none';
+      }
+
+      playBtn.addEventListener('click', function(){
+        tryPlay('Nugget Click Rush', function(){
+          area.style.display = 'flex';
+          var count = 0;
+          var remaining = 10;
+          countEl.textContent = '0';
+          timerEl.textContent = '10';
+          tapZone.textContent = 'Tap here!';
+          clearClickRushState();
+          tapZone.onclick = function(){
+            if (tickInterval === null) return;
+            count++;
+            countEl.textContent = String(count);
+          };
+          tickInterval = setInterval(function(){
+            remaining--;
+            timerEl.textContent = String(remaining);
+            if (remaining <= 0){
+              clearInterval(tickInterval);
+              tickInterval = null;
+              tapZone.onclick = null;
+              tapZone.textContent = 'Time\'s up! ' + count + ' taps';
+              var adopted = loadAdopted();
+              if (adopted && run && run.recordGameResult) {
+                run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Click Rush', meta: { score: count, score_display: count + ' taps' } });
+              }
+              if (adopted) postLeaderboardScore('Nugget Click Rush', adopted.name, count, count + ' taps', function(){});
+              setTimeout(resetClickRushGame, RESULT_DELAY_MS);
+            }
+          }, 1000);
+        });
+      });
+    })();
+
+    // ---- Memory Match: ready → playing → result → auto-reset → ready ----
+    (function(){
+      var emojis = ['🌟','⭐','✨','🎯','🚀','🎨','📚','🔥'];
+      var playBtn = el('memoryPlayBtn');
+      var area = el('memoryArea');
+      var grid = el('memoryGrid');
+      var resetTimeout = null;
+
+      function resetMemoryGame(){
+        if (resetTimeout) clearTimeout(resetTimeout);
+        resetTimeout = null;
+        grid.innerHTML = '';
+        area.style.display = 'none';
+      }
+
+      playBtn.addEventListener('click', function(){
+        tryPlay('Memory Match', function(){
+          if (resetTimeout) clearTimeout(resetTimeout);
+          area.style.display = 'flex';
+          var pairs = emojis.slice(0, 6).concat(emojis.slice(0, 6));
+          for (var i = pairs.length - 1; i > 0; i--){
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = pairs[i]; pairs[i] = pairs[j]; pairs[j] = t;
+          }
+          grid.innerHTML = '';
+          var flipped = [];
+          var matched = 0;
+          pairs.forEach(function(emoji, idx){
+            var card = document.createElement('div');
+            card.className = 'memCard';
+            card.textContent = '?';
+            card.dataset.idx = idx;
+            card.dataset.emoji = emoji;
+            card.onclick = function(){
+              if (card.classList.contains('matched') || card.classList.contains('flipped')) return;
+              if (flipped.length >= 2) return;
+              card.classList.add('flipped');
+              card.textContent = emoji;
+              flipped.push(card);
+              if (flipped.length === 2){
+                var a = flipped[0], b = flipped[1];
+                if (a.dataset.emoji === b.dataset.emoji){
+                  a.classList.add('matched');
+                  b.classList.add('matched');
+                  matched += 2;
+                  flipped = [];
+                  if (matched === pairs.length){
+                    grid.innerHTML = '';
+                    var doneEl = document.createElement('div');
+                    doneEl.className = 'big';
+                    doneEl.textContent = 'All matched!';
+                    grid.appendChild(doneEl);
+                    resetTimeout = setTimeout(resetMemoryGame, RESULT_DELAY_MS);
+                  }
+                } else {
+                  setTimeout(function(){
+                    a.classList.remove('flipped');
+                    a.textContent = '?';
+                    b.classList.remove('flipped');
+                    b.textContent = '?';
+                    flipped = [];
+                  }, 600);
+                }
+              }
+            };
+            grid.appendChild(card);
+          });
+        });
+      });
+    })();
+
+    // ---- Nugget Hunt: full-screen overlay game ----
+    (function(){
+      var DECOYS = ['🪙','💡','⭐','🌟','✨','🎯','🚀','🎨','📚','🔥','👤','🕯️','🔦'];
+      var TARGETS = [
+        { icon: '🪙', label: 'Find the Golden Nugget' },
+        { icon: '💡', label: 'Find the Glowing Lantern' },
+        { icon: '🌟', label: 'Find the Rare Star' }
+      ];
+      var SIZES = { easy: 60, medium: 120, hard: 210 };
+      var REWARDS = { easy: 1, medium: 2, hard: 3 };
+      var TIME_LIMITS = { easy: 40, medium: 30, hard: 20 };
+
+      var overlay = el('nuggetHuntOverlay');
+      var targetText = el('nuggetHuntTargetText');
+      var timerEl = el('nuggetHuntTimer');
+      var exitBtn = el('nuggetHuntExitBtn');
+      var replayBtn = el('nuggetHuntReplayBtn');
+      var boardWrap = el('nuggetHuntBoardWrap');
+      var iconGrid = el('nuggetHuntIconGrid');
+      var resultBanner = el('nuggetHuntResultBanner');
+      var difficultyRow = el('nuggetHuntDifficultyRow');
+
+      var gameTimer = null;
+      var targetIndex = -1;
+      var difficulty = 'medium';
+      var gameOver = false;
+      var remainingSec = 0;
+
+      if (difficultyRow){
+        difficultyRow.querySelectorAll('.difficultyBtn').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            difficultyRow.querySelectorAll('.difficultyBtn').forEach(function(b){ b.classList.remove('active'); });
+            btn.classList.add('active');
+            difficulty = btn.dataset.diff || 'medium';
+          });
+        });
+      }
+
+      function clearNuggetHuntTimers(){
+        if (gameTimer) { clearInterval(gameTimer); gameTimer = null; }
+      }
+
+      function updateNuggetHuntTimerDisplay(){
+        var s = Math.max(0, remainingSec);
+        var m = Math.floor(s / 60);
+        var sec = s % 60;
+        timerEl.textContent = m + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+
+      function closeNuggetHuntOverlay(){
+        clearNuggetHuntTimers();
+        overlay.classList.remove('open');
+        gameOver = false;
+        resultBanner.classList.remove('show', 'win', 'lose');
+        resultBanner.textContent = '';
+        replayBtn.style.display = 'none';
+        iconGrid.innerHTML = '';
+        refreshBalance();
+      }
+
+      function showNuggetHuntResult(won, nuggets){
+        gameOver = true;
+        clearNuggetHuntTimers();
+        resultBanner.textContent = won ? ('Found it! +' + nuggets + ' nugget' + (nuggets !== 1 ? 's' : '')) : 'Time\'s up!';
+        resultBanner.className = 'resultBanner show ' + (won ? 'win' : 'lose');
+        replayBtn.style.display = 'block';
+        setTimeout(function(){
+          resultBanner.classList.remove('show');
+        }, RESULT_DELAY_MS);
+      }
+
+      function buildNuggetHuntBoard(){
+        iconGrid.innerHTML = '';
+        var n = SIZES[difficulty] || SIZES.medium;
+        var targetDef = TARGETS[Math.floor(Math.random() * TARGETS.length)];
+        targetText.textContent = targetDef.label;
+        var decoyList = DECOYS.filter(function(d){ return d !== targetDef.icon; });
+        if (decoyList.length === 0) decoyList = ['⭐','🌟','✨'];
+        var cells = [];
+        for (var i = 0; i < n - 1; i++){
+          cells.push({ icon: decoyList[Math.floor(Math.random() * decoyList.length)], isTarget: false });
+        }
+        cells.push({ icon: targetDef.icon, isTarget: true });
+        for (var i = cells.length - 1; i > 0; i--){
+          var j = Math.floor(Math.random() * (i + 1));
+          var t = cells[i]; cells[i] = cells[j]; cells[j] = t;
+        }
+        targetIndex = cells.findIndex(function(c){ return c.isTarget; });
+        cells.forEach(function(cell, idx){
+          var div = document.createElement('div');
+          div.className = 'iconCell';
+          div.textContent = cell.icon;
+          div.dataset.idx = String(idx);
+          div.dataset.target = cell.isTarget ? '1' : '0';
+          div.onclick = function(){
+            if (gameOver) return;
+            if (this.dataset.target === '1'){
+              var reward = REWARDS[difficulty] || 1;
+              var adopted = loadAdopted();
+              var timeLimit = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
+              var completionTimeSec = Math.max(0, timeLimit - remainingSec);
+              if (adopted){
+                awardGameWinWithEconomy(adopted.name, 'Nugget Hunt', reward, function(){
+                  showNuggetHuntResult(true, reward);
+                  refreshBalance();
+                }, function(){});
+                if (run && run.recordGameResult) {
+                  run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
+                }
+                postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){});
+              } else {
+                showNuggetHuntResult(true, reward);
+              }
+            } else {
+              this.classList.add('wrong');
+              var self = this;
+              setTimeout(function(){ self.classList.remove('wrong'); }, 400);
+            }
+          };
+          iconGrid.appendChild(div);
+        });
+        var cols = difficulty === 'easy' ? 8 : difficulty === 'hard' ? 14 : 10;
+        iconGrid.style.gridTemplateColumns = 'repeat(' + cols + ', 48px)';
+      }
+
+      function startNuggetHuntGame(){
+        gameOver = false;
+        replayBtn.style.display = 'none';
+        resultBanner.classList.remove('show', 'win', 'lose');
+        resultBanner.textContent = '';
+        clearNuggetHuntTimers();
+        buildNuggetHuntBoard();
+        remainingSec = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
+        updateNuggetHuntTimerDisplay();
+        gameTimer = setInterval(function(){
+          if (gameOver) { clearNuggetHuntTimers(); return; }
+          remainingSec--;
+          updateNuggetHuntTimerDisplay();
+          if (remainingSec <= 0){
+            showNuggetHuntResult(false, 0);
+          }
+        }, 1000);
+      }
+
+      exitBtn.addEventListener('click', closeNuggetHuntOverlay);
+      replayBtn.addEventListener('click', function(){
+        tryPlay('Nugget Hunt', function(){
+          startNuggetHuntGame();
+        });
+      });
+
+      el('nuggetHuntPlayBtn').addEventListener('click', function(){
+        tryPlay('Nugget Hunt', function(){
+          overlay.classList.add('open');
+          startNuggetHuntGame();
+        });
+      });
+    })();
+
+    var gamesApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
+      if (!gamesApiBase || !characterName || !gameName) { if (onDone) onDone(false); return; }
+      fetch(gamesApiBase + '/api/leaderboards/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game_name: gameName, character_name: characterName, score: score, score_display: scoreDisplay || String(score) })
+      }).then(function(r){ return r.json(); }).then(function(res){ if (onDone) onDone(res && res.ok); }).catch(function(){ if (onDone) onDone(false); });
+    }
+
+    (function(){
+      var overlay = el('cultureGameOverlay');
+      var overlayTitle = el('cultureGameOverlayTitle');
+      var overlayScore = el('cultureGameOverlayScore');
+      var overlayBack = el('cultureGameOverlayBackBtn');
+      var gameBody = el('cultureGameBody');
+      function openOverlay(title){ overlay.classList.add('open'); if (overlayTitle) overlayTitle.textContent = title || 'Game'; overlayScore.textContent = ''; gameBody.innerHTML = ''; }
+      function closeOverlay(){ overlay.classList.remove('open'); }
+      function setScore(text){ if (overlayScore) overlayScore.textContent = text; }
+      if (overlayBack) overlayBack.addEventListener('click', closeOverlay);
+
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+      el('avatarMatchPlayBtn').addEventListener('click', function(){
+        var adopted = loadAdopted();
+        if (!adopted){ toast('Choose a character in Locker (Overview) to play.'); return; }
+        openOverlay('Avatar Match');
+        setScore('Round 1');
+        var characters = [];
+        var round = 0;
+        var totalScore = 0;
+        var roundsTotal = 5;
+        function beginRoundsAfterCanonical(){
+          if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && characters.length) {
+            window.LanternAvatar.attachCanonicalAvatarsToItems(characters).then(function(){ startRound(); });
+            return;
+          }
+          startRound();
+        }
+        function fetchThenStart(){
+          if (gamesApiBase) {
+            fetch(gamesApiBase + '/api/games/characters').then(function(r){ return r.json(); }).then(function(res){
+              if (res && res.ok && res.characters && res.characters.length >= 4) characters = res.characters;
+              else characters = [
+                { character_name: 'zane_morrison', display_name: 'Zane Morrison' },
+                { character_name: 'winnie_addair', display_name: 'Winnie Addair' },
+                { character_name: 'brett_simms', display_name: 'Brett Simms' },
+                { character_name: 'kimber_pace', display_name: 'Kimber Pace' },
+                { character_name: 'velma_voss', display_name: 'Velma Voss' },
+              ];
+              beginRoundsAfterCanonical();
+            }).catch(function(){
+              characters = [
+                { character_name: 'zane_morrison', display_name: 'Zane Morrison' },
+                { character_name: 'winnie_addair', display_name: 'Winnie Addair' },
+                { character_name: 'brett_simms', display_name: 'Brett Simms' },
+                { character_name: 'kimber_pace', display_name: 'Kimber Pace' },
+                { character_name: 'velma_voss', display_name: 'Velma Voss' },
+              ];
+              beginRoundsAfterCanonical();
+            });
+          } else {
+            characters = [
+              { character_name: 'zane_morrison', display_name: 'Zane Morrison' },
+              { character_name: 'winnie_addair', display_name: 'Winnie Addair' },
+              { character_name: 'brett_simms', display_name: 'Brett Simms' },
+              { character_name: 'kimber_pace', display_name: 'Kimber Pace' },
+              { character_name: 'velma_voss', display_name: 'Velma Voss' },
+            ];
+            beginRoundsAfterCanonical();
+          }
+        }
+        function pickOptions(){
+          if (characters.length < 4) return null;
+          var shuffled = window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray ? window.LANTERN_GAME_CONTENT.shuffleArray(characters.slice()) : characters.slice();
+          var correct = shuffled[0];
+          var options = shuffled.slice(0, 4);
+          for (var i = options.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var t = options[i]; options[i] = options[j]; options[j] = t; }
+          return { correct: correct, options: options };
+        }
+        function avatarFallbackChar(displayName){
+          var name = (displayName || '').trim();
+          if (name.length) return name.charAt(0).toUpperCase();
+          return '?';
+        }
+        function startRound(){
+          var pick = pickOptions();
+          if (!pick || round >= roundsTotal){ showAvatarMatchResult(); return; }
+          round++;
+          setScore('Round ' + round + ' / ' + roundsTotal);
+          var startTime = Date.now();
+          var correctName = (pick.correct.display_name || pick.correct.character_name || '').trim();
+          var canonAm = pick.correct._canonicalAvatar;
+          var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim()) ? String(canonAm.imageUrl).trim() : '';
+          var fallbackLetter = avatarFallbackChar(pick.correct.display_name || pick.correct.character_name);
+          var html = '<p class="avatarMatchPrompt">Who is this?</p>';
+          html += '<div class="avatarMatchScoreRow"><span class="round">Round ' + round + ' of ' + roundsTotal + '</span><span class="score">Score: ' + totalScore + '</span></div>';
+          html += '<div class="avatarMatchImgWrap">';
+          if (avatarUrl) {
+            html += '<img src="' + esc(avatarUrl) + '" alt="" onerror="var w=this.parentElement; if(w){ var f=w.querySelector(\'.avatarFallback\'); if(f){ f.classList.remove(\'avatarFallbackHidden\'); } this.style.display=\'none\'; }">';
+            html += '<span class="avatarFallback avatarFallbackHidden"><span class="avatarInitial">' + esc(fallbackLetter) + '</span></span>';
+          } else {
+            html += '<span class="avatarFallback"><span class="avatarInitial">' + esc(fallbackLetter) + '</span></span>';
+          }
+          html += '</div>';
+          pick.options.forEach(function(opt){
+            var name = (opt.display_name || opt.character_name || '').trim();
+            html += '<button type="button" class="choiceBtn" data-name="' + esc(name) + '">' + esc(name) + '</button>';
+          });
+          gameBody.innerHTML = html;
+          gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              var chosen = (btn.dataset.name || '').trim();
+              var isCorrect = chosen === correctName;
+              var elapsed = Math.floor((Date.now() - startTime) / 1000);
+              var points = isCorrect ? Math.max(10, 100 - elapsed * 5) : 0;
+              totalScore += points;
+              btn.classList.add(isCorrect ? 'correct' : 'wrong');
+              gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
+              setTimeout(function(){ startRound(); }, 800);
+            });
+          });
+        }
+        function showAvatarMatchResult(){
+          setScore('Score: ' + totalScore);
+          gameBody.innerHTML = '<div class="resultMsg win">Match complete!</div><div class="avatarMatchResultScore">' + totalScore + ' points</div>';
+          postLeaderboardScore('Avatar Match', adopted.name, totalScore, totalScore + ' pts', function(){});
+          toast('Score recorded on leaderboard.');
+        }
+        fetchThenStart();
+      });
+
+      function runTriviaGame(title, gameName, getQuestions){
+        var adopted = loadAdopted();
+        if (!adopted){ toast('Choose a character in Locker (Overview) to play.'); return; }
+        var questions = getQuestions();
+        if (!questions || !questions.length){ toast('No questions loaded.'); return; }
+        if (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray) questions = window.LANTERN_GAME_CONTENT.shuffleArray(questions).slice(0, 10);
+        else questions = questions.slice(0, 10);
+        var qIndex = 0;
+        var correctCount = 0;
+        openOverlay(title);
+        setScore('0 / ' + questions.length);
+        function showQuestion(){
+          if (qIndex >= questions.length){ showTriviaResult(); return; }
+          var q = questions[qIndex];
+          setScore(correctCount + ' / ' + questions.length);
+          var html = '<div class="triviaQuestion">' + esc(q.question) + '</div>';
+          (q.options || []).forEach(function(opt, i){
+            html += '<button type="button" class="choiceBtn" data-correct="' + (i === q.correctIndex ? '1' : '0') + '">' + esc(opt) + '</button>';
+          });
+          gameBody.innerHTML = html;
+          gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              var isCorrect = btn.dataset.correct === '1';
+              if (isCorrect) correctCount++;
+              btn.classList.add(isCorrect ? 'correct' : 'wrong');
+              gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
+              qIndex++;
+              setTimeout(showQuestion, 600);
+            });
+          });
+        }
+        function showTriviaResult(){
+          var score = correctCount * 10;
+          setScore('Score: ' + score);
+          gameBody.innerHTML = '<div class="resultMsg win">' + correctCount + ' correct! Score: ' + score + '</div>';
+          postLeaderboardScore(gameName, adopted.name, score, correctCount + '/10 · ' + score + ' pts', function(){});
+          toast('Score recorded on leaderboard.');
+        }
+        showQuestion();
+      }
+      el('handbookTriviaPlayBtn').addEventListener('click', function(){
+        runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){
+          return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getHandbookQuestions) ? window.LANTERN_GAME_CONTENT.getHandbookQuestions() : [];
+        });
+      });
+      el('localHistoryTriviaPlayBtn').addEventListener('click', function(){
+        runTriviaGame('Local History Trivia', 'Local History Trivia', function(){
+          return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions) ? window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions() : [];
+        });
+      });
+    })();
+
+    function callGetDailyHuntStatus(name, page, spotCount){
+      if (!run) return Promise.resolve({ ok: false, status: {} });
+      var payload = { character_name: name || '', page: page || 'games' };
+      if (spotCount !== undefined && spotCount !== null) payload.spot_count = spotCount;
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, status: {} }); }).getDailyHuntStatus(payload);
+      });
+    }
+    function callClaimDailyNuggetHunt(name){
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).claimDailyNuggetHunt({ character_name: name });
+      });
+    }
+    function refreshDailyHunt(){
+      var adopted = loadAdopted();
+      if (!adopted) return;
+      var hintEl = el('dailyHuntHintEl');
+      var nuggetEl = el('dailyHuntNuggetEl');
+      if (!hintEl && !nuggetEl) return;
+      var spotSel = '.wrap .gamesHubPlayCard, .wrap #gamesFeaturedScroller .exploreCard--gamesFeatured';
+      var spots = document.querySelectorAll(spotSel);
+      var spotCount = spots.length;
+      callGetDailyHuntStatus(adopted.name, 'games', spotCount).then(function(res){
+        var s = (res && res.status) || {};
+        if (hintEl){
+          hintEl.style.display = 'block';
+          if (s.claimed){
+            hintEl.textContent = 'Daily Hidden Nugget: Found! +' + (s.nuggets || 0) + ' nugget' + ((s.nuggets || 0) !== 1 ? 's' : '') + ' today';
+            hintEl.classList.add('found');
+          } else {
+            hintEl.textContent = "Today's hidden nugget hint: " + (s.hint_text || '');
+            hintEl.classList.remove('found');
+          }
+        }
+        if (nuggetEl){
+          if (s.onThisPage && spotCount > 0 && s.spotIndex !== undefined){
+            var idx = Math.min(s.spotIndex, spotCount - 1);
+            var container = spots[idx];
+            if (container){
+              if (nuggetEl.parentNode) nuggetEl.parentNode.removeChild(nuggetEl);
+              container.style.position = 'relative';
+              container.appendChild(nuggetEl);
+              nuggetEl.style.display = 'flex';
+              nuggetEl.style.position = 'absolute';
+              nuggetEl.style.left = '';
+              nuggetEl.style.top = '';
+              nuggetEl.style.bottom = '10px';
+              nuggetEl.style.right = '10px';
+              nuggetEl.style.transform = '';
+              var img = nuggetEl.querySelector('img');
+              if (img){
+                img.src = (s.rarity === 'ultra_rare') ? 'assets/icons/diamond.png' : 'assets/icons/nugget.png';
+                img.alt = (s.rarity === 'ultra_rare') ? 'Rare diamond' : 'Hidden nugget';
+              }
+            } else { nuggetEl.style.display = 'none'; }
+          } else { nuggetEl.style.display = 'none'; }
+        }
+      });
+    }
+
+    function wireDailyHuntNugget(){
+      var nuggetEl = el('dailyHuntNuggetEl');
+      if (!nuggetEl) return;
+      nuggetEl.addEventListener('click', function(){
+        var adopted = loadAdopted();
+        if (!adopted) return;
+        callClaimDailyNuggetHunt(adopted.name).then(function(res){
+          if (res && res.ok){
+            if (window.MTSS_SFX && typeof window.MTSS_SFX.playChaChing === 'function') window.MTSS_SFX.playChaChing();
+            var label = (res.rarity_label && res.rarity_label !== 'Common') ? ' ' + res.rarity_label + '!' : '';
+            toast('+' + (res.nuggets || 1) + ' nugget' + ((res.nuggets || 1) !== 1 ? 's' : '') + label + ' — Hidden nugget found!');
+            nuggetEl.style.display = 'none';
+            refreshDailyHunt();
+            refreshBalance();
+          }
+        });
+      });
+    }
+
+    wireDailyHuntNugget();
+    refreshDailyHunt();
+
+    /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */
+
+    // Nav
+
+    if (redirectIfNoCharacter()) {
+      refreshBalance();
+      initArcade();
+    }
+  </script>
+  <script src="js/lantern-canonical-enforce.js"></script>
+</body>
+</html>

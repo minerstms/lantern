@@ -1,0 +1,89 @@
+<!-- ===== TMS Lantern — School Survival: TMS Edition (teaching mini-game) ===== -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TMS Lantern — School Survival</title>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="prefetch" href="explore.html">
+  <style>
+    :root{
+      --bg:#0b1220;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --line: rgba(255,255,255,.12);
+      --r: 18px;
+      --fsBase: 22px;
+    }
+    *{box-sizing:border-box}
+    html,body{ min-height:100%; margin:0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    /* Main column: lantern-header.css .wrap.lanternContent (same 980px shell as Lantern / Play) */
+    .backLink{ display:inline-block; margin-bottom: 18px; font-weight: 800; font-size: 22px; color: var(--accent); text-decoration: none; }
+    .backLink:hover{ text-decoration: underline; }
+    .pageHd{ text-align: center; margin-bottom: var(--lantern-space-sm); }
+    .pageHd .t{ font-weight: 1000; font-size: 36px; line-height: 1.1; letter-spacing: .02em; }
+    .pageHd .sub{ color: var(--muted); font-size: 22px; font-weight: 800; margin-top: 8px; line-height: 1.35; }
+    #ssGameRoot{ margin-top: var(--lantern-space-lg); min-height: 200px; }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent">
+    <a href="explore.html" class="backLink">← Back to Lantern</a>
+    <div class="pageHd">
+      <div class="t" id="ssPageTitle">School Survival</div>
+      <div class="sub" id="ssPageSub">TMS Edition — real situations, clear moves. Chill vibe, not a quiz. Nothing saved.</div>
+    </div>
+    <div id="ssGameRoot" data-help="school_survival"></div>
+  </div>
+  <script src="js/lantern-data.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-school-survival.js"></script>
+  <script>
+    (function(){
+      var root = document.getElementById('ssGameRoot');
+      var pack = '';
+      try { pack = (new URLSearchParams(location.search).get('pack') || '').trim().toLowerCase(); } catch (e) {}
+      var isPlaces =
+        pack === 'trinidad-co' ||
+        pack === 'trinidad_co' ||
+        pack === 'trinidad' ||
+        pack === 'places' ||
+        pack === 'know-your-town';
+      if (isPlaces) {
+        document.getElementById('ssPageTitle').textContent = 'Know Your Town';
+        document.getElementById('ssPageSub').textContent =
+          'Trinidad, Colorado — look at the picture, pick the place. Not a test. Nothing saved.';
+        document.title = 'TMS Lantern — Know Your Town (Trinidad, CO)';
+      }
+      if (window.LanternSchoolSurvival && root) {
+        window.LanternSchoolSurvival.mount(root, { pack: pack || 'school' });
+      }
+    })();
+  </script>
+</body>
+</html>

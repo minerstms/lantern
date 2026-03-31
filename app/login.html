@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TMS Lantern — Sign in</title>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>
+    :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 28px 18px 48px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px; color: var(--ink);
+      background: linear-gradient(180deg, #070b12, #05070b);
+    }
+    .wrap { max-width: 440px; margin: 0 auto; }
+    h1 { font-size: 30px; font-weight: 900; margin: 0 0 10px; }
+    .sub { color: var(--muted); font-size: 22px; margin-bottom: 26px; line-height: 1.45; }
+    label { display: block; font-weight: 800; margin-top: 18px; margin-bottom: 8px; font-size: 22px; }
+    input[type="password"], input[type="text"] {
+      width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line);
+      background: rgba(0,0,0,.35); color: var(--ink); font-size: 22px; font-family: inherit;
+    }
+    .btn {
+      margin-top: 28px; width: 100%; padding: 16px 20px; border-radius: 14px; border: 1px solid rgba(90,167,255,.5);
+      background: rgba(90,167,255,.28); color: var(--ink); font-size: 26px; font-weight: 800; cursor: pointer; font-family: inherit;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #msg { margin-top: 20px; padding: 14px 16px; border-radius: 12px; font-size: 22px; font-weight: 800; line-height: 1.4; min-height: 0; }
+    #msg.success { background: rgba(56,208,124,.12); border: 1px solid rgba(56,208,124,.35); color: #b4ffd4; }
+    #msg.error { background: rgba(255,100,100,.12); border: 1px solid rgba(255,100,100,.35); color: #ffb4b4; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Sign in</h1>
+    <p class="sub">Enter your username and password.</p>
+    <div id="msg" style="display:none;" role="status" aria-live="polite"></div>
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button type="submit" class="btn" id="submitBtn">Sign in</button>
+    </form>
+  </div>
+  <script>
+    (function () {
+      var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+      var msgEl = document.getElementById('msg');
+      var form = document.getElementById('loginForm');
+      var submitBtn = document.getElementById('submitBtn');
+
+      function qs(name) {
+        var m = new RegExp('[?&]' + name + '=([^&]*)').exec(location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+      }
+      var returnTo = qs('return');
+      if (!returnTo || returnTo.indexOf('login.html') !== -1 || returnTo.indexOf('/login') !== -1) returnTo = '/explore';
+
+      function showError(text) {
+        msgEl.style.display = 'block';
+        msgEl.className = 'error';
+        msgEl.textContent = text;
+      }
+
+      function redirectAfterLogin(body) {
+        var r = (body && body.role ? String(body.role) : '').trim();
+        if (r === 'admin') {
+          location.replace('/admin');
+          return;
+        }
+        if (r === 'teacher') {
+          location.replace('/teacher');
+          return;
+        }
+        if (r === 'student') {
+          if (window.LanternPilotAuth && window.LanternPilotAuth.applyStudentStorageFromLoginResponse) {
+            window.LanternPilotAuth.applyStudentStorageFromLoginResponse(body);
+          }
+          location.replace(returnTo || '/explore');
+          return;
+        }
+        location.replace(returnTo || '/explore');
+      }
+
+      if (!api) {
+        showError('Configure window.LANTERN_AVATAR_API to your API base URL.');
+        submitBtn.disabled = true;
+        return;
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var username = (document.getElementById('username').value || '').trim();
+        var password = document.getElementById('password').value || '';
+        msgEl.style.display = 'none';
+        msgEl.textContent = '';
+        msgEl.className = '';
+        submitBtn.disabled = true;
+        fetch(api + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ username: username, password: password }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { okHttp: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (res.okHttp && res.body && res.body.ok === true) {
+              redirectAfterLogin(res.body);
+              return;
+            }
+            var err =
+              (res.body && (res.body.error || res.body.message)) ||
+              'Request failed (HTTP ' + res.status + ')';
+            showError(String(err));
+          })
+          .catch(function () {
+            showError('Network error. Try again.');
+          })
+          .finally(function () {
+            submitBtn.disabled = false;
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

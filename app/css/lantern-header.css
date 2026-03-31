@@ -1,0 +1,122 @@
+/* Shared fixed header + spacing system (pages, wraps, overlays).
+   Stack (top → bottom): #lanternTicker (full width) then #lanternAppBarRoot (nav).
+   Combined chrome height for content offset: ticker strip (48px in lantern-ticker.css) + app bar (52px) = --lantern-header-h-ticker.
+   Pages with ticker: body.page-has-ticker so .lanternContent uses --lantern-header-h-ticker.
+   Contract + audit: docs/ui/LANTERN_TOP_CHROME.md — do not add one-off header/ticker stacks per page. */
+:root {
+  --lantern-header-h: 52px;
+  /* Ticker strip (fixed px in lantern-ticker.css) + app bar 52px */
+  --lantern-header-h-ticker: 100px;
+  --lantern-space-below-header: 24px;
+  --lantern-space-xs: 8px;
+  --lantern-space-sm: 12px;
+  --lantern-space-md: 16px;
+  --lantern-space-lg: 24px;
+  --lantern-space-xl: 32px;
+  --lantern-space-2xl: 40px;
+  /* Single page shell: Lantern / Locker / Create / Play (and other student pages) */
+  --lantern-page-max-width: 980px;
+  --lantern-pad-x: 12px;
+  --lantern-pad-bottom: 48px;
+  /* Canonical horizontal rail — single source; consumed by lantern-cards.css `.wrap.lanternContent .lanternScroller` (Phase 1 rail unification) */
+  /* WebKit horizontal scrollbar thickness (thumb + track); larger = easier grab for children. */
+  --lantern-rail-scrollbar-size: 24px;
+  --lantern-rail-gap: var(--lantern-space-lg);
+  --lantern-rail-pad-y-start: var(--lantern-space-sm);
+  --lantern-rail-pad-y-end: var(--lantern-space-md);
+  --lantern-rail-pad-x: var(--lantern-pad-x);
+  /* Rail cards: outer height + media band are fixed — text clamps inside remaining budget (lantern-cards.css). */
+  --lantern-rail-card-height: 420px;
+  --lantern-rail-card-media-height: 128px;
+}
+
+#lanternHeader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+}
+
+#lanternHeader > #lanternTicker {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* App bar slot: same vertical footprint on every page; do not let flex or media stretch this row */
+#lanternHeader > #lanternAppBarRoot {
+  flex-shrink: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Header avatar: keep nav row height stable (matches .lanternAppBarAvatarWrap in lantern-nav.js) */
+#lanternAppBarRoot .lanternAppBarAvatarWrap {
+  flex-shrink: 0;
+  align-self: center;
+  overflow: hidden;
+}
+#lanternAppBarRoot .lanternAppBarAvatarWrap img {
+  display: block;
+  max-width: 36px;
+  max-height: 36px;
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+}
+
+/* Main scrollable column: starts below fixed header + breathing room */
+.lanternContent {
+  box-sizing: border-box;
+  padding-top: calc(var(--lantern-header-h) + var(--lantern-space-below-header));
+}
+body.page-has-ticker .lanternContent {
+  padding-top: calc(var(--lantern-header-h-ticker) + var(--lantern-space-below-header));
+}
+
+/* Global app shell — single centered column for all major pages (Explore, Locker, Create,
+   Games, Teacher, Verify, …). Page background and #lanternHeader may be full viewport;
+   main content lives only inside .wrap.lanternContent. Do not duplicate max-width/padding
+   on .wrap in page CSS; link this stylesheet and add class "lanternContent" to the outer wrap. */
+.wrap.lanternContent {
+  box-sizing: border-box;
+  max-width: var(--lantern-page-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  min-width: 0;
+  padding-left: var(--lantern-pad-x);
+  padding-right: var(--lantern-pad-x);
+  padding-bottom: var(--lantern-pad-bottom);
+}
+
+/* Display (and any page using .mainStage without .wrap): same column width/gutters as other app pages */
+.mainStage.lanternContent {
+  max-width: var(--lantern-page-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--lantern-pad-x);
+  padding-right: var(--lantern-pad-x);
+  padding-bottom: var(--lantern-pad-bottom);
+}
+
+/* First block below fixed chrome: no stray top margin on the main column’s first child */
+.wrap.lanternContent > :first-child {
+  margin-top: 0;
+}
+
+/*
+ * Full-screen overlays with z-index below #lanternHeader (10000): pad top so
+ * content clears the app bar. Add this class next to the overlay’s own class.
+ */
+.lanternOverlayBelowNav {
+  box-sizing: border-box;
+  padding-left: var(--lantern-pad-x);
+  padding-right: var(--lantern-pad-x);
+  padding-bottom: var(--lantern-space-lg);
+  padding-top: calc(var(--lantern-header-h) + var(--lantern-space-below-header));
+}
+body.page-has-ticker .lanternOverlayBelowNav {
+  padding-top: calc(var(--lantern-header-h-ticker) + var(--lantern-space-below-header));
+}

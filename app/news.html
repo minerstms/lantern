@@ -1,0 +1,145 @@
+<!-- ===== TMS Lantern — news.html compatibility (stub + redirect to Explore; minimal scripts) ===== -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <title>TMS Lantern — News (moved to Lantern)</title>
+  <link rel="canonical" href="explore.html" />
+  <link rel="stylesheet" href="css/lantern-ticker.css" />
+  <link rel="stylesheet" href="css/lantern-header.css" />
+  <link rel="prefetch" href="explore.html" />
+  <style>
+    :root{
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --line: rgba(255,255,255,.12);
+      --r: 18px;
+      --fsBase: 22px;
+    }
+    *{ box-sizing: border-box; }
+    html,body{ min-height: 100%; margin: 0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    a{ color: var(--accent); font-weight: 800; }
+    .wrap.lanternContent{ max-width: 720px; margin: 0 auto; padding: 24px 18px 48px; }
+    .newsNoJsBanner{
+      margin: 16px 18px 0;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 18px 20px;
+      border-radius: var(--r);
+      border: 1px solid rgba(242,194,48,.45);
+      background: rgba(242,194,48,.12);
+      color: var(--ink);
+      font-size: 22px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+    .newsStubCard{
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 28px 22px;
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      text-align: center;
+    }
+    .newsStubCard h1{ font-size: 32px; font-weight: 900; margin: 0 0 16px; line-height: 1.2; }
+    .newsStubCard p{ color: var(--muted); font-size: 22px; line-height: 1.5; margin: 0 0 14px; }
+    .newsStubLinks{ display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+    .newsStubLinks a.btnish{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 56px;
+      padding: 12px 20px;
+      border-radius: 14px;
+      border: 2px solid rgba(90,167,255,.45);
+      background: linear-gradient(180deg, rgba(90,167,255,.22), rgba(90,167,255,.08));
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 24px;
+      font-weight: 900;
+    }
+    .newsStubLinks a.btnish--good{
+      border-color: rgba(56,208,124,.5);
+      background: linear-gradient(180deg, rgba(56,208,124,.28), rgba(56,208,124,.1));
+    }
+  </style>
+</head>
+<body>
+  <div id="lanternHeader">
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <noscript>
+    <div class="newsNoJsBanner" role="status">
+      JavaScript is off. Use the links below to open Lantern, Design Studio, or Locker. If your school uses a class code, turn JavaScript on once on any Lantern page to enter it — then bookmarks work as usual.
+    </div>
+  </noscript>
+  <div class="wrap lanternContent">
+    <div id="classAccessBannerEl"></div>
+    <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
+    <div id="classAccessContentWrap">
+      <script>
+        (function () {
+          var w = document.getElementById('classAccessContentWrap');
+          var api = typeof window !== 'undefined' && window.LANTERN_AVATAR_API && String(window.LANTERN_AVATAR_API).trim();
+          if (w && api) {
+            w.style.visibility = 'hidden';
+            w.style.opacity = '0';
+          }
+        })();
+      </script>
+      <div class="newsStubCard">
+        <h1>📰 News is on Lantern now</h1>
+        <p>Published articles and announcements are on <strong>Lantern (Explore)</strong>.</p>
+        <p>Create or edit posts in <strong>Create Design Studio</strong>. Track status and <strong>Edit&nbsp;&amp;&nbsp;Resubmit</strong> under <strong>Locker</strong> → Overview → <strong>My&nbsp;Articles</strong>.</p>
+        <p style="font-size:20px;" id="newsStubRedirectNote" hidden>Sending you to Lantern…</p>
+        <div class="newsStubLinks">
+          <a class="btnish" href="explore.html">Open Lantern (Explore)</a>
+          <a class="btnish btnish--good" href="contribute.html?type=post">Create Design Studio</a>
+          <a class="btnish" href="locker.html">Locker — My Articles</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      document.addEventListener('lantern-class-access-resolved', function (ev) {
+        var d = ev && ev.detail;
+        if (!d || !d.tokenValid) return;
+        try {
+          var params = new URLSearchParams(window.location.search || '');
+          if (params.get('nostub') === '1') return;
+        } catch (e2) {}
+        var note = document.getElementById('newsStubRedirectNote');
+        if (note) note.hidden = false;
+        window.setTimeout(function () {
+          try {
+            window.location.replace('explore.html');
+          } catch (e3) {
+            window.location.href = 'explore.html';
+          }
+        }, 650);
+      });
+    })();
+  </script>
+  <script src="js/class-access.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!-- ===== TMS Lantern — Display: Scrolling Ticker + Page Rotator ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <title>TMS Lantern — Display</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+  <style>
+    :root{
+      --bg:#0b1220;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --line: rgba(255,255,255,.12);
+      --blue1:#0f3b86;
+      --blue2:#1e63d6;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+    body{
+      background:
+        radial-gradient(1400px 700px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        radial-gradient(1000px 600px at 20% 30%, rgba(46,105,214,.18) 0%, rgba(46,105,214,0) 60%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      max-height: 100vh;
+      text-align: center;
+    }
+    body.display-showcase #lanternAppBarRoot,
+    body.display-showcase .lanternHelpToggleWrap,
+    body.display-showcase .lanternHelpPanel{ display: none !important; }
+    body.display-showcase{ cursor: none; user-select: none; -webkit-user-select: none; }
+    body.display-showcase *{ cursor: none; }
+    .mainStage{
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      max-width: var(--lantern-page-max-width);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    .mainStage .stagePage{
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .mainStage .stagePage.single{ padding: clamp(12px, 1.5vh, 24px); }
+    .mainStage .stagePage .slide{
+      position: relative;
+      opacity: 1;
+      pointer-events: auto;
+      padding: clamp(12px, 1.5vh, 24px);
+    }
+    .stageGridTitle{
+      font-size: clamp(22px, 3vmin, 32px);
+      font-weight: 900;
+      color: var(--muted);
+      margin-bottom: clamp(10px, 1.2vh, 16px);
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    .stageGrid{ display: grid; gap: clamp(12px, 1.5vw, 24px); width: 100%; max-width: 100%; padding: clamp(8px, 1vh, 16px); }
+    .stageGrid.cols2{ grid-template-columns: repeat(2, 1fr); }
+    .stageGrid.cols3{ grid-template-columns: repeat(3, 1fr); }
+    .slideWrap{
+      position: relative;
+      width: 100%;
+      max-width: var(--lantern-page-max-width);
+      padding: clamp(16px, 2.5vh, 32px) clamp(20px, 3vw, 40px);
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #slideContainer{
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide{
+      opacity: 0;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%;
+      padding: clamp(16px, 2vh, 32px) clamp(20px, 2.5vw, 40px);
+      transition: opacity 0.8s ease-in-out;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .slide.active{ opacity: 1; pointer-events: auto; }
+    .slideType{
+      font-size: clamp(22px, 3.2vmin, 36px);
+      font-weight: 900;
+      margin-bottom: clamp(8px, 1vh, 16px);
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-shadow: 0 2px 12px rgba(0,0,0,.6);
+      flex-shrink: 0;
+    }
+    .slideTitle{
+      font-size: clamp(32px, 6vmin, 72px);
+      font-weight: 1000;
+      line-height: 1.2;
+      margin-bottom: clamp(8px, 1vh, 16px);
+      color: var(--ink);
+      text-shadow: 0 4px 20px rgba(0,0,0,.6), 0 0 40px rgba(0,0,0,.25);
+      max-width: 100%;
+      flex-shrink: 0;
+    }
+    .slideSubtitle{
+      font-size: clamp(24px, 3.5vmin, 44px);
+      font-weight: 800;
+      margin-bottom: clamp(8px, 1.2vh, 24px);
+      text-shadow: 0 2px 10px rgba(0,0,0,.5);
+      max-width: 100%;
+      flex-shrink: 0;
+    }
+    .slideImage{
+      max-width: 100%;
+      max-height: min(360px, 28vh);
+      border-radius: 20px;
+      border: 3px solid rgba(255,255,255,.2);
+      box-shadow: 0 16px 48px rgba(0,0,0,.5);
+      margin: clamp(8px, 1vh, 24px) 0;
+      flex-shrink: 1;
+      min-height: 0;
+    }
+    .slideImage img{
+      max-width: 100%;
+      max-height: min(320px, 26vh);
+      width: auto;
+      height: auto;
+      display: block;
+      border-radius: 14px;
+    }
+    .slideAvatar{
+      font-size: clamp(80px, 14vmin, 140px);
+      margin-bottom: clamp(8px, 1vh, 12px);
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .slideAvatarImg{
+      width: clamp(120px, 18vmin, 180px);
+      height: clamp(120px, 18vmin, 180px);
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: clamp(8px, 1vh, 12px);
+      border: 3px solid rgba(255,255,255,.3);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      flex-shrink: 0;
+    }
+    .slideAvatarWrap.frame-gold .slideAvatarImg,
+    .slideAvatarWrap.frame-gold .slideAvatar{ box-shadow: 0 0 0 3px rgba(242,194,48,.5); }
+    .slideAvatarWrap.frame-blue .slideAvatarImg,
+    .slideAvatarWrap.frame-blue .slideAvatar{ box-shadow: 0 0 0 3px rgba(90,167,255,.5); }
+    .slideAvatarWrap.frame-green .slideAvatarImg,
+    .slideAvatarWrap.frame-green .slideAvatar{ box-shadow: 0 0 0 3px rgba(56,208,124,.5); }
+    .slideAvatarWrap.frame-purple .slideAvatarImg,
+    .slideAvatarWrap.frame-purple .slideAvatar{ box-shadow: 0 0 0 3px rgba(156,100,255,.5); }
+    .slideAvatarWrap.frame-silver .slideAvatarImg,
+    .slideAvatarWrap.frame-silver .slideAvatar{ box-shadow: 0 0 0 3px rgba(200,200,220,.6); }
+    .slideAvatarWrap{ margin-bottom: clamp(8px, 1vh, 12px); flex-shrink: 0; }
+    .slide-fallback .slideTitle{ font-size: clamp(40px, 8vmin, 80px); }
+    .slide-fallback .slideSubtitle{ font-size: clamp(28px, 4vmin, 44px); color: var(--muted); }
+    .slide-student-news .slideType{ color: var(--accent); }
+    .slide-teacher-pick .slideType{ color: #e6c84a; }
+    .slide-featured-creation .slideType{ color: var(--good); }
+    .slide-achievement .slideType{ color: var(--good); }
+    .slide-thank-you-highlight .slideType{ color: var(--good); }
+    .slide-nugget-milestone .slideType{ color: #ffcc66; }
+    .slide-arcade-leader .slideType{ color: var(--accent); }
+    .slide-nugget-rumor .slideType{ color: #b8a0ff; }
+    .slide-teacher-recognition .slideType{ color: #e6c84a; }
+    .slideLeaderboardList{ margin-top: clamp(10px, 1.5vh, 20px); text-align: left; max-width: 640px; margin-left: auto; margin-right: auto; flex-shrink: 1; min-height: 0; overflow: auto; }
+    .slideLeaderboardRow{ font-size: clamp(22px, 2.8vmin, 30px); font-weight: 900; color: var(--ink); margin-bottom: 8px; text-shadow: 0 2px 8px rgba(0,0,0,.4); }
+    .slideLeaderboardRow .gameTag{ color: var(--accent); }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <script>
+    (function(){
+      if (typeof location === 'undefined' || !location.search) return;
+      var q = location.search.toLowerCase();
+      if (q.indexOf('showcase') !== -1 || q.indexOf('kiosk') !== -1) document.body.classList.add('display-showcase');
+    })();
+  </script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent" style="flex:1;min-height:0;width:100%;max-width:var(--lantern-page-max-width);display:flex;flex-direction:column;align-items:center;box-sizing:border-box;">
+  <div class="mainStage" id="mainStage" data-help="display_page"></div>
+  </div>
+
+  <script src="js/lantern-data.js"></script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-reactions.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var el = function(id){ return document.getElementById(id); };
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+    function typeLabel(type){
+      if (type === 'teacher_pick') return '🏆 Teacher Pick';
+      if (type === 'featured_creation') return '🌟 Featured Creation';
+      if (type === 'student_news') return '📰 Student News';
+      if (type === 'achievement') return '🏆 Achievement';
+      if (type === 'nugget_milestone') return 'Nugget Milestone';
+      if (type === 'thank_you_highlight') return '💌 Thank You';
+      if (type === 'arcade_leader') return '🎮 Arcade Leaders';
+      if (type === 'nugget_rumor') return 'Hidden Nugget';
+      if (type === 'teacher_recognition') return '⭐ Teacher Recognition';
+      return 'TMS Lantern';
+    }
+
+    function truncate(s, maxLen){
+      s = String(s || '').trim();
+      if (s.length <= maxLen) return s;
+      return s.slice(0, maxLen - 1).trim() + '…';
+    }
+
+    function renderSlide(s, idx){
+      var typeCls = 'slide slide-' + (s.type || 'fallback').replace(/_/g, '-');
+      var typeLbl = typeLabel(s.type);
+      var title = esc(truncate(s.title || '', 50));
+      var subtitle = esc(truncate(s.subtitle || '', 55));
+      var m = s.meta || {};
+      var canon = m._canonicalAvatar;
+      var avatarImage = canon && canon.imageUrl ? String(canon.imageUrl).trim() : '';
+      var avatar = canon && canon.emoji ? esc(canon.emoji) : (m.avatar ? esc(m.avatar) : '🌟');
+      var frameVal = (s.meta && s.meta.frame) ? String(s.meta.frame).replace(/_/g, '-').replace(/[^a-z0-9-]/gi, '') || 'none' : 'none';
+      var img = '';
+      if (s.image && s.image.trim()){
+        img = '<div class="slideImage"><img src="' + esc(s.image) + '" alt="" onerror="this.parentNode.style.display=\'none\'" /></div>';
+      }
+      var avatarBlock = '';
+      if (s.type !== 'fallback' && s.type !== 'arcade_leader' && s.type !== 'nugget_rumor') {
+        var inner = avatarImage
+          ? '<img src="' + esc(avatarImage) + '" alt="" class="slideAvatarImg" onerror="this.style.display=\'none\';this.nextElementSibling&&(this.nextElementSibling.style.display=\'block\');"><div class="slideAvatar" style="display:none;">' + avatar + '</div>'
+          : '<div class="slideAvatar">' + avatar + '</div>';
+        avatarBlock = '<div class="slideAvatarWrap frame-' + frameVal + '">' + inner + '</div>';
+      }
+      var listBlock = '';
+      if (s.type === 'arcade_leader' && s.meta && (s.meta.weekly || s.meta.daily)) {
+        var rows = (s.meta.weekly || s.meta.daily).slice(0, 8);
+        listBlock = '<div class="slideLeaderboardList">' + rows.map(function(r){
+          return '<div class="slideLeaderboardRow"><span class="gameTag">' + esc(r.game_name || '') + '</span> #' + (r.rank || '') + ' ' + esc(r.character_name || '') + ' · ' + esc(r.score_display || '') + '</div>';
+        }).join('') + '</div>';
+      }
+      return '<div class="' + typeCls + '" data-idx="' + idx + '">' +
+        '<div class="slideType">' + typeLbl + '</div>' +
+        avatarBlock +
+        '<div class="slideTitle">' + title + '</div>' +
+        (subtitle ? '<div class="slideSubtitle">' + subtitle + '</div>' : '') +
+        listBlock +
+        img +
+        '</div>';
+    }
+
+    var slides = [];
+    var recognitionList = [];
+    var newsList = [];
+    var heroCandidates = [];
+    var pageList = [];
+    var pageIdx = 0;
+    var pageTimer = null;
+    var PAGE_ROTATE_MS = 14000;
+
+    function getHeroCandidates(){
+      var types = ['teacher_pick', 'featured_creation', 'student_news', 'teacher_recognition', 'achievement', 'nugget_milestone', 'thank_you_highlight'];
+      return slides.filter(function(s){ return types.indexOf(s.type) !== -1; });
+    }
+
+    function getInitials(name){
+      var s = String(name || '').trim();
+      if (!s) return '?';
+      var parts = s.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+      return s.length >= 2 ? s.slice(0, 2).toUpperCase() : s.charAt(0).toUpperCase();
+    }
+    function renderRecognitionCardEl(r){
+      if (!window.LanternCards || !window.LanternCards.specIconRailCard || !window.LanternCards.createStudentCard) return null;
+      var name = String(r.character_name || '').trim() || 'Student';
+      var msg = String(r.message || '').trim().slice(0, 50);
+      if ((r.message || '').length > 50) msg += '…';
+      return window.LanternCards.createStudentCard(window.LanternCards.specIconRailCard({
+        title: name,
+        meta: msg,
+        character_name: name,
+        _canonicalAvatar: r._canonicalAvatar,
+        icon: getInitials(r.character_name) || '?',
+        reportType: 'display_recognition',
+        reportId: String((r.id != null ? r.id : r.character_name) || '').slice(0, 200),
+        extraClass: 'exploreCard--displayGridTile'
+      }));
+    }
+
+    function buildPageList(){
+      var list = [];
+      var hero = heroCandidates.length ? heroCandidates : (slides.length ? slides : [{ type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, actor_name: '', meta: {}, created_at: '' }]);
+      var rec = recognitionList;
+      var achievements = slides.filter(function(s){ return s.type === 'achievement' || s.type === 'nugget_milestone'; });
+      var single = hero[0] ? { type: 'single', slide: hero[0] } : { type: 'single', slide: { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } };
+      var grid4Rec = rec.length >= 4 ? { type: 'grid', size: 4, title: 'Recent Recognition', items: rec.slice(0, 4) } : null;
+      var grid4Achieve = achievements.length >= 4 ? { type: 'achievements', title: 'Recent Unlocks', items: achievements.slice(0, 4) } : (achievements.length > 0 ? { type: 'achievements', title: 'Recent Unlocks', items: achievements.slice(0, 6) } : null);
+      var newsSpot = newsList.length > 0 ? { type: 'news_spotlight', title: 'Lantern News', items: newsList.slice(0, 3) } : null;
+      list.push(single);
+      if (grid4Rec) list.push(grid4Rec);
+      list.push(single);
+      if (grid4Achieve) list.push(grid4Achieve);
+      list.push(single);
+      if (newsSpot) list.push(newsSpot);
+      if (list.length === 0) list.push({ type: 'single', slide: { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } });
+      return list;
+    }
+
+    function renderAchievementCardEl(s){
+      if (!window.LanternCards || !window.LanternCards.specIconRailCard || !window.LanternCards.createStudentCard) return null;
+      var title = truncate(s.title || '', 40);
+      var subtitle = truncate(s.subtitle || '', 50);
+      var m = s.meta || {};
+      var canon = m._canonicalAvatar;
+      var avatarImage = canon && canon.imageUrl ? String(canon.imageUrl).trim() : '';
+      var avatar = canon && canon.emoji ? String(canon.emoji) : ((m && m.avatar) ? String(m.avatar) : '🏆');
+      return window.LanternCards.createStudentCard(window.LanternCards.specIconRailCard({
+        title: title,
+        meta: subtitle,
+        character_name: String(m.character_name || '').trim(),
+        _canonicalAvatar: canon,
+        imageUrl: avatarImage,
+        icon: avatar,
+        typeBadge: '🏆',
+        reportType: 'display_achievement',
+        reportId: String(s.id || ''),
+        extraClass: 'exploreCard--displayGridTile'
+      }));
+    }
+
+    function renderPage(page){
+      var stage = el('mainStage');
+      if (!stage) return;
+      if (page.type === 'single'){
+        stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide, 0) + '</div>';
+        return;
+      }
+      if (page.type === 'grid'){
+        var cols = page.size === 4 ? 'cols2' : 'cols3';
+        var pageWrap = document.createElement('div');
+        pageWrap.className = 'stagePage';
+        if (page.title) {
+          var gt = document.createElement('div');
+          gt.className = 'stageGridTitle';
+          gt.textContent = page.title;
+          pageWrap.appendChild(gt);
+        }
+        var grid = document.createElement('div');
+        grid.className = 'stageGrid ' + cols;
+        (page.items || []).forEach(function(it){
+          var cel = renderRecognitionCardEl(it);
+          if (cel) grid.appendChild(cel);
+        });
+        pageWrap.appendChild(grid);
+        stage.innerHTML = '';
+        stage.appendChild(pageWrap);
+        return;
+      }
+      if (page.type === 'achievements'){
+        var pageWrapA = document.createElement('div');
+        pageWrapA.className = 'stagePage';
+        if (page.title) {
+          var gtA = document.createElement('div');
+          gtA.className = 'stageGridTitle';
+          gtA.textContent = page.title;
+          pageWrapA.appendChild(gtA);
+        }
+        var gridA = document.createElement('div');
+        gridA.className = 'stageGrid cols3';
+        (page.items || []).forEach(function(it){
+          var ael = renderAchievementCardEl(it);
+          if (ael) gridA.appendChild(ael);
+        });
+        pageWrapA.appendChild(gridA);
+        stage.innerHTML = '';
+        stage.appendChild(pageWrapA);
+        return;
+      }
+      if (page.type === 'news_spotlight'){
+        var newsItems = page.items || [];
+        var pageWrapN = document.createElement('div');
+        pageWrapN.className = 'stagePage';
+        if (page.title) {
+          var gtN = document.createElement('div');
+          gtN.className = 'stageGridTitle';
+          gtN.textContent = page.title;
+          pageWrapN.appendChild(gtN);
+        }
+        var gridN = document.createElement('div');
+        gridN.className = 'stageGrid cols3';
+        newsItems.forEach(function(n){
+          if (!window.LanternCards || !window.LanternCards.specDisplayNewsSpotlightCard || !window.LanternCards.createStudentCard) return;
+          var title = truncate(n.title || '', 50);
+          var body = truncate((n.body || '').replace(/<[^>]+>/g, ' '), 80);
+          var cat = n.category || 'News';
+          var id = (n.id || '').trim();
+          var nel = window.LanternCards.createStudentCard(window.LanternCards.specDisplayNewsSpotlightCard(id, cat, title, body));
+          if (nel) gridN.appendChild(nel);
+        });
+        pageWrapN.appendChild(gridN);
+        stage.innerHTML = '';
+        stage.appendChild(pageWrapN);
+        if (window.LANTERN_REACTIONS && window.LANTERN_REACTIONS.getSummary && window.LANTERN_REACTIONS.formatPraiseSummary) {
+          var cardsWithId = stage.querySelectorAll('[data-reaction-item-id]');
+          newsItems.forEach(function(n, i){
+            if (!n.id || !cardsWithId[i]) return;
+            window.LANTERN_REACTIONS.getSummary('news', n.id).then(function(res){
+              if (!res || !res.ok || !res.top || !res.top.length) return;
+              var summary = window.LANTERN_REACTIONS.formatPraiseSummary(res.top);
+              if (!summary) return;
+              var card = stage.querySelectorAll('[data-reaction-item-id]')[i];
+              var line = card && card.querySelector('.displayPraiseSummary');
+              if (line) line.textContent = 'Praised for ' + summary;
+            });
+          });
+        }
+        return;
+      }
+      stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide || { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', meta: {}, created_at: '' }, 0) + '</div>';
+    }
+
+    function advancePage(){
+      pageIdx = (pageIdx + 1) % pageList.length;
+      renderPage(pageList[pageIdx]);
+    }
+
+    function startDisplay(){
+      heroCandidates = getHeroCandidates();
+      pageList = buildPageList();
+      pageIdx = 0;
+      renderPage(pageList[pageIdx]);
+      if (pageTimer) clearInterval(pageTimer);
+      pageTimer = setInterval(advancePage, PAGE_ROTATE_MS);
+    }
+
+    document.addEventListener('lantern-ticker-display-data', function(ev){
+      var d = ev && ev.detail;
+      if (!d) return;
+      slides = d.slides || [];
+      recognitionList = d.recognitionList || [];
+      newsList = d.newsList || [];
+      startDisplay();
+    });
+  </script>
+</body>
+</html>

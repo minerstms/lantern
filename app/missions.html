@@ -1,0 +1,1191 @@
+<!-- ===== TMS Lantern — Missions (student work hub) ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <title>TMS Lantern — Missions</title>
+  <link rel="prefetch" href="locker.html">
+  <link rel="prefetch" href="thanks.html">
+  <link rel="prefetch" href="grades.html">
+  <link rel="prefetch" href="locker.html#store">
+  <link rel="prefetch" href="games.html">
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --r: 18px;
+      --fsBase: 22px;
+    }
+    *{box-sizing:border-box}
+    html{ min-height: 100%; }
+    body{
+      margin:0;
+      background: linear-gradient(180deg, #070b12, #05070b);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    a{ color: var(--accent); text-decoration: none; font-weight: 800; }
+    a:hover{ text-decoration: underline; }
+    /* Outer shell: lantern-header.css .wrap.lanternContent */
+    .wrap.lanternContent{ position: relative; z-index: 1; }
+    .section{ margin-bottom: 28px; }
+    /* Match explore.html rail row titles */
+    .missionsPageWrap .sectionHd{
+      font-weight: 900;
+      font-size: 26px;
+      margin-bottom: 4px;
+      letter-spacing: .2px;
+      padding: 14px var(--lantern-pad-x) 0;
+      color: var(--ink);
+    }
+    .sectionBd{ }
+    /* Missions (reused from Profile) */
+    .missionFeaturedPill{
+      display: inline-block;
+      margin-right: 6px;
+      margin-bottom: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      border: 1px solid rgba(255,204,102,.55);
+      background: rgba(255,204,102,.2);
+      color: var(--ink);
+      vertical-align: middle;
+    }
+    .missionFeaturedPill--today{
+      border-color: rgba(90,167,255,.55);
+      background: rgba(90,167,255,.22);
+    }
+    .myMissionsSub{ margin-top: 20px; }
+    .myMissionsSubHd{ font-weight: 900; font-size: 22px; margin-bottom: 10px; color: var(--muted); }
+    .missionRow{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .missionRow:last-child{ border-bottom: none; }
+    .missionInfo{ flex: 1; min-width: 0; }
+    .missionName{ font-weight: 900; font-size: 22px; }
+    .missionReward{ font-size: 20px; color: var(--warn); font-weight: 800; margin-top: 2px; }
+    .missionStatus{ font-size: 22px; color: var(--muted); }
+    .missionStatus.completed{ color: var(--good); }
+    .sectionPlaceholder{ color: var(--muted); font-size: 22px; padding: 12px 0; }
+    .btn{ padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 22px; cursor: pointer; border: none; font-family: inherit; }
+    .btn.good{ background: linear-gradient(180deg, rgba(56,208,124,.35), rgba(56,208,124,.15)); color: var(--ink); border: 1px solid rgba(56,208,124,.5); }
+    .btn.small{ padding: 6px 14px; font-size: 20px; }
+    .overlay{ position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .overlay.show{ display: flex; }
+    .modal{ background: var(--panel); border-radius: var(--r); padding: 20px; max-width: 480px; width: 100%; border: 1px solid var(--line); }
+    .modalHd{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .modalHd .h{ font-weight: 1000; font-size: 26px; }
+    .modalHd .x{ background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; padding: 4px; }
+    textarea, input[type=url]{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); font-size: 22px; font-family: inherit; }
+    label{ display: block; font-weight: 800; margin-bottom: 8px; font-size: 22px; }
+    .quickMissionLink{ display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .toastWrap{ position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10002; display: none; padding: 12px 20px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-size: 22px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+    .toastWrap.show{ display: block; }
+    .missionSubmitProgressWrap{ margin-top: 10px; }
+    .missionSubmitProgressBar{ height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; width: 100%; }
+    .missionSubmitProgressFill{ height: 100%; border-radius: 999px; transition: width .25s ease; }
+    .missionSubmitProgressFill.neutral{ background: rgba(255,255,255,.25); }
+    .missionSubmitProgressFill.amber{ background: linear-gradient(90deg, rgba(255,204,102,.85), rgba(255,170,68,.8)); }
+    .missionSubmitProgressFill.met{ background: linear-gradient(90deg, rgba(56,208,124,.85), rgba(56,180,100,.8)); }
+    .missionSubmitCountdown{ font-size: 20px; font-weight: 800; margin-top: 6px; margin-bottom: 0; }
+    .missionSubmitCountdown.neutral{ color: var(--muted); }
+    .missionSubmitCountdown.amber{ color: var(--warn); }
+    .missionSubmitCountdown.met{ color: var(--good); }
+    .missionVerifyBypassHint{ font-size: 18px; font-weight: 800; color: var(--muted); margin-top: 8px; margin-bottom: 0; }
+    .missionBurstWarning{ font-size: 18px; font-weight: 800; color: var(--warn); margin-top: 8px; margin-bottom: 0; }
+    .missionMediaPreviewWrap{ margin-top: 10px; }
+    .missionImagePreview img{ max-height: 320px; max-width: 100%; border-radius: 12px; display: block; }
+    .missionImagePreviewFallback{ font-size: 18px; font-weight: 800; color: var(--muted); padding: 12px 0; }
+    .missionSubmitImageDrop{ border: 2px dashed var(--line); border-radius: var(--r); background: rgba(0,0,0,.2); padding: 16px; margin-top: 8px; margin-bottom: 8px; }
+    .missionSubmitImagePlaceholder{ cursor: pointer; font-size: 22px; font-weight: 800; color: var(--muted); text-align: center; padding: 12px 0; }
+    .missionSubmitImageDrop.dragover{ border-color: var(--accent); background: rgba(90,167,255,.08); }
+    .missionSubmitImagePreviewWrap{ margin-top: 8px; }
+    .missionSubmitImagePreviewWrap img{ max-height: 200px; max-width: 100%; border-radius: 12px; display: block; }
+    .missionSubmitImageActions{ margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .missionVideoPreview video{ max-height: 360px; max-width: 100%; border-radius: 12px; display: block; }
+    .missionVideoPreviewFallback{ font-size: 18px; font-weight: 800; color: var(--muted); padding: 12px 0; }
+    .missionSubmitPreviewWrap{ margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .missionSubmitPreviewLabel{ font-weight: 900; font-size: 22px; color: var(--muted); margin-bottom: 10px; }
+    .missionSubmitPreviewCard{ min-height: 80px; }
+    .missionLinkPreviewCard{ margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); font-size: 20px; }
+    .missionLinkPreviewCard a{ font-weight: 800; word-break: break-all; }
+    .missionLinkPreviewCard .missionLinkDomain{ font-size: 18px; color: var(--muted); margin-top: 4px; }
+    .missionCropperModal{ position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .missionCropperModal .missionCropperBox{ background: var(--panel); border-radius: var(--r); padding: 20px; max-width: 100%; width: 100%; max-width: 520px; border: 1px solid var(--line); }
+    .missionCropperModal .missionCropperTitle{ font-weight: 900; font-size: 26px; margin-bottom: 14px; }
+    .missionCropperModal .missionCropperImgWrap{ max-height: 60vh; margin: 0 auto 14px; background: #000; border-radius: 10px; overflow: hidden; }
+    .missionCropperModal .missionCropperImgWrap img{ max-width: 100%; display: block; }
+    .missionCropperModal .missionCropperActions{ display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+  </style>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+</head>
+<body class="page-has-ticker">
+  <script src="js/lantern-canonical-route-boot.js"></script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent missionsPageWrap">
+    <div id="classAccessBannerEl"></div>
+    <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
+    <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
+    <div class="section">
+      <div class="sectionHd">Quick Missions</div>
+      <div class="sectionBd">
+        <div id="quickMissionsTrack" data-lantern-rail-host="true" data-scroller-aria-label="Quick missions"><p class="sectionPlaceholder">Loading quick missions…</p></div>
+      </div>
+    </div>
+
+    <div class="section" data-help="missions">
+      <div class="sectionHd">Available for You</div>
+      <div class="sectionBd">
+        <div id="activeMissionsList" data-lantern-rail-host="true" data-scroller-aria-label="Available missions"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sectionHd">Completed Missions</div>
+      <div class="sectionBd">
+        <div id="completedMissionsList" data-lantern-rail-host="true" data-scroller-aria-label="Completed missions"></div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div id="toastEl" class="toastWrap" role="status" aria-live="polite"></div>
+
+  <script src="js/lantern-data.js"></script>
+  <script src="js/class-access.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-scroller.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-card-ui.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
+    var el = function(id){ return document.getElementById(id); };
+
+    var missionVerifyModeActive = false;
+    (function(){
+      try {
+        var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
+        var sim = params.get('simStudent');
+        if (sim && String(sim).trim()) { missionVerifyModeActive = true; return; }
+      } catch(e) {}
+      try {
+        if (localStorage.getItem('LANTERN_VERIFY_CHARACTER_NAME')) { missionVerifyModeActive = true; return; }
+      } catch(e) {}
+      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      if (!apiBase) return;
+      fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).then(function(res){
+        if (res && res.ok && res.state && res.state.character_name) missionVerifyModeActive = true;
+      }).catch(function(){});
+    })();
+    function isMissionWritingIntegrityBypassActive(){ return missionVerifyModeActive; }
+
+    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var missionsApiBase = (typeof window !== 'undefined' && (window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API)) ? String(window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API).replace(/\/$/, '') : '';
+    function callEconomyTransact(characterName, delta, kind, source, note, meta){
+      if (!economyApiBase) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
+      return fetch(economyApiBase + '/api/economy/transact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
+      }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+    }
+
+    function getAdopted(){
+      try{
+        var raw = localStorage.getItem(LS_ADOPTED);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (obj && obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
+          try { localStorage.removeItem(LS_ADOPTED); } catch(e) {}
+          return null;
+        }
+        return obj;
+      }catch(e){ return null; }
+    }
+    function getCharacterNameForApi(){
+      var adopted = getAdopted();
+      if (!adopted) return '';
+      return (adopted.character_id || adopted.name || '').trim();
+    }
+
+    function todayStr(){
+      var d = new Date();
+      var y = d.getFullYear();
+      var m = d.getMonth() + 1;
+      var day = d.getDate();
+      return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+    }
+
+    function callGetMissions(name){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, missions: {} });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, missions: {} }); }).getMissions({ character_name: name });
+      });
+    }
+    function callGetActiveTeacherMissionsForCharacter(characterName){
+      if (missionsApiBase && characterName) {
+        return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName))
+          .then(function(r){ return r.json(); })
+          .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
+          .catch(function(){ return { ok: false, missions: [] }; });
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, missions: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, missions: [] }); }).getActiveTeacherMissionsForCharacter({ character_name: characterName });
+      });
+    }
+    function callGetMissionSubmissionsForCharacter(name){
+      if (missionsApiBase && name) {
+        return fetch(missionsApiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name))
+          .then(function(r){ return r.json(); })
+          .then(function(res){ return (res && res.ok && Array.isArray(res.submissions)) ? { ok: true, submissions: res.submissions } : { ok: false, submissions: [] }; })
+          .catch(function(){ return { ok: false, submissions: [] }; });
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, submissions: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, submissions: [] }); }).getMissionSubmissionsForCharacter({ character_name: name });
+      });
+    }
+    function callSubmitMissionCompletion(missionId, characterName, submissionType, submissionContent){
+      if (missionsApiBase && missionId && characterName) {
+        return fetch(missionsApiBase + '/api/missions/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitMissionCompletion({ mission_id: missionId, character_name: characterName, submission_type: submissionType, submission_content: submissionContent });
+      });
+    }
+    function callResubmitMissionSubmission(id, submissionContent){
+      if (missionsApiBase && id) {
+        return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id, submission_content: submissionContent || '' })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).resubmitMissionSubmission({ id: id, submission_content: submissionContent });
+      });
+    }
+    function callClaimDailyCheckIn(name){
+      if (economyApiBase) {
+        var run = createRun ? createRun() : null;
+        if (!run) return Promise.resolve({ ok: false });
+        return new Promise(function(resolve){
+          run.withSuccessHandler(function(r){
+            if (!r || !r.ok) { resolve(r); return; }
+            callEconomyTransact(name, r.nuggets || 3, 'daily_checkin', 'MISSION', 'Daily Check-In', {}).then(function(tRes){
+              if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed' });
+            });
+          }).withFailureHandler(function(){ resolve({ ok: false }); }).claimDailyCheckIn({ character_name: name, economy_backend_charged: true });
+        });
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).claimDailyCheckIn({ character_name: name });
+      });
+    }
+    function callCompleteHiddenNugget(name){
+      if (economyApiBase) {
+        var run = createRun ? createRun() : null;
+        if (!run) return Promise.resolve({ ok: false });
+        return new Promise(function(resolve){
+          run.withSuccessHandler(function(r){
+            if (!r || !r.ok) { resolve(r); return; }
+            callEconomyTransact(name, r.nuggets || 5, 'hidden_nugget', 'MISSION', 'Hidden Nugget', {}).then(function(tRes){
+              if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed' });
+            });
+          }).withFailureHandler(function(){ resolve({ ok: false }); }).completeHiddenNugget({ character_name: name, economy_backend_charged: true });
+        });
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).completeHiddenNugget({ character_name: name });
+      });
+    }
+
+    function toast(msg){
+      var toastEl = el('toastEl');
+      if (!toastEl) return;
+      toastEl.textContent = msg || '';
+      toastEl.classList.add('show');
+      toastEl.style.display = 'block';
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(function(){ toastEl.classList.remove('show'); toastEl.style.display = 'none'; }, 2400);
+    }
+
+    function esc(s){
+      return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; });
+    }
+
+    var currentMissionForSubmit = null;
+    var currentResubmitId = null;
+    var missionVideoUploadedUrl = '';
+    var currentMissionMinChars = 0;
+    var currentMissionRequiresImage = false;
+    var previousTextareaValue = '';
+    var previousInputTimestamp = 0;
+
+    var missionApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var missionUnifiedField = null;
+    function destroyMissionUnifiedField(){
+      if (missionUnifiedField) {
+        try { missionUnifiedField.destroy(); } catch (e) {}
+        missionUnifiedField = null;
+      }
+    }
+    function syncMissionUnifiedPreview(){
+      if (!missionUnifiedField) return;
+      var imgU = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      var upImg = el('missionSubmitImageUploadPreviewImg');
+      if (!imgU && upImg && upImg.src && (upImg.src.indexOf('data:') === 0 || upImg.src.indexOf('http') === 0)) imgU = upImg.src;
+      var vidU = (missionVideoUploadedUrl || (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim()) || '';
+      var linkU = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
+      if (imgU) {
+        missionUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><img src="' + esc(imgU) + '" alt="" style="max-width:100%;max-height:200px;border-radius:12px;" onerror="this.parentNode.innerHTML=\'&lt;p style=color:var(--muted)&gt;Preview unavailable&lt;/p&gt;\'" /></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="missionUmReplace">Replace</button><button type="button" class="btn small bad" id="missionUmRemove">Remove</button></div>');
+        return;
+      }
+      if (vidU) {
+        missionUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><video controls preload="metadata" style="max-width:100%;max-height:200px;border-radius:12px;border:1px solid var(--line);" src="' + esc(vidU) + '"></video></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="missionUmReplace">Replace</button><button type="button" class="btn small bad" id="missionUmRemove">Remove</button></div>');
+        return;
+      }
+      if (linkU) {
+        missionUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaLinkCard"><a href="' + esc(linkU) + '" target="_blank" rel="noopener">' + esc(linkU) + '</a></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="missionUmReplace">Replace</button><button type="button" class="btn small bad" id="missionUmRemove">Remove</button></div>');
+        return;
+      }
+      missionUnifiedField.resetEmptyVisual();
+    }
+    function mountMissionUnifiedField(allowsImage, allowsVideo, allowsLink){
+      var mount = el('missionUnifiedMediaMount');
+      if (!mount || !window.LanternUnifiedMediaField) return;
+      destroyMissionUnifiedField();
+      var lbl = el('missionUnifiedMediaLabel');
+      if (lbl) {
+        if (allowsImage && !allowsVideo && !allowsLink) lbl.textContent = 'Add a photo';
+        else if (allowsVideo && !allowsImage && !allowsLink) lbl.textContent = 'Add a short video or paste a video link';
+        else if (allowsLink && !allowsImage && !allowsVideo) lbl.textContent = 'Add a link';
+        else lbl.textContent = 'Add photo, video, or link (one)';
+      }
+      missionUnifiedField = window.LanternUnifiedMediaField.mount(mount, {
+        allowImage: allowsImage,
+        allowVideo: allowsVideo,
+        allowLink: allowsLink,
+        helpKey: 'mission_image',
+        libraryButton: allowsImage ? { label: 'Pick picture from library', onClick: function () { openLibraryPicker('image'); } } : null,
+        onPasteUrl: function (u) {
+          u = String(u || '').trim().slice(0, 2000);
+          var imgLike = /\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(u) || /\/api\/(media\/image|news\/image)\?/i.test(u);
+          if (allowsImage && imgLike) {
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = u;
+            missionVideoUploadedUrl = '';
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+            if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+            if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+            updateMissionImagePreview();
+            syncMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return true;
+          }
+          if (allowsLink) {
+            if (el('missionSubmitUrl')) el('missionSubmitUrl').value = u;
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+            missionVideoUploadedUrl = '';
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+            if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+            updateMissionLinkPreview();
+            syncMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return true;
+          }
+          if (allowsVideo) {
+            if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = u;
+            missionVideoUploadedUrl = '';
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+            if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+            if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+            updateMissionVideoPreview();
+            syncMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return true;
+          }
+          if (allowsImage && !allowsVideo && !allowsLink && /^https?:\/\//i.test(u)) {
+            toast('This mission needs a photo. Paste a picture link or choose a file.');
+            return true;
+          }
+          return false;
+        },
+        onImageFile: function (f) {
+          missionVideoUploadedUrl = '';
+          if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+          if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+          if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+          handleMissionImageFile(f);
+        },
+        onVideoFile: function (f) {
+          if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+          if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+          handleMissionVideoFile(f);
+        },
+        onLinkUrl: function (u) {
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = String(u || '').trim().slice(0, 2000);
+          if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+          missionVideoUploadedUrl = '';
+          if (el('missionSubmitVideoUrl')) el('missionSubmitVideoUrl').value = '';
+          if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
+          updateMissionLinkPreview();
+          syncMissionUnifiedPreview();
+          updateMissionSubmitPreview();
+        },
+        onClear: function () {
+          clearMissionImageUpload();
+          clearMissionVideo();
+          if (el('missionSubmitUrl')) el('missionSubmitUrl').value = '';
+        },
+      });
+    }
+    function callUploadMissionImage(dataUrl, mimeType, fileName){
+      if (!missionApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(missionApiBase + '/api/news/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, mime_type: mimeType || 'image/png', file_name: fileName || 'image.png' })
+      }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+    }
+    function callUploadMissionVideo(base64DataUrl, mimeType, fileName){
+      if (!missionApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      return fetch(missionApiBase + '/api/news/upload-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video: base64DataUrl || '', mime_type: mimeType || 'video/mp4', file_name: fileName || 'video.mp4' })
+      }).then(function(r){ return r.json(); }).then(function(data){ return (data && data.video_r2_key != null) ? data : { ok: false, error: (data && data.error) || 'Upload failed' }; }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+    }
+
+    function showMissionBurstWarning(){
+      var w = el('missionSubmitBurstWarning');
+      if (!w) return;
+      w.style.display = 'block';
+      clearTimeout(w._burstHide);
+      w._burstHide = setTimeout(function(){ w.style.display = 'none'; }, 4000);
+    }
+
+    function updateMissionImagePreview(){
+      var input = el('missionSubmitImageUrl');
+      var wrap = el('missionSubmitImagePreview');
+      var img = el('missionSubmitImagePreviewImg');
+      var fallback = el('missionSubmitImagePreviewFallback');
+      if (!input || !wrap) return;
+      var url = (input.value || '').trim();
+      if (!url) { wrap.style.display = 'none'; updateMissionSubmitPreview(); return; }
+      wrap.style.display = 'block';
+      if (img) { img.style.display = ''; img.onerror = function(){ if (img) img.style.display = 'none'; if (fallback) fallback.style.display = 'block'; }; img.onload = function(){ if (img) img.style.display = ''; if (fallback) fallback.style.display = 'none'; }; img.src = url; }
+      if (fallback) fallback.style.display = 'none';
+      updateMissionSubmitProgress();
+      updateMissionSubmitPreview();
+      syncMissionUnifiedPreview();
+    }
+
+    var missionCropperInstance = null;
+    function openMissionCropper(dataUrl){
+      var modal = el('missionCropperModal');
+      var imgEl = el('missionCropperImg');
+      if (!modal || !imgEl) return;
+      if (missionCropperInstance){ try { missionCropperInstance.destroy(); } catch(e){} missionCropperInstance = null; }
+      imgEl.src = dataUrl || '';
+      modal.style.display = 'flex';
+      imgEl.onload = function(){
+        if (typeof window.Cropper === 'undefined'){ toast('Crop tool unavailable'); modal.style.display = 'none'; return; }
+        missionCropperInstance = new window.Cropper(imgEl, { aspectRatio: NaN, viewMode: 1, dragMode: 'move', autoCropArea: 0.8 });
+      };
+    }
+    function finishMissionCropper(){
+      var modal = el('missionCropperModal');
+      var uploadPreviewImg = el('missionSubmitImageUploadPreviewImg');
+      var imageUrlEl = el('missionSubmitImageUrl');
+      if (!modal || !imageUrlEl || !missionApiBase) return;
+      var dataUrlToUpload = null;
+      if (missionCropperInstance){
+        try {
+          var canvas = missionCropperInstance.getCroppedCanvas({ maxWidth: 800, maxHeight: 600, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+          if (canvas) dataUrlToUpload = canvas.toDataURL('image/png');
+        } catch(e){}
+        try { missionCropperInstance.destroy(); } catch(e){}
+        missionCropperInstance = null;
+      }
+      modal.style.display = 'none';
+      if (!dataUrlToUpload){ toast('Could not crop image'); return; }
+      var mime = 'image/png';
+      var name = 'image.png';
+      callUploadMissionImage(dataUrlToUpload, mime, name).then(function(res){
+        if (res && res.ok && res.image_r2_key) {
+          imageUrlEl.value = missionApiBase + '/api/news/image?key=' + encodeURIComponent(res.image_r2_key);
+          if (uploadPreviewImg) uploadPreviewImg.src = dataUrlToUpload;
+          updateMissionImagePreview();
+          updateMissionSubmitPreview();
+          syncMissionUnifiedPreview();
+        } else {
+          toast(res && res.error ? res.error : 'Image upload failed');
+        }
+      });
+    }
+    function handleMissionImageFile(file){
+      if (!file || !file.type || file.type.indexOf('image') !== 0) return;
+      if (missionUnifiedField) missionUnifiedField.resetEmptyVisual();
+      var reader = new FileReader();
+      reader.onload = function(){
+        openMissionCropper(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearMissionImageUpload(){
+      var imageUrlEl = el('missionSubmitImageUrl');
+      var uploadPreviewImg = el('missionSubmitImageUploadPreviewImg');
+      var previewWrapUrl = el('missionSubmitImagePreview');
+      if (imageUrlEl) imageUrlEl.value = '';
+      if (uploadPreviewImg) uploadPreviewImg.src = '';
+      if (previewWrapUrl) previewWrapUrl.style.display = 'none';
+      updateMissionSubmitProgress();
+      updateMissionSubmitPreview();
+      syncMissionUnifiedPreview();
+    }
+    function updateMissionVideoPreview(){
+      var input = el('missionSubmitVideoUrl');
+      var wrap = el('missionSubmitVideoPreview');
+      var video = el('missionSubmitVideoPreviewEl');
+      var fallback = el('missionSubmitVideoPreviewFallback');
+      var url = (missionVideoUploadedUrl || (input && input.value || '').trim()) || '';
+      if (!wrap) return;
+      if (!url) { wrap.style.display = 'none'; updateMissionSubmitPreview(); syncMissionUnifiedPreview(); return; }
+      wrap.style.display = 'block';
+      if (video) { video.style.display = ''; video.onerror = function(){ if (video) video.style.display = 'none'; if (fallback) fallback.style.display = 'block'; }; video.onloadeddata = function(){ if (video) video.style.display = ''; if (fallback) fallback.style.display = 'none'; }; video.src = url; }
+      if (fallback) fallback.style.display = 'none';
+      updateMissionSubmitProgress();
+      updateMissionSubmitPreview();
+      syncMissionUnifiedPreview();
+    }
+    function handleMissionVideoFile(file){
+      if (!file || !file.type.match(/^video\/(mp4|webm)$/)){ toast('Please choose an MP4 or WebM video.'); return; }
+      var maxBytes = 25 * 1024 * 1024;
+      if (file.size > maxBytes){ toast('Video too large. Max 25MB.'); return; }
+      if (!missionApiBase){ toast('API not configured'); return; }
+      var reader = new FileReader();
+      reader.onload = function(){
+        var dataUrl = reader.result;
+        callUploadMissionVideo(dataUrl, file.type || 'video/mp4', file.name || 'video.mp4').then(function(res){
+          if (res && res.video_r2_key){
+            missionVideoUploadedUrl = missionApiBase + '/api/news/video?key=' + encodeURIComponent(res.video_r2_key);
+            var videoUrlEl = el('missionSubmitVideoUrl');
+            if (videoUrlEl) videoUrlEl.value = '';
+            updateMissionVideoPreview();
+            syncMissionUnifiedPreview();
+          } else {
+            toast(res && res.error ? res.error : 'Video upload failed');
+          }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+    function clearMissionVideo(){
+      missionVideoUploadedUrl = '';
+      var urlEl = el('missionSubmitVideoUrl');
+      if (urlEl) urlEl.value = '';
+      updateMissionVideoPreview();
+      updateMissionSubmitPreview();
+    }
+    function updateMissionLinkPreview(){
+      var input = el('missionSubmitUrl');
+      var wrap = el('missionSubmitLinkPreview');
+      var a = el('missionSubmitLinkPreviewA');
+      var domainEl = el('missionSubmitLinkPreviewDomain');
+      if (!input || !wrap) return;
+      var url = (input.value || '').trim();
+      if (!url) { wrap.style.display = 'none'; updateMissionSubmitPreview(); syncMissionUnifiedPreview(); return; }
+      wrap.style.display = 'block';
+      if (a) { a.href = url; a.textContent = url; }
+      if (domainEl) { try { var u = new URL(url); domainEl.textContent = u.hostname || url; } catch(e){ domainEl.textContent = url; } }
+      updateMissionSubmitPreview();
+      syncMissionUnifiedPreview();
+    }
+    function updateMissionSubmitPreview(){
+      var container = el('missionSubmitPreviewCard');
+      if (!container) return;
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+      var m = currentMissionForSubmit;
+      var missionTitle = (m && m.title) ? m.title : 'Mission';
+      var content = (el('missionSubmitContent') && el('missionSubmitContent').value || '').trim();
+      var imageUrl = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      if (!imageUrl && el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src) imageUrl = el('missionSubmitImageUploadPreviewImg').src;
+      var videoUrl = (missionVideoUploadedUrl || (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim()) || '';
+      var linkUrl = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
+      var isEmpty = !content && !imageUrl && !videoUrl && !linkUrl;
+      var type = 'create';
+      if (imageUrl) type = 'image'; else if (videoUrl) type = 'video'; else if (linkUrl) type = 'link';
+      if (!window.LanternCards || !window.LanternCards.specOpenedMissionDraft || !window.LanternCards.createStudentCard) {
+        window.LanternCanonicalFailClosed('LanternCards.specOpenedMissionDraft + createStudentCard required for mission submission preview');
+      }
+      container.innerHTML = '';
+      var prevN = window.LanternCards.createStudentCard(window.LanternCards.specOpenedMissionDraft(missionTitle, isEmpty ? 'create' : type, imageUrl, videoUrl, linkUrl, content, isEmpty ? 'Your submission will appear here' : ''));
+      if (prevN) container.appendChild(prevN);
+      window.LanternCards.enhanceReportControlsIn(container);
+    }
+    function updateMissionPollImagePreview(){
+      var input = el('missionSubmitPollImageUrl');
+      var wrap = el('missionSubmitPollImagePreview');
+      var img = el('missionSubmitPollImagePreviewImg');
+      if (!input || !wrap) return;
+      var url = (input.value || '').trim();
+      if (!url) { wrap.style.display = 'none'; return; }
+      wrap.style.display = 'block';
+      if (img) { img.onerror = function(){ wrap.style.display = 'none'; }; img.onload = function(){ wrap.style.display = 'block'; }; img.src = url; }
+    }
+    var missionSubmitLibraryTarget = null;
+    function openLibraryPicker(target){
+      missionSubmitLibraryTarget = target;
+      var modal = el('missionSubmitLibraryModal');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      modal.classList.add('show');
+      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      if (!apiBase) { toast('API not configured'); return; }
+      fetch(apiBase + '/api/media/library').then(function(r){ return r.json(); }).then(function(res){
+        if (!res || !res.ok || !res.categories) return;
+        var catDiv = el('missionSubmitLibraryCategories');
+        var imgDiv = el('missionSubmitLibraryImages');
+        if (!catDiv || !imgDiv) return;
+        catDiv.innerHTML = '';
+        imgDiv.innerHTML = '';
+        var categories = Object.keys(res.categories);
+        categories.forEach(function(cat){
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn small';
+          btn.textContent = cat;
+          btn.style.marginRight = '8px';
+          btn.style.marginBottom = '8px';
+          btn.addEventListener('click', function(){
+            imgDiv.innerHTML = '';
+            (res.categories[cat] || []).forEach(function(item){
+              var u = item.url || (apiBase + '/api/media/image?key=' + encodeURIComponent(item.key || ''));
+              var thumb = document.createElement('button');
+              thumb.type = 'button';
+              thumb.style.padding = '0';
+              thumb.style.border = '2px solid var(--line)';
+              thumb.style.borderRadius = '12px';
+              thumb.style.overflow = 'hidden';
+              thumb.style.background = 'transparent';
+              thumb.style.cursor = 'pointer';
+              var im = document.createElement('img');
+              im.src = u;
+              im.alt = '';
+              im.style.width = '100%';
+              im.style.height = '80px';
+              im.style.objectFit = 'cover';
+              im.style.display = 'block';
+              thumb.appendChild(im);
+              thumb.addEventListener('click', function(){
+                if (missionSubmitLibraryTarget === 'poll') {
+                  var pollInput = el('missionSubmitPollImageUrl');
+                  if (pollInput) pollInput.value = u;
+                  updateMissionPollImagePreview();
+                } else {
+                  var imgInput = el('missionSubmitImageUrl');
+                  if (imgInput) imgInput.value = u;
+                  updateMissionImagePreview();
+                }
+                var m = el('missionSubmitLibraryModal');
+                if (m) { m.style.display = 'none'; m.classList.remove('show'); }
+              });
+              imgDiv.appendChild(thumb);
+            });
+          });
+          catDiv.appendChild(btn);
+        });
+        if (categories.length > 0) catDiv.querySelector('.btn').click();
+      }).catch(function(){ toast('Could not load library'); });
+    }
+
+    function handleMissionContentInput(){
+      var contentEl = el('missionSubmitContent');
+      if (!contentEl) return;
+      if (isMissionWritingIntegrityBypassActive()) {
+        previousTextareaValue = contentEl.value;
+        previousInputTimestamp = Date.now();
+        updateMissionSubmitProgress();
+        updateMissionSubmitPreview();
+        return;
+      }
+      var currentVal = contentEl.value;
+      var currentLen = currentVal.length;
+      var previousLen = previousTextareaValue.length;
+      var delta = currentLen - previousLen;
+      if (delta <= 0) {
+        previousTextareaValue = currentVal;
+        previousInputTimestamp = Date.now();
+        updateMissionSubmitProgress();
+        updateMissionSubmitPreview();
+        return;
+      }
+      if (delta >= 10) {
+        contentEl.value = previousTextareaValue;
+        var pos = previousTextareaValue.length;
+        contentEl.setSelectionRange(pos, pos);
+        contentEl.focus();
+        showMissionBurstWarning();
+        updateMissionSubmitProgress();
+        return;
+      }
+      var timeSinceLastInput = Date.now() - previousInputTimestamp;
+      if (delta >= 5 && timeSinceLastInput < 30) {
+        contentEl.value = previousTextareaValue;
+        var pos = previousTextareaValue.length;
+        contentEl.setSelectionRange(pos, pos);
+        contentEl.focus();
+        showMissionBurstWarning();
+        updateMissionSubmitProgress();
+        return;
+      }
+      previousTextareaValue = currentVal;
+      previousInputTimestamp = Date.now();
+      updateMissionSubmitProgress();
+      updateMissionSubmitPreview();
+    }
+
+    function updateMissionSubmitProgress(){
+      var contentEl = el('missionSubmitContent');
+      var progressWrap = el('missionSubmitProgressWrap');
+      var fillEl = el('missionSubmitProgressFill');
+      var countdownEl = el('missionSubmitCountdown');
+      var submitBtn = el('missionSubmitBtn');
+      var minReq = currentMissionMinChars;
+      var imageUrlEl = el('missionSubmitImageUrl');
+      var hasImage = (imageUrlEl && (imageUrlEl.value || '').trim().length > 0);
+      if (currentMissionRequiresImage && !hasImage) {
+        if (submitBtn) submitBtn.disabled = true;
+        if (progressWrap && fillEl && countdownEl) {
+          var len = (contentEl && contentEl.value || '').trim().length;
+          var remaining = Math.max(0, minReq - len);
+          var pct = minReq > 0 ? Math.min(100, Math.floor((len / minReq) * 100)) : 100;
+          if (fillEl) { fillEl.style.width = pct + '%'; fillEl.className = 'missionSubmitProgressFill ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral')); }
+          if (countdownEl) { countdownEl.textContent = remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : ''); countdownEl.className = 'missionSubmitCountdown ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral')); }
+        }
+        return;
+      }
+      if (!progressWrap || progressWrap.style.display === 'none' || minReq <= 0){
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+      }
+      var len = (contentEl && contentEl.value || '').trim().length;
+      var remaining = Math.max(0, minReq - len);
+      var pct = minReq > 0 ? Math.min(100, Math.floor((len / minReq) * 100)) : 100;
+      var barEl = el('missionSubmitProgressBar');
+      if (barEl) barEl.setAttribute('aria-valuenow', pct);
+      if (fillEl) {
+        fillEl.style.width = pct + '%';
+        fillEl.className = 'missionSubmitProgressFill ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral'));
+      }
+      if (countdownEl) {
+        countdownEl.textContent = remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : '');
+        countdownEl.className = 'missionSubmitCountdown ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral'));
+      }
+      if (submitBtn) submitBtn.disabled = remaining > 0;
+    }
+
+    function renderQuickMissions(missions){
+      var track = el('quickMissionsTrack');
+      if (!track) return;
+      var LC = window.LanternCards;
+      if (!LC || !LC.materializeFeedPostCard) {
+        track.innerHTML = '<p class="sectionPlaceholder">Cards unavailable.</p>';
+        return;
+      }
+      track.innerHTML = '';
+      var adopted = getAdopted();
+      var hasChar = !!(adopted && adopted.name);
+      var today = todayStr();
+      var dailyClaimed = false;
+      var hiddenDone = false;
+      var firstGameDone = false;
+      if (missions && typeof missions === 'object'){
+        dailyClaimed = (missions.daily_checkin_last || '') === today;
+        hiddenDone = !!missions.hidden_nugget;
+        firstGameDone = !!missions.first_game;
+      }
+
+      track.appendChild(LC.materializeFeedPostCard({
+        type: 'teach',
+        title: 'Thank-You Letter',
+        caption: 'Thank school staff and earn nuggets.',
+        display_name: 'Quick Mission',
+        character_name: 'Quick',
+        avatar: '💌',
+        frame: 'none',
+        url: 'thanks.html',
+        card_meta: 'Earn nuggets · Opens thank-you flow'
+      }, { size: 'medium', mode: LC.CARD_MODE.RAIL }));
+
+      track.appendChild(LC.materializeFeedPostCard({
+        type: 'teach',
+        title: 'Grade Reflection',
+        caption: 'Reflect on your grades and earn nuggets.',
+        display_name: 'Quick Mission',
+        character_name: 'Quick',
+        avatar: '📊',
+        frame: 'none',
+        url: 'grades.html',
+        card_meta: 'Earn nuggets · Opens reflection'
+      }, { size: 'medium', mode: LC.CARD_MODE.RAIL }));
+
+      var dailyBody = !hasChar
+        ? 'Adopt a character in Locker → Overview to claim your daily reward.'
+        : (dailyClaimed ? 'Come back tomorrow for another +3 nuggets.' : 'Tap this card to claim +3 nuggets once per day.');
+      var dailyMeta = !hasChar ? 'Locker required · +3 nuggets' : (dailyClaimed ? 'Completed · +3 nuggets' : 'Tap to claim · +3 nuggets');
+      function dailyClaimHandler(){
+        var a = getAdopted();
+        if (!a || !a.name){
+          toast('Pick a student in Locker → Overview first.');
+          return;
+        }
+        if ((missions && typeof missions === 'object' ? (missions.daily_checkin_last || '') === todayStr() : false)){
+          toast('Already claimed today');
+          return;
+        }
+        callClaimDailyCheckIn(a.name).then(function(res){
+          if (res && res.ok){
+            toast('+3 nuggets! Daily check-in complete.');
+            loadMissions();
+          } else if (res && res.already){
+            toast('Already claimed today');
+            loadMissions();
+          } else {
+            toast('Failed');
+          }
+        });
+      }
+      track.appendChild(LC.materializeFeedPostCard({
+        type: 'create',
+        title: 'Daily Check-In',
+        caption: dailyBody,
+        display_name: 'Quick Mission',
+        character_name: 'Quick',
+        avatar: '✅',
+        frame: 'none',
+        card_meta: dailyMeta
+      }, {
+        size: 'medium',
+        noNavigate: true,
+        mode: LC.CARD_MODE.RAIL,
+        onCardActivate: function () {
+          if (dailyClaimed && window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', dailyMeta, dailyBody);
+          else dailyClaimHandler();
+        }
+      }));
+
+      var hiddenBody = hiddenDone ? 'You found the hidden nugget. +5 nuggets earned.' : 'Find the daily hidden nugget on Lantern pages and tap it.';
+      track.appendChild(LC.materializeFeedPostCard({
+        type: 'create',
+        title: 'Hidden Nugget',
+        caption: hiddenBody,
+        display_name: 'Quick Mission',
+        character_name: 'Quick',
+        avatar: '🔍',
+        frame: 'none',
+        card_meta: hiddenDone ? 'Completed · +5 nuggets' : 'Explore · +5 nuggets'
+      }, {
+        size: 'medium',
+        noNavigate: true,
+        mode: LC.CARD_MODE.RAIL,
+        onCardActivate: function () {
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenBody);
+        }
+      }));
+
+      if (firstGameDone){
+        track.appendChild(LC.materializeFeedPostCard({
+          type: 'create',
+          title: 'First Game Played',
+          caption: 'You played a game and earned +10 nuggets.',
+          display_name: 'Quick Mission',
+          character_name: 'Quick',
+          avatar: '🎮',
+          frame: 'none',
+          card_meta: 'Completed · +10 nuggets'
+        }, {
+          size: 'medium',
+          noNavigate: true,
+          mode: LC.CARD_MODE.RAIL,
+          onCardActivate: function () {
+            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +10 nuggets.');
+          }
+        }));
+      } else {
+        track.appendChild(LC.materializeFeedPostCard({
+          type: 'create',
+          title: 'First Game Played',
+          caption: 'Play any game once to earn +10 nuggets.',
+          display_name: 'Quick Mission',
+          character_name: 'Quick',
+          avatar: '🎮',
+          frame: 'none',
+          url: 'games.html',
+          card_meta: 'Games · +10 nuggets'
+        }, { size: 'medium', mode: LC.CARD_MODE.RAIL }));
+      }
+    }
+
+    function renderMissions(missions){
+      renderQuickMissions(missions || {});
+    }
+
+    function computeMissionRailBadges(activeMissions){
+      var badgeById = {};
+      var sorted = activeMissions.slice().sort(function(a, b){
+        var fa = a.featured ? 1 : 0;
+        var fb = b.featured ? 1 : 0;
+        if (fb !== fa) return fb - fa;
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+      var flagged = sorted.filter(function(m){ return m.featured; }).slice(0, 2);
+      flagged.forEach(function(m){ badgeById[m.id] = 'FEATURED'; });
+      if (Object.keys(badgeById).length === 0 && sorted.length) {
+        badgeById[sorted[0].id] = 'FEATURED';
+      }
+      if (sorted.length >= 2) {
+        var badgeCount = Object.keys(badgeById).length;
+        if (badgeCount < 2) {
+          for (var i = 0; i < sorted.length; i++) {
+            var mid = sorted[i].id;
+            if (!badgeById[mid]) {
+              badgeById[mid] = 'TODAY';
+              break;
+            }
+          }
+        }
+      }
+      return { order: sorted, badgeById: badgeById };
+    }
+
+    function renderMyMissions(missions, submissions){
+      var activeList = el('activeMissionsList');
+      var completedList = el('completedMissionsList');
+      if (!activeList || !completedList) return;
+      var adopted = getAdopted();
+      if (!adopted || !adopted.name){
+        activeList.innerHTML = '<p class="sectionPlaceholder">Select a student in <a href="locker.html">Locker</a> (Overview) to see your missions.</p>';
+        completedList.innerHTML = '';
+        return;
+      }
+      if (!missions || missions.length === 0){
+        activeList.innerHTML = '<p class="sectionPlaceholder">No teacher missions right now. Check back soon!</p>';
+        completedList.innerHTML = '';
+        return;
+      }
+      var subByMission = {};
+      (submissions || []).forEach(function(s){ subByMission[s.mission_id] = s; });
+      var activeMissions = missions.filter(function(m){ var s = subByMission[m.id]; var st = s ? (s.status || 'pending') : null; return st !== 'accepted' && st !== 'rejected'; });
+      var completedMissions = missions.filter(function(m){ var s = subByMission[m.id]; return s && (s.status === 'accepted' || s.status === 'rejected'); });
+      var rail = computeMissionRailBadges(activeMissions);
+
+      activeList.innerHTML = '';
+      if (rail.order.length === 0) {
+        activeList.innerHTML = '<p class="sectionPlaceholder">No active missions right now.</p>';
+      } else {
+        rail.order.forEach(function(m){
+          appendMissionRow(activeList, m, subByMission[m.id], true, rail.badgeById[m.id]);
+        });
+      }
+
+      completedList.innerHTML = '';
+      completedMissions.forEach(function(m){ appendMissionRow(completedList, m, subByMission[m.id], false); });
+      if (completedMissions.length === 0) completedList.innerHTML = '<p class="sectionPlaceholder">No completed missions yet.</p>';
+    }
+
+    function missionToCardModel(m, sub){
+      var status = sub ? (sub.status || 'pending') : null;
+      var reward = m.reward_amount || 1;
+      var teacherName = (m.created_by_teacher_name || 'Teacher');
+      var statusText = status === 'accepted'
+        ? '+' + (sub.mission_reward || reward) + ' Earned'
+        : (status === 'rejected' ? 'Rejected' : (status === 'returned' ? 'Returned for Improvements' : (status === 'pending' ? 'Pending Review' : '')));
+
+      var desc = (m.description || '').trim();
+      var fullCaption = desc;
+      if (status === 'returned' && sub && sub.returned_reason){
+        var rr = String(sub.returned_reason || '').trim();
+        if (rr) fullCaption = fullCaption ? (fullCaption + '\n\nTeacher feedback:\n' + rr) : ('Teacher feedback:\n' + rr);
+      }
+
+      return {
+        type: 'teach',
+        title: (m.title || 'Mission').trim() || 'Mission',
+        caption: fullCaption,
+        display_name: teacherName,
+        character_name: teacherName,
+        avatar: '🧠',
+        frame: 'none',
+        created_at: '',
+        card_meta: '+' + reward + ' nuggets · ' + teacherName + (statusText ? ' · ' + statusText : ''),
+      };
+    }
+
+    function appendMissionRow(container, m, sub, canSubmit, railBadge){
+      var LC = window.LanternCards;
+      if (!LC || !LC.materializeFeedPostCard) return;
+
+      var status = sub ? (sub.status || 'pending') : null;
+      var model = missionToCardModel(m, sub);
+      var card = LC.materializeFeedPostCard(model, {
+        size: 'medium',
+        noNavigate: true,
+        mode: LC.CARD_MODE.RAIL,
+        onCardActivate: function () {
+          if (canSubmit){
+            openMissionSubmitModal(m, status === 'returned' ? sub.id : null, status === 'returned' ? (sub.submission_content || '') : '');
+          } else if (window.LanternCardUI) {
+            window.LanternCardUI.openTextDetail(m.title || 'Mission', model.card_meta, model.caption || (m.description || ''));
+          }
+        }
+      });
+      card.style.cursor = 'pointer';
+      if (railBadge) {
+        var visual = card.querySelector('.exploreCardVisual');
+        if (visual) {
+          var pill = document.createElement('span');
+          pill.className = 'missionFeaturedPill' + (railBadge === 'TODAY' ? ' missionFeaturedPill--today' : '');
+          pill.setAttribute('aria-label', railBadge);
+          pill.textContent = railBadge;
+          visual.insertBefore(pill, visual.firstChild);
+        }
+      }
+      container.appendChild(card);
+    }
+
+    function openMissionSubmitModal(m, resubmitId, prefill){
+      try {
+        var prefStr = '';
+        if (prefill != null && prefill !== '') {
+          prefStr = typeof prefill === 'object' ? JSON.stringify(prefill) : String(prefill);
+        }
+        sessionStorage.setItem('LANTERN_STUDIO_MISSION_OPEN', JSON.stringify({
+          mission: m,
+          resubmitId: resubmitId || null,
+          prefill: prefStr
+        }));
+      } catch (e) {}
+      window.location.href = 'contribute.html?type=mission';
+    }
+
+    function wireMissions(){
+      /* Daily check-in is handled on the Quick Missions card (renderQuickMissions). */
+    }
+
+    var STALE_MISSION_TITLES = { 'fff': 1, 'ff': 1, 'help someone': 1 };
+    function filterStaleMissions(missions){
+      if (!Array.isArray(missions)) return missions || [];
+      return missions.filter(function(m){
+        var t = (m.title || '').trim().toLowerCase();
+        return !STALE_MISSION_TITLES[t];
+      });
+    }
+    function loadMissions(){
+      var adopted = getAdopted();
+      var activeList = el('activeMissionsList');
+      if (!adopted || !adopted.name){
+        if (activeList) activeList.innerHTML = '<p class="sectionPlaceholder">Select a student in <a href="locker.html">Locker</a> (Overview) first.</p>';
+        var badge = document.getElementById('lanternNavMissionsBadge');
+        if (badge) badge.textContent = '';
+        renderQuickMissions(null);
+        return;
+      }
+      var characterNameForApi = getCharacterNameForApi() || adopted.name;
+      callGetMissions(adopted.name).then(function(res){
+        var missions = (res && res.missions) || {};
+        renderMissions(missions);
+      });
+      callGetActiveTeacherMissionsForCharacter(characterNameForApi).then(function(res){
+        if (!res || !res.ok) {
+          if (activeList) activeList.innerHTML = '<p class="sectionPlaceholder" style="color:var(--warn);">Missions failed to load. Check connection and try again.</p>';
+          return;
+        }
+        var missions = filterStaleMissions(res.missions || []);
+        var n = missions.length;
+        var badge = document.getElementById('lanternNavMissionsBadge');
+        if (badge) badge.textContent = n > 0 ? String(n) : '';
+        callGetMissionSubmissionsForCharacter(characterNameForApi).then(function(sres){
+          var subs = (sres && sres.submissions) || [];
+          renderMyMissions(missions, subs);
+        });
+      }).catch(function(){
+        if (activeList) activeList.innerHTML = '<p class="sectionPlaceholder" style="color:var(--warn);">Missions failed to load. Check connection and try again.</p>';
+      });
+    }
+
+    function init(){
+      wireMissions();
+      var adopted = getAdopted();
+      if (!adopted || !adopted.name){
+        el('activeMissionsList').innerHTML = '<p class="sectionPlaceholder">Select a student in <a href="locker.html">Locker</a> (Overview) first.</p>';
+        var badge = document.getElementById('lanternNavMissionsBadge');
+        if (badge) badge.textContent = '';
+        renderQuickMissions(null);
+        return;
+      }
+      loadMissions();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+
+    /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */
+  </script>
+  <script src="js/lantern-canonical-enforce.js"></script>
+</body>
+</html>

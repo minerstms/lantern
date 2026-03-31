@@ -1,0 +1,1484 @@
+/**
+ * Lantern — single shared card system stylesheet.
+ * Source of truth for .exploreCard, rail/opened, badges, media, detail overlay.
+ * See docs/LANTERN_SYSTEM_CONTEXT.md §10. No page may define structural card-shell CSS.
+ *
+ * Production horizontal rails: `.wrap.lanternContent .lanternScroller` (explore, games, missions).
+ * Rail spacing + card height/media + horizontal scrollbar thickness: `--lantern-rail-*` in lantern-header.css; fixed rail **width**: `--lantern-rail-card-outer-width` in this file.
+ * No row-specific card width, media min-height, or scroller gap/padding on those pages.
+ */
+
+:root{
+  /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
+  --lantern-opened-content-max-width: 520px;
+  /* One outer rectangle for every horizontal rail card (width + height + media band in this file). */
+  --lantern-rail-card-outer-width: 280px;
+  --lantern-rail-card-height: 420px;
+  --lantern-rail-card-media-height: 128px;
+  /* Interior row rhythm — same for every rail variant (see .lcRailRow). */
+  --lantern-rail-interior-gap: 6px;
+  /* Title block = exactly two typographic lines (rows 1–2); short titles leave empty space. */
+  --lantern-rail-title-slot: 3.75rem;
+}
+
+/* Card cancer (LanternCanonicalEnforce.scanAllExploreCards) — invalid .exploreCard vs contract; see window.__lanternCancerReport */
+.exploreCard.lanternCardCancer,
+a.exploreCard.lanternCardCancer{
+  position: relative;
+  outline: 3px solid #e02020 !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(224,32,32,.35) inset;
+  z-index: 1;
+}
+.lanternCardCancerBanner{
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  background: rgba(160, 0, 0, 0.42);
+  border: 3px solid #ff2222;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0,0,0,.85);
+  white-space: pre-wrap;
+  overflow: hidden;
+  text-align: left;
+}
+
+/* ===== CANONICAL HORIZONTAL RAIL (explore / games / missions) =====
+   One selector + header :root tokens. Scroll-snap: none. Requires lantern-header.css. */
+.wrap.lanternContent .lanternScroller{
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  overflow-x: auto;
+  gap: var(--lantern-rail-gap);
+  padding: var(--lantern-rail-pad-y-start) var(--lantern-rail-pad-x) var(--lantern-rail-pad-y-end);
+  -webkit-overflow-scrolling: touch;
+  margin: 0;
+  /* overflow-x:auto forces overflow-y to compute as auto; hover translateY(-2px) on cards then clips the top. Lock track height to one full card + padding so all rails show the same visible rectangle. */
+  /* Reserve extra vertical space when horizontal scrollbar is thicker than legacy 8px so card band height is unchanged. */
+  min-height: calc(var(--lantern-rail-card-height, 420px) + var(--lantern-rail-pad-y-start) + var(--lantern-rail-pad-y-end) + max(0px, var(--lantern-rail-scrollbar-size, 24px) - 8px));
+  box-sizing: border-box;
+  scrollbar-color: rgba(90, 167, 255, 0.4) rgba(0, 0, 0, 0.2);
+  scrollbar-width: auto;
+}
+/* No vertical lift inside horizontal rails — keeps full card in view (same as Missions / Polls). */
+.wrap.lanternContent .lanternScroller > .exploreCard:hover,
+.wrap.lanternContent .lanternScroller > a.exploreCard:hover,
+.wrap.lanternContent .lanternScroller > .exploreCardOuterWrap:hover > a.exploreCard{
+  transform: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+.wrap.lanternContent .lanternScroller::-webkit-scrollbar{ height: var(--lantern-rail-scrollbar-size, 24px); }
+.wrap.lanternContent .lanternScroller::-webkit-scrollbar-track{ background: rgba(0,0,0,.2); border-radius: 4px; }
+.wrap.lanternContent .lanternScroller::-webkit-scrollbar-thumb{ background: rgba(90,167,255,.4); border-radius: 4px; }
+.wrap.lanternContent .lanternScroller > .emptyState{
+  flex: 1 0 100%;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+/* Full-width placeholder row when a rail is empty or loading (missions quick rail, etc.) */
+.wrap.lanternContent .lanternScroller > .sectionPlaceholder{
+  flex: 1 0 100%;
+  min-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ===== CARD SHELL ===== */
+.exploreCard{
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  min-width: 0;
+  position: relative;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+  border-radius: var(--r);
+  overflow: hidden;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.exploreCard:hover{ transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+
+/* Default width bands for non-rail shells only (opened/embedded). Rail cards use --lantern-rail-card-outer-width; no variant may widen/narrow the rail shell. */
+.exploreCard--size-rail:not(.exploreCard--rail),
+.exploreCard.medium:not(.exploreCard--rail){ min-width: 260px; max-width: 280px; }
+.exploreCard--size-wide:not(.exploreCard--rail),
+.exploreCard.hero:not(.exploreCard--rail){ min-width: 300px; max-width: 340px; }
+.exploreCard--size-compact:not(.exploreCard--rail),
+.exploreCard.compact:not(.exploreCard--rail){ min-width: 220px; max-width: 260px; }
+.exploreCard--activatable:focus-visible{ outline: 2px solid var(--accent); outline-offset: 3px; }
+.exploreCard--activatable,
+.exploreCard[role="link"],
+.exploreCard[role="button"]{ cursor: pointer; }
+a.exploreCard{ display: block; text-decoration: none; color: inherit; }
+/* gameHighlightCard: semantic label only; width uses .exploreCard--size-rail / .medium from buildLinkCardHtml */
+.gameHighlightLabel{ font-size: 18px; color: var(--muted); margin-bottom: 6px; }
+.gameHighlightHeadline{ font-weight: 900; font-size: 22px; line-height: 1.3; margin-bottom: 4px; }
+.gameHighlightBody{ font-size: 20px; color: var(--muted); }
+
+.exploreCard--rail{ }
+
+/* ===== RAIL CARD — HARD RECTANGLE LOCK (fixed outer width + height; content must not size the shell) =====
+   Factory wraps inner in .exploreCardRailStack (lantern-cards.js). Same outer box for every rail species. */
+.exploreCard.exploreCard--rail.railCardShell,
+.exploreCardOuterWrap > a.exploreCard.exploreCard--rail{
+  width: var(--lantern-rail-card-outer-width);
+  min-width: var(--lantern-rail-card-outer-width);
+  max-width: var(--lantern-rail-card-outer-width);
+  flex: 0 0 var(--lantern-rail-card-outer-width);
+  height: var(--lantern-rail-card-height, 420px);
+  min-height: var(--lantern-rail-card-height, 420px);
+  max-height: var(--lantern-rail-card-height, 420px);
+  box-sizing: border-box;
+  align-self: flex-start;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.exploreCard.exploreCard--rail.railCardShell > .exploreCardRailStack,
+.exploreCardOuterWrap > a.exploreCard.exploreCard--rail > .exploreCardRailStack{
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lantern-rail-interior-gap);
+  overflow: hidden;
+  padding-bottom: 30px; /* reserve space for .exploreCardReportBtn */
+  box-sizing: border-box;
+}
+
+/* ----- Interior row grammar: .lcRailRow--{media|title|identity|meta|body|footer} (lantern-cards.js) ----- */
+.exploreCardRailStack > .lcRailRow{
+  flex-shrink: 0;
+  min-width: 0;
+}
+.exploreCardRailStack > .lcRailRow--media{
+  flex: 0 0 auto;
+}
+.exploreCardRailStack > .lcRailRow--title{
+  flex: 0 0 auto;
+  min-height: var(--lantern-rail-title-slot);
+  max-height: var(--lantern-rail-title-slot);
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--identity{
+  flex: 0 0 auto;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--meta{
+  flex: 0 0 auto;
+  min-height: 1.35em;
+  max-height: 1.35em;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--body{
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--footer{
+  flex: 0 0 auto;
+  margin-top: auto;
+}
+
+/* Fixed media band — never grows/shrinks with caption/title/meta */
+.exploreCardRailStack > .lcRailRow--media > .exploreCardVisual{
+  flex: 0 0 var(--lantern-rail-card-media-height, 128px);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--lantern-rail-card-media-height, 128px);
+  min-height: var(--lantern-rail-card-media-height, 128px);
+  max-height: var(--lantern-rail-card-media-height, 128px);
+  aspect-ratio: unset;
+  margin-bottom: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--media > .exploreCardVisual .lcCardImg{
+  min-height: 0 !important;
+  height: 100%;
+}
+.exploreCardRailStack > .lcRailRow--media > .exploreCardVisual.exploreCardVisualIconRail{
+  min-height: var(--lantern-rail-card-media-height, 128px);
+  max-height: var(--lantern-rail-card-media-height, 128px);
+}
+
+/* Title zone (rows 1–2): ONLY .exploreTitle — no icons, meta, or identity; fixed 2-line slot */
+.exploreCardRailStack > .lcRailRow--title .exploreCardHd--preview{
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: var(--lantern-rail-title-slot);
+  max-height: var(--lantern-rail-title-slot);
+  overflow: hidden;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+.exploreCardRailStack > .lcRailRow--title .exploreCardHd--preview > *:not(.exploreTitle){
+  display: none !important;
+}
+.exploreCardRailStack > .lcRailRow--title .exploreCardHd--preview .exploreTitle{
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  max-height: calc(1.2em * 2);
+  margin: 0;
+}
+
+/* Identity zone: one line (given name); avatar + text */
+.exploreCardRailStack > .lcRailRow--identity .exploreCardIdentity--rail{
+  margin-bottom: 0;
+  max-height: 2.5rem;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--identity .exploreCardIdentity--rail .exploreAuthor,
+.exploreCardRailStack > .lcRailRow--identity .exploreAuthor--identity{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Meta zone: single line — date/category/aux only; not shared with body preview (see .lcRailRow--body). */
+.exploreCardRailStack > .lcRailRow--meta .exploreCardMetaOneLine{
+  margin-bottom: 0;
+  max-height: 1.35em;
+  min-height: 0;
+  line-height: 1.35;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.92;
+}
+.exploreCardRailStack > .lcRailRow--meta .gameHighlightHeadline{
+  max-height: 1.35em;
+}
+
+/* Body zone: captions / game hub actions / leaderboard rows — fills remaining rail stack */
+.exploreCardRailStack > .lcRailRow--body .exploreCaption{
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: calc(1.35em * 2 + 2px);
+  margin-top: 0;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+/* Feed / news / draft rails: description preview — dedicated 2-line block, not mixed into meta row. */
+.exploreCardRailStack > .lcRailRow--body .exploreCaption--railPreview{
+  color: var(--ink);
+  opacity: 0.9;
+}
+.exploreCardRailStack > .lcRailRow--body .exploreCaption--displayNews{
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: calc(1.35em * 2);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--body .gamesHubCardActions{
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 7.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 0;
+  padding-top: 4px;
+  border-top: none;
+}
+.exploreCardRailStack > .lcRailRow--body .gamesHubCardActions .gamesLbRow{
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Footer zone: affordances (weekly hint, reward chip, cosmetic actions, praise slot) */
+.exploreCardRailStack > .lcRailRow--footer .exploreCardFoot{
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  max-height: 1.5em;
+  min-height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.exploreCardRailStack > .lcRailRow--footer .exploreCardFoot .exploreCardFootHint{
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.exploreCardRailStack > .lcRailRow--footer .gamesHubRewardRow{
+  max-height: 2rem;
+  min-height: 0;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--footer .displayPraiseSummary{
+  max-height: 1.35em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.exploreCardRailStack > .lcRailRow--footer .exploreCardCosmeticFoot{
+  max-height: 64px;
+  overflow: hidden;
+}
+.exploreCardRailStack > .lcRailRow--body .exploreCardCosmeticPrice{
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.exploreCard--opened{ }
+.exploreCard--previewRail{ }
+
+/* ===== VISUAL ===== */
+.exploreCardVisual{
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  background: rgba(0,0,0,.25);
+  position: relative;
+  min-height: 120px;
+}
+.exploreCardVisual img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.lcCardImg{ width: 100%; height: 100%; object-fit: cover; display: block; min-height: 120px; }
+/* Icon / emoji rail: same 16:9 frame + filled gradient as photo cards (visual parity across types) */
+.exploreCardVisual.exploreCardVisualIconRail{
+  aspect-ratio: 16/9;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, rgba(32,46,78,.94) 0%, rgba(12,16,28,.98) 52%, rgba(22,48,72,.9) 100%);
+  border: 1px solid rgba(90,167,255,.22);
+  box-sizing: border-box;
+}
+.exploreCardVisual.exploreCardVisualIconRail--pulse{
+  background: linear-gradient(150deg, rgba(40,32,58,.94) 0%, rgba(14,12,24,.98) 55%, rgba(32,28,52,.88) 100%);
+  border-color: rgba(156,100,255,.22);
+}
+.exploreCardVisual.exploreCardVisualIconRail .exploreCardVisualEmoji{
+  font-size: 52px;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 2px 10px rgba(0,0,0,.5));
+}
+.exploreCardVisual.exploreCardVisualIconRail--pulse .exploreCardVisualEmoji{
+  font-size: 46px;
+}
+.exploreCardVisualEmoji{ font-size: 42px; line-height: 1; }
+.exploreCardMuted{ opacity: .45; filter: grayscale(0.85); }
+
+/* ===== TYPE BADGE (corner) ===== */
+.exploreCardTypeBadge{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 17px;
+  background: rgba(0,0,0,.6);
+  color: #fff;
+  font-weight: 800;
+  z-index: 2;
+  max-width: calc(100% - 100px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  line-height: 1.2;
+}
+
+/* ===== HEADER / TITLE ROW ===== */
+.exploreCardHd{ display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+/* Rail preview: consistent step from media → title → identity → meta */
+.exploreCardHd--preview{ margin-bottom: 8px; align-items: center; flex-wrap: nowrap; }
+.exploreCardHd--preview .exploreTitle{ flex: 1; min-width: 0; }
+.exploreTypeIcon{ font-size: 30px; flex-shrink: 0; }
+.exploreTitle{ font-weight: 900; font-size: 24px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ===== IDENTITY / AVATAR ===== */
+.exploreCardIdentity{ display: flex; align-items: center; gap: 14px; margin-bottom: 10px; flex-shrink: 0; padding-left: 2px; }
+/* Rail + compact rows: same identity chip, slightly tighter under title */
+.exploreCardIdentity--rail{ margin-bottom: 8px; gap: 10px; }
+.exploreCardIdentity--rail .identity-chip{
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.exploreCardIdentity--rail .exploreCardAvatarImg{ width: 32px; height: 32px; flex-shrink: 0; }
+.exploreCardAvatar{ font-size: 28px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.exploreCardAvatarImg{ width: 36px; height: 36px; border-radius: 50%; object-fit: cover; display: block; }
+.exploreCardAvatar--fallback{ display: none; }
+.exploreCardAvatar--fallback.avatar-show{ display: flex; }
+.exploreCardAvatarImg--hidden{ display: none; }
+.identity-chip.frame-gold .exploreCardAvatarImg,
+.identity-chip.frame-gold .exploreCardAvatar{ border-radius: 50%; box-shadow: 0 0 0 2px rgba(242,194,48,.5); }
+.identity-chip.frame-blue .exploreCardAvatarImg,
+.identity-chip.frame-blue .exploreCardAvatar{ border-radius: 50%; box-shadow: 0 0 0 2px rgba(90,167,255,.5); }
+.identity-chip.frame-green .exploreCardAvatarImg,
+.identity-chip.frame-green .exploreCardAvatar{ border-radius: 50%; box-shadow: 0 0 0 2px rgba(56,208,124,.5); }
+.identity-chip.frame-purple .exploreCardAvatarImg,
+.identity-chip.frame-purple .exploreCardAvatar{ border-radius: 50%; box-shadow: 0 0 0 2px rgba(156,100,255,.5); }
+.identity-chip.frame-silver .exploreCardAvatarImg,
+.identity-chip.frame-silver .exploreCardAvatar{ border-radius: 50%; box-shadow: 0 0 0 2px rgba(200,200,220,.6); }
+
+/* ===== TEXT BLOCKS ===== */
+.exploreAuthor{ font-weight: 800; color: var(--ink); padding-right: 4px; }
+.exploreCaption{ color: var(--muted); font-size: 20px; line-height: 1.35; margin-top: 6px; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.exploreMeta{ margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); font-size: 20px; color: var(--muted); }
+.exploreCardMetaOneLine{ font-size: 20px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; line-height: 1.3; flex-shrink: 0; }
+.exploreCard--rail .exploreCardMetaOneLine{ margin-bottom: 0; line-height: 1.35; }
+.exploreCardIdentity--rail .exploreAuthor{
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.exploreCardFoot{ margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); display: flex; align-items: center; justify-content: flex-end; }
+.exploreCardFootHint{ font-size: 22px; font-weight: 900; color: var(--accent); }
+
+/* ===== CURATION BADGES (media overlay, top-left; non-structural) ===== */
+/* Padding + type scale match .exploreCardTypeBadge (single chip system). */
+.lanternBadge{ display: inline-block; padding: 5px 8px; border-radius: 8px; font-size: 17px; font-weight: 800; line-height: 1.2; }
+.lanternBadge.pick{ background: rgba(56,208,124,.2); border: 1px solid rgba(56,208,124,.5); color: var(--good); }
+.lanternBadge.featured{ background: rgba(156,100,255,.2); border: 1px solid rgba(156,100,255,.5); color: #b794f6; }
+.exploreCardVisual .lanternBadge.exploreCardCurationBadge{
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  margin: 0;
+  z-index: 3;
+  max-width: calc(100% - 100px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== AUTHOR BADGE (opened/news) ===== */
+.exploreCard .authorBadge{ display: inline-block; padding: 6px 12px; border-radius: 8px; font-weight: 900; font-size: 18px; }
+.exploreCard .authorBadge.student{ background: rgba(90,167,255,.2); border: 1px solid rgba(90,167,255,.4); }
+.exploreCard .authorBadge.teacher{ background: rgba(56,208,124,.2); border: 1px solid rgba(56,208,124,.4); }
+.exploreCard .authorBadge.staff{ background: rgba(156,100,255,.2); border: 1px solid rgba(156,100,255,.4); }
+.exploreCard .authorBadge.admin{ background: rgba(242,194,48,.2); border: 1px solid rgba(242,194,48,.4); }
+
+/* ===== MEDIA BLOCK (inside card visual; from LanternMedia) ===== */
+.lanternCardNewsMedia{
+  margin-bottom: 10px;
+  max-height: 160px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.2);
+}
+.lanternCardNewsMedia img{ width: 100%; height: auto; display: block; max-height: 180px; object-fit: cover; }
+.lanternCardNewsMedia video{ width: 100%; max-height: 160px; display: block; border-radius: 12px; border: 1px solid var(--line); background: #1a252f; }
+.lanternCardNewsMedia a{ word-break: break-all; font-size: 20px; color: var(--accent); }
+.lanternCardNewsMedia--img{ min-height: 100px; }
+.lanternCardNewsMedia--video{ min-height: 120px; }
+.lanternCardNewsMedia--link{ padding: 10px; }
+.lanternCardNewsMedia .lcCardVideo{ max-width: 100%; max-height: 160px; border-radius: 12px; border: 1px solid var(--line); display: block; width: 100%; background: #1a252f; }
+.lanternCardNewsMedia .lcCardLink{ word-break: break-all; font-size: 20px; color: var(--accent); }
+/* Inside .exploreCardVisual, news/media fills the 16:9 frame (ignore standalone .lanternCardNewsMedia heights) */
+.exploreCardVisual .lanternCardNewsMedia{
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  max-height: none;
+  min-height: 0;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.exploreCardRailStack .lcRailRow--media .exploreCardVisual .lanternCardNewsMedia--railBound{
+  min-width: 0;
+  max-width: 100%;
+}
+.exploreCardVisual .lanternCardNewsMedia img,
+.exploreCardVisual .lanternCardNewsMedia video,
+.exploreCardVisual .lanternCardNewsMedia .lcCardVideo{
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  display: block;
+}
+.exploreCardVisual > img.lcCardImg{
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Link-only explore rail: full frame fill + watermark + bottom URL strip (parity with image weight) */
+.exploreCardVisual .lanternCardNewsMedia--link{
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+}
+.exploreCardVisual .lcExploreLinkFill{
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(155deg, rgba(28,42,72,.98) 0%, rgba(10,14,26,.99) 48%, rgba(18,48,78,.92) 100%);
+  border: 1px solid rgba(90,167,255,.32);
+  box-sizing: border-box;
+  z-index: 0;
+}
+.exploreCardVisual .lcExploreLinkGlyph{
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(44px, 14vw, 68px);
+  line-height: 1;
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 1;
+  user-select: none;
+}
+.exploreCardVisual .lanternCardNewsMedia--link .lcCardLink{
+  position: relative;
+  z-index: 2;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  padding: 12px 14px 14px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: rgba(234,240,255,.95);
+  text-decoration: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.58) 100%);
+  border-top: 1px solid rgba(255,255,255,.07);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Rail shell width/height: single block above (.exploreCard.exploreCard--rail.railCardShell). No per-variant min/max here. */
+.exploreCardOpened .exploreCardOpenedBody{ -webkit-line-clamp: unset; display: block; max-height: none; white-space: pre-wrap; word-break: break-word; margin-top: 10px; }
+/* missionSpotlightCard / pollCard: type markers only — rail width + .exploreCardVisual use shared rules above */
+
+/* Game / external link cards: shell matches .exploreCard; report control is a sibling inside .exploreCardOuterWrap */
+.exploreCardOuterWrap{ position: relative; display: inline-block; vertical-align: top; max-width: 100%; }
+.exploreCardOuterWrap > a.exploreCard{ width: 100%; box-sizing: border-box; }
+.exploreCardOuterWrap:has(> a.exploreCard.exploreCard--rail){
+  width: var(--lantern-rail-card-outer-width);
+  min-width: var(--lantern-rail-card-outer-width);
+  max-width: var(--lantern-rail-card-outer-width);
+  flex: 0 0 var(--lantern-rail-card-outer-width);
+  box-sizing: border-box;
+}
+
+/* One shared report affordance on every card (bottom-right) */
+.exploreCardReportBtn{
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 30;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0,0,0,.35);
+  color: rgba(255,255,255,.45);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .15s ease, background .15s ease, opacity .15s ease;
+}
+.exploreCardOuterWrap > .exploreCardReportBtn{ z-index: 35; }
+.exploreCardReportBtn:hover:not(:disabled){ color: rgba(255,255,255,.75); background: rgba(0,0,0,.5); }
+.exploreCardReportBtn:disabled,
+.exploreCardReportBtn[aria-disabled="true"]{
+  opacity: .65;
+  cursor: not-allowed;
+  background: rgba(0,0,0,.55);
+  border: 1px dashed rgba(255,255,255,.22);
+  color: rgba(255,255,255,.38);
+}
+.exploreCardReportBtnIcon{ display: block; line-height: 1; }
+
+/* Report unavailable: flag stays visible; surface reads clearly non-actionable (not primary feedback = click error). */
+.exploreCard.exploreCard--reportDisabled,
+.exploreCardOuterWrap.exploreCardOuterWrap--reportDisabled .exploreCard{
+  opacity: .88;
+  filter: saturate(.88);
+}
+.exploreCard.exploreCard--reportDisabled:hover,
+.exploreCardOuterWrap.exploreCardOuterWrap--reportDisabled .exploreCard:hover{
+  transform: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,.22);
+}
+
+/* ===== SHARED SURFACE (Explore opened post, Contribute preview — same column scroll contract) ===== */
+.lanternSurface{
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 0;
+  -webkit-overflow-scrolling: touch;
+}
+/* Centered column inside full-height scroll surface — matches Explore opened proportions. */
+.lanternSurfaceContent{
+  width: 100%;
+  max-width: var(--lantern-opened-content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  padding: 16px 18px 24px;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: relative;
+}
+.lanternSurfaceShell{
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0a1424;
+  background-image:
+    radial-gradient(ellipse 130% 85% at 50% -18%, rgba(90, 140, 255, 0.11), transparent 52%),
+    linear-gradient(180deg, #101c32 0%, #0a1424 48%, #0c1828 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  -webkit-overflow-scrolling: touch;
+}
+.lanternSurfaceShell.show{ display: flex; }
+
+/* Explore opened post only — richer destination shell (poll overlay keeps generic .lanternSurfaceShell above). */
+#lanternCardDetailOverlay.lanternSurfaceShell{
+  background-color: #081420;
+  background-image:
+    radial-gradient(ellipse 125% 78% at 50% -22%, rgba(100, 148, 255, 0.11), transparent 54%),
+    radial-gradient(ellipse 96% 52% at 50% 108%, rgba(0, 0, 0, 0.32), transparent 58%),
+    linear-gradient(180deg, #0f1a2f 0%, #0b1628 38%, #0a1424 46%, #070f1a 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+/* ===== DETAIL OVERLAY (opened post — full-viewport shell + scrollable surface) ===== */
+/* Overlay node uses .lanternCardDetailOverlay.lanternSurfaceShell; inner uses .lanternCardDetailModal.lanternSurface */
+.lanternCardDetailModal{
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+.lanternCardDetailModal.lanternSurface{
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.lanternCardDetailModal.lanternCardDetailModal--embedded.lanternSurface{
+  background: transparent;
+  border-top: none;
+}
+.lanternCardDetailModal.lanternCardDetailModal--embedded{
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.lanternCardDetailModal--embedded .lanternCardDetailTitle{
+  margin-right: 0;
+}
+
+/* Poll opened (Explore overlay + Contribute): same shell + .pollModal.lanternSurface as scroll body */
+.pollModal.lanternSurface{
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+.pollModalImageWrap{
+  margin-bottom: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 200px;
+}
+.pollModalImage{
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+.pollModal .pollModalQuestion{
+  font-weight: 900;
+  font-size: 26px;
+  margin-bottom: 18px;
+  line-height: 1.35;
+}
+.pollChoiceBtn{
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.08);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.pollChoiceBtn:hover{
+  background: rgba(90,167,255,.2);
+  border-color: rgba(90,167,255,.4);
+}
+.pollResultsWrap{ margin-top: 16px; }
+.pollResultRow{ margin-bottom: 14px; }
+.pollResultLabel{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 20px;
+  font-weight: 800;
+}
+.pollBarTrack{
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.12);
+  overflow: hidden;
+}
+.pollBarFill{
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(90,167,255,.6), rgba(90,167,255,.35));
+  transition: width .25s ease;
+}
+.pollVoterNugget{ font-size: 20px; color: var(--warn); margin-top: 10px; }
+.pollModal .btn{
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.1);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pollModal .btn:hover{ background: rgba(255,255,255,.18); }
+/* Surface chrome: close lives in header row — never over .lanternCardDetailVisual (avoids clash with media fullscreen). */
+.lanternCardDetailHeader{
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px 0 12px;
+  margin: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.lanternCardDetailClose{
+  position: static;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  font-size: 24px;
+  cursor: pointer;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.lanternCardDetailVisual{ border-radius: 14px; overflow: hidden; margin-bottom: 14px; background: rgba(0,0,0,.25); }
+.lanternCardDetailVisualInner .exploreCardVisual{ margin: 0; border-radius: 0; }
+
+/* Opened-post media (variant=detail in lantern-media.js) — large in-column, not rail-sized. */
+.lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImage{
+  width: 100%;
+  height: auto;
+  max-height: min(70vh, 560px);
+  object-fit: contain;
+  display: block;
+  background: rgba(0,0,0,.2);
+  border-radius: 12px;
+}
+.lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImageWrap{
+  border-radius: 12px;
+  overflow: hidden;
+}
+.lanternDetailMediaVideoInner{
+  position: relative;
+  display: block;
+}
+.lanternDetailMediaExpandBtn{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.5);
+  color: var(--ink);
+  font-size: 22px;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+}
+.lanternCardDetailVisualInner .lanternDetailMedia--video .newsCardVideo{
+  width: 100%;
+  max-height: min(65vh, 480px);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  display: block;
+  background: #1a252f;
+}
+
+/* Fullscreen media layer — second step after opened post (z above .lanternSurfaceShell). */
+.lanternMediaFullscreenOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background: rgba(0,0,0,.88);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.lanternMediaFullscreenOverlay--show{
+  opacity: 1;
+}
+.lanternMediaFullscreenClose{
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.35);
+  color: var(--ink);
+  font-size: 24px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 800;
+}
+.lanternMediaFullscreenInner{
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lanternMediaFullscreenImg{
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  object-fit: contain;
+}
+.lanternMediaFullscreenVideo{
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+}
+
+/* Horizontal rail: media is presentational — whole card opens opened post in one tap. */
+.exploreCard--activatable .exploreCardVisual > img.lcCardImg,
+.exploreCard--activatable .exploreCardVisual .lanternCardNewsMedia--img img,
+.exploreCard--activatable .exploreCardVisual .lanternCardNewsMedia--video video,
+.exploreCard--activatable .exploreCardVisual .lanternCardNewsMedia--video .lcCardVideo{
+  pointer-events: none;
+}
+.exploreCard--activatable .exploreCardVisual .lanternCardNewsMedia--link .lcCardLink{
+  pointer-events: auto;
+}
+.lanternCardDetailTitle{ font-size: clamp(26px, 5vw, 32px); font-weight: 1000; margin: 0 0 8px 0; line-height: 1.15; }
+.lanternCardDetailIdentityWrap{ margin-bottom: 10px; }
+.lanternCardDetailIdentityWrap .lanternCardDetailIdentity.exploreCardIdentity--rail{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lanternCardDetailMeta{ font-size: 22px; color: var(--muted); margin-bottom: 14px; }
+.lanternCardDetailCaption{ font-size: 22px; line-height: 1.4; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.lanternCardDetailBody{ }
+.lanternCardDetailActions{ margin-top: 16px; }
+.lanternCardDetailReactions{ margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.1); }
+.lanternCardDetailRxNewsWrap{
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lanternCardDetailRxNewsWrap .lanternReactionBar{
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.lanternCardDetailRxNewsWrap .lanternReactionStatus{
+  margin-bottom: 6px;
+}
+.lanternCardDetailMuted{ font-size: 20px; color: var(--muted); margin: 0; }
+.lanternCardDetailPostRx{ display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.lanternCardDetailRxLabel{ font-size: 20px; color: var(--muted); font-weight: 800; margin-right: 4px; }
+.lanternCardDetailRxBtn{
+  min-width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.08);
+  font-size: 26px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lanternCardDetailRxBtn.is-on{ box-shadow: 0 0 0 2px var(--accent); background: rgba(90,167,255,.2); }
+
+/*
+ * Explore opened post — vertical rhythm only (#lanternCardDetailOverlay).
+ * Embedded Contribute preview (.lanternCardDetailModal--embedded) is unchanged.
+ */
+.lanternCardDetailOverlay .lanternSurfaceContent{
+  padding: 12px 18px 28px;
+}
+.lanternCardDetailOverlay .lanternCardDetailHeader{
+  padding: 0 0 10px;
+}
+.lanternCardDetailOverlay .lanternCardDetailClose{
+  background: rgba(0, 0, 0, 0.44);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.lanternCardDetailOverlay .lanternCardDetailVisual{
+  margin-top: 4px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.lanternCardDetailOverlay .lanternDetailMediaExpandBtn{
+  top: 12px;
+  right: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+.lanternCardDetailOverlay .lanternCardDetailTitle{
+  margin: 0 0 6px 0;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+}
+.lanternCardDetailOverlay .lanternCardDetailIdentityWrap{
+  margin-bottom: 8px;
+}
+.lanternCardDetailOverlay .lanternCardDetailMeta{
+  margin-bottom: 10px;
+}
+.lanternCardDetailOverlay .lanternCardDetailBody{
+  margin-top: 0;
+}
+.lanternCardDetailOverlay .lanternCardDetailActions{
+  margin-top: 13px;
+}
+.lanternCardDetailOverlay .lanternCardDetailReactions{
+  margin-top: 13px;
+  padding-top: 11px;
+}
+.lanternCardDetailOverlay .lanternCardDetailRxNewsWrap .lanternReactionStatus{
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(185, 198, 234, 0.82);
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+.lanternCardDetailOverlay .lanternCardDetailRxNewsWrap .lanternReactionBar{
+  gap: 7px;
+  padding-top: 2px;
+}
+
+/* ===== STUDIO MOCK SCROLLER (contribute page layout — same compact rail widths as canonical) ===== */
+#studioMockScroller .exploreCard--size-compact:not(.exploreCard--rail),
+#studioMockScroller .exploreCard.compact:not(.exploreCard--rail){ min-width: 220px; max-width: 260px; }
+#studioMockScroller .exploreCard--size-compact.studioScrollerCardActive,
+#studioMockScroller .exploreCard.compact.studioScrollerCardActive{ box-shadow: 0 0 0 2px rgba(255,255,255,.22); border-radius: 14px; }
+
+/* ===== OPENED BODY (news/studio full preview) ===== */
+.exploreCardOpened.exploreCardOpened--fullWidth{ max-width: 100%; }
+.exploreCaption.exploreCaption--category{ font-weight: 800; color: var(--accent); margin-top: 4px; }
+.exploreCaption.exploreCaption--muted{ font-size: 20px; color: var(--muted); margin-top: 12px; }
+.exploreCaption.exploreCaption--createdBy{ font-size: 20px; color: var(--muted); margin-top: 4px; }
+.exploreCard--activityPulse .exploreTitle{ font-size: 22px; }
+.exploreCardOpenedBody{ white-space: pre-wrap; word-break: break-word; }
+#studioFullPreview .exploreCardOpenedBody{ margin-top: 14px; }
+
+/* ===== REPORT MODAL (single entry; opened from card report controls) ===== */
+.lanternReportModalOverlay{
+  position: fixed; inset: 0; z-index: 10002;
+  background: rgba(0,0,0,.72);
+  display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.lanternReportModalOverlay.show{ display: flex; }
+.lanternReportModal{
+  width: 100%; max-width: 420px;
+  background: linear-gradient(180deg, #152238, #0f1a2e);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px 18px 18px;
+  box-shadow: var(--shadow);
+}
+.lanternReportModal h2{
+  margin: 0 0 14px;
+  font-size: clamp(24px, 4vw, 28px);
+  font-weight: 900;
+  color: var(--ink);
+}
+.lanternReportModalFieldset{ border: none; margin: 0 0 14px; padding: 0; }
+.lanternReportModalOption{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 22px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.lanternReportModalOption input{ width: 22px; height: 22px; flex-shrink: 0; }
+.lanternReportModal textarea{
+  width: 100%; min-height: 72px; box-sizing: border-box;
+  font-size: 20px; font-family: inherit; font-weight: 600;
+  padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.25);
+  color: var(--ink);
+  margin-bottom: 10px;
+  resize: vertical;
+}
+.lanternReportModalNote{ font-size: 18px; color: var(--muted); margin: 0 0 16px; line-height: 1.4; }
+.lanternReportModalVisuallyHidden{ position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.lanternReportModalActions{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.lanternReportModalActions button{
+  font-size: 20px; font-weight: 800; padding: 12px 18px; border-radius: 12px;
+  border: 1px solid var(--line); cursor: pointer; font-family: inherit;
+}
+.lanternReportModalCancel{ background: rgba(255,255,255,.06); color: var(--ink); }
+.lanternReportModalSubmit{ background: rgba(90,167,255,.25); color: var(--ink); }
+.lanternReportDetailBtn{
+  margin-top: 12px;
+  font-size: 20px; font-weight: 800;
+  background: transparent; border: none;
+  color: rgba(255,255,255,.55);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-family: inherit;
+}
+.lanternReportDetailBtn:hover{ color: var(--accent); }
+
+/* Contribute / verify: poll opened preview uses same 16:9 image frame as Explore */
+.pollModal.pollModal--studioPreview .pollModalImageWrap{
+  margin-bottom: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: rgba(0,0,0,.25);
+  max-height: none;
+}
+.pollModal.pollModal--studioPreview .pollModalImage{
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* ===== Games hub (games.html) — actions inside LanternCards rail shell ===== */
+.gamesHubRewardRow{ margin-bottom: 6px; }
+.gamesHubCardActions{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  flex-shrink: 0;
+}
+.gamesHubPlayCard .gamesHubCardVisual .exploreCardVisualEmoji{ font-size: 52px; line-height: 1; }
+.gamesHubCardActions .gamesHubCta{ width: 100%; justify-content: center; }
+.gamesHubCardActions .gamesHubSecondary{
+  width: 100%;
+  justify-content: center;
+  text-decoration: none;
+  border: 2px solid rgba(90,167,255,.35);
+  background: rgba(255,255,255,.06);
+  font-size: 22px;
+  font-weight: 900;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+}
+/* L-Rail-3a: removed dead `.contentScroller` descendants — `games.html` uses `.lanternScroller` only; sizing/featured chrome from `.exploreCard--size-wide` + card rules above. */
+/* Card-driven play: whole hub card proxies hidden trigger buttons */
+.wrap.lanternContent .gamesPageShell .gamesHubPlayCard[data-games-proxy-play]{
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+.wrap.lanternContent .gamesPageShell .gamesHubPlayCard[data-games-proxy-play]:active{
+  transform: scale(0.99);
+}
+.wrap.lanternContent .gamesPageShell .gamesHubPlayCard[data-games-proxy-play]:focus-visible{
+  outline: 2px solid var(--accent, #5aa7ff);
+  outline-offset: 3px;
+}
+.gamesLbRow{
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+  margin-bottom: 4px;
+  line-height: 1.25;
+}
+.exploreCard--gamesLbSummary .gamesHubCardActions{
+  gap: 4px;
+  padding-top: 8px;
+}
+
+/* ===== Cosmetic economy — single Lantern shell (store / locker Items / profile buy grid) ===== */
+.exploreCardMetaOneLine--dim{
+  color: var(--muted, #b9c6ea);
+  font-weight: 800;
+  font-size: 20px;
+}
+.exploreCard--cosmeticRail.exploreCard--size-rail{
+  flex: 0 0 auto;
+  position: relative;
+  /* Outer width/height: same hard rectangle as all other .exploreCard--rail.railCardShell (see block above). */
+  height: var(--lantern-rail-card-height, 420px);
+  min-height: var(--lantern-rail-card-height, 420px);
+  max-height: var(--lantern-rail-card-height, 420px);
+  box-sizing: border-box;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.1);
+  background: linear-gradient(165deg, rgba(255,255,255,.11) 0%, rgba(255,255,255,.04) 42%, rgba(7,12,22,.72) 100%);
+  transition: transform .16s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.exploreCard--cosmeticRail.exploreCard--size-rail:hover{
+  transform: translateY(-4px);
+  box-shadow: 0 18px 44px rgba(0,0,0,.48), 0 0 0 1px rgba(90,167,255,.2), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.exploreCard--cosmeticRail.exploreCard--cosmeticFeatured:hover{
+  transform: translateY(-2px);
+}
+.exploreCard--cosmeticRail .exploreCardVisual--cosmeticRail{
+  position: relative;
+  min-height: var(--lantern-rail-card-media-height, 128px);
+  max-height: var(--lantern-rail-card-media-height, 128px);
+  height: var(--lantern-rail-card-media-height, 128px);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 0%, rgba(90,167,255,.16), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 80% 100%, rgba(242,194,48,.1), transparent 50%),
+    linear-gradient(180deg, rgba(0,0,0,.1), rgba(0,0,0,.38));
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.exploreCardCosmeticSpotlightBadge{
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: .03em;
+  background: rgba(90,167,255,.22);
+  border: 1px solid rgba(90,167,255,.48);
+  color: var(--ink);
+  z-index: 2;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3);
+}
+.exploreCard--cosmeticRail .exploreCardVisual--cosmeticRail .exploreCardVisualEmoji{
+  font-size: 48px;
+  line-height: 1;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,.5));
+}
+.exploreCard--cosmeticRail .exploreCardHd--preview{
+  padding: 6px 12px 0;
+}
+.exploreCard--cosmeticRail.exploreCard--rail .lcRailRow--title{
+  --lantern-rail-title-slot: calc(22px * 1.2 * 2);
+}
+.exploreCard--cosmeticRail .exploreCardHd--preview .exploreTitle{
+  font-weight: 1000;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: .02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.exploreCard--cosmeticRail .exploreCardMetaOneLine{
+  padding: 0 12px;
+  font-size: 20px;
+  font-weight: 800;
+}
+.exploreCard--cosmeticRail.exploreCard--size-rail .exploreCardRailStack .lcRailRow--meta .exploreCardMetaOneLine{
+  max-height: 1.25em;
+  line-height: 1.25;
+}
+.exploreCardCosmeticPrice{
+  margin: 4px 12px 4px;
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--warn, #ffcc66);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-height: 0;
+  max-height: 2.5rem;
+  overflow: hidden;
+}
+.exploreCardCosmeticNugget{
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.exploreCardCosmeticPriceLabel--equipped{ color: #9cf5c9; font-weight: 1000; }
+.exploreCardCosmeticPriceLabel--owned{ color: #b8dcff; font-weight: 1000; }
+.exploreCardCosmeticPriceLabel--locked{ color: var(--muted); font-weight: 800; font-size: 24px; }
+.exploreCardCosmeticPriceLabel--preview{ color: var(--accent); font-weight: 900; }
+.exploreCardCosmeticPriceLabel--muted{ color: var(--muted); font-weight: 800; font-size: 22px; }
+.exploreCardCosmeticFoot{
+  margin-top: 0;
+  flex: 0 0 auto;
+  max-height: 64px;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(255,255,255,.1);
+  background: linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.22));
+}
+.exploreCardCosmeticBtn{
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 0 0 calc(var(--r) - 1px) calc(var(--r) - 1px);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(56,208,124,.3), rgba(56,208,124,.12));
+  color: var(--ink);
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter .15s ease, opacity .15s ease, background .15s ease;
+}
+.exploreCardCosmeticBtn:hover:not(:disabled){ filter: brightness(1.07); }
+.exploreCardCosmeticBtn:disabled{
+  cursor: not-allowed;
+  opacity: .78;
+  border-top-color: rgba(255,255,255,.2);
+  background: rgba(255,255,255,.07);
+  color: var(--muted);
+}
+.exploreCardCosmeticBtn--primary:enabled{
+  background: linear-gradient(180deg, rgba(56,208,124,.38), rgba(56,208,124,.16));
+}
+.exploreCardCosmeticBtn--equipped:disabled{
+  background: linear-gradient(180deg, rgba(56,208,124,.2), rgba(56,208,124,.08));
+  color: #b8ffe0;
+  opacity: .98;
+}
+.exploreCardCosmeticBtn--owned:disabled{
+  background: linear-gradient(180deg, rgba(90,167,255,.18), rgba(90,167,255,.08));
+  color: #d4e8ff;
+}
+.exploreCardCosmeticBtn--locked:disabled{
+  background: rgba(255,255,255,.06);
+  border-top-style: dashed;
+}
+.exploreCardCosmeticBtn--preview:disabled{
+  background: linear-gradient(180deg, rgba(90,167,255,.14), rgba(90,167,255,.06));
+  color: var(--accent);
+  opacity: .92;
+}
+.exploreCardCosmeticBtn--equip{
+  min-height: 48px;
+  font-size: 22px;
+  border-radius: 12px;
+  margin: 10px 12px 12px;
+  width: calc(100% - 24px);
+  border: 1px solid rgba(56,208,124,.5);
+}
+.exploreCard--cosmeticRarity-common{ border-color: rgba(255,255,255,.2); }
+.exploreCard--cosmeticRarity-uncommon{
+  border-color: rgba(90,167,255,.48);
+  box-shadow: 0 12px 32px rgba(0,0,0,.38), 0 0 28px rgba(90,167,255,.14), inset 0 1px 0 rgba(255,255,255,.09);
+}
+.exploreCard--cosmeticRarity-rare{
+  border-color: rgba(156,100,255,.52);
+  background: linear-gradient(165deg, rgba(156,100,255,.16) 0%, rgba(20,12,40,.78) 55%, rgba(7,8,18,.94) 100%);
+  box-shadow: 0 12px 32px rgba(0,0,0,.4), 0 0 28px rgba(156,100,255,.2), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.exploreCard--cosmeticRarity-epic{
+  border-color: rgba(200,100,255,.58);
+  background: linear-gradient(165deg, rgba(200,100,255,.18) 0%, rgba(35,10,55,.8) 50%, rgba(6,4,14,.96) 100%);
+}
+.exploreCard--cosmeticRarity-legendary{
+  border-color: rgba(242,194,48,.58);
+  background: linear-gradient(165deg, rgba(242,194,48,.2) 0%, rgba(55,40,10,.82) 48%, rgba(12,8,4,.97) 100%);
+}
+.exploreCard--cosmeticEquipped{
+  box-shadow: 0 12px 32px rgba(0,0,0,.38), 0 0 28px rgba(56,208,124,.22), inset 0 1px 0 rgba(255,255,255,.1);
+  border-color: rgba(56,208,124,.42);
+}
+.exploreCard--cosmeticLocked{ opacity: .93; }
+.exploreCard--cosmeticNeed .exploreCardCosmeticPrice{ color: var(--warn); }
+.exploreCard--cosmeticFuture .exploreCardVisual--cosmeticRail{ filter: grayscale(0.35); }
+.exploreCard--cosmeticPlaceholder{ opacity: .9; cursor: default; }
+
+/* Locker Items tab — same shell, same rail rectangle as store rails */
+#lockerPanelItems .exploreCard--cosmeticRail.exploreCard--size-rail,
+.lockerShell #lockerPanelItems .exploreCard--cosmeticRail.exploreCard--size-rail{
+  width: var(--lantern-rail-card-outer-width);
+  min-width: var(--lantern-rail-card-outer-width);
+  max-width: var(--lantern-rail-card-outer-width);
+  text-align: center;
+}
+#lockerPanelItems .exploreCard--cosmeticRail .exploreCardHd--preview .exploreTitle{
+  font-size: 22px;
+}
+#lockerPanelItems .exploreCard--cosmeticRail .exploreCardVisual--cosmeticRail{
+  min-height: var(--lantern-rail-card-media-height, 128px);
+  max-height: var(--lantern-rail-card-media-height, 128px);
+  height: var(--lantern-rail-card-media-height, 128px);
+}
+#lockerPanelItems .exploreCard--cosmeticRail .exploreCardVisual--cosmeticRail .exploreCardVisualEmoji{
+  font-size: 40px;
+}
+
+/* Profile studio buy grid — Lantern cards in CSS grid (same outer rectangle as rail) */
+.profileStudioBuyGrid .exploreCard--cosmeticRail.exploreCard--size-rail{
+  width: var(--lantern-rail-card-outer-width);
+  min-width: var(--lantern-rail-card-outer-width);
+  max-width: var(--lantern-rail-card-outer-width);
+  text-align: center;
+  box-sizing: border-box;
+}
+.profileStudioBuyGrid .exploreCard--cosmeticRail .exploreCardCosmeticBtn{
+  border-radius: 12px;
+  min-height: 48px;
+  font-size: 22px;
+}
+
+/* Store leaderboard chips — same rail rectangle as other shells (width from .exploreCard--rail.railCardShell) */
+.exploreCard--leaderboardChip.exploreCard--size-rail:not(.exploreCard--rail){
+  flex: 0 0 auto;
+  min-width: 140px;
+  max-width: 200px;
+  cursor: pointer;
+  text-align: left;
+  padding-bottom: 12px;
+}
+.exploreCard.exploreCard--rail.railCardShell.exploreCard--leaderboardChip{
+  cursor: pointer;
+  text-align: left;
+  padding-bottom: 12px;
+}
+.exploreCard--leaderboardChip.exploreCard--size-rail:focus-visible{
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.exploreCard--leaderboardChip .exploreCardVisualIconRail .exploreCardVisualEmoji{ font-size: 40px; }
+
+/* Display mode grid tiles */
+.exploreCard--displayNewsTile .exploreCaption--displayNews{
+  font-size: clamp(16px, 2vmin, 22px);
+  line-height: 1.35;
+  margin-top: 6px;
+}
+.stageGrid .exploreCard--size-rail:not(.exploreCard--rail){
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}

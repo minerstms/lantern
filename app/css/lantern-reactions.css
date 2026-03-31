@@ -1,0 +1,132 @@
+/* TMS Lantern — Student reaction bar and celebration animations (300–900 ms). */
+
+.lanternReactionBar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.lanternReactionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  font-size: 22px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.lanternReactionBtn:hover:not(:disabled) {
+  border-color: rgba(90, 167, 255, 0.5);
+  background: rgba(90, 167, 255, 0.12);
+  transform: scale(1.05);
+}
+
+.lanternReactionBtn:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.lanternReactionBtn.is-mine {
+  border-color: rgba(56, 208, 124, 0.5);
+  background: rgba(56, 208, 124, 0.12);
+}
+
+/* Distribution is percentage-only — never raw counts (see lantern-reactions.js). */
+.lanternReactionPct {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+  min-width: 0;
+  flex-shrink: 0;
+  text-align: left;
+}
+
+.lanternReactionBtn.is-mine .lanternReactionPct {
+  color: var(--good, #38d07c);
+}
+
+.lanternReactionEmpty {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+}
+
+/* Benign culture-positive line above the reaction row — never inside .lanternReactionBar. */
+.lanternReactionStatus {
+  margin: 0 0 10px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--muted, #b9c6ea);
+  line-height: 1.35;
+}
+
+.lanternReactionContributeHint {
+  margin: 8px 0 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--muted, #b9c6ea);
+}
+
+.lanternReactionBtn--typesOnly {
+  opacity: 0.88;
+  cursor: default;
+}
+
+.lanternReactionPulse {
+  animation: lanternReactionPulse 0.4s ease;
+}
+
+@keyframes lanternReactionPulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.25); }
+  70% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.lanternReactionBurst {
+  position: absolute;
+  pointer-events: none;
+  font-size: 28px;
+  animation: lanternReactionBurst 0.6s ease-out forwards;
+  z-index: 1;
+}
+
+.lanternReactionBtn {
+  position: relative;
+}
+
+@keyframes lanternReactionBurst {
+  0% {
+    opacity: 1;
+    transform: scale(0.8) translate(0, 0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.4) translate(0, -8px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2) translate(0, -16px);
+  }
+}
+

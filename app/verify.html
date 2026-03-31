@@ -1,0 +1,1122 @@
+<!-- ===== TMS Lantern — Verification & Simulation ===== -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lantern — Verify &amp; Simulate</title>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --panel2:#122246;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --bad:#ff4d6d;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --r: 18px;
+      --fsBase: 22px;
+      --fsSmall: 22px;
+      --fsButton: 28px;
+    }
+    *{box-sizing:border-box}
+    html{ min-height: 100%; }
+    body{
+      margin:0;
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color:var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      line-height: 1.35;
+    }
+    /* Main column: lantern-header.css .wrap.lanternContent */
+    .card{
+      margin-top: var(--lantern-space-sm);
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cardHd{
+      padding: 12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .cardHd .h{ font-weight:900; letter-spacing:.2px; font-size: 26px; }
+    .cardBd{ padding: 14px; }
+    .note{ color: var(--muted); font-size: var(--fsSmall); margin: 0 0 12px; }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      font-weight:900;
+      font-size: 22px;
+    }
+    .pill.good{ border-color: rgba(56,208,124,.45); background: rgba(56,208,124,.12); }
+    .pill.bad{ border-color: rgba(255,77,109,.45); background: rgba(255,77,109,.12); }
+    .pill.warn{ border-color: rgba(255,204,102,.45); background: rgba(255,204,102,.12); }
+    .pill.accent{ border-color: rgba(90,167,255,.45); background: rgba(90,167,255,.12); }
+    .verify-checklist-item{ padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .verify-checklist-item:last-child{ border-bottom: none; }
+    .verify-checklist-item label{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer; }
+    .verify-checklist-item input[type="checkbox"]{ width: 24px; height: 24px; flex-shrink: 0; }
+    .verify-step{ margin: 8px 0; padding-left: 1em; }
+    .ferpa-list{ margin: 0; padding-left: 1.2em; }
+    .ferpa-list li{ margin: 6px 0; }
+    .identity-row{ display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
+    .identity-row kbd{ background: rgba(0,0,0,.3); padding: 4px 8px; border-radius: 8px; font-size: 20px; }
+    .btn{
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 48px; padding: 10px 20px; border-radius: 14px;
+      font-weight: 800; font-size: var(--fsButton); cursor: pointer;
+      border: 1px solid var(--line); background: rgba(255,255,255,.08);
+      color: var(--ink); font-family: inherit;
+    }
+    .btn:hover{ background: rgba(255,255,255,.14); }
+    .btn.accent{ border-color: rgba(90,167,255,.5); background: rgba(90,167,255,.2); }
+    .btn.good{ border-color: rgba(56,208,124,.5); background: rgba(56,208,124,.15); }
+    select.identity-select{
+      min-width: 200px; height: 48px; padding: 0 12px; border-radius: 12px;
+      border: 1px solid var(--line); background: rgba(0,0,0,.25);
+      color: var(--ink); font-size: 22px; font-weight: 700;
+    }
+    .sim-banner{
+      background: linear-gradient(90deg, rgba(255,204,102,.2), rgba(255,204,102,.06));
+      border: 1px solid rgba(255,204,102,.4);
+      border-radius: var(--r);
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-weight: 800;
+      color: var(--warn);
+    }
+    .titleRow{ text-align: center; margin: 0 0 10px; }
+    .appTitle{ font-weight: 1000; font-size: 36px; }
+    .subTitle{ color: var(--muted); font-weight: 900; font-size: var(--fsSmall); }
+    a{ color: var(--accent); }
+    code{ background: rgba(0,0,0,.25); padding: 2px 6px; border-radius: 6px; font-size: 20px; }
+    .verify-avatar-wrap{ display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; background: rgba(0,0,0,.2); border: 1px solid var(--line); flex-shrink: 0; overflow: hidden; }
+    .verify-avatar-wrap img{ width: 100%; height: 100%; object-fit: cover; }
+    .verify-avatar-fallback{ display: none; font-size: 18px; font-weight: 900; color: var(--muted); }
+    .verify-avatar-wrap.show-fallback img{ display: none !important; }
+    .verify-avatar-wrap.show-fallback .verify-avatar-fallback{ display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+    .beta-reports-table{ width: 100%; border-collapse: collapse; font-size: 20px; }
+    .beta-reports-table th, .beta-reports-table td{ padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+    .beta-reports-table th{ color: var(--muted); font-weight: 800; }
+    .beta-reports-table .beta-desc{ max-width: 320px; word-break: break-word; }
+    .beta-reports-table a{ color: var(--accent); }
+    /* QA rail stress (verify-only): mirrors Profile/Explore horizontal scroller geometry */
+    .railStressWrap{ margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .railStressLabel{ font-weight: 900; font-size: 24px; margin: 0 0 8px; color: var(--warn); }
+    .railStressSub{ font-size: 20px; color: var(--muted); margin: 0 0 10px; }
+    /* Same rail chrome as Explore: .wrap.lanternContent .lanternScroller (lantern-cards.css) */
+    .verifyRailStressRow.wrap.lanternContent{
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+    /* System Flow — verify-only product-style pipeline diagram */
+    .systemFlowCard{ border-color: rgba(90,167,255,.35); }
+    .systemFlowIntro{
+      font-size: 22px; color: var(--muted); margin: 0 0 18px; line-height: 1.4;
+    }
+    .systemFlowScroll{
+      overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px;
+      padding-bottom: 8px;
+    }
+    .systemFlowGrid{
+      display: grid;
+      grid-template-columns: minmax(200px, 1fr) 44px minmax(200px, 1fr) 44px minmax(200px, 1fr);
+      gap: 14px 8px;
+      align-items: stretch;
+      min-width: 720px;
+    }
+    .systemFlowGrid .flowColLabel{
+      font-weight: 900; font-size: 24px; letter-spacing: .03em;
+      text-align: center; padding: 14px 12px; border-radius: 14px;
+      margin-bottom: 4px; border: 2px solid transparent;
+    }
+    .flowColLabel--source{
+      background: linear-gradient(180deg, rgba(255,152,80,.28), rgba(230,110,50,.14));
+      border-color: rgba(255,160,90,.55);
+      color: #ffd4b8;
+    }
+    .flowColLabel--approval{
+      background: linear-gradient(180deg, rgba(120,100,220,.3), rgba(70,90,200,.16));
+      border-color: rgba(140,130,255,.5);
+      color: #dcd6ff;
+    }
+    .flowColLabel--dest{
+      background: linear-gradient(180deg, rgba(56,208,124,.26), rgba(40,160,100,.14));
+      border-color: rgba(56,208,124,.5);
+      color: #b8f5d0;
+    }
+    .flowPipeRow{
+      display: contents;
+    }
+    .flowBox{
+      border-radius: 16px; padding: 16px 14px; font-weight: 800; font-size: 22px;
+      line-height: 1.3; text-align: center; display: flex; align-items: center; justify-content: center;
+      min-height: 72px; border: 2px solid transparent;
+    }
+    .flowBox--source{
+      background: linear-gradient(165deg, rgba(255,138,66,.22), rgba(200,85,40,.1));
+      border-color: rgba(255,150,85,.45);
+      color: var(--ink);
+      box-shadow: 0 4px 16px rgba(255,120,60,.08);
+    }
+    .flowBox--approval{
+      background: linear-gradient(165deg, rgba(100,90,200,.24), rgba(60,80,180,.12));
+      border-color: rgba(130,120,230,.45);
+      color: var(--ink);
+      box-shadow: 0 4px 16px rgba(100,90,220,.1);
+    }
+    .flowBox--dest{
+      background: linear-gradient(165deg, rgba(48,190,110,.22), rgba(30,140,85,.12));
+      border-color: rgba(56,208,124,.45);
+      color: var(--ink);
+      box-shadow: 0 4px 16px rgba(56,208,124,.1);
+    }
+    .flowArrow{
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; font-weight: 900; color: rgba(255,255,255,.45);
+      user-select: none; line-height: 1;
+    }
+    .flowRowGap{ grid-column: 1 / -1; height: 10px; }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <script src="js/lantern-canonical-route-boot.js"></script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent">
+    <div class="titleRow">
+      <div class="appTitle">Verify &amp; Simulate</div>
+      <div class="subTitle">Verification — checklist and test identities</div>
+    </div>
+
+    <div class="sim-banner" role="alert">
+      Simulation only. This is NOT real authentication. Use only for testing. Worker + D1 remain the single source of truth when API is enabled.
+    </div>
+
+    <div class="card systemFlowCard">
+      <div class="cardHd">
+        <div class="h">System Flow</div>
+        <span class="pill accent">Verify</span>
+      </div>
+      <div class="cardBd">
+        <p class="systemFlowIntro">How content reaches Profile scrollers (and where to look when something missing). Five pipelines — Source → gate → destination rail.</p>
+        <div class="systemFlowScroll">
+          <div class="systemFlowGrid" role="img" aria-label="Content pipeline diagram: five rows from source through approval to destination scroller">
+            <div class="flowColLabel flowColLabel--source">Source</div>
+            <div class="flowArrow" aria-hidden="true"></div>
+            <div class="flowColLabel flowColLabel--approval">Approval</div>
+            <div class="flowArrow" aria-hidden="true"></div>
+            <div class="flowColLabel flowColLabel--dest">Destination (scroller)</div>
+
+            <div class="flowBox flowBox--source">Student Shout-out</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--approval">Teacher Approval</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--dest">Spotlight</div>
+            <div class="flowRowGap" aria-hidden="true"></div>
+
+            <div class="flowBox flowBox--source">Teacher Recognition</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--approval">No Approval</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--dest">Spotlight</div>
+            <div class="flowRowGap" aria-hidden="true"></div>
+
+            <div class="flowBox flowBox--source">Student Creation/Post</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--approval">Teacher Approval</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--dest">My Creations</div>
+            <div class="flowRowGap" aria-hidden="true"></div>
+
+            <div class="flowBox flowBox--source">System Event</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--approval">Auto</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--dest">Achievements</div>
+            <div class="flowRowGap" aria-hidden="true"></div>
+
+            <div class="flowBox flowBox--source">News / Activity</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--approval">Teacher Approval (if applicable)</div>
+            <div class="flowArrow" aria-hidden="true">→</div>
+            <div class="flowBox flowBox--dest">Around School</div>
+          </div>
+        </div>
+        <p class="note" style="margin-top:16px;margin-bottom:0;"><strong>Code touchpoints:</strong> Shout-out → <code>lantern_news_submissions</code> + approvals → merged into <code>GET /api/recognition/list</code> for Spotlight. Teacher recognition → <code>lantern_teacher_recognition</code> → same list. Creations → approved posts/missions → <code>renderRecentCreationsScroller</code>. Achievements → <code>getAchievements</code> / unlock map. Around School → <code>getActivityEvents</code> (activity log); student news uses approval path before public surfaces.</p>
+        <p class="note" style="margin-top:12px;margin-bottom:0;"><strong>Full matrix:</strong> see <strong>Routing matrix (code-backed)</strong> card below, or <code>docs/lantern-content-routing-matrix.md</code>.</p>
+      </div>
+    </div>
+
+    <div class="card" id="routingMatrixVerifyCard">
+      <div class="cardHd">
+        <div class="h">Routing matrix (code-backed)</div>
+        <span class="pill good">Verify</span>
+      </div>
+      <div class="cardBd">
+        <p class="note">Data from <code>js/lantern-content-routing.js</code> (<code>ROUTING_ROWS</code>). Append <code>?routingLog=1</code> to this page to print <code>console.table</code> in the devtools console.</p>
+        <div id="routingMatrixMount"></div>
+      </div>
+    </div>
+
+    <div class="card" id="railStressCard" style="border-color: rgba(56,208,124,.45);">
+      <div class="cardHd">
+        <div class="h">QA — Rail stress test &amp; routing map</div>
+        <span class="pill good">Verify only</span>
+      </div>
+      <div class="cardBd">
+        <p class="note"><strong>Not on student Profile/Explore.</strong> Mock cards only (in-memory, not saved). <strong>Expand:</strong> button below or open <code>verify.html?railStress=1</code> to auto-expand. <strong>Collapse:</strong> Hide button.</p>
+        <div class="identity-row" style="margin-bottom: 12px;">
+          <button type="button" class="btn good" id="railStressShowBtn">Show rail stress + routing</button>
+          <button type="button" class="btn" id="railStressHideBtn" style="display: none;">Hide</button>
+        </div>
+        <div id="railStressBody" style="display: none;">
+          <p class="note" style="margin-bottom: 16px;">Pipelines match the <strong>System Flow</strong> card above. Below: mock cards to stress-test horizontal scrollers.</p>
+          <h3 style="margin: 16px 0 8px; font-size: 26px;">Seeded rails (scroll each row horizontally)</h3>
+          <p class="note">Counts: Spotlight 10 · Achievements 16 · Around school 10 · My Creations 8 (scroller style) · Discovery-style 8 · Happening-style 10 · Explore activity 10.</p>
+
+          <div class="railStressWrap">
+            <div class="railStressLabel">Spotlight-style (materializeFeedPostCard · shoutout)</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressSpotlightRail" data-lantern-rail-host="true"></div></div>
+          </div>
+          <div class="railStressWrap">
+            <div class="railStressLabel">Achievements-style (materializeFeedPostCard · teach)</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressAchievementsRail" data-lantern-rail-host="true"></div></div>
+          </div>
+          <div class="railStressWrap">
+            <div class="railStressLabel">Around school–style (mixed post types)</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressSchoolRail" data-lantern-rail-host="true"></div></div>
+          </div>
+          <div class="railStressWrap">
+            <div class="railStressLabel">My Creations–style (canonical medium rail)</div>
+            <div class="railStressSub">Same Lantern card widths as Profile / Explore.</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressCreationsRail" data-lantern-rail-host="true"></div></div>
+          </div>
+          <div class="railStressWrap">
+            <div class="railStressLabel">Community / discovery–style (medium Explore cards)</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressDiscoveryRail" data-lantern-rail-host="true"></div></div>
+          </div>
+          <div class="railStressWrap">
+            <div class="railStressLabel">Explore Happening–style (news rail)</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressHappeningRail" data-lantern-rail-host="true"></div></div>
+          </div>
+          <div class="railStressWrap">
+            <div class="railStressLabel">Explore activity pulse–style</div>
+            <div class="wrap lanternContent verifyRailStressRow"><div id="stressActivityRail" data-lantern-rail-host="true"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="currentSimStateCard" style="border-color: rgba(255,204,102,.4);">
+      <div class="cardHd"><div class="h">Current simulation state</div><span class="pill warn" id="currentSimStatePill">—</span></div>
+      <div class="cardBd">
+        <p class="note">Who the app is acting as. Source: <strong>URL</strong>, <strong>Cloud</strong>, or <strong>Local fallback</strong>.</p>
+        <div class="identity-row">Role: <kbd id="currentSimRole">—</kbd></div>
+        <div class="identity-row">Teacher ID: <kbd id="currentSimTeacherId">—</kbd></div>
+        <div class="identity-row">Character name: <kbd id="currentSimCharacterName">—</kbd></div>
+        <div class="identity-row">Display name: <kbd id="currentSimDisplayName">—</kbd></div>
+        <div class="identity-row"><strong>Identity from:</strong> <span id="currentSimSourceLabel" class="pill accent">—</span></div>
+        <div class="identity-row" id="currentSimAvatarRow" style="display:none;"><strong>Avatar</strong> <span class="verify-avatar-wrap" id="currentSimAvatarWrap"><img id="currentSimAvatarImg" alt=""><span class="verify-avatar-fallback" id="currentSimAvatarFallback"></span></span></div>
+      </div>
+    </div>
+
+    <div class="card" id="whatToTestFirstCard">
+      <div class="cardHd"><div class="h">What to test first</div></div>
+      <div class="cardBd">
+        <p class="note">Quick-start flow. Use the controls below to switch identity, then follow these steps.</p>
+        <ol style="margin:0; padding-left:1.2em;">
+          <li class="verify-step">Act as <strong>Ms. Frizzleton</strong>.</li>
+          <li class="verify-step">Open the <strong>Teacher</strong> page.</li>
+          <li class="verify-step">Create or review a mission (use <strong>My Classroom</strong> in Approvals).</li>
+          <li class="verify-step">Act as <strong>Zane Morrison</strong>.</li>
+          <li class="verify-step">Open <strong>Locker</strong> (student page).</li>
+          <li class="verify-step">Submit mission work.</li>
+          <li class="verify-step">Return to <strong>Ms. Frizzleton</strong> on the Teacher page.</li>
+          <li class="verify-step">Open the submission in <strong>My Classroom</strong>, review full content, then approve.</li>
+          <li class="verify-step">Act as <strong>Mr. Feenan</strong> and confirm that mission does <strong>not</strong> appear in his My Classroom.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card" style="border-color: rgba(90,167,255,.35);">
+      <div class="cardHd"><div class="h">Tomorrow’s checks</div></div>
+      <div class="cardBd">
+        <p class="note">Important checks before rollout or live testing.</p>
+        <ul class="ferpa-list" style="margin:0; padding-left:1.2em;">
+          <li><strong>Mission ownership isolation</strong> — Mr. Feenan must not see or act on Ms. Frizzleton’s mission submissions.</li>
+          <li><strong>Avatar approval routing</strong> — Pending avatars appear in Schoolwide Queue; approve from full review.</li>
+          <li><strong>Schoolwide vs My Classroom</strong> — Teacher-owned items only in My Classroom; shared items only in Schoolwide Queue.</li>
+          <li><strong>Cross-device verify sync</strong> — When API is on, identity and checklist sync across devices (Cloud sync active).</li>
+          <li><strong>Reset / Reseed</strong> — Reset clears verify state; Reseed restores checklist default; both require password.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" id="verifySyncCard" style="display:none; border-color: rgba(56,208,124,.35);">
+      <div class="cardHd"><div class="h">Cloud sync active</div><span class="pill good" id="verifySyncPill">Active</span></div>
+      <div class="cardBd">
+        <p class="note" id="verifySyncMessage">Identity and checklist are stored in Worker + D1. Same state on any device. Teacher and student pages use this when API is on (no localStorage for verify identity).</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd"><div class="h">Build Summary</div></div>
+      <div class="cardBd">
+        <p class="note" id="buildPhase"></p>
+        <p class="note" id="buildPurpose"></p>
+        <p class="note"><strong>Files changed this build:</strong> <span id="buildFiles"></span></p>
+        <p class="note"><strong>Known risks:</strong> <span id="buildRisks"></span></p>
+        <p class="note"><strong>Manual verification still needed:</strong> <span id="buildManual"></span></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd"><div class="h">Act as</div><span class="pill accent">Simulation</span></div>
+      <div class="cardBd">
+        <p class="note">Switch to a predefined teacher or student. Simulation only — not real login.</p>
+        <div class="identity-row">
+          <label for="verifyRole">Role</label>
+          <select id="verifyRole" class="identity-select">
+            <option value="">— Select role —</option>
+            <option value="teacher">Teacher</option>
+            <option value="student">Student</option>
+          </select>
+        </div>
+        <div class="identity-row" id="teacherIdentityRow" style="display:none;">
+          <label for="verifyTeacher">Act as teacher</label>
+          <select id="verifyTeacher" class="identity-select">
+            <option value="">— Select teacher —</option>
+          </select>
+          <span class="verify-avatar-wrap" id="verifyTeacherAvatarWrap" style="display:none;"><img id="verifyTeacherAvatarImg" alt=""><span class="verify-avatar-fallback" id="verifyTeacherAvatarFallback"></span></span>
+          <button type="button" class="btn accent" id="applyTeacherBtn">Apply &amp; open Teacher page</button>
+        </div>
+        <div class="identity-row" id="studentIdentityRow" style="display:none;">
+          <label for="verifyStudent">Act as student</label>
+          <select id="verifyStudent" class="identity-select">
+            <option value="">— Select student —</option>
+          </select>
+          <span class="verify-avatar-wrap" id="verifyStudentAvatarWrap" style="display:none;"><img id="verifyStudentAvatarImg" alt=""><span class="verify-avatar-fallback" id="verifyStudentAvatarFallback"></span></span>
+          <button type="button" class="btn good" id="applyStudentBtn">Apply &amp; open Locker</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd"><div class="h">Identity Test Helpers</div></div>
+      <div class="cardBd">
+        <p class="note">Current simulation state. When API is on, data is from cloud (Worker + D1). Use to confirm FERPA and mission flow.</p>
+        <div class="identity-row">API mode: <kbd id="currentApiMode">—</kbd></div>
+        <div class="identity-row">Simulated role: <kbd id="currentRole">—</kbd></div>
+        <div class="identity-row">Simulated teacher_id: <kbd id="currentTeacherId">—</kbd></div>
+        <div class="identity-row">Simulated character_name: <kbd id="currentCharacterName">—</kbd></div>
+        <div class="identity-row">Simulated display name: <kbd id="currentDisplayName">—</kbd></div>
+        <div class="identity-row"><strong>Identity source:</strong> <span id="identitySourceLabel" class="pill accent">—</span></div>
+        <p class="note" id="identitySourceNote">On teacher/student pages, identity source is <strong>URL</strong> when set via ?simTeacher= or ?simStudent=, <strong>Cloud</strong> when API is on and state comes from Worker, or <strong>Local fallback</strong> when API is off.</p>
+        <p class="note" style="margin-top:12px;"><strong>How to test:</strong> Teacher A vs Teacher B isolation — act as Teacher A, create mission, have student submit; switch to Teacher B, confirm they do not see that submission and get 403 if they try to approve it. Student mission visibility — act as a student, confirm only allowed missions appear. Dashboard correctness — act as teacher, refresh; counts and rows should match.</p>
+      </div>
+    </div>
+
+    <div class="card" style="border-color: rgba(255,77,109,.35);">
+      <div class="cardHd"><div class="h">FERPA</div><span class="pill bad">Always verify</span></div>
+      <div class="cardBd">
+        <p class="note">Keep these in mind when testing and during review.</p>
+        <ul class="ferpa-list">
+          <li>Teacher-owned items must not appear to other teachers.</li>
+          <li>Students must not see other students’ private content.</li>
+          <li>Public-facing moderation (avatars, news) belongs in the shared queue; mission review belongs to the owning teacher.</li>
+          <li>Mission review is only for the teacher who owns the mission (My Classroom).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd"><div class="h">Rehearsal flow</div></div>
+      <div class="cardBd">
+        <ol style="margin:0; padding-left:1.2em;">
+          <li class="verify-step">Teacher creates mission.</li>
+          <li class="verify-step">Student sees mission.</li>
+          <li class="verify-step">Student submits.</li>
+          <li class="verify-step">Teacher approves.</li>
+          <li class="verify-step">Nuggets/reward effects appear.</li>
+          <li class="verify-step">Hallway display / recognition path updates.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd"><div class="h">Avatar readiness</div></div>
+      <div class="cardBd">
+        <p class="note">Each identity has a placeholder <code>avatarPath</code>. To attach images: place 2 teacher avatars at <code>avatars/teachers/teacherA.png</code>, <code>avatars/teachers/teacherB.png</code>; place 10 student avatars at <code>avatars/students/zane_morrison.png</code>, <code>winnie_addair.png</code>, etc. (same names as <code>character_name</code>). No images are created by the app; mapping is in VERIFY_CONFIG.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd"><div class="h">Verification Checklist</div><span class="pill accent" id="checklistSourceLabel">Cloud</span></div>
+      <div class="cardBd" id="checklistBody"></div>
+    </div>
+
+    <div class="card" style="border-color: rgba(255,77,109,.3);">
+      <div class="cardHd"><div class="h">Reset / Reseed</div><span class="pill bad">Password required</span></div>
+      <div class="cardBd">
+        <p class="note">Destructive only. <strong>Reset</strong> clears simulated identity and checklist from the cloud. <strong>Reseed</strong> resets checklist to default and keeps build metadata. No password needed to switch identity.</p>
+        <div class="identity-row">
+          <label for="resetPassword">Admin password</label>
+          <input type="password" id="resetPassword" placeholder="Reset password" autocomplete="off" style="min-width:180px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;" />
+          <button type="button" class="btn" id="resetVerifyBtn">Reset (clear all)</button>
+          <button type="button" class="btn" id="reseedVerifyBtn">Reseed (checklist default)</button>
+        </div>
+        <p class="note" style="margin-top:10px;" id="resetMessage"></p>
+      </div>
+    </div>
+
+    <div class="card" id="betaReportsCard">
+      <div class="cardHd"><div class="h">Beta Reports</div><button type="button" class="btn small accent" id="betaReportsRefreshBtn">Refresh</button></div>
+      <div class="cardBd">
+        <p class="note">Bug and issue reports from beta testers (Profile → Report a Beta Issue). For debugging and stabilization.</p>
+        <div id="betaReportsContainer">
+          <p class="note" id="betaReportsPlaceholder">Load reports with API enabled, then click Refresh.</p>
+          <table class="beta-reports-table" id="betaReportsTable" style="display:none;">
+            <thead><tr><th>Time</th><th>Reporter</th><th>Page</th><th>Description</th><th>Screenshot</th></tr></thead>
+            <tbody id="betaReportsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="bugReportsCard">
+      <div class="cardHd"><div class="h">Bug Reports (Mission)</div><button type="button" class="btn small accent" id="bugReportsRefreshBtn">Refresh</button></div>
+      <div class="cardBd">
+        <p class="note">Approved Report a Bug mission submissions. Shown for debugging.</p>
+        <div id="bugReportsContainer">
+          <p class="note" id="bugReportsPlaceholder">Load with API enabled, then click Refresh.</p>
+          <table class="beta-reports-table" id="bugReportsTable" style="display:none;">
+            <thead><tr><th>Time</th><th>Character</th><th>Description</th><th>Image</th></tr></thead>
+            <tbody id="bugReportsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/lantern-data.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-scroller.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-card-ui.js"></script>
+  <script src="js/lantern-content-routing.js"></script>
+  <script>
+(function(){
+  var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+  var config = null;
+  var state = { role: '', teacher_id: '', character_name: '', display_name: '', checklist: {}, build: null };
+  var checklistSaveTimer = null;
+
+  var FALLBACK_CONFIG = { build: { phase: 'Verification (local)', purpose: 'Verify/sim runs local only when API is off.', filesChanged: '—', risks: '—', manualVerification: 'Set LANTERN_AVATAR_API for cloud verify.' }, teachers: [ { teacher_id: 'teacherA', displayName: 'Ms. Frizzleton' }, { teacher_id: 'teacherB', displayName: 'Mr. Feenan' } ], students: [ { character_name: 'zane_morrison', displayName: 'Zane Morrison' }, { character_name: 'winnie_addair', displayName: 'Winnie Addair' }, { character_name: 'brett_simms', displayName: 'Brett Simms' }, { character_name: 'kimber_pace', displayName: 'Kimber Pace' }, { character_name: 'velma_voss', displayName: 'Velma Voss' }, { character_name: 'archie_rivers', displayName: 'Archie Rivers' }, { character_name: 'raven_hart', displayName: 'Raven Hart' }, { character_name: 'tori_sparks', displayName: 'Tori Sparks' }, { character_name: 'miles_parker', displayName: 'Miles Parker' }, { character_name: 'lola_luna', displayName: 'Lola Luna' } ], checklist: [ { id: 'mission-owner-approve', section: 'Mission moderation', testName: 'Ms. Frizzleton can approve her own mission submission', why: 'Owner can moderate.', steps: 'Act as Ms. Frizzleton, approve one.', expected: 'Success.' }, { id: 'mission-other-403', section: 'Mission moderation', testName: "Mr. Feenan gets 403 on Ms. Frizzleton's mission", why: 'FERPA.', steps: 'As Teacher B, approve Teacher A submission.', expected: '403.' }, { id: 'persist-approval', section: 'Persistence', testName: 'Mission approval persists after refresh', why: 'D1 durability.', steps: 'Approve, refresh.', expected: 'Still accepted.' }, { id: 'demo-create', section: 'Demo flow', testName: 'Teacher creates mission', why: 'Start of demo.', steps: 'Create mission.', expected: 'Mission in list.' }, { id: 'demo-approve', section: 'Demo flow', testName: 'Teacher approves', why: 'Moderation.', steps: 'Approve submission.', expected: 'Accepted.' } ] };
+
+  function normalizeAvatarPaths(cfg){
+    if (!cfg) return cfg;
+    if (cfg.teachers && cfg.teachers.length) cfg.teachers = cfg.teachers.map(function(t){ return { teacher_id: t.teacher_id, displayName: t.displayName, avatarPath: t.avatarPath || ('avatars/teachers/' + (t.teacher_id || '') + '.png') }; });
+    if (cfg.students && cfg.students.length) cfg.students = cfg.students.map(function(s){ return { character_name: s.character_name, displayName: s.displayName, avatarPath: s.avatarPath || ('avatars/students/' + (s.character_name || '') + '.png') }; });
+    return cfg;
+  }
+  normalizeAvatarPaths(FALLBACK_CONFIG);
+
+  function getInitials(displayName){
+    var s = String(displayName || '').trim();
+    if (!s) return '?';
+    var parts = s.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    return s.length >= 2 ? s.slice(0, 2).toUpperCase() : s.charAt(0).toUpperCase();
+  }
+
+  function setAvatarPreview(wrapId, imgId, fallbackId, avatarPath, displayName){
+    var wrap = document.getElementById(wrapId);
+    var img = document.getElementById(imgId);
+    var fallback = document.getElementById(fallbackId);
+    if (!wrap || !img || !fallback) return;
+    wrap.classList.remove('show-fallback');
+    img.removeAttribute('data-failed');
+    fallback.textContent = getInitials(displayName);
+    if (avatarPath) {
+      img.src = avatarPath;
+      img.alt = (displayName || '') + ' avatar';
+      img.onerror = function(){ wrap.classList.add('show-fallback'); };
+      wrap.style.display = 'inline-flex';
+    } else {
+      img.removeAttribute('src');
+      wrap.style.display = 'none';
+    }
+  }
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+  function getConfig(){
+    return config || FALLBACK_CONFIG;
+  }
+
+  function fetchConfig(){
+    if (!apiBase) return Promise.resolve(getConfig());
+    return fetch(apiBase + '/api/verify/config').then(function(r){ return r.json(); }).then(function(res){
+      if (res && res.ok) {
+        config = { build: res.build, teachers: res.teachers || [], students: res.students || [], checklist: res.checklist || [] };
+        normalizeAvatarPaths(config);
+      }
+      return getConfig();
+    }).catch(function(){ return getConfig(); });
+  }
+
+  function fetchState(){
+    if (!apiBase) return Promise.resolve(state);
+    return fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).then(function(res){
+      if (res && res.ok && res.state) state = res.state;
+      return state;
+    }).catch(function(){ return state; });
+  }
+
+  function putState(partial){
+    if (!apiBase) return Promise.resolve();
+    var body = JSON.stringify(partial);
+    return fetch(apiBase + '/api/verify/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: body }).then(function(r){ return r.json(); }).then(function(res){
+      if (res && res.ok && res.state) state = res.state;
+    }).catch(function(){});
+  }
+
+  function renderBuildSummary(){
+    var b = (state.build || getConfig().build) || {};
+    document.getElementById('buildPhase').textContent = b.phase || '';
+    document.getElementById('buildPurpose').textContent = b.purpose || '';
+    document.getElementById('buildFiles').textContent = b.filesChanged || '';
+    document.getElementById('buildRisks').textContent = b.risks || '';
+    document.getElementById('buildManual').textContent = b.manualVerification || '';
+  }
+
+  function renderChecklist(){
+    var c = getConfig();
+    var list = c.checklist || [];
+    var saved = state.checklist || {};
+    var html = '';
+    list.forEach(function(item){
+      var checked = saved[item.id] ? ' checked' : '';
+      var note = saved[item.id + '_note'] || '';
+      html += '<div class="verify-checklist-item">';
+      html += '<label><input type="checkbox" data-id="' + esc(item.id) + '"' + checked + '> <span>' + esc(item.testName) + '</span></label>';
+      html += '<div style="margin:6px 0 0 34px;"><strong>' + esc(item.section) + '</strong> — ' + esc(item.why) + '</div>';
+      html += '<div style="margin:4px 0 0 34px; font-size:20px; color:var(--muted);">Steps: ' + esc(item.steps) + '</div>';
+      html += '<div style="margin:4px 0 0 34px; font-size:20px; color:var(--muted);">Expected: ' + esc(item.expected) + '</div>';
+      if (note) html += '<div style="margin:4px 0 0 34px;">Notes: ' + esc(note) + '</div>';
+      html += '<div style="margin:4px 0 0 34px;"><input type="text" data-note-id="' + esc(item.id) + '" placeholder="Optional notes" value="' + esc(note) + '" style="width:100%;max-width:400px;height:36px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:20px;"></div>';
+      html += '</div>';
+    });
+    document.getElementById('checklistBody').innerHTML = html;
+    var labelEl = document.getElementById('checklistSourceLabel');
+    if (labelEl) labelEl.textContent = apiBase ? 'Cloud' : 'Local';
+    function persistChecklist(){
+      var next = {};
+      document.querySelectorAll('#checklistBody input[data-id]').forEach(function(cb){
+        if (cb.dataset && cb.dataset.id) next[cb.dataset.id] = cb.checked;
+      });
+      document.querySelectorAll('#checklistBody input[data-note-id]').forEach(function(inp){
+        if (inp.dataset && inp.dataset.noteId) next[inp.dataset.noteId + '_note'] = (inp.value || '').trim();
+      });
+      state.checklist = next;
+      if (apiBase) putState({ checklist: next });
+    }
+    document.getElementById('checklistBody').addEventListener('change', function(e){
+      if (e.target && e.target.dataset && e.target.dataset.id){
+        clearTimeout(checklistSaveTimer);
+        checklistSaveTimer = setTimeout(persistChecklist, 400);
+      }
+    });
+    document.getElementById('checklistBody').addEventListener('blur', function(e){
+      if (e.target && e.target.dataset && e.target.dataset.noteId){
+        clearTimeout(checklistSaveTimer);
+        checklistSaveTimer = setTimeout(persistChecklist, 300);
+      }
+    }, true);
+  }
+
+  function updateCurrentSimStateCard(){
+    var pill = document.getElementById('currentSimStatePill');
+    var roleEl = document.getElementById('currentSimRole');
+    var teacherIdEl = document.getElementById('currentSimTeacherId');
+    var charEl = document.getElementById('currentSimCharacterName');
+    var displayEl = document.getElementById('currentSimDisplayName');
+    var sourceEl = document.getElementById('currentSimSourceLabel');
+    var avatarRow = document.getElementById('currentSimAvatarRow');
+    var avatarWrap = document.getElementById('currentSimAvatarWrap');
+    var avatarImg = document.getElementById('currentSimAvatarImg');
+    var avatarFallback = document.getElementById('currentSimAvatarFallback');
+    if (pill) pill.textContent = (state.role && (state.teacher_id || state.character_name)) ? 'Active' : '—';
+    if (roleEl) roleEl.textContent = state.role || '—';
+    if (teacherIdEl) teacherIdEl.textContent = state.teacher_id || '—';
+    if (charEl) charEl.textContent = state.character_name || '—';
+    if (displayEl) displayEl.textContent = state.display_name || '—';
+    if (sourceEl) sourceEl.textContent = apiBase ? 'Cloud' : 'Local fallback';
+    if (avatarRow && avatarWrap && avatarImg && avatarFallback) {
+      var path = '';
+      var name = state.display_name || '';
+      if (state.role === 'teacher' && state.teacher_id) {
+        var t = (getConfig().teachers || []).find(function(x){ return x.teacher_id === state.teacher_id; });
+        if (t) { path = t.avatarPath || ('avatars/teachers/' + state.teacher_id + '.png'); name = t.displayName || state.teacher_id; }
+      } else if (state.role === 'student' && state.character_name) {
+        var s = (getConfig().students || []).find(function(x){ return x.character_name === state.character_name; });
+        if (s) { path = s.avatarPath || ('avatars/students/' + state.character_name + '.png'); name = s.displayName || state.character_name; }
+      }
+      if (path) {
+        avatarRow.style.display = 'flex';
+        avatarWrap.classList.remove('show-fallback');
+        avatarImg.removeAttribute('data-failed');
+        avatarFallback.textContent = getInitials(name);
+        avatarImg.src = path;
+        avatarImg.alt = name + ' avatar';
+        avatarImg.onerror = function(){ avatarWrap.classList.add('show-fallback'); };
+      } else {
+        avatarRow.style.display = 'none';
+      }
+    }
+  }
+
+  function renderIdentityHelpers(){
+    document.getElementById('currentApiMode').textContent = apiBase ? 'Worker / ' + apiBase : 'Off (local only)';
+    document.getElementById('currentRole').textContent = state.role || '—';
+    document.getElementById('currentTeacherId').textContent = state.teacher_id || '—';
+    document.getElementById('currentCharacterName').textContent = state.character_name || '—';
+    document.getElementById('currentDisplayName').textContent = state.display_name || '—';
+    var sourceLabel = document.getElementById('identitySourceLabel');
+    if (sourceLabel) sourceLabel.textContent = apiBase ? 'Cloud' : 'Local fallback';
+    var syncCard = document.getElementById('verifySyncCard');
+    if (syncCard) syncCard.style.display = apiBase ? 'block' : 'none';
+    updateCurrentSimStateCard();
+  }
+
+  function fillTeacherSelect(){
+    var sel = document.getElementById('verifyTeacher');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Select teacher —</option>';
+    (getConfig().teachers || []).forEach(function(t){
+      var o = document.createElement('option');
+      o.value = t.teacher_id;
+      o.textContent = t.displayName + ' (' + t.teacher_id + ')';
+      o.dataset.displayName = t.displayName;
+      o.dataset.avatarPath = t.avatarPath || ('avatars/teachers/' + (t.teacher_id || '') + '.png');
+      sel.appendChild(o);
+    });
+    updateVerifyTeacherAvatar();
+  }
+
+  function fillStudentSelect(){
+    var sel = document.getElementById('verifyStudent');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Select student —</option>';
+    (getConfig().students || []).forEach(function(s){
+      var o = document.createElement('option');
+      o.value = s.character_name;
+      o.textContent = s.displayName + ' (' + s.character_name + ')';
+      o.dataset.displayName = s.displayName;
+      o.dataset.avatarPath = s.avatarPath || ('avatars/students/' + (s.character_name || '') + '.png');
+      sel.appendChild(o);
+    });
+    updateVerifyStudentAvatar();
+  }
+
+  function updateVerifyTeacherAvatar(){
+    var sel = document.getElementById('verifyTeacher');
+    var wrap = document.getElementById('verifyTeacherAvatarWrap');
+    if (!sel || !wrap) return;
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) { wrap.style.display = 'none'; return; }
+    setAvatarPreview('verifyTeacherAvatarWrap', 'verifyTeacherAvatarImg', 'verifyTeacherAvatarFallback', opt.dataset.avatarPath || ('avatars/teachers/' + opt.value + '.png'), opt.dataset.displayName || opt.value);
+  }
+
+  function updateVerifyStudentAvatar(){
+    var sel = document.getElementById('verifyStudent');
+    var wrap = document.getElementById('verifyStudentAvatarWrap');
+    if (!sel || !wrap) return;
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) { wrap.style.display = 'none'; return; }
+    setAvatarPreview('verifyStudentAvatarWrap', 'verifyStudentAvatarImg', 'verifyStudentAvatarFallback', opt.dataset.avatarPath || ('avatars/students/' + opt.value + '.png'), opt.dataset.displayName || opt.value);
+  }
+
+  document.getElementById('verifyRole').addEventListener('change', function(){
+    var role = this.value;
+    document.getElementById('teacherIdentityRow').style.display = role === 'teacher' ? 'flex' : 'none';
+    document.getElementById('studentIdentityRow').style.display = role === 'student' ? 'flex' : 'none';
+    updateVerifyTeacherAvatar();
+    updateVerifyStudentAvatar();
+  });
+  document.getElementById('verifyTeacher').addEventListener('change', updateVerifyTeacherAvatar);
+  document.getElementById('verifyStudent').addEventListener('change', updateVerifyStudentAvatar);
+
+  document.getElementById('applyTeacherBtn').addEventListener('click', function(){
+    var sel = document.getElementById('verifyTeacher');
+    var tid = sel && sel.value;
+    if (!tid) return;
+    var t = (getConfig().teachers || []).find(function(x){ return x.teacher_id === tid; });
+    var payload = { role: 'teacher', teacher_id: tid, display_name: t ? t.displayName : tid, character_name: '' };
+    putState(payload).then(function(){
+      try { localStorage.setItem('LANTERN_VERIFY_TEACHER_ID', tid); localStorage.setItem('LANTERN_VERIFY_NAME', payload.display_name); } catch(e) {}
+      window.location.href = 'teacher.html?simTeacher=' + encodeURIComponent(tid);
+    });
+  });
+
+  document.getElementById('applyStudentBtn').addEventListener('click', function(){
+    var sel = document.getElementById('verifyStudent');
+    var cname = sel && sel.value;
+    if (!cname) return;
+    var s = (getConfig().students || []).find(function(x){ return x.character_name === cname; });
+    var displayName = (s && s.displayName) || (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].dataset.displayName) || cname;
+    var payload = { role: 'student', character_name: cname, display_name: displayName, teacher_id: '' };
+    putState(payload).then(function(){
+      try {
+        localStorage.setItem('LANTERN_VERIFY_CHARACTER_NAME', cname);
+        localStorage.setItem('LANTERN_VERIFY_NAME', displayName);
+        localStorage.setItem('LANTERN_ADOPTED_CHARACTER', JSON.stringify({ character_id: cname, name: cname, avatar: '🌟' }));
+      } catch(e) {}
+      window.location.href = 'locker.html?simStudent=' + encodeURIComponent(cname) + '#overview';
+    });
+  });
+
+  function showResetMessage(msg, isErr){
+    var el = document.getElementById('resetMessage');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = isErr ? 'var(--bad)' : 'var(--good)';
+  }
+
+  document.getElementById('resetVerifyBtn').addEventListener('click', function(){
+    var pw = (document.getElementById('resetPassword') && document.getElementById('resetPassword').value) || '';
+    if (!apiBase) { showResetMessage('Cloud API not set. Reset only available when Worker is configured.', true); return; }
+    fetch(apiBase + '/api/verify/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, action: 'reset' }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (res && res.ok) { showResetMessage('Verify state cleared.'); state = { role: '', teacher_id: '', character_name: '', display_name: '', checklist: {}, build: null }; renderBuildSummary(); renderChecklist(); renderIdentityHelpers(); }
+        else showResetMessage(res && res.error ? res.error : 'Failed', true);
+      })
+      .catch(function(){ showResetMessage('Request failed.', true); });
+  });
+
+  document.getElementById('reseedVerifyBtn').addEventListener('click', function(){
+    var pw = (document.getElementById('resetPassword') && document.getElementById('resetPassword').value) || '';
+    if (!apiBase) { showResetMessage('Cloud API not set.', true); return; }
+    fetch(apiBase + '/api/verify/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, action: 'reseed' }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (res && res.ok) { showResetMessage('Reseeded.'); fetchState().then(function(){ renderBuildSummary(); renderChecklist(); renderIdentityHelpers(); }); }
+        else showResetMessage(res && res.error ? res.error : 'Failed', true);
+      })
+      .catch(function(){ showResetMessage('Request failed.', true); });
+  });
+
+  function loadBetaReports(){
+    var placeholder = document.getElementById('betaReportsPlaceholder');
+    var table = document.getElementById('betaReportsTable');
+    var body = document.getElementById('betaReportsBody');
+    if (!placeholder || !table || !body) return;
+    if (!apiBase) {
+      placeholder.textContent = 'Set LANTERN_AVATAR_API to load beta reports.';
+      placeholder.style.display = 'block';
+      table.style.display = 'none';
+      return;
+    }
+    placeholder.textContent = 'Loading…';
+    placeholder.style.display = 'block';
+    table.style.display = 'none';
+    fetch(apiBase + '/api/beta-reports?limit=50')
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (!res || !res.ok || !Array.isArray(res.reports)) {
+          placeholder.textContent = 'Could not load reports.';
+          return;
+        }
+        var list = res.reports;
+        if (list.length === 0) {
+          placeholder.textContent = 'No beta reports yet.';
+          table.style.display = 'none';
+          return;
+        }
+        placeholder.style.display = 'none';
+        table.style.display = 'table';
+        body.innerHTML = '';
+        list.forEach(function(r){
+          var tr = document.createElement('tr');
+          var time = (r.created_at || '').replace('T', ' ').slice(0, 19);
+          var reporter = esc(r.reporter_name || '');
+          var page = esc(r.page || 'Other');
+          var desc = esc((r.description || '').slice(0, 200));
+          if ((r.description || '').length > 200) desc += '…';
+          var screenshot = (r.screenshot_url || '').trim();
+          tr.innerHTML = '<td>' + esc(time) + '</td><td>' + reporter + '</td><td>' + page + '</td><td class="beta-desc">' + desc + '</td><td>' + (screenshot ? '<a href="' + esc(screenshot) + '" target="_blank" rel="noopener">Link</a>' : '—') + '</td>';
+          body.appendChild(tr);
+        });
+      })
+      .catch(function(){
+        placeholder.textContent = 'Failed to load reports.';
+        placeholder.style.display = 'block';
+        table.style.display = 'none';
+      });
+  }
+
+  function loadBugReports(){
+    var placeholder = document.getElementById('bugReportsPlaceholder');
+    var table = document.getElementById('bugReportsTable');
+    var body = document.getElementById('bugReportsBody');
+    if (!placeholder || !table || !body) return;
+    if (!apiBase) {
+      placeholder.textContent = 'Set LANTERN_AVATAR_API to load bug reports.';
+      placeholder.style.display = 'block';
+      table.style.display = 'none';
+      return;
+    }
+    placeholder.textContent = 'Loading…';
+    placeholder.style.display = 'block';
+    table.style.display = 'none';
+    fetch(apiBase + '/api/bug-reports?limit=50')
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (!res || !res.ok || !Array.isArray(res.reports)) {
+          placeholder.textContent = 'Could not load bug reports.';
+          return;
+        }
+        var list = res.reports;
+        if (list.length === 0) {
+          placeholder.textContent = 'No approved bug reports yet.';
+          table.style.display = 'none';
+          return;
+        }
+        placeholder.style.display = 'none';
+        table.style.display = 'table';
+        body.innerHTML = '';
+        list.forEach(function(r){
+          var tr = document.createElement('tr');
+          var time = (r.created_at || '').replace('T', ' ').slice(0, 19);
+          var character = esc(r.character_name || '');
+          var desc = esc((r.description || '').slice(0, 300));
+          if ((r.description || '').length > 300) desc += '…';
+          var img = (r.image_url || '').trim();
+          tr.innerHTML = '<td>' + esc(time) + '</td><td>' + character + '</td><td class="beta-desc">' + desc + '</td><td>' + (img ? '<a href="' + esc(img) + '" target="_blank" rel="noopener">Link</a>' : '—') + '</td>';
+          body.appendChild(tr);
+        });
+      })
+      .catch(function(){
+        placeholder.textContent = 'Failed to load bug reports.';
+        placeholder.style.display = 'block';
+        table.style.display = 'none';
+      });
+  }
+
+  var refreshBtn = document.getElementById('betaReportsRefreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', loadBetaReports);
+  var bugReportsRefreshBtn = document.getElementById('bugReportsRefreshBtn');
+  if (bugReportsRefreshBtn) bugReportsRefreshBtn.addEventListener('click', loadBugReports);
+
+  function init(){
+    fetchConfig().then(function(){
+      fillTeacherSelect();
+      fillStudentSelect();
+      fetchState().then(function(){
+        renderBuildSummary();
+        renderChecklist();
+        renderIdentityHelpers();
+      });
+      loadBetaReports();
+      loadBugReports();
+    });
+  }
+  init();
+  setInterval(function(){ if (apiBase) fetchState().then(renderIdentityHelpers); else renderIdentityHelpers(); }, 3000);
+
+  window.VERIFY_GET_STATE = function(){ return state; };
+  window.VERIFY_GET_CONFIG = getConfig;
+
+  (function railStressQA(){
+    var card = document.getElementById('railStressCard');
+    var body = document.getElementById('railStressBody');
+    var showBtn = document.getElementById('railStressShowBtn');
+    var hideBtn = document.getElementById('railStressHideBtn');
+    var seeded = false;
+    function escHtml(s){
+      return String(s || '').replace(/[&<>"']/g, function(c){ return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'; });
+    }
+    function seedRails(){
+      var LC = window.LanternCards;
+      if (!LC || seeded) return;
+      seeded = true;
+      var i;
+      function appendCards(trackId, count, fn){
+        var el = document.getElementById(trackId);
+        if (!el) return;
+        var frag = document.createDocumentFragment();
+        for (i = 0; i < count; i++) frag.appendChild(fn(i));
+        el.appendChild(frag);
+      }
+      appendCards('stressSpotlightRail', 10, function(i){
+        return LC.materializeFeedPostCard({
+          id: 'verify_spotlight_' + i,
+          type: 'shoutout',
+          title: 'Mock spotlight ' + (i + 1),
+          caption: 'Stress row — scroll horizontally to test overflow.',
+          display_name: 'Verify QA',
+          character_name: 'verify_qa',
+          avatar: '⭐',
+          frame: 'none',
+          created_at: new Date().toISOString(),
+          card_meta: '#' + (i + 1),
+          teacher_pick: i % 3 === 0
+        }, { size: 'medium', noNavigate: true, mode: LC.CARD_MODE.RAIL });
+      });
+      appendCards('stressAchievementsRail', 16, function(i){
+        return LC.materializeFeedPostCard({
+          id: 'verify_ach_' + i,
+          type: 'teach',
+          title: 'Mock badge ' + (i + 1),
+          caption: 'Achievement rail stress — ' + (i % 2 ? 'unlocked' : 'locked') + '.',
+          display_name: 'Student',
+          character_name: 'student',
+          avatar: '🏆',
+          frame: 'none',
+          created_at: '',
+          card_meta: i % 2 ? 'Unlocked' : 'Locked'
+        }, { size: 'medium', noNavigate: true, mode: LC.CARD_MODE.RAIL, extraClass: i % 2 ? '' : 'exploreCardMuted' });
+      });
+      var schoolTypes = ['news', 'teach', 'shoutout', 'create', 'image'];
+      appendCards('stressSchoolRail', 10, function(i){
+        var t = schoolTypes[i % schoolTypes.length];
+        return LC.materializeFeedPostCard({
+          id: 'verify_school_' + i,
+          type: t,
+          title: 'School activity ' + (i + 1),
+          caption: 'Mapped type: ' + t + '. Scroll to verify spacing.',
+          display_name: 'Actor ' + (i % 4 + 1),
+          character_name: 'actor',
+          avatar: '🌟',
+          frame: 'none',
+          created_at: new Date().toISOString(),
+          card_meta: 'Mock event'
+        }, { size: 'medium', noNavigate: true, mode: LC.CARD_MODE.RAIL });
+      });
+      var cr = document.getElementById('stressCreationsRail');
+      if (cr && LC.specVerifyStressLinkCard && LC.createStudentCard){
+        for (i = 0; i < 8; i++){
+          (function(idx){
+            var odd = idx % 2;
+            var title = (odd ? '🖼️' : '🛠') + ' Creation ' + (idx + 1);
+            var meta = (odd ? 'image' : 'create') + ' · mock';
+            var node = LC.createStudentCard(LC.specVerifyStressLinkCard('#', title, meta, 'stress_creation_' + idx));
+            if (node) {
+              cr.appendChild(node);
+              var link = node.querySelector('a.exploreCard');
+              if (link) link.addEventListener('click', function(e){ e.preventDefault(); });
+            }
+          })(i);
+        }
+        if (LC.enhanceReportControlsIn) LC.enhanceReportControlsIn(cr);
+      }
+      appendCards('stressDiscoveryRail', 8, function(i){
+        return LC.materializeFeedPostCard({
+          id: 'verify_feed_' + i,
+          type: i % 2 ? 'image' : 'link',
+          title: 'Discovery item ' + (i + 1),
+          caption: 'Community feed card geometry.',
+          display_name: 'Creator',
+          character_name: 'creator',
+          avatar: '🌟',
+          frame: 'none',
+          created_at: new Date().toISOString(),
+          teacher_featured: i === 0,
+          teacher_pick: i === 1
+        }, { size: 'medium', noNavigate: true, mode: LC.CARD_MODE.RAIL });
+      });
+      var hap = document.getElementById('stressHappeningRail');
+      if (hap){
+        hap.innerHTML = '';
+        for (i = 0; i < 10; i++){
+          var hn = LC.createStudentCard(LC.specNewsRailCard({
+            id: 'stress-news-' + i,
+            title: 'Happening headline ' + (i + 1),
+            body: 'News body preview text for horizontal scroll stress test.',
+            author_name: 'Author ' + (i + 1),
+            author_type: 'student',
+            created_at: new Date().toISOString(),
+            image_url: ''
+          }, escHtml, 'Student reporter', false));
+          if (hn) hap.appendChild(hn);
+        }
+        if (LC.enhanceReportControlsIn) LC.enhanceReportControlsIn(hap);
+      }
+      var ar = document.getElementById('stressActivityRail');
+      var actIcons = ['✨', '🏆', '📰', '📝', '⭐', '💌', '🎮', '✅', '🛒', '📋'];
+      if (ar){
+        for (i = 0; i < 10; i++){
+          var an = LC.createStudentCard(LC.specActivityPulseCard(actIcons[i % actIcons.length], 'Mock activity line ' + (i + 1) + ' — scroll test.', 'Today · mock', 'mock_event', 'activity_mock_' + i));
+          if (an) ar.appendChild(an);
+        }
+        if (LC.enhanceReportControlsIn) LC.enhanceReportControlsIn(ar);
+      }
+    }
+    function openRailStress(){
+      if (body) body.style.display = 'block';
+      if (showBtn) showBtn.style.display = 'none';
+      if (hideBtn) hideBtn.style.display = 'inline-flex';
+      seedRails();
+    }
+    function closeRailStress(){
+      if (body) body.style.display = 'none';
+      if (showBtn) showBtn.style.display = 'inline-flex';
+      if (hideBtn) hideBtn.style.display = 'none';
+    }
+    if (showBtn) showBtn.addEventListener('click', openRailStress);
+    if (hideBtn) hideBtn.addEventListener('click', closeRailStress);
+    if (typeof location !== 'undefined' && /[?&]railStress=1(?:&|$)/.test(location.search)){
+      openRailStress();
+    }
+  })();
+})();
+  </script>
+  <script>
+  (function(){
+    var m = document.getElementById('routingMatrixMount');
+    if (m && window.LanternContentRouting) m.innerHTML = window.LanternContentRouting.buildVerifyTableHtml();
+    if (window.LanternContentRouting && /[?&]routingLog=1(?:&|$)/.test(String(location.search || '')))
+      window.LanternContentRouting.logVerifySummary(true);
+  })();
+  </script>
+  <script src="js/lantern-canonical-enforce.js"></script>
+</body>
+</html>

@@ -1,0 +1,362 @@
+<!-- ===== TMS Lantern — Staff Inbox (non-teacher) ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TMS Lantern — Staff Inbox</title>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <link rel="prefetch" href="locker.html">
+  <link rel="prefetch" href="locker.html#store">
+  <link rel="prefetch" href="games.html">
+  <link rel="prefetch" href="teacher.html">
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --bad:#ff4d6d;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --r: 18px;
+      --blue1:#0f3b86;
+      --blue2:#1e63d6;
+      --fsBase: 22px;
+      --fsButton: 28px;
+    }
+    *{box-sizing:border-box}
+    html,body{ min-height: 100%; margin: 0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        radial-gradient(900px 500px at 20% 30%, rgba(46,105,214,.18) 0%, rgba(46,105,214,0) 60%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    a{color:inherit}
+    /* Main column: lantern-header.css .wrap.lanternContent */
+
+    .titleRow{ text-align: center; margin-bottom: 16px; }
+    .appTitle{ font-weight: 1000; font-size: 36px; }
+    .subTitle{ color: var(--muted); font-size: 22px; font-weight: 800; }
+
+    .card{
+      margin-top: var(--lantern-space-sm);
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cardHd{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .cardHd .h{ font-weight: 900; font-size: 26px; }
+    .cardBd{ padding: 14px; }
+
+    label{ display: block; font-weight: 800; color: var(--muted); font-size: 22px; margin: 0 0 6px 2px; }
+    select{
+      width: 100%;
+      max-width: 360px;
+      height: 56px;
+      padding: 0 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .letterRow{
+      padding: 14px;
+      margin-bottom: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.15);
+    }
+    .letterRow:last-child{ margin-bottom: 0; }
+    .letterFrom{ font-weight: 900; font-size: 24px; margin-bottom: 6px; }
+    .letterText{ font-size: 22px; line-height: 1.5; white-space: pre-wrap; max-height: 200px; overflow: auto; }
+    .letterActions{ display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+
+    .btn{
+      height: 52px;
+      padding: 0 20px;
+      border-radius: 14px;
+      border: 2px solid rgba(90,167,255,.4);
+      background: linear-gradient(180deg, rgba(90,167,255,.2), rgba(90,167,255,.08));
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.good{ border-color: rgba(56,208,124,.5); background: linear-gradient(180deg, rgba(56,208,124,.25), rgba(56,208,124,.1)); }
+    .btn.bad{ border-color: rgba(255,77,109,.5); background: linear-gradient(180deg, rgba(255,77,109,.25), rgba(255,77,109,.1)); }
+    .btn:disabled{ opacity: .6; cursor: not-allowed; }
+
+    .readView{
+      padding: 20px;
+      border-radius: var(--r);
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.2);
+      margin-top: 14px;
+    }
+    .readView .letterFull{ font-size: 22px; line-height: 1.6; white-space: pre-wrap; }
+    .placeholderRow{ color: var(--muted); font-size: 22px; text-align: center; padding: 18px; }
+    .toast{
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 24px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.85);
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      z-index: 9998;
+      display: none;
+    }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent">
+    <div class="titleRow">
+      <div class="appTitle">Staff Inbox</div>
+      <div class="subTitle">Thank-You Letters</div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd">
+        <div class="h">Pending Letters</div>
+        <button class="btn" id="refreshBtn">Refresh</button>
+      </div>
+      <div class="cardBd">
+        <label for="staffSelect">View as staff member</label>
+        <select id="staffSelect"></select>
+        <div id="lettersEl" style="margin-top:16px;">
+          <p class="placeholderRow">Select a staff member to see letters.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/lantern-data.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+    var run = (typeof LANTERN_API !== 'undefined' && LANTERN_API.run) ? LANTERN_API.run : null;
+
+    var el = function(id){ return document.getElementById(id); };
+    var toastEl = el('toast');
+
+    function toast(msg){
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(function(){ toastEl.style.display = 'none'; }, 2400);
+    }
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+    var staff = [];
+    var letters = [];
+
+    function callGetStaff(){
+      if (!run) return Promise.resolve({ ok: false, staff: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false, staff: [] }); }).getStaff();
+      });
+    }
+
+    function callGetThanksForStaff(staffId){
+      if (!run) return Promise.resolve({ ok: false, thanks: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false, thanks: [] }); }).getThanksForStaff({ staff_id: staffId });
+      });
+    }
+
+    function callApproveThanks(id){
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).approveThanks({ id: id, accepted_by: 'Staff' });
+      });
+    } 
+    function callRejectThanks(id){
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).rejectThanks({ id: id });
+      });
+    }
+    function callReturnThanksForImprovements(id, reason){
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).returnThanksForImprovements({ id: id, reason: reason, returned_by: 'Staff' });
+      });
+    }
+    function callCreateConcern(opts){
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).createConcern(opts);
+      });
+    }
+
+    function computeNuggetTier(wc) {
+      if (!wc || wc < 30) return 1;
+      return Math.floor((wc - 30) / 50) + 1;
+    }
+
+    function populateStaff(){
+      var sel = el('staffSelect');
+      sel.innerHTML = '<option value="">— Select staff —</option>';
+      var staffWithDesignation = (staff || []).filter(function(s){ return (s.staff_designation || '').toLowerCase() === 'staff'; });
+      staffWithDesignation.forEach(function(s){
+        var opt = document.createElement('option');
+        opt.value = s.staff_id || '';
+        opt.textContent = (s.staff_name || '') + ' — ' + (s.staff_role || '');
+        sel.appendChild(opt);
+      });
+    }
+
+    function renderLetters(){
+      var container = el('lettersEl');
+      var sel = el('staffSelect');
+      var staffId = sel ? sel.value : '';
+      if (!staffId){
+        container.innerHTML = '<p class="placeholderRow">Select a staff member to see letters.</p>';
+        return;
+      }
+      if (!letters || letters.length === 0){
+        container.innerHTML = '<p class="placeholderRow">No pending letters for this staff member.</p>';
+        return;
+      }
+      container.innerHTML = '';
+      letters.forEach(function(t){
+        var tier = t.nugget_tier || computeNuggetTier(t.word_count || 0) || 1;
+        var row = document.createElement('div');
+        row.className = 'letterRow';
+        row.innerHTML = '<div class="letterFrom">From ' + esc(t.character_name || '') + ' (' + (t.word_count || 0) + ' words, +' + tier + ' nugget' + (tier !== 1 ? 's' : '') + ')</div><div class="letterText">' + esc((t.text || '').slice(0, 200)) + (t.text && t.text.length > 200 ? '…' : '') + '</div><div class="letterActions"></div>';
+        var actions = row.querySelector('.letterActions');
+        var readBtn = document.createElement('button');
+        readBtn.className = 'btn good';
+        readBtn.textContent = 'Accept and Read (+' + tier + ')';
+        readBtn.addEventListener('click', async function(){
+          readBtn.disabled = true;
+          var res = await callApproveThanks(t.id);
+          readBtn.disabled = false;
+          if (!res.ok){ toast(res.error || 'Failed'); return; }
+          toast('Accepted +' + (res.nuggets || tier) + ' nugget' + ((res.nuggets || tier) !== 1 ? 's' : ''));
+          await refresh();
+        });
+        var rejectBtn = document.createElement('button');
+        rejectBtn.className = 'btn bad';
+        rejectBtn.textContent = 'Reject';
+        rejectBtn.addEventListener('click', async function(){
+          rejectBtn.disabled = true;
+          var res = await callRejectThanks(t.id);
+          rejectBtn.disabled = false;
+          if (!res.ok){ toast('Failed'); return; }
+          toast('Rejected');
+          await refresh();
+        });
+        var returnBtn = document.createElement('button');
+        returnBtn.className = 'btn';
+        returnBtn.textContent = 'Return';
+        returnBtn.style.borderColor = 'rgba(255,204,102,.5)';
+        returnBtn.style.background = 'rgba(255,204,102,.15)';
+        returnBtn.addEventListener('click', async function(){
+          var reason = (prompt('Reason for return (feedback for student):') || '').trim();
+          returnBtn.disabled = true;
+          var res = await callReturnThanksForImprovements(t.id, reason);
+          returnBtn.disabled = false;
+          if (!res.ok){ toast(res.error || 'Failed'); return; }
+          toast('Returned for improvements');
+          await refresh();
+        });
+        var concernBtn = document.createElement('button');
+        concernBtn.className = 'btn';
+        concernBtn.textContent = 'Log Concern';
+        concernBtn.style.borderColor = 'rgba(255,204,102,.5)';
+        concernBtn.style.background = 'rgba(255,204,102,.12)';
+        concernBtn.addEventListener('click', async function(){
+          var note = (prompt('Concern note (informational only):') || '').trim();
+          if (!note){ toast('Note required'); return; }
+          concernBtn.disabled = true;
+          var res = await callCreateConcern({ subject_type: 'thanks', subject_id: t.id, character_name: t.character_name || '', recorded_by: 'Staff', note: note });
+          concernBtn.disabled = false;
+          if (!res.ok){ toast(res.error || 'Failed'); return; }
+          toast('Concern logged');
+          await refresh();
+        });
+        actions.appendChild(readBtn);
+        actions.appendChild(rejectBtn);
+        actions.appendChild(returnBtn);
+        actions.appendChild(concernBtn);
+        container.appendChild(row);
+      });
+    }
+
+    async function refresh(){
+      var sel = el('staffSelect');
+      var staffId = sel ? sel.value : '';
+      if (staffId){
+        var res = await callGetThanksForStaff(staffId);
+        letters = res.thanks || [];
+      } else {
+        letters = [];
+      }
+      renderLetters();
+    }
+
+    callGetStaff().then(function(res){
+      staff = res.staff || [];
+      populateStaff();
+      var sel = el('staffSelect');
+      if (sel && staff.length){
+        var firstStaff = staff.find(function(s){ return (s.staff_designation || '').toLowerCase() === 'staff'; });
+        if (firstStaff) sel.value = firstStaff.staff_id || '';
+      }
+      refresh();
+    });
+
+    el('staffSelect').addEventListener('change', refresh);
+    el('refreshBtn').addEventListener('click', refresh);
+  </script>
+</body>
+</html>

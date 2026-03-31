@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<!-- ===== TMS Lantern — Locker (native: Overview + Items + Store) ===== -->
+<html class="lantern-pilot-auth-pending">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <title>TMS Lantern — Locker</title>
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="stylesheet" href="css/lantern-profile-page.css">
+  <link rel="stylesheet" href="css/lantern-store-panel.css">
+  <link rel="stylesheet" href="css/lantern-rails.css">
+  <link rel="prefetch" href="games.html">
+  <link rel="prefetch" href="explore.html">
+  <style>
+
+    .lockerSection{ margin-bottom: 28px; }
+    .lockerSectionHd{ font-weight: 900; font-size: 26px; color: var(--accent); margin-bottom: 12px; }
+    .lockerEmpty{ color: var(--muted); font-size: 22px; font-weight: 800; padding: 16px 0; }
+    .lockerTabsMount{ width: 100%; box-sizing: border-box; }
+    .lockerTabsMount--sticky .lockerTabs{ margin: 0 0 16px; }
+    #lockerTabsMountPicker .lockerTabs,
+    #pickerCard .lockerTabs{ margin: 0 0 14px; }
+    .profileHero .lockerTabsMount,
+    #lockerTabsMountHero{ align-self: stretch; width: 100%; }
+    .profileHero .lockerTabs,
+    #lockerTabsMountHero .lockerTabs{ margin: 0 0 12px; }
+    .lockerTabs{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:0;
+      align-items:center;
+      justify-content:center;
+    }
+    .lockerTabBtn{
+      min-height:48px;
+      padding:10px 18px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
+      color:var(--ink);
+      font-weight:800;
+      font-size:22px;
+      cursor:pointer;
+      font-family:inherit;
+    }
+    .lockerTabBtn[aria-selected="true"]{
+      border-color: rgba(90,167,255,.5);
+      background: linear-gradient(180deg, rgba(90,167,255,.25), rgba(90,167,255,.12));
+      cursor: default;
+    }
+    .lockerPanel{ margin: 0 0 24px; }
+    /* SP6: visible surface cue on the active tabpanel only (uses data-locker-surface from Phase-SP5). */
+    .wrap.lanternContent [data-locker-surface]:not([hidden]){
+      box-shadow: inset 0 3px 0 0 var(--accent);
+    }
+    /* L-Rail-4: Items tab cosmetics rails — .lanternScroller replaces contentScroller + contentScrollerTrack.
+       Matches former lantern-rails .contentScroller margin/padding + .contentScrollerTrack gap (14px); no scroll-snap. */
+    #lockerPanelItems .lanternScroller{
+      gap: 14px;
+      align-items: stretch;
+      margin: 0 calc(-1 * var(--lantern-pad-x, 12px));
+      padding: 8px var(--lantern-pad-x, 12px) 16px;
+      min-width: 0;
+    }
+
+  </style>
+</head>
+<body class="page-has-ticker">
+  <script src="js/lantern-canonical-route-boot.js"></script>
+  <div id="cosmeticEffectLayer" class="cosmeticEffectLayer" aria-hidden="true"></div>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent">
+    <div id="classAccessBannerEl"></div>
+    <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
+    <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
+
+    <div id="lockerTabsMountSticky" class="lockerTabsMount lockerTabsMount--sticky">
+    <div id="lockerTabs" class="lockerTabs" role="tablist" aria-label="Locker sections">
+      <button type="button" class="lockerTabBtn" role="tab" id="lockerTabOverview" data-locker-tab="overview" aria-selected="true">Overview</button>
+      <button type="button" class="lockerTabBtn" role="tab" id="lockerTabItems" data-locker-tab="items" aria-selected="false">Items</button>
+      <button type="button" class="lockerTabBtn" role="tab" id="lockerTabStore" data-locker-tab="store" aria-selected="false">Store</button>
+    </div>
+    </div>
+    <!-- Locker tabpanel: Overview (#lockerPanelOverview) — profile .section / .sectionHd / .sectionBd + profile CSS; body = overviewMain slice. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
+    <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabOverview" data-locker-surface="overview">
+    <!-- ===== STUDENT PICKER (when no student selected) ===== -->
+    <div id="pickerCard" class="card" style="display:none;">
+      <div class="cardHd">
+        <div class="h">Select Student</div>
+      </div>
+      <div class="cardBd">
+        <div id="lockerTabsMountPicker" class="lockerTabsMount"></div>
+        <p class="note">Select a student profile to earn and spend nuggets.</p>
+        <button type="button" class="btn" id="createTestStudentBtn" style="margin-bottom:14px;">Create Test Student</button>
+        <div id="characterList">
+          <button class="btn primary adopt-char-btn" type="button" data-id="char1" data-name="Alex Adventure" data-avatar="🌟" style="margin-bottom:10px;width:100%;justify-content:flex-start;"><span style="font-size:36px;margin-right:12px;">🌟</span><span>Alex Adventure</span></button>
+          <button class="btn primary adopt-char-btn" type="button" data-id="char2" data-name="Sam Star" data-avatar="⭐" style="margin-bottom:10px;width:100%;justify-content:flex-start;"><span style="font-size:36px;margin-right:12px;">⭐</span><span>Sam Star</span></button>
+          <button class="btn primary adopt-char-btn" type="button" data-id="char3" data-name="Jordan Joy" data-avatar="✨" style="margin-bottom:10px;width:100%;justify-content:flex-start;"><span style="font-size:36px;margin-right:12px;">✨</span><span>Jordan Joy</span></button>
+          <button class="btn primary adopt-char-btn" type="button" data-id="char4" data-name="Casey Cool" data-avatar="🎯" style="margin-bottom:10px;width:100%;justify-content:flex-start;"><span style="font-size:36px;margin-right:12px;">🎯</span><span>Casey Cool</span></button>
+          <button class="btn primary adopt-char-btn" type="button" data-id="char5" data-name="Riley Rise" data-avatar="🚀" style="margin-bottom:10px;width:100%;justify-content:flex-start;"><span style="font-size:36px;margin-right:12px;">🚀</span><span>Riley Rise</span></button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function(){ var list=document.getElementById('characterList'); if(list){ list.querySelectorAll('.adopt-char-btn').forEach(function(btn){ btn.onclick=function(){ try{ var c={character_id:btn.dataset.id,name:btn.dataset.name,avatar:btn.dataset.avatar||'🌟'}; localStorage.setItem('LANTERN_ADOPTED_CHARACTER',JSON.stringify(c)); location.reload(); }catch(e){} }; }); } })();
+    </script>
+
+    <div id="pilotLockerNeedCharacter" class="card" style="display:none;">
+      <div class="cardHd">
+        <div class="h">Profile</div>
+      </div>
+      <div class="cardBd">
+        <p class="note">No student character is linked to this pilot account yet. An operator can set <code>student_character_name</code> on the account, or add <strong>?devPicker=1</strong> to this page URL to show the local test student picker.</p>
+      </div>
+    </div>
+
+    <!-- Create Test Student modal: temporary tester identity -->
+    <div class="overlay" id="createTestStudentOverlay" style="display:none;">
+      <div class="modal" style="max-width: 420px;">
+        <div class="modalHd">
+          <span class="h">Create Test Student</span>
+          <button type="button" class="x" id="createTestStudentClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="modalBd">
+          <p class="note" style="margin-bottom:14px;">Create a temporary student to test the app. Choose a name and how long the session lasts.</p>
+          <label for="createTestStudentName">Fake student name</label>
+          <input type="text" id="createTestStudentName" placeholder="e.g. Sam Star" maxlength="120" style="margin-bottom:14px;">
+          <label style="margin-bottom:8px;">Session length</label>
+          <div class="checkboxRow" style="margin-bottom:18px;gap:20px;">
+            <label style="display:flex;align-items:center;gap:8px;"><input type="radio" name="createTestStudentDuration" value="1" checked> 1 day</label>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="radio" name="createTestStudentDuration" value="7"> 7 days</label>
+          </div>
+          <button type="button" class="btn primary" id="createTestStudentSubmit">Start as this student</button>
+          <button type="button" class="btn" id="createTestStudentCancel" style="margin-left:10px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CANONICAL GOLDEN STUDENT PROFILE =====
+         Approved reference profile. Renders from normalized student VM (LANTERN_STUDENT_PROFILE_VIEW).
+         Module order: 1. Your Wins (Spotlight + Achievements rails)  2. Around school  3. Creations  4. Community / discovery  5. Edit Profile  6. Testing (optional)
+    -->
+    <div id="profileView" class="hiddenUntilReady" style="display:none;">
+      <!-- Identity card: 3-column layout (stats | identity | economy) -->
+      <div class="profileHero" id="profileHeroEl">
+        <div id="lockerTabsMountHero" class="lockerTabsMount"></div>
+        <div class="profileHeroHeader">
+          <div></div>
+          <div class="profileHeroActions">
+            <button type="button" class="profileHeroAction" id="editProfileBtn" data-help="edit_profile">Edit Profile</button>
+            <button type="button" class="profileHeroAction" id="switchCharBtn">Switch Student</button>
+          </div>
+        </div>
+        <div class="profileIdentityCard">
+          <div class="profileIdentityCardLeft">
+            <div class="statsCard">
+              <div class="statsCardInner">
+                <div class="profileStatRow"><span class="profileStatIcon">🎨</span><span class="profileStatLabel">Creations</span><span class="profileStatNum" id="profileStatCreationsEl">—</span></div>
+                <div class="profileStatRow"><span class="profileStatIcon">🏆</span><span class="profileStatLabel">Achievements</span><span class="profileStatNum" id="profileStatAchievementsEl">—</span></div>
+                <div class="profileStatRow"><span class="profileStatIcon">⭐</span><span class="profileStatLabel">Recognitions</span><span class="profileStatNum" id="profileStatRecognitionsEl">—</span></div>
+              </div>
+            </div>
+            <div id="profileLegendPanelEl" class="profileLegendTextBlock profileLegendPanel" aria-live="polite" style="display:none;">
+              <p class="profileLegendText" id="profileLegendTextEl">Tap a badge or icon to learn what it means.</p>
+            </div>
+          </div>
+          <div class="profileIdentityCardCenter">
+            <div class="avatarWrap">
+              <div class="cosmeticBadge" id="cosmeticBadgeEl" style="display:none;"></div>
+              <div class="avatarCircle" id="avatarEl">
+                <div class="avatarReveal" id="avatarRevealEl">
+                  <div class="avatarRevealPlaceholder"></div>
+                  <div class="avatarContent" id="avatarContentEl"></div>
+                </div>
+              </div>
+              <div class="avatarFrame" id="avatarFrameEl"></div>
+              <button type="button" class="spotlightBadge" id="spotlightBadgeEl" style="display:none;" title="Teacher Spotlight" aria-label="Teacher Spotlight — click for details">⭐</button>
+            </div>
+            <div class="profileDisplayName" id="profileDisplayNameEl"></div>
+            <div class="profileStatus" id="profileStatusEl">Creative Student</div>
+            <div id="testStudentBadgeEl" class="testStudentBadge" style="display:none;" aria-label="Test student session"></div>
+            <div class="bio placeholder" id="bioEl">Add a bio or tagline</div>
+          </div>
+          <div class="profileIdentityCardRight">
+            <div class="walletCard" data-help="nugget_wallet">
+              <span class="walletIcon walletIconLarge"><img src="assets/icons/nugget.png" alt="Nugget"></span>
+              <div class="walletCardInner">
+                <div class="walletAmount" id="balanceEl">0</div>
+                <div class="walletLabel">nuggets</div>
+                <div class="nuggetProgressWrap" id="nuggetProgressWrapEl">
+                  <span class="nuggetProgressLabel" id="nuggetProgressLabelEl">Progress to 50</span>
+                  <div class="nuggetProgressBar" id="nuggetProgressBarEl" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    <div class="nuggetProgressFill" id="nuggetProgressFillEl" style="width:0%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Your Wins: Spotlight + Achievements (horizontal rails) -->
+      <div class="section yourWinsSection" id="yourWinsSection" data-help="achievements">
+        <div class="sectionHd">
+          <div class="h">Your Wins</div>
+        </div>
+        <div class="sectionBd yourWinsOuterBd">
+          <div class="yourWinsRailBlock">
+            <div class="yourWinsRailLabel">Spotlight</div>
+            <p class="yourWinsRailSub">Teacher recognition, picks, and moments you were noticed.</p>
+            <div id="spotlightRailEl" data-lantern-rail-host="true" data-scroller-class="yourWinsScroller" data-scroller-aria-label="Spotlight"></div>
+          </div>
+          <div class="yourWinsRailBlock">
+            <div class="yourWinsRailLabel">Achievements</div>
+            <p class="yourWinsRailSub">Badges and milestones you’ve earned.</p>
+            <div id="achievementsRailEl" data-lantern-rail-host="true" data-scroller-class="yourWinsScroller" data-scroller-aria-label="Achievements"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="featuredPostEl" class="featuredPostCard" style="display:none;"></div>
+
+      <!-- 2. My Creations (poll contributions only; single container) -->
+      <div class="section">
+        <div class="sectionHd">
+          <div class="h">My Creations</div>
+        </div>
+        <div class="sectionBd">
+          <div class="contentTabs" data-help="content_tabs" id="myCreationsTabs">
+            <span class="contentTab active" data-status="all">All</span>
+            <span class="contentTab" data-status="pending">Pending</span>
+            <span class="contentTab" data-status="returned" id="profileNeedsAttention">Needs Attention</span>
+            <span class="contentTab" data-status="approved">Approved</span>
+          </div>
+          <div style="margin:14px 0;">
+            <a href="contribute.html?type=profile_post" class="btn good" style="text-decoration:none;display:inline-flex;width:100%;box-sizing:border-box;justify-content:center;min-height:52px;font-size:24px;">New profile post — Design Studio</a>
+          </div>
+          <div style="margin:14px 0;">
+            <label for="myCreationsSearchEl" class="visuallyHidden">Search my creations</label>
+            <div class="lanternAppBarSearchWrap lanternAppBarSearchWrap--embedded" id="myCreationsSearchWrap">
+              <span class="lanternAppBarSearchTrigger" id="myCreationsSearchTrigger" role="button" tabindex="0" aria-label="Search">&#128269;</span>
+              <input type="search" class="lanternAppBarSearchInput" id="myCreationsSearchEl" name="my_creations_search" placeholder="Search my creations" autocomplete="off" inputmode="search" aria-label="Search my creations">
+            </div>
+          </div>
+          <div id="postFeedEl" data-lantern-rail-host="true" data-scroller-class="yourWinsScroller" data-scroller-aria-label="My creations"></div>
+          <div id="postFeedEmpty" class="emptyState" style="display:none;">
+            <div class="emptyStateIcon">✨</div>
+            <div class="emptyStateTitle">No creations yet</div>
+            <div class="emptyStateHint">Submit work from Contribute, Missions, or News to see it here.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="pendingAvatarSection" style="display:none;">
+        <div class="sectionHd">
+          <div class="h">Avatar</div>
+        </div>
+        <div class="sectionBd">
+          <div id="pendingAvatarStatusEl" class="note" style="display:none; text-align:left;"></div>
+        </div>
+      </div>
+
+      <!-- Creator reaction summary (feature-flagged; creator-only) -->
+      <div class="section" id="creatorReactionSummarySection" style="display:none;">
+        <div class="sectionHd">
+          <div class="h">What people loved about your work</div>
+        </div>
+        <div class="sectionBd">
+          <div id="creatorReactionSummaryCard" class="creatorReactionSummaryCard">
+            <div id="creatorReactionBarsEl" class="creatorReactionBars"></div>
+            <p id="creatorReactionNotEnoughEl" class="creatorReactionNotEnough" style="display:none;">Reactions on your approved work will show here once there are enough. Keep sharing — people appreciate it!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. My Praise Buttons -->
+      <div class="section" id="praiseButtonsSection" style="display:none;">
+        <div class="sectionHd">
+          <div class="h">My Praise Buttons</div>
+        </div>
+        <div class="sectionBd">
+          <p class="note" style="margin-bottom:12px;">Choose which praise buttons others can use on your approved work. System options only; no custom text.</p>
+          <div id="praiseButtonsListEl" class="praiseButtonsList"></div>
+          <button type="button" class="btn good small" id="praiseButtonsSaveBtn" style="margin-top:10px;">Save choices</button>
+        </div>
+      </div>
+
+      <!-- Hidden nugget (Phase 4) - subtle, bottom-right -->
+      <div class="hiddenNugget" id="hiddenNuggetEl" title="Found a nugget!" style="display:none;"><img src="assets/icons/nugget.png" alt="Nugget"></div>
+
+      <!-- Daily Nugget Hunt (Phase 7) - clickable nugget, positioned in content (scrolls with page) -->
+      <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
+
+      <!-- Testing controls (preserved, collapsible, collapsed by default) -->
+      <div id="testingCard" class="card testingCard testingCardCollapsed" style="margin-top:24px;">
+        <div class="cardHd" id="testingToggle">
+          <div class="h">Testing Controls</div>
+          <span id="testingToggleIcon">▼</span>
+        </div>
+        <div class="cardBd" id="testingBody" style="display:none;">
+          <p class="note">Internal testing only.</p>
+          <div class="iconPreviewRow" style="display:flex; align-items:center; gap:20px; margin-bottom:14px; padding:10px 0; border-bottom:1px solid var(--line);">
+            <span style="color:var(--muted); font-weight:800;">Icon preview:</span>
+            <span class="iconPreviewItem"><img src="assets/icons/nugget.png" alt="Nugget" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;"> Nugget</span>
+            <span class="iconPreviewItem"><img src="assets/icons/diamond.png" alt="Diamond" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;"> Diamond</span>
+          </div>
+          <div class="testingControls">
+            <button class="btn small good" id="add1Btn">+1</button>
+            <button class="btn small good" id="add5Btn">+5</button>
+            <button class="btn small good" id="add10Btn">+10</button>
+            <input type="number" id="customAmount" placeholder="Custom" min="1" max="999" value="5" />
+            <button class="btn small primary" id="addCustomBtn">Add</button>
+            <button class="btn small" id="resetWalletBtn">Reset Wallet</button>
+            <button class="btn small" id="clearPurchasesBtn">Clear Purchases</button>
+            <button class="btn small good" id="seedDemoWorldBtn">Seed sample content</button>
+            <button class="btn small" id="clearDemoWorldBtn">Clear sample content</button>
+            <button class="btn small" id="minimalModeBtn">Minimal Mode</button>
+            <button class="btn small good" id="returnSeededBtn">Return to Seeded Mode</button>
+            <a href="display.html" target="_blank" class="btn small" style="text-decoration:none;">Display</a>
+            <button type="button" class="btn small accent" id="reportBetaIssueBtn">Report a Beta Issue</button>
+            <button class="btn small bad" id="resetAllBtn">Reset All</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <!-- Locker tabpanel: Items (#lockerPanelItems) — #lockerSectionsEl + JS-built .lockerSection* + .lanternScroller + Lantern cosmetic cards. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
+    <div id="lockerPanelItems" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabItems" hidden data-locker-surface="items">
+      <div id="lockerSectionsEl"></div>
+      <p class="note" style="padding:0;">Equip cosmetics here. For name, bio, avatar, and featured work, use <strong>Edit Profile</strong> on Overview. Buy more on the Store tab.</p>
+    </div>
+    <!-- Locker tabpanel: Store (#lockerPanelStore) — .storePanelRoot; static .lockerSection* + .card rows. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
+    <div id="lockerPanelStore" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabStore" hidden data-locker-surface="store">
+      <div class="storePanelRoot">
+    <div class="titleRow">
+      <div class="appTitle">
+        <span style="display:inline-flex;align-items:center;gap:10px;">
+          <svg width="50" height="50" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M8 40 18 12 42 8 58 24 54 46 38 60 18 56 4 46Z" fill="#f2c230" stroke="#6f5200" stroke-width="3" stroke-linejoin="miter"/>
+            <path d="M22 22 36 16 48 24 42 32 26 30Z" fill="#ffe07a" opacity="0.9"/>
+            <path d="M20 24 H44 V30 H36 V48 H28 V30 H20 Z" fill="#0f3b86"/>
+          </svg>
+          <span>Store</span>
+        </span>
+      </div>
+      <div class="subTitle">Spend nuggets on looks, celebration, and play</div>
+    </div>
+    <p class="storeHeroCopy">Personalize your Locker, unlock cosmetics, and fuel mini-games — all with the same nugget wallet.</p>
+    <div class="storeWalletBar" aria-live="polite">
+      <span><img src="assets/icons/nugget.png" alt="" width="36" height="36" style="vertical-align:middle;"/></span>
+      <span class="storeWalletAmt" id="storeHeroAvail">—</span>
+      <span class="storeWalletLbl" id="storeWalletLbl">available for your character</span>
+    </div>
+    <div id="dailyHuntHintEl" class="dailyHuntHint" style="display:none;" role="status"></div>
+
+    <div id="storeDailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
+
+    <div class="lockerSection">
+      <div class="lockerSectionHd">Featured &amp; new</div>
+      <p class="lockerSectionSub">Spotlight rare cosmetics — browse and buy in the sections below.</p>
+      <div id="storeFeaturedTrack" data-lantern-rail-host="true" data-scroller-aria-label="Featured and new"></div>
+    </div>
+
+    <div class="card storeWalletCard" id="storeWalletCard" data-help="store_wallet">
+      <div class="cardHd">
+        <div class="h">Your nugget wallet</div>
+      </div>
+      <div class="cardBd">
+        <p class="note" style="margin:0 0 12px;">Available, earned, and spent for the character you adopted in Locker Overview.</p>
+        <div class="stats">
+          <div class="stat good"><span class="k">Available:</span> <span class="v" id="avail">—</span></div>
+          <div class="stat"><span class="k">Earned:</span> <span class="v" id="earned">—</span></div>
+          <div class="stat"><span class="k">Spent:</span> <span class="v" id="spent">—</span></div>
+        </div>
+        <div class="actionRow" style="margin-top:12px;">
+          <button type="button" class="btn primary" id="refreshStoreWalletBtn">Refresh balance</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="cosmeticsSectionsEl" class="storeCosmeticsHost"></div>
+
+    <div class="lockerSection storeFutureSection">
+      <div class="lockerSectionHd">Bundles, packs &amp; extras</div>
+      <p class="lockerSectionSub">Card packs, sound rewards, seasonal drops, and bonus game paths — placeholders until inventory hooks land.</p>
+      <div id="storeFutureTrack" data-lantern-rail-host="true" data-scroller-aria-label="Bundles and extras"></div>
+    </div>
+
+    <div class="card" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));">
+      <div class="cardHd">
+        <div class="h">Profile look &amp; cosmetics</div>
+      </div>
+      <div class="cardBd">
+        <p class="note" style="margin:0;">Customize your avatar, frames, themes, and cosmetics in <strong>Profile Studio</strong>. In <a href="locker.html#overview" target="_top" style="color:var(--accent);">Locker</a> → Overview, tap <strong>Edit Profile</strong> to open it.</p>
+        <p class="note" style="margin:8px 0 0; font-size:18px;">Page background = backdrop. Card theme = hero and card colors. Frame = border around avatar.</p>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card leaderboardCard">
+        <div class="cardHd">
+          <div>
+            <div class="h">Leaderboard &amp; Ledgers</div>
+            <div class="subTitle" style="margin-top:2px; font-size:18px;">Tap a row for ledger detail · scroll chips for a quick scan</div>
+          </div>
+          <div class="pill" id="lbCount">0</div>
+        </div>
+        <div class="cardBd">
+          <div class="lockerSection" style="margin-bottom:12px;">
+            <div id="storeLbRailTrack" data-lantern-rail-host="true" data-scroller-aria-label="Leaderboard quick chips"></div>
+          </div>
+          <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
+            <label for="lbSearch" style="color:var(--muted); font-weight:800; font-size:20px;">Search</label>
+            <input id="lbSearch" type="text" placeholder="Search leaderboard…" autocomplete="off" style="flex:1; height:44px; border-radius:12px; border:1px solid var(--line); background:#0a1428; color:#fff; padding:0 10px; font-size:20px;">
+          </div>
+          <div class="scrollArea" style="max-height: 380px; overflow:auto; border-radius:16px;">
+            <table>
+              <thead>
+                <tr>
+                  <th id="lbColRank" style="width:44px; cursor:pointer;">#</th>
+                  <th id="lbColStudent" style="cursor:pointer;">Character</th>
+                  <th id="lbColAvail" class="num" style="cursor:pointer;">Available</th>
+                  <th id="lbColEarned" class="num" style="cursor:pointer;">Earned</th>
+                  <th id="lbColSpent" class="num" style="cursor:pointer;">Spent</th>
+                </tr>
+              </thead>
+              <tbody id="lbBody"><tr id="lbPlaceholder"><td colspan="5" class="placeholderRow">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  <!-- Beta issue report modal (simple form for testers) -->
+  <div class="overlay" id="betaReportOverlay" style="display:none;">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modalHd">
+        <div class="h">Report a Beta Issue</div>
+        <button type="button" class="x" id="betaReportCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <form id="betaReportForm">
+        <p class="note" style="margin-bottom: 14px;">For bugs, nugget/mission issues, or UI problems. Not for student comments.</p>
+        <label for="betaReportDescription">Issue description (required)</label>
+        <textarea id="betaReportDescription" required rows="4" placeholder="What happened? What did you expect?" maxlength="2000" style="width:100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); font-size: 22px; font-family: inherit;"></textarea>
+        <label for="betaReportPage" style="margin-top: 12px;">Page where it occurred</label>
+        <select id="betaReportPage" style="width:100%; height: 48px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); font-size: 22px;">
+          <option value="Explore">Explore</option>
+          <option value="News">News</option>
+          <option value="Games">Games</option>
+          <option value="Store">Store</option>
+          <option value="Locker">Locker</option>
+          <option value="Missions">Missions</option>
+          <option value="Other">Other</option>
+        </select>
+        <label for="betaReportScreenshot" style="margin-top: 12px;">Screenshot URL (optional)</label>
+        <input type="url" id="betaReportScreenshot" placeholder="https://..." style="width:100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); font-size: 22px;">
+        <div style="margin-top: 18px; display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn" id="betaReportCancelBtn">Cancel</button>
+          <button type="submit" class="btn good">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Profile modal — Profile Studio (identity + look + extras) -->
+  <div class="overlay" id="editProfileOverlay">
+    <div class="modal profileStudioModal">
+      <div class="modalHd">
+        <div>
+          <div class="h">Profile Studio</div>
+          <div class="profileStudioSubtitle">Your identity and look</div>
+        </div>
+        <button class="x" id="editProfileCloseBtn">✕</button>
+      </div>
+      <form id="editProfileForm">
+        <section class="profileStudioSection">
+          <div class="profileStudioSectionH">Identity</div>
+          <label for="editProfileDisplayName">Display name</label>
+          <input type="text" id="editProfileDisplayName" placeholder="Your display name" maxlength="120" autocomplete="name" />
+          <label for="editProfileHeroTitle">Hero title / role</label>
+          <input type="text" id="editProfileHeroTitle" placeholder="e.g. Creative Student" maxlength="80" autocomplete="off" />
+          <label for="editProfileBio">Bio / tagline</label>
+          <textarea id="editProfileBio" placeholder="A short bio or tagline" maxlength="500"></textarea>
+        </section>
+
+        <section class="profileStudioSection">
+          <div class="profileStudioSectionH">Look &amp; cosmetics</div>
+          <p class="note" style="margin:0 0 14px; font-size:18px;">Page background = backdrop. Card theme = hero and card colors. Equipped Card theme from Store overrides Profile theme. Frame = border around avatar.</p>
+          <div class="card" style="margin:0 0 16px; padding:14px 12px; border-radius:16px; border:1px solid var(--line); background:rgba(3,8,22,.9);">
+            <div style="font-weight:900; font-size:24px; margin-bottom:6px;">Replace Avatar</div>
+            <p style="margin:4px 0 8px; font-size:20px; color:var(--muted); text-align:left;">
+              Create your avatar using a free creator, then upload it here. Your avatar will be reviewed by a teacher before appearing in Lantern.
+            </p>
+            <div style="font-size:19px; margin-bottom:8px; text-align:left;">
+              Try: 
+              <a href="https://www.fotor.com/features/avatar/" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">Fotor</a> ·
+              <a href="https://www.canva.com/create/avatars/" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">Canva</a> ·
+              <a href="https://www.bing.com/images/create" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">Microsoft Designer</a>
+            </div>
+            <p style="margin:4px 0 8px; font-size:19px; color:var(--muted); text-align:left;">
+              Square images work best. Try to keep the face centered and clearly visible.
+            </p>
+            <p style="margin:4px 0 10px; font-size:19px; color:var(--muted); text-align:left;">
+              Submitting a new avatar costs <strong>25 nuggets</strong> and must be <strong>approved by a teacher</strong>.
+            </p>
+            <button type="button" class="btn primary" id="openAvatarUploadBtn" style="width:100%; margin-top:4px;">Upload &amp; crop avatar…</button>
+            <div id="avatarUploadStatus" style="margin-top:8px; font-size:19px; color:var(--muted); text-align:left;"></div>
+            <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
+          </div>
+          <div class="legacyAvatarSection" style="display:none; margin:12px 0;" aria-hidden="true">
+            <button type="button" class="btn small" id="legacyAvatarToggle" style="width:100%; text-align:left; justify-content:flex-start;">▼ Legacy avatar (parts)</button>
+            <div id="legacyAvatarContent" style="display:none; margin-top:10px;">
+              <label>Avatar parts</label>
+              <div class="avatarPicker" id="editProfileAvatarPicker"></div>
+            </div>
+          </div>
+          <label>Profile frame</label>
+          <div class="framePicker" id="editProfileFramePicker"></div>
+          <label>Profile theme</label>
+          <p class="note" style="margin:2px 0 8px; font-size:18px;">Sets hero and card colors. Equipped Card theme from Store overrides this.</p>
+          <div class="themePicker" id="editProfileThemePicker"></div>
+          <label>Equip cosmetics</label>
+          <div id="editProfileCosmeticsEl" class="cosmeticEquipWrap"></div>
+          <p class="note" style="margin:12px 0 0; font-size:18px;">Buy items in Locker → Store. Equip owned items here or in Locker → Items.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
+            <a href="locker.html#store" class="btn primary" style="text-decoration:none;">Open Store</a>
+            <a href="locker.html#items" class="btn" style="text-decoration:none;">Open Items</a>
+          </div>
+        </section>
+
+        <section class="profileStudioSection" id="praiseButtonsSection">
+          <div class="profileStudioSectionH">My Praise Buttons</div>
+          <p class="profileStudioPraiseSubtitle">Choose which praise buttons others can tap on your approved work. You're picking from a safe, approved vocabulary — no custom text. Tap each option to turn it on or off; choices save automatically.</p>
+          <div id="praisePreviewEl" class="praisePreviewRow">
+            <strong>How it looks for others:</strong>
+            <span id="praisePreviewEmojisEl" class="praisePreviewEmojis" aria-live="polite"></span>
+            <span id="praisePreviewZeroEl" class="praisePreviewZero" aria-live="polite">No praise buttons selected yet. Choose below.</span>
+          </div>
+          <div id="editProfilePraiseButtons" class="praiseButtonsWrap"></div>
+        </section>
+
+        <section class="profileStudioSection">
+          <div class="profileStudioSectionH">Profile extras</div>
+          <label>Featured post</label>
+          <select id="editProfileFeaturedPost">
+            <option value="">None</option>
+          </select>
+          <button type="submit" class="btn good" style="width:100%; margin-top:8px;">Save</button>
+        </section>
+      </form>
+    </div>
+  </div>
+
+  <!-- Avatar crop overlay -->
+  <div class="overlay" id="avatarCropOverlay">
+    <div class="modal" style="max-width:520px;">
+      <div class="modalHd">
+        <div class="h">Crop Avatar</div>
+        <button class="x" id="avatarCropCloseBtn">✕</button>
+      </div>
+      <div style="font-size:19px; color:var(--muted); margin-bottom:10px;">
+        Drag to position your avatar. Keep your face centered. Square crop only.
+      </div>
+      <div id="avatarCropContainer" style="width:100%; max-width:400px; height:400px; margin:0 auto 10px; background:rgba(0,0,0,.5); border-radius:16px; overflow:hidden;">
+        <img id="avatarCropImage" alt="Avatar preview" style="max-width:100%; max-height:100%; display:block;">
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px;">
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn small" id="avatarCropZoomInBtn">Zoom in</button>
+          <button type="button" class="btn small" id="avatarCropZoomOutBtn">Zoom out</button>
+          <button type="button" class="btn small" id="avatarCropRotateLeftBtn">Rotate</button>
+        </div>
+        <div style="font-size:18px; color:var(--muted);">Exported at 384×384 · JPEG</div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button type="button" class="btn" id="avatarCropCancelBtn" style="flex:1;">Cancel</button>
+        <button type="button" class="btn good" id="avatarCropSubmitBtn" style="flex:1;">Submit avatar (25 nuggets)</button>
+      </div>
+      <div id="avatarCropError" style="margin-top:8px; font-size:18px; color:#ffcc66;"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="storePurchaseOverlay" style="display:none;">
+    <div class="modal">
+      <div class="modalHd">
+        <div class="t" id="storeModalTitle">…</div>
+        <button class="x" id="storeModalCloseBtn">✕</button>
+      </div>
+      <div class="modalBd" id="storeModalBody"></div>
+    </div>
+  </div>
+  <audio id="mtssChaChing" src="assets/cha_ching.mp3" preload="auto"></audio>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (function(){
+    window.LANTERN_DEV_STUDENT_PICKER = /[\?&]devPicker=1(?:&|$)/.test(location.search);
+    if (!window.LanternPilotAuth) {
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      return;
+    }
+    window.LanternPilotAuth.fetchMe().then(function(data){
+      if (!data || !data.ok || !data.authenticated) {
+        location.replace(window.LanternPilotAuth.loginUrlWithReturn());
+        return;
+      }
+      var r = (data.role || '').trim();
+      if (r === 'admin') {
+        location.replace('/admin');
+        return;
+      }
+      if (r === 'teacher') {
+        location.replace('/teacher');
+        return;
+      }
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      window.LanternPilotAuth.applyStudentStorageFromSession(data);
+      var devPicker = window.LANTERN_DEV_STUDENT_PICKER === true;
+      var pc = document.getElementById('pickerCard');
+      if (devPicker && pc) pc.style.display = '';
+      var cts = document.getElementById('createTestStudentBtn');
+      if (cts && !devPicker) cts.style.display = 'none';
+    });
+  })();
+  </script>
+  <script src="sfx.js"></script>
+  <script src="js/class-access.js"></script>
+  <script src="js/lantern-data.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-scroller.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-card-ui.js"></script>
+  <script src="js/lantern-feature-flags.js"></script>
+  <script src="js/lantern-reactions.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/lantern-profile-app.js"></script>
+  <script src="js/lantern-store-app.js"></script>
+
+  <script>
+    (function(){
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
+    function lockerEl(id){ return document.getElementById(id); }
+
+    function parseLockerRoute(){
+      var raw = (typeof location !== 'undefined' && location.hash) ? String(location.hash) : '';
+      if (raw === '#' || raw === '') raw = '#overview';
+      if (raw === '#items') return { tab: 'items' };
+      if (raw === '#store') return { tab: 'store' };
+      if (raw === '#profileNeedsAttention') return { tab: 'overview' };
+      return { tab: 'overview' };
+    }
+
+    function setTabButtonsActive(tab){
+      document.querySelectorAll('.lockerTabBtn').forEach(function(btn){
+        var t = btn.getAttribute('data-locker-tab');
+        btn.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+      });
+    }
+
+    function syncLockerTabsPlacement(){
+      var tabs = lockerEl('lockerTabs');
+      if (!tabs) return;
+      var mountSticky = lockerEl('lockerTabsMountSticky');
+      var mountPicker = lockerEl('lockerTabsMountPicker');
+      var mountHero = lockerEl('lockerTabsMountHero');
+      var pOverview = lockerEl('lockerPanelOverview');
+      var pv = lockerEl('profileView');
+      var picker = lockerEl('pickerCard');
+      if (!mountSticky || !pOverview) return;
+
+      var tab = 'overview';
+      try {
+        var raw = (typeof location !== 'undefined' && location.hash) ? String(location.hash) : '';
+        if (raw === '' || raw === '#') raw = '#overview';
+        if (raw === '#items') tab = 'items';
+        else if (raw === '#store') tab = 'store';
+        else if (raw === '#profileNeedsAttention') tab = 'overview';
+      } catch(e){}
+
+      if (tab !== 'overview') {
+        mountSticky.appendChild(tabs);
+        return;
+      }
+      var profVisible = pv && window.getComputedStyle(pv).display !== 'none';
+      if (profVisible && mountHero) {
+        mountHero.appendChild(tabs);
+      } else if (picker && mountPicker && window.getComputedStyle(picker).display !== 'none') {
+        mountPicker.appendChild(tabs);
+      } else {
+        mountSticky.appendChild(tabs);
+      }
+    }
+
+    function wireLockerTabsPlacementObserver(){
+      function bump(){ syncLockerTabsPlacement(); }
+      var pv = lockerEl('profileView');
+      var picker = lockerEl('pickerCard');
+      if (pv) {
+        var o1 = new MutationObserver(bump);
+        o1.observe(pv, { attributes: true, attributeFilter: ['style', 'class'] });
+      }
+      if (picker) {
+        var o2 = new MutationObserver(bump);
+        o2.observe(picker, { attributes: true, attributeFilter: ['style', 'class'] });
+      }
+      window.addEventListener('resize', bump);
+    }
+
+    function showLockerTab(tab){
+      var pOverview = lockerEl('lockerPanelOverview');
+      var pItems = lockerEl('lockerPanelItems');
+      var pStore = lockerEl('lockerPanelStore');
+      if (!pOverview || !pItems || !pStore) return;
+      setTabButtonsActive(tab);
+      pOverview.hidden = tab !== 'overview';
+      pItems.hidden = tab !== 'items';
+      pStore.hidden = tab !== 'store';
+      if (tab === 'items') initItemsTab();
+      syncLockerTabsPlacement();
+    }
+
+    function applyLockerHash(){
+      var r = parseLockerRoute();
+      showLockerTab(r.tab);
+    }
+
+    function wireLockerTabs(){
+      document.querySelectorAll('.lockerTabBtn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var t = btn.getAttribute('data-locker-tab');
+          if (!t) return;
+          var current = parseLockerRoute().tab;
+          if (current === t) return;
+          var h = '#overview';
+          if (t === 'items') h = '#items';
+          else if (t === 'store') h = '#store';
+          try {
+            location.hash = h;
+          } catch (e) {
+            applyLockerHash();
+          }
+        });
+      });
+      window.addEventListener('hashchange', function(){ applyLockerHash(); });
+    }
+
+    var cosmetics = [];
+    var CATEGORY_LABELS = {
+      background: 'Backgrounds', frame: 'Frames', effect: 'Effects', decoration: 'Effects',
+      accent: 'Titles', badge: 'Avatars', accessory: 'Avatars'
+    };
+    var CATEGORY_ORDER = ['background', 'frame', 'effect', 'decoration', 'accent', 'badge', 'accessory'];
+    var RARITY_LABELS_ITEMS = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+    function normalizeRarityKeyItems(r){
+      var x = String(r || 'common').toLowerCase();
+      if (['common','uncommon','rare','epic','legendary'].indexOf(x) < 0) x = 'common';
+      return x;
+    }
+
+    function loadAdopted(){
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage.getItem) return null;
+        var raw = localStorage.getItem(LS_ADOPTED);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        return (obj && obj.name) ? obj : null;
+      } catch(e){ return null; }
+    }
+
+    function escapeHtml(s){
+      if (s == null) return '';
+      var t = document.createElement('div');
+      t.textContent = s;
+      return t.innerHTML;
+    }
+
+    function callStoreBootstrap(){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(res){ resolve(res); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).storeBootstrap();
+      });
+    }
+
+    function callGetCosmeticOwnership(characterName){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ owned: [], equipped: {} });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(res){ resolve(res); }).withFailureHandler(function(){ resolve({ owned: [], equipped: {} }); }).getCosmeticOwnership({ character_name: characterName });
+      });
+    }
+
+    function callEquipCosmetic(characterName, cosmeticId, category){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r || { ok: true }); }).withFailureHandler(function(){ resolve({ ok: false }); }).equipCosmetic({ character_name: characterName, cosmetic_id: cosmeticId || '', category: category });
+      });
+    }
+
+    function renderLocker(characterName, ownership){
+      var container = lockerEl('lockerSectionsEl');
+      if (!container) return;
+      var owned = (ownership && ownership.owned) || [];
+      var equipped = (ownership && ownership.equipped) || {};
+      var byCategory = {};
+      (cosmetics || []).forEach(function(c){
+        var cat = c.category || 'other';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(c);
+      });
+      container.innerHTML = '';
+      var seenLabels = {};
+      CATEGORY_ORDER.forEach(function(catKey){
+        if (catKey === 'decoration') return;
+        var items = byCategory[catKey];
+        if (catKey === 'effect') items = (byCategory.effect || []).concat(byCategory.decoration || []);
+        if (!items || items.length === 0) return;
+        var label = CATEGORY_LABELS[catKey] || catKey;
+        if (label === 'Avatars' && seenLabels['Avatars']) return;
+        seenLabels[label] = true;
+        if (label === 'Avatars') items = (byCategory.badge || []).concat(byCategory.accessory || []);
+        var section = document.createElement('div');
+        section.className = 'lockerSection';
+        section.innerHTML = '<div class="lockerSectionHd">' + escapeHtml(label) + '</div>';
+        /* L-Rail-4: LanternScroller.mountStudentScroller — sole dynamic student-facing scroller path. */
+        if (!window.LanternScroller || typeof window.LanternScroller.mountStudentScroller !== 'function') {
+          if (window.LanternCanonicalFailClosed) window.LanternCanonicalFailClosed('LanternScroller.mountStudentScroller required for Locker Items rails');
+          return;
+        }
+        var scroller = document.createElement('div');
+        window.LanternScroller.mountStudentScroller(scroller, { ariaLabel: String(label || '') });
+        if (!window.LanternCards || !window.LanternCards.specCosmeticRailCard || !window.LanternCards.createStudentCard){
+          if (window.LanternCanonicalFailClosed) window.LanternCanonicalFailClosed('LanternCards.specCosmeticRailCard + createStudentCard required for Locker Items');
+          return;
+        }
+        var LC = window.LanternCards;
+        items.forEach(function(c){
+          var ownedFlag = owned.indexOf(c.id) >= 0;
+          var equippedFlag = equipped[c.category] === c.id;
+          var stateText = equippedFlag ? 'Equipped' : (ownedFlag ? 'Owned' : 'Locked');
+          var rar = normalizeRarityKeyItems(c.rarity);
+          var subUse = (ownedFlag && !equippedFlag) ? 'Owned · Tap card to equip' : stateText;
+          var card = LC.createStudentCard(LC.specCosmeticRailCard({
+            title: c.name || c.id,
+            icon: c.icon || '✨',
+            rarityKey: rar,
+            rarityLabel: RARITY_LABELS_ITEMS[c.rarity || 'common'] || 'Common',
+            subline: subUse,
+            stateEquipped: equippedFlag,
+            stateOwned: ownedFlag && !equippedFlag,
+            stateLocked: !ownedFlag,
+            reportId: c.id,
+            dataAttrs: { 'cosmetic-id': String(c.id) }
+          }));
+          if (!card) return;
+          scroller.appendChild(card);
+          if (ownedFlag && !equippedFlag && characterName){
+            card.classList.add('exploreCard--activatable');
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            card.addEventListener('click', function(ev){
+              if (ev.target.closest('.exploreCardReportBtn')) return;
+              if (card.getAttribute('data-lc-equip-busy') === '1') return;
+              card.setAttribute('data-lc-equip-busy', '1');
+              callEquipCosmetic(characterName, c.id, c.category || '').then(function(r){
+                card.removeAttribute('data-lc-equip-busy');
+                if (r && r.ok){
+                  callGetCosmeticOwnership(characterName).then(function(o){ renderLocker(characterName, o); });
+                }
+              });
+            });
+          }
+        });
+        section.appendChild(scroller);
+        container.appendChild(section);
+      });
+      if (container.children.length === 0){
+        container.innerHTML = '<div class="lockerEmpty">No cosmetics in your locker yet. Open the Store tab to buy items.</div>';
+      }
+    }
+
+    async function initItemsTab(){
+      var adopted = loadAdopted();
+      if (!adopted || !adopted.name){
+        lockerEl('lockerSectionsEl').innerHTML = '<p class="note">Pick a student on the <strong>Overview</strong> tab first, then return here.</p>';
+        return;
+      }
+      var res = await callStoreBootstrap();
+      if (!res.ok){
+        lockerEl('lockerSectionsEl').innerHTML = '<p class="note">Could not load locker. Try again later.</p>';
+        return;
+      }
+      cosmetics = res.cosmetics || [];
+      var ownership = await callGetCosmeticOwnership(adopted.name);
+      var eq = (ownership && ownership.equipped) || {};
+      if (eq.background) {
+        var bgVal = String(eq.background).replace('bg_', '');
+        document.body.setAttribute('data-background', bgVal);
+      } else {
+        document.body.removeAttribute('data-background');
+      }
+      if (eq.effect) {
+        var effectVal = String(eq.effect).replace('effect_', '');
+        document.body.setAttribute('data-effect', effectVal);
+      } else {
+        document.body.removeAttribute('data-effect');
+      }
+      renderLocker(adopted.name, ownership);
+    }
+
+    function bootLockerPage(){
+      wireLockerTabs();
+      wireLockerTabsPlacementObserver();
+      applyLockerHash();
+      syncLockerTabsPlacement();
+      setTimeout(syncLockerTabsPlacement, 0);
+      setTimeout(syncLockerTabsPlacement, 300);
+      setTimeout(syncLockerTabsPlacement, 900);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootLockerPage);
+    else bootLockerPage();
+    })();
+  </script>
+
+  <script src="js/lantern-canonical-enforce.js"></script>
+</body>
+</html>

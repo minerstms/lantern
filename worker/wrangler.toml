@@ -1,0 +1,35 @@
+# Lantern API — Cloudflare Worker (Lantern-only, no MTSS)
+# Deploy: npx wrangler deploy (from this directory)
+# First deploy will output the Worker URL; set LANTERN_AVATAR_API in the frontend to that URL.
+#
+# OWNERSHIP (do not rebind):
+#   This Worker (lantern-api) must use D1 database "lantern-db" only — not MTSS / behavior-log DB.
+#   R2: lantern-avatars (AVATAR_BUCKET), lantern-media (NEWS_BUCKET). MTSS must not use these.
+#   See docs/DEPLOY_OWNERSHIP_LANTERN.md and docs/DEPLOY_RUNBOOK_LANTERN.md.
+
+name = "lantern-api"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lantern-db"
+database_id = "a9da23a4-db04-4684-b64e-123258cfe130"
+
+[[r2_buckets]]
+binding = "AVATAR_BUCKET"
+bucket_name = "lantern-avatars"
+
+[[r2_buckets]]
+binding = "NEWS_BUCKET"
+bucket_name = "lantern-media"
+
+# Optional: set secret for verify reset/reseed. Run: npx wrangler secret put LANTERN_VERIFY_RESET_PASSWORD
+# Pilot login (Step 2): HS256 JWT cookie signing. Run: npx wrangler secret put PILOT_SESSION_SECRET
+# One-time password bootstrap: npx wrangler secret put PILOT_BOOTSTRAP_SECRET — set PILOT_BOOTSTRAP_ENABLED = "true" only while running POST /api/pilot/bootstrap-passwords, then set back to "false" and redeploy.
+# First-run setup (apps/lantern-app/setup.html): add secret SETUP_MASTER_TOKEN in Cloudflare dashboard (same value entered once in the setup form). Rotate after setup completes.
+[vars]
+ENABLE_EARLY_ENCOURAGER_REWARD = "false"
+ENABLE_REACTION_BREAKDOWN = "false"
+ENABLE_INCLUSION_BOOST = "false"
+PILOT_BOOTSTRAP_ENABLED = "false"

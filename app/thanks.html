@@ -1,0 +1,443 @@
+<!-- ===== TMS Lantern — Staff Thank-You Letters ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <title>TMS Lantern — Thank-You Letters</title>
+  <link rel="preload" as="audio" href="assets/cha_ching.mp3" type="audio/mpeg" crossorigin>
+  <link rel="prefetch" href="locker.html">
+  <link rel="prefetch" href="locker.html#store">
+  <link rel="prefetch" href="games.html">
+  <link rel="prefetch" href="teacher.html">
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --bad:#ff4d6d;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --r: 18px;
+      --blue1:#0f3b86;
+      --blue2:#1e63d6;
+      --fsBase: 22px;
+      --fsButton: 28px;
+    }
+    *{box-sizing:border-box}
+    html,body{ min-height: 100%; margin: 0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        radial-gradient(900px 500px at 20% 30%, rgba(46,105,214,.18) 0%, rgba(46,105,214,0) 60%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    a{color:inherit}
+
+    .titleRow{ text-align: center; margin-bottom: 16px; }
+    .appTitle{ font-weight: 1000; font-size: 36px; }
+    .subTitle{ color: var(--muted); font-size: 22px; font-weight: 800; }
+
+    .card{
+      margin-top: var(--lantern-space-sm);
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .cardHd{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .cardHd .h{ font-weight: 900; font-size: 26px; }
+    .cardBd{ padding: 14px; }
+
+    label{ display: block; font-weight: 800; color: var(--muted); font-size: 22px; margin: 0 0 6px 2px; }
+    select{
+      width: 100%;
+      height: 56px;
+      padding: 0 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 800;
+    }
+    textarea{
+      width: 100%;
+      min-height: 220px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--ink);
+      font-size: 22px;
+      font-family: inherit;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .wordCount{ font-size: 22px; color: var(--muted); margin-top: 8px; font-weight: 800; }
+    .wordCount.ready{ color: var(--good); }
+    .wordCount.short{ color: var(--warn); }
+    .wordCount.ready .satisfied{ display: inline; }
+    .wordCount.ready .remaining{ display: none; }
+    .wordCount.short .satisfied{ display: none; }
+    .wordCount.short .remaining{ display: inline; }
+
+    .btn{
+      height: 56px;
+      padding: 0 24px;
+      border-radius: 14px;
+      border: 2px solid rgba(90,167,255,.4);
+      background: linear-gradient(180deg, rgba(90,167,255,.2), rgba(90,167,255,.08));
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.good{ border-color: rgba(56,208,124,.5); background: linear-gradient(180deg, rgba(56,208,124,.25), rgba(56,208,124,.1)); }
+    .btn:disabled{ opacity: .5; cursor: not-allowed; filter: grayscale(0.4); }
+
+    .pendingBadge{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px 20px;
+      margin-top: 16px;
+      border-radius: var(--r);
+      background: linear-gradient(135deg, rgba(242,194,48,.2), rgba(242,194,48,.08));
+      border: 2px solid rgba(242,194,48,.45);
+      font-size: 24px;
+      font-weight: 900;
+      color: var(--warn);
+    }
+    .pendingBadge[hidden]{ display: none; }
+    .pendingBadge .pendingNuggetIcon img{ width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+
+    .historyItem{
+      padding: 14px;
+      margin-bottom: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.15);
+    }
+    .historyItem:last-child{ margin-bottom: 0; }
+    .historyMeta{ font-size: 20px; color: var(--muted); margin-bottom: 6px; }
+    .historyStatus{ font-weight: 900; font-size: 22px; }
+    .historyStatus.pending{ color: var(--warn); }
+    .historyStatus.accepted{ color: var(--good); }
+    .historyStatus.rejected{ color: var(--bad); }
+    .historyStatus.returned{ color: var(--warn); }
+    .historyFeedback{ margin-top: 8px; padding: 10px; border-radius: 10px; background: rgba(255,204,102,.12); border: 1px solid rgba(255,204,102,.35); font-size: 20px; color: var(--warn); }
+    .historyText{ font-size: 22px; line-height: 1.4; margin-top: 8px; max-height: 80px; overflow: hidden; text-overflow: ellipsis; }
+    .toast{
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 24px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.85);
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 22px;
+      z-index: 9998;
+      display: none;
+    }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent">
+    <div class="titleRow">
+      <div class="appTitle">Thank-You Letters</div>
+      <div class="subTitle">TMS Lantern</div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd">
+        <div class="h">Write a Thank-You Letter</div>
+      </div>
+      <div class="cardBd">
+        <label for="staffSelect">Select staff member</label>
+        <select id="staffSelect"></select>
+        <label for="letterText" style="margin-top:16px;">Your letter (30+ words)</label>
+        <textarea id="letterText" placeholder="Write your own thank-you letter. No pasting or drag/drop. Type naturally."></textarea>
+        <div class="wordCount short" id="wordCountEl"><span class="remaining">30 / 30 words</span><span class="satisfied">✓ 30 words</span></div>
+        <div style="margin-top:16px;">
+          <button class="btn good" id="submitBtn" type="button" disabled>Submit</button>
+        </div>
+        <div class="pendingBadge" id="pendingBadgeEl" hidden>
+          <span class="pendingNuggetIcon"><img src="assets/icons/nugget.png" alt="Nugget"></span>
+          <span id="pendingBadgeText">Pending Review for +1 Nugget</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHd">
+        <div class="h">Your Letters</div>
+      </div>
+      <div class="cardBd" id="historyEl">
+        <p style="color:var(--muted);font-size:22px;">No letters yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="sfx.js"></script>
+  <script src="js/lantern-data.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script src="js/writing-guard.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
+
+    var el = function(id){ return document.getElementById(id); };
+    var toastEl = el('toast');
+
+    function loadAdoptedOrRedirect(){
+      try{
+        if (typeof localStorage === 'undefined' || !localStorage.getItem) { window.top.location.href = 'locker.html'; return null; }
+        var raw = localStorage.getItem(LS_ADOPTED);
+        if (!raw) { window.top.location.href = 'locker.html'; return null; }
+        var obj = JSON.parse(raw);
+        if (!obj || !obj.name) { window.top.location.href = 'locker.html'; return null; }
+        return obj;
+      }catch(e){
+        window.top.location.href = 'locker.html';
+        return null;
+      }
+    }
+
+    function toast(msg){
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(function(){ toastEl.style.display = 'none'; }, 2400);
+    }
+
+    function playChaChing(){
+      if (window.MTSS_SFX && typeof window.MTSS_SFX.playChaChing === 'function') {
+        window.MTSS_SFX.playChaChing();
+      }
+    }
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+    var adopted = loadAdoptedOrRedirect();
+    if (!adopted) { /* redirect handled */ }
+
+    var staff = [];
+    var resubmitThanksId = null;
+    var writingGuard = null;
+
+    function callGetStaff(){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).getStaff();
+      });
+    }
+
+    function callSubmitThanks(payload){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitThanks(payload);
+      });
+    }
+
+    function callGetThanksForCharacter(name){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, thanks: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false, thanks: [] }); }).getThanksForCharacter({ character_name: name });
+      });
+    }
+
+    function callResubmitThanks(id, text){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(resolve).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).resubmitThanks({ id: id, text: text });
+      });
+    }
+
+    function populateStaff(){
+      var sel = el('staffSelect');
+      sel.innerHTML = '<option value="">— Select staff —</option>';
+      (staff || []).forEach(function(s){
+        var opt = document.createElement('option');
+        opt.value = s.staff_id || '';
+        opt.textContent = (s.staff_name || '') + ' — ' + (s.staff_role || '');
+        opt.dataset.staffName = s.staff_name || '';
+        opt.dataset.staffDesignation = s.staff_designation || '';
+        sel.appendChild(opt);
+      });
+    }
+
+    var MIN_WORDS = 30;
+
+    function computeNuggetTier(wc) {
+      if (wc < 30) return 0;
+      return Math.floor((wc - 30) / 50) + 1;
+    }
+
+    function onWordCount(w, min){
+      var span = el('wordCountEl');
+      var remaining = span && span.querySelector('.remaining');
+      var satisfied = span && span.querySelector('.satisfied');
+      var rem = Math.max(0, min - w);
+      if (remaining) remaining.textContent = rem + ' / ' + min + ' words';
+      if (satisfied) satisfied.textContent = '✓ ' + min + ' words';
+      span.classList.remove('ready', 'short');
+      if (w >= min) { span.classList.add('ready'); el('submitBtn').disabled = false; }
+      else { span.classList.add('short'); el('submitBtn').disabled = true; }
+    }
+
+    function renderHistory(){
+      var container = el('historyEl');
+      if (!adopted) return;
+      callGetThanksForCharacter(adopted.name).then(function(res){
+        var list = res.thanks || [];
+        if (!list.length){
+          container.innerHTML = '<p style="color:var(--muted);font-size:22px;">No letters yet.</p>';
+          return;
+        }
+        container.innerHTML = '';
+        list.forEach(function(t){
+          var div = document.createElement('div');
+          div.className = 'historyItem';
+          var statusClass = (t.status || 'pending').toLowerCase();
+          var tier = t.nugget_tier || computeNuggetTier(t.word_count || 0) || 1;
+          var statusText = statusClass === 'accepted' ? '+' + tier + ' Nugget' + (tier !== 1 ? 's' : '') + ' Earned' : (statusClass === 'rejected' ? 'Rejected' : (statusClass === 'returned' ? 'Returned for Improvements' : 'Pending'));
+          var feedbackHtml = (statusClass === 'returned' && t.returned_reason) ? '<div class="historyFeedback">Teacher feedback: ' + esc(t.returned_reason) + '</div>' : '';
+          div.innerHTML = '<div class="historyMeta">To ' + esc(t.staff_name || '') + ' • ' + (t.word_count || 0) + ' words</div><div class="historyStatus ' + statusClass + '">' + statusText + '</div>' + feedbackHtml + '<div class="historyText">' + esc((t.text || '').slice(0, 120)) + (t.text && t.text.length > 120 ? '…' : '') + '</div><div class="historyActions"></div>';
+          var actions = div.querySelector('.historyActions');
+          if (statusClass === 'returned'){
+            var resubmitBtn = document.createElement('button');
+            resubmitBtn.className = 'btn';
+            resubmitBtn.textContent = 'Edit & Resubmit';
+            resubmitBtn.style.marginTop = '10px';
+            resubmitBtn.addEventListener('click', function(){
+              resubmitThanksId = t.id;
+              el('letterText').value = t.text || '';
+              if (writingGuard) onWordCount((t.text || '').match(/\S+/g) ? (t.text || '').match(/\S+/g).length : 0, MIN_WORDS);
+              el('letterText').focus();
+              el('letterText').scrollIntoView({ behavior: 'smooth' });
+              toast('Edit your letter above and click Submit to resubmit.');
+            });
+            actions.appendChild(resubmitBtn);
+          }
+          container.appendChild(div);
+        });
+      });
+    }
+
+    el('submitBtn').addEventListener('click', async function(){
+      if (!adopted) return;
+      var text = el('letterText').value || '';
+      var btn = el('submitBtn');
+      btn.disabled = true;
+      if (resubmitThanksId){
+        var res = await callResubmitThanks(resubmitThanksId, text);
+        btn.disabled = false;
+        if (!res.ok){
+          toast(res.error || 'Failed');
+          return;
+        }
+        resubmitThanksId = null;
+        playChaChing();
+        el('pendingBadgeEl').hidden = false;
+        var tier = res.nugget_tier || computeNuggetTier((text.match(/\S+/g) || []).length) || 1;
+        el('pendingBadgeText').textContent = 'Pending Review for +' + tier + ' Nugget' + (tier !== 1 ? 's' : '');
+        el('letterText').value = '';
+        if (writingGuard) onWordCount(0, MIN_WORDS);
+        renderHistory();
+        toast('Resubmitted! Pending review.');
+        return;
+      }
+      var sel = el('staffSelect');
+      var staffId = sel.value;
+      var opt = sel.options[sel.selectedIndex];
+      var staffName = opt ? (opt.dataset.staffName || opt.textContent) : '';
+      var staffDesignation = opt ? (opt.dataset.staffDesignation || '') : '';
+      if (!staffId){
+        toast('Select a staff member');
+        btn.disabled = false;
+        return;
+      }
+      var res = await callSubmitThanks({
+        character_name: adopted.name,
+        staff_id: staffId,
+        staff_name: staffName,
+        staff_designation: staffDesignation,
+        text: text,
+      });
+      btn.disabled = false;
+      if (!res.ok){
+        toast(res.error || 'Failed');
+        return;
+      }
+      playChaChing();
+      el('pendingBadgeEl').hidden = false;
+      var tier = res.nugget_tier || computeNuggetTier((text.match(/\S+/g) || []).length) || 1;
+      el('pendingBadgeText').textContent = 'Pending Review for +' + tier + ' Nugget' + (tier !== 1 ? 's' : '');
+      el('letterText').value = '';
+      if (writingGuard) onWordCount(0, MIN_WORDS);
+      renderHistory();
+      toast('Submitted! Pending review for +' + tier + ' nugget' + (tier !== 1 ? 's' : '') + '.');
+    });
+
+    callGetStaff().then(function(res){
+      staff = res.staff || [];
+      populateStaff();
+    });
+
+    var ta = el('letterText');
+    if (ta && window.WRITING_GUARD){
+      writingGuard = window.WRITING_GUARD.attach(ta, { minWords: MIN_WORDS, onWordCount: onWordCount });
+    }
+
+    renderHistory();
+  </script>
+</body>
+</html>

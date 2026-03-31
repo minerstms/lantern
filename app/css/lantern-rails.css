@@ -1,0 +1,87 @@
+/**
+ * Shared “Locker Items” rail language for Store, Games, and similar surfaces.
+ * Centered column uses parent .wrap; sections use the same rhythm as Locker → Items.
+ */
+.lockerSection{ margin-bottom: 28px; }
+.lockerSectionHd{
+  font-weight: 900;
+  font-size: 26px;
+  color: var(--accent, #5aa7ff);
+  margin-bottom: 6px;
+  padding: 0 var(--lantern-pad-x, 12px);
+}
+.lockerSectionSub{
+  color: var(--muted, #b9c6ea);
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 12px;
+  padding: 0 var(--lantern-pad-x, 12px);
+  line-height: 1.35;
+}
+/* Legacy `.contentScroller` / `.contentScrollerTrack` / `.lockerCard` removed — use `.wrap.lanternContent .lanternScroller` + LanternCards (lantern-cards.css) only. */
+.storeWalletBar{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 12px 20px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(242,194,48,.4);
+  background: linear-gradient(135deg, rgba(242,194,48,.14), rgba(242,194,48,.06));
+}
+/* Inside Locker shell: same horizontal gutter as Overview (no extra 12px margin) */
+.lockerShell .storeWalletBar{
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.storeWalletBar .storeWalletAmt{
+  font-weight: 1000;
+  font-size: 28px;
+  color: var(--warn, #ffcc66);
+}
+.storeWalletBar .storeWalletLbl{
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+}
+.storeHeroCopy{
+  text-align: center;
+  padding: 0 16px 8px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+  line-height: 1.45;
+  max-width: 640px;
+  margin: 0 auto 12px;
+}
+.lockerShell .storeHeroCopy{
+  padding-left: 0;
+  padding-right: 0;
+}
+.gamesTile{
+  flex-shrink: 0;
+  width: 200px;
+  min-width: 200px;
+  min-height: 140px;
+}
+.gamesTileWide{
+  flex-shrink: 0;
+  width: 280px;
+  min-width: 280px;
+}
+.storeLbChip{
+  flex-shrink: 0;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line, rgba(255,255,255,.12));
+  background: rgba(255,255,255,.06);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink, #eaf0ff);
+}

@@ -1,0 +1,63 @@
+{
+  "checks": {
+    "quick": {
+      "className": "lanternScroller",
+      "cards": 5,
+      "placeholders": 0,
+      "scrollWidth": 1520,
+      "clientWidth": 956
+    },
+    "active": {
+      "className": "lanternScroller",
+      "cards": 20,
+      "placeholders": 0,
+      "scrollWidth": 6080,
+      "clientWidth": 956
+    },
+    "completed": {
+      "className": "lanternScroller",
+      "cards": 0,
+      "placeholders": 1,
+      "scrollWidth": 956,
+      "clientWidth": 956
+    },
+    "contentScroller": 0,
+    "contentScrollerTrack": 0,
+    "featuredDisplay": "block",
+    "featuredVisible": true
+  },
+  "mobileQuick": {
+    "scrollWidth": 1520,
+    "clientWidth": 366,
+    "cards": 5
+  },
+  "urlAfterQuick": "http://127.0.0.1:49480/thanks",
+  "urlAfterTeacher": "http://127.0.0.1:49480/contribute",
+  "availCardCount": 1,
+  "consoleErrors": [
+    {
+      "t": "console",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "t": "console",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "t": "console",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "t": "console",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "t": "console",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "t": "console",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    }
+  ]
+}

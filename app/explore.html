@@ -1,0 +1,1055 @@
+<!-- ===== TMS Lantern — Lantern home feed (explore.html) ===== -->
+<!DOCTYPE html>
+<html class="lantern-pilot-auth-pending">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <title>TMS Lantern — Home</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-reactions.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="prefetch" href="locker.html">
+  <link rel="prefetch" href="locker.html#store">
+  <link rel="prefetch" href="games.html">
+  <link rel="prefetch" href="teacher.html">
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b33;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --r: 18px;
+      --blue1:#0f3b86;
+      --blue2:#1e63d6;
+      --fsBase: 22px;
+      --fsButton: 28px;
+    }
+    *{box-sizing:border-box}
+    html{ min-height: 100%; }
+    html,body{ height: 100%; margin: 0; }
+    body{
+      background:
+        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        radial-gradient(900px 500px at 20% 30%, rgba(46,105,214,.18) 0%, rgba(46,105,214,0) 60%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color:var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overflow-x:hidden;
+      font-size: var(--fsBase);
+    }
+    a{color:inherit; text-decoration:none;}
+
+    /* Outer shell: lantern-header.css .wrap.lanternContent (max-width + gutters) */
+    .wrap.lanternContent.explorePageWrap{ position: relative; }
+
+    .filterChip{
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.2);
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+    .filterChip:hover{ color: var(--ink); background: rgba(255,255,255,.08); }
+    .filterChip.active{ background: rgba(90,167,255,.2); border-color: rgba(90,167,255,.5); color: var(--ink); }
+
+    /* Rails: space apart like separate modes, not one stacked column */
+    .explorePageWrap > .section{
+      margin-bottom: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      overflow: visible;
+    }
+    .explorePageWrap > .section + .section{ margin-top: 44px; }
+    @media (min-width: 720px){
+      .explorePageWrap > .section + .section{ margin-top: 56px; }
+    }
+    /* Lantern home: one section + one scroller pattern per row. */
+    .sectionHd{ font-weight: 900; font-size: 26px; margin-bottom: 4px; letter-spacing: .2px; padding: 14px var(--lantern-pad-x) 0; }
+    .sectionSub{ color: var(--muted); font-size: 22px; font-weight: 800; margin-top: -2px; margin-bottom: 12px; padding: 0 var(--lantern-pad-x); line-height: 1.35; }
+    .sectionSubLane{ font-size: 20px; font-weight: 800; margin-bottom: 8px; margin-top: 0; padding: 4px var(--lantern-pad-x) 0; line-height: 1.35; color: var(--muted); }
+    .sectionSubLane--spaced{ margin-top: 18px; }
+    /* Horizontal scrollers + rail card chrome: lantern-cards.css (.wrap.lanternContent .lanternScroller) */
+    .sectionPlaceholder{ color: var(--muted); font-size: 22px; padding: 32px 20px; text-align: center; line-height: 1.4; }
+    .emptyState{ text-align: center; padding: 32px 20px; }
+    .emptyStateIcon{ font-size: 48px; margin-bottom: 14px; opacity: .6; }
+    .emptyStateTitle{ font-weight: 900; font-size: 26px; margin-bottom: 8px; }
+    .emptyStateHint{ color: var(--muted); font-size: 22px; line-height: 1.45; }
+
+    .exploreUrl{
+      display: inline-block;
+      margin-top: 10px;
+      color: var(--accent);
+      font-size: 20px;
+      font-weight: 800;
+      word-break: break-all;
+    }
+    .exploreUrl:hover{ text-decoration: underline; }
+    .launchBtn{
+      display: inline-block;
+      margin-top: 10px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      background: rgba(90,167,255,.25);
+      border: 1px solid rgba(90,167,255,.5);
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 20px;
+    }
+    .launchBtn:hover{ background: rgba(90,167,255,.35); }
+    .exploreReportWrap .reportContentBtn{ background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 0; text-decoration: underline; }
+    .exploreReportWrap .reportContentBtn:hover{ color: var(--accent); }
+    .videoCardWrap{ margin-top: 12px; position: relative; border-radius: 14px; overflow: hidden; background: linear-gradient(135deg, rgba(255,77,109,.25), rgba(90,50,120,.35)); min-height: 140px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,77,109,.3); }
+    .videoCardWrap .videoPreviewImg{ position: absolute; inset: 0; }
+    .videoCardWrap .videoPreviewImg img{ width: 100%; height: 100%; object-fit: cover; }
+    .videoCardWrap .playIcon{ font-size: 56px; opacity: .9; z-index: 2; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+    .videoCardWrap .launchBtn{ position: absolute; bottom: 12px; right: 12px; z-index: 2; margin: 0; padding: 10px 18px; font-size: 20px; background: linear-gradient(180deg, rgba(255,77,109,.4), rgba(255,77,109,.2)); border: 2px solid rgba(255,77,109,.5); }
+    .videoCardWrap.videoCardFallback{ flex-direction: column; gap: 8px; padding: 20px; }
+    .videoCardWrap .videoFallbackTitle{ font-weight: 900; font-size: 22px; text-align: center; z-index: 2; }
+    .videoCardWrap .videoFallbackAuthor{ font-size: 18px; color: var(--muted); z-index: 2; }
+
+    .dailyHuntHint{
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(242,194,48,.4);
+      background: rgba(242,194,48,.12);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--warn);
+      text-align: center;
+    }
+    .dailyHuntHint.found{ border-color: rgba(56,208,124,.4); background: rgba(56,208,124,.12); color: var(--good); }
+    .dailyHuntNugget{
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 44px;
+      height: 44px;
+      font-size: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 5;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      animation: dailyHuntSparkle 2s ease-in-out infinite;
+      opacity: 0.82;
+    }
+    .dailyHuntNugget img{ width: 36px; height: 36px; object-fit: contain; }
+    .dailyHuntNugget:hover{ opacity: 1; transform: scale(1.12); }
+    .dailyHuntNugget:active{ transform: scale(0.95); }
+    @keyframes dailyHuntSparkle{
+      0%,100%{ filter: drop-shadow(0 0 6px rgba(242,194,48,.6)); opacity: 0.9; }
+      50%{ filter: drop-shadow(0 0 14px rgba(242,194,48,.9)); opacity: 1; }
+    }
+    .pollCard .pollQuestion{ font-weight: 800; font-size: 22px; margin-bottom: 8px; line-height: 1.3; }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <script>
+  (function(){
+    if (!window.LanternPilotAuth) { document.documentElement.classList.remove('lantern-pilot-auth-pending'); return; }
+    window.LanternPilotAuth.fetchMe().then(function(data){
+      if (!data || !data.ok || !data.authenticated) {
+        location.replace(window.LanternPilotAuth.loginUrlWithReturn());
+        return;
+      }
+      var r = (data.role || '').trim();
+      if (r === 'admin') {
+        location.replace('/admin');
+        return;
+      }
+      if (r === 'teacher') {
+        location.replace('/teacher');
+        return;
+      }
+      if (r === 'student') {
+        window.LanternPilotAuth.applyStudentStorageFromSession(data);
+      }
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+    });
+  })();
+  </script>
+  <script src="js/lantern-canonical-route-boot.js"></script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent explorePageWrap">
+    <div id="classAccessBannerEl"></div>
+    <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
+    <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
+    <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
+
+    <!--
+      Explore section grammar (surface contract): Each main row is .section with .sectionHd. No .sectionBd on this page.
+      One-lane rows: .sectionHd, then one .lanternScroller.
+      Multi-lane rows: .sectionHd, then each lane is .sectionSubLane (optional .sectionSubLane--spaced) + .lanternScroller.
+      Do not rename IDs here — scripts and loaders depend on them.
+    -->
+
+    <!-- Section: Just In — newest live student-facing items first (same card pool + order as Latest Posts; spotlight rail only) -->
+    <div class="section" id="justInSection" data-help="just_in">
+      <div class="sectionHd">Just In</div>
+      <div id="justInRailWrap">
+        <div id="justInEl" data-lantern-rail-host="true" data-scroller-aria-label="Just In"></div>
+      </div>
+    </div>
+
+    <!-- Section: Announcements (teacher-pick / featured rail) -->
+    <div class="section" id="bestSection" data-help="best_of_lantern">
+      <div class="sectionHd">Announcements</div>
+      <div id="announcementsRailWrap">
+        <div id="bestEl" data-lantern-rail-host="true"></div>
+      </div>
+    </div>
+
+    <!-- Section: Missions & Actions — two sub-lanes (Missions spotlight + Polls), each .sectionSubLane then .lanternScroller -->
+    <div class="section" id="youCanDoSection" data-help="you_can_do">
+      <div class="sectionHd">Missions &amp; Actions</div>
+      <div id="missionSpotlightSection">
+        <div class="sectionSubLane">Missions</div>
+        <div id="missionSpotlightEl" data-lantern-rail-host="true"></div>
+      </div>
+      <div id="pollsSection" data-help="polls">
+        <div class="sectionSubLane">Polls</div>
+        <div id="pollsEl" data-lantern-rail-host="true"></div>
+      </div>
+    </div>
+
+    <!-- Section: Mini Games rail -->
+    <div class="section" id="schoolSmartsSection" data-help="school_survival">
+      <div class="sectionHd">Mini Games</div>
+      <div id="schoolSmartsEl" data-lantern-rail-host="true" data-scroller-aria-label="Mini Games"></div>
+    </div>
+
+    <!-- Section: Latest Posts (merged feed rail) -->
+    <div class="section" id="recentSection" data-help="latest_creations">
+      <div class="sectionHd">Latest Posts</div>
+      <div id="recentEl" data-lantern-rail-host="true"></div>
+    </div>
+
+    <!-- Section: School News — Articles lane + Activity lane (second sub-lane uses .sectionSubLane--spaced) -->
+    <div class="section" id="happeningSection" data-help="happening">
+      <div class="sectionHd">School News</div>
+      <div id="happeningNewsBlock" data-help="lantern_news">
+        <div class="sectionSubLane">Articles</div>
+        <div id="happeningNewsEl" data-lantern-rail-host="true"></div>
+        <div id="happeningNewsLoadMoreWrap" style="display:none;padding:12px 18px;text-align:center;">
+          <button type="button" class="btn" id="happeningNewsLoadMoreBtn" style="font-size:22px;font-weight:800;padding:12px 22px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.1);color:var(--ink);cursor:pointer;font-family:inherit;">Load more articles</button>
+        </div>
+      </div>
+      <div id="happeningActivityBlock" data-help="school_activity">
+        <div class="sectionSubLane sectionSubLane--spaced">Activity</div>
+        <div id="happeningActivityEl" data-lantern-rail-host="true"></div>
+      </div>
+    </div>
+
+    <!-- Section: Game Scores — link to games.html (no rail in this row; contract allows non-scroller body under .sectionHd) -->
+    <div class="section" id="gamesMoreSection">
+      <div class="sectionHd">Game Scores</div>
+      <a href="games.html" class="launchBtn" style="display:inline-block;margin:0 18px 18px;">Open Games →</a>
+    </div>
+  </div>
+  </div>
+
+  <script src="js/lantern-data.js"></script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/class-access.js"></script>
+  <script src="js/lantern-avatar.js"></script>
+  <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-explore-dataset.js"></script>
+  <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-scroller.js"></script>
+  <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-feature-flags.js"></script>
+  <script src="js/lantern-reactions.js"></script>
+  <script src="js/lantern-card-ui.js"></script>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-broadcast.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
+  <script>
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+
+    var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
+    var el = function(id){ return document.getElementById(id); };
+
+    var LC = function(){ return window.LanternCards; };
+    var feed = [];
+    var cachedApprovedNews = [];
+    var happeningNewsLimit = 12;
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
+
+    /* Feed cards: no raw URL or action buttons in body. Whole card is the click target. */
+    function buildUrlBlock(p){
+      return '';
+    }
+
+    function filterPosts(posts){
+      return posts;
+    }
+
+    function renderCard(p, container, size, sectionKey){
+      if (!LC()) return;
+      var sk = sectionKey || 'new';
+      var flags = { teacher_pick: !!p.teacher_pick, teacher_featured: !!p.teacher_featured };
+      var pipeline = '';
+      if (sk === 'best') pipeline = p.teacher_pick ? 'teacher_pick_rail' : (p.teacher_featured ? 'teacher_featured_rail' : '');
+      else if (sk === 'just_in') pipeline = 'just_in';
+      else if (sk === 'new') pipeline = 'chronological';
+      var routeSurface = sk === 'best' ? 'explore_best' : (sk === 'just_in' ? 'explore_just_in' : 'explore_new');
+      var routeHelp = { surface: routeSurface, pipeline: pipeline, flags: flags };
+      var adopted = getAdopted();
+      var cn = adopted && adopted.name ? adopted.name : '';
+      var card = LC().materializeFeedPostCard(p, {
+        size: size || 'medium',
+        routeHelp: routeHelp,
+        mode: LC().CARD_MODE.RAIL,
+        noNavigate: true,
+        onCardActivate: function (post) {
+          if (window.LanternCardUI) window.LanternCardUI.openCreation(post, { characterName: cn });
+        }
+      });
+      container.appendChild(card);
+    }
+
+    function renderSection(containerId, posts, limit, sectionKey){
+      var container = el(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+      var filtered = filterPosts(posts);
+      var toShow = limit ? filtered.slice(0, limit) : filtered;
+      toShow.forEach(function(p){ renderCard(p, container, 'medium', sectionKey || 'new'); });
+    }
+
+    function postsForNewRail(){
+      var recent = feed.slice().sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
+      return recent;
+    }
+
+    /** Newest-first spotlight from the same merged `feed` as Latest Posts (no extra fetch). */
+    function renderJustInRail(){
+      var container = el('justInEl');
+      if (!container) return;
+      container.innerHTML = '';
+      var ordered = postsForNewRail();
+      if (!ordered.length){
+        container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">✨</div><div class="emptyStateTitle">Nothing here yet</div><div class="emptyStateHint">When classmates share work, the newest pieces show up here first.</div></div>';
+        return;
+      }
+      var limit = 30;
+      ordered.slice(0, limit).forEach(function(p){ renderCard(p, container, 'medium', 'just_in'); });
+    }
+
+    function appendOfficialNewsCardToContainer(container, n){
+      if (!container || !LC() || !LC().specNewsRailCard || !LC().createStudentCard) return;
+      var authorLabel = getAuthorLabel(n.author_type || 'student');
+      var adoptedForNews = getAdopted();
+      var cn = adoptedForNews ? (adoptedForNews.name || '') : '';
+      var card = LC().createStudentCard(LC().specNewsRailCard(n, esc, authorLabel, false));
+      if (!card) return;
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.style.cursor = 'pointer';
+      card.classList.add('exploreCard--activatable');
+      if (LC().enhanceReportControlsIn) LC().enhanceReportControlsIn(card);
+      card.addEventListener('click', function(e){
+        if (e.target.closest('.exploreCardReportBtn')) return;
+        if (window.LanternCardUI) window.LanternCardUI.openNews(n, { characterName: cn });
+      });
+      card.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          if (e.target.closest('.exploreCardReportBtn')) return;
+          if (window.LanternCardUI) window.LanternCardUI.openNews(n, { characterName: cn });
+        }
+      });
+      container.appendChild(card);
+    }
+
+    function renderFeaturedAnnouncementsRail(){
+      var bestSec = el('bestSection');
+      var bestEl = el('bestEl');
+      if (!bestSec || !bestEl) return;
+      bestEl.innerHTML = '';
+      var officialNews = (cachedApprovedNews || []).filter(function(n){
+        if (!n || String(n.status || '').toLowerCase() !== 'approved') return false;
+        var t = String(n.author_type || 'student').toLowerCase();
+        return t === 'teacher' || t === 'staff' || t === 'admin';
+      }).sort(function(a, b){
+        return (b.approved_at || b.created_at || '').localeCompare(a.approved_at || a.created_at || '');
+      });
+      var bestPosts = [];
+      var seen = {};
+      feed.forEach(function(p){
+        if ((p.teacher_pick || p.teacher_featured) && p.id != null && String(p.id) !== '' && !seen[p.id]){
+          seen[p.id] = true;
+          bestPosts.push(p);
+        }
+      });
+      bestPosts.sort(function(a, b){
+        var ap = a.teacher_pick ? 2 : (a.teacher_featured ? 1 : 0);
+        var bp = b.teacher_pick ? 2 : (b.teacher_featured ? 1 : 0);
+        if (bp !== ap) return bp - ap;
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+      var filteredBest = filterPosts(bestPosts);
+      if (!officialNews.length && !filteredBest.length){
+        bestEl.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">⭐</div><div class="emptyStateTitle">No featured items yet</div><div class="emptyStateHint">Official announcements from staff and teacher picks or featured work will appear here.</div></div>';
+        return;
+      }
+      var maxFeaturedRail = 12;
+      function paintFeaturedRail(resolvedOfficial){
+        var featuredShown = 0;
+        (resolvedOfficial || []).forEach(function(n){
+          if (featuredShown >= maxFeaturedRail) return;
+          appendOfficialNewsCardToContainer(bestEl, n);
+          featuredShown++;
+        });
+        filteredBest.forEach(function(p){
+          if (featuredShown >= maxFeaturedRail) return;
+          renderCard(p, bestEl, 'medium', 'best');
+          featuredShown++;
+        });
+      }
+      if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && officialNews.length) {
+        var onews = officialNews.slice();
+        window.LanternAvatar.attachCanonicalAvatarsToItems(onews).then(function(){ paintFeaturedRail(onews); });
+      } else {
+        paintFeaturedRail(officialNews);
+      }
+    }
+
+    function renderAll(){
+      renderJustInRail();
+      renderFeaturedAnnouncementsRail();
+      var pr = postsForNewRail();
+      var recentContainer = el('recentEl');
+      if (recentContainer){
+        renderSection('recentEl', pr, 30, 'new');
+      }
+      try { console.log('[explore] New rail: ' + pr.length + ' items'); } catch(_) {}
+
+      var schoolSmartsEl = el('schoolSmartsEl');
+      if (schoolSmartsEl){
+        schoolSmartsEl.innerHTML = '';
+        var lc = LC();
+        var items = [
+          { id: 'mini_games_hub', title: 'Games hub', description: 'Arcade, trivia, and weekly scores.', card_meta: 'Open the full games page.', href: 'games.html' },
+          { id: 'learning_school_survival', title: 'School Survival', description: 'Handbook scenarios — tap answers, see why. TMS Edition.', card_meta: 'Handbook scenarios — tap answers, see why. TMS Edition.', href: 'school-survival.html' },
+          { id: 'learning_trinidad_co', title: 'Know Your Town', description: 'Trinidad, CO — picture clues, name the place.', card_meta: 'Trinidad, CO — picture clues, name the place.', href: 'school-survival.html?pack=trinidad-co' },
+          { id: 'mini_games_avatar', title: 'Avatar Match', description: 'Match pairs and climb the board.', card_meta: 'Weekly leaderboard on Games.', href: 'games.html' },
+          { id: 'mini_games_trivia', title: 'Handbook Trivia', description: 'Quick quiz from the handbook.', card_meta: 'Play on Games.', href: 'games.html' },
+          { id: 'mini_games_history', title: 'Local History Trivia', description: 'Town trivia — picture clues.', card_meta: 'Play on Games.', href: 'games.html' },
+          { id: 'mini_games_reaction', title: 'Reaction Tap', description: 'Fast taps — lowest time wins.', card_meta: 'Play on Games.', href: 'games.html' },
+          { id: 'mini_games_clickrush', title: 'Nugget Click Rush', description: 'Click streak challenge.', card_meta: 'Play on Games.', href: 'games.html' }
+        ];
+        items.forEach(function(item){
+          var postModel = {
+            id: item.id || ('learning_' + String(item.href || '').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase()),
+            type: 'teach',
+            title: item.title,
+            description: item.description,
+            card_meta: item.card_meta
+          };
+          var card = lc.materializeFeedPostCard(postModel, {
+            size: 'medium',
+            mode: lc.CARD_MODE.RAIL,
+            onCardActivate: function(){
+              window.location.href = item.href;
+            }
+          });
+          schoolSmartsEl.appendChild(card);
+        });
+      }
+      if (typeof applyExploreSearch === 'function') applyExploreSearch();
+    }
+
+    function callGetExploreFeed(){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, feed: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, feed: [] }); }).getExploreFeed();
+      });
+    }
+
+    function callGetActivityEvents(limit){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, events: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, events: [] }); }).getActivityEvents({ limit: limit || 12 });
+      });
+    }
+
+    function callGetApprovedNews(){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, news: [] });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, news: [] }); }).getApprovedNews();
+      });
+    }
+
+    function getAdopted(){
+      try{
+        var raw = localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || !obj.name) return null;
+        if (obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
+          try { localStorage.removeItem('LANTERN_ADOPTED_CHARACTER'); } catch(e) {}
+          return null;
+        }
+        return obj;
+      }catch(e){ return null; }
+    }
+    function getCharacterNameForApi(){
+      var adopted = getAdopted();
+      if (!adopted) return '';
+      return (adopted.character_id || adopted.name || '').trim();
+    }
+    var exploreApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+
+    var pollsList = [];
+    function loadPolls(){
+      if (!exploreApiBase) {
+        var pollsSecHide = document.getElementById('pollsSection');
+        if (pollsSecHide) pollsSecHide.style.display = 'none';
+        syncYouCanDoSectionVisibility();
+        return;
+      }
+      if (document.getElementById('pollsSection')) document.getElementById('pollsSection').style.display = 'block';
+      fetch(exploreApiBase + '/api/polls').then(function(r){ return r.json(); }).then(function(res){
+        pollsList = (res && res.ok && res.polls) ? res.polls : [];
+        renderPolls(pollsList);
+      }).catch(function(){
+        pollsList = [];
+        var container = el('pollsEl');
+        var section = document.getElementById('pollsSection');
+        if (container) container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">📊</div><div class="emptyStateTitle">Could not load polls</div><div class="emptyStateHint">Check your connection and try again.</div></div>';
+        if (section) section.style.display = 'block';
+        syncYouCanDoSectionVisibility();
+      });
+    }
+    function renderPolls(polls){
+      var container = el('pollsEl');
+      var section = document.getElementById('pollsSection');
+      if (!container) return;
+      if (!polls || polls.length === 0){
+        container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">📊</div><div class="emptyStateTitle">No polls yet</div><div class="emptyStateHint">Create a poll on Contribute (choose Poll). After a teacher approves, it shows here.</div></div>';
+        if (section) section.style.display = 'block';
+        syncYouCanDoSectionVisibility();
+        return;
+      }
+      function paintPollCards(list){
+        container.innerHTML = '';
+        list.forEach(function(p){
+          var card = LC().materializePollRailCard(p, {
+            onActivate: function (poll) {
+              if (window.LanternCardUI && typeof window.LanternCardUI.openPoll === 'function') {
+                window.LanternCardUI.openPoll(poll.id, { characterName: getCharacterNameForApi() || (getAdopted() && getAdopted().name) || '' });
+              }
+            }
+          });
+          container.appendChild(card);
+        });
+        if (section) section.style.display = 'block';
+        syncYouCanDoSectionVisibility();
+      }
+      if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+        var copy = polls.map(function(p){ return Object.assign({}, p); });
+        window.LanternAvatar.attachCanonicalAvatarsToItems(copy).then(function(){ paintPollCards(copy); });
+      } else {
+        paintPollCards(polls);
+      }
+    }
+    function callGetDailyHuntStatus(name, page, spotCount){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false, status: {} });
+      var payload = { character_name: name || '', page: page || 'explore' };
+      if (spotCount !== undefined && spotCount !== null) payload.spot_count = spotCount;
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, status: {} }); }).getDailyHuntStatus(payload);
+      });
+    }
+
+    function callClaimDailyNuggetHunt(name){
+      var run = createRun ? createRun() : null;
+      if (!run) return Promise.resolve({ ok: false });
+      return new Promise(function(resolve){
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).claimDailyNuggetHunt({ character_name: name });
+      });
+    }
+
+    function refreshDailyHunt(){
+      var adopted = getAdopted();
+      var hintEl = el('dailyHuntHintEl');
+      var nuggetEl = el('dailyHuntNuggetEl');
+      if (!hintEl && !nuggetEl) return;
+      var spotSel = '.wrap .section';
+      var spots = document.querySelectorAll(spotSel);
+      var spotCount = spots.length;
+      callGetDailyHuntStatus(adopted ? adopted.name : '', 'explore', spotCount).then(function(res){
+        var s = (res && res.status) || {};
+        if (hintEl){
+          hintEl.style.display = 'block';
+          if (s.claimed){
+            hintEl.textContent = 'Daily Hidden Nugget: Found! +' + (s.nuggets || 0) + ' nugget' + ((s.nuggets || 0) !== 1 ? 's' : '') + ' today';
+            hintEl.classList.add('found');
+          } else {
+            hintEl.textContent = "Today's hidden nugget hint: " + (s.hint_text || '');
+            hintEl.classList.remove('found');
+          }
+        }
+        if (nuggetEl && adopted){
+          if (s.onThisPage && spotCount > 0 && s.spotIndex !== undefined){
+            var idx = Math.min(s.spotIndex, spotCount - 1);
+            var container = spots[idx];
+            if (container){
+              if (nuggetEl.parentNode) nuggetEl.parentNode.removeChild(nuggetEl);
+              container.style.position = 'relative';
+              container.appendChild(nuggetEl);
+              nuggetEl.style.display = 'flex';
+              nuggetEl.style.position = 'absolute';
+              nuggetEl.style.left = '';
+              nuggetEl.style.top = '';
+              nuggetEl.style.bottom = '10px';
+              nuggetEl.style.right = '10px';
+              nuggetEl.style.transform = '';
+              var img = nuggetEl.querySelector('img');
+              if (img){
+                img.src = (s.rarity === 'ultra_rare') ? 'assets/icons/diamond.png' : 'assets/icons/nugget.png';
+                img.alt = (s.rarity === 'ultra_rare') ? 'Rare diamond' : 'Hidden nugget';
+              }
+            } else { nuggetEl.style.display = 'none'; }
+          } else { nuggetEl.style.display = 'none'; }
+        } else if (nuggetEl){ nuggetEl.style.display = 'none'; }
+      });
+    }
+
+    function getAuthorLabel(type){
+      if (type === 'student') return 'Student Reporter';
+      if (type === 'teacher') return 'Teacher Contributor';
+      if (type === 'staff') return 'Staff Announcement';
+      if (type === 'admin') return 'Admin Update';
+      return 'Student Reporter';
+    }
+
+    function renderStudentNews(news){
+      cachedApprovedNews = news || [];
+      var container = el('happeningNewsEl');
+      if (!container) return;
+      if (!news || news.length === 0){
+        var loadWrapEmpty = el('happeningNewsLoadMoreWrap');
+        if (loadWrapEmpty) loadWrapEmpty.style.display = 'none';
+        container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">📰</div><div class="emptyStateTitle">No news yet</div><div class="emptyStateHint">Student reporters and staff can publish news here. Submit from Create Design Studio (Contribute); read articles on Lantern.</div></div>';
+        if (typeof renderAll === 'function') renderAll();
+        return;
+      }
+      container.innerHTML = '';
+      var limit = Math.min(happeningNewsLimit, news.length);
+      var newsList = news.slice(0, limit);
+      function paintHappeningNews(list){
+        list.forEach(function(n){
+          var authorLabel = getAuthorLabel(n.author_type || 'student');
+          var card = LC().createStudentCard(LC().specNewsRailCard(n, esc, authorLabel, false));
+          if (!card) return;
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+          card.setAttribute('aria-label', 'View news: ' + (n.title || 'article'));
+          card.style.cursor = 'pointer';
+          card.classList.add('exploreCard--activatable');
+          if (LC().enhanceReportControlsIn) LC().enhanceReportControlsIn(card);
+          var adoptedForNews = getAdopted();
+          var characterName = adoptedForNews ? (adoptedForNews.name || '') : '';
+          card.addEventListener('click', function(e){
+            if (e.target.closest('.exploreCardReportBtn')) return;
+            if (window.LanternCardUI) window.LanternCardUI.openNews(n, { characterName: characterName });
+          });
+          card.addEventListener('keydown', function(e){
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (e.target.closest('.exploreCardReportBtn')) return;
+              if (window.LanternCardUI) window.LanternCardUI.openNews(n, { characterName: characterName });
+            }
+          });
+          container.appendChild(card);
+        });
+      }
+      if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+        window.LanternAvatar.attachCanonicalAvatarsToItems(newsList).then(function(){ paintHappeningNews(newsList); finishNewsUi(); });
+      } else {
+        paintHappeningNews(newsList);
+        finishNewsUi();
+      }
+      function finishNewsUi(){
+        var loadWrap = el('happeningNewsLoadMoreWrap');
+        var loadBtn = el('happeningNewsLoadMoreBtn');
+        if (loadWrap && loadBtn) {
+          if (news.length > newsList.length) {
+            loadWrap.style.display = 'block';
+            loadBtn.onclick = function () {
+              happeningNewsLimit += 12;
+              renderStudentNews(cachedApprovedNews);
+            };
+          } else {
+            loadWrap.style.display = 'none';
+          }
+        }
+        if (typeof renderAll === 'function') renderAll();
+      }
+    }
+
+    function renderSchoolActivity(events){
+      var container = document.getElementById('happeningActivityEl');
+      if (!container) return;
+      if (!events || events.length === 0){
+        container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">📋</div><div class="emptyStateTitle">No activity yet</div><div class="emptyStateHint">School events and milestones will show up here.</div></div>';
+        return;
+      }
+      container.innerHTML = '';
+      events.forEach(function(evt){
+        var lbl = getEventLabel(evt);
+        var ic = (typeof lbl.icon === 'string' && lbl.icon.indexOf('<') >= 0) ? '✨' : (lbl.icon || '✨');
+        var d = '';
+        try { var dt = new Date(evt.created_at || ''); if (!isNaN(dt.getTime())) d = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); } catch (e) {}
+        var actId = (evt && (evt.id != null || evt.event_id != null)) ? String(evt.id != null ? evt.id : evt.event_id) : '';
+        var pulse = LC().createStudentCard(LC().specActivityPulseCard(ic, lbl.text, d, evt.event_type || '', actId));
+        if (pulse) container.appendChild(pulse);
+      });
+      if (LC().enhanceReportControlsIn) LC().enhanceReportControlsIn(container);
+    }
+
+    function syncYouCanDoSectionVisibility(){
+      var y = el('youCanDoSection');
+      var ms = el('missionSpotlightSection');
+      var ps = document.getElementById('pollsSection');
+      if (!y) return;
+      var missionsOn = ms && ms.style.display !== 'none';
+      var pollsOn = ps && ps.style.display !== 'none';
+      y.style.display = missionsOn || pollsOn ? 'block' : 'none';
+    }
+    function renderMissionSpotlightList(missions){
+      var container = el('missionSpotlightEl');
+      var section = el('missionSpotlightSection');
+      if (!container || !section) return;
+      var list = (missions && Array.isArray(missions)) ? missions.slice(0, 12) : [];
+      if (!list.length){
+        section.style.display = 'none';
+        syncYouCanDoSectionVisibility();
+        return;
+      }
+      section.style.display = 'block';
+      container.innerHTML = '';
+      list.forEach(function(m){
+        if (!LC()) return;
+        container.appendChild(LC().buildMissionSpotlightRailElement(m));
+      });
+      syncYouCanDoSectionVisibility();
+    }
+    function loadMissionSpotlight(){
+      var characterName = getCharacterNameForApi() || (getAdopted() && getAdopted().name) || '';
+      var fallbackName = characterName;
+      if (!fallbackName && window.LANTERN_DATA && window.LANTERN_DATA.DEFAULT_CHARACTERS && window.LANTERN_DATA.DEFAULT_CHARACTERS[0]) {
+        fallbackName = String(window.LANTERN_DATA.DEFAULT_CHARACTERS[0].name || '').trim();
+      }
+      if (!fallbackName) fallbackName = 'Alex Adventure';
+      function applyMissions(missions){
+        var list = (missions && Array.isArray(missions)) ? missions : [];
+        renderMissionSpotlightList(list);
+      }
+      if (exploreApiBase) {
+        fetch(exploreApiBase + '/api/missions/active' + (characterName ? '?character_name=' + encodeURIComponent(characterName) : '')).then(function(r){ return r.json(); }).then(function(res){
+          var missions = (res && res.ok && Array.isArray(res.missions)) ? res.missions : [];
+          applyMissions(missions);
+        }).catch(function(){ applyMissions([]); });
+        return;
+      }
+      var run = createRun ? createRun() : null;
+      if (!run) { applyMissions([]); return; }
+      run.withSuccessHandler(function(res){
+        var missions = (res && res.ok && Array.isArray(res.missions)) ? res.missions : [];
+        applyMissions(missions);
+      }).withFailureHandler(function(){ applyMissions([]); }).getActiveTeacherMissionsForCharacter({ character_name: fallbackName });
+    }
+
+    var currentLeaderboardPeriod = 'weekly';
+    var currentLeaderboardGame = 'Avatar Match';
+    function loadLeaderboard(period, game){
+      var container = el('leaderboardEl');
+      var section = el('leaderboardSection');
+      if (!container || !section) return;
+      if (!exploreApiBase) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">API not configured.</div></div>'; return; }
+      var p = period || currentLeaderboardPeriod;
+      var g = (game || currentLeaderboardGame || '').trim();
+      if (!g) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Choose a game above.</div></div>'; return; }
+      container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Loading…</div></div>';
+      fetch(exploreApiBase + '/api/leaderboards?period=' + encodeURIComponent(p) + '&game_name=' + encodeURIComponent(g) + '&limit=20')
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          var entries = (res && res.ok && res.entries) ? res.entries : [];
+          var adopted = getAdopted();
+          var myName = (adopted && adopted.name) ? (adopted.name + '').trim() : '';
+          if (entries.length === 0) {
+            var periodLabel = p === 'daily' ? 'today' : p === 'weekly' ? 'this week' : p === 'monthly' ? 'this month' : 'this school year';
+            var emptyHtml = '<div class="emptyState"><div class="emptyStateIcon">🏆</div><div class="emptyStateTitle">No scores yet for ' + esc(g) + '</div><div class="emptyStateHint">No scores for this game in ' + periodLabel + ' yet. Play on the Games page to appear here.</div><a href="games.html" class="primaryButton" style="display:inline-block;margin-top:1em;">Go to Games</a></div>';
+            container.innerHTML = emptyHtml;
+            return;
+          }
+          var html = '';
+          entries.forEach(function(e){
+            var name = (e.character_name || '').trim();
+            var label = esc(name) + (name === myName ? ' <span class="activityStreamTextYou">(You)</span>' : '');
+            html += '<div class="activityStreamItem' + (name === myName ? ' activityStreamItemYou' : '') + '"><span class="activityStreamIcon">#' + (e.rank || 0) + '</span><div><div class="activityStreamText">' + label + '</div><div class="activityStreamTime">' + (e.score_display || e.score) + '</div></div></div>';
+          });
+          container.innerHTML = html;
+        })
+        .catch(function(){
+          container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Could not load leaderboard.</div></div>';
+        });
+    }
+    var leaderboardWired = false;
+    function wireLeaderboard(){
+      if (leaderboardWired) return;
+      leaderboardWired = true;
+      var periodChips = document.querySelectorAll('#leaderboardSection .filterChip[data-period]');
+      var gameChips = document.querySelectorAll('#leaderboardSection .filterChip[data-game]');
+      periodChips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-period') === currentLeaderboardPeriod); });
+      gameChips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-game') === currentLeaderboardGame); });
+      periodChips.forEach(function(chip){
+        chip.addEventListener('click', function(){
+          currentLeaderboardPeriod = chip.getAttribute('data-period') || 'weekly';
+          periodChips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-period') === currentLeaderboardPeriod); });
+          loadLeaderboard(currentLeaderboardPeriod, currentLeaderboardGame);
+        });
+      });
+      gameChips.forEach(function(chip){
+        chip.addEventListener('click', function(){
+          currentLeaderboardGame = chip.getAttribute('data-game') || currentLeaderboardGame;
+          gameChips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-game') === currentLeaderboardGame); });
+          loadLeaderboard(currentLeaderboardPeriod, currentLeaderboardGame);
+        });
+      });
+    }
+
+    var GAME_HIGHLIGHTS_GAMES = ['Avatar Match', 'Handbook Trivia', 'Local History Trivia', 'Reaction Tap', 'Nugget Click Rush', 'Nugget Hunt'];
+    var GAME_HIGHLIGHTS_LOWER_BETTER = { 'Reaction Tap': true, 'Nugget Hunt': true };
+    function loadGameHighlights(){
+      var container = el('gameHighlightsEl');
+      var section = el('gameHighlightsSection');
+      if (!container || !section) return;
+      if (!exploreApiBase) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      container.innerHTML = '<div class="emptyState" style="min-width:200px;"><div class="emptyStateHint">Loading…</div></div>';
+      var promises = GAME_HIGHLIGHTS_GAMES.map(function(gameName){
+        return fetch(exploreApiBase + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=12')
+          .then(function(r){ return r.json(); })
+          .then(function(res){ return { gameName: gameName, entries: (res && res.ok && res.entries) ? res.entries : [] }; })
+          .catch(function(){ return { gameName: gameName, entries: [] }; });
+      });
+      Promise.all(promises).then(function(results){
+        if (!window.LanternCards || !window.LanternCards.specGameHighlightLinkCard || !window.LanternCards.createStudentCard || !window.LanternCards.enhanceReportControlsIn) {
+          window.LanternCanonicalFailClosed('LanternCards factory required for game highlights rail');
+        }
+        var cards = [];
+        results.forEach(function(r){
+          var gameName = r.gameName || '';
+          var top = (r.entries && r.entries[0]) ? r.entries[0] : null;
+          var lowerBetter = GAME_HIGHLIGHTS_LOWER_BETTER[gameName];
+          var label = gameName + ' · This week';
+          var headline = '';
+          var body = '';
+          if (top) {
+            var charName = (top.character_name || '').trim() || 'Someone';
+            var scoreDisplay = (top.score_display || top.score) || '';
+            if (lowerBetter) {
+              headline = charName + ' set the pace this week at ' + scoreDisplay;
+              body = 'Fastest time this week';
+            } else {
+              headline = charName + ' leads this week with ' + scoreDisplay;
+              body = 'Top score this week';
+            }
+          } else {
+            headline = 'Be the first to set this week\'s pace';
+            body = 'No scores yet — be the first';
+          }
+          cards.push({ gameName: gameName, label: label, headline: headline, body: body });
+        });
+        container.innerHTML = '';
+        cards.forEach(function(c){
+          var gid = 'game_highlight_' + String(c.gameName || 'game').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase();
+          var node = window.LanternCards.createStudentCard(window.LanternCards.specGameHighlightLinkCard('games.html', c.label, c.headline, c.body, gid));
+          if (node) container.appendChild(node);
+        });
+        window.LanternCards.enhanceReportControlsIn(container);
+      });
+    }
+
+    /** Same mission row → feed-post shape as before (renderCard / LanternCards). */
+    function mapApprovedSubmissionToFeedPost(s){
+      var missionImageUrl = function(sub){ return (sub.image_url && String(sub.image_url).trim()) || (sub.submission_type === 'image_url' && sub.submission_content ? String(sub.submission_content).trim() : ''); };
+      var missionVideoUrl = function(sub){ return (sub.video_url && String(sub.video_url).trim()) || (sub.submission_type === 'video' && sub.submission_content ? String(sub.submission_content).trim() : ''); };
+      var missionLinkUrl = function(sub){ return (sub.submission_type === 'link' && sub.submission_content && /^https?:\/\//i.test(String(sub.submission_content).trim())) ? String(sub.submission_content).trim().slice(0, 2000) : ''; };
+      var imgUrl = missionImageUrl(s);
+      var vidUrl = missionVideoUrl(s);
+      var linkUrl = missionLinkUrl(s);
+      var mediaType = imgUrl ? 'image' : (vidUrl ? 'video' : (linkUrl ? 'link' : 'create'));
+      return {
+        id: 'mission_' + (s.id || ''),
+        character_name: s.character_name || '',
+        display_name: s.character_name || '',
+        avatar: (s.avatar && String(s.avatar).trim()) || '🌟',
+        type: mediaType,
+        title: (s.mission_title || 'Mission').trim() || 'Mission',
+        caption: (s.caption || '').trim(),
+        created_by_teacher_name: s.created_by_teacher_name || 'Teacher',
+        url: imgUrl || vidUrl || linkUrl || '',
+        image_url: imgUrl || undefined,
+        video_url: vidUrl || undefined,
+        link_url: linkUrl || undefined,
+        created_at: s.reviewed_at || s.created_at || '',
+        teacher_pick: false,
+        teacher_featured: false,
+      };
+    }
+
+    function enrichFeedAvatarsThenRenderAll(){
+      if (typeof window.LanternAvatar !== 'undefined' && window.LanternAvatar.attachCanonicalAvatarsToItems && feed.length > 0) {
+        window.LanternAvatar.attachCanonicalAvatarsToItems(feed).then(function(){ renderAll(); });
+      } else {
+        renderAll();
+      }
+    }
+
+    /** Latest Posts rail: normalized post + mission_submission only, chrono desc, then map.raw → feed rows. */
+    function applyLatestPostsFromExploreDataset(dataset){
+      var LEDS = window.LANTERN_EXPLORE_DATASET;
+      if (!LEDS || !dataset || !dataset.byKind) return false;
+      var K = LEDS.CONTENT_KIND;
+      var postsNorm = dataset.byKind[K.POST] || [];
+      var missNorm = dataset.byKind[K.MISSION_SUBMISSION] || [];
+      var merged = postsNorm.concat(missNorm);
+      merged.sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
+      feed = merged.map(function(it){
+        if (it.kind === K.MISSION_SUBMISSION) return mapApprovedSubmissionToFeedPost(it.raw);
+        return it.raw;
+      });
+      try { console.log('[explore] latest from dataset posts=' + postsNorm.length + ' missions=' + missNorm.length + ' total=' + feed.length + ' dupes_dropped_global=' + (dataset.duplicates_dropped != null ? dataset.duplicates_dropped : '?')); } catch(_) {}
+      return true;
+    }
+
+    function loadLatestPostsLegacyMergeThenRender(){
+      var postsPromise = callGetExploreFeed();
+      var approvedPromise = exploreApiBase ? fetch(exploreApiBase + '/api/missions/submissions/approved?limit=30').then(function(r){ return r.json(); }).then(function(res){ return (res && Array.isArray(res.submissions)) ? res.submissions : (res && res.submissions) ? res.submissions : []; }).catch(function(){ return []; }) : Promise.resolve([]);
+      Promise.all([postsPromise, approvedPromise]).then(function(arr){
+        var postsFeed = (arr[0] && arr[0].feed) || [];
+        var approvedSubs = arr[1] || [];
+        var missionItems = approvedSubs.map(mapApprovedSubmissionToFeedPost);
+        try { if (missionItems.length) console.log('[explore] one approved mission before merge (legacy)', missionItems[0]); } catch(_) {}
+        feed = postsFeed.concat(missionItems).sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
+        try { console.log('[explore] visible feed source (legacy): posts=' + postsFeed.length + ' missions=' + missionItems.length + ' total=' + feed.length); } catch(_) {}
+        enrichFeedAvatarsThenRenderAll();
+      });
+    }
+
+    function refresh(){
+      loadPolls();
+      loadMissionSpotlight();
+      var LEDS = window.LANTERN_EXPLORE_DATASET;
+      if (LEDS && typeof LEDS.buildExploreDataset === 'function') {
+        LEDS.buildExploreDataset()
+          .then(function(dataset){
+            if (!applyLatestPostsFromExploreDataset(dataset)) {
+              loadLatestPostsLegacyMergeThenRender();
+              return;
+            }
+            enrichFeedAvatarsThenRenderAll();
+          })
+          .catch(function(){
+            loadLatestPostsLegacyMergeThenRender();
+          });
+      } else {
+        loadLatestPostsLegacyMergeThenRender();
+      }
+      happeningNewsLimit = 12;
+      if (window.LANTERN_REACTIONS && window.LANTERN_REACTIONS.getFeatureFlags) {
+        window.LANTERN_REACTIONS.getFeatureFlags().then(function(){
+          callGetApprovedNews().then(function(res){ renderStudentNews((res && res.news) || []); });
+        });
+      } else {
+        callGetApprovedNews().then(function(res){ renderStudentNews((res && res.news) || []); });
+      }
+      callGetActivityEvents(12).then(function(res){
+        var events = (res && res.events) || [];
+        renderSchoolActivity(events);
+      });
+      refreshDailyHunt();
+    }
+
+    (function(){
+      var nuggetEl = el('dailyHuntNuggetEl');
+      if (nuggetEl){
+        nuggetEl.addEventListener('click', function(){
+          var adopted = getAdopted();
+          if (!adopted){ alert('Pick a student in Locker → Overview to claim.'); return; }
+          callClaimDailyNuggetHunt(adopted.name).then(function(res){
+            if (res && res.ok){
+              if (window.MTSS_SFX && typeof window.MTSS_SFX.playChaChing === 'function') window.MTSS_SFX.playChaChing();
+              var label = (res.rarity_label && res.rarity_label !== 'Common') ? ' ' + res.rarity_label + '!' : '';
+              var t = el('toast');
+              if (t){ t.textContent = '+' + (res.nuggets || 1) + ' nugget' + ((res.nuggets || 1) !== 1 ? 's' : '') + label + ' — Hidden nugget found!'; t.style.display = 'block'; setTimeout(function(){ t.style.display = 'none'; }, 2400); }
+              nuggetEl.style.display = 'none';
+              refreshDailyHunt();
+            } else if (res && res.already){
+              refreshDailyHunt();
+            }
+          });
+        });
+      }
+    })();
+
+    function applyExploreSearch(){
+      var searchInput = document.getElementById('lanternExploreSearch');
+      if (!searchInput) return;
+      var query = (searchInput.value || '').trim().toLowerCase();
+      var cards = document.querySelectorAll('.exploreCard');
+      cards.forEach(function(card){
+        var text = (card.textContent || '').toLowerCase();
+        if (query === '' || text.indexOf(query) !== -1) card.style.display = '';
+        else card.style.display = 'none';
+      });
+    }
+    (function(){
+      var searchInput = document.getElementById('lanternExploreSearch');
+      if (!searchInput) return;
+      searchInput.addEventListener('input', applyExploreSearch);
+    })();
+
+    document.addEventListener('lantern-class-access-resolved', function(e){ if (e.detail && e.detail.tokenValid && typeof refresh === 'function') refresh(); });
+  </script>
+  <div id="toast" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12);color:#eaf0ff;padding:12px 14px;border-radius:14px;display:none;z-index:10001;font-weight:900;font-size:22px;"></div>
+  <script src="js/lantern-canonical-enforce.js"></script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html class="lantern-auth-pending" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TMS Lantern — Admin</title>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>
+    :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
+    * { box-sizing: border-box; }
+    html.lantern-auth-pending body { visibility: hidden; }
+    body { margin: 0; padding: 22px 16px 48px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 22px; color: var(--ink);
+      background: linear-gradient(180deg, #070b12, #05070b); min-height: 100vh; }
+    h1 { font-size: 32px; font-weight: 900; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin-bottom: 24px; font-size: 22px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 22px; max-width: 960px; }
+    .cardHd { font-weight: 900; font-size: 26px; margin-bottom: 12px; color: var(--accent); }
+    .btn { padding: 10px 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(90,167,255,.2); color: var(--ink); font-size: 22px; font-weight: 800; cursor: pointer; font-family: inherit; margin-right: 8px; margin-top: 8px; }
+    .btn.good { border-color: rgba(56,208,124,.5); background: rgba(56,208,124,.15); }
+    .btn.bad { border-color: rgba(255,77,109,.5); background: rgba(255,77,109,.12); }
+    table { width: 100%; border-collapse: collapse; font-size: 22px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+    label { display: block; font-weight: 800; margin-top: 12px; }
+    input, select { width: 100%; max-width: 420px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.3); color: var(--ink); font-size: 22px; font-family: inherit; }
+    .row { margin-bottom: 8px; }
+    .pendingRow { padding: 12px 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .pendingMeta { color: var(--muted); font-size: 20px; }
+    a { color: var(--accent); font-weight: 800; }
+  </style>
+</head>
+<body>
+  <script>
+  (function(){
+    if (!window.LanternAuth) { document.documentElement.classList.remove('lantern-auth-pending'); return; }
+    window.LanternAuth.fetchMe().then(function(data){
+      if (!data || !data.ok || !data.authenticated) {
+        location.replace(window.LanternAuth.loginUrlWithReturn());
+        return;
+      }
+      var r = (data.role || '').trim();
+      if (r === 'student') { location.replace('/explore'); return; }
+      if (r === 'teacher') { location.replace('/teacher'); return; }
+      if (r !== 'admin') { location.replace('/login'); return; }
+      document.documentElement.classList.remove('lantern-auth-pending');
+    });
+  })();
+  </script>
+  <h1>Admin</h1>
+  <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
+  <p><a href="/explore">Explore (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
+
+  <div class="card">
+    <div class="cardHd">Accounts</div>
+    <div id="usersMsg"></div>
+    <table id="usersTable"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
+    <form id="addUserForm">
+      <label>Username <input id="nu_username" type="text" required autocomplete="off" /></label>
+      <label>Display name <input id="nu_display" type="text" /></label>
+      <label>Role
+        <select id="nu_role"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>
+      </label>
+      <label>Password (8+ chars) <input id="nu_password" type="password" autocomplete="new-password" required /></label>
+      <label>Teacher ID (teachers) <input id="nu_teacher_id" type="text" placeholder="e.g. teacher1" /></label>
+      <label>Student character (students) <input id="nu_scn" type="text" placeholder="e.g. Riley" /></label>
+      <button type="submit" class="btn good" style="margin-top:14px;">Create user</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="cardHd">Pending approvals</div>
+    <p class="pendingMeta">Student submissions appear here until approved. Approving publishes per item rules.</p>
+    <div id="pendingList"></div>
+  </div>
+
+  <script>
+  (function(){
+    var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c; }); }
+
+    document.getElementById('logoutBtn').addEventListener('click', function(){
+      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){ location.href = '/login'; });
+    });
+
+    function loadUsers(){
+      fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
+        var tb = document.getElementById('usersBody');
+        tb.innerHTML = '';
+        if (!res || !res.ok || !res.users) return;
+        res.users.forEach(function(u){
+          var tr = document.createElement('tr');
+          var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
+          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td><button type="button" class="btn" data-edit="' + esc(u.username) + '">Edit</button></td>';
+          tb.appendChild(tr);
+        });
+        tb.querySelectorAll('button[data-edit]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            var un = btn.getAttribute('data-edit');
+            var role = prompt('New role (student / teacher / admin):', 'student');
+            if (!role) return;
+            var act = confirm('Account active? OK = active, Cancel = suspended') ? 1 : 0;
+            fetch(api + '/api/admin/users/update', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: un, role: role.trim(), is_active: act }),
+            }).then(function(r){ return r.json(); }).then(function(x){ if (x && x.ok) loadUsers(); else alert(x && x.error || 'Update failed'); });
+          });
+        });
+      });
+    }
+
+    document.getElementById('addUserForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      var body = {
+        username: document.getElementById('nu_username').value.trim(),
+        display_name: document.getElementById('nu_display').value.trim(),
+        role: document.getElementById('nu_role').value,
+        password: document.getElementById('nu_password').value,
+      };
+      var tid = document.getElementById('nu_teacher_id').value.trim();
+      var scn = document.getElementById('nu_scn').value.trim();
+      if (tid) body.teacher_id = tid;
+      if (scn) body.student_character_name = scn;
+      fetch(api + '/api/admin/users', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res && res.ok) { loadUsers(); document.getElementById('addUserForm').reset(); }
+        else alert(res && res.error || 'Failed');
+      });
+    });
+
+    function loadPending(){
+      fetch(api + '/api/approvals/pending?filter=mine,unassigned', { credentials: 'include' })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          var el = document.getElementById('pendingList');
+          el.innerHTML = '';
+          var list = (res && res.pending) || [];
+          if (list.length === 0) { el.innerHTML = '<p class="pendingMeta">No pending items.</p>'; return; }
+          list.forEach(function(a){
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            var title = a.title || ((a.item_type || '') + ' · ' + (a.item_id || ''));
+            div.innerHTML = '<div><strong>' + esc(a.item_type || '') + '</strong> — ' + esc(title) + '<div class="pendingMeta">' + esc(a.submitter || '') + '</div></div><div></div>';
+            var id = a.id;
+            var approveBtn = document.createElement('button');
+            approveBtn.className = 'btn good';
+            approveBtn.textContent = 'Approve';
+            approveBtn.onclick = function(){
+              fetch(api + '/api/approvals/approve', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, reviewed_by_staff_name: 'Admin', staff_id: 'admin' }),
+              }).then(function(){ loadPending(); loadUsers(); });
+            };
+            var rejBtn = document.createElement('button');
+            rejBtn.className = 'btn bad';
+            rejBtn.textContent = 'Reject';
+            rejBtn.onclick = function(){
+              var note = prompt('Reason (optional):', '') || '';
+              fetch(api + '/api/approvals/reject', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, decision_note: note, reviewed_by_staff_name: 'Admin', staff_id: 'admin' }),
+              }).then(function(){ loadPending(); });
+            };
+            div.lastElementChild.appendChild(approveBtn);
+            div.lastElementChild.appendChild(rejBtn);
+            el.appendChild(div);
+          });
+        });
+    }
+
+    loadUsers();
+    loadPending();
+    setInterval(loadPending, 60000);
+  })();
+  </script>
+</body>
+</html>

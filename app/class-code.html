@@ -1,0 +1,146 @@
+<!-- ===== TMS Lantern — Class Code Display (projector / shared screen) ===== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <title>Class Access Code — TMS Lantern</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+    }
+    *{box-sizing:border-box}
+    html,body{ margin: 0; padding: 0; min-height: 100%; width: 100%; }
+    body{
+      background:
+        radial-gradient(1400px 700px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      font-size: 22px;
+    }
+    .codePageTitle{ font-weight: 1000; font-size: 32px; color: var(--muted); letter-spacing: .1em; margin-bottom: 32px; }
+    .codeDisplay{ font-weight: 1000; font-size: clamp(48px, 10vw, 80px); line-height: 1.25; letter-spacing: .12em; color: var(--ink); margin-bottom: 24px; word-break: break-word; }
+    .codeDisplay .word{ display: block; }
+    .codeExpiry{ font-size: 28px; color: var(--muted); margin-bottom: 16px; }
+    .emptyState{ font-size: 28px; color: var(--muted); max-width: 480px; margin: 0 auto 16px; line-height: 1.4; }
+    .emptyState strong{ color: var(--ink); }
+    .loadingState{ font-size: 28px; color: var(--muted); }
+    .errorState{ font-size: 26px; color: var(--warn); max-width: 420px; margin: 0 auto; }
+    .linkBack{ margin-top: 28px; font-size: 22px; }
+    .linkBack a{ color: var(--accent); font-weight: 800; text-decoration: none; }
+    .linkBack a:hover{ text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div id="contentEl">
+    <div class="loadingState">Loading…</div>
+  </div>
+  <p class="linkBack"><a href="/teacher">Teacher page</a></p>
+
+  <script>
+    (function(){
+      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      var contentEl = document.getElementById('contentEl');
+      var DEFAULT_TEACHER_ID = 'teacherA';
+      var teacherId = DEFAULT_TEACHER_ID;
+      var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
+      if (params.get('teacher_id')) teacherId = params.get('teacher_id').trim() || DEFAULT_TEACHER_ID;
+      var pollInterval = 25000;
+      var pollTimer = null;
+
+      function setContent(html){ if (contentEl) contentEl.innerHTML = html; }
+
+      function showLoading(){ setContent('<div class="loadingState">Loading…</div>'); }
+
+      function showEmpty(){
+        setContent(
+          '<p class="codePageTitle">CLASS ACCESS CODE</p>' +
+          '<p class="emptyState"><strong>No active class access session.</strong><br>Start class access from the teacher page to display a code here.</p>'
+        );
+      }
+
+      function showError(){
+        setContent(
+          '<p class="codePageTitle">CLASS ACCESS CODE</p>' +
+          '<p class="errorState">Could not load class access right now.</p>'
+        );
+      }
+
+      function showActive(session){
+        var code = (session.access_code || '').trim().toUpperCase();
+        var words = code ? code.split(/\s+/).filter(Boolean) : [];
+        var codeHtml = words.length > 0
+          ? words.map(function(w){ return '<span class="word">' + escapeHtml(w) + '</span>'; }).join('')
+          : escapeHtml(code || '—');
+        var expiryHtml = '';
+        if (session.expires_at) {
+          try {
+            var exp = new Date(session.expires_at);
+            var min = Math.max(0, Math.round((exp - new Date()) / 60000));
+            var timeStr = exp.toLocaleTimeString('en-US', { timeZone: 'America/Denver', hour: 'numeric', minute: '2-digit' }) + ' MT';
+            expiryHtml = '<p class="codeExpiry">Expires in: ' + min + ' min remaining · ' + timeStr + '</p>';
+          } catch(e) { expiryHtml = '<p class="codeExpiry">Expires: ' + escapeHtml(session.expires_at) + '</p>'; }
+        }
+        setContent(
+          '<p class="codePageTitle">CLASS ACCESS CODE</p>' +
+          '<div class="codeDisplay" aria-live="polite">' + codeHtml + '</div>' +
+          expiryHtml
+        );
+      }
+
+      function escapeHtml(s){
+        if (typeof s !== 'string') return '';
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      function fetchSession(){
+        if (!apiBase) { showError(); return; }
+        var url = apiBase + '/api/class-access/session/status?teacher_id=' + encodeURIComponent(teacherId);
+        fetch(url)
+          .then(function(r){ return r.json(); })
+          .then(function(res){
+            if (res && res.ok && res.active && res.access_code) {
+              showActive(res);
+            } else {
+              showEmpty();
+            }
+          })
+          .catch(function(){
+            showError();
+          });
+      }
+
+      function startPolling(){
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(function(){
+          if (document.visibilityState === 'visible') fetchSession();
+        }, pollInterval);
+      }
+
+      showLoading();
+      fetchSession();
+      startPolling();
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible') fetchSession();
+      });
+    })();
+  </script>
+</body>
+</html>
