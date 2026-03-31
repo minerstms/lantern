@@ -6,6 +6,7 @@
   var LS_KEY = 'LANTERN_HELP_MODE';
   var HELP_TEXTS = {
     explore: 'Lantern home is one continuous feed. Announcements lists official and featured items first. Missions & Actions is for missions and polls. Mini Games links to handbook activities. Latest Posts is the chronological community feed. School News has articles and an activity log. Game Scores links to the Games page.',
+    just_in: 'Just In: the newest approved items in Spotlight style — a quick scan of what landed most recently (not the full Latest Posts list).',
     best_of_lantern: 'Announcements: official updates, staff news, and teacher-featured work shown at the top of the feed.',
     you_can_do: 'Missions & Actions: start a spotlight mission, vote in polls, and take other steps here.',
     happening: 'School News: approved reporter and staff articles, plus recent activity on Lantern.',

@@ -498,16 +498,16 @@ ${verifyBlock}
     </div>
     </div>
     <!-- Locker tabpanel: Overview (#lockerPanelOverview) — profile .section / .sectionHd / .sectionBd + profile CSS; body = overviewMain slice. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
-    <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabOverview" data-locker-surface="overview">
+    <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabOverview" data-locker-surface="overview" data-help="profile">
 ${overviewMain}
     </div>
     <!-- Locker tabpanel: Items (#lockerPanelItems) — #lockerSectionsEl + JS-built .lockerSection* + .lanternScroller + Lantern cosmetic cards. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
-    <div id="lockerPanelItems" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabItems" hidden data-locker-surface="items">
+    <div id="lockerPanelItems" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabItems" hidden data-locker-surface="items" data-help="cosmetics">
       <div id="lockerSectionsEl"></div>
       <p class="note" style="padding:0;">Equip cosmetics here. For name, bio, avatar, and featured work, use <strong>Edit Profile</strong> on Overview. Buy more on the Store tab.</p>
     </div>
     <!-- Locker tabpanel: Store (#lockerPanelStore) — .storePanelRoot; static .lockerSection* + .card rows. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
-    <div id="lockerPanelStore" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabStore" hidden data-locker-surface="store">
+    <div id="lockerPanelStore" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabStore" hidden data-locker-surface="store" data-help="store">
       <div class="storePanelRoot">
 ${storeMain}
       </div>
