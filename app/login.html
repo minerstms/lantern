@@ -38,7 +38,7 @@
     <h1>Sign in</h1>
     <p class="sub">Enter your username and password.</p>
     <div id="msg" style="display:none;" role="status" aria-live="polite"></div>
-    <form id="loginForm">
+    <form id="loginForm" novalidate>
       <label for="username">Username</label>
       <input id="username" name="username" type="text" autocomplete="username" required />
       <label for="password">Password</label>
@@ -59,6 +59,10 @@
       }
       var returnTo = qs('return');
       if (!returnTo || returnTo.indexOf('login.html') !== -1 || returnTo.indexOf('/login') !== -1) returnTo = '/explore';
+
+      if (!form || !submitBtn || !msgEl) {
+        return;
+      }
 
       function showError(text) {
         msgEl.style.display = 'block';
@@ -89,7 +93,6 @@
       if (!api) {
         showError('Configure window.LANTERN_AVATAR_API to your API base URL.');
         submitBtn.disabled = true;
-        return;
       }
 
       form.addEventListener('submit', function (e) {
@@ -99,7 +102,16 @@
         msgEl.style.display = 'none';
         msgEl.textContent = '';
         msgEl.className = '';
+        if (!api) {
+          showError('Configure window.LANTERN_AVATAR_API to your API base URL.');
+          return;
+        }
+        if (!username || !password) {
+          showError('Please enter username and password.');
+          return;
+        }
         submitBtn.disabled = true;
+        console.log('[Lantern login] POST', api + '/api/auth/login');
         fetch(api + '/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
