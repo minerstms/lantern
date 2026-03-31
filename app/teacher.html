@@ -1095,6 +1095,8 @@
           <div class="approvalsBatchBar" id="approvalsBatchBar">
             <button type="button" class="btn small" id="approvalsSelectVisibleBtn">Select visible</button>
             <button type="button" class="btn small" id="approvalsClearSelectionBtn">Clear selection</button>
+            <button type="button" class="btn good small" id="approvalsBulkApproveBtn" disabled>Approve selected</button>
+            <button type="button" class="btn bad small" id="approvalsBulkRejectBtn" disabled>Reject selected</button>
             <span class="approvalsBatchCount" id="approvalsBatchCount">0 selected</span>
           </div>
         </div>
@@ -1142,6 +1144,21 @@
         <div class="approvalReminderActions">
           <button type="button" class="btn good" id="approvalReminderApproveBtn">Approve</button>
           <button type="button" class="btn" id="approvalReminderCancelBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="bulkApprovalActionOverlay" class="reviewOverlay approvalReminderOverlay" role="dialog" aria-modal="true" aria-labelledby="bulkApprovalActionTitle">
+      <div class="approvalReminderPanel">
+        <h2 id="bulkApprovalActionTitle" class="approvalReminderTitle">Confirm bulk action</h2>
+        <p id="bulkApprovalActionBody" class="note" style="margin-bottom:12px;line-height:1.4;"></p>
+        <div id="bulkApprovalRejectReasonWrap" style="display:none;margin-bottom:14px;">
+          <label for="bulkApprovalRejectReason" class="note" style="display:block;margin-bottom:6px;">Reason (optional, applies to each rejection where supported)</label>
+          <textarea id="bulkApprovalRejectReason" rows="2" style="width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:20px;padding:10px;font-family:inherit;"></textarea>
+        </div>
+        <div class="approvalReminderActions">
+          <button type="button" class="btn good" id="bulkApprovalActionConfirmBtn">Confirm</button>
+          <button type="button" class="btn" id="bulkApprovalActionCancelBtn">Cancel</button>
         </div>
       </div>
     </div>
@@ -2273,7 +2290,145 @@
     function updateApprovalsBatchBarUI() {
       var countEl = el('approvalsBatchCount');
       if (!countEl) return;
-      countEl.textContent = pendingApprovalSelectionKeys.size + ' selected';
+      var n = pendingApprovalSelectionKeys.size;
+      countEl.textContent = n + ' selected';
+      var bulkAp = el('approvalsBulkApproveBtn');
+      var bulkRj = el('approvalsBulkRejectBtn');
+      if (bulkAp) bulkAp.disabled = n === 0;
+      if (bulkRj) bulkRj.disabled = n === 0;
+    }
+    function getVisiblePendingEntries(){
+      return applyPendingFiltersAndSort(buildClassroomItems()).concat(applyPendingFiltersAndSort(buildSchoolwideItems()));
+    }
+    function findEntryBySelectionKey(key){
+      if (!key) return null;
+      var list = getVisiblePendingEntries();
+      for (var i = 0; i < list.length; i++) {
+        if (getApprovalEntrySelectionKey(list[i]) === key) return list[i];
+      }
+      return null;
+    }
+    function bulkApprovalResolveSelectedEntries(){
+      var out = [];
+      var seen = Object.create(null);
+      pendingApprovalSelectionKeys.forEach(function(k){
+        var e = findEntryBySelectionKey(k);
+        if (e && !seen[k]) { seen[k] = true; out.push(e); }
+      });
+      return out;
+    }
+    function callBulkApproveOne(entry){
+      var type = entry.type;
+      var item = entry.item;
+      if (!item) return Promise.resolve({ ok: false, error: 'Missing item' });
+      if (type === 'mission') return callApproveMissionSubmission(item.id);
+      if (type === 'avatar') return callApproveAvatarSubmission(item.id);
+      if (type === 'approval_item') return callApproveApprovalItem(item.id);
+      if (type === 'news') return callApproveNewsArticle(item.id);
+      if (type === 'post') return callApprovePost(item.id);
+      if (type === 'thanks') return callApproveThanks(item.id);
+      if (type === 'grade_reflection') return callApproveGradeReflection(item.id);
+      if (type === 'submission') return callApproveSubmission(item.id, 3, false);
+      return Promise.resolve({ ok: false, error: 'Unsupported type' });
+    }
+    function callBulkRejectOne(entry, reason){
+      var type = entry.type;
+      var item = entry.item;
+      var r = (reason || '').trim();
+      if (!item) return Promise.resolve({ ok: false, error: 'Missing item' });
+      if (type === 'mission') return callRejectMissionSubmission(item.id);
+      if (type === 'avatar') return callRejectAvatarSubmission(item.id, r);
+      if (type === 'approval_item') return callRejectApprovalItem(item.id, r);
+      if (type === 'news') return callRejectNewsArticle(item.id);
+      if (type === 'post') return callRejectPost(item.id);
+      if (type === 'thanks') return callRejectThanks(item.id);
+      if (type === 'grade_reflection') return callRejectGradeReflection(item.id);
+      if (type === 'submission') return callRejectSubmission(item.id);
+      return Promise.resolve({ ok: false, error: 'Unsupported type' });
+    }
+    var bulkApprovalActionMode = '';
+    function closeBulkApprovalActionOverlay(){
+      var ov = el('bulkApprovalActionOverlay');
+      if (ov) ov.classList.remove('is-open');
+      var ta = el('bulkApprovalRejectReason');
+      if (ta) ta.value = '';
+      var rw = el('bulkApprovalRejectReasonWrap');
+      if (rw) rw.style.display = 'none';
+      bulkApprovalActionMode = '';
+    }
+    function openBulkApprovalActionOverlay(mode){
+      var entries = bulkApprovalResolveSelectedEntries();
+      var n = entries.length;
+      var titleEl = el('bulkApprovalActionTitle');
+      var bodyEl = el('bulkApprovalActionBody');
+      var confirmBtn = el('bulkApprovalActionConfirmBtn');
+      var rw = el('bulkApprovalRejectReasonWrap');
+      var ov = el('bulkApprovalActionOverlay');
+      if (!ov || !titleEl || !bodyEl || !confirmBtn) return;
+      if (n === 0) { toast('No items selected'); return; }
+      bulkApprovalActionMode = mode;
+      if (mode === 'approve') {
+        titleEl.textContent = 'Approve selected items?';
+        bodyEl.textContent = 'You are about to approve ' + n + ' item(s). Review each item\'s content before confirming; this uses the same approval actions as the single-item Review flow.';
+        if (rw) rw.style.display = 'none';
+        confirmBtn.className = 'btn good';
+        confirmBtn.textContent = 'Approve ' + n + ' item(s)';
+      } else {
+        titleEl.textContent = 'Reject selected items?';
+        bodyEl.textContent = 'You are about to reject ' + n + ' item(s). Optional reason applies to avatar, poll, and approval-queue items where the backend stores a reason.';
+        if (rw) rw.style.display = 'block';
+        confirmBtn.className = 'btn bad';
+        confirmBtn.textContent = 'Reject ' + n + ' item(s)';
+      }
+      ov.classList.add('is-open');
+    }
+    async function runBulkApprovalActionConfirmed(){
+      var mode = bulkApprovalActionMode;
+      var entries = bulkApprovalResolveSelectedEntries();
+      var confirmBtn = el('bulkApprovalActionConfirmBtn');
+      if (!mode || entries.length === 0) { closeBulkApprovalActionOverlay(); return; }
+      var reason = '';
+      if (mode === 'reject') {
+        var ta = el('bulkApprovalRejectReason');
+        reason = ta ? String(ta.value || '').trim() : '';
+      }
+      if (confirmBtn) confirmBtn.disabled = true;
+      var ok = 0;
+      var fail = 0;
+      var errMsgs = [];
+      try {
+        for (var i = 0; i < entries.length; i++) {
+          var res;
+          try {
+            if (mode === 'approve') res = await callBulkApproveOne(entries[i]);
+            else res = await callBulkRejectOne(entries[i], reason);
+          } catch (err) {
+            res = { ok: false, error: String(err && err.message || err) };
+          }
+          if (res && res.ok) ok++;
+          else {
+            fail++;
+            var em = (res && res.error) ? String(res.error) : 'Failed';
+            if (errMsgs.length < 4) errMsgs.push(em);
+          }
+        }
+      } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
+      }
+      closeBulkApprovalActionOverlay();
+      pendingApprovalSelectionKeys.clear();
+      document.querySelectorAll('#teacher-approvals .approvalRowSelect').forEach(function(cb){ cb.checked = false; });
+      updateApprovalsBatchBarUI();
+      try {
+        await refresh();
+      } catch (refreshErr) {
+        toast('Queue refresh had an issue; try Refresh or reload if counts look wrong.');
+      }
+      var summary = mode === 'approve'
+        ? ('Approved ' + ok + ' of ' + entries.length + (fail ? '. Failed: ' + fail : ''))
+        : ('Rejected ' + ok + ' of ' + entries.length + (fail ? '. Failed: ' + fail : ''));
+      if (fail && errMsgs.length) summary += ' — ' + errMsgs.join('; ');
+      toast(summary);
     }
     function initApprovalsBatchBarOnce() {
       var bar = el('approvalsBatchBar');
@@ -2295,6 +2450,16 @@
         document.querySelectorAll('#teacher-approvals .approvalRowSelect').forEach(function(cb){ cb.checked = false; });
         updateApprovalsBatchBarUI();
       });
+      var bulkAp = el('approvalsBulkApproveBtn');
+      var bulkRj = el('approvalsBulkRejectBtn');
+      if (bulkAp) bulkAp.addEventListener('click', function(){ openBulkApprovalActionOverlay('approve'); });
+      if (bulkRj) bulkRj.addEventListener('click', function(){ openBulkApprovalActionOverlay('reject'); });
+      var bulkOv = el('bulkApprovalActionOverlay');
+      var bulkCancel = el('bulkApprovalActionCancelBtn');
+      var bulkConfirm = el('bulkApprovalActionConfirmBtn');
+      if (bulkCancel) bulkCancel.addEventListener('click', closeBulkApprovalActionOverlay);
+      if (bulkOv) bulkOv.addEventListener('click', function(ev){ if (ev.target === bulkOv) closeBulkApprovalActionOverlay(); });
+      if (bulkConfirm) bulkConfirm.addEventListener('click', function(){ runBulkApprovalActionConfirmed(); });
     }
     function renderApprovalRow(container, entry, onReview){
       var typeLabel = entry.type === 'mission' ? 'Mission' : entry.type === 'avatar' ? 'Avatar' : entry.type === 'approval_item' ? (entry.item.item_type === 'news' ? 'News' : entry.item.item_type === 'avatar' ? 'Avatar' : entry.item.item_type === 'poll_contribution' ? 'Poll' : 'Display') : entry.type === 'news' ? 'News' : entry.type === 'post' ? 'Post' : entry.type === 'thanks' ? 'Thanks' : entry.type === 'grade_reflection' ? 'Grade reflection' : 'Submission';
@@ -3743,6 +3908,14 @@
     if (moderationPreviewOverlayEl) moderationPreviewOverlayEl.addEventListener('click', function(e){ if (e.target === moderationPreviewOverlayEl) closeModerationPreview(); });
     var approvalReminderOverlayEl = el('approvalReminderOverlay');
     if (approvalReminderOverlayEl) approvalReminderOverlayEl.addEventListener('click', function(e){ if (e.target === approvalReminderOverlayEl) approvalReminderOverlayEl.classList.remove('is-open'); });
+    document.addEventListener('keydown', function(ev){
+      if (ev.key !== 'Escape') return;
+      var bulkApOv = el('bulkApprovalActionOverlay');
+      if (bulkApOv && bulkApOv.classList.contains('is-open')) {
+        closeBulkApprovalActionOverlay();
+        ev.preventDefault();
+      }
+    });
 
     if (el('classAccessStartBtn')) {
       el('classAccessStartBtn').addEventListener('click', async function(){
