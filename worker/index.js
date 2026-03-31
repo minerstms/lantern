@@ -1813,6 +1813,7 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     let linkUrl = (body.link_url || '').trim() || null;
     if (linkUrl && !/^https?:\/\//i.test(linkUrl)) linkUrl = null;
     if (linkUrl) linkUrl = linkUrl.slice(0, 2000);
+    const category = (body.category != null && String(body.category).trim() !== '') ? String(body.category).trim().slice(0, 200) : null;
     if (!title) return jsonResponse({ ok: false, error: 'Missing title' }, 400, cors);
     if (!authorName) return jsonResponse({ ok: false, error: 'Missing author_name' }, 400, cors);
     const id = 'news-' + crypto.randomUUID();
@@ -1822,8 +1823,8 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const reviewedAt = isTeacherLike ? now : null;
     const reviewedBy = isTeacherLike ? (authorName || 'Teacher') : null;
     await db.prepare(
-      'INSERT INTO lantern_news_submissions (id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, status, created_at, reviewed_at, reviewed_by_staff_id, reviewed_by_staff_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, title, articleBody, actorId || null, authorName, authorType, imageR2Key, fullImageR2Key, imageFileName, imageMimeType, imageFileSize, photoCredit, videoR2Key, videoFileName, videoMimeType, videoFileSize, linkUrl, status, now, reviewedAt, null, reviewedBy).run();
+      'INSERT INTO lantern_news_submissions (id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at, reviewed_by_staff_id, reviewed_by_staff_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, title, articleBody, actorId || null, authorName, authorType, imageR2Key, fullImageR2Key, imageFileName, imageMimeType, imageFileSize, photoCredit, videoR2Key, videoFileName, videoMimeType, videoFileSize, linkUrl, category, status, now, reviewedAt, null, reviewedBy).run();
     if (!isTeacherLike) {
       const approvalId = 'approval-' + crypto.randomUUID();
       await db.prepare(
@@ -1839,16 +1840,20 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
     const id = (body.id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
-    const row = await db.prepare('SELECT id, status FROM lantern_news_submissions WHERE id = ?').bind(id).first();
+    const row = await db.prepare('SELECT id, status, category FROM lantern_news_submissions WHERE id = ?').bind(id).first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
     if ((row.status || '') !== 'returned') return jsonResponse({ ok: false, error: 'Can only resubmit returned articles' }, 400, cors);
     const title = (body.title || '').trim();
     const articleBody = (body.body || '').trim();
     const now = new Date().toISOString();
+    let categoryNext = row.category != null ? String(row.category).trim().slice(0, 200) || null : null;
+    if (Object.prototype.hasOwnProperty.call(body, 'category')) {
+      categoryNext = String(body.category || '').trim().slice(0, 200) || null;
+    }
     if (title && articleBody) {
       await db.prepare(
-        'UPDATE lantern_news_submissions SET title = ?, body = ?, status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
-      ).bind(title, articleBody, 'pending', null, null, null, null, id).run();
+        'UPDATE lantern_news_submissions SET title = ?, body = ?, category = ?, status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
+      ).bind(title, articleBody, categoryNext, 'pending', null, null, null, null, id).run();
     } else {
       await db.prepare(
         'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
@@ -1865,12 +1870,13 @@ async function handleNewsRoutes(request, url, path, env, cors) {
 
   if (request.method === 'GET' && path === '/api/news/approved') {
     const rows = await db.prepare(
-      'SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, status, created_at, reviewed_at FROM lantern_news_submissions WHERE status = ? AND (hidden_at IS NULL OR hidden_at = ?) ORDER BY reviewed_at DESC, created_at DESC'
+      'SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at FROM lantern_news_submissions WHERE status = ? AND (hidden_at IS NULL OR hidden_at = ?) ORDER BY reviewed_at DESC, created_at DESC'
     ).bind('approved', '').all();
     const list = (rows.results || []).map(r => ({
       id: r.id,
       title: r.title,
       body: r.body,
+      category: r.category != null && String(r.category).trim() !== '' ? String(r.category).trim() : null,
       author_name: r.author_name,
       author_type: r.author_type,
       image_r2_key: r.image_r2_key,
@@ -1937,12 +1943,13 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const authorName = (url.searchParams.get('author_name') || '').trim();
     if (!authorName) return jsonResponse({ ok: true, news: [] }, 200, cors);
     const rows = await db.prepare(
-      'SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, status, created_at, reviewed_at, decision_note FROM lantern_news_submissions WHERE author_name = ? ORDER BY created_at DESC'
+      'SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, category, status, created_at, reviewed_at, decision_note FROM lantern_news_submissions WHERE author_name = ? ORDER BY created_at DESC'
     ).bind(authorName).all();
     const list = (rows.results || []).map(r => ({
       id: r.id,
       title: r.title,
       body: r.body,
+      category: r.category != null && String(r.category).trim() !== '' ? String(r.category).trim() : null,
       author_name: r.author_name,
       author_type: r.author_type,
       status: r.status,
@@ -2035,12 +2042,13 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
       let submitter = a.submitted_by_actor_name || '';
       let preview_url = null;
       if (a.item_type === 'news') {
-        const newsRow = await db.prepare('SELECT id, title, body, author_name, image_r2_key, video_r2_key, link_url FROM lantern_news_submissions WHERE id = ?').bind(a.item_id).first();
+        const newsRow = await db.prepare('SELECT id, title, body, author_name, image_r2_key, video_r2_key, link_url, category FROM lantern_news_submissions WHERE id = ?').bind(a.item_id).first();
         if (newsRow) {
           title = newsRow.title || '';
           preview_url = newsRow.image_r2_key ? origin + '/api/news/image?key=' + encodeURIComponent(newsRow.image_r2_key) : null;
           const videoUrl = newsRow.video_r2_key ? origin + '/api/news/video?key=' + encodeURIComponent(newsRow.video_r2_key) : null;
           const linkUrl = (newsRow.link_url && /^https?:\/\//i.test(String(newsRow.link_url).trim())) ? String(newsRow.link_url).trim().slice(0, 2000) : null;
+          const cat = newsRow.category != null && String(newsRow.category).trim() !== '' ? String(newsRow.category).trim() : null;
           out.push({
             id: a.id,
             item_type: a.item_type,
@@ -2058,6 +2066,7 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
             link_url: linkUrl,
             body: newsRow.body || '',
             author_name: newsRow.author_name || submitter,
+            category: cat,
           });
           continue;
         }

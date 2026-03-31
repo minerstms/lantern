@@ -2271,7 +2271,7 @@
       var wasNewsResubmit = !!newsArticleResubmitId;
       var res;
       if (newsArticleResubmitId) {
-        res = await callResubmitNewsArticleHttp({ id: newsArticleResubmitId, title: title, body: body });
+        res = await callResubmitNewsArticleHttp({ id: newsArticleResubmitId, title: title, body: body, category: category });
       } else {
         res = await callCreateNewsArticle(payload);
       }

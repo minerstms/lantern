@@ -293,6 +293,87 @@
     .approvalRowClickable{ cursor: pointer; }
     .approvalRowClickable:hover{ background: rgba(255,255,255,.06); }
     .approvalRowReviewBtn{ flex-shrink: 0; }
+    /* Pending queue rows only (#teacher-approvals schoolwide / classroom lists via renderApprovalRow) */
+    #teacher-approvals .teacherApprovalPendingRow{
+      align-items: flex-start;
+      padding: 10px 12px;
+      gap: 12px;
+      border-left: 3px solid rgba(255,255,255,.1);
+      border-radius: 0 10px 10px 0;
+      margin-bottom: 2px;
+    }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--news{ border-left-color: rgba(90,167,255,.55); background: rgba(90,167,255,.04); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--post{ border-left-color: rgba(242,194,48,.45); background: rgba(242,194,48,.05); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--mission{ border-left-color: rgba(56,208,124,.45); background: rgba(56,208,124,.04); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--avatar{ border-left-color: rgba(156,100,255,.45); background: rgba(156,100,255,.04); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--poll{ border-left-color: rgba(255,140,90,.45); background: rgba(255,140,90,.05); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--display{ border-left-color: rgba(160,180,200,.4); background: rgba(255,255,255,.03); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--thanks{ border-left-color: rgba(255,120,160,.4); background: rgba(255,120,160,.04); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--grade-reflection{ border-left-color: rgba(120,200,255,.4); background: rgba(120,200,255,.04); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--submission{ border-left-color: rgba(180,200,220,.35); background: rgba(255,255,255,.02); }
+    #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--generic{ border-left-color: rgba(255,255,255,.12); }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueLeft{
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueText{ flex: 1; min-width: 0; }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueHead{
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalKindChip{
+      display: inline-block;
+      font-size: 17px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(0,0,0,.22);
+      line-height: 1.2;
+      color: var(--ink);
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalCategoryPill{
+      display: inline-block;
+      font-size: 16px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 8px;
+      max-width: min(220px, 100%);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+      background: rgba(90,167,255,.12);
+      border: 1px solid rgba(90,167,255,.3);
+      color: var(--accent);
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueTitle{
+      font-size: 21px;
+      line-height: 1.28;
+      margin-top: 2px;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueMeta{
+      font-size: 19px;
+      margin-top: 3px;
+      line-height: 1.25;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueMid{
+      flex: 0 0 auto;
+      align-self: center;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueMid img{
+      width: 68px;
+      height: 68px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.2);
+      display: block;
+    }
     .moderationSection{ margin-bottom: 0; }
     .moderationSectionHd{ font-weight: 900; font-size: 22px; margin-bottom: 6px; color: var(--muted); }
     .moderationSection + .moderationSection{ margin-top: 10px; }
@@ -1853,6 +1934,63 @@
       }
       return items;
     }
+    function approvalKindKey(entry) {
+      var t = entry.type;
+      if (t === 'approval_item') {
+        var it = (entry.item && entry.item.item_type) || '';
+        if (it === 'news') return 'news';
+        if (it === 'avatar') return 'avatar';
+        if (it === 'poll_contribution') return 'poll';
+        return 'display';
+      }
+      if (t === 'mission') return 'mission';
+      if (t === 'news') return 'news';
+      if (t === 'post') return 'post';
+      if (t === 'thanks') return 'thanks';
+      if (t === 'grade_reflection') return 'grade_reflection';
+      if (t === 'avatar') return 'avatar';
+      if (t === 'submission') return 'submission';
+      return 'generic';
+    }
+    function getApprovalCategoryLabel(entry) {
+      var it = entry.item;
+      if (!it) return '';
+      if (entry.type === 'news' || (entry.type === 'approval_item' && it.item_type === 'news')) {
+        var c = (it.category != null && String(it.category).trim()) ? String(it.category).trim() : '';
+        if (!c) return '';
+        return c.length > 56 ? c.slice(0, 56) + '\u2026' : c;
+      }
+      if (entry.type === 'post') {
+        var pc = (it.category != null && String(it.category).trim()) ? String(it.category).trim() : '';
+        if (!pc) return '';
+        return pc.length > 56 ? pc.slice(0, 56) + '\u2026' : pc;
+      }
+      return '';
+    }
+    function getApprovalRowThumbUrl(entry) {
+      var it = entry.item;
+      if (!it) return '';
+      try {
+        if (entry.type === 'mission') {
+          if (it.image_url && String(it.image_url).trim()) return String(it.image_url).trim();
+          if (it.submission_type === 'image_url' && it.submission_content && /^https?:\/\//i.test(String(it.submission_content).trim())) return String(it.submission_content).trim().slice(0, 2000);
+          return '';
+        }
+        if (entry.type === 'news' || (entry.type === 'approval_item' && it.item_type === 'news')) {
+          return String(it.preview_url || it.image_url || '').trim();
+        }
+        if (entry.type === 'avatar' || (entry.type === 'approval_item' && it.item_type === 'avatar')) {
+          return String(it.preview_url || it.image_url || '').trim();
+        }
+        if (entry.type === 'approval_item' && it.item_type === 'poll_contribution') {
+          return String(it.preview_url || '').trim();
+        }
+        if (entry.type === 'post') {
+          return String(it.image_url || it.preview_url || '').trim();
+        }
+      } catch (err) { return ''; }
+      return '';
+    }
     function renderApprovalRow(container, entry, onReview){
       var typeLabel = entry.type === 'mission' ? 'Mission' : entry.type === 'avatar' ? 'Avatar' : entry.type === 'approval_item' ? (entry.item.item_type === 'news' ? 'News' : entry.item.item_type === 'avatar' ? 'Avatar' : entry.item.item_type === 'poll_contribution' ? 'Poll' : 'Display') : entry.type === 'news' ? 'News' : entry.type === 'post' ? 'Post' : entry.type === 'thanks' ? 'Thanks' : entry.type === 'grade_reflection' ? 'Grade reflection' : 'Submission';
       var title = '';
@@ -1903,11 +2041,16 @@
         avatarName = entry.item.submitter || '';
       }
       var avatarHtml = smallAvatarHtml(avatarUrl, avatarName, avatarName);
+      var kindKey = approvalKindKey(entry).replace(/_/g, '-');
+      var catLabel = getApprovalCategoryLabel(entry);
+      var thumb = getApprovalRowThumbUrl(entry);
+      var thumbHtml = thumb ? '<div class="approvalQueueMid" aria-hidden="true"><img src="' + esc(thumb) + '" alt="" loading="lazy" decoding="async" /></div>' : '';
+      var catBlock = catLabel ? '<span class="approvalCategoryPill">' + esc(catLabel) + '</span>' : '';
       var row = document.createElement('div');
-      row.className = 'approvalQueueRow approvalRowClickable';
+      row.className = 'approvalQueueRow approvalRowClickable teacherApprovalPendingRow approvalQueueRow--' + kindKey;
       row.setAttribute('tabindex', '0');
       row.setAttribute('role', 'button');
-      row.innerHTML = '<div class="approvalQueueLeft" style="display:flex;align-items:flex-start;gap:10px;"><div style="flex-shrink:0;">' + avatarHtml + '</div><div><div class="approvalQueueType">' + esc(typeLabel) + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div><div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn">Review</button></div>';
+      row.innerHTML = '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn">Review</button></div>';
       function openReview(){ onReview(entry); }
       row.addEventListener('click', function(ev){ if (ev.target.closest('.approvalRowReviewBtn')) return; openReview(); });
       row.querySelector('.approvalRowReviewBtn').addEventListener('click', function(ev){ ev.stopPropagation(); openReview(); });
@@ -1999,10 +2142,14 @@
         firstMetaAvatarUrl = resolveStudentAvatarUrl(item.author_name || item.submitter);
         firstMetaName = item.author_name || item.submitter || '—';
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.author_name || item.submitter) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.author_name || item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.author_name || item.submitter) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.author_name || item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Title</p><div class="reviewFullText">' + esc(item.title || item.item_id || '') + '</div>';
         if (item.body) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Body</p><div class="reviewFullText">' + esc(item.body) + '</div>';
-        var teacherMedia = window.LanternMedia && window.LanternMedia.renderMedia ? window.LanternMedia.renderMedia(item, { esc: esc, variant: 'teacher' }) : { imageHtml: '', videoHtml: '', linkHtml: '' };
+        var newsMediaItem = item;
+        if (item.preview_url && String(item.preview_url).trim() && !String(item.image_url || '').trim()) {
+          newsMediaItem = Object.assign({}, item, { image_url: item.preview_url, full_image_url: item.full_image_url || item.preview_url });
+        }
+        var teacherMedia = window.LanternMedia && window.LanternMedia.renderMedia ? window.LanternMedia.renderMedia(newsMediaItem, { esc: esc, variant: 'teacher' }) : { imageHtml: '', videoHtml: '', linkHtml: '' };
         var oneMedia = teacherMedia.imageHtml || teacherMedia.videoHtml || teacherMedia.linkHtml;
         if (oneMedia) html += oneMedia;
         html += '</div>';
@@ -2012,7 +2159,7 @@
         metaRows.push(['Author', item.character_name || '—']);
         firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
         firstMetaName = item.character_name || '—';
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.character_name || '—') + '</span></div>' + '</div>' : '';
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.character_name || '—') + '</span></div>' + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Title</p><div class="reviewFullText">' + esc(item.title || 'Untitled') + '</div>';
         if (item.body) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Body</p><div class="reviewFullText">' + esc(item.body) + '</div>';
         if (item.image_url || item.preview_url) html += '<img class="reviewLargeImg" src="' + esc(item.image_url || item.preview_url || '') + '" alt="">';
