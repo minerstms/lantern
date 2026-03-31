@@ -723,6 +723,42 @@
       color: var(--ink);
       margin: 0;
     }
+    #contributeMediaMountWrap.contributeMediaDropZone--drag{
+      border-radius: 14px;
+      outline: 2px dashed rgba(90,167,255,.65);
+      outline-offset: 4px;
+      background: rgba(90,167,255,.08);
+    }
+    .contributeMediaInterimPreview .contributeMediaInterimHint{
+      margin: 0 0 10px 0;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--accent);
+      text-align: center;
+    }
+    #contributePostSuccessBanner{
+      margin-top: 12px;
+      padding: 16px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(56,208,124,.45);
+      background: rgba(56,208,124,.14);
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+    #contributePostSuccessBanner .contributePostSuccessSub{
+      display: block;
+      margin-top: 8px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .btn.good.contributeSubmitBtn--busy{
+      opacity: 0.92;
+      cursor: wait;
+    }
+
     .composerTopBlock{
       margin-bottom: 6px;
       padding-bottom: 8px;
@@ -854,7 +890,7 @@
         <div id="contributeMediaBlock" class="contributeMediaRow" data-help="unified_media">
           <label id="contributeMediaLabel" for="newsUnifiedMediaMount">Picture, video, or link</label>
           <p class="microLine" id="contributeMediaHint">Optional · polls: image or fallback below</p>
-          <div id="contributeMediaMountWrap">
+          <div id="contributeMediaMountWrap" class="contributeMediaDropZone">
           <div id="newsUnifiedMediaMount"></div>
           </div>
           <p id="contributeMediaTypePlaceholder" class="microLine" style="display:none;"></p>
@@ -1052,6 +1088,7 @@
             <button class="btn good" id="submitNewsBtn" type="button">Submit for approval</button>
             <a href="locker.html" class="btn" style="text-decoration:none;display:inline-flex;">Back to Locker</a>
           </div>
+          <div id="contributePostSuccessBanner" style="display:none;" role="status" aria-live="polite"></div>
         </div>
         <div id="contributePreviewCompact" style="margin-top:18px;padding:14px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.15);display:none;">
           <div class="microLine" style="margin-bottom:8px;">Compact preview</div>
@@ -1397,6 +1434,7 @@
       if (hint) {
         if (t === 'poll') hint.textContent = 'Poll card image or link · or pick fallback art on the left';
         else if (t === 'mission' || t === 'profile_post') hint.textContent = '';
+        else if (t === 'post') hint.textContent = 'Optional · drag, paste, or choose a picture or video';
         else hint.textContent = 'Optional · posts & shout-outs';
       }
       if (sub){
@@ -1424,7 +1462,10 @@
       updateStudioAll();
     }
 
-    el('contributeTypeSelect').addEventListener('change', syncContributeTypeUI);
+    el('contributeTypeSelect').addEventListener('change', function(){
+      hideContributePostSuccessBanner();
+      syncContributeTypeUI();
+    });
     el('newsCategorySelect').addEventListener('change', function(){
       var v = (el('newsCategorySelect').value || '').trim();
       if (!v){ el('contributeDerivedCategory').value = ''; updateStudioAll(); return; }
@@ -1520,6 +1561,7 @@
         newsCropperInstance = window.Cropper ? new window.Cropper(imgEl, { aspectRatio: NaN, viewMode: 1, dragMode: 'move', autoCropArea: 0.8 }) : null;
         if (!newsCropperInstance) toast('Crop not available. Use the photo as-is.');
       };
+      refreshContributeUnifiedPreview();
     }
     function finishCropper(){
       var modal = el('cropperModal');
@@ -1543,6 +1585,16 @@
     }
     function refreshContributeUnifiedPreview(){
       if (!newsUnifiedField) return;
+      var ctUm = getContributeType();
+      var cropModal = el('cropperModal');
+      var cropOpen = cropModal && cropModal.style.display === 'flex';
+      if (ctUm === 'post' && fullNewsImageDataUrl && !croppedNewsImageDataUrl && cropOpen) {
+        newsUnifiedField.setPreviewHTML(
+          '<div class="contributeMediaInterimPreview"><p class="contributeMediaInterimHint">Adjust your crop below, then tap Use Photo.</p>' +
+          '<div class="lanternUnifiedMediaPreviewInner"><img src="' + escNews(fullNewsImageDataUrl) + '" alt="Live preview" /></div></div>'
+        );
+        return;
+      }
       if (croppedNewsImageDataUrl) {
         newsUnifiedField.setPreviewHTML('<div class="lanternUnifiedMediaPreviewInner"><img src="' + escNews(croppedNewsImageDataUrl) + '" alt="Preview" /></div><div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="newsContribUmReplace">Replace</button><button type="button" class="btn small bad" id="newsContribUmRemove">Remove</button></div>');
         return;
@@ -1979,7 +2031,69 @@
       }
     }
     el('cropperUseBtn').addEventListener('click', finishCropper);
-    el('cropperCancelBtn').addEventListener('click', function(){ if (newsCropperInstance){ try { newsCropperInstance.destroy(); } catch(e){} newsCropperInstance = null; } fullNewsImageDataUrl = null; var m = el('cropperModal'); if (m) m.style.display = 'none'; });
+    el('cropperCancelBtn').addEventListener('click', function(){
+      if (newsCropperInstance){ try { newsCropperInstance.destroy(); } catch(e){} newsCropperInstance = null; }
+      croppedNewsImageDataUrl = null;
+      fullNewsImageDataUrl = null;
+      var m = el('cropperModal');
+      if (m) m.style.display = 'none';
+      refreshContributeUnifiedPreview();
+      updateStudioAll();
+    });
+
+    function hideContributePostSuccessBanner(){
+      var b = el('contributePostSuccessBanner');
+      if (b) { b.style.display = 'none'; b.innerHTML = ''; }
+    }
+
+    (function wirePostMediaUx(){
+      var wrap = el('contributeMediaMountWrap');
+      if (!wrap) return;
+      function isPostSchoolNews(){
+        return getContributeType() === 'post';
+      }
+      wrap.addEventListener('dragover', function(e){
+        if (!isPostSchoolNews()) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        wrap.classList.add('contributeMediaDropZone--drag');
+      });
+      wrap.addEventListener('dragleave', function(e){
+        try {
+          if (!wrap.contains(e.relatedTarget)) wrap.classList.remove('contributeMediaDropZone--drag');
+        } catch (err) { wrap.classList.remove('contributeMediaDropZone--drag'); }
+      });
+      wrap.addEventListener('drop', function(e){
+        if (!isPostSchoolNews()) return;
+        e.preventDefault();
+        wrap.classList.remove('contributeMediaDropZone--drag');
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!f) return;
+        if (f.type.indexOf('image/') === 0) handleImageFile(f);
+        else if (f.type.match(/^video\/(mp4|webm)$/)) handleVideoFile(f);
+        else toast('Drop a photo (PNG, JPEG, WebP, GIF) or MP4/WebM video.');
+      });
+      document.addEventListener('paste', function(e){
+        if (getContributeType() !== 'post') return;
+        var ae = document.activeElement;
+        if (ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+        if (ae && ae.tagName === 'INPUT' && (ae.type === 'text' || ae.type === 'search' || ae.type === 'url' || ae.type === 'password' || !ae.type)) return;
+        if (ae && ae.closest && ae.closest('.lanternUnifiedMediaField')) return;
+        var items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image/') === 0) {
+            var f = items[i].getAsFile();
+            if (f) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleImageFile(f);
+              return;
+            }
+          }
+        }
+      }, true);
+    })();
 
     [['newsTitle','input'],['newsBody','input'],['newsAuthorType','change'],['newsPhotoCredit','input']].forEach(function(pair){
       var node = el(pair[0]);
@@ -2112,19 +2226,40 @@
         authorName = adopted.name;
       } else { authorName = authorType === 'teacher' ? 'Teacher' : authorType === 'staff' ? 'Staff' : 'Admin'; }
       var btn = el('submitNewsBtn');
-      btn.disabled = true;
+      var isPostFlow = ct === 'post';
+      function setPostSubmitBusy(isBusy, label){
+        if (!isPostFlow) {
+          btn.disabled = !!isBusy;
+          return;
+        }
+        btn.disabled = !!isBusy;
+        if (isBusy) {
+          btn.setAttribute('aria-busy', 'true');
+          btn.classList.add('contributeSubmitBtn--busy');
+          if (label) btn.textContent = label;
+        } else {
+          btn.removeAttribute('aria-busy');
+          btn.classList.remove('contributeSubmitBtn--busy');
+          btn.textContent = 'Submit for approval';
+        }
+      }
+      hideContributePostSuccessBanner();
+      setPostSubmitBusy(true, isPostFlow ? 'Preparing…' : undefined);
       var payload = { title: title, body: body, category: category, author_name: authorName, author_type: authorType, photo_credit: photoCredit };
       if (newsVideoFile) {
+        if (isPostFlow) btn.textContent = 'Uploading video…';
         var reader = new FileReader();
         var dataUrl = await new Promise(function(resolve, reject){ reader.onload = function(){ resolve(reader.result); }; reader.onerror = reject; reader.readAsDataURL(newsVideoFile); });
         var uploadRes = await callUploadNewsVideo(dataUrl, newsVideoFile.type || 'video/mp4', newsVideoFile.name || 'video.mp4');
-        if (!uploadRes || !uploadRes.ok) { btn.disabled = false; toast(uploadRes && uploadRes.error ? uploadRes.error : 'Video upload failed'); return; }
+        if (!uploadRes || !uploadRes.ok) { setPostSubmitBusy(false); toast(uploadRes && uploadRes.error ? uploadRes.error : 'Video upload failed'); return; }
         payload.video_r2_key = uploadRes.video_r2_key;
       } else if (croppedNewsImageDataUrl) {
+        if (isPostFlow) btn.textContent = 'Uploading photo…';
         var thumbRes = await callUploadNewsImage(croppedNewsImageDataUrl, 'image/png', 'image.png');
-        if (!thumbRes || !thumbRes.ok) { btn.disabled = false; toast(thumbRes && thumbRes.error ? thumbRes.error : 'Image upload failed'); return; }
+        if (!thumbRes || !thumbRes.ok) { setPostSubmitBusy(false); toast(thumbRes && thumbRes.error ? thumbRes.error : 'Image upload failed'); return; }
         payload.image_r2_key = thumbRes.image_r2_key;
         if (fullNewsImageDataUrl) {
+          if (isPostFlow) btn.textContent = 'Uploading full-size…';
           var fullRes = await callUploadNewsImage(fullNewsImageDataUrl, 'image/png', 'full.png');
           if (fullRes && fullRes.ok && fullRes.image_r2_key) payload.full_image_r2_key = fullRes.image_r2_key;
         }
@@ -2132,6 +2267,7 @@
         var mediaPayload = window.LanternMedia && window.LanternMedia.normalizeMediaPayload ? window.LanternMedia.normalizeMediaPayload({ link_url: newsLinkUrl }) : {};
         if (mediaPayload.link_url) payload.link_url = mediaPayload.link_url;
       }
+      if (isPostFlow) btn.textContent = 'Submitting…';
       var wasNewsResubmit = !!newsArticleResubmitId;
       var res;
       if (newsArticleResubmitId) {
@@ -2139,7 +2275,7 @@
       } else {
         res = await callCreateNewsArticle(payload);
       }
-      btn.disabled = false;
+      setPostSubmitBusy(false);
       if (!res || res.ok === false || (!res.id && !wasNewsResubmit)){ toast((res && res.error) || 'Failed'); return; }
       newsArticleResubmitId = null;
       if (el('submitNewsBtn')) el('submitNewsBtn').textContent = 'Submit for approval';
@@ -2153,6 +2289,21 @@
       function doneContribute() {
         resetContributeFormPartial();
         syncContributeTypeUI();
+        if (isPostFlow) {
+          var ban = el('contributePostSuccessBanner');
+          if (ban) {
+            ban.style.display = 'block';
+            if (res.status === 'approved') {
+              ban.innerHTML = 'Published<span class="contributePostSuccessSub">Your article is live on Explore for the school.</span>';
+            } else if (wasNewsResubmit) {
+              ban.innerHTML = 'Resubmitted<span class="contributePostSuccessSub">Back in the teacher queue for review.</span>';
+            } else if (authorType === 'student') {
+              ban.innerHTML = 'Sent for review<span class="contributePostSuccessSub">Your teacher approves posts before they appear on Explore. Track status in Locker → My Articles.</span>';
+            } else {
+              ban.innerHTML = 'Submitted<span class="contributePostSuccessSub">Your article is in the teacher review queue.</span>';
+            }
+          }
+        }
         toast(msg, msg === FERPA_STUDENT_SUBMIT_MESSAGE ? 5200 : undefined);
       }
       if (authorType === 'student' && window.LanternSubmissionCelebration && typeof window.LanternSubmissionCelebration.start === 'function') {
