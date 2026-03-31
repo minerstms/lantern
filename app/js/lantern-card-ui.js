@@ -751,6 +751,7 @@
         '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirst) + '</span></div>';
     }
     if (cn && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function') {
+      renderPollAuthorIdentity(null);
       var legP = global.LanternAvatar.getLegacyEmojiForCharacter ? global.LanternAvatar.getLegacyEmojiForCharacter(cn) : '';
       global.LanternAvatar.getCanonicalAvatar(cn, legP || undefined).then(function (canon) {
         renderPollAuthorIdentity(canon);

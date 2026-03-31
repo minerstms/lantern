@@ -908,7 +908,11 @@
       var buttons = list.querySelectorAll('.adopt-char-btn');
       [].forEach.call(buttons, function(btn){
         var name = (btn.dataset && btn.dataset.name) || '';
-        var emoji = (btn.dataset && btn.dataset.avatar) || '🌟';
+        var emoji = (btn.dataset && btn.dataset.avatar) || '';
+        if (!emoji && name && window.LanternAvatar.getLegacyEmojiForCharacter) {
+          emoji = window.LanternAvatar.getLegacyEmojiForCharacter(name);
+        }
+        if (!emoji) emoji = '🌟';
         window.LanternAvatar.getCanonicalAvatar(name, emoji).then(function(r){
           var first = btn.firstElementChild;
           if (!first) return;

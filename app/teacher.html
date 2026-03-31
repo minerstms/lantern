@@ -2520,7 +2520,10 @@
       (gradeReflections || []).forEach(function(g){ addName(g.character_name); });
       if (typeof window.LanternAvatar !== 'undefined' && window.LanternAvatar.getCanonicalAvatar) {
         var names = Object.keys(allNames);
-        await Promise.all(names.map(function(n){ return window.LanternAvatar.getCanonicalAvatar(n).then(function(r){ if (r.imageUrl) window.teacherAvatarCache[n] = r.imageUrl; }); }));
+        await Promise.all(names.map(function(n){
+          var leg = window.LanternAvatar.getLegacyEmojiForCharacter ? window.LanternAvatar.getLegacyEmojiForCharacter(n) : '';
+          return window.LanternAvatar.getCanonicalAvatar(n, leg || undefined).then(function(r){ if (r.imageUrl) window.teacherAvatarCache[n] = r.imageUrl; });
+        }));
       }
       renderUnifiedApprovals();
       if (useApprovalsApi) renderApprovalHistory();
