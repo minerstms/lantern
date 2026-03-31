@@ -10,6 +10,7 @@ School culture platform: student publishing, missions, moderated news, recogniti
 | [**docs/ACTIVE_BUILD_PLAN.md**](docs/ACTIVE_BUILD_PLAN.md) | Ordered roadmap and current re-entry point |
 | [**docs/CHANGELOG_LOCKED.md**](docs/CHANGELOG_LOCKED.md) | Locked decisions and consolidation notes |
 | [**docs/CURSOR_RUN_PROMPT.md**](docs/CURSOR_RUN_PROMPT.md) | Default agent/Cursor run discipline |
+| [**docs/LANTERN_AUTH_BASELINE.md**](docs/LANTERN_AUTH_BASELINE.md) | Lantern Auth Baseline — locked auth, cookie, and class-access contract |
 
 **Agent guardrails:** root [**AGENTS.md**](AGENTS.md).
 

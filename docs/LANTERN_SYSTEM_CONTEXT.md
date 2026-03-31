@@ -11,6 +11,8 @@ This file is the **single merged contract** for architecture, product guardrails
 | `docs/CHANGELOG_LOCKED.md` | Locked decisions and notable changes |
 | `docs/CURSOR_RUN_PROMPT.md` | Cursor / agent run discipline |
 
+**Auth + Class Access baseline:** `docs/LANTERN_AUTH_BASELINE.md`
+
 **Agent entry:** Root `AGENTS.md` stays a short pointer + minimal non-negotiables for Cursor.
 
 **Beta stress seed (ops, not a fifth canonical doc):** **`docs/PHASE-CONTENT-RESEED-BETA.md`** — localStorage **`LANTERN_DATA.seedDemoWorld()`** targets (posts / missions / catalog), tonight checklist, tomorrow AM human-check. Use when loading demo/stress data via Locker **Testing → Seed sample content**.
