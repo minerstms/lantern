@@ -180,7 +180,15 @@
     .newsItem .newsTitle{ font-weight: 900; font-size: 26px; line-height: 1.2; margin-bottom: 8px; }
     .newsItem .newsBody{ font-size: 22px; line-height: 1.45; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
     .newsItem .newsMeta{ font-size: 20px; color: var(--muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .newsItem .newsByline{ font-size: 22px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .newsItem .newsByline{
+      font-size: var(--lantern-card-identity-name-size, 22px);
+      font-weight: 800;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--lantern-card-identity-gap, 12px);
+    }
     .newsItem .authorBadge{ display: inline-block; padding: 6px 12px; border-radius: 8px; font-weight: 900; font-size: 18px; }
     .newsItem .authorBadge.student{ background: rgba(90,167,255,.2); border: 1px solid rgba(90,167,255,.4); }
     .newsItem .authorBadge.teacher{ background: rgba(56,208,124,.2); border: 1px solid rgba(56,208,124,.4); }
@@ -773,14 +781,25 @@
     }
     #studioFullPreview .newsFeatured .newsTitle{ font-weight: 900; font-size: 32px; line-height: 1.2; margin-bottom: 8px; }
     #studioFullPreview .newsFeatured .newsBody{ font-size: 24px; line-height: 1.45; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
-    #studioFullPreview .newsByline{ font-size: 22px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    /* Byline avatar + name: match shared card identity tokens (lantern-cards.css :root) */
+    #studioFullPreview .newsByline{
+      font-size: var(--lantern-card-identity-name-size, 22px);
+      font-weight: 800;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--lantern-card-identity-gap, 12px);
+    }
     #studioFullPreview .newsCategory{ font-weight: 800; color: var(--accent); margin-bottom: 12px; }
     #studioFullPreview .newsCardAuthorWrap{
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      width: var(--lantern-card-identity-avatar-size, 32px);
+      height: var(--lantern-card-identity-avatar-size, 32px);
+      min-width: var(--lantern-card-identity-avatar-size, 32px);
+      min-height: var(--lantern-card-identity-avatar-size, 32px);
       border-radius: 50%;
       background: rgba(0,0,0,.25);
       border: 1px solid rgba(255,255,255,.12);
@@ -791,7 +810,7 @@
     #studioFullPreview .newsCardAuthorAvatar{ width: 100%; height: 100%; object-fit: cover; }
     #studioFullPreview .newsCardAuthorInitials{
       display: none;
-      font-size: 12px;
+      font-size: 15px;
       font-weight: 900;
       color: var(--muted);
     }
