@@ -23,6 +23,8 @@
   --lantern-card-identity-avatar-size: 32px;
   --lantern-card-identity-gap: 12px;
   --lantern-card-identity-name-size: 22px;
+  /* Initials / monogram inside the avatar circle — scales if --lantern-card-identity-avatar-size changes */
+  --lantern-card-identity-initials-size: calc(var(--lantern-card-identity-avatar-size) * 0.47);
 }
 
 /* Card cancer (LanternCanonicalEnforce.scanAllExploreCards) — invalid .exploreCard vs contract; see window.__lanternCancerReport */
@@ -267,7 +269,6 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  padding-left: 0;
 }
 
 /* Meta zone: single line — date/category/aux only; not shared with body preview (see .lcRailRow--body). */
@@ -513,6 +514,7 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   margin-bottom: 8px;
   gap: var(--lantern-card-identity-gap);
   align-items: center;
+  padding-left: 0;
 }
 .exploreCardIdentity--rail .identity-chip{
   flex-shrink: 0;
@@ -528,6 +530,14 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   width: var(--lantern-card-identity-avatar-size);
   height: var(--lantern-card-identity-avatar-size);
   flex-shrink: 0;
+}
+/* Emoji fallback inside rail identity — match chip size (base .exploreCardAvatar is 36px). */
+.exploreCardIdentity--rail .exploreCardAvatar{
+  width: var(--lantern-card-identity-avatar-size);
+  height: var(--lantern-card-identity-avatar-size);
+  min-width: var(--lantern-card-identity-avatar-size);
+  min-height: var(--lantern-card-identity-avatar-size);
+  font-size: calc(var(--lantern-card-identity-avatar-size) * 0.75);
 }
 .exploreCardAvatar{ font-size: 28px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .exploreCardAvatarImg{ width: 36px; height: 36px; border-radius: 50%; object-fit: cover; display: block; }
@@ -1061,7 +1071,9 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   display: flex;
   align-items: center;
   gap: var(--lantern-card-identity-gap);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
 }
 .lanternCardDetailMeta{ font-size: 22px; color: var(--muted); margin-bottom: 14px; }
 .lanternCardDetailCaption{ font-size: 22px; line-height: 1.4; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
