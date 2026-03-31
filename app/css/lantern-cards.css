@@ -19,6 +19,10 @@
   --lantern-rail-interior-gap: 6px;
   /* Title block = exactly two typographic lines (rows 1–2); short titles leave empty space. */
   --lantern-rail-title-slot: 3.75rem;
+  /* Identity row (Explore rail, feed posts, news, missions, detail overlay): avatar + first name — one contract. */
+  --lantern-card-identity-avatar-size: 32px;
+  --lantern-card-identity-gap: 12px;
+  --lantern-card-identity-name-size: 22px;
 }
 
 /* Card cancer (LanternCanonicalEnforce.scanAllExploreCards) — invalid .exploreCard vs contract; see window.__lanternCancerReport */
@@ -256,19 +260,14 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   margin: 0;
 }
 
-/* Identity zone: one line (given name); avatar + text */
+/* Identity zone: one line (given name); avatar + text — sizing from .exploreCardIdentity--rail + :root tokens */
 .exploreCardRailStack > .lcRailRow--identity .exploreCardIdentity--rail{
   margin-bottom: 0;
   max-height: 2.5rem;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-}
-.exploreCardRailStack > .lcRailRow--identity .exploreCardIdentity--rail .exploreAuthor,
-.exploreCardRailStack > .lcRailRow--identity .exploreAuthor--identity{
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding-left: 0;
 }
 
 /* Meta zone: single line — date/category/aux only; not shared with body preview (see .lcRailRow--body). */
@@ -509,19 +508,27 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 
 /* ===== IDENTITY / AVATAR ===== */
 .exploreCardIdentity{ display: flex; align-items: center; gap: 14px; margin-bottom: 10px; flex-shrink: 0; padding-left: 2px; }
-/* Rail + compact rows: same identity chip, slightly tighter under title */
-.exploreCardIdentity--rail{ margin-bottom: 8px; gap: 10px; }
+/* Rail + compact rows: shared tokens (Explore, news, missions, polls, studio preview) */
+.exploreCardIdentity--rail{
+  margin-bottom: 8px;
+  gap: var(--lantern-card-identity-gap);
+  align-items: center;
+}
 .exploreCardIdentity--rail .identity-chip{
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
+  width: var(--lantern-card-identity-avatar-size);
+  height: var(--lantern-card-identity-avatar-size);
+  min-width: var(--lantern-card-identity-avatar-size);
+  min-height: var(--lantern-card-identity-avatar-size);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.exploreCardIdentity--rail .exploreCardAvatarImg{ width: 32px; height: 32px; flex-shrink: 0; }
+.exploreCardIdentity--rail .exploreCardAvatarImg{
+  width: var(--lantern-card-identity-avatar-size);
+  height: var(--lantern-card-identity-avatar-size);
+  flex-shrink: 0;
+}
 .exploreCardAvatar{ font-size: 28px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .exploreCardAvatarImg{ width: 36px; height: 36px; border-radius: 50%; object-fit: cover; display: block; }
 .exploreCardAvatar--fallback{ display: none; }
@@ -547,6 +554,9 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .exploreCardIdentity--rail .exploreAuthor{
   flex: 1;
   min-width: 0;
+  font-size: var(--lantern-card-identity-name-size);
+  font-weight: 800;
+  line-height: 1.22;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1050,7 +1060,7 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .lanternCardDetailIdentityWrap .lanternCardDetailIdentity.exploreCardIdentity--rail{
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lantern-card-identity-gap);
   flex-wrap: wrap;
 }
 .lanternCardDetailMeta{ font-size: 22px; color: var(--muted); margin-bottom: 14px; }

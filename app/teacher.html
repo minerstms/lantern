@@ -374,6 +374,109 @@
       background: rgba(0,0,0,.2);
       display: block;
     }
+    /* Phase B2 — queue filters + sort (scoped) */
+    #teacher-approvals .approvalsQueueControls{
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(90,167,255,.22);
+      background: rgba(0,0,0,.14);
+    }
+    #teacher-approvals .approvalsFilterRow{
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    #teacher-approvals .approvalsFilterRow:last-of-type{ margin-bottom: 0; }
+    #teacher-approvals .approvalsFilterLabel{
+      font-weight: 800;
+      font-size: 18px;
+      color: var(--muted);
+      flex: 0 0 auto;
+      padding-top: 4px;
+    }
+    #teacher-approvals .approvalsKindChips{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+    #teacher-approvals .approvalsKindChip{
+      font-size: 17px;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      cursor: pointer;
+      line-height: 1.2;
+    }
+    #teacher-approvals .approvalsKindChip:hover{ background: rgba(255,255,255,.1); }
+    #teacher-approvals .approvalsKindChip.active{
+      border-color: rgba(90,167,255,.55);
+      background: rgba(90,167,255,.18);
+      color: var(--ink);
+    }
+    #teacher-approvals .approvalsFilterRow--selects{
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    #teacher-approvals .approvalsQueueSelect{
+      font-size: 20px;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.2);
+      color: var(--ink);
+      min-width: 160px;
+      max-width: 100%;
+    }
+    #teacher-approvals #approvalsFilterReset{ flex-shrink: 0; }
+    #teacher-approvals .approvalsFilterSummary{
+      margin: 0;
+      font-size: 18px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    #teacher-approvals .approvalsBatchBar{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,.1);
+    }
+    #teacher-approvals .approvalsBatchCount{
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--ink);
+      flex: 1;
+      min-width: 140px;
+    }
+    #teacher-approvals .approvalQueueSelectCell{
+      flex: 0 0 auto;
+      align-self: flex-start;
+      padding-top: 2px;
+    }
+    #teacher-approvals .approvalRowSelectLabel{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin: 0;
+    }
+    #teacher-approvals .approvalRowSelect{
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
     .moderationSection{ margin-bottom: 0; }
     .moderationSectionHd{ font-weight: 900; font-size: 22px; margin-bottom: 6px; color: var(--muted); }
     .moderationSection + .moderationSection{ margin-top: 10px; }
@@ -960,6 +1063,41 @@
       <div class="cardBd">
         <p class="note note-tight"><strong>My Classroom</strong> first, then <strong>Schoolwide</strong>. Open <strong>Review</strong> before approving.</p>
         <p class="note" id="approvalsIdentityStrip" style="margin-bottom:10px;display:none;font-weight:800;color:var(--warn);"></p>
+        <div id="approvalsQueueControls" class="approvalsQueueControls" aria-label="Pending queue filters">
+          <div class="approvalsFilterRow approvalsFilterRow--chips">
+            <span class="approvalsFilterLabel">Type</span>
+            <div class="approvalsKindChips" id="approvalsKindChips" role="group" aria-label="Filter by content type">
+              <button type="button" class="approvalsKindChip" data-kind-filter="all">All</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="news">News</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="post">Post</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="mission">Mission</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="avatar">Avatar</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="poll">Poll</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="thanks">Thanks</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="grade-reflection">Reflection</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="submission">Submission</button>
+              <button type="button" class="approvalsKindChip" data-kind-filter="display">Display</button>
+            </div>
+          </div>
+          <div class="approvalsFilterRow approvalsFilterRow--selects">
+            <label class="approvalsFilterLabel" for="approvalsSortOrder">Order</label>
+            <select id="approvalsSortOrder" class="approvalsQueueSelect">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+            <label class="approvalsFilterLabel" for="approvalsCategoryFilter">Category</label>
+            <select id="approvalsCategoryFilter" class="approvalsQueueSelect">
+              <option value="">All categories</option>
+            </select>
+            <button type="button" class="btn small" id="approvalsFilterReset">Reset filters</button>
+          </div>
+          <p class="approvalsFilterSummary" id="approvalsFilterSummary" aria-live="polite"></p>
+          <div class="approvalsBatchBar" id="approvalsBatchBar">
+            <button type="button" class="btn small" id="approvalsSelectVisibleBtn">Select visible</button>
+            <button type="button" class="btn small" id="approvalsClearSelectionBtn">Clear selection</button>
+            <span class="approvalsBatchCount" id="approvalsBatchCount">0 selected</span>
+          </div>
+        </div>
         <div class="approvalsTwoCol">
           <div class="approvalsCol">
             <div class="approvalsColHd">My Classroom <span class="approvalsColCount" id="myClassroomCount">(0)</span></div>
@@ -1340,6 +1478,10 @@
     let approvalHistory = [];
     let approvalFilter = 'mine,unassigned';
     let approvalTypeFilter = '';
+    var pendingApprovalKindFilter = '';
+    var pendingApprovalSortOrder = 'newest';
+    var pendingApprovalCategoryFilter = '';
+    var pendingApprovalSelectionKeys = new Set();
     var DEFAULT_TEACHER_ID = 'teacherA';
     var approvalStaffId = DEFAULT_TEACHER_ID;
     window.pilotIsAdmin = false;
@@ -1991,6 +2133,169 @@
       } catch (err) { return ''; }
       return '';
     }
+    function getPendingEntryTimestamp(entry) {
+      var it = entry.item;
+      if (!it) return 0;
+      var raw = it.created_at || it.updated_at || it.submitted_at || '';
+      var d = new Date(raw);
+      var t = d.getTime();
+      return isNaN(t) ? 0 : t;
+    }
+    function pendingEntryMatchesKindFilter(entry, kindFilter) {
+      if (!kindFilter || kindFilter === 'all') return true;
+      var k = approvalKindKey(entry).replace(/_/g, '-');
+      return k === kindFilter;
+    }
+    function pendingEntryMatchesCategoryFilter(entry, catFilter) {
+      if (!catFilter || catFilter === '') return true;
+      var it = entry.item;
+      if (!it) return false;
+      var isNewsOrPost = entry.type === 'news' || (entry.type === 'approval_item' && it.item_type === 'news') || entry.type === 'post';
+      if (!isNewsOrPost) return false;
+      var c = (it.category != null && String(it.category).trim()) ? String(it.category).trim().toLowerCase() : '';
+      return c === String(catFilter).trim().toLowerCase();
+    }
+    function collectPendingCategoryLabels(entries) {
+      var seen = Object.create(null);
+      var out = [];
+      (entries || []).forEach(function(entry){
+        var it = entry.item;
+        if (!it) return;
+        var isNewsOrPost = entry.type === 'news' || (entry.type === 'approval_item' && it.item_type === 'news') || entry.type === 'post';
+        if (!isNewsOrPost) return;
+        var c = (it.category != null && String(it.category).trim()) ? String(it.category).trim() : '';
+        if (!c) return;
+        var lk = c.toLowerCase();
+        if (seen[lk]) return;
+        seen[lk] = true;
+        out.push(c);
+      });
+      out.sort(function(a, b){ return a.localeCompare(b); });
+      return out;
+    }
+    function applyPendingFiltersAndSort(list) {
+      var kindF = pendingApprovalKindFilter || '';
+      var catF = pendingApprovalCategoryFilter || '';
+      var sortOrder = pendingApprovalSortOrder || 'newest';
+      var out = (list || []).filter(function(e){ return pendingEntryMatchesKindFilter(e, kindF) && pendingEntryMatchesCategoryFilter(e, catF); });
+      out.sort(function(a, b){
+        var ta = getPendingEntryTimestamp(a);
+        var tb = getPendingEntryTimestamp(b);
+        if (sortOrder === 'oldest') return ta - tb;
+        return tb - ta;
+      });
+      return out;
+    }
+    function syncApprovalsCategorySelectOptions(combinedEntries) {
+      var sel = el('approvalsCategoryFilter');
+      if (!sel) return;
+      var labels = collectPendingCategoryLabels(combinedEntries);
+      var prev = pendingApprovalCategoryFilter;
+      var html = '<option value="">All categories</option>';
+      labels.forEach(function(l){ html += '<option value="' + esc(l).replace(/"/g, '&quot;') + '">' + esc(l) + '</option>'; });
+      sel.innerHTML = html;
+      if (prev && labels.some(function(l){ return l === prev; })) sel.value = prev;
+      else { pendingApprovalCategoryFilter = ''; sel.value = ''; }
+    }
+    function updateApprovalsKindChipActive() {
+      var root = el('approvalsKindChips');
+      if (!root) return;
+      var cur = pendingApprovalKindFilter || '';
+      root.querySelectorAll('[data-kind-filter]').forEach(function(btn){
+        var v = btn.getAttribute('data-kind-filter') || '';
+        var isActive = (v === 'all' && !cur) || (v !== 'all' && v === cur);
+        btn.classList.toggle('active', isActive);
+      });
+    }
+    function updateApprovalsFilterSummary(totalAll, shown, clsRaw, schRaw, clsShown, schShown) {
+      var sumEl = el('approvalsFilterSummary');
+      if (!sumEl) return;
+      var parts = [];
+      parts.push('Showing ' + shown + ' of ' + totalAll + ' pending');
+      parts.push(pendingApprovalSortOrder === 'oldest' ? 'Oldest first' : 'Newest first');
+      var kt = pendingApprovalKindFilter || '';
+      parts.push('Type: ' + (kt ? kt : 'All'));
+      if (pendingApprovalCategoryFilter) parts.push('Category: ' + pendingApprovalCategoryFilter);
+      parts.push('Classroom ' + clsShown + '/' + clsRaw + ' · Schoolwide ' + schShown + '/' + schRaw);
+      sumEl.textContent = parts.join(' · ');
+    }
+    function initApprovalsQueueControlsOnce() {
+      var root = el('approvalsQueueControls');
+      if (!root || root.dataset.wired === '1') return;
+      root.dataset.wired = '1';
+      root.addEventListener('click', function(ev){
+        var btn = ev.target.closest('[data-kind-filter]');
+        if (!btn) return;
+        var v = btn.getAttribute('data-kind-filter') || '';
+        pendingApprovalKindFilter = v === 'all' ? '' : v;
+        if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
+      });
+      var sortSel = el('approvalsSortOrder');
+      if (sortSel) sortSel.addEventListener('change', function(){
+        pendingApprovalSortOrder = sortSel.value || 'newest';
+        if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
+      });
+      var catSel = el('approvalsCategoryFilter');
+      if (catSel) catSel.addEventListener('change', function(){
+        pendingApprovalCategoryFilter = catSel.value || '';
+        if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
+      });
+      var resetBtn = el('approvalsFilterReset');
+      if (resetBtn) resetBtn.addEventListener('click', function(){
+        pendingApprovalKindFilter = '';
+        pendingApprovalSortOrder = 'newest';
+        pendingApprovalCategoryFilter = '';
+        pendingApprovalSelectionKeys.clear();
+        if (sortSel) sortSel.value = 'newest';
+        if (catSel) catSel.value = '';
+        if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
+      });
+    }
+    /** Stable selection key = entry type + item.id (avoids id collisions across queues; not list index). */
+    function getApprovalEntrySelectionKey(entry) {
+      var it = entry.item;
+      if (!it) return '';
+      if (entry.type === 'approval_item') return 'a:' + String(it.id || '').trim();
+      if (entry.type === 'mission') return 'ms:' + String(it.id || '').trim();
+      if (entry.type === 'news') return 'n:' + String(it.id || '').trim();
+      if (entry.type === 'post') return 'p:' + String(it.id || '').trim();
+      if (entry.type === 'avatar') return 'av:' + String(it.id || '').trim();
+      if (entry.type === 'thanks') return 'th:' + String(it.id || '').trim();
+      if (entry.type === 'grade_reflection') return 'gr:' + String(it.id || '').trim();
+      if (entry.type === 'submission') return 'sub:' + String(it.id || '').trim();
+      return '';
+    }
+    function pruneApprovalSelectionToVisible(visibleEntries) {
+      var visible = new Set();
+      (visibleEntries || []).forEach(function(e){ var k = getApprovalEntrySelectionKey(e); if (k) visible.add(k); });
+      Array.from(pendingApprovalSelectionKeys).forEach(function(k){ if (!visible.has(k)) pendingApprovalSelectionKeys.delete(k); });
+    }
+    function updateApprovalsBatchBarUI() {
+      var countEl = el('approvalsBatchCount');
+      if (!countEl) return;
+      countEl.textContent = pendingApprovalSelectionKeys.size + ' selected';
+    }
+    function initApprovalsBatchBarOnce() {
+      var bar = el('approvalsBatchBar');
+      if (!bar || bar.dataset.wired === '1') return;
+      bar.dataset.wired = '1';
+      var selVis = el('approvalsSelectVisibleBtn');
+      var clr = el('approvalsClearSelectionBtn');
+      if (selVis) selVis.addEventListener('click', function(){
+        document.querySelectorAll('#teacher-approvals .approvalRowSelect').forEach(function(cb){
+          var k = cb.getAttribute('data-entry-key');
+          if (!k) return;
+          cb.checked = true;
+          pendingApprovalSelectionKeys.add(k);
+        });
+        updateApprovalsBatchBarUI();
+      });
+      if (clr) clr.addEventListener('click', function(){
+        pendingApprovalSelectionKeys.clear();
+        document.querySelectorAll('#teacher-approvals .approvalRowSelect').forEach(function(cb){ cb.checked = false; });
+        updateApprovalsBatchBarUI();
+      });
+    }
     function renderApprovalRow(container, entry, onReview){
       var typeLabel = entry.type === 'mission' ? 'Mission' : entry.type === 'avatar' ? 'Avatar' : entry.type === 'approval_item' ? (entry.item.item_type === 'news' ? 'News' : entry.item.item_type === 'avatar' ? 'Avatar' : entry.item.item_type === 'poll_contribution' ? 'Poll' : 'Display') : entry.type === 'news' ? 'News' : entry.type === 'post' ? 'Post' : entry.type === 'thanks' ? 'Thanks' : entry.type === 'grade_reflection' ? 'Grade reflection' : 'Submission';
       var title = '';
@@ -2046,15 +2351,30 @@
       var thumb = getApprovalRowThumbUrl(entry);
       var thumbHtml = thumb ? '<div class="approvalQueueMid" aria-hidden="true"><img src="' + esc(thumb) + '" alt="" loading="lazy" decoding="async" /></div>' : '';
       var catBlock = catLabel ? '<span class="approvalCategoryPill">' + esc(catLabel) + '</span>' : '';
+      var selKey = getApprovalEntrySelectionKey(entry);
+      var selHtml = '';
+      if (selKey) {
+        var checked = pendingApprovalSelectionKeys.has(selKey) ? ' checked' : '';
+        selHtml = '<div class="approvalQueueSelectCell"><label class="approvalRowSelectLabel"><input type="checkbox" class="approvalRowSelect" data-entry-key="' + esc(selKey).replace(/"/g, '&quot;') + '"' + checked + ' aria-label="Select row" /></label></div>';
+      }
       var row = document.createElement('div');
       row.className = 'approvalQueueRow approvalRowClickable teacherApprovalPendingRow approvalQueueRow--' + kindKey;
-      row.setAttribute('tabindex', '0');
-      row.setAttribute('role', 'button');
-      row.innerHTML = '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn">Review</button></div>';
+      row.innerHTML = selHtml + '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn">Review</button></div>';
       function openReview(){ onReview(entry); }
-      row.addEventListener('click', function(ev){ if (ev.target.closest('.approvalRowReviewBtn')) return; openReview(); });
+      row.addEventListener('click', function(ev){ if (ev.target.closest('.approvalQueueSelectCell')) return; if (ev.target.closest('.approvalRowReviewBtn')) return; openReview(); });
       row.querySelector('.approvalRowReviewBtn').addEventListener('click', function(ev){ ev.stopPropagation(); openReview(); });
-      row.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openReview(); } });
+      row.addEventListener('keydown', function(ev){ if (ev.target.closest('.approvalQueueSelectCell')) return; if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openReview(); } });
+      var cb = row.querySelector('.approvalRowSelect');
+      if (cb) {
+        cb.addEventListener('click', function(ev){ ev.stopPropagation(); });
+        cb.addEventListener('change', function(){
+          var k = cb.getAttribute('data-entry-key');
+          if (!k) return;
+          if (cb.checked) pendingApprovalSelectionKeys.add(k);
+          else pendingApprovalSelectionKeys.delete(k);
+          updateApprovalsBatchBarUI();
+        });
+      }
       container.appendChild(row);
     }
     function openReviewModal(entry, sourceLane){
@@ -2262,17 +2582,35 @@
       var leftContainer = el('myClassroomBody');
       var rightContainer = el('schoolwideQueueBody');
       if (!leftContainer || !rightContainer) return;
-      var classroomItems = buildClassroomItems();
-      var schoolwideItems = buildSchoolwideItems();
-      var total = classroomItems.length + schoolwideItems.length;
+      initApprovalsQueueControlsOnce();
+      var classroomItemsRaw = buildClassroomItems();
+      var schoolwideItemsRaw = buildSchoolwideItems();
+      var total = classroomItemsRaw.length + schoolwideItemsRaw.length;
+      syncApprovalsCategorySelectOptions(classroomItemsRaw.concat(schoolwideItemsRaw));
+      var sortSel = el('approvalsSortOrder');
+      if (sortSel && sortSel.value !== pendingApprovalSortOrder) sortSel.value = pendingApprovalSortOrder;
+      var classroomItems = applyPendingFiltersAndSort(classroomItemsRaw);
+      var schoolwideItems = applyPendingFiltersAndSort(schoolwideItemsRaw);
+      pruneApprovalSelectionToVisible(classroomItems.concat(schoolwideItems));
+      var shown = classroomItems.length + schoolwideItems.length;
       if (el('pendingApprovalsBadge')) el('pendingApprovalsBadge').textContent = String(total);
-      if (el('myClassroomCount')) el('myClassroomCount').textContent = '(' + classroomItems.length + ')';
-      if (el('schoolwideQueueCount')) el('schoolwideQueueCount').textContent = '(' + schoolwideItems.length + ')';
+      if (el('myClassroomCount')) {
+        var cShow = classroomItems.length, cRaw = classroomItemsRaw.length;
+        el('myClassroomCount').textContent = '(' + (cShow === cRaw ? String(cShow) : cShow + ' of ' + cRaw) + ')';
+      }
+      if (el('schoolwideQueueCount')) {
+        var sShow = schoolwideItems.length, sRaw = schoolwideItemsRaw.length;
+        el('schoolwideQueueCount').textContent = '(' + (sShow === sRaw ? String(sShow) : sShow + ' of ' + sRaw) + ')';
+      }
+      updateApprovalsFilterSummary(total, shown, classroomItemsRaw.length, schoolwideItemsRaw.length, classroomItems.length, schoolwideItems.length);
+      updateApprovalsKindChipActive();
       leftContainer.innerHTML = '';
       rightContainer.innerHTML = '';
-      if (classroomItems.length === 0) leftContainer.innerHTML = '<div class="placeholderRow">No classroom submissions waiting.</div>';
+      if (classroomItemsRaw.length === 0) leftContainer.innerHTML = '<div class="placeholderRow">No classroom submissions waiting.</div>';
+      else if (classroomItems.length === 0) leftContainer.innerHTML = '<div class="placeholderRow">No items match the current filters.</div>';
       else classroomItems.forEach(function(entry){ renderApprovalRow(leftContainer, entry, function(ent){ openReviewModal(ent, 'My Classroom'); }); });
-      if (schoolwideItems.length === 0) rightContainer.innerHTML = '<div class="placeholderRow">No schoolwide items waiting.</div>';
+      if (schoolwideItemsRaw.length === 0) rightContainer.innerHTML = '<div class="placeholderRow">No schoolwide items waiting.</div>';
+      else if (schoolwideItems.length === 0) rightContainer.innerHTML = '<div class="placeholderRow">No items match the current filters.</div>';
       else schoolwideItems.forEach(function(entry){ renderApprovalRow(rightContainer, entry, function(ent){ openReviewModal(ent, 'Schoolwide Queue'); }); });
       var stripEl = el('approvalsIdentityStrip');
       if (stripEl && typeof teacherVerifyApiBase !== 'undefined' && teacherVerifyApiBase && getApprovalStaffId() && getApprovalStaffId() !== DEFAULT_TEACHER_ID) {
@@ -2280,6 +2618,8 @@
         stripEl.textContent = 'Verify Mode · Acting as: ' + (persona && persona.displayName ? persona.displayName : getApprovalStaffId());
         stripEl.style.display = 'block';
       } else if (stripEl) stripEl.style.display = 'none';
+      initApprovalsBatchBarOnce();
+      updateApprovalsBatchBarUI();
     }
     function renderThanksLetters(){
       var container = el('thanksLettersEl');
