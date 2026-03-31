@@ -480,8 +480,8 @@
     <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
     <div class="gamesPageShell">
-    <div id="dailyHuntHintEl" class="dailyHuntHint" style="display:none;"></div>
-    <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
+    <div id="dailyHuntHintEl" class="dailyHuntHint" style="display:none;" data-help="daily_nugget_hunt"></div>
+    <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!" data-help="daily_nugget_hunt"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
 
     <section class="gamesRailSection" aria-label="Featured games" data-help="games">
       <div class="sectionHd">Featured Games</div>
@@ -496,13 +496,13 @@
       <div id="gamesCultureScroller" data-lantern-rail-host="true" data-scroller-aria-label="Culture games"></div>
     </section>
 
-    <section class="gamesRailSection" id="leaderboardSection" aria-label="Leaderboards">
+    <section class="gamesRailSection" id="leaderboardSection" aria-label="Leaderboards" data-help="games">
       <div id="leaderboardSummariesEl">
         <div id="leaderboardSummariesScroller" data-lantern-rail-host="true" data-scroller-aria-label="Leaderboard summaries"></div>
       </div>
     </section>
 
-    <section class="gamesRailSection" id="gameHighlightsSection" aria-label="Weekly pace">
+    <section class="gamesRailSection" id="gameHighlightsSection" aria-label="Weekly pace" data-help="games">
       <div id="gameHighlightsScroller" data-lantern-rail-host="true" data-scroller-aria-label="This week pace"></div>
     </section>
 
