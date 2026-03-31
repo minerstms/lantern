@@ -23,17 +23,19 @@
       });
   }
 
-  /** Sync adopted character for legacy APIs that read LANTERN_ADOPTED_CHARACTER — values come from server /me only. */
+  /** Sync adopted character for legacy APIs that read LANTERN_ADOPTED_CHARACTER — values come from server /me only. Uses student_character_name when set; otherwise login username (e.g. student ID). */
   function applyStudentStorageFromSession(data) {
     if (!data || data.role !== 'student') return;
+    var username = data.username ? String(data.username).trim() : '';
     var scn = data.student_character_name ? String(data.student_character_name).trim() : '';
-    if (!scn) return;
+    var characterKey = String(scn || username).trim();
+    if (!characterKey) return;
     try {
       global.localStorage.setItem(
         'LANTERN_ADOPTED_CHARACTER',
         JSON.stringify({
-          character_id: scn,
-          name: scn,
+          character_id: characterKey,
+          name: characterKey,
           avatar: '🌟',
         })
       );
@@ -42,14 +44,16 @@
 
   function applyStudentStorageFromLoginResponse(res) {
     if (!res || res.role !== 'student') return;
+    var username = res.username ? String(res.username).trim() : '';
     var scn = res.student_character_name ? String(res.student_character_name).trim() : '';
-    if (!scn) return;
+    var characterKey = String(scn || username).trim();
+    if (!characterKey) return;
     try {
       global.localStorage.setItem(
         'LANTERN_ADOPTED_CHARACTER',
         JSON.stringify({
-          character_id: scn,
-          name: scn,
+          character_id: characterKey,
+          name: characterKey,
           avatar: '🌟',
         })
       );
