@@ -23,6 +23,7 @@
     edit_profile: 'Change your display name, bio, avatar, and which creation you want to feature. You can also equip items you bought in Locker → Store.',
     nugget_wallet: 'This shows how many nuggets you have. Earn them by doing missions, finding the daily nugget, and getting your work approved.',
     games: 'Play mini games here. Each game costs 1 nugget. You can earn more nuggets in the Daily Nugget Hunt.',
+    culture_games: 'Culture games: handbook trivia, local history, and similar activities on this row. Tap a card to play. Most games cost 1 nugget like the arcade row above.',
     news: 'Read school news and submit your own articles. Student reporters and staff can write. Articles need approval before they appear.',
     teacher: 'Teachers use this page to approve student work, read thank-you letters, and create missions. The Rewards Panel explains how teacher nugget rewards relate to the student Store. Students do not use this page.',
     missions: 'Teacher missions are tasks your teacher gives you. Complete them to earn nuggets. Tap a mission to see how to submit.',
