@@ -11,7 +11,8 @@
   var FALLBACK_TICKER_ITEM = {
     icon: '✨',
     text: '<span class="lanternTickerText">TMS Lantern — News · Spotlights · Community</span>',
-    avatarUrl: ''
+    avatarUrl: '',
+    avatarEmoji: ''
   };
 
   function esc(s) {
@@ -127,16 +128,27 @@
         items.push({
           icon: b.icon,
           text: '<span class="lanternTickerText">' + esc(b.title) + '</span>' + (b.text ? ' — ' + esc(b.text) : ''),
-          avatarUrl: b.avatarUrl || ''
+          avatarUrl: b.avatarUrl || '',
+          avatarEmoji: b.avatarEmoji || ''
         });
       });
       (heroCandidates || []).forEach(function (s) {
         var b = toB(s, 'slide');
-        items.push({ icon: b.icon, text: '<span class="lanternTickerText">' + esc(b.title) + '</span>', avatarUrl: b.avatarUrl || '' });
+        items.push({
+          icon: b.icon,
+          text: '<span class="lanternTickerText">' + esc(b.title) + '</span>',
+          avatarUrl: b.avatarUrl || '',
+          avatarEmoji: b.avatarEmoji || ''
+        });
       });
       (newsList || []).forEach(function (n) {
         var b = toB(n, 'news');
-        items.push({ icon: b.icon, text: '<span class="lanternTickerText">' + esc(b.title) + '</span>', avatarUrl: b.avatarUrl || '' });
+        items.push({
+          icon: b.icon,
+          text: '<span class="lanternTickerText">' + esc(b.title) + '</span>',
+          avatarUrl: b.avatarUrl || '',
+          avatarEmoji: b.avatarEmoji || ''
+        });
       });
     } else {
       (recognitionList || []).forEach(function (r) {
@@ -144,20 +156,23 @@
         var m = String(r.message || '').trim().slice(0, 36);
         if ((r.message || '').length > 36) m += '…';
         var urlFb = r._canonicalAvatar && r._canonicalAvatar.imageUrl ? String(r._canonicalAvatar.imageUrl).trim() : '';
-        items.push({ icon: '⭐', text: '<span class="lanternTickerText">' + esc(n) + '</span> — ' + esc(m), avatarUrl: urlFb });
+        var emFb = !urlFb && r._canonicalAvatar && r._canonicalAvatar.emoji ? String(r._canonicalAvatar.emoji).trim() : '';
+        items.push({ icon: '⭐', text: '<span class="lanternTickerText">' + esc(n) + '</span> — ' + esc(m), avatarUrl: urlFb, avatarEmoji: emFb });
       });
       (heroCandidates || []).forEach(function (s) {
         var title = String(s.title || '').trim().slice(0, 40);
         if ((s.title || '').length > 40) title += '…';
         var urlFb = s.meta && s.meta._canonicalAvatar && s.meta._canonicalAvatar.imageUrl ? String(s.meta._canonicalAvatar.imageUrl).trim() : '';
-        items.push({ icon: '🏆', text: '<span class="lanternTickerText">' + esc(title) + '</span>', avatarUrl: urlFb });
+        var emFb = !urlFb && s.meta && s.meta._canonicalAvatar && s.meta._canonicalAvatar.emoji ? String(s.meta._canonicalAvatar.emoji).trim() : '';
+        items.push({ icon: '🏆', text: '<span class="lanternTickerText">' + esc(title) + '</span>', avatarUrl: urlFb, avatarEmoji: emFb });
       });
       (newsList || []).forEach(function (n) {
         var t = String(n.title || '').trim().slice(0, 42);
         if ((n.title || '').length > 42) t += '…';
         var meta = n.meta || {};
         var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
-        items.push({ icon: '📰', text: '<span class="lanternTickerText">' + esc(t) + '</span>', avatarUrl: urlFb });
+        var emFb = !urlFb && meta._canonicalAvatar && meta._canonicalAvatar.emoji ? String(meta._canonicalAvatar.emoji).trim() : '';
+        items.push({ icon: '📰', text: '<span class="lanternTickerText">' + esc(t) + '</span>', avatarUrl: urlFb, avatarEmoji: emFb });
       });
     }
     if (items.length === 0) items.push(FALLBACK_TICKER_ITEM);
@@ -165,9 +180,16 @@
   }
 
   function itemToHtml(it) {
-    var avatar = it.avatarUrl && it.avatarUrl.trim()
-      ? '<img src="' + esc(it.avatarUrl) + '" alt="" class="lanternTickerItemAvatar" onerror="this.style.display=\'none\'">'
-      : '';
+    var avatar = '';
+    if (it.avatarUrl && String(it.avatarUrl).trim()) {
+      avatar =
+        '<img src="' + esc(it.avatarUrl) + '" alt="" class="lanternTickerItemAvatar" onerror="this.style.display=\'none\'">';
+    } else if (it.avatarEmoji && String(it.avatarEmoji).trim()) {
+      avatar =
+        '<span class="lanternTickerItemAvatar lanternTickerItemAvatar--emoji" aria-hidden="true">' +
+        esc(String(it.avatarEmoji).trim()) +
+        '</span>';
+    }
     var iconHtml = it.icon || '✨';
     var text = it.text != null && it.text !== '' ? it.text : '';
     return (

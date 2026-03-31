@@ -270,7 +270,10 @@
         '</span>';
     }
     if (ak) {
-      var srcMissing = emojiAvatarSvgDataUri(defEm) || def;
+      var legForAk = global.LanternAvatar && typeof global.LanternAvatar.getLegacyEmojiForCharacter === 'function'
+        ? global.LanternAvatar.getLegacyEmojiForCharacter(ak)
+        : defEm;
+      var srcMissing = emojiAvatarSvgDataUri(legForAk) || def;
       return '<span class="identity-chip frame-' + frameVal + '">' +
         '<img class="exploreCardAvatarImg" src="' + esc(srcMissing) + '" alt="" data-lc-av-def="' + esc(def) + '" data-lc-av-svg="' + esc(svgFb) + '" ' +
         'onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');var s=el.getAttribute(\'data-lc-av-svg\');if(el.dataset.lc===\'1\'){el.onerror=null;el.src=s;return;}el.dataset.lc=\'1\';el.src=d||s;">' +

@@ -17,6 +17,7 @@
       type: '',
       icon: '✨',
       avatarUrl: '',
+      avatarEmoji: '',
       title: '',
       text: '',
       subtitle: '',
@@ -30,6 +31,9 @@
       out.type = 'recognition';
       out.icon = '⭐';
       out.avatarUrl = (raw._canonicalAvatar && trim(raw._canonicalAvatar.imageUrl)) || '';
+      if (!out.avatarUrl && raw._canonicalAvatar && trim(raw._canonicalAvatar.emoji)) {
+        out.avatarEmoji = trim(raw._canonicalAvatar.emoji);
+      }
       out.title = trim(raw.character_name) || 'Student';
       out.text = trim(raw.message || '').slice(0, 36);
       if (trim(raw.message).length > 36) out.text += '…';
@@ -42,6 +46,9 @@
       out.type = raw.type || 'slide';
       out.icon = (raw.type === 'teacher_pick' || raw.type === 'teacher_recognition') ? '🏆' : (raw.type === 'student_news' ? '📰' : '✨');
       out.avatarUrl = (raw.meta && raw.meta._canonicalAvatar && trim(raw.meta._canonicalAvatar.imageUrl)) ? trim(raw.meta._canonicalAvatar.imageUrl) : '';
+      if (!out.avatarUrl && raw.meta && raw.meta._canonicalAvatar && trim(raw.meta._canonicalAvatar.emoji)) {
+        out.avatarEmoji = trim(raw.meta._canonicalAvatar.emoji);
+      }
       out.title = trim(raw.title || '').slice(0, 40);
       if (trim(raw.title).length > 40) out.title += '…';
       out.subtitle = trim(raw.subtitle || '');
@@ -57,6 +64,7 @@
       var nMeta = raw.meta || {};
       var nCanon = nMeta._canonicalAvatar;
       out.avatarUrl = (nCanon && trim(nCanon.imageUrl)) ? trim(nCanon.imageUrl) : '';
+      if (!out.avatarUrl && nCanon && trim(nCanon.emoji)) out.avatarEmoji = trim(nCanon.emoji);
       out.title = trim(raw.title || '').slice(0, 42);
       if (trim(raw.title).length > 42) out.title += '…';
       out.text = trim(raw.body || '');
@@ -68,6 +76,9 @@
     if (source === 'activity') {
       out.type = raw.event_type || 'activity';
       out.avatarUrl = (raw.meta && raw.meta._canonicalAvatar && trim(raw.meta._canonicalAvatar.imageUrl)) ? trim(raw.meta._canonicalAvatar.imageUrl) : '';
+      if (!out.avatarUrl && raw.meta && raw.meta._canonicalAvatar && trim(raw.meta._canonicalAvatar.emoji)) {
+        out.avatarEmoji = trim(raw.meta._canonicalAvatar.emoji);
+      }
       out.title = trim(raw.actor_name || '');
       out.text = raw.labelText || raw.text || '';
       out.timestamp = raw.created_at || '';
@@ -86,7 +97,7 @@
     var text = b.title;
     if (b.text) text += (text ? ' — ' : '') + b.text;
     if (b.subtitle && !b.text) text += (text ? ' · ' : '') + b.subtitle;
-    return { icon: b.icon || '✨', text: text, avatarUrl: b.avatarUrl || '' };
+    return { icon: b.icon || '✨', text: text, avatarUrl: b.avatarUrl || '', avatarEmoji: b.avatarEmoji || '' };
   }
 
   global.LANTERN_BROADCAST = {

@@ -50,8 +50,17 @@
   flex-shrink: 0;
   display: block;
 }
-.lanternTickerItemAvatar[src=""],
-.lanternTickerItemAvatar:not([src]){ display: none; }
+.lanternTickerItemAvatar--emoji{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  background: rgba(255,255,255,.12);
+  box-sizing: border-box;
+}
+img.lanternTickerItemAvatar[src=""],
+img.lanternTickerItemAvatar:not([src]){ display: none; }
 @keyframes lanternTickerScroll{
   0%{ transform: translateX(0); }
   100%{ transform: translateX(-50%); }

@@ -239,9 +239,12 @@
         if (raw && typeof global.LanternAvatar !== 'undefined' && global.LanternAvatar.getCanonicalAvatar) {
           var adopted = JSON.parse(raw);
           var name = adopted && adopted.name;
-          var emoji = (adopted && adopted.avatar) || '\u{1F31F}';
+          var emoji = (adopted && adopted.avatar) ? adopted.avatar : '';
+          if (!emoji && name && global.LanternAvatar.getLegacyEmojiForCharacter) {
+            emoji = global.LanternAvatar.getLegacyEmojiForCharacter(name);
+          }
           if (name) {
-            global.LanternAvatar.getCanonicalAvatar(name, emoji).then(function (r) {
+            global.LanternAvatar.getCanonicalAvatar(name, emoji || undefined).then(function (r) {
               if (!avatarBtn) return;
               if (r.imageUrl) {
                 var img = document.createElement('img');
