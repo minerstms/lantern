@@ -423,6 +423,7 @@
       }
       var maxFeaturedRail = 12;
       function paintFeaturedRail(resolvedOfficial){
+        bestEl.innerHTML = '';
         var featuredShown = 0;
         (resolvedOfficial || []).forEach(function(n){
           if (featuredShown >= maxFeaturedRail) return;
@@ -437,6 +438,7 @@
       }
       if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && officialNews.length) {
         var onews = officialNews.slice();
+        paintFeaturedRail(onews);
         window.LanternAvatar.attachCanonicalAvatarsToItems(onews).then(function(){ paintFeaturedRail(onews); });
       } else {
         paintFeaturedRail(officialNews);
@@ -580,6 +582,7 @@
       }
       if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
         var copy = polls.map(function(p){ return Object.assign({}, p); });
+        paintPollCards(copy);
         window.LanternAvatar.attachCanonicalAvatarsToItems(copy).then(function(){ paintPollCards(copy); });
       } else {
         paintPollCards(polls);
@@ -668,10 +671,10 @@
         if (typeof renderAll === 'function') renderAll();
         return;
       }
-      container.innerHTML = '';
       var limit = Math.min(happeningNewsLimit, news.length);
       var newsList = news.slice(0, limit);
       function paintHappeningNews(list){
+        container.innerHTML = '';
         list.forEach(function(n){
           var authorLabel = getAuthorLabel(n.author_type || 'student');
           var card = LC().createStudentCard(LC().specNewsRailCard(n, esc, authorLabel, false));
@@ -699,7 +702,9 @@
         });
       }
       if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
-        window.LanternAvatar.attachCanonicalAvatarsToItems(newsList).then(function(){ paintHappeningNews(newsList); finishNewsUi(); });
+        paintHappeningNews(newsList);
+        finishNewsUi();
+        window.LanternAvatar.attachCanonicalAvatarsToItems(newsList).then(function(){ paintHappeningNews(newsList); });
       } else {
         paintHappeningNews(newsList);
         finishNewsUi();
@@ -937,6 +942,7 @@
 
     function enrichFeedAvatarsThenRenderAll(){
       if (typeof window.LanternAvatar !== 'undefined' && window.LanternAvatar.attachCanonicalAvatarsToItems && feed.length > 0) {
+        renderAll();
         window.LanternAvatar.attachCanonicalAvatarsToItems(feed).then(function(){ renderAll(); });
       } else {
         renderAll();
