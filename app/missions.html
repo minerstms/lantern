@@ -220,6 +220,7 @@
       if (!economyApiBase) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });

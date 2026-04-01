@@ -1889,7 +1889,7 @@
     var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
     function callGetBalance(name){
       if (economyApiBase) {
-        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name)).then(function(r){ return r.json(); }).then(function(res){
+        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent };
           return { ok: false, available: 0 };
         }).catch(function(){ return { ok: false, available: 0 }; });
@@ -1904,6 +1904,7 @@
       if (!economyApiBase) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });

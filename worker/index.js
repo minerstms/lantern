@@ -50,7 +50,7 @@ function corsForPilot(request) {
     origin.startsWith('http://127.0.0.1:');
   const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Class-Token',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Class-Token, X-Lantern-Economy-Secret',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
   };
@@ -89,8 +89,15 @@ export default {
     const path = (url.pathname || '/').replace(/\/$/, '') || '/';
     if (request.method === 'OPTIONS') {
       let o = corsHeaders;
-      if (path.startsWith('/api/pilot') || path.startsWith('/api/auth') || path.startsWith('/api/admin') || path.startsWith('/api/class-access')) o = corsForPilot(request);
-      else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
+      if (
+        path.startsWith('/api/pilot') ||
+        path.startsWith('/api/auth') ||
+        path.startsWith('/api/admin') ||
+        path.startsWith('/api/class-access') ||
+        path.startsWith('/api/economy')
+      ) {
+        o = corsForPilot(request);
+      } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
       return new Response(null, { status: 204, headers: o });
     }
     const cors = corsHeaders;
@@ -114,10 +121,12 @@ export default {
     }
     if (path.startsWith('/api/economy')) {
       try {
-        return await handleEconomyRoutes(request, url, path, env, cors);
+        const economyCors = corsForPilot(request);
+        return await handleEconomyRoutes(request, url, path, env, economyCors);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
+        const economyCors = corsForPilot(request);
+        return jsonResponse({ ok: false, error: message }, 400, economyCors);
       }
     }
     if (path.startsWith('/api/news')) {
@@ -1778,6 +1787,44 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
 
+/** Shared secret for server-to-server POST /api/economy/transact (set LANTERN_ECONOMY_SECRET in env). */
+function getEconomyTransactSecretFromRequest(request) {
+  const x = request.headers.get('X-Lantern-Economy-Secret');
+  if (x && String(x).trim()) return String(x).trim();
+  const auth = request.headers.get('Authorization') || '';
+  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return '';
+}
+
+/**
+ * Allows transact if: (1) X-Lantern-Economy-Secret or Bearer matches env.LANTERN_ECONOMY_SECRET, or
+ * (2) valid pilot session: teacher/admin any character_name; student only own wallet (student_character_name || username).
+ */
+function economyTransactAllowed(env, request, characterName, pilotAccount) {
+  const configured = (env.LANTERN_ECONOMY_SECRET || '').trim();
+  const provided = getEconomyTransactSecretFromRequest(request);
+  if (configured && provided && timingSafeEqualStrings(configured, provided)) {
+    return { ok: true };
+  }
+  if (!pilotAccount) {
+    return { ok: false, code: 401, error: 'not_authenticated' };
+  }
+  const role = String(pilotAccount.role || '').trim().toLowerCase();
+  if (role === 'teacher' || role === 'admin') {
+    return { ok: true };
+  }
+  if (role === 'student') {
+    const scn = (pilotAccount.student_character_name || '').trim();
+    const un = (pilotAccount.username || '').trim();
+    const allowed = (scn || un || '').trim();
+    if (allowed && characterName === allowed) {
+      return { ok: true };
+    }
+    return { ok: false, code: 403, error: 'forbidden' };
+  }
+  return { ok: false, code: 403, error: 'forbidden' };
+}
+
 /** Lantern economy */
 async function handleEconomyRoutes(request, url, path, env, cors) {
   const db = env.DB;
@@ -1823,6 +1870,11 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
     const characterName = (body.character_name || '').trim();
     if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+    const pilotAccount = await getPilotAccountFromRequest(request, env);
+    const authz = economyTransactAllowed(env, request, characterName, pilotAccount);
+    if (!authz.ok) {
+      return jsonResponse({ ok: false, error: authz.error }, authz.code || 403, cors);
+    }
     const delta = Math.floor(Number(body.delta));
     if (delta === 0) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const kind = String(body.kind || '').trim() || 'misc';

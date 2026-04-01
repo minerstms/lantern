@@ -630,7 +630,7 @@
       var name = loadAdopted() && loadAdopted().name;
       if (!name) return Promise.resolve(0);
       if (economyApiBase) {
-        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name)).then(function(r){ return r.json(); }).then(function(res){
+        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           return (res && res.ok) ? (res.balance || 0) : 0;
         }).catch(function(){ return 0; });
       }
@@ -644,6 +644,7 @@
       if (!economyApiBase) return Promise.resolve({ ok: false });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
@@ -669,6 +670,7 @@
       if (economyApiBase) {
         fetch(economyApiBase + '/api/economy/transact', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ character_name: adopted.name, delta: -1, kind: 'game_play', source: '', note: gameName || 'Game', meta: {} })
         }).then(function(r){ return r.json(); }).then(function(tRes){

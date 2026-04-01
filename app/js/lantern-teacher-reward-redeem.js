@@ -46,7 +46,7 @@
 
   function callGetBalance(characterName){
     if (economyApiBase) {
-      return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(characterName)).then(function(r){ return r.json(); }).then(function(res){
+      return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(characterName), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
         if (res && res.ok) return { ok: true, student_name: characterName, earned: res.earned, spent: res.spent, available: res.balance };
         return { ok: false, error: res && res.error || 'Failed' };
       }).catch(function(){ return { ok: false, error: 'Network error' }; });
@@ -62,6 +62,7 @@
     if (!economyApiBase) return Promise.resolve({ ok: false });
     return fetch(economyApiBase + '/api/economy/transact', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
     }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
