@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auth test</title>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+</head>
+<body style="margin:16px;font-family:system-ui,sans-serif;font-size:18px;">
+  <p id="status">Checking session…</p>
+  <div id="ok" style="display:none;">
+    <p><strong>Auth test page</strong></p>
+    <p id="who"></p>
+  </div>
+  <script>
+    (function () {
+      var RETURN_PATH = '/auth-test.html';
+      var loginWithReturn = '/login.html?return=' + encodeURIComponent(RETURN_PATH);
+
+      function showAuthed(data) {
+        var st = document.getElementById('status');
+        var ok = document.getElementById('ok');
+        var who = document.getElementById('who');
+        if (st) st.style.display = 'none';
+        if (ok) ok.style.display = 'block';
+        if (who) {
+          var name = (data.display_name && String(data.display_name).trim()) || (data.username && String(data.username).trim()) || '(no name)';
+          var role = data.role ? String(data.role) : '(no role)';
+          who.textContent = 'Signed in as: ' + name + ' — role: ' + role;
+        }
+      }
+
+      if (!window.LanternAuth || typeof window.LanternAuth.fetchMe !== 'function') {
+        var st = document.getElementById('status');
+        if (st) st.textContent = 'LanternAuth not loaded.';
+        return;
+      }
+
+      window.LanternAuth.fetchMe().then(function (data) {
+        if (!data || !data.ok || !data.authenticated) {
+          location.replace(loginWithReturn);
+          return;
+        }
+        if (data.must_change_password) {
+          location.replace('/change-password.html?return=' + encodeURIComponent(RETURN_PATH));
+          return;
+        }
+        showAuthed(data);
+      });
+    })();
+  </script>
+</body>
+</html>
