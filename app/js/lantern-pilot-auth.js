@@ -66,6 +66,69 @@
     return '/login.html?return=' + encodeURIComponent(ret);
   }
 
+  /**
+   * Role-based page guard: unauthenticated -> login.html; must_change_password -> change-password.html.
+   * mode 'general': student, teacher, or admin.
+   * mode 'teacher': teacher or admin (student -> explore.html).
+   * mode 'admin': admin only (student -> explore.html, teacher -> teacher.html).
+   * @param {{ mode?: 'general'|'admin'|'teacher', pendingHtmlClass?: string }} opts
+   * @param {function(object): void} [onAllowed] - receives /me JSON when access is allowed
+   */
+  function guardPilotPage(opts, onAllowed) {
+    var o = opts || {};
+    var mode = o.mode || 'general';
+    var pendingClass = o.pendingHtmlClass || 'lantern-pilot-auth-pending';
+    return fetchMe().then(function (data) {
+      if (!data || !data.ok || !data.authenticated) {
+        global.location.replace(loginUrlWithReturn());
+        return;
+      }
+      if (data.must_change_password) {
+        var ret =
+          global.location.pathname + global.location.search + (global.location.hash || '');
+        global.location.replace('/change-password.html?return=' + encodeURIComponent(ret));
+        return;
+      }
+      var r = (data.role || '').trim();
+      if (mode === 'admin') {
+        if (r === 'student') {
+          global.location.replace('/explore.html');
+          return;
+        }
+        if (r === 'teacher') {
+          global.location.replace('/teacher.html');
+          return;
+        }
+        if (r !== 'admin') {
+          global.location.replace('/login.html');
+          return;
+        }
+      } else if (mode === 'teacher') {
+        if (r === 'student') {
+          global.location.replace('/explore.html');
+          return;
+        }
+        if (r !== 'teacher' && r !== 'admin') {
+          global.location.replace('/login.html');
+          return;
+        }
+      } else {
+        if (r !== 'student' && r !== 'teacher' && r !== 'admin') {
+          global.location.replace('/login.html');
+          return;
+        }
+      }
+      if (typeof onAllowed === 'function') {
+        try {
+          onAllowed(data);
+        } catch (e) {}
+      }
+      try {
+        global.document.documentElement.classList.remove(pendingClass);
+      } catch (e2) {}
+    });
+  }
+
   /** If the worker returned 403 must_change_password (e.g. admin API while temp password is active), go to password screen. */
   function redirectIfPasswordChangeRequired(res, jsonBody) {
     if (
@@ -95,6 +158,7 @@
     applyStudentStorageFromSession: applyStudentStorageFromSession,
     applyStudentStorageFromLoginResponse: applyStudentStorageFromLoginResponse,
     loginUrlWithReturn: loginUrlWithReturn,
+    guardPilotPage: guardPilotPage,
     redirectIfPasswordChangeRequired: redirectIfPasswordChangeRequired,
   };
   global.LanternAuth = sessionApi;

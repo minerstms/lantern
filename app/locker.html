@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <!-- ===== TMS Lantern — Locker (native: Overview + Items + Store) ===== -->
-<html>
+<html class="lantern-pilot-auth-pending">
 <head>
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Locker</title>
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">
@@ -72,6 +74,15 @@
   </style>
 </head>
 <body class="page-has-ticker">
+  <script>
+  (function(){
+    if (!window.LanternPilotAuth || typeof window.LanternPilotAuth.guardPilotPage !== 'function') {
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      return;
+    }
+    window.LanternPilotAuth.guardPilotPage({ mode: 'general' });
+  })();
+  </script>
   <script src="js/lantern-canonical-route-boot.js"></script>
   <div id="cosmeticEffectLayer" class="cosmeticEffectLayer" aria-hidden="true"></div>
   <div id="lanternHeader">

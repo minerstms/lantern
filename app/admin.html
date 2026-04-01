@@ -34,22 +34,11 @@
 <body>
   <script>
   (function(){
-    if (!window.LanternAuth) { document.documentElement.classList.remove('lantern-auth-pending'); return; }
-    window.LanternAuth.fetchMe().then(function(data){
-      if (!data || !data.ok || !data.authenticated) {
-        location.replace(window.LanternAuth.loginUrlWithReturn());
-        return;
-      }
-      if (data.must_change_password) {
-        location.replace('/change-password.html?return=' + encodeURIComponent('/admin.html'));
-        return;
-      }
-      var r = (data.role || '').trim();
-      if (r === 'student') { location.replace('/explore.html'); return; }
-      if (r === 'teacher') { location.replace('/teacher.html'); return; }
-      if (r !== 'admin') { location.replace('/login.html'); return; }
+    if (!window.LanternAuth || typeof window.LanternAuth.guardPilotPage !== 'function') {
       document.documentElement.classList.remove('lantern-auth-pending');
-    });
+      return;
+    }
+    window.LanternAuth.guardPilotPage({ mode: 'admin', pendingHtmlClass: 'lantern-auth-pending' });
   })();
   </script>
   <h1>Admin</h1>

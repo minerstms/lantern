@@ -930,28 +930,12 @@
 <body class="page-has-ticker">
   <script>
   (function(){
-    if (!window.LanternPilotAuth) { document.documentElement.classList.remove('lantern-pilot-auth-pending'); return; }
-    window.LanternPilotAuth.fetchMe().then(function(data){
-      if (!data || !data.ok || !data.authenticated) {
-        location.replace(window.LanternPilotAuth.loginUrlWithReturn());
-        return;
-      }
-      if (data.must_change_password) {
-        location.replace('/change-password.html?return=' + encodeURIComponent('/teacher.html'));
-        return;
-      }
-      var r = (data.role || '').trim();
-      if (r === 'student') {
-        location.replace('/explore.html');
-        return;
-      }
-      /* Teacher dashboard: teachers and admins (global). Admins use /admin for account tools; this page stays for approvals/missions. */
-      if (r !== 'teacher' && r !== 'admin') {
-        location.replace('/login.html');
-        return;
-      }
-      window.LANTERN_PILOT_ME = data;
+    if (!window.LanternPilotAuth || typeof window.LanternPilotAuth.guardPilotPage !== 'function') {
       document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      return;
+    }
+    window.LanternPilotAuth.guardPilotPage({ mode: 'teacher' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
       try {
         window.dispatchEvent(new CustomEvent('lantern-pilot-me-ready', { detail: data }));
       } catch (e) {}

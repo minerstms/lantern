@@ -168,29 +168,15 @@
 <body class="page-has-ticker">
   <script>
   (function(){
-    if (!window.LanternPilotAuth) { document.documentElement.classList.remove('lantern-pilot-auth-pending'); return; }
-    window.LanternPilotAuth.fetchMe().then(function(data){
-      if (!data || !data.ok || !data.authenticated) {
-        location.replace(window.LanternPilotAuth.loginUrlWithReturn());
-        return;
-      }
-      if (data.must_change_password) {
-        location.replace('/change-password.html?return=' + encodeURIComponent('/explore.html'));
-        return;
-      }
+    if (!window.LanternPilotAuth || typeof window.LanternPilotAuth.guardPilotPage !== 'function') {
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      return;
+    }
+    window.LanternPilotAuth.guardPilotPage({ mode: 'general' }, function (data) {
       var r = (data.role || '').trim();
-      if (r === 'admin') {
-        location.replace('/admin.html');
-        return;
-      }
-      if (r === 'teacher') {
-        location.replace('/teacher.html');
-        return;
-      }
-      if (r === 'student') {
+      if (r === 'student' && window.LanternPilotAuth.applyStudentStorageFromSession) {
         window.LanternPilotAuth.applyStudentStorageFromSession(data);
       }
-      document.documentElement.classList.remove('lantern-pilot-auth-pending');
     });
   })();
   </script>
