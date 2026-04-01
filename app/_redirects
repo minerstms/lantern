@@ -6,11 +6,15 @@
 # Do NOT add /login → /login.html: that 301 can chain with Pages “pretty” handling and drop or
 # break ?return= on the login URL. Auth uses /login.html?return=… directly; pilot-auth normalizes
 # extensionless /login in return paths where needed.
+#
+# /admin MUST use 200 (rewrite), not 301: Pages “pretty URLs” can 302 /admin.html → /admin; a 301
+# from /admin → /admin.html then bounces forever (ERR_TOO_MANY_REDIRECTS). 200 serves admin.html
+# for /admin without a Location redirect to .html.
 
 / /login.html 200
 
 /locker /locker.html 301
-/admin /admin.html 301
+/admin /admin.html 200
 /teacher /teacher.html 301
 /explore /explore.html 301
 /games /games.html 301
