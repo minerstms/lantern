@@ -132,7 +132,7 @@
           return;
         }
         if (r !== 'admin') {
-          global.location.replace('/login.html');
+          global.location.replace(loginUrlWithReturn());
           return;
         }
       } else if (mode === 'teacher') {
@@ -141,12 +141,12 @@
           return;
         }
         if (r !== 'teacher' && r !== 'admin') {
-          global.location.replace('/login.html');
+          global.location.replace(loginUrlWithReturn());
           return;
         }
       } else {
         if (r !== 'student' && r !== 'teacher' && r !== 'admin') {
-          global.location.replace('/login.html');
+          global.location.replace(loginUrlWithReturn());
           return;
         }
       }
