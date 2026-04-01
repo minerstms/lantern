@@ -12,6 +12,26 @@
   </script>
   <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
+  <script>
+  (function () {
+    function enforceLoginUrlPersistence() {
+      try {
+        const q = window.__LANTERN_LOGIN_PRESEARCH || location.search || '';
+        const h = window.__LANTERN_LOGIN_PREHASH || location.hash || '';
+        const target = '/login.html' + q + h;
+        const current = location.pathname + (location.search || '') + (location.hash || '');
+        if (current !== target) {
+          history.replaceState(null, '', target);
+        }
+      } catch (e) {}
+    }
+    enforceLoginUrlPersistence();
+    document.addEventListener('DOMContentLoaded', enforceLoginUrlPersistence);
+    setTimeout(enforceLoginUrlPersistence, 50);
+    setTimeout(enforceLoginUrlPersistence, 200);
+    setInterval(enforceLoginUrlPersistence, 300);
+  })();
+  </script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
     * { box-sizing: border-box; }

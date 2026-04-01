@@ -194,37 +194,4 @@
   };
   global.LanternAuth = sessionApi;
   global.LanternPilotAuth = sessionApi;
-
-  /**
-   * Login page only: never drop ?return= from the address bar. Some hosts/pretty-URL layers
-   * strip the query after load; login.html sets __LANTERN_LOGIN_PRESEARCH / __LANTERN_LOGIN_PREHASH
-   * before this file runs so we can restore. Always use pathname + search + hash; only normalize
-   * /login → /login.html when rewriting, keeping search/hash intact.
-   */
-  (function preserveLoginPageUrl() {
-    function run() {
-      try {
-        var loc = global.location;
-        var p = String(loc.pathname || '');
-        if (p !== '/login' && !/\/login\.html$/i.test(p)) return;
-        var q = loc.search || '';
-        var h = loc.hash || '';
-        if (!q && !h && typeof global.__LANTERN_LOGIN_PRESEARCH === 'string') {
-          q = global.__LANTERN_LOGIN_PRESEARCH;
-          h = typeof global.__LANTERN_LOGIN_PREHASH === 'string' ? global.__LANTERN_LOGIN_PREHASH : '';
-        }
-        if (!q && !h) return;
-        var path = p;
-        if (p === '/login' || p === '/login/') path = '/login.html';
-        var target = path + q + h;
-        if (loc.pathname + (loc.search || '') + (loc.hash || '') === target) return;
-        global.history.replaceState(null, '', target);
-      } catch (e) {}
-    }
-    run();
-    if (typeof global.setTimeout === 'function') {
-      global.setTimeout(run, 0);
-      global.setTimeout(run, 50);
-    }
-  })();
 })(typeof window !== 'undefined' ? window : this);
