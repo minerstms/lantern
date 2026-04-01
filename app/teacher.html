@@ -936,6 +936,10 @@
         location.replace(window.LanternPilotAuth.loginUrlWithReturn());
         return;
       }
+      if (data.must_change_password) {
+        location.replace('/change-password');
+        return;
+      }
       var r = (data.role || '').trim();
       if (r === 'student') {
         location.replace('/explore');

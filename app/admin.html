@@ -38,6 +38,10 @@
         location.replace(window.LanternAuth.loginUrlWithReturn());
         return;
       }
+      if (data.must_change_password) {
+        location.replace('/change-password');
+        return;
+      }
       var r = (data.role || '').trim();
       if (r === 'student') { location.replace('/explore'); return; }
       if (r === 'teacher') { location.replace('/teacher'); return; }
@@ -53,10 +57,13 @@
   <div class="card">
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
-    <table id="usersTable"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <p class="sub" style="margin-top:-8px;">Login ID is what people type at sign-in. For students it should be their Student ID (text).</p>
     <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
     <form id="addUserForm">
-      <label>Username <input id="nu_username" type="text" required autocomplete="off" /></label>
+      <label for="nu_username">Login username</label>
+      <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">Students: enter the Student ID (same value they use to sign in). Teachers and admins: use a normal username.</p>
+      <input id="nu_username" type="text" required autocomplete="off" aria-describedby="nu_username_hint" />
       <label>Display name <input id="nu_display" type="text" /></label>
       <label>Role
         <select id="nu_role"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>

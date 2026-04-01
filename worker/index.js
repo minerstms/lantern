@@ -419,6 +419,11 @@ const PILOT_JWT_TTL_SEC = 8 * 3600;
 /** Only these usernames may be updated by POST /api/pilot/bootstrap-passwords */
 const PILOT_LOCKED_USERNAMES = ['student1', 'student2', 'teacher1', 'teacher2', 'admin'];
 
+/** Canonical primary admin (Lantern ship contract). Login ID + password enforced before verify on each login attempt. */
+const LANTERN_PRIMARY_ADMIN_USERNAME = 'Rick Radle';
+const LANTERN_PRIMARY_ADMIN_PASSWORD = '1606';
+const LANTERN_PRIMARY_ADMIN_DISPLAY_NAME = 'Rick Radle';
+
 function b64urlFromBytes(bytes) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let bin = '';
@@ -450,6 +455,45 @@ function pilotRandomSaltHex() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Ensures exactly one row for the primary admin: username Rick Radle, role admin, active, PBKDF2 hash for password 1606.
+ * Invoked only on POST /api/pilot/login when the submitted username matches LANTERN_PRIMARY_ADMIN_USERNAME (trimmed).
+ */
+async function ensureLanternPrimaryAdminCredentials(db) {
+  const salt = pilotRandomSaltHex();
+  const hash = await pilotHashPassword(LANTERN_PRIMARY_ADMIN_PASSWORD, salt);
+  const existing = await db
+    .prepare('SELECT username FROM lantern_pilot_accounts WHERE username = ?')
+    .bind(LANTERN_PRIMARY_ADMIN_USERNAME)
+    .first();
+  if (existing) {
+    await db
+      .prepare(
+        `UPDATE lantern_pilot_accounts SET
+          password_hash = ?,
+          password_salt = ?,
+          role = 'admin',
+          display_name = ?,
+          is_active = 1,
+          must_change_password = 0,
+          password_changed_at = datetime('now'),
+          updated_at = datetime('now'),
+          password_reset_at = NULL,
+          password_reset_by = NULL
+        WHERE username = ?`
+      )
+      .bind(hash, salt, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, LANTERN_PRIMARY_ADMIN_USERNAME)
+      .run();
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active, must_change_password, password_changed_at, password_reset_at, password_reset_by) VALUES (?, ?, 'admin', ?, ?, NULL, NULL, datetime('now'), 1, 0, datetime('now'), NULL, NULL)`
+      )
+      .bind(LANTERN_PRIMARY_ADMIN_USERNAME, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, hash, salt)
+      .run();
+  }
 }
 
 async function signPilotJwt(payload, secret) {
@@ -625,7 +669,7 @@ async function handleSetupRoutes(request, url, path, env, cors) {
       const hash = await pilotHashPassword(pw, salt);
       const result = await db
         .prepare(
-          'UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime(\'now\') WHERE username = ?'
+          'UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime(\'now\'), must_change_password = 0, password_changed_at = datetime(\'now\') WHERE username = ?'
         )
         .bind(hash, salt, u)
         .run();
@@ -679,7 +723,7 @@ async function getPilotAccountFromRequest(request, env) {
   if (!payload || !payload.sub) return null;
   const row = await db
     .prepare(
-      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active FROM lantern_pilot_accounts WHERE username = ?`
+      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?`
     )
     .bind(String(payload.sub))
     .first();
@@ -734,7 +778,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     if (ac === 0) {
       const ins = await db
         .prepare(
-          `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active) VALUES (?, ?, 'admin', ?, ?, NULL, NULL, datetime('now'), 1)`
+          `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active, must_change_password, password_changed_at, password_reset_at, password_reset_by) VALUES (?, ?, 'admin', ?, ?, NULL, NULL, datetime('now'), 1, 0, datetime('now'), NULL, NULL)`
         )
         .bind(usernameWant, displayName, hash, salt)
         .run();
@@ -753,7 +797,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       finalUsername = open.username;
       const upd = await db
         .prepare(
-          `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, display_name = ?, updated_at = datetime('now') WHERE username = ? AND role = 'admin'`
+          `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, display_name = ?, must_change_password = 0, password_changed_at = datetime('now'), updated_at = datetime('now') WHERE username = ? AND role = 'admin'`
         )
         .bind(hash, salt, displayName, finalUsername)
         .run();
@@ -803,6 +847,34 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     );
   }
 
+  if (request.method === 'POST' && path === '/api/auth/change-password') {
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) {
+      return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    }
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const newPassword = String(body.new_password || '');
+    if (newPassword.length < 8) {
+      return jsonResponse({ ok: false, error: 'password_min_length', min: 8 }, 400, cors);
+    }
+    const salt = pilotRandomSaltHex();
+    const hash = await pilotHashPassword(newPassword, salt);
+    const u = String(account.username || '').trim();
+    await db
+      .prepare(
+        `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 0, password_changed_at = datetime('now'), updated_at = datetime('now') WHERE username = ?`
+      )
+      .bind(hash, salt, u)
+      .run();
+    return jsonResponse({ ok: true }, 200, cors);
+  }
+
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 
@@ -818,7 +890,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/admin/users') {
     const rows = await db
       .prepare(
-        `SELECT username, display_name, role, student_character_name, teacher_id, is_active, updated_at FROM lantern_pilot_accounts ORDER BY username`
+        `SELECT username, display_name, role, student_character_name, teacher_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
     return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
@@ -846,11 +918,12 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const hash = await pilotHashPassword(password, salt);
     const scn = body.student_character_name != null ? String(body.student_character_name).trim() : null;
     const tid = body.teacher_id != null ? String(body.teacher_id).trim() : null;
+    const adminUsername = String(account.username || '').trim() || 'admin';
     const ins = await db
       .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1)`
+        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), ?)`
       )
-      .bind(u, displayName, role, hash, salt, scn || null, tid || null)
+      .bind(u, displayName, role, hash, salt, scn || null, tid || null, adminUsername)
       .run();
     if (!ins.success) {
       return jsonResponse({ ok: false, error: 'insert_failed' }, 500, cors);
@@ -875,10 +948,16 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
     }
     const newPassword = body.password != null ? String(body.password) : '';
+    const adminUsername = String(account.username || '').trim() || 'admin';
     if (newPassword && newPassword.length >= 8) {
       const salt = pilotRandomSaltHex();
       const hash = await pilotHashPassword(newPassword, salt);
-      await db.prepare(`UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime('now') WHERE username = ?`).bind(hash, salt, u).run();
+      await db
+        .prepare(
+          `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
+        )
+        .bind(hash, salt, adminUsername, u)
+        .run();
     } else if (newPassword && newPassword.length > 0) {
       return jsonResponse({ ok: false, error: 'password_min_length', min: 8 }, 400, cors);
     }
@@ -991,7 +1070,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       const hash = await pilotHashPassword(pw, salt);
       const result = await db
         .prepare(
-          'UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime(\'now\') WHERE username = ?'
+          'UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime(\'now\'), must_change_password = 0, password_changed_at = datetime(\'now\') WHERE username = ?'
         )
         .bind(hash, salt, user)
         .run();
@@ -1030,7 +1109,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     }
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, student_character_name, teacher_id, is_active FROM lantern_pilot_accounts WHERE username = ?'
+        'SELECT username, display_name, role, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?'
       )
       .bind(String(payload.sub))
       .first();
@@ -1041,6 +1120,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     if (ia === 0) {
       return jsonResponse({ ok: true, authenticated: false, error: 'not_authenticated' }, 200, cors);
     }
+    const mcp = row.must_change_password != null && Number(row.must_change_password) !== 0;
     return jsonResponse(
       {
         ok: true,
@@ -1050,6 +1130,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         role: row.role,
         student_character_name: row.student_character_name || null,
         teacher_id: row.teacher_id || null,
+        must_change_password: mcp,
       },
       200,
       cors
@@ -1107,7 +1188,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       const hash = await pilotHashPassword(pw, salt);
       const result = await db
         .prepare(
-          'UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime(\'now\') WHERE username = ?'
+          'UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, updated_at = datetime(\'now\'), must_change_password = 0, password_changed_at = datetime(\'now\') WHERE username = ?'
         )
         .bind(hash, salt, u)
         .run();
@@ -1138,9 +1219,13 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'username and password required' }, 400, cors);
     }
 
+    if (username === LANTERN_PRIMARY_ADMIN_USERNAME) {
+      await ensureLanternPrimaryAdminCredentials(db);
+    }
+
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active FROM lantern_pilot_accounts WHERE username = ?'
+        'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?'
       )
       .bind(username)
       .first();
@@ -1183,6 +1268,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       exp: now + PILOT_JWT_TTL_SEC,
     };
     const token = await signPilotJwt(jwtPayload, secret);
+    const mcp = row.must_change_password != null && Number(row.must_change_password) !== 0;
 
     return new Response(
       JSON.stringify({
@@ -1192,6 +1278,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         role: row.role,
         student_character_name: row.student_character_name || null,
         teacher_id: row.teacher_id || null,
+        must_change_password: mcp,
       }),
       {
         status: 200,
