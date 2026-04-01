@@ -81,10 +81,6 @@
       var form = document.getElementById('loginForm');
       var submitBtn = document.getElementById('submitBtn');
 
-      function qs(name) {
-        var m = new RegExp('[?&]' + name + '=([^&]*)').exec(location.search);
-        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
-      }
       /** Same-origin path only: leading /, not protocol-relative // */
       function isSafeReturnPath(p) {
         var s = String(p || '').trim();
@@ -92,10 +88,11 @@
         if (s.indexOf('//') === 0) return false;
         return true;
       }
-      var qsReturn = qs('return');
-      var returnTo = qsReturn;
-      if (!returnTo || returnTo.indexOf('login.html') !== -1 || returnTo.indexOf('/login') !== -1) returnTo = '/explore.html';
-      else if (!isSafeReturnPath(returnTo)) returnTo = '/explore.html';
+      /** Block redirect back to login (loop). Path only, before ? or # */
+      function isLoginReturnTarget(p) {
+        var pathOnly = String(p || '').split('?')[0].split('#')[0];
+        return pathOnly === '/login' || pathOnly === '/login.html';
+      }
 
       if (!form || !submitBtn || !msgEl) {
         return;
@@ -108,41 +105,48 @@
       }
 
       function redirectAfterLogin(body) {
+        var searchStr = location.search;
+        if (
+          (!searchStr || searchStr === '') &&
+          typeof window.__LANTERN_LOGIN_PRESEARCH === 'string' &&
+          window.__LANTERN_LOGIN_PRESEARCH
+        ) {
+          searchStr = window.__LANTERN_LOGIN_PRESEARCH;
+        }
+        var params = new URLSearchParams(searchStr);
+        var returnTo = params.get('return');
+
         if (body && body.must_change_password) {
-          location.replace('/change-password.html?return=' + encodeURIComponent(returnTo || '/explore.html'));
+          var pwdReturn =
+            returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)
+              ? returnTo
+              : '/explore.html';
+          location.replace('/change-password.html?return=' + encodeURIComponent(pwdReturn));
           return;
         }
+
+        if (returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+          location.replace(returnTo);
+          return;
+        }
+
         var r = (body && body.role ? String(body.role) : '').trim();
         if (r === 'admin') {
-          location.replace(
-            isSafeReturnPath(qsReturn) &&
-              qsReturn.indexOf('login.html') === -1 &&
-              qsReturn.indexOf('/login') === -1 &&
-              qsReturn.indexOf('change-password') === -1
-              ? qsReturn
-              : '/admin.html'
-          );
+          location.replace('/admin.html');
           return;
         }
         if (r === 'teacher') {
-          location.replace(
-            isSafeReturnPath(qsReturn) &&
-              qsReturn.indexOf('login.html') === -1 &&
-              qsReturn.indexOf('/login') === -1 &&
-              qsReturn.indexOf('change-password') === -1
-              ? qsReturn
-              : '/teacher.html'
-          );
+          location.replace('/teacher.html');
           return;
         }
         if (r === 'student') {
           if (window.LanternPilotAuth && window.LanternPilotAuth.applyStudentStorageFromLoginResponse) {
             window.LanternPilotAuth.applyStudentStorageFromLoginResponse(body);
           }
-          location.replace(returnTo || '/explore.html');
+          location.replace('/explore.html');
           return;
         }
-        location.replace(returnTo || '/explore.html');
+        location.replace('/explore.html');
       }
 
       if (!api) {
