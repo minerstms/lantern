@@ -105,6 +105,15 @@
       Promise.all([verifyP, pilotP]).then(function(pair){
         var res = pair[0];
         var pilot = pair[1];
+        if (pilot && pilot.ok && pilot.authenticated && pilot.must_change_password) {
+          studentIdentityFetchPending = false;
+          var ret =
+            typeof location !== 'undefined'
+              ? location.pathname + location.search + (location.hash || '')
+              : '/explore';
+          location.replace('/change-password?return=' + encodeURIComponent(ret));
+          return;
+        }
         if (pilot && pilot.ok && pilot.authenticated && String(pilot.role || '').trim() === 'student') {
           verifyStudentContext = null;
           if (window.LanternPilotAuth && typeof window.LanternPilotAuth.applyStudentStorageFromSession === 'function') {

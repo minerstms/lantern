@@ -733,6 +733,11 @@ async function getPilotAccountFromRequest(request, env) {
   return row;
 }
 
+function pilotAccountRequiresChangePassword(row) {
+  if (!row) return false;
+  return row.must_change_password != null && Number(row.must_change_password) !== 0;
+}
+
 async function handleAuthRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -886,6 +891,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   if (!account || String(account.role || '').trim().toLowerCase() !== 'admin') {
     return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
   }
+  if (pilotAccountRequiresChangePassword(account)) {
+    return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password' }, 403, cors);
+  }
 
   if (request.method === 'GET' && path === '/api/admin/users') {
     const rows = await db
@@ -931,6 +939,35 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, username: u }, 200, cors);
   }
 
+  if (request.method === 'POST' && path === '/api/admin/users/reset-password') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const u = String(body.username || '').trim();
+    const newPassword = String(body.new_password != null ? body.new_password : body.password || '');
+    if (!u || !newPassword || newPassword.length < 8) {
+      return jsonResponse({ ok: false, error: 'username_and_password_required', min: 8 }, 400, cors);
+    }
+    const existing = await db.prepare(`SELECT username FROM lantern_pilot_accounts WHERE username = ?`).bind(u).first();
+    if (!existing) {
+      return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
+    }
+    const adminUsername = String(account.username || '').trim() || 'admin';
+    const salt = pilotRandomSaltHex();
+    const hash = await pilotHashPassword(newPassword, salt);
+    await db
+      .prepare(
+        `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
+      )
+      .bind(hash, salt, adminUsername, u)
+      .run();
+    return jsonResponse({ ok: true }, 200, cors);
+  }
+
   if (request.method === 'POST' && path === '/api/admin/users/update') {
     const text = await request.text();
     let body;
@@ -960,6 +997,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .run();
     } else if (newPassword && newPassword.length > 0) {
       return jsonResponse({ ok: false, error: 'password_min_length', min: 8 }, 400, cors);
+    }
+    if (body.force_must_change_password === true || body.must_change_next_login === true) {
+      await db
+        .prepare(
+          `UPDATE lantern_pilot_accounts SET must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
+        )
+        .bind(adminUsername, u)
+        .run();
     }
     if (body.display_name != null) {
       await db
@@ -1357,13 +1402,16 @@ async function getPilotActiveStudentForClassAccess(request, env, db) {
   const payload = await verifyPilotJwt(jwt, secret);
   if (!payload || !payload.sub) return null;
   const row = await db
-    .prepare('SELECT username, role, is_active FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))')
+    .prepare(
+      'SELECT username, role, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
+    )
     .bind(String(payload.sub))
     .first();
   if (!row) return null;
   const ia = row.is_active != null ? Number(row.is_active) : 1;
   if (ia === 0) return null;
   if (String(row.role || '').trim().toLowerCase() !== 'student') return null;
+  if (pilotAccountRequiresChangePassword(row)) return null;
   return row;
 }
 

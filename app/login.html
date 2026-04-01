@@ -74,7 +74,7 @@
 
       function redirectAfterLogin(body) {
         if (body && body.must_change_password) {
-          location.replace('/change-password');
+          location.replace('/change-password?return=' + encodeURIComponent(returnTo || '/explore'));
           return;
         }
         var r = (body && body.role ? String(body.role) : '').trim();

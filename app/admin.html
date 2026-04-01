@@ -20,13 +20,15 @@
     .btn.good { border-color: rgba(56,208,124,.5); background: rgba(56,208,124,.15); }
     .btn.bad { border-color: rgba(255,77,109,.5); background: rgba(255,77,109,.12); }
     table { width: 100%; border-collapse: collapse; font-size: 22px; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
     label { display: block; font-weight: 800; margin-top: 12px; }
     input, select { width: 100%; max-width: 420px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.3); color: var(--ink); font-size: 22px; font-family: inherit; }
     .row { margin-bottom: 8px; }
     .pendingRow { padding: 12px 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
     .pendingMeta { color: var(--muted); font-size: 20px; }
     a { color: var(--accent); font-weight: 800; }
+    .acctActions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .acctActions .btn { margin-top: 0; margin-right: 0; font-size: 20px; padding: 8px 12px; }
   </style>
 </head>
 <body>
@@ -39,7 +41,7 @@
         return;
       }
       if (data.must_change_password) {
-        location.replace('/change-password');
+        location.replace('/change-password?return=' + encodeURIComponent('/admin'));
         return;
       }
       var r = (data.role || '').trim();
@@ -57,12 +59,12 @@
   <div class="card">
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
-    <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
-    <p class="sub" style="margin-top:-8px;">Login ID is what people type at sign-in. For students it should be their Student ID (text).</p>
+    <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). Use <strong>Set temp password</strong> or <strong>Reset password</strong> to assign a new password and require a change on next sign-in.</p>
     <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
     <form id="addUserForm">
       <label for="nu_username">Login username</label>
-      <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">Students: enter the Student ID (same value they use to sign in). Teachers and admins: use a normal username.</p>
+      <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">Use the sign-in name for this person (for students, typically the school login ID).</p>
       <input id="nu_username" type="text" required autocomplete="off" aria-describedby="nu_username_hint" />
       <label>Display name <input id="nu_display" type="text" /></label>
       <label>Role
@@ -90,30 +92,93 @@
       fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){ location.href = '/login'; });
     });
 
+    function postAdminJson(path, body) {
+      return fetch(api + path, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      }).then(function(r){
+        return r.json().then(function(j){
+          if (window.LanternAuth && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (window.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, status: r.status, body: j };
+        });
+      });
+    }
+
+    function assignTempOrResetPassword(un, label) {
+      var pw = prompt((label || 'New password') + ' for ' + un + ' (8+ characters):', '');
+      if (pw === null) return;
+      pw = String(pw);
+      if (pw.length < 8) { alert('Password must be at least 8 characters.'); return; }
+      postAdminJson('/api/admin/users/reset-password', { username: un, new_password: pw }).then(function(res){
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) loadUsers();
+        else alert((res && res.body && res.body.error) || 'Request failed');
+      });
+    }
+
+    function forceMustChangeNextLogin(un) {
+      if (!confirm('Require password change on next login for ' + un + '?')) return;
+      postAdminJson('/api/admin/users/update', { username: un, force_must_change_password: true }).then(function(res){
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) loadUsers();
+        else alert((res && res.body && res.body.error) || 'Update failed');
+      });
+    }
+
     function loadUsers(){
-      fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
+      fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){
+        return r.json().then(function(j){ return { status: r.status, body: j }; });
+      }).then(function(w){
+        if (window.LanternAuth && w.status === 403 && w.body && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+          if (window.LanternAuth.redirectIfPasswordChangeRequired({ status: w.status }, w.body)) return;
+        }
+        var res = w.body;
         var tb = document.getElementById('usersBody');
         tb.innerHTML = '';
         if (!res || !res.ok || !res.users) return;
         res.users.forEach(function(u){
           var tr = document.createElement('tr');
           var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
-          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td><button type="button" class="btn" data-edit="' + esc(u.username) + '">Edit</button></td>';
-          tb.appendChild(tr);
-        });
-        tb.querySelectorAll('button[data-edit]').forEach(function(btn){
-          btn.addEventListener('click', function(){
-            var un = btn.getAttribute('data-edit');
-            var role = prompt('New role (student / teacher / admin):', 'student');
+          var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true) ? 'Yes' : 'No';
+          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td>' + mcp + '</td><td class="acctActions"></td>';
+          var cell = tr.querySelector('.acctActions');
+          var bEdit = document.createElement('button');
+          bEdit.type = 'button';
+          bEdit.className = 'btn';
+          bEdit.textContent = 'Edit';
+          bEdit.addEventListener('click', function(){
+            var role = prompt('New role (student / teacher / admin):', u.role || 'student');
             if (!role) return;
             var act = confirm('Account active? OK = active, Cancel = suspended') ? 1 : 0;
-            fetch(api + '/api/admin/users/update', {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: un, role: role.trim(), is_active: act }),
-            }).then(function(r){ return r.json(); }).then(function(x){ if (x && x.ok) loadUsers(); else alert(x && x.error || 'Update failed'); });
+            postAdminJson('/api/admin/users/update', { username: u.username, role: role.trim(), is_active: act }).then(function(x){
+              if (x && x.blocked) return;
+              if (x && x.okHttp && x.body && x.body.ok) loadUsers(); else alert(x && x.body && x.body.error || 'Update failed');
+            });
           });
+          var bTemp = document.createElement('button');
+          bTemp.type = 'button';
+          bTemp.className = 'btn good';
+          bTemp.textContent = 'Set temp password';
+          bTemp.addEventListener('click', function(){ assignTempOrResetPassword(u.username, 'Set temp password'); });
+          var bReset = document.createElement('button');
+          bReset.type = 'button';
+          bReset.className = 'btn';
+          bReset.textContent = 'Reset password';
+          bReset.addEventListener('click', function(){ assignTempOrResetPassword(u.username, 'Reset password'); });
+          var bMust = document.createElement('button');
+          bMust.type = 'button';
+          bMust.className = 'btn';
+          bMust.textContent = 'Must change on next login';
+          bMust.addEventListener('click', function(){ forceMustChangeNextLogin(u.username); });
+          cell.appendChild(bEdit);
+          cell.appendChild(bTemp);
+          cell.appendChild(bReset);
+          cell.appendChild(bMust);
+          tb.appendChild(tr);
         });
       });
     }
@@ -130,14 +195,10 @@
       var scn = document.getElementById('nu_scn').value.trim();
       if (tid) body.teacher_id = tid;
       if (scn) body.student_character_name = scn;
-      fetch(api + '/api/admin/users', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }).then(function(r){ return r.json(); }).then(function(res){
-        if (res && res.ok) { loadUsers(); document.getElementById('addUserForm').reset(); }
-        else alert(res && res.error || 'Failed');
+      postAdminJson('/api/admin/users', body).then(function(res){
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) { loadUsers(); document.getElementById('addUserForm').reset(); }
+        else alert(res && res.body && res.body.error || 'Failed');
       });
     });
 

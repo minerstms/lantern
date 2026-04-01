@@ -937,7 +937,7 @@
         return;
       }
       if (data.must_change_password) {
-        location.replace('/change-password');
+        location.replace('/change-password?return=' + encodeURIComponent('/teacher'));
         return;
       }
       var r = (data.role || '').trim();

@@ -319,11 +319,18 @@
     wireInteractiveChrome();
     applyBellCount(0);
     refreshNeedsAttentionBellFromApi();
-    (function hideStaffNavForPilotStudents(){
+    (function pilotSessionShellGate(){
       var api = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
       if (!api) return;
       fetch(api + '/api/auth/me', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(data){
         if (!data || !data.ok || !data.authenticated) return;
+        if (data.must_change_password) {
+          var path = (typeof location !== 'undefined' && location.pathname) ? String(location.pathname) : '';
+          if (/change-password/i.test(path)) return;
+          var ret = (typeof location !== 'undefined') ? (location.pathname + location.search + (location.hash || '')) : '/explore';
+          global.location.replace('/change-password?return=' + encodeURIComponent(ret));
+          return;
+        }
         var role = (data.role || '').trim();
         if (role !== 'student') return;
         var dd = document.getElementById('lanternMenuDropdown');

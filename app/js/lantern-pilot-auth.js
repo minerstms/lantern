@@ -66,11 +66,35 @@
     return '/login?return=' + encodeURIComponent(ret);
   }
 
+  /** If the worker returned 403 must_change_password (e.g. admin API while temp password is active), go to password screen. */
+  function redirectIfPasswordChangeRequired(res, jsonBody) {
+    if (
+      res &&
+      res.status === 403 &&
+      jsonBody &&
+      jsonBody.error === 'must_change_password'
+    ) {
+      var loc =
+        jsonBody.redirect && String(jsonBody.redirect).indexOf('/') === 0
+          ? String(jsonBody.redirect)
+          : '/change-password';
+      var ret =
+        global.location.pathname + global.location.search + (global.location.hash || '');
+      if (loc.indexOf('change-password') !== -1 && ret && ret.indexOf('change-password') === -1) {
+        loc = loc + (loc.indexOf('?') === -1 ? '?' : '&') + 'return=' + encodeURIComponent(ret);
+      }
+      global.location.replace(loc);
+      return true;
+    }
+    return false;
+  }
+
   var sessionApi = {
     fetchMe: fetchMe,
     applyStudentStorageFromSession: applyStudentStorageFromSession,
     applyStudentStorageFromLoginResponse: applyStudentStorageFromLoginResponse,
     loginUrlWithReturn: loginUrlWithReturn,
+    redirectIfPasswordChangeRequired: redirectIfPasswordChangeRequired,
   };
   global.LanternAuth = sessionApi;
   global.LanternPilotAuth = sessionApi;
