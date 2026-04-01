@@ -18,7 +18,7 @@
 
 /locker /locker.html 301
 /admin/ /admin 301
-/admin /admin.html 200
+/admin.html /admin 301
 /teacher /teacher.html 301
 /explore /explore.html 301
 /games /games.html 301
