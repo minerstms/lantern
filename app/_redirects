@@ -1,2 +1,15 @@
+# Cloudflare Pages may 302 /page.html → /page (“pretty URLs”). That breaks auth ?return= which
+# expects real paths like /locker.html. These 301s send extensionless URLs back to the .html file
+# so the final address bar (and pathname) match our static file names. Query strings are preserved
+# by the client redirect chain per Pages behavior.
+
 / /login.html 200
 
+/locker /locker.html 301
+/login /login.html 301
+/admin /admin.html 301
+/teacher /teacher.html 301
+/explore /explore.html 301
+/games /games.html 301
+/store /store.html 301
+/change-password /change-password.html 301

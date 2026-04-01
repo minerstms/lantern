@@ -60,10 +60,44 @@
     } catch (e) {}
   }
 
+  /**
+   * Defensive: Cloudflare Pages may expose extensionless paths (/locker) after pretty-URL redirects.
+   * Map known routes to real .html files so ?return= matches app expectations.
+   */
+  function normalizeExtensionlessHtmlPath(pathname) {
+    var orig = String(pathname || '');
+    var p = orig;
+    if (p.length > 1 && p.charAt(p.length - 1) === '/') {
+      p = p.slice(0, -1);
+    }
+    var map = {
+      '/locker': '/locker.html',
+      '/login': '/login.html',
+      '/admin': '/admin.html',
+      '/teacher': '/teacher.html',
+      '/explore': '/explore.html',
+      '/games': '/games.html',
+      '/store': '/store.html',
+      '/change-password': '/change-password.html',
+    };
+    return map[p] || orig;
+  }
+
+  /** Path + query + hash for the current document URL (hash from full href). */
+  function currentReturnPath() {
+    var loc = global.location;
+    try {
+      var u = new URL(loc.href);
+      var path = normalizeExtensionlessHtmlPath(u.pathname);
+      return path + u.search + u.hash;
+    } catch (e) {
+      var path2 = normalizeExtensionlessHtmlPath(loc.pathname);
+      return path2 + loc.search + (loc.hash || '');
+    }
+  }
+
   function loginUrlWithReturn() {
-    var ret =
-      global.location.pathname + global.location.search + (global.location.hash || '');
-    return '/login.html?return=' + encodeURIComponent(ret);
+    return '/login.html?return=' + encodeURIComponent(currentReturnPath());
   }
 
   /**
@@ -84,9 +118,7 @@
         return;
       }
       if (data.must_change_password) {
-        var ret =
-          global.location.pathname + global.location.search + (global.location.hash || '');
-        global.location.replace('/change-password.html?return=' + encodeURIComponent(ret));
+        global.location.replace('/change-password.html?return=' + encodeURIComponent(currentReturnPath()));
         return;
       }
       var r = (data.role || '').trim();
@@ -142,8 +174,7 @@
           ? String(jsonBody.redirect)
           : '/change-password.html';
       if (loc === '/change-password') loc = '/change-password.html';
-      var ret =
-        global.location.pathname + global.location.search + (global.location.hash || '');
+      var ret = currentReturnPath();
       if (loc.indexOf('change-password') !== -1 && ret && ret.indexOf('change-password') === -1) {
         loc = loc + (loc.indexOf('?') === -1 ? '?' : '&') + 'return=' + encodeURIComponent(ret);
       }
