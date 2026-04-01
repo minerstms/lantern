@@ -465,7 +465,7 @@ async function ensureLanternPrimaryAdminCredentials(db) {
   const salt = pilotRandomSaltHex();
   const hash = await pilotHashPassword(LANTERN_PRIMARY_ADMIN_PASSWORD, salt);
   const existing = await db
-    .prepare('SELECT username FROM lantern_pilot_accounts WHERE username = ?')
+    .prepare('SELECT username FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))')
     .bind(LANTERN_PRIMARY_ADMIN_USERNAME)
     .first();
   if (existing) {
@@ -484,7 +484,7 @@ async function ensureLanternPrimaryAdminCredentials(db) {
           password_reset_by = NULL
         WHERE username = ?`
       )
-      .bind(hash, salt, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, LANTERN_PRIMARY_ADMIN_USERNAME)
+      .bind(hash, salt, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, String(existing.username))
       .run();
   } else {
     await db
@@ -723,7 +723,7 @@ async function getPilotAccountFromRequest(request, env) {
   if (!payload || !payload.sub) return null;
   const row = await db
     .prepare(
-      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?`
+      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
     )
     .bind(String(payload.sub))
     .first();
@@ -883,7 +883,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
 
   const account = await getPilotAccountFromRequest(request, env);
-  if (!account || String(account.role || '').trim() !== 'admin') {
+  if (!account || String(account.role || '').trim().toLowerCase() !== 'admin') {
     return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
   }
 
@@ -1109,7 +1109,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     }
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?'
+        'SELECT username, display_name, role, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
       )
       .bind(String(payload.sub))
       .first();
@@ -1357,13 +1357,13 @@ async function getPilotActiveStudentForClassAccess(request, env, db) {
   const payload = await verifyPilotJwt(jwt, secret);
   if (!payload || !payload.sub) return null;
   const row = await db
-    .prepare('SELECT username, role, is_active FROM lantern_pilot_accounts WHERE username = ?')
+    .prepare('SELECT username, role, is_active FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))')
     .bind(String(payload.sub))
     .first();
   if (!row) return null;
   const ia = row.is_active != null ? Number(row.is_active) : 1;
   if (ia === 0) return null;
-  if (String(row.role || '').trim() !== 'student') return null;
+  if (String(row.role || '').trim().toLowerCase() !== 'student') return null;
   return row;
 }
 
