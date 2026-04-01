@@ -6,8 +6,8 @@ Operational steps for deploying **`lantern-api`** and keeping Lantern isolated f
 
 ## Where to deploy the Worker from
 
-- **Directory:** `lantern-worker/` (repository root: `tms-lantern-beta`).
-- **Command:** from `lantern-worker/`, run:
+- **Directory:** `worker/` from this repository root (Worker project folder).
+- **Command:** from `worker/`, run:
   ```bash
   npx wrangler deploy
   ```
@@ -22,18 +22,18 @@ Do **not** deploy Lantern by running Wrangler from an MTSS project folder.
 - **Required** for pilot login (JWT in HttpOnly cookie).
 - Set on the **`lantern-api`** Worker (not MTSS):
   ```bash
-  cd lantern-worker
+  cd worker
   npx wrangler secret put PILOT_SESSION_SECRET
   ```
 - If missing or wrong, login/session will not work reliably.
 
-Other secrets (e.g. setup, verify, bootstrap) are documented in `lantern-worker/wrangler.toml` comments and system context docs.
+Other secrets (e.g. setup, verify, bootstrap) are documented in `worker/wrangler.toml` comments and system context docs.
 
 ---
 
 ## Schema and migrations (before expecting auth to work)
 
-- Migrations live in **`lantern-worker/migrations/`**.
+- Migrations live in **`worker/migrations/`**.
 - Apply to **remote** D1 **`lantern-db`** when you change schema (follow your team’s `wrangler d1 execute … --remote --file=…` process).
 - **Auth and pilot tables** must exist and match code (e.g. `lantern_pilot_accounts`, `lantern_setup_state`, etc.). If migrations are not applied, login or `/api/auth/me` can fail even when code and secrets are correct.
 

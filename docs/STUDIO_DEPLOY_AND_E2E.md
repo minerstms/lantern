@@ -2,13 +2,13 @@
 
 ## 1. Cloudflare Pages (frontend)
 
-Project root for the student app is **`apps/lantern-app/`** (see `AGENTS.md`).
+Project root for the static frontend is **`app/`** (see `AGENTS.md`).
 
-Deploy (CLI; requires `wrangler` logged in and a Pages project, e.g. `tms-lantern-beta`):
+Deploy (CLI; requires `wrangler` logged in and the canonical Pages project **`lantern-42i`**):
 
 ```bash
-cd /path/to/tms-lantern-beta
-npx wrangler pages deploy apps/lantern-app --project-name tms-lantern-beta
+cd /path/to/lantern
+npx wrangler pages deploy app --project-name lantern-42i
 ```
 
 Or push to the Git branch connected to the Pages project (production deploy on merge).
@@ -22,14 +22,14 @@ npx playwright install chromium
 npx playwright test
 ```
 
-Default `baseURL` is `https://tms-lantern-beta.pages.dev` (see `playwright.config.js`).
+Default `baseURL` is `https://lantern-42i.pages.dev` (see `playwright.config.js`).
 
 ## 2. Cloudflare Worker (API + upload-image)
 
-Image upload fixes live in **`lantern-worker/index.js`** (`stripBase64Payload` for `/api/news/upload-image`, avatar upload, and video upload).
+Image upload fixes live in **`worker/index.js`** (`stripBase64Payload` for `/api/news/upload-image`, avatar upload, and video upload).
 
 ```bash
-cd lantern-worker
+cd worker
 npx wrangler deploy
 ```
 

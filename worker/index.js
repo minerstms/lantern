@@ -17,7 +17,6 @@ const corsHeaders = {
 };
 
 const ALLOWED_ORIGINS = [
-  'https://tms-lantern-beta.pages.dev',
   'https://lantern-42i.pages.dev',
   'http://localhost:8787',
   'http://localhost:5173',

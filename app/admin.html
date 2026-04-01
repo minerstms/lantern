@@ -34,11 +34,33 @@
 <body>
   <script>
   (function(){
-    if (!window.LanternAuth || typeof window.LanternAuth.guardPilotPage !== 'function') {
-      document.documentElement.classList.remove('lantern-auth-pending');
+    var pendingClass = 'lantern-auth-pending';
+    if (!window.LanternAuth || typeof window.LanternAuth.fetchMe !== 'function') {
+      document.documentElement.classList.remove(pendingClass);
       return;
     }
-    window.LanternAuth.guardPilotPage({ mode: 'admin', pendingHtmlClass: 'lantern-auth-pending' });
+    window.LanternAuth.fetchMe().then(function (data) {
+      console.log('[ADMIN GUARD]', data);
+      if (!data || !data.ok || !data.authenticated) {
+        try {
+          sessionStorage.setItem('lantern_return_to', '/admin.html');
+        } catch (e) {}
+        location.replace('/login.html?return=' + encodeURIComponent('/admin.html'));
+        return;
+      }
+      if (data.must_change_password) {
+        location.replace('/change-password.html?return=' + encodeURIComponent('/admin.html'));
+        return;
+      }
+      var role = String(data.role || '').trim().toLowerCase();
+      if (role !== 'admin') {
+        location.replace('/explore.html');
+        return;
+      }
+      try {
+        document.documentElement.classList.remove(pendingClass);
+      } catch (e2) {}
+    });
   })();
   </script>
   <h1>Admin</h1>

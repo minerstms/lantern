@@ -11,7 +11,7 @@ npx playwright install chromium
 npx playwright test
 ```
 
-`playwright.config.js` defaults to `https://tms-lantern-beta.pages.dev`.
+`playwright.config.js` defaults to `https://lantern-42i.pages.dev`.
 
 ## Run against **local** static server
 
