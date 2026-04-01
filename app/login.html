@@ -59,8 +59,17 @@
         var m = new RegExp('[?&]' + name + '=([^&]*)').exec(location.search);
         return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
       }
-      var returnTo = qs('return');
+      /** Same-origin path only: leading /, not protocol-relative // */
+      function isSafeReturnPath(p) {
+        var s = String(p || '').trim();
+        if (!s || s.charAt(0) !== '/') return false;
+        if (s.indexOf('//') === 0) return false;
+        return true;
+      }
+      var qsReturn = qs('return');
+      var returnTo = qsReturn;
       if (!returnTo || returnTo.indexOf('login.html') !== -1 || returnTo.indexOf('/login') !== -1) returnTo = '/explore.html';
+      else if (!isSafeReturnPath(returnTo)) returnTo = '/explore.html';
 
       if (!form || !submitBtn || !msgEl) {
         return;
@@ -79,11 +88,25 @@
         }
         var r = (body && body.role ? String(body.role) : '').trim();
         if (r === 'admin') {
-          location.replace('/admin.html');
+          location.replace(
+            isSafeReturnPath(qsReturn) &&
+              qsReturn.indexOf('login.html') === -1 &&
+              qsReturn.indexOf('/login') === -1 &&
+              qsReturn.indexOf('change-password') === -1
+              ? qsReturn
+              : '/admin.html'
+          );
           return;
         }
         if (r === 'teacher') {
-          location.replace('/teacher.html');
+          location.replace(
+            isSafeReturnPath(qsReturn) &&
+              qsReturn.indexOf('login.html') === -1 &&
+              qsReturn.indexOf('/login') === -1 &&
+              qsReturn.indexOf('change-password') === -1
+              ? qsReturn
+              : '/teacher.html'
+          );
           return;
         }
         if (r === 'student') {
