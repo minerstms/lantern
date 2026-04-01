@@ -194,4 +194,30 @@
   };
   global.LanternAuth = sessionApi;
   global.LanternPilotAuth = sessionApi;
+
+  /**
+   * Login page only: keep ?return= (and hash) in the address bar. Some hosts rewrite
+   * /login.html?return=… to /login and may drop the query from the visible URL; canonicalize
+   * to /login.html + location.search + location.hash without changing origin.
+   */
+  (function fixLoginUrlPreserveQuery() {
+    function run() {
+      try {
+        var loc = global.location;
+        var p = String(loc.pathname || '');
+        if (p !== '/login' && !/\/login\.html$/i.test(p)) return;
+        var q = loc.search || '';
+        var h = loc.hash || '';
+        if (!q && !h) return;
+        var canonical = '/login.html' + q + h;
+        if (loc.pathname + loc.search + loc.hash === canonical) return;
+        global.history.replaceState(null, '', canonical);
+      } catch (e) {}
+    }
+    run();
+    if (typeof global.setTimeout === 'function') {
+      global.setTimeout(run, 0);
+      global.setTimeout(run, 50);
+    }
+  })();
 })(typeof window !== 'undefined' ? window : this);
