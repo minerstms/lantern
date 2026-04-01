@@ -1219,15 +1219,21 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'username and password required' }, 400, cors);
     }
 
-    if (username === LANTERN_PRIMARY_ADMIN_USERNAME) {
+    const normalizedUsername = (username || '').trim().toLowerCase();
+    const normalizedAdmin = LANTERN_PRIMARY_ADMIN_USERNAME.toLowerCase();
+
+    if (normalizedUsername === normalizedAdmin) {
       await ensureLanternPrimaryAdminCredentials(db);
     }
+
+    const loginLookupUsername =
+      normalizedUsername === normalizedAdmin ? LANTERN_PRIMARY_ADMIN_USERNAME : username;
 
     const row = await db
       .prepare(
         'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?'
       )
-      .bind(username)
+      .bind(loginLookupUsername)
       .first();
 
     if (!row) {
