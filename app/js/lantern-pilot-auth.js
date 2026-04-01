@@ -97,7 +97,11 @@
   }
 
   function loginUrlWithReturn() {
-    return '/login.html?return=' + encodeURIComponent(currentReturnPath());
+    var ret = currentReturnPath();
+    try {
+      global.sessionStorage.setItem('lantern_return_to', ret);
+    } catch (e) {}
+    return '/login.html?return=' + encodeURIComponent(ret);
   }
 
   /**

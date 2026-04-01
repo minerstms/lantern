@@ -105,16 +105,13 @@
       }
 
       function redirectAfterLogin(body) {
-        var searchStr = location.search;
-        if (
-          (!searchStr || searchStr === '') &&
-          typeof window.__LANTERN_LOGIN_PRESEARCH === 'string' &&
-          window.__LANTERN_LOGIN_PRESEARCH
-        ) {
-          searchStr = window.__LANTERN_LOGIN_PRESEARCH;
-        }
-        var params = new URLSearchParams(searchStr);
+        var params = new URLSearchParams(location.search);
         var returnTo = params.get('return');
+        if (!returnTo) {
+          try {
+            returnTo = sessionStorage.getItem('lantern_return_to');
+          } catch (e) {}
+        }
 
         if (body && body.must_change_password) {
           var pwdReturn =
@@ -126,9 +123,16 @@
         }
 
         if (returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+          try {
+            sessionStorage.removeItem('lantern_return_to');
+          } catch (e) {}
           location.replace(returnTo);
           return;
         }
+
+        try {
+          sessionStorage.removeItem('lantern_return_to');
+        } catch (e) {}
 
         var r = (body && body.role ? String(body.role) : '').trim();
         if (r === 'admin') {

@@ -39,6 +39,9 @@
 
       window.LanternAuth.fetchMe().then(function (data) {
         if (!data || !data.ok || !data.authenticated) {
+          try {
+            sessionStorage.setItem('lantern_return_to', RETURN_PATH);
+          } catch (e) {}
           location.replace(loginWithReturn);
           return;
         }

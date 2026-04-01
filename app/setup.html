@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    try {
+      sessionStorage.setItem('lantern_return_to', '/setup.html');
+    } catch (e) {}
+  </script>
   <meta http-equiv="refresh" content="0;url=/login.html?return=%2Fsetup.html" />
   <title>Redirect</title>
 </head>

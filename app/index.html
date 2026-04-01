@@ -17,6 +17,9 @@
       if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
         location.replace(window.LanternAuth.loginUrlWithReturn());
       } else {
+        try {
+          sessionStorage.setItem('lantern_return_to', '/');
+        } catch (e) {}
         location.replace('/login.html?return=%2F');
       }
     } catch (e) {}

@@ -79,9 +79,14 @@
 
     document.getElementById('logoutBtn').addEventListener('click', function(){
       fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){
-        location.href = window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function'
-          ? window.LanternAuth.loginUrlWithReturn()
-          : '/login.html?return=%2Fadmin.html';
+        if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
+          location.href = window.LanternAuth.loginUrlWithReturn();
+        } else {
+          try {
+            sessionStorage.setItem('lantern_return_to', '/admin.html');
+          } catch (e) {}
+          location.href = '/login.html?return=%2Fadmin.html';
+        }
       });
     });
 
