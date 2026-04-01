@@ -2,11 +2,14 @@
 # expects real paths like /locker.html. These 301s send extensionless URLs back to the .html file
 # so the final address bar (and pathname) match our static file names. Query strings are preserved
 # by the client redirect chain per Pages behavior.
+#
+# Do NOT add /login → /login.html: that 301 can chain with Pages “pretty” handling and drop or
+# break ?return= on the login URL. Auth uses /login.html?return=… directly; pilot-auth normalizes
+# extensionless /login in return paths where needed.
 
 / /login.html 200
 
 /locker /locker.html 301
-/login /login.html 301
 /admin /admin.html 301
 /teacher /teacher.html 301
 /explore /explore.html 301
