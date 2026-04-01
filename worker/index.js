@@ -16,8 +16,11 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 };
 
+/** After creating the Cloudflare Pages project, set to your site origin, e.g. https://my-project.pages.dev. Required for pilot login + credentialed CORS. */
+const PRODUCTION_PAGES_ORIGIN = '';
+
 const ALLOWED_ORIGINS = [
-  'https://lantern-42i.pages.dev',
+  ...(PRODUCTION_PAGES_ORIGIN ? [PRODUCTION_PAGES_ORIGIN] : []),
   'http://localhost:8787',
   'http://localhost:5173',
   'http://localhost:3000',

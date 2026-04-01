@@ -2,13 +2,13 @@
 
 ## 1. Cloudflare Pages (frontend)
 
-Project root for the static frontend is **`app/`** (see `AGENTS.md`).
+Project root for the static frontend is **`app/`** (see `AGENTS.md` and **`docs/PAGES_DEPLOY.md`**).
 
-Deploy (CLI; requires `wrangler` logged in and the canonical Pages project **`lantern-42i`**):
+Deploy (CLI; requires `wrangler` logged in; replace **`<project-name>`** with your Cloudflare Pages project name):
 
 ```bash
 cd /path/to/lantern
-npx wrangler pages deploy app --project-name lantern-42i
+npx wrangler pages deploy app --project-name <project-name>
 ```
 
 Or push to the Git branch connected to the Pages project (production deploy on merge).
@@ -22,7 +22,7 @@ npx playwright install chromium
 npx playwright test
 ```
 
-Default `baseURL` is `https://lantern-42i.pages.dev` (see `playwright.config.js`).
+Set **`STUDIO_BASE_URL`** to your deployed Pages URL (see `playwright.config.js`). There is no hardcoded production hostname in repo.
 
 ## 2. Cloudflare Worker (API + upload-image)
 

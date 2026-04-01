@@ -1,6 +1,6 @@
 # Lantern — Cursor / agent run prompt
 
-Use this as the **default instruction block** for Cursor and other agents working in **this repo** (TMS Lantern). Canonical production frontend: **`https://lantern-42i.pages.dev`**. It does not replace **AGENTS.md** (loaded by Cursor) or **`docs/LANTERN_SYSTEM_CONTEXT.md`** (full contract).
+Use this as the **default instruction block** for Cursor and other agents working in **this repo** (TMS Lantern). Production frontend is deployed via **Cloudflare Pages** from the **`app/`** directory; see **`docs/PAGES_DEPLOY.md`**. It does not replace **AGENTS.md** (loaded by Cursor) or **`docs/LANTERN_SYSTEM_CONTEXT.md`** (full contract).
 
 ---
 

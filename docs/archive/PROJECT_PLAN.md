@@ -35,7 +35,7 @@ Lantern expands student voice and culture building beyond typical behavior-track
 
 | Layer | Technology | Live URL / location |
 |-------|------------|----------------------|
-| Frontend | Static site (Cloudflare Pages) | https://lantern-42i.pages.dev |
+| Frontend | Static site (Cloudflare Pages) | `https://<project>.pages.dev` (see `docs/PAGES_DEPLOY.md`) |
 | Backend | Cloudflare Worker | https://lantern-api.mrradle.workers.dev |
 | Database | D1 | lantern-db (Worker binding) |
 | Media | R2 | Avatars, news media |

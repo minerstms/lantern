@@ -9,7 +9,7 @@ module.exports = defineConfig({
   workers: 1,
   reporter: [['list'], ['json', { outputFile: 'test-results.json' }]],
   use: {
-    baseURL: process.env.STUDIO_BASE_URL || 'https://lantern-42i.pages.dev',
+    baseURL: process.env.STUDIO_BASE_URL || 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

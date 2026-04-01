@@ -11,7 +11,7 @@ npx playwright install chromium
 npx playwright test
 ```
 
-`playwright.config.js` defaults to `https://lantern-42i.pages.dev`.
+Set **`STUDIO_BASE_URL`** to your deployed Pages URL for production runs. Local default in config is **`http://127.0.0.1:4173`** (adjust if you use another static server port).
 
 ## Run against **local** static server
 

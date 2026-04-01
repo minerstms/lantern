@@ -58,7 +58,7 @@ The catch-all error masked whether the failure was **bad prefix**, **whitespace*
 
 ## 5. Proof (E2E)
 
-After deploying Worker + Pages, Playwright against **`https://lantern-42i.pages.dev/contribute`**:
+After deploying Worker + Pages, Playwright against your deployed Pages URL (e.g. **`https://<project>.pages.dev/contribute`**), with **`STUDIO_BASE_URL`** set accordingly:
 
 - **Post + image:** `POST /api/news/upload-image` → **2xx**, then `POST /api/news/create` → **2xx**, celebration dismissed, toast **Submitted**.
 

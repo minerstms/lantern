@@ -6,7 +6,7 @@ const { test, expect, request } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 
-const BASE = process.env.STUDIO_BASE_URL || 'https://lantern-42i.pages.dev';
+const BASE = process.env.STUDIO_BASE_URL || 'http://127.0.0.1:4173';
 const WORKER_API = process.env.LANTERN_API_BASE || 'https://lantern-api.mrradle.workers.dev';
 const CONTRIB_PATH = /127\.0\.0\.1|localhost/i.test(BASE) ? '/contribute.html' : '/contribute';
 
