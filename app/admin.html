@@ -59,8 +59,8 @@
   <div class="card">
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
-    <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
-    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). Use <strong>Set temp password</strong> or <strong>Reset password</strong> to assign a new password and require a change on next sign-in.</p>
+    <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). Use <strong>Set Temp Password</strong> or <strong>Reset Password</strong> to set a new password; the user must sign in with it and choose their own password if required.</p>
     <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
     <form id="addUserForm">
       <label for="nu_username">Login username</label>
@@ -108,24 +108,16 @@
       });
     }
 
-    function assignTempOrResetPassword(un, label) {
-      var pw = prompt((label || 'New password') + ' for ' + un + ' (8+ characters):', '');
+    /** POST /api/admin/users/reset-password with { username, new_password } */
+    function promptAndResetPassword(username, promptTitle) {
+      var pw = prompt((promptTitle || 'New password') + ' for ' + username + ' (8+ characters):', '');
       if (pw === null) return;
       pw = String(pw);
       if (pw.length < 8) { alert('Password must be at least 8 characters.'); return; }
-      postAdminJson('/api/admin/users/reset-password', { username: un, new_password: pw }).then(function(res){
+      postAdminJson('/api/admin/users/reset-password', { username: username, new_password: pw }).then(function(res){
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) loadUsers();
         else alert((res && res.body && res.body.error) || 'Request failed');
-      });
-    }
-
-    function forceMustChangeNextLogin(un) {
-      if (!confirm('Require password change on next login for ' + un + '?')) return;
-      postAdminJson('/api/admin/users/update', { username: un, force_must_change_password: true }).then(function(res){
-        if (res && res.blocked) return;
-        if (res && res.okHttp && res.body && res.body.ok) loadUsers();
-        else alert((res && res.body && res.body.error) || 'Update failed');
       });
     }
 
@@ -143,8 +135,9 @@
         res.users.forEach(function(u){
           var tr = document.createElement('tr');
           var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
-          var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true) ? 'Yes' : 'No';
-          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td>' + mcp + '</td><td class="acctActions"></td>';
+          var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
+          var mcpLabel = mcp ? 'Yes' : 'No';
+          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td>' + mcpLabel + '</td><td class="acctActions"></td>';
           var cell = tr.querySelector('.acctActions');
           var bEdit = document.createElement('button');
           bEdit.type = 'button';
@@ -162,22 +155,16 @@
           var bTemp = document.createElement('button');
           bTemp.type = 'button';
           bTemp.className = 'btn good';
-          bTemp.textContent = 'Set temp password';
-          bTemp.addEventListener('click', function(){ assignTempOrResetPassword(u.username, 'Set temp password'); });
+          bTemp.textContent = 'Set Temp Password';
+          bTemp.addEventListener('click', function(){ promptAndResetPassword(u.username, 'Set Temp Password'); });
           var bReset = document.createElement('button');
           bReset.type = 'button';
           bReset.className = 'btn';
-          bReset.textContent = 'Reset password';
-          bReset.addEventListener('click', function(){ assignTempOrResetPassword(u.username, 'Reset password'); });
-          var bMust = document.createElement('button');
-          bMust.type = 'button';
-          bMust.className = 'btn';
-          bMust.textContent = 'Must change on next login';
-          bMust.addEventListener('click', function(){ forceMustChangeNextLogin(u.username); });
+          bReset.textContent = 'Reset Password';
+          bReset.addEventListener('click', function(){ promptAndResetPassword(u.username, 'Reset Password'); });
           cell.appendChild(bEdit);
           cell.appendChild(bTemp);
           cell.appendChild(bReset);
-          cell.appendChild(bMust);
           tb.appendChild(tr);
         });
       });
