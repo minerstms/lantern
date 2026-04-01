@@ -175,16 +175,16 @@
         return;
       }
       if (data.must_change_password) {
-        location.replace('/change-password?return=' + encodeURIComponent('/explore'));
+        location.replace('/change-password.html?return=' + encodeURIComponent('/explore.html'));
         return;
       }
       var r = (data.role || '').trim();
       if (r === 'admin') {
-        location.replace('/admin');
+        location.replace('/admin.html');
         return;
       }
       if (r === 'teacher') {
-        location.replace('/teacher');
+        location.replace('/teacher.html');
         return;
       }
       if (r === 'student') {

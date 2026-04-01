@@ -63,7 +63,7 @@
   function loginUrlWithReturn() {
     var ret =
       global.location.pathname + global.location.search + (global.location.hash || '');
-    return '/login?return=' + encodeURIComponent(ret);
+    return '/login.html?return=' + encodeURIComponent(ret);
   }
 
   /** If the worker returned 403 must_change_password (e.g. admin API while temp password is active), go to password screen. */
@@ -77,7 +77,8 @@
       var loc =
         jsonBody.redirect && String(jsonBody.redirect).indexOf('/') === 0
           ? String(jsonBody.redirect)
-          : '/change-password';
+          : '/change-password.html';
+      if (loc === '/change-password') loc = '/change-password.html';
       var ret =
         global.location.pathname + global.location.search + (global.location.hash || '');
       if (loc.indexOf('change-password') !== -1 && ret && ret.indexOf('change-password') === -1) {

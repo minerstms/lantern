@@ -41,20 +41,20 @@
         return;
       }
       if (data.must_change_password) {
-        location.replace('/change-password?return=' + encodeURIComponent('/admin'));
+        location.replace('/change-password.html?return=' + encodeURIComponent('/admin.html'));
         return;
       }
       var r = (data.role || '').trim();
-      if (r === 'student') { location.replace('/explore'); return; }
-      if (r === 'teacher') { location.replace('/teacher'); return; }
-      if (r !== 'admin') { location.replace('/login'); return; }
+      if (r === 'student') { location.replace('/explore.html'); return; }
+      if (r === 'teacher') { location.replace('/teacher.html'); return; }
+      if (r !== 'admin') { location.replace('/login.html'); return; }
       document.documentElement.classList.remove('lantern-auth-pending');
     });
   })();
   </script>
   <h1>Admin</h1>
   <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
-  <p><a href="/explore">Explore (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
+  <p><a href="/explore.html">Explore (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
 
   <div class="card">
     <div class="cardHd">Accounts</div>
@@ -89,7 +89,7 @@
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c; }); }
 
     document.getElementById('logoutBtn').addEventListener('click', function(){
-      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){ location.href = '/login'; });
+      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){ location.href = '/login.html'; });
     });
 
     function postAdminJson(path, body) {

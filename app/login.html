@@ -60,7 +60,7 @@
         return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
       }
       var returnTo = qs('return');
-      if (!returnTo || returnTo.indexOf('login.html') !== -1 || returnTo.indexOf('/login') !== -1) returnTo = '/explore';
+      if (!returnTo || returnTo.indexOf('login.html') !== -1 || returnTo.indexOf('/login') !== -1) returnTo = '/explore.html';
 
       if (!form || !submitBtn || !msgEl) {
         return;
@@ -74,26 +74,26 @@
 
       function redirectAfterLogin(body) {
         if (body && body.must_change_password) {
-          location.replace('/change-password?return=' + encodeURIComponent(returnTo || '/explore'));
+          location.replace('/change-password.html?return=' + encodeURIComponent(returnTo || '/explore.html'));
           return;
         }
         var r = (body && body.role ? String(body.role) : '').trim();
         if (r === 'admin') {
-          location.replace('/admin');
+          location.replace('/admin.html');
           return;
         }
         if (r === 'teacher') {
-          location.replace('/teacher');
+          location.replace('/teacher.html');
           return;
         }
         if (r === 'student') {
           if (window.LanternPilotAuth && window.LanternPilotAuth.applyStudentStorageFromLoginResponse) {
             window.LanternPilotAuth.applyStudentStorageFromLoginResponse(body);
           }
-          location.replace(returnTo || '/explore');
+          location.replace(returnTo || '/explore.html');
           return;
         }
-        location.replace(returnTo || '/explore');
+        location.replace(returnTo || '/explore.html');
       }
 
       if (!api) {

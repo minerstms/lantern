@@ -937,17 +937,17 @@
         return;
       }
       if (data.must_change_password) {
-        location.replace('/change-password?return=' + encodeURIComponent('/teacher'));
+        location.replace('/change-password.html?return=' + encodeURIComponent('/teacher.html'));
         return;
       }
       var r = (data.role || '').trim();
       if (r === 'student') {
-        location.replace('/explore');
+        location.replace('/explore.html');
         return;
       }
       /* Teacher dashboard: teachers and admins (global). Admins use /admin for account tools; this page stays for approvals/missions. */
       if (r !== 'teacher' && r !== 'admin') {
-        location.replace('/login');
+        location.replace('/login.html');
         return;
       }
       window.LANTERN_PILOT_ME = data;

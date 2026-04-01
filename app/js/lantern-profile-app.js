@@ -110,8 +110,8 @@
           var ret =
             typeof location !== 'undefined'
               ? location.pathname + location.search + (location.hash || '')
-              : '/explore';
-          location.replace('/change-password?return=' + encodeURIComponent(ret));
+              : '/explore.html';
+          location.replace('/change-password.html?return=' + encodeURIComponent(ret));
           return;
         }
         if (pilot && pilot.ok && pilot.authenticated && String(pilot.role || '').trim() === 'student') {

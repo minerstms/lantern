@@ -43,7 +43,7 @@
       '</div>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
       '<a href="display.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'display' ? ' is-active' : '') + '" data-page="display" target="_blank">Display</a>' +
-      '<a href="/teacher" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'teacher' ? ' is-active' : '') + '" data-page="teacher">Teacher</a>' +
+      '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'teacher' ? ' is-active' : '') + '" data-page="teacher">Teacher</a>' +
       '<a href="verify.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'verify' ? ' is-active' : '') + '" data-page="verify">Verify</a>' +
       '</div></div>';
   }
@@ -327,8 +327,8 @@
         if (data.must_change_password) {
           var path = (typeof location !== 'undefined' && location.pathname) ? String(location.pathname) : '';
           if (/change-password/i.test(path)) return;
-          var ret = (typeof location !== 'undefined') ? (location.pathname + location.search + (location.hash || '')) : '/explore';
-          global.location.replace('/change-password?return=' + encodeURIComponent(ret));
+          var ret = (typeof location !== 'undefined') ? (location.pathname + location.search + (location.hash || '')) : '/explore.html';
+          global.location.replace('/change-password.html?return=' + encodeURIComponent(ret));
           return;
         }
         var role = (data.role || '').trim();

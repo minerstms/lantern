@@ -893,7 +893,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
   }
   if (pilotAccountRequiresChangePassword(account)) {
-    return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password' }, 403, cors);
+    return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
   }
 
   if (request.method === 'GET' && path === '/api/admin/users') {
