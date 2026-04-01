@@ -196,11 +196,12 @@
   global.LanternPilotAuth = sessionApi;
 
   /**
-   * Login page only: keep ?return= (and hash) in the address bar. Some hosts rewrite
-   * /login.html?return=… to /login and may drop the query from the visible URL; canonicalize
-   * to /login.html + location.search + location.hash without changing origin.
+   * Login page only: never drop ?return= from the address bar. Some hosts/pretty-URL layers
+   * strip the query after load; login.html sets __LANTERN_LOGIN_PRESEARCH / __LANTERN_LOGIN_PREHASH
+   * before this file runs so we can restore. Always use pathname + search + hash; only normalize
+   * /login → /login.html when rewriting, keeping search/hash intact.
    */
-  (function fixLoginUrlPreserveQuery() {
+  (function preserveLoginPageUrl() {
     function run() {
       try {
         var loc = global.location;
@@ -208,10 +209,16 @@
         if (p !== '/login' && !/\/login\.html$/i.test(p)) return;
         var q = loc.search || '';
         var h = loc.hash || '';
+        if (!q && !h && typeof global.__LANTERN_LOGIN_PRESEARCH === 'string') {
+          q = global.__LANTERN_LOGIN_PRESEARCH;
+          h = typeof global.__LANTERN_LOGIN_PREHASH === 'string' ? global.__LANTERN_LOGIN_PREHASH : '';
+        }
         if (!q && !h) return;
-        var canonical = '/login.html' + q + h;
-        if (loc.pathname + loc.search + loc.hash === canonical) return;
-        global.history.replaceState(null, '', canonical);
+        var path = p;
+        if (p === '/login' || p === '/login/') path = '/login.html';
+        var target = path + q + h;
+        if (loc.pathname + (loc.search || '') + (loc.hash || '') === target) return;
+        global.history.replaceState(null, '', target);
       } catch (e) {}
     }
     run();

@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Sign in</title>
+  <script>
+  try {
+    window.__LANTERN_LOGIN_PRESEARCH = typeof location !== 'undefined' ? (location.search || '') : '';
+    window.__LANTERN_LOGIN_PREHASH = typeof location !== 'undefined' ? (location.hash || '') : '';
+  } catch (e) {}
+  </script>
   <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>
