@@ -1,11 +1,13 @@
 <!DOCTYPE html>
-<html class="lantern-auth-pending" lang="en">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Admin</title>
   <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <!-- TEMP: static routing test — re-enable after debugging ERR_TOO_MANY_REDIRECTS
   <script src="js/lantern-pilot-auth.js"></script>
+  -->
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -32,6 +34,7 @@
   </style>
 </head>
 <body>
+  <!-- TEMP: static routing test — re-enable guard after debugging
   <script>
   (function(){
     var pendingClass = 'lantern-auth-pending';
@@ -63,6 +66,8 @@
     });
   })();
   </script>
+  -->
+  <p style="font-weight:900;font-size:26px;color:#5aa7ff;margin:0 0 16px;">ADMIN STATIC TEST</p>
   <h1>Admin</h1>
   <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
   <p><a href="/explore.html">Explore (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
@@ -94,6 +99,7 @@
     <div id="pendingList"></div>
   </div>
 
+  <!-- TEMP: static routing test — re-enable admin UI script after debugging (loadUsers/loadPending can redirect via redirectIfPasswordChangeRequired)
   <script>
   (function(){
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
@@ -258,5 +264,6 @@
     setInterval(loadPending, 60000);
   })();
   </script>
+  -->
 </body>
 </html>
