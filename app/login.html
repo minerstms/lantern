@@ -4,31 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Sign in</title>
-  <script>
-  try {
-    window.__LANTERN_LOGIN_PRESEARCH = typeof location !== 'undefined' ? (location.search || '') : '';
-    window.__LANTERN_LOGIN_PREHASH = typeof location !== 'undefined' ? (location.hash || '') : '';
-  } catch (e) {}
-  </script>
   <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
-  <script>
-  (function () {
-    function enforceLoginUrlPersistence() {
-      try {
-        const q = window.__LANTERN_LOGIN_PRESEARCH || location.search || '';
-        const h = window.__LANTERN_LOGIN_PREHASH || location.hash || '';
-        const target = '/login.html' + q + h;
-        const current = location.pathname + (location.search || '') + (location.hash || '');
-        if (current !== target) {
-          history.replaceState(null, '', target);
-        }
-      } catch (e) {}
-    }
-    enforceLoginUrlPersistence();
-    document.addEventListener('DOMContentLoaded', enforceLoginUrlPersistence);
-  })();
-  </script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
     * { box-sizing: border-box; }
