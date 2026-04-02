@@ -210,7 +210,17 @@
       if (hero) hero.textContent = String(b.available ?? '—');
     }
 
-    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var economyApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
     function callStoreBootstrap(){
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
@@ -220,7 +230,7 @@
     }
 
     function callGetBalance(characterName){
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(characterName), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok) return { ok: true, student_name: characterName, earned: res.earned, spent: res.spent, available: res.balance };
           return { ok: false, error: res && res.error || 'Failed' };
@@ -234,7 +244,7 @@
     }
 
     function callEconomyTransact(characterName, delta, kind, source, note){
-      if (!economyApiBase) return Promise.resolve({ ok: false });
+      if (economyApiBase == null) return Promise.resolve({ ok: false });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',

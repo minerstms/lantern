@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Sign in</title>
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
@@ -51,7 +51,10 @@
   <script>
     (function () {
       /* No fetchMe(), no session redirect, and no use of ?return= on page load. Redirects only after successful POST /api/auth/login via redirectAfterLogin(). */
-      var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+      var api =
+        typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
+          ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
+          : '';
       var msgEl = document.getElementById('msg');
       var form = document.getElementById('loginForm');
       var submitBtn = document.getElementById('submitBtn');
@@ -128,11 +131,6 @@
         location.replace('/explore.html');
       }
 
-      if (!api) {
-        showError('Configure window.LANTERN_AVATAR_API to your API base URL.');
-        submitBtn.disabled = true;
-      }
-
       form.addEventListener('submit', function (e) {
         e.preventDefault();
         var username = (document.getElementById('username').value || '').trim();
@@ -140,10 +138,6 @@
         msgEl.style.display = 'none';
         msgEl.textContent = '';
         msgEl.className = '';
-        if (!api) {
-          showError('Configure window.LANTERN_AVATAR_API to your API base URL.');
-          return;
-        }
         if (!username || !password) {
           showError('Please enter Login ID and password.');
           return;

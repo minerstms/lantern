@@ -61,7 +61,7 @@
   }
 
   function apiBase() {
-    return (typeof global !== 'undefined' && global.LANTERN_AVATAR_API) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    return (typeof global !== 'undefined' && typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
   }
 
   function esc(s) {

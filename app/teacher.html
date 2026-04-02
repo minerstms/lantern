@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Teacher Approval</title>
@@ -1469,7 +1469,10 @@
       toggle();
     })();
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
-    var useApprovalsApi = !!(typeof window !== 'undefined' && window.LANTERN_AVATAR_API);
+    var useApprovalsApi =
+      typeof window !== 'undefined' &&
+      typeof window.LANTERN_AVATAR_API !== 'undefined' &&
+      window.LANTERN_AVATAR_API !== null;
 
     const el = (id)=>document.getElementById(id);
     const toastEl = el('toast');
@@ -1489,7 +1492,7 @@
     window.pilotIsAdmin = false;
     window.pilotSessionActive = false;
     var teacherVerifyIdentitySource = '';
-    var teacherVerifyApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var teacherVerifyApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     function initTeacherScopeFromPilot(me){
       if (!me || !me.ok || !me.authenticated) return;
       var role = (me.role || '').trim();
@@ -1514,7 +1517,7 @@
       var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
       var sim = params.get('simTeacher');
       if (sim && String(sim).trim()) { approvalStaffId = String(sim).trim(); teacherVerifyIdentitySource = 'URL'; return; }
-      if (!teacherVerifyApiBase) {
+      if (teacherVerifyApiBase === null) {
         try { approvalStaffId = localStorage.getItem('LANTERN_VERIFY_TEACHER_ID') || DEFAULT_TEACHER_ID; } catch(e){ approvalStaffId = DEFAULT_TEACHER_ID; }
         return;
       }
@@ -1668,18 +1671,28 @@
           .teacherDashboardData({ teacher_id: approvalStaffId });
       });
     }
-    var avatarApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
-    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var avatarApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+    var economyApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
     function callGetMissionSubmissionsForTeacher(){
-      if (!avatarApiBase) return Promise.resolve({ ok: false, submissions: [] });
+      if (avatarApiBase === null) return Promise.resolve({ ok: false, submissions: [] });
       return fetch(avatarApiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId)).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, submissions: [] }; });
     }
     function callGetTeacherMissionsFromWorker(){
-      if (!avatarApiBase) return Promise.resolve({ ok: false, missions: [] });
+      if (avatarApiBase === null) return Promise.resolve({ ok: false, missions: [] });
       return fetch(avatarApiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId)).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok && Array.isArray(res.missions) ? res : { ok: false, missions: [] }; }).catch(function(){ return { ok: false, missions: [] }; });
     }
     function callEconomyTransact(characterName, delta, kind, source, note){
-      if (!economyApiBase) return Promise.resolve({ ok: false });
+      if (economyApiBase == null) return Promise.resolve({ ok: false });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
@@ -3192,7 +3205,7 @@
     }
 
     function loadModerationData(){
-      if (!avatarApiBase) return;
+      if (avatarApiBase === null) return;
       var staffName = (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? approvalStaffId : 'Teacher';
       Promise.all([
         fetch(avatarApiBase + '/api/news/approved').then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
@@ -3725,7 +3738,7 @@
       var simWrap = el('classAccessSimConditionWrap');
       var simSelect = el('classAccessSimCondition');
       if (!pill) return;
-      if (!avatarApiBase) { setInactiveClassAccessUI(); return; }
+      if (avatarApiBase === null) { setInactiveClassAccessUI(); return; }
       var statusRes = null;
       var verifyRes = null;
       try {
@@ -3868,7 +3881,7 @@
 
     if (el('addRecognitionBtn')) {
       el('addRecognitionBtn').addEventListener('click', async function(){
-        if (!avatarApiBase){ toast('Recognition requires Lantern API'); return; }
+        if (avatarApiBase === null){ toast('Recognition requires Lantern API'); return; }
         var characterName = (el('recCharacterName') && el('recCharacterName').value || '').trim();
         var message = (el('recMessage') && el('recMessage').value || '').trim().slice(0, 250);
         if (!characterName){ toast('Select a character'); return; }
@@ -3905,7 +3918,7 @@
 
     if (el('classAccessStartBtn')) {
       el('classAccessStartBtn').addEventListener('click', async function(){
-        if (!avatarApiBase){ toast('Class Access requires Lantern API'); return; }
+        if (avatarApiBase === null){ toast('Class Access requires Lantern API'); return; }
         var btn = el('classAccessStartBtn');
         if (btn.disabled) return;
         var origText = btn.textContent;
@@ -3938,7 +3951,7 @@
     }
     if (el('classAccessEndBtn')) {
       el('classAccessEndBtn').addEventListener('click', async function(){
-        if (!avatarApiBase){ toast('Class Access requires Lantern API'); return; }
+        if (avatarApiBase === null){ toast('Class Access requires Lantern API'); return; }
         var btn = el('classAccessEndBtn');
         if (btn.disabled) return;
         var origText = btn.textContent;
@@ -4002,7 +4015,7 @@
           return;
         }
         var simCondition = (el('classAccessSimCondition') && el('classAccessSimCondition').value) || 'locked_no_active_class';
-        if (!avatarApiBase) { toast('Class Access requires Lantern API URL.'); return; }
+        if (avatarApiBase === null) { toast('Class Access requires Lantern API URL.'); return; }
         try {
           var verifyRes = await fetch(avatarApiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return {}; });
           var state = (verifyRes && verifyRes.ok && verifyRes.state) ? verifyRes.state : {};
@@ -4021,7 +4034,7 @@
     if (el('classAccessSimCondition')) {
       el('classAccessSimCondition').addEventListener('change', async function(){
         var mode = document.querySelector('input[name="accessControlMode"]:checked');
-        if (!mode || mode.value !== 'simulation' || !avatarApiBase) return;
+        if (!mode || mode.value !== 'simulation' || avatarApiBase === null) return;
         var simCondition = this.value;
         try {
           var verifyRes = await fetch(avatarApiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return {}; });

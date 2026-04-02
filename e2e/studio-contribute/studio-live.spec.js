@@ -7,7 +7,9 @@ const path = require('path');
 const fs = require('fs');
 
 const BASE = process.env.STUDIO_BASE_URL || 'http://127.0.0.1:4173';
-const WORKER_API = process.env.LANTERN_API_BASE || 'https://lantern-api.mrradle.workers.dev';
+/** API origin: env override, else same origin as BASE (Pages proxy /api). */
+const API_ORIGIN = (process.env.LANTERN_API_BASE || '').replace(/\/$/, '') || new URL(BASE).origin;
+const AVATAR_IMAGE_URL = `${API_ORIGIN}/api/avatar/image?key=avatars%2Fstudents%2Fzane_morrison.png`;
 const CONTRIB_PATH = /127\.0\.0\.1|localhost/i.test(BASE) ? '/contribute.html' : '/contribute';
 
 /** Fresh returned poll each suite run (test 09). */
@@ -86,7 +88,7 @@ async function waitToast(page, substr, timeout = 25000) {
 
 test.beforeAll(async () => {
   ensurePngFixture();
-  const req = await request.newContext({ baseURL: WORKER_API });
+  const req = await request.newContext({ baseURL: API_ORIGIN });
   const seedTag = `e2e_seed_${Date.now()}`;
   const postContrib = await req.post('/api/polls/contribute', {
     headers: { 'Content-Type': 'application/json' },
@@ -248,7 +250,7 @@ test('05 Profile post: previews + submit', async ({ page }) => {
   await page.locator('#profilePostCaption').fill('E2E profile post caption');
   await page
     .locator('#profilePostUrl')
-    .fill('https://lantern-api.mrradle.workers.dev/api/avatar/image?key=avatars%2Fstudents%2Fzane_morrison.png');
+    .fill(AVATAR_IMAGE_URL);
 
   await expect(page.locator('#studioRailTrack')).toContainText('Locker highlight', { timeout: 15000 });
   await expect(page.locator('#studioOpenedPreviewInner')).toContainText('Locker highlight', { timeout: 15000 });
@@ -290,7 +292,7 @@ test('07 Mission — poll (Create a Poll)', async ({ page }) => {
   await page.locator('#missionSubmitPollChoice2').fill('Tacos');
   await page
     .locator('#missionSubmitPollImageUrl')
-    .fill('https://lantern-api.mrradle.workers.dev/api/avatar/image?key=avatars%2Fstudents%2Fzane_morrison.png');
+    .fill(AVATAR_IMAGE_URL);
 
   await expect(page.locator('#studioRailTrack')).toContainText('School lunch', { timeout: 15000 });
   await expect(page.locator('#studioOpenedPreviewInner')).toContainText('School lunch', { timeout: 15000 });
@@ -307,7 +309,7 @@ test('07 Mission — poll (Create a Poll)', async ({ page }) => {
 });
 
 test('08 Mission — bug_report', async ({ page, request }) => {
-  const j = await request.get(`${WORKER_API}/api/missions/active?character_name=zane_morrison`);
+  const j = await request.get(`${API_ORIGIN}/api/missions/active?character_name=zane_morrison`);
   const data = await j.json();
   const bugM = (data.missions || []).find((m) => m.submission_type === 'bug_report');
   if (!bugM) {

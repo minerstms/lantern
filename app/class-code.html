@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <title>Class Access Code — TMS Lantern</title>
   <style>
     :root{
@@ -54,7 +54,7 @@
 
   <script>
     (function(){
-      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
       var contentEl = document.getElementById('contentEl');
       var DEFAULT_TEACHER_ID = 'teacherA';
       var teacherId = DEFAULT_TEACHER_ID;
@@ -111,7 +111,7 @@
       }
 
       function fetchSession(){
-        if (!apiBase) { showError(); return; }
+        if (apiBase === null) { showError(); return; }
         var url = apiBase + '/api/class-access/session/status?teacher_id=' + encodeURIComponent(teacherId);
         fetch(url)
           .then(function(r){ return r.json(); })

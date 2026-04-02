@@ -5,8 +5,8 @@
 (function (global) {
   'use strict';
 
-  /** Live Worker API (Lantern). Used when pages omit window.LANTERN_AVATAR_API (e.g. index.html). */
-  var LANTERN_DEFAULT_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';
+  /** Default: same-origin /api (Pages Function proxies to Worker). Override with absolute URL for local static dev without Functions. */
+  var LANTERN_DEFAULT_AVATAR_API = '';
   if (
     global.LANTERN_AVATAR_API == null ||
     (typeof global.LANTERN_AVATAR_API === 'string' && String(global.LANTERN_AVATAR_API).trim() === '')
@@ -21,9 +21,9 @@
 
   function fetchMe() {
     var base = apiBase();
-    if (!base) return Promise.resolve({ ok: false, authenticated: false, error: 'no_api' });
+    var url = base ? base + '/api/auth/me' : '/api/auth/me';
     return global
-      .fetch(base + '/api/auth/me', { method: 'GET', credentials: 'include' })
+      .fetch(url, { method: 'GET', credentials: 'include' })
       .then(function (r) {
         return r.json();
       })

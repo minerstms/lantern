@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Home</title>
@@ -498,7 +498,7 @@
     function callGetApprovedNews(){
       var run = createRun ? createRun() : null;
       if (!run) {
-        if (exploreApiBase) {
+        if (exploreApiBase != null) {
           return fetch(exploreApiBase + '/api/news/approved')
             .then(function (r) { return r.json(); })
             .then(function (res) { return res && res.ok ? res : { ok: false, news: [] }; })
@@ -529,11 +529,11 @@
       if (!adopted) return '';
       return (adopted.character_id || adopted.name || '').trim();
     }
-    var exploreApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    var exploreApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
 
     var pollsList = [];
     function loadPolls(){
-      if (!exploreApiBase) {
+      if (exploreApiBase === null) {
         var pollsSecHide = document.getElementById('pollsSection');
         if (pollsSecHide) pollsSecHide.style.display = 'none';
         syncYouCanDoSectionVisibility();
@@ -782,7 +782,7 @@
         var list = (missions && Array.isArray(missions)) ? missions : [];
         renderMissionSpotlightList(list);
       }
-      if (exploreApiBase) {
+      if (exploreApiBase != null) {
         fetch(exploreApiBase + '/api/missions/active' + (characterName ? '?character_name=' + encodeURIComponent(characterName) : '')).then(function(r){ return r.json(); }).then(function(res){
           var missions = (res && res.ok && Array.isArray(res.missions)) ? res.missions : [];
           applyMissions(missions);
@@ -803,7 +803,7 @@
       var container = el('leaderboardEl');
       var section = el('leaderboardSection');
       if (!container || !section) return;
-      if (!exploreApiBase) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">API not configured.</div></div>'; return; }
+      if (exploreApiBase === null) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">API not configured.</div></div>'; return; }
       var p = period || currentLeaderboardPeriod;
       var g = (game || currentLeaderboardGame || '').trim();
       if (!g) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Choose a game above.</div></div>'; return; }
@@ -862,7 +862,7 @@
       var container = el('gameHighlightsEl');
       var section = el('gameHighlightsSection');
       if (!container || !section) return;
-      if (!exploreApiBase) { section.style.display = 'none'; return; }
+      if (exploreApiBase === null) { section.style.display = 'none'; return; }
       section.style.display = 'block';
       container.innerHTML = '<div class="emptyState" style="min-width:200px;"><div class="emptyStateHint">Loading…</div></div>';
       var promises = GAME_HIGHLIGHTS_GAMES.map(function(gameName){
@@ -965,7 +965,7 @@
 
     function loadLatestPostsLegacyMergeThenRender(){
       var postsPromise = callGetExploreFeed();
-      var approvedPromise = exploreApiBase ? fetch(exploreApiBase + '/api/missions/submissions/approved?limit=30').then(function(r){ return r.json(); }).then(function(res){ return (res && Array.isArray(res.submissions)) ? res.submissions : (res && res.submissions) ? res.submissions : []; }).catch(function(){ return []; }) : Promise.resolve([]);
+      var approvedPromise = exploreApiBase != null ? fetch(exploreApiBase + '/api/missions/submissions/approved?limit=30').then(function(r){ return r.json(); }).then(function(res){ return (res && Array.isArray(res.submissions)) ? res.submissions : (res && res.submissions) ? res.submissions : []; }).catch(function(){ return []; }) : Promise.resolve([]);
       Promise.all([postsPromise, approvedPromise]).then(function(arr){
         var postsFeed = (arr[0] && arr[0].feed) || [];
         var approvedSubs = arr[1] || [];

@@ -463,7 +463,7 @@ const html = `<!DOCTYPE html>
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <title>TMS Lantern — Locker</title>
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">

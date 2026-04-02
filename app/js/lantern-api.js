@@ -219,7 +219,7 @@
   }
 
   function getApprovedPosts() {
-    if (!window.LANTERN_AVATAR_API) {
+    if (typeof window.LANTERN_AVATAR_API === 'undefined' || window.LANTERN_AVATAR_API === null) {
       try {
         const posts = JSON.parse(localStorage.getItem('LANTERN_POSTS') || '[]');
         if (!Array.isArray(posts)) return [];
@@ -2162,7 +2162,10 @@
     var successFn = function () {};
     var failureFn = function (err) { if (typeof console !== 'undefined' && console.error) console.error(err); };
     var g = typeof global !== 'undefined' ? global : (typeof window !== 'undefined' ? window : self);
-    var apiBase = (g.LANTERN_AVATAR_API && String(g.LANTERN_AVATAR_API).trim()) ? String(g.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    var apiBase =
+      typeof g.LANTERN_AVATAR_API !== 'undefined' && g.LANTERN_AVATAR_API !== null
+        ? String(g.LANTERN_AVATAR_API).replace(/\/$/, '')
+        : null;
     return {
       withSuccessHandler: function (f) { successFn = f; return this; },
       withFailureHandler: function (f) { failureFn = f; return this; },
@@ -2351,7 +2354,7 @@
             recentEscalations: [],
           };
         }
-        if (apiBase) {
+        if (apiBase != null) {
           Promise.all([
             fetch(apiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(tid)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res.missions : []; }).catch(function () { return []; }),
             fetch(apiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(tid)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res.submissions : []; }).catch(function () { return []; }),
@@ -2827,7 +2830,7 @@
       },
       getActiveTeacherMissionsForCharacter: function (payload) {
         var name = String((payload && payload.character_name) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/active?character_name=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, missions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
@@ -2836,7 +2839,7 @@
       },
       getTeacherMissionsForTeacher: function (payload) {
         var tid = String((payload && payload.teacher_id) || 'teacher').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(tid)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, missions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
@@ -2844,7 +2847,7 @@
         Promise.resolve({ ok: true, missions: list }).then(successFn).catch(failureFn);
       },
       createTeacherMission: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           var body = {
             title: (payload && payload.title) || '',
             description: (payload && payload.description) || '',
@@ -2890,7 +2893,7 @@
       updateTeacherMission: function (payload) {
         var id = String((payload && payload.id) || '').trim();
         var updates = payload && payload.updates ? payload.updates : {};
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
@@ -2902,7 +2905,7 @@
         var characterName = String((payload && payload.character_name) || '').trim();
         var submissionType = String((payload && payload.submission_type) || 'text').trim();
         var submissionContent = String((payload && payload.submission_content) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType, submission_content: submissionContent }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
@@ -2911,7 +2914,7 @@
       },
       getMissionSubmissionsForTeacher: function (payload) {
         var tid = String((payload && payload.teacher_id) || 'teacher').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(tid)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, submissions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
@@ -2920,7 +2923,7 @@
       },
       getMissionSubmissionsForCharacter: function (payload) {
         var name = String((payload && payload.character_name) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, submissions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
@@ -2934,7 +2937,7 @@
       },
       approveMissionSubmission: function (payload) {
         var id = String((payload && payload.id) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           var body = { id: id, accepted_by: (payload && payload.accepted_by) || 'Teacher', economy_backend_charged: !!(payload && payload.economy_backend_charged) };
           if ((payload && payload.teacher_id) !== undefined) body.teacher_id = String(payload.teacher_id).trim();
           fetch(apiBase + '/api/missions/submissions/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
@@ -2946,7 +2949,7 @@
       },
       rejectMissionSubmission: function (payload) {
         var id = String((payload && payload.id) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           var body = { id: id };
           if ((payload && payload.teacher_id) !== undefined) body.teacher_id = String(payload.teacher_id).trim();
           fetch(apiBase + '/api/missions/submissions/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
@@ -2959,7 +2962,7 @@
         var id = String((payload && payload.id) || '').trim();
         var reason = String((payload && payload.reason) || '').trim();
         var by = String((payload && payload.returned_by) || 'Teacher').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           var body = { id: id, reason: reason, returned_by: by };
           if ((payload && payload.teacher_id) !== undefined) body.teacher_id = String(payload.teacher_id).trim();
           fetch(apiBase + '/api/missions/submissions/return', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
@@ -2971,7 +2974,7 @@
       resubmitMissionSubmission: function (payload) {
         var id = String((payload && payload.id) || '').trim();
         var content = String((payload && payload.submission_content) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/missions/submissions/resubmit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, submission_content: content }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
@@ -2983,7 +2986,7 @@
         Promise.resolve({ ok: true, news: list }).then(successFn).catch(failureFn);
       },
       getApprovedNews: function () {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/news/approved').then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, news: [] }; }).then(successFn).catch(failureFn);
           return;
         }
@@ -3000,7 +3003,7 @@
       },
       getNewsForAuthor: function (payload) {
         var name = String((payload && payload.author_name) || '').trim();
-        if (apiBase) {
+        if (apiBase != null) {
           var q = '?author_name=' + encodeURIComponent(name);
           fetch(apiBase + '/api/news/mine' + q).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, news: [] }; }).then(successFn).catch(failureFn);
           return;
@@ -3009,7 +3012,7 @@
         Promise.resolve({ ok: true, news: list }).then(successFn).catch(failureFn);
       },
       createNewsArticle: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/news/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(function (e) { failureFn(e); });
           return;
@@ -3032,7 +3035,7 @@
         Promise.resolve(result).then(successFn).catch(failureFn);
       },
       uploadNewsImage: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/news/upload-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: (payload && payload.image) || '', mime_type: (payload && payload.mime_type) || 'image/png', file_name: (payload && payload.file_name) || 'image.png' }) })
             .then(function (r) { return r.json().then(function (data) { return (r.ok ? data : { ok: false, error: (data && data.error) || r.statusText || 'Upload failed' }); }); })
             .then(successFn)
@@ -3042,7 +3045,7 @@
         Promise.resolve({ ok: false, error: 'Worker API required for image upload' }).then(successFn).catch(failureFn);
       },
       uploadNewsVideo: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/news/upload-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ video: (payload && payload.video) || '', mime_type: (payload && payload.mime_type) || 'video/mp4', file_name: (payload && payload.file_name) || 'video.mp4' }) })
             .then(function (r) { return r.json().then(function (data) { return (r.ok ? data : { ok: false, error: (data && data.error) || r.statusText || 'Upload failed' }); }); })
             .then(successFn)
@@ -3052,7 +3055,7 @@
         Promise.resolve({ ok: false, error: 'Worker API required for video upload' }).then(successFn).catch(failureFn);
       },
       getPendingApprovals: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           var staffId = (payload && payload.staff_id) || '';
           var filter = (payload && payload.filter) || 'mine,unassigned';
           var typeFilter = (payload && payload.type) || '';
@@ -3064,7 +3067,7 @@
         Promise.resolve({ ok: true, pending: [] }).then(successFn).catch(failureFn);
       },
       getApprovalHistory: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           var limit = (payload && payload.limit) != null ? Math.max(1, Math.min(100, parseInt(payload.limit, 10))) : 50;
           fetch(apiBase + '/api/approvals/history?limit=' + limit).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: true, history: [] }; }).then(successFn).catch(failureFn);
           return;
@@ -3072,7 +3075,7 @@
         Promise.resolve({ ok: true, history: [] }).then(successFn).catch(failureFn);
       },
       getRecognitionForCharacter: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           var name = String((payload && payload.character_name) || '').trim();
           var q = '?limit=50';
           if (name) q += '&character_name=' + encodeURIComponent(name);
@@ -3082,7 +3085,7 @@
         Promise.resolve({ ok: true, recognition: [] }).then(successFn).catch(failureFn);
       },
       getRecognitionList: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           var limit = (payload && payload.limit) != null ? Math.max(1, Math.min(100, parseInt(payload.limit, 10))) : 50;
           fetch(apiBase + '/api/recognition/list?limit=' + limit).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, recognition: [] }; }).then(successFn).catch(failureFn);
           return;
@@ -3090,7 +3093,7 @@
         Promise.resolve({ ok: true, recognition: [] }).then(successFn).catch(failureFn);
       },
       createRecognition: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/recognition/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -3098,7 +3101,7 @@
         Promise.resolve({ ok: false, error: 'Worker API required' }).then(successFn).catch(failureFn);
       },
       approveApprovalItem: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/approvals/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -3106,7 +3109,7 @@
         Promise.resolve({ ok: false, error: 'Worker API required' }).then(successFn).catch(failureFn);
       },
       returnApprovalItem: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/approvals/return', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -3114,7 +3117,7 @@
         Promise.resolve({ ok: false, error: 'Worker API required' }).then(successFn).catch(failureFn);
       },
       rejectApprovalItem: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/approvals/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -3122,7 +3125,7 @@
         Promise.resolve({ ok: false, error: 'Worker API required' }).then(successFn).catch(failureFn);
       },
       takeApprovalItem: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/approvals/take', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -3154,7 +3157,7 @@
         Promise.resolve(result).then(successFn).catch(failureFn);
       },
       resubmitNewsArticle: function (payload) {
-        if (apiBase) {
+        if (apiBase != null) {
           fetch(apiBase + '/api/news/resubmit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;

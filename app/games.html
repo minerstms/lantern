@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Games</title>
@@ -625,11 +625,21 @@
       t._tid = setTimeout(function(){ t.style.display = 'none'; }, 2400);
     }
 
-    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var economyApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
     function getBalance(){
       var name = loadAdopted() && loadAdopted().name;
       if (!name) return Promise.resolve(0);
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           return (res && res.ok) ? (res.balance || 0) : 0;
         }).catch(function(){ return 0; });
@@ -641,7 +651,7 @@
     }
 
     function callEconomyTransact(characterName, delta, kind, source, note){
-      if (!economyApiBase) return Promise.resolve({ ok: false });
+      if (economyApiBase == null) return Promise.resolve({ ok: false });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
@@ -650,7 +660,7 @@
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
     }
     function awardGameWinWithEconomy(characterName, gameName, nuggets, onSuccess, onFailure){
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         callEconomyTransact(characterName, nuggets, 'game_win', 'GAME', (gameName || 'Game') + ' win').then(function(tRes){
           if (!tRes || !tRes.ok) { if (onFailure) onFailure(); return; }
           if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onSuccess) onSuccess(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets, economy_backend_charged: true });
@@ -728,7 +738,17 @@
       'memory': 'Flip pairs — clear the grid',
       'nuggetHunt': 'Find the icon — hunt mode'
     };
-    var gamesApiBaseForArcade = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? String(window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    var gamesApiBaseForArcade = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
 
     function mountGamesDom(){
       if (!window.LanternCards || !window.LanternCards.specGameHubRailCard || !window.LanternCards.createStudentCard) {
@@ -844,7 +864,7 @@
     mountGamesDom();
 
     function fetchLeaderboardForGame(gameName, limit){
-      if (!gamesApiBaseForArcade) return Promise.resolve({ ok: false, entries: [] });
+      if (gamesApiBaseForArcade == null) return Promise.resolve({ ok: false, entries: [] });
       return fetch(gamesApiBaseForArcade + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=' + (limit || 5)).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, entries: [] }; });
     }
 
@@ -896,7 +916,7 @@
 
     function hydrateGameHubCardsLeaderMeta(){
       var shell = document.querySelector('.gamesPageShell');
-      if (!shell || !gamesApiBaseForArcade) return;
+      if (!shell || gamesApiBaseForArcade == null) return;
       shell.querySelectorAll('.gamesHubPlayCard[data-game-name][data-games-proxy-play]').forEach(function(card){
         if (card.classList.contains('exploreCard--gamesLbSummary')) return;
         var gn = card.getAttribute('data-game-name');
@@ -956,7 +976,7 @@
         window.LanternCanonicalFailClosed('#gameHighlightsScroller and LanternCards required');
       }
       var LC = window.LanternCards;
-      if (!gamesApiBaseForArcade) {
+      if (gamesApiBaseForArcade == null) {
         scroller.innerHTML = '';
         for (var hi = 0; hi < 12; hi++) {
           var g = ARCADE_GAMES[hi % ARCADE_GAMES.length];
@@ -993,7 +1013,7 @@
         window.LanternCanonicalFailClosed('#leaderboardSummariesScroller and LanternCards required');
       }
       var LC = window.LanternCards;
-      if (!gamesApiBaseForArcade) {
+      if (gamesApiBaseForArcade == null) {
         scroller.innerHTML = '';
         for (var li = 0; li < 12; li++) {
           var g = ARCADE_GAMES[li % ARCADE_GAMES.length];
@@ -1427,9 +1447,19 @@
       });
     })();
 
-    var gamesApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var gamesApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
     function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
-      if (!gamesApiBase || !characterName || !gameName) { if (onDone) onDone(false); return; }
+      if (gamesApiBase == null || !characterName || !gameName) { if (onDone) onDone(false); return; }
       fetch(gamesApiBase + '/api/leaderboards/record', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

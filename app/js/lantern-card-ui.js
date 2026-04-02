@@ -624,7 +624,7 @@
   function getPollApiBase(opts) {
     opts = opts || {};
     if (opts.apiBase) return String(opts.apiBase).replace(/\/$/, '');
-    return (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    return (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
   }
 
   function getPollCharacterName(opts) {
@@ -678,7 +678,7 @@
         '<p class="pollVoterNugget" id="lanternPollDetailNugget" style="display:none;"></p>';
     }
 
-    if (!apiBase) {
+    if (apiBase === null) {
       t.textContent = 'Poll';
       v.innerHTML = '';
       if (idw) idw.innerHTML = '';
@@ -871,7 +871,7 @@
     el.classList.add('show');
     el.setAttribute('aria-hidden', 'false');
 
-    if (!apiBase) {
+    if (apiBase === null) {
       fillPollDetailModal(modal, { pollId: pollId, apiBase: '', characterName: characterName, fetchRes: { ok: false, error: 'no_api' } });
       return;
     }
@@ -980,7 +980,7 @@
       return;
     }
 
-    var apiBase = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    var apiBase = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     var reportedBy = '';
     try {
       var raw = global.localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
@@ -989,7 +989,7 @@
         if (o && o.name) reportedBy = String(o.name).trim();
       }
     } catch (e) {}
-    if (!apiBase) {
+    if (apiBase === null) {
       toastReport('Reporting is not available (API not configured).');
       closeReportModal();
       return;

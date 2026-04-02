@@ -25,7 +25,7 @@
     if (typeof global.LANTERN_AVATAR_API !== 'undefined' && String(global.LANTERN_AVATAR_API).trim()) {
       return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
     }
-    return 'https://lantern-api.mrradle.workers.dev';
+    return '';
   }
 
   function callGetDisplaySlides(createRun) {

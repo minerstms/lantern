@@ -76,13 +76,14 @@
   }
 
   function fetchProfileNeedsAttentionCount() {
-    var apiBase = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API)
-      ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '')
-      : '';
+    var apiBase =
+      typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null
+        ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '')
+        : null;
     var adopted = getAdoptedFromStorage();
     var characterNameForApi = adopted && String((adopted.character_id || adopted.name || '')).trim();
     var newsAuthorMine = adopted && String((adopted.name || adopted.character_id || '')).trim();
-    if (!apiBase || !characterNameForApi) return Promise.resolve(0);
+    if (apiBase === null || !characterNameForApi) return Promise.resolve(0);
 
     var urlPoll = apiBase + '/api/polls/contributions?character_name=' + encodeURIComponent(characterNameForApi);
     var urlMiss = apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(characterNameForApi);
@@ -320,8 +321,8 @@
     applyBellCount(0);
     refreshNeedsAttentionBellFromApi();
     (function pilotSessionShellGate(){
-      var api = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
-      if (!api) return;
+      if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return;
+      var api = String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
       fetch(api + '/api/auth/me', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(data){
         if (!data || !data.ok || !data.authenticated) return;
         if (data.must_change_password) {

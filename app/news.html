@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <title>TMS Lantern — News (moved to Lantern)</title>
   <link rel="canonical" href="explore.html" />
   <link rel="stylesheet" href="css/lantern-ticker.css" />
@@ -96,7 +96,7 @@
       <script>
         (function () {
           var w = document.getElementById('classAccessContentWrap');
-          var api = typeof window !== 'undefined' && window.LANTERN_AVATAR_API && String(window.LANTERN_AVATAR_API).trim();
+          var api = typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null;
           if (w && api) {
             w.style.visibility = 'hidden';
             w.style.opacity = '0';

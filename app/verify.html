@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lantern — Verify &amp; Simulate</title>
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
@@ -543,7 +543,7 @@
   <script src="js/lantern-content-routing.js"></script>
   <script>
 (function(){
-  var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+  var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
   var config = null;
   var state = { role: '', teacher_id: '', character_name: '', display_name: '', checklist: {}, build: null };
   var checklistSaveTimer = null;
@@ -592,7 +592,7 @@
   }
 
   function fetchConfig(){
-    if (!apiBase) return Promise.resolve(getConfig());
+    if (apiBase === null) return Promise.resolve(getConfig());
     return fetch(apiBase + '/api/verify/config').then(function(r){ return r.json(); }).then(function(res){
       if (res && res.ok) {
         config = { build: res.build, teachers: res.teachers || [], students: res.students || [], checklist: res.checklist || [] };
@@ -603,7 +603,7 @@
   }
 
   function fetchState(){
-    if (!apiBase) return Promise.resolve(state);
+    if (apiBase === null) return Promise.resolve(state);
     return fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).then(function(res){
       if (res && res.ok && res.state) state = res.state;
       return state;
@@ -611,7 +611,7 @@
   }
 
   function putState(partial){
-    if (!apiBase) return Promise.resolve();
+    if (apiBase === null) return Promise.resolve();
     var body = JSON.stringify(partial);
     return fetch(apiBase + '/api/verify/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: body }).then(function(r){ return r.json(); }).then(function(res){
       if (res && res.ok && res.state) state = res.state;
@@ -822,7 +822,7 @@
 
   document.getElementById('resetVerifyBtn').addEventListener('click', function(){
     var pw = (document.getElementById('resetPassword') && document.getElementById('resetPassword').value) || '';
-    if (!apiBase) { showResetMessage('Cloud API not set. Reset only available when Worker is configured.', true); return; }
+    if (apiBase === null) { showResetMessage('Cloud API not set. Reset only available when Worker is configured.', true); return; }
     fetch(apiBase + '/api/verify/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, action: 'reset' }) })
       .then(function(r){ return r.json(); })
       .then(function(res){
@@ -834,7 +834,7 @@
 
   document.getElementById('reseedVerifyBtn').addEventListener('click', function(){
     var pw = (document.getElementById('resetPassword') && document.getElementById('resetPassword').value) || '';
-    if (!apiBase) { showResetMessage('Cloud API not set.', true); return; }
+    if (apiBase === null) { showResetMessage('Cloud API not set.', true); return; }
     fetch(apiBase + '/api/verify/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, action: 'reseed' }) })
       .then(function(r){ return r.json(); })
       .then(function(res){
@@ -849,7 +849,7 @@
     var table = document.getElementById('betaReportsTable');
     var body = document.getElementById('betaReportsBody');
     if (!placeholder || !table || !body) return;
-    if (!apiBase) {
+    if (apiBase === null) {
       placeholder.textContent = 'Set LANTERN_AVATAR_API to load beta reports.';
       placeholder.style.display = 'block';
       table.style.display = 'none';
@@ -898,7 +898,7 @@
     var table = document.getElementById('bugReportsTable');
     var body = document.getElementById('bugReportsBody');
     if (!placeholder || !table || !body) return;
-    if (!apiBase) {
+    if (apiBase === null) {
       placeholder.textContent = 'Set LANTERN_AVATAR_API to load bug reports.';
       placeholder.style.display = 'block';
       table.style.display = 'none';

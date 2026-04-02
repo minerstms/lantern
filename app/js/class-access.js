@@ -63,7 +63,7 @@
       callback(debugResolvedState());
       return;
     }
-    if (!apiBase) return;
+    if (apiBase === null) return;
     var url = apiBase + '/api/class-access/state' + (token ? '?token=' + encodeURIComponent(token) : '');
     var headers = {};
     if (token) headers['X-Class-Token'] = token;
@@ -97,7 +97,7 @@
    */
   function renderGate(container, apiBase, onSuccess) {
     var el = typeof container === 'string' ? (document.getElementById(container) || document.querySelector(container)) : container;
-    if (!el || !apiBase || typeof onSuccess !== 'function') return;
+    if (!el || apiBase === null || typeof onSuccess !== 'function') return;
     el.innerHTML =
       '<div class="classAccessGate" style="max-width:420px;margin:0 auto;padding:28px 20px;text-align:center;">' +
       '<h2 class="classAccessGateTitle" style="font-weight:1000;font-size:28px;margin-bottom:8px;">Lantern Class Access</h2>' +
@@ -181,7 +181,7 @@
   function bootstrapPageAccess() {
     var gateWrap = document.getElementById('classAccessGateWrap');
     if (!gateWrap) return;
-    var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     var contentWrap = document.getElementById('classAccessContentWrap');
     if (isDebugClassAccessBypass()) {
       log('bootstrap: LANTERN_DEBUG_CLASS_ACCESS — bypass gate, treat as resolved');
@@ -193,7 +193,7 @@
       } catch (e) {}
       return;
     }
-    if (!apiBase) {
+    if (apiBase === null) {
       log('bootstrap: no apiBase, showing content');
       setContentVisible(contentWrap);
       try { document.dispatchEvent(new CustomEvent('lantern-class-access-resolved', { detail: { state: null, tokenValid: true } })); } catch (e) {}

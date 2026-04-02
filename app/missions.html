@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <title>TMS Lantern — Missions</title>
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="thanks.html">
@@ -206,18 +206,36 @@
       try {
         if (localStorage.getItem('LANTERN_VERIFY_CHARACTER_NAME')) { missionVerifyModeActive = true; return; }
       } catch(e) {}
-      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
-      if (!apiBase) return;
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+      if (apiBase === null) return;
       fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).then(function(res){
         if (res && res.ok && res.state && res.state.character_name) missionVerifyModeActive = true;
       }).catch(function(){});
     })();
     function isMissionWritingIntegrityBypassActive(){ return missionVerifyModeActive; }
 
-    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
-    var missionsApiBase = (typeof window !== 'undefined' && (window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API)) ? String(window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API).replace(/\/$/, '') : '';
+    var economyApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
+    var missionsApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
+          ? window.LANTERN_AVATAR_API
+          : window.LANTERN_ECONOMY_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
     function callEconomyTransact(characterName, delta, kind, source, note, meta){
-      if (!economyApiBase) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
+      if (economyApiBase == null) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
@@ -260,7 +278,7 @@
       });
     }
     function callGetActiveTeacherMissionsForCharacter(characterName){
-      if (missionsApiBase && characterName) {
+      if (missionsApiBase != null && characterName) {
         return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName))
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
@@ -273,7 +291,7 @@
       });
     }
     function callGetMissionSubmissionsForCharacter(name){
-      if (missionsApiBase && name) {
+      if (missionsApiBase != null && name) {
         return fetch(missionsApiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name))
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.submissions)) ? { ok: true, submissions: res.submissions } : { ok: false, submissions: [] }; })
@@ -286,7 +304,7 @@
       });
     }
     function callSubmitMissionCompletion(missionId, characterName, submissionType, submissionContent){
-      if (missionsApiBase && missionId && characterName) {
+      if (missionsApiBase != null && missionId && characterName) {
         return fetch(missionsApiBase + '/api/missions/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -300,7 +318,7 @@
       });
     }
     function callResubmitMissionSubmission(id, submissionContent){
-      if (missionsApiBase && id) {
+      if (missionsApiBase != null && id) {
         return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -374,7 +392,7 @@
     var previousTextareaValue = '';
     var previousInputTimestamp = 0;
 
-    var missionApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var missionApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     var missionUnifiedField = null;
     function destroyMissionUnifiedField(){
       if (missionUnifiedField) {
@@ -494,7 +512,7 @@
       });
     }
     function callUploadMissionImage(dataUrl, mimeType, fileName){
-      if (!missionApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (missionApiBase == null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(missionApiBase + '/api/news/upload-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -502,7 +520,7 @@
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
     }
     function callUploadMissionVideo(base64DataUrl, mimeType, fileName){
-      if (!missionApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (missionApiBase == null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(missionApiBase + '/api/news/upload-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -551,7 +569,7 @@
       var modal = el('missionCropperModal');
       var uploadPreviewImg = el('missionSubmitImageUploadPreviewImg');
       var imageUrlEl = el('missionSubmitImageUrl');
-      if (!modal || !imageUrlEl || !missionApiBase) return;
+      if (!modal || !imageUrlEl || missionApiBase == null) return;
       var dataUrlToUpload = null;
       if (missionCropperInstance){
         try {
@@ -617,7 +635,7 @@
       if (!file || !file.type.match(/^video\/(mp4|webm)$/)){ toast('Please choose an MP4 or WebM video.'); return; }
       var maxBytes = 25 * 1024 * 1024;
       if (file.size > maxBytes){ toast('Video too large. Max 25MB.'); return; }
-      if (!missionApiBase){ toast('API not configured'); return; }
+      if (missionApiBase == null){ toast('API not configured'); return; }
       var reader = new FileReader();
       reader.onload = function(){
         var dataUrl = reader.result;
@@ -695,8 +713,8 @@
       if (!modal) return;
       modal.style.display = 'flex';
       modal.classList.add('show');
-      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
-      if (!apiBase) { toast('API not configured'); return; }
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+      if (apiBase === null) { toast('API not configured'); return; }
       fetch(apiBase + '/api/media/library').then(function(r){ return r.json(); }).then(function(res){
         if (!res || !res.ok || !res.categories) return;
         var catDiv = el('missionSubmitLibraryCategories');

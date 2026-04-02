@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
+  <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Contribute</title>
@@ -1204,8 +1204,16 @@
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); } } catch(e){} })();
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
     var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
-    var newsApiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? String(window.LANTERN_AVATAR_API || '').replace(/\/$/, '') : '';
-    var missionsApiBase = (typeof window !== 'undefined' && (window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API)) ? String(window.LANTERN_AVATAR_API || window.LANTERN_ECONOMY_API).replace(/\/$/, '') : '';
+    var newsApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+    var missionsApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
+          ? window.LANTERN_AVATAR_API
+          : window.LANTERN_ECONOMY_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
 
     var el = function(id){ return document.getElementById(id); };
     var toastEl = el('toast');
@@ -1542,7 +1550,7 @@
       });
     }
     function callUploadNewsImage(dataUrl, mimeType, fileName){
-      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (newsApiBase === null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(newsApiBase + '/api/news/upload-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1550,7 +1558,7 @@
       }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.image_r2_key != null; }, 'Image upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
     }
     function callUploadNewsVideo(base64DataUrl, mimeType, fileName){
-      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (newsApiBase === null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(newsApiBase + '/api/news/upload-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1558,13 +1566,13 @@
       }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.video_r2_key != null; }, 'Video upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
     }
     function callCreateNewsArticle(payload){
-      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (newsApiBase === null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(newsApiBase + '/api/news/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
         .then(function(r){ return parseJsonResponse(r, function(res){ return res && res.id; }, 'Create failed'); })
         .catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
     }
     function callResubmitNewsArticleHttp(payload){
-      if (!newsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (newsApiBase === null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(newsApiBase + '/api/news/resubmit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
         .then(function(r){
           return r.text().then(function(text){
@@ -1706,7 +1714,7 @@
       var params = new URLSearchParams(window.location.search || '');
       var resubmitId = (params.get('resubmit') || '').trim();
       var typeParam = (params.get('type') || '').trim();
-      if (!resubmitId || !newsApiBase) return;
+      if (!resubmitId || newsApiBase === null) return;
       var adopted = getAdopted();
       if (!adopted || !adopted.name) return;
       if (typeParam !== 'poll' && typeParam !== '') return;
@@ -2145,7 +2153,7 @@
       if (ct === 'poll'){
         var adPoll = getAdopted();
         if (!adPoll || !adPoll.name){ toast('Pick a student in Locker → Overview first.'); return; }
-        if (!newsApiBase){ toast('API not configured.'); return; }
+        if (newsApiBase === null){ toast('API not configured.'); return; }
         var pq = (el('pollQuestion').value || '').trim();
         var pch = getPollChoices();
         if (!pq){ toast('Enter your poll question.'); return; }
@@ -2481,7 +2489,7 @@
     }
 
     function callGetActiveMissions(characterName){
-      if (missionsApiBase && characterName) {
+      if (missionsApiBase != null && characterName) {
         return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName))
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
@@ -2491,7 +2499,7 @@
     }
 
     function callSubmitMissionCompletion(missionId, characterName, submissionType, submissionContent){
-      if (missionsApiBase && missionId && characterName) {
+      if (missionsApiBase != null && missionId && characterName) {
         return fetch(missionsApiBase + '/api/missions/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2514,7 +2522,7 @@
       return Promise.resolve({ ok: false, error: 'API not configured' });
     }
     function callResubmitMissionSubmission(subId, submissionContent){
-      if (missionsApiBase && subId) {
+      if (missionsApiBase != null && subId) {
         return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2538,7 +2546,7 @@
     }
 
     function callUploadMissionImage(dataUrl, mimeType, fileName){
-      if (!missionsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (missionsApiBase === null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(missionsApiBase + '/api/news/upload-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2546,7 +2554,7 @@
       }).then(function(r){ return parseJsonResponse(r, function(d){ return d && d.image_r2_key != null; }, 'Image upload failed'); }).catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
     }
     function callUploadMissionVideo(base64DataUrl, mimeType, fileName){
-      if (!missionsApiBase) return Promise.resolve({ ok: false, error: 'API not configured' });
+      if (missionsApiBase === null) return Promise.resolve({ ok: false, error: 'API not configured' });
       return fetch(missionsApiBase + '/api/news/upload-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2570,8 +2578,8 @@
       missionSubmitLibraryTarget = target || 'mission';
       var modal = el('missionSubmitLibraryModal');
       if (!modal) return;
-      var apiBase = missionsApiBase || newsApiBase || '';
-      if (!apiBase){ toast('API not configured'); return; }
+      var apiBase = missionsApiBase != null ? missionsApiBase : newsApiBase;
+      if (apiBase === null){ toast('API not configured'); return; }
       modal.style.display = 'flex';
       modal.classList.add('show');
       fetch(apiBase + '/api/media/library').then(function(r){ return r.json(); }).then(function(res){
@@ -2693,7 +2701,7 @@
       var modal = el('missionCropperModal');
       var uploadPreviewImg = el('missionSubmitImageUploadPreviewImg');
       var imageUrlEl = el('missionSubmitImageUrl');
-      if (!modal || !imageUrlEl || !missionsApiBase) return;
+      if (!modal || !imageUrlEl || missionsApiBase === null) return;
       var dataUrlToUpload = null;
       if (missionCropperInstance){
         try {
@@ -2750,7 +2758,7 @@
     function handleMissionVideoFile(file){
       if (!file || !file.type.match(/^video\/(mp4|webm)$/)){ toast('Please choose an MP4 or WebM video.'); return; }
       if (file.size > 25 * 1024 * 1024){ toast('Video too large. Max 25MB.'); return; }
-      if (!missionsApiBase){ toast('API not configured'); return; }
+      if (missionsApiBase === null){ toast('API not configured'); return; }
       var reader = new FileReader();
       reader.onload = function(){
         callUploadMissionVideo(reader.result, file.type || 'video/mp4', file.name || 'video.mp4').then(function(res){

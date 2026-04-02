@@ -95,10 +95,10 @@
     }
 
     (function(){
-      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
       var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
       if (params.get('simStudent')) return;
-      if (!apiBase) return;
+      if (apiBase === null) return;
       studentIdentityFetchPending = true;
       var verifyP = fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return null; });
       var pilotP = fetch(apiBase + '/api/auth/me', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
@@ -206,9 +206,19 @@
       window.LANTERN_DATA.setToLS(LS.ACTIVITY, activity);
     }
 
-    var economyApiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+    var economyApiBase = (function () {
+      if (typeof window === 'undefined') return null;
+      var raw =
+        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+        window.LANTERN_ECONOMY_API !== null &&
+        String(window.LANTERN_ECONOMY_API).trim() !== ''
+          ? window.LANTERN_ECONOMY_API
+          : window.LANTERN_AVATAR_API;
+      if (typeof raw === 'undefined' || raw === null) return null;
+      return String(raw).replace(/\/$/, '');
+    })();
     function callGetBalance(name){
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent };
           return { ok: false, available: 0 };
@@ -221,7 +231,7 @@
       });
     }
     function callEconomyTransact(characterName, delta, kind, source, note, meta){
-      if (!economyApiBase) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
+      if (economyApiBase == null) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
@@ -263,7 +273,7 @@
     }
 
     function callSubmitAvatarUpload(name, imageData, cost){
-      var base = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      var base = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
       if (base) {
         return fetch(base + '/api/avatar/upload', {
           method: 'POST',
@@ -302,7 +312,7 @@
     }
 
     function callGetAvatarStatus(name){
-      var base = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      var base = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
       if (base) {
         return fetch(base + '/api/avatar/status?character_name=' + encodeURIComponent(name))
           .then(function(r){ return r.json(); })
@@ -428,7 +438,7 @@
     }
 
     function callGetRecognitionForCharacter(name){
-      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
       if (apiBase && name) {
         return fetch(apiBase + '/api/recognition/list?character_name=' + encodeURIComponent(name) + '&limit=50').then(function(r){ return r.json(); }).then(function(res){ return res && res.ok ? res : { ok: false, recognition: [] }; }).catch(function(){ return { ok: false, recognition: [] }; });
       }
@@ -554,7 +564,7 @@
     var myCreationsItemsCache = [];
     var myCreationsSearchQuery = '';
     function getProfileApiBase(){
-      return (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
+      return (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     }
 
     function pollContributionChoicesPlain(item){
@@ -652,7 +662,7 @@
       var characterNameForApi = adopted && String((adopted.character_id || adopted.name || '')).trim();
       /* News student submissions store author_name from contribute (display name). */
       var newsAuthorMine = adopted && String((adopted.name || adopted.character_id || '')).trim();
-      if (!apiBase || !characterNameForApi) return Promise.resolve([]);
+      if (apiBase === null || !characterNameForApi) return Promise.resolve([]);
 
       var urlPoll = apiBase + '/api/polls/contributions?character_name=' + encodeURIComponent(characterNameForApi);
       var urlMiss = apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(characterNameForApi);
@@ -688,7 +698,7 @@
 
     function callGetNewsForAuthorProfile(name){
       var apiBase = getProfileApiBase();
-      if (!apiBase) return Promise.resolve({ ok: false, news: [] });
+      if (apiBase === null) return Promise.resolve({ ok: false, news: [] });
       return fetch(apiBase + '/api/news/mine?author_name=' + encodeURIComponent(name || '')).then(function (r) { return r.json(); }).then(function (res) {
         return res && res.news ? { ok: true, news: res.news } : { ok: false, news: [] };
       }).catch(function () { return { ok: false, news: [] }; });
@@ -865,8 +875,8 @@
       notEnoughEl.style.display = 'none';
       if (!characterName || !window.LANTERN_REACTIONS || !window.LANTERN_REACTIONS.getBreakdown) return;
       if (!window.LANTERN_FEATURE_FLAGS || typeof window.LANTERN_FEATURE_FLAGS.isEnabled !== 'function') return;
-      var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
-      if (!apiBase) return;
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+      if (apiBase === null) return;
       var flagsPromise = window.LANTERN_REACTIONS.getFeatureFlags ? window.LANTERN_REACTIONS.getFeatureFlags() : Promise.resolve({});
       flagsPromise.then(function(){
         if (!window.LANTERN_FEATURE_FLAGS.isEnabled('ENABLE_REACTION_BREAKDOWN')) return;
@@ -961,8 +971,18 @@
         });
         list.appendChild(btn);
       });
-      var apiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? String(window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
-      if (apiBase) {
+      var apiBase = (function () {
+        if (typeof window === 'undefined') return null;
+        var raw =
+          typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+          window.LANTERN_ECONOMY_API !== null &&
+          String(window.LANTERN_ECONOMY_API).trim() !== ''
+            ? window.LANTERN_ECONOMY_API
+            : window.LANTERN_AVATAR_API;
+        if (typeof raw === 'undefined' || raw === null) return null;
+        return String(raw).replace(/\/$/, '');
+      })();
+      if (apiBase != null) {
         fetch(apiBase + '/api/test-students').then(function(r){ return r.json(); }).then(function(res){
           if (!res || !res.ok || !res.test_students || !res.test_students.length) return;
           res.test_students.forEach(function(t){
@@ -1012,8 +1032,18 @@
           if (!displayName) { toast('Enter a name'); return; }
           var durationRadio = document.querySelector('input[name="createTestStudentDuration"]:checked');
           var durationDays = durationRadio ? parseInt(durationRadio.value, 10) : 1;
-          var apiBase = (typeof window !== 'undefined' && (window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API)) ? String(window.LANTERN_ECONOMY_API || window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
-          if (!apiBase) { toast('Test students require the API'); return; }
+          var apiBase = (function () {
+            if (typeof window === 'undefined') return null;
+            var raw =
+              typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
+              window.LANTERN_ECONOMY_API !== null &&
+              String(window.LANTERN_ECONOMY_API).trim() !== ''
+                ? window.LANTERN_ECONOMY_API
+                : window.LANTERN_AVATAR_API;
+            if (typeof raw === 'undefined' || raw === null) return null;
+            return String(raw).replace(/\/$/, '');
+          })();
+          if (apiBase == null) { toast('Test students require the API'); return; }
           submitBtn.disabled = true;
           fetch(apiBase + '/api/test-students', {
             method: 'POST',
@@ -2787,8 +2817,8 @@
         if (cancelBtn) cancelBtn.addEventListener('click', closeBetaReport);
         form.addEventListener('submit', function(e){
           e.preventDefault();
-          var apiBase = (typeof window !== 'undefined' && window.LANTERN_AVATAR_API) ? (window.LANTERN_AVATAR_API + '').replace(/\/$/, '') : '';
-          if (!apiBase){ toast('Beta reporting requires the API to be set.'); return; }
+          var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+          if (apiBase === null){ toast('Beta reporting requires the API to be set.'); return; }
           var adopted = getAdopted();
           var reporterName = (adopted && adopted.name) ? adopted.name : 'Anonymous';
           var descEl = document.getElementById('betaReportDescription');

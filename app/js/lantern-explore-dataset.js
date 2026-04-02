@@ -257,12 +257,13 @@
   }
 
   function apiBase() {
-    return global.LANTERN_AVATAR_API ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return null;
+    return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
   }
 
   function fetchApprovedMissionSubmissions(limit) {
     var base = apiBase();
-    if (!base) return Promise.resolve([]);
+    if (base === null) return Promise.resolve([]);
     return fetch(base + '/api/missions/submissions/approved?limit=' + encodeURIComponent(String(limit || 30)))
       .then(function (r) {
         return r.json();
@@ -279,7 +280,7 @@
 
   function fetchPollsList() {
     var base = apiBase();
-    if (!base) return Promise.resolve([]);
+    if (base === null) return Promise.resolve([]);
     return fetch(base + '/api/polls')
       .then(function (r) {
         return r.json();

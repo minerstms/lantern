@@ -30,13 +30,13 @@
 
   function getApiBase() {
     var g = typeof global !== 'undefined' ? global : (typeof window !== 'undefined' ? window : self);
-    var base = (g.LANTERN_AVATAR_API && String(g.LANTERN_AVATAR_API).trim()) ? String(g.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
-    return base;
+    if (typeof g.LANTERN_AVATAR_API === 'undefined' || g.LANTERN_AVATAR_API === null) return null;
+    return String(g.LANTERN_AVATAR_API).replace(/\/$/, '');
   }
 
   function addReaction(itemType, itemId, reactionType, characterName) {
     var apiBase = getApiBase();
-    if (!apiBase) return Promise.resolve({ ok: false, error: 'No API' });
+    if (apiBase === null) return Promise.resolve({ ok: false, error: 'No API' });
     return fetch(apiBase + '/api/reactions/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -46,27 +46,27 @@
 
   function getCounts(itemType, itemIds) {
     var apiBase = getApiBase();
-    if (!apiBase || !itemIds || itemIds.length === 0) return Promise.resolve({ ok: true, counts: {} });
+    if (apiBase === null || !itemIds || itemIds.length === 0) return Promise.resolve({ ok: true, counts: {} });
     var q = 'item_type=' + encodeURIComponent(itemType) + '&item_ids=' + itemIds.map(function (id) { return encodeURIComponent(id); }).join(',');
     return fetch(apiBase + '/api/reactions/counts?' + q).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, counts: {} }; }).catch(function () { return { ok: true, counts: {} }; });
   }
 
   function getMine(itemType, itemIds, characterName) {
     var apiBase = getApiBase();
-    if (!apiBase || !itemIds || itemIds.length === 0) return Promise.resolve({ ok: true, mine: {} });
+    if (apiBase === null || !itemIds || itemIds.length === 0) return Promise.resolve({ ok: true, mine: {} });
     var q = 'item_type=' + encodeURIComponent(itemType) + '&item_ids=' + itemIds.map(function (id) { return encodeURIComponent(id); }).join(',') + (characterName ? '&character_name=' + encodeURIComponent(characterName) : '');
     return fetch(apiBase + '/api/reactions/mine?' + q).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, mine: {} }; }).catch(function () { return { ok: true, mine: {} }; });
   }
 
   function getPraisePreferences(characterName) {
     var apiBase = getApiBase();
-    if (!apiBase || !characterName) return Promise.resolve({ ok: true, reaction_types: [] });
+    if (apiBase === null || !characterName) return Promise.resolve({ ok: true, reaction_types: [] });
     return fetch(apiBase + '/api/reactions/praise-preferences?character_name=' + encodeURIComponent(characterName)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, reaction_types: [] }; }).catch(function () { return { ok: true, reaction_types: [] }; });
   }
 
   function setPraisePreferences(characterName, reactionTypes) {
     var apiBase = getApiBase();
-    if (!apiBase || !characterName) return Promise.resolve({ ok: false });
+    if (apiBase === null || !characterName) return Promise.resolve({ ok: false });
     return fetch(apiBase + '/api/reactions/praise-preferences', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +76,7 @@
 
   function getBreakdown(itemType, itemId, viewerCharacterName, viewerIsTeacher) {
     var apiBase = getApiBase();
-    if (!apiBase || !itemType || !itemId) return Promise.resolve({ ok: false });
+    if (apiBase === null || !itemType || !itemId) return Promise.resolve({ ok: false });
     var q = 'item_type=' + encodeURIComponent(itemType) + '&item_id=' + encodeURIComponent(itemId);
     if (viewerCharacterName) q += '&viewer_character_name=' + encodeURIComponent(viewerCharacterName);
     if (viewerIsTeacher) q += '&viewer_is_teacher=true';
@@ -85,7 +85,7 @@
 
   function getNeedEncouragement(itemType, limit, excludeItemIds) {
     var apiBase = getApiBase();
-    if (!apiBase) return Promise.resolve({ ok: true, items: [] });
+    if (apiBase === null) return Promise.resolve({ ok: true, items: [] });
     var q = 'item_type=' + encodeURIComponent(itemType || 'news') + '&limit=' + (limit || 10);
     if (excludeItemIds && excludeItemIds.length) q += '&exclude_item_ids=' + excludeItemIds.map(function (id) { return encodeURIComponent(id); }).join(',');
     return fetch(apiBase + '/api/reactions/need-encouragement?' + q).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, items: [] }; }).catch(function () { return { ok: true, items: [] }; });
@@ -93,7 +93,7 @@
 
   function getSummary(itemType, itemId) {
     var apiBase = getApiBase();
-    if (!apiBase || !itemType || !itemId) return Promise.resolve({ ok: false, top: [] });
+    if (apiBase === null || !itemType || !itemId) return Promise.resolve({ ok: false, top: [] });
     return fetch(apiBase + '/api/reactions/summary?item_type=' + encodeURIComponent(itemType) + '&item_id=' + encodeURIComponent(itemId)).then(function (r) { return r.json(); }).catch(function () { return { ok: false, top: [] }; });
   }
 
@@ -113,7 +113,7 @@
 
   function getFeatureFlags() {
     var apiBase = getApiBase();
-    if (!apiBase) return Promise.resolve({ ok: false });
+    if (apiBase === null) return Promise.resolve({ ok: false });
     return fetch(apiBase + '/api/reactions/feature-flags').then(function (r) { return r.json(); }).then(function (res) {
       if (res && res.ok && global.LANTERN_FEATURE_FLAGS && global.LANTERN_FEATURE_FLAGS.setFlagsFromServer) {
         global.LANTERN_FEATURE_FLAGS.setFlagsFromServer(res);
