@@ -50,6 +50,7 @@
   </div>
   <script>
     (function () {
+      /* No fetchMe(), no session redirect, and no use of ?return= on page load. Redirects only after successful POST /api/auth/login via redirectAfterLogin(). */
       var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
       var msgEl = document.getElementById('msg');
       var form = document.getElementById('loginForm');

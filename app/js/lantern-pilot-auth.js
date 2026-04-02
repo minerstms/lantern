@@ -106,6 +106,13 @@
   }
 
   function loginUrlWithReturn() {
+    try {
+      var u = new URL(global.location.href);
+      var p = String(u.pathname || '').replace(/\/$/, '') || '/';
+      if (p === '/login' || p === '/login.html') {
+        return '/login.html' + (u.search || '') + (u.hash || '');
+      }
+    } catch (e) {}
     var ret = currentReturnPath();
     try {
       global.sessionStorage.setItem('lantern_return_to', ret);
@@ -125,6 +132,15 @@
     var o = opts || {};
     var mode = o.mode || 'general';
     var pendingClass = o.pendingHtmlClass || 'lantern-pilot-auth-pending';
+    try {
+      var pathOnly = String(global.location.pathname || '').replace(/\/$/, '') || '/';
+      if (pathOnly === '/login' || pathOnly === '/login.html') {
+        try {
+          global.document.documentElement.classList.remove(pendingClass);
+        } catch (e) {}
+        return Promise.resolve();
+      }
+    } catch (e) {}
     return fetchMe().then(function (data) {
       if (!data || !data.ok || !data.authenticated) {
         global.location.replace(loginUrlWithReturn());
