@@ -104,6 +104,8 @@
       line-height:1.05;
       opacity:.98;
     }
+    .teacherSessionHint{ display: none; font-size: 20px; font-weight: 800; color: var(--muted); margin: 4px 0 14px; line-height: 1.35; }
+    .teacherSessionHint.is-visible{ display: block; }
     .subTitle{
       color: var(--muted);
       font-weight: 900;
@@ -968,6 +970,7 @@
         </span>
       </div>
       <div class="subTitle">TMS Lantern</div>
+      <p id="teacherSessionHint" class="teacherSessionHint" aria-live="polite"></p>
     </div>
     <div class="teacherActionRow">
       <a href="display.html" target="_blank" rel="noopener" class="btn good" style="font-size:22px; padding:8px 16px; text-decoration:none;">Hallway TV</a>
@@ -1511,6 +1514,13 @@
       } else return;
       window.pilotSessionActive = true;
       teacherVerifyIdentitySource = 'Pilot';
+      var hintEl = document.getElementById('teacherSessionHint');
+      if (hintEl && me.username != null) {
+        var dnHint = me.display_name != null ? String(me.display_name).trim() : '';
+        var roleLabel = role === 'admin' ? 'admin' : 'teacher';
+        hintEl.textContent = 'Signed in as ' + String(me.username) + (dnHint ? ' · ' + dnHint : '') + ' · ' + roleLabel;
+        hintEl.classList.add('is-visible');
+      }
       var b = document.getElementById('teacherVerifyBanner');
       if (b) b.style.display = 'none';
       var pc = document.getElementById('teacherPersonaCard');

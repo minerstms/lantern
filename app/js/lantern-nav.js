@@ -332,7 +332,10 @@
           global.location.replace('/change-password.html?return=' + encodeURIComponent(ret));
           return;
         }
-        var role = (data.role || '').trim();
+        var role =
+          global.LanternAuth && typeof global.LanternAuth.normalizeRole === 'function'
+            ? global.LanternAuth.normalizeRole(data.role)
+            : String(data.role || '').trim().toLowerCase();
         if (role !== 'student') return;
         var dd = document.getElementById('lanternMenuDropdown');
         if (!dd) return;

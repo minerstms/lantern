@@ -1,34 +1,15 @@
 # Cloudflare Pages may 302 /page.html → /page (“pretty URLs”). That breaks auth ?return= which
-# expects real paths like /locker.html. These 301s send extensionless URLs back to the .html file
-# so the final address bar (and pathname) match our static file names. Query strings are preserved
-# by the client redirect chain per Pages behavior.
+# expects real paths like /locker.html. Do NOT add /path → /path.html 200 rewrites for app pages:
+# Pages can also redirect /path.html → /path, which ping-pongs with that rule → ERR_TOO_MANY_REDIRECTS.
 #
-# Login: do NOT add /login → /login.html 301. Pages “pretty URLs” can also redirect /login.html → /login,
-# which ping-pongs with our rule and causes ERR_TOO_MANY_REDIRECTS on /login.html.
-# Use /login.html only in links (no redirect rules for /login).
-# Admin: no /admin → /admin.html 301 here (same Pages ping-pong risk as login). Use /admin.html in links.
-# pilot-auth normalizes extensionless paths in ?return= (lantern-pilot-auth.js).
+# Use real .html paths in links (e.g. /locker.html, /store.html, /games.html). pilot-auth normalizes
+# extensionless paths in ?return= (lantern-pilot-auth.js).
 #
-# Locker, store, games — legacy three-line pattern (review separately if needed):
-# - /page/ → /page (301)
-# - /page.html → /page (301)
-# - /page → /page.html (200)
+# Login: do NOT add /login → /login.html 301. Same ping-pong risk. Use /login.html only in links.
+# Admin: no /admin → /admin.html 301 here. Use /admin.html in links.
+#
+# Locker, store, games, teacher, explore: no extensionless ↔ .html redirect rules here (same ping-pong).
+#
+# change-password: no /change-password → .html 301. Use /change-password.html in links.
 
 # Root: serve index.html (client redirects to /login.html). Do NOT rewrite / → login.html.
-
-/locker/ /locker 301
-/locker.html /locker 301
-/locker /locker.html 200
-
-/store/ /store 301
-/store.html /store 301
-/store /store.html 200
-
-/games/ /games 301
-/games.html /games 301
-/games /games.html 200
-
-# Teacher / Explore: do NOT add /teacher → /teacher.html or /explore → /explore.html 301. Pages pretty URLs
-# can redirect /explore.html → /explore, which ping-pongs with that rule → ERR_TOO_MANY_REDIRECTS (e.g. after
-# forced password change landing on /explore.html). Use /teacher.html and /explore.html in links.
-# change-password: no /change-password → .html 301 (same Pages ping-pong risk). Use /change-password.html in links.

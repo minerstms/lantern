@@ -82,6 +82,22 @@
         msgEl.textContent = text;
       }
 
+      /** Human-readable copy for common worker errors (same behavior, clearer UX). */
+      function friendlyLoginError(raw) {
+        var s = String(raw || '').trim();
+        if (!s) return 'Sign-in failed. Try again.';
+        if (/invalid credentials/i.test(s)) {
+          return 'That Login ID or password does not match. Try again, or ask your teacher or school admin.';
+        }
+        if (/account_disabled|account disabled/i.test(s)) {
+          return 'This account is disabled. Ask your school admin.';
+        }
+        if (/password_not_set|password not set/i.test(s)) {
+          return 'No password is set for this account yet. Ask your school admin.';
+        }
+        return s;
+      }
+
       function redirectAfterLogin(body) {
         var params = new URLSearchParams(location.search);
         var returnTo = params.get('return');
@@ -188,13 +204,14 @@
             var err =
               (res.body && (res.body.error || res.body.message)) ||
               'Request failed (HTTP ' + res.status + ')';
-            showError(String(err));
+            showError(friendlyLoginError(err));
           })
           .catch(function () {
             showError('Network error. Try again.');
           })
           .finally(function () {
             submitBtn.disabled = false;
+            submitBtn.removeAttribute('aria-busy');
           });
       });
     })();
