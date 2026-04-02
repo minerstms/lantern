@@ -1495,7 +1495,13 @@
     var teacherVerifyApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     function initTeacherScopeFromPilot(me){
       if (!me || !me.ok || !me.authenticated) return;
-      var role = (me.role || '').trim();
+      var normalize =
+        window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+          ? window.LanternAuth.normalizeRole
+          : function (x) {
+              return String(x || '').trim().toLowerCase();
+            };
+      var role = normalize(me.role);
       if (role === 'admin') {
         window.pilotIsAdmin = true;
         approvalStaffId = '';

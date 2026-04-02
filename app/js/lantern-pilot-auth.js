@@ -32,9 +32,29 @@
       });
   }
 
+  /** Match worker /me role strings regardless of casing (e.g. legacy rows vs new inserts). */
+  function normalizeRole(r) {
+    return String(r || '').trim().toLowerCase();
+  }
+
+  /** After POST /api/auth/logout: drop client-only identity so no stale character or verify-sim keys mimic an active session. */
+  function clearClientIdentityCaches() {
+    try {
+      global.localStorage.removeItem('LANTERN_ADOPTED_CHARACTER');
+    } catch (e) {}
+    try {
+      global.localStorage.removeItem('LANTERN_VERIFY_TEACHER_ID');
+      global.localStorage.removeItem('LANTERN_VERIFY_NAME');
+      global.localStorage.removeItem('LANTERN_VERIFY_CHARACTER_NAME');
+    } catch (e2) {}
+    try {
+      delete global.LANTERN_PILOT_ME;
+    } catch (e3) {}
+  }
+
   /** Sync adopted character for legacy APIs that read LANTERN_ADOPTED_CHARACTER — values come from server /me only. Uses student_character_name when set; otherwise login username (e.g. student ID). */
   function applyStudentStorageFromSession(data) {
-    if (!data || data.role !== 'student') return;
+    if (!data || normalizeRole(data.role) !== 'student') return;
     var username = data.username ? String(data.username).trim() : '';
     var scn = data.student_character_name ? String(data.student_character_name).trim() : '';
     var characterKey = String(scn || username).trim();
@@ -52,7 +72,7 @@
   }
 
   function applyStudentStorageFromLoginResponse(res) {
-    if (!res || res.role !== 'student') return;
+    if (!res || normalizeRole(res.role) !== 'student') return;
     var username = res.username ? String(res.username).trim() : '';
     var scn = res.student_character_name ? String(res.student_character_name).trim() : '';
     var characterKey = String(scn || username).trim();
@@ -150,7 +170,7 @@
         global.location.replace('/change-password.html?return=' + encodeURIComponent(currentReturnPath()));
         return;
       }
-      var r = (data.role || '').trim();
+      var r = normalizeRole(data.role);
       if (mode === 'admin') {
         if (r === 'student') {
           global.location.replace('/explore.html');
@@ -215,6 +235,8 @@
 
   var sessionApi = {
     fetchMe: fetchMe,
+    normalizeRole: normalizeRole,
+    clearClientIdentityCaches: clearClientIdentityCaches,
     applyStudentStorageFromSession: applyStudentStorageFromSession,
     applyStudentStorageFromLoginResponse: applyStudentStorageFromLoginResponse,
     loginUrlWithReturn: loginUrlWithReturn,

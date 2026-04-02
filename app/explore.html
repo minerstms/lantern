@@ -173,8 +173,7 @@
       return;
     }
     window.LanternPilotAuth.guardPilotPage({ mode: 'general' }, function (data) {
-      var r = (data.role || '').trim();
-      if (r === 'student' && window.LanternPilotAuth.applyStudentStorageFromSession) {
+      if (window.LanternPilotAuth.applyStudentStorageFromSession) {
         window.LanternPilotAuth.applyStudentStorageFromSession(data);
       }
     });

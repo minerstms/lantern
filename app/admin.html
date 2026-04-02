@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="lantern-auth-pending" lang="en">
+<html class="lantern-pilot-auth-pending" lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,7 +9,7 @@
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
-    html.lantern-auth-pending body { visibility: hidden; }
+    html.lantern-pilot-auth-pending body { visibility: hidden; }
     body { margin: 0; padding: 22px 16px 48px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 22px; color: var(--ink);
       background: linear-gradient(180deg, #070b12, #05070b); min-height: 100vh; }
     h1 { font-size: 32px; font-weight: 900; margin: 0 0 8px; }
@@ -34,17 +34,21 @@
 <body>
   <script>
   (function(){
-    var pendingClass = 'lantern-auth-pending';
+    var pendingClass = 'lantern-pilot-auth-pending';
     if (!window.LanternAuth || typeof window.LanternAuth.fetchMe !== 'function') {
       document.documentElement.classList.remove(pendingClass);
       return;
     }
     window.LanternAuth.fetchMe().then(function (data) {
       if (!data || !data.ok || !data.authenticated) {
-        try {
-          sessionStorage.setItem('lantern_return_to', '/admin.html');
-        } catch (e) {}
-        location.replace('/login.html?return=' + encodeURIComponent('/admin.html'));
+        if (typeof window.LanternAuth.loginUrlWithReturn === 'function') {
+          location.replace(window.LanternAuth.loginUrlWithReturn());
+        } else {
+          try {
+            sessionStorage.setItem('lantern_return_to', '/admin.html');
+          } catch (e) {}
+          location.replace('/login.html?return=' + encodeURIComponent('/admin.html'));
+        }
         return;
       }
       if (data.must_change_password) {
@@ -100,6 +104,9 @@
 
     document.getElementById('logoutBtn').addEventListener('click', function(){
       fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){
+        if (window.LanternAuth && typeof window.LanternAuth.clearClientIdentityCaches === 'function') {
+          window.LanternAuth.clearClientIdentityCaches();
+        }
         if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
           location.href = window.LanternAuth.loginUrlWithReturn();
         } else {

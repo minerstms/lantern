@@ -112,7 +112,10 @@
           sessionStorage.removeItem('lantern_return_to');
         } catch (e) {}
 
-        var r = (body && body.role ? String(body.role) : '').trim();
+        var r =
+          window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+            ? window.LanternAuth.normalizeRole(body && body.role)
+            : String((body && body.role) || '').trim().toLowerCase();
         if (r === 'admin') {
           location.replace('/admin.html');
           return;
