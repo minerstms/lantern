@@ -7,20 +7,30 @@
 # break ?return= on the login URL. Auth uses /login.html?return=… directly; pilot-auth normalizes
 # extensionless /login in return paths where needed.
 #
-# /admin routing (see docs in repo; do not use 301 /admin → /admin.html — fights “pretty URLs”):
-# - Pages may redirect /admin.html → extensionless URL (often /admin) before _redirects.
-# - Pages may normalize /admin ↔ /admin/ with 301/308 unless both forms are handled.
-# - Use 200 proxy: /admin serves admin.html with NO Location header (breaks /admin↔/admin.html 301 loops).
-# - Force ONE trailing-slash shape: /admin/ → /admin (301) so /admin/ never chains with other rules.
-# Order: more specific /admin/ first, then /admin.
+# Locker, store, games, admin — SAME pattern (extensionless canonical, no /page ↔ /page.html 301 loop):
+# - /page/ → /page (301) — one trailing-slash shape
+# - /page.html → /page (301) — bookmarked .html URLs collapse to extensionless
+# - /page → /page.html (200) — proxy: serve file without Location redirect to .html
+# Order per route: /path/ first, then /path.html, then /path.
 
 / /login.html 200
 
-/locker /locker.html 301
+/locker/ /locker 301
+/locker.html /locker 301
+/locker /locker.html 200
+
+/store/ /store 301
+/store.html /store 301
+/store /store.html 200
+
+/games/ /games 301
+/games.html /games 301
+/games /games.html 200
+
 /admin/ /admin 301
 /admin.html /admin 301
+/admin /admin.html 200
+
 /teacher /teacher.html 301
 /explore /explore.html 301
-/games /games.html 301
-/store /store.html 301
 /change-password /change-password.html 301
