@@ -940,15 +940,52 @@
 <body class="page-has-ticker">
   <script>
   (function(){
-    if (!window.LanternPilotAuth || typeof window.LanternPilotAuth.guardPilotPage !== 'function') {
-      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+    var pendingClass = 'lantern-pilot-auth-pending';
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.fetchMe !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash));
       return;
     }
-    window.LanternPilotAuth.guardPilotPage({ mode: 'teacher' }, function (data) {
+    var retPath = location.pathname + location.search + location.hash;
+    auth.fetchMe().then(function (data) {
+      if (!data || !data.ok || !data.authenticated) {
+        if (typeof auth.loginUrlWithReturn === 'function') {
+          location.replace(auth.loginUrlWithReturn());
+        } else {
+          location.replace('/login.html?return=' + encodeURIComponent(retPath));
+        }
+        return;
+      }
+      if (data.must_change_password) {
+        location.replace('/change-password.html?return=' + encodeURIComponent(retPath));
+        return;
+      }
+      var role = String(data.role || '').trim().toLowerCase();
+      if (role === 'student') {
+        location.replace('/explore.html');
+        return;
+      }
+      if (role !== 'teacher' && role !== 'admin') {
+        if (typeof auth.loginUrlWithReturn === 'function') {
+          location.replace(auth.loginUrlWithReturn());
+        } else {
+          location.replace('/explore.html');
+        }
+        return;
+      }
       window.LANTERN_PILOT_ME = data;
       try {
         window.dispatchEvent(new CustomEvent('lantern-pilot-me-ready', { detail: data }));
       } catch (e) {}
+      try {
+        document.documentElement.classList.remove(pendingClass);
+      } catch (e2) {}
+    }).catch(function () {
+      if (typeof auth.loginUrlWithReturn === 'function') {
+        location.replace(auth.loginUrlWithReturn());
+      } else {
+        location.replace('/login.html?return=' + encodeURIComponent('/teacher.html'));
+      }
     });
   })();
   </script>

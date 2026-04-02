@@ -170,7 +170,10 @@
    */
   function guardPilotPage(opts, onAllowed) {
     var o = opts || {};
-    var mode = o.mode || 'general';
+    var mode = String(o.mode || 'general').trim().toLowerCase();
+    if (mode !== 'general' && mode !== 'teacher' && mode !== 'admin') {
+      mode = 'general';
+    }
     var pendingClass = o.pendingHtmlClass || 'lantern-pilot-auth-pending';
     try {
       var pathOnly = String(global.location.pathname || '').replace(/\/$/, '') || '/';
@@ -227,6 +230,8 @@
       try {
         global.document.documentElement.classList.remove(pendingClass);
       } catch (e2) {}
+    }).catch(function () {
+      global.location.replace(loginUrlWithReturn());
     });
   }
 

@@ -76,11 +76,12 @@
 <body class="page-has-ticker">
   <script>
   (function(){
-    if (!window.LanternPilotAuth || typeof window.LanternPilotAuth.guardPilotPage !== 'function') {
-      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.guardPilotPage !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash));
       return;
     }
-    window.LanternPilotAuth.guardPilotPage({ mode: 'general' });
+    auth.guardPilotPage({ mode: 'general' });
   })();
   </script>
   <script src="js/lantern-canonical-route-boot.js"></script>
