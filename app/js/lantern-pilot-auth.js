@@ -70,12 +70,13 @@
     } catch (e3) {}
   }
 
-  /** Sync adopted character for legacy APIs that read LANTERN_ADOPTED_CHARACTER — values come from server /me only. Uses student_character_name when set; otherwise login username (e.g. student ID). */
+  /** Sync adopted character for legacy APIs that read LANTERN_ADOPTED_CHARACTER — values come from server /me only. Prefers economy_character_name (MTSS-linked wallet key) when present; else student_character_name; else username. */
   function applyStudentStorageFromSession(data) {
     if (!data || normalizeRole(data.role) !== 'student') return;
     var username = data.username ? String(data.username).trim() : '';
+    var econ = data.economy_character_name ? String(data.economy_character_name).trim() : '';
     var scn = data.student_character_name ? String(data.student_character_name).trim() : '';
-    var characterKey = String(scn || username).trim();
+    var characterKey = String(econ || scn || username).trim();
     if (!characterKey) return;
     try {
       global.localStorage.setItem(
@@ -92,8 +93,9 @@
   function applyStudentStorageFromLoginResponse(res) {
     if (!res || normalizeRole(res.role) !== 'student') return;
     var username = res.username ? String(res.username).trim() : '';
+    var econ = res.economy_character_name ? String(res.economy_character_name).trim() : '';
     var scn = res.student_character_name ? String(res.student_character_name).trim() : '';
-    var characterKey = String(scn || username).trim();
+    var characterKey = String(econ || scn || username).trim();
     if (!characterKey) return;
     try {
       global.localStorage.setItem(

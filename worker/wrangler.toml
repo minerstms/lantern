@@ -24,6 +24,7 @@ bucket_name = "lantern-avatars"
 binding = "NEWS_BUCKET"
 bucket_name = "lantern-media"
 
+# MTSS server-to-server: POST /api/integrations/mtss/roster-upsert — npx wrangler secret put LANTERN_MTSS_INTEGRATION_SECRET
 # Optional: set secret for verify reset/reseed. Run: npx wrangler secret put LANTERN_VERIFY_RESET_PASSWORD
 # Pilot login (Step 2): HS256 JWT cookie signing. Run: npx wrangler secret put PILOT_SESSION_SECRET
 # One-time password bootstrap: npx wrangler secret put PILOT_BOOTSTRAP_SECRET — set PILOT_BOOTSTRAP_ENABLED = "true" only while running POST /api/pilot/bootstrap-passwords, then set back to "false" and redeploy.

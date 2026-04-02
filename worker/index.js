@@ -96,7 +96,8 @@ export default {
         path.startsWith('/api/auth') ||
         path.startsWith('/api/admin') ||
         path.startsWith('/api/class-access') ||
-        path.startsWith('/api/economy')
+        path.startsWith('/api/economy') ||
+        path.startsWith('/api/integrations')
       ) {
         o = corsForPilot(request);
       } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
@@ -112,6 +113,16 @@ export default {
         service: 'lantern-api',
         timestamp: new Date().toISOString(),
       }, 200, cors);
+    }
+    if (path.startsWith('/api/integrations')) {
+      try {
+        const integrationCors = corsForPilot(request);
+        return await handleMtssIntegrationRoutes(request, url, path, env, integrationCors);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        const integrationCors = corsForPilot(request);
+        return jsonResponse({ ok: false, error: message }, 400, integrationCors);
+      }
     }
     if (path.startsWith('/api/avatar')) {
       try {
@@ -735,7 +746,7 @@ async function getPilotAccountFromRequest(request, env) {
   if (!payload || !payload.sub) return null;
   const row = await db
     .prepare(
-      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
     )
     .bind(String(payload.sub))
     .first();
@@ -748,6 +759,21 @@ async function getPilotAccountFromRequest(request, env) {
 function pilotAccountRequiresChangePassword(row) {
   if (!row) return false;
   return row.must_change_password != null && Number(row.must_change_password) !== 0;
+}
+
+/**
+ * Wallet / economy character_name for students: prefer linked MTSS student_id, else student_character_name, else username.
+ * Keeps POST /api/economy/transact (secret) and GET balance aligned when MTSS keys wallets by student_id.
+ */
+function pilotEconomyCharacterName(row) {
+  if (!row) return '';
+  const role = String(row.role || '').trim().toLowerCase();
+  if (role !== 'student') return '';
+  const mid = row.mtss_student_id != null && row.mtss_student_id !== undefined ? String(row.mtss_student_id).trim() : '';
+  if (mid) return mid;
+  const scn = row.student_character_name != null && row.student_character_name !== undefined ? String(row.student_character_name).trim() : '';
+  if (scn) return scn;
+  return String(row.username || '').trim();
 }
 
 async function handleAuthRoutes(request, url, path, env, cors) {
@@ -826,7 +852,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
 
     const row = await db
       .prepare(
-        `SELECT username, display_name, role, student_character_name, teacher_id FROM lantern_pilot_accounts WHERE username = ?`
+        `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id FROM lantern_pilot_accounts WHERE username = ?`
       )
       .bind(finalUsername)
       .first();
@@ -837,7 +863,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     const jwtPayload = {
       sub: row.username,
       role: row.role,
-      scn: row.student_character_name || null,
+      scn: pilotEconomyCharacterName(row) || null,
       tid: row.teacher_id || null,
       iat: now,
       exp: now + PILOT_JWT_TTL_SEC,
@@ -851,6 +877,9 @@ async function handleAuthRoutes(request, url, path, env, cors) {
         display_name: row.display_name,
         role: row.role,
         student_character_name: row.student_character_name || null,
+        mtss_student_id: row.mtss_student_id || null,
+        economy_character_name:
+          String(row.role || '').trim().toLowerCase() === 'student' ? pilotEconomyCharacterName(row) || null : null,
         teacher_id: row.teacher_id || null,
       }),
       {
@@ -910,7 +939,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/admin/users') {
     const rows = await db
       .prepare(
-        `SELECT username, display_name, role, student_character_name, teacher_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
+        `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
     return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
@@ -938,12 +967,16 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const hash = await pilotHashPassword(password, salt);
     const scn = body.student_character_name != null ? String(body.student_character_name).trim() : null;
     const tid = body.teacher_id != null ? String(body.teacher_id).trim() : null;
+    const mtssId =
+      body.mtss_student_id != null && String(body.mtss_student_id).trim() !== ''
+        ? String(body.mtss_student_id).trim()
+        : null;
     const adminUsername = String(account.username || '').trim() || 'admin';
     const ins = await db
       .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), ?)`
+        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), ?)`
       )
-      .bind(u, displayName, role, hash, salt, scn || null, tid || null, adminUsername)
+      .bind(u, displayName, role, hash, salt, scn || null, tid || null, mtssId, adminUsername)
       .run();
     if (!ins.success) {
       return jsonResponse({ ok: false, error: 'insert_failed' }, 500, cors);
@@ -1046,6 +1079,13 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (body.teacher_id !== undefined) {
       const tid = body.teacher_id == null ? null : String(body.teacher_id).trim();
       await db.prepare(`UPDATE lantern_pilot_accounts SET teacher_id = ?, updated_at = datetime('now') WHERE username = ?`).bind(tid, targetUser).run();
+    }
+    if (body.mtss_student_id !== undefined) {
+      const mid = body.mtss_student_id == null ? null : String(body.mtss_student_id).trim() || null;
+      await db
+        .prepare(`UPDATE lantern_pilot_accounts SET mtss_student_id = ?, updated_at = datetime('now') WHERE username = ?`)
+        .bind(mid, targetUser)
+        .run();
     }
     if (body.is_active !== undefined) {
       await db
@@ -1174,7 +1214,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     }
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
+        'SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
       )
       .bind(String(payload.sub))
       .first();
@@ -1186,6 +1226,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: true, authenticated: false, error: 'not_authenticated' }, 200, cors);
     }
     const mcp = row.must_change_password != null && Number(row.must_change_password) !== 0;
+    const rlow = String(row.role || '').trim().toLowerCase();
     return jsonResponse(
       {
         ok: true,
@@ -1194,6 +1235,8 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         display_name: row.display_name,
         role: row.role,
         student_character_name: row.student_character_name || null,
+        mtss_student_id: row.mtss_student_id || null,
+        economy_character_name: rlow === 'student' ? pilotEconomyCharacterName(row) || null : null,
         teacher_id: row.teacher_id || null,
         must_change_password: mcp,
       },
@@ -1293,7 +1336,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
 
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
+        'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
       )
       .bind(username)
       .first();
@@ -1330,7 +1373,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     const jwtPayload = {
       sub: row.username,
       role: row.role,
-      scn: row.student_character_name || null,
+      scn: pilotEconomyCharacterName(row) || null,
       tid: row.teacher_id || null,
       iat: now,
       exp: now + PILOT_JWT_TTL_SEC,
@@ -1345,6 +1388,9 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         display_name: row.display_name,
         role: row.role,
         student_character_name: row.student_character_name || null,
+        mtss_student_id: row.mtss_student_id || null,
+        economy_character_name:
+          String(row.role || '').trim().toLowerCase() === 'student' ? pilotEconomyCharacterName(row) || null : null,
         teacher_id: row.teacher_id || null,
         must_change_password: mcp,
       }),
@@ -1803,9 +1849,95 @@ function getEconomyTransactSecretFromRequest(request) {
   return '';
 }
 
+/** Shared secret for MTSS roster upsert (set LANTERN_MTSS_INTEGRATION_SECRET in env). */
+function getMtssIntegrationSecretFromRequest(request) {
+  const x = request.headers.get('X-Lantern-Mtss-Secret');
+  if (x && String(x).trim()) return String(x).trim();
+  const auth = request.headers.get('Authorization') || '';
+  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return '';
+}
+
+const MTSS_ROSTER_MAX_BATCH = 100;
+const MTSS_STUDENT_ID_MAX_LEN = 256;
+
+/**
+ * Server-to-server: upsert lantern_student_identities by MTSS student_id (character_name) + display_name.
+ * Does not require a pilot login; never deletes wallet rows. Optional link when lantern_pilot_accounts.mtss_student_id matches.
+ */
+async function handleMtssIntegrationRoutes(request, url, path, env, cors) {
+  const db = env.DB;
+  if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+  if (request.method !== 'POST' || path !== '/api/integrations/mtss/roster-upsert') {
+    return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
+  }
+  const configured = (env.LANTERN_MTSS_INTEGRATION_SECRET || '').trim();
+  if (!configured) {
+    return jsonResponse({ ok: false, error: 'mtss_integration_not_configured' }, 503, cors);
+  }
+  const provided = getMtssIntegrationSecretFromRequest(request);
+  if (!provided || !timingSafeEqualStrings(configured, provided)) {
+    return jsonResponse({ ok: false, error: 'unauthorized' }, 401, cors);
+  }
+  const text = await request.text();
+  let body;
+  try {
+    body = JSON.parse(text || '{}');
+  } catch (_) {
+    return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+  }
+  let items = [];
+  if (Array.isArray(body.students)) {
+    items = body.students;
+  } else if (body.student_id != null && String(body.student_id).trim() !== '') {
+    items = [{ student_id: body.student_id, display_name: body.display_name }];
+  } else {
+    return jsonResponse({ ok: false, error: 'missing_student_id' }, 400, cors);
+  }
+  if (items.length > MTSS_ROSTER_MAX_BATCH) {
+    return jsonResponse({ ok: false, error: 'batch_too_large', max: MTSS_ROSTER_MAX_BATCH }, 400, cors);
+  }
+  const now = new Date().toISOString();
+  const results = [];
+  for (const item of items) {
+    const sid = String(item.student_id != null ? item.student_id : '').trim();
+    if (!sid) {
+      results.push({ student_id: sid, ok: false, error: 'empty_student_id' });
+      continue;
+    }
+    if (sid.length > MTSS_STUDENT_ID_MAX_LEN) {
+      results.push({ student_id: sid, ok: false, error: 'student_id_too_long' });
+      continue;
+    }
+    const dnRaw = item.display_name;
+    const dn = dnRaw == null ? null : String(dnRaw).trim() || null;
+    await db
+      .prepare(
+        `INSERT INTO lantern_student_identities (character_name, display_name, created_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(character_name) DO UPDATE SET display_name = excluded.display_name`
+      )
+      .bind(sid, dn, now)
+      .run();
+    const pilotRow = await db
+      .prepare(
+        `SELECT username FROM lantern_pilot_accounts WHERE mtss_student_id IS NOT NULL AND lower(trim(mtss_student_id)) = lower(trim(?)) AND lower(trim(role)) = 'student' LIMIT 1`
+      )
+      .bind(sid)
+      .first();
+    results.push({
+      student_id: sid,
+      ok: true,
+      identity_upserted: true,
+      linked_pilot_username: pilotRow && pilotRow.username ? String(pilotRow.username) : null,
+    });
+  }
+  return jsonResponse({ ok: true, results, count: results.length }, 200, cors);
+}
+
 /**
  * Allows transact if: (1) X-Lantern-Economy-Secret or Bearer matches env.LANTERN_ECONOMY_SECRET, or
- * (2) valid pilot session: teacher/admin any character_name; student only own wallet (student_character_name || username).
+ * (2) valid pilot session: teacher/admin any character_name; student only own wallet (see pilotEconomyCharacterName).
  */
 function economyTransactAllowed(env, request, characterName, pilotAccount) {
   const configured = (env.LANTERN_ECONOMY_SECRET || '').trim();
@@ -1821,9 +1953,7 @@ function economyTransactAllowed(env, request, characterName, pilotAccount) {
     return { ok: true };
   }
   if (role === 'student') {
-    const scn = (pilotAccount.student_character_name || '').trim();
-    const un = (pilotAccount.username || '').trim();
-    const allowed = (scn || un || '').trim();
+    const allowed = pilotEconomyCharacterName(pilotAccount) || '';
     if (allowed && characterName === allowed) {
       return { ok: true };
     }
