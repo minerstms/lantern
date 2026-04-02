@@ -6,6 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
   <title>TMS Lantern — Missions</title>
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="thanks.html">
@@ -201,16 +202,52 @@
       try {
         var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
         var sim = params.get('simStudent');
-        if (sim && String(sim).trim()) { missionVerifyModeActive = true; return; }
-      } catch(e) {}
-      try {
-        if (localStorage.getItem('LANTERN_VERIFY_CHARACTER_NAME')) { missionVerifyModeActive = true; return; }
-      } catch(e) {}
-      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-      if (apiBase === null) return;
-      fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).then(function(res){
-        if (res && res.ok && res.state && res.state.character_name) missionVerifyModeActive = true;
-      }).catch(function(){});
+        if (sim && String(sim).trim()) {
+          missionVerifyModeActive = true;
+          return;
+        }
+      } catch (e) {}
+
+      function applyLegacyVerifyHints() {
+        try {
+          if (localStorage.getItem('LANTERN_VERIFY_CHARACTER_NAME')) {
+            missionVerifyModeActive = true;
+            return;
+          }
+        } catch (e1) {}
+        var apiBase =
+          typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
+            ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
+            : null;
+        if (apiBase === null) return;
+        fetch(apiBase + '/api/verify/state')
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (res) {
+            if (res && res.ok && res.state && res.state.character_name) missionVerifyModeActive = true;
+          })
+          .catch(function () {});
+      }
+
+      if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
+        window.LanternAuth.fetchMe()
+          .then(function (me) {
+            if (me && me.ok && me.authenticated) {
+              missionVerifyModeActive = false;
+              if (window.LanternPilotAuth && typeof window.LanternPilotAuth.applyStudentStorageFromSession === 'function') {
+                window.LanternPilotAuth.applyStudentStorageFromSession(me);
+              }
+              return;
+            }
+            applyLegacyVerifyHints();
+          })
+          .catch(function () {
+            applyLegacyVerifyHints();
+          });
+      } else {
+        applyLegacyVerifyHints();
+      }
     })();
     function isMissionWritingIntegrityBypassActive(){ return missionVerifyModeActive; }
 

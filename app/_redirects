@@ -28,6 +28,7 @@
 /games.html /games 301
 /games /games.html 200
 
-/teacher /teacher.html 301
-/explore /explore.html 301
+# Teacher / Explore: do NOT add /teacher → /teacher.html or /explore → /explore.html 301. Pages pretty URLs
+# can redirect /explore.html → /explore, which ping-pongs with that rule → ERR_TOO_MANY_REDIRECTS (e.g. after
+# forced password change landing on /explore.html). Use /teacher.html and /explore.html in links.
 # change-password: no /change-password → .html 301 (same Pages ping-pong risk). Use /change-password.html in links.
