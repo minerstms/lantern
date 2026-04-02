@@ -40,7 +40,6 @@
       return;
     }
     window.LanternAuth.fetchMe().then(function (data) {
-      console.log('[ADMIN GUARD]', data);
       if (!data || !data.ok || !data.authenticated) {
         try {
           sessionStorage.setItem('lantern_return_to', '/admin.html');
@@ -71,11 +70,11 @@
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
     <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
-    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). Use <strong>Set Temp Password</strong> or <strong>Reset Password</strong> to set a new password; the user must sign in with it and choose their own password if required.</p>
+    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). Use <strong>Set temp password</strong> to assign a new one; that user signs in with it once, then must choose their own password before the rest of the app unlocks.</p>
     <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
     <form id="addUserForm">
       <label for="nu_username">Login username</label>
-      <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">Use the sign-in name for this person (for students, typically the school login ID).</p>
+      <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">This is the <strong>Login ID</strong> they type at sign-in (for students, usually the Student ID your school uses—stored as text).</p>
       <input id="nu_username" type="text" required autocomplete="off" aria-describedby="nu_username_hint" />
       <label>Display name <input id="nu_display" type="text" /></label>
       <label>Role
@@ -175,16 +174,10 @@
           var bTemp = document.createElement('button');
           bTemp.type = 'button';
           bTemp.className = 'btn good';
-          bTemp.textContent = 'Set Temp Password';
-          bTemp.addEventListener('click', function(){ promptAndResetPassword(u.username, 'Set Temp Password'); });
-          var bReset = document.createElement('button');
-          bReset.type = 'button';
-          bReset.className = 'btn';
-          bReset.textContent = 'Reset Password';
-          bReset.addEventListener('click', function(){ promptAndResetPassword(u.username, 'Reset Password'); });
+          bTemp.textContent = 'Set temp password';
+          bTemp.addEventListener('click', function(){ promptAndResetPassword(u.username, 'Set temp password'); });
           cell.appendChild(bEdit);
           cell.appendChild(bTemp);
-          cell.appendChild(bReset);
           tb.appendChild(tr);
         });
       });

@@ -66,8 +66,8 @@
     <p class="sub">Use the login name your school gave you and your password.</p>
     <div id="msg" style="display:none;" role="status" aria-live="polite"></div>
     <form id="loginForm" novalidate>
-      <label for="username">Student ID or username</label>
-      <p id="username_hint" class="hint">Students: enter your <strong>Student ID</strong> (the number or code from your teacher—use it exactly as text). Teachers and administrators: enter your username.</p>
+      <label for="username">Login ID</label>
+      <p id="username_hint" class="hint">Enter the <strong>Login ID</strong> you were given (for students, this is usually your Student ID—same characters your teacher entered). Teachers and admins: use your account Login ID.</p>
       <input id="username" name="username" type="text" autocomplete="username" required aria-describedby="username_hint" />
       <label for="password">Password</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required />
@@ -170,7 +170,7 @@
           return;
         }
         if (!username || !password) {
-          showError('Please enter Student ID or username and password.');
+          showError('Please enter Login ID and password.');
           return;
         }
         submitBtn.disabled = true;

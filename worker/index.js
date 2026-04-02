@@ -964,10 +964,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!u || !newPassword || newPassword.length < 8) {
       return jsonResponse({ ok: false, error: 'username_and_password_required', min: 8 }, 400, cors);
     }
-    const existing = await db.prepare(`SELECT username FROM lantern_pilot_accounts WHERE username = ?`).bind(u).first();
+    const existing = await db
+      .prepare(`SELECT username FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`)
+      .bind(u)
+      .first();
     if (!existing) {
       return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
     }
+    const targetUser = String(existing.username);
     const adminUsername = String(account.username || '').trim() || 'admin';
     const salt = pilotRandomSaltHex();
     const hash = await pilotHashPassword(newPassword, salt);
@@ -975,7 +979,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       .prepare(
         `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
       )
-      .bind(hash, salt, adminUsername, u)
+      .bind(hash, salt, adminUsername, targetUser)
       .run();
     return jsonResponse({ ok: true }, 200, cors);
   }
@@ -992,10 +996,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!u) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const existing = await db.prepare(`SELECT username FROM lantern_pilot_accounts WHERE username = ?`).bind(u).first();
+    const existing = await db
+      .prepare(`SELECT username FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`)
+      .bind(u)
+      .first();
     if (!existing) {
       return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
     }
+    const targetUser = String(existing.username);
     const newPassword = body.password != null ? String(body.password) : '';
     const adminUsername = String(account.username || '').trim() || 'admin';
     if (newPassword && newPassword.length >= 8) {
@@ -1005,7 +1013,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .prepare(
           `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
         )
-        .bind(hash, salt, adminUsername, u)
+        .bind(hash, salt, adminUsername, targetUser)
         .run();
     } else if (newPassword && newPassword.length > 0) {
       return jsonResponse({ ok: false, error: 'password_min_length', min: 8 }, 400, cors);
@@ -1015,13 +1023,13 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .prepare(
           `UPDATE lantern_pilot_accounts SET must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
         )
-        .bind(adminUsername, u)
+        .bind(adminUsername, targetUser)
         .run();
     }
     if (body.display_name != null) {
       await db
         .prepare(`UPDATE lantern_pilot_accounts SET display_name = ?, updated_at = datetime('now') WHERE username = ?`)
-        .bind(String(body.display_name).trim(), u)
+        .bind(String(body.display_name).trim(), targetUser)
         .run();
     }
     if (body.role != null) {
@@ -1029,20 +1037,20 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       if (!['student', 'teacher', 'admin'].includes(role)) {
         return jsonResponse({ ok: false, error: 'invalid_role' }, 400, cors);
       }
-      await db.prepare(`UPDATE lantern_pilot_accounts SET role = ?, updated_at = datetime('now') WHERE username = ?`).bind(role, u).run();
+      await db.prepare(`UPDATE lantern_pilot_accounts SET role = ?, updated_at = datetime('now') WHERE username = ?`).bind(role, targetUser).run();
     }
     if (body.student_character_name !== undefined) {
       const scn = body.student_character_name == null ? null : String(body.student_character_name).trim();
-      await db.prepare(`UPDATE lantern_pilot_accounts SET student_character_name = ?, updated_at = datetime('now') WHERE username = ?`).bind(scn, u).run();
+      await db.prepare(`UPDATE lantern_pilot_accounts SET student_character_name = ?, updated_at = datetime('now') WHERE username = ?`).bind(scn, targetUser).run();
     }
     if (body.teacher_id !== undefined) {
       const tid = body.teacher_id == null ? null : String(body.teacher_id).trim();
-      await db.prepare(`UPDATE lantern_pilot_accounts SET teacher_id = ?, updated_at = datetime('now') WHERE username = ?`).bind(tid, u).run();
+      await db.prepare(`UPDATE lantern_pilot_accounts SET teacher_id = ?, updated_at = datetime('now') WHERE username = ?`).bind(tid, targetUser).run();
     }
     if (body.is_active !== undefined) {
       await db
         .prepare(`UPDATE lantern_pilot_accounts SET is_active = ?, updated_at = datetime('now') WHERE username = ?`)
-        .bind(body.is_active ? 1 : 0, u)
+        .bind(body.is_active ? 1 : 0, targetUser)
         .run();
     }
     return jsonResponse({ ok: true }, 200, cors);
@@ -1283,14 +1291,11 @@ async function handlePilotRoutes(request, url, path, env, cors) {
       await ensureLanternPrimaryAdminCredentials(db);
     }
 
-    const loginLookupUsername =
-      normalizedUsername === normalizedAdmin ? LANTERN_PRIMARY_ADMIN_USERNAME : username;
-
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE username = ?'
+        'SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
       )
-      .bind(loginLookupUsername)
+      .bind(username)
       .first();
 
     if (!row) {

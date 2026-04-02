@@ -1,6 +1,6 @@
 /**
- * Server session: GET /api/auth/me (HttpOnly cookie). Identity is not defined by localStorage.
- * @see lantern-worker — /api/auth/login, /api/auth/me, /api/auth/logout
+ * Lantern session helpers: GET /api/auth/me (HttpOnly cookie). Identity comes from the server, not localStorage.
+ * Routes: /api/auth/login, /api/auth/me, /api/auth/logout, /api/auth/change-password (see worker/index.js).
  */
 (function (global) {
   'use strict';
