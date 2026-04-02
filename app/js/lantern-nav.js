@@ -15,9 +15,9 @@
     if (/thanks\.html/.test(path)) return 'thanks';
     if (/grades\.html/.test(path)) return 'grades';
     if (/news\.html/.test(path)) return 'news';
-    if (/store\.html/.test(path)) return 'store';
-    if (/games\.html/.test(path)) return 'games';
-    if (/locker\.html/.test(path)) return 'locker';
+    if (/store\.html/.test(path) || /\/store\/?$/.test(path)) return 'store';
+    if (/games\.html/.test(path) || /\/games\/?$/.test(path)) return 'games';
+    if (/locker\.html/.test(path) || /\/locker\/?$/.test(path)) return 'locker';
     if (/explore\.html/.test(path) || /\/explore\/?$/.test(path)) return 'explore';
     if (/teacher\.html/.test(path)) return 'teacher';
     if (/display\.html/.test(path)) return 'display';

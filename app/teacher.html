@@ -785,6 +785,14 @@
       gap: 10px;
       margin: 6px 0 10px;
     }
+    #teacherLogoutMsg{
+      color: var(--bad);
+      font-size: 20px;
+      font-weight: 800;
+      margin: 8px auto 0;
+      text-align: center;
+      max-width: 720px;
+    }
     .teacherJumpNav{
       display: flex;
       flex-wrap: wrap;
@@ -974,7 +982,9 @@
     </div>
     <div class="teacherActionRow">
       <a href="display.html" target="_blank" rel="noopener" class="btn good" style="font-size:22px; padding:8px 16px; text-decoration:none;">Hallway TV</a>
+      <button type="button" class="btn" id="teacherLogoutBtn" style="font-size:22px; padding:8px 16px;">Sign out</button>
     </div>
+    <p id="teacherLogoutMsg" role="status" aria-live="polite" style="display:none;"></p>
     <nav class="teacherJumpNav" aria-label="Jump to teacher section">
       <span class="teacherJumpNav-label">Jump to</span>
       <a href="#teacher-rewards">Rewards</a>
@@ -4092,6 +4102,41 @@
     if (searchInput) searchInput.addEventListener('input', function(){ renderCuratePosts(); });
 
     refresh();
+  </script>
+  <script>
+  (function(){
+    var btn = document.getElementById('teacherLogoutBtn');
+    if (!btn) return;
+    var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    var msg = document.getElementById('teacherLogoutMsg');
+    function showLogoutErr(text) {
+      if (!msg) return;
+      if (!text) { msg.style.display = 'none'; msg.textContent = ''; return; }
+      msg.style.display = 'block';
+      msg.textContent = text;
+    }
+    btn.addEventListener('click', function(){
+      showLogoutErr('');
+      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          if (window.LanternAuth && typeof window.LanternAuth.clearClientIdentityCaches === 'function') {
+            window.LanternAuth.clearClientIdentityCaches();
+          }
+          if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
+            location.href = window.LanternAuth.loginUrlWithReturn();
+          } else {
+            try {
+              sessionStorage.setItem('lantern_return_to', '/teacher.html');
+            } catch (e) {}
+            location.href = '/login.html?return=%2Fteacher.html';
+          }
+        })
+        .catch(function () {
+          showLogoutErr('Could not sign out. Check your connection and try again.');
+        });
+    });
+  })();
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>
 </body>
