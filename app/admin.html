@@ -34,6 +34,10 @@
     .usersMsg--ok { background: rgba(56,208,124,.12); border-color: rgba(56,208,124,.35); color: #b4ffd4; }
     .usersMsg--err { background: rgba(255,77,109,.12); border-color: rgba(255,77,109,.35); color: #ffb4b4; }
     #logoutMsg { color: var(--bad); font-size: 20px; font-weight: 800; margin: 8px 0 0; }
+    #pendingMsg { margin-bottom: 14px; }
+    .pendingRowActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; flex: 1; min-width: 0; }
+    .pendingRejectNote { flex: 1; min-width: 140px; max-width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.28); color: var(--ink); font-size: 20px; font-family: inherit; }
+    .pendingRow .btn:disabled { opacity: 0.55; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -109,6 +113,7 @@
   <div class="card">
     <div class="cardHd">Pending approvals</div>
     <p class="pendingMeta">Student submissions appear here until approved. Approving publishes per item rules.</p>
+    <div id="pendingMsg" role="status" aria-live="polite" style="display:none;"></div>
     <div id="pendingList"></div>
   </div>
 
@@ -149,6 +154,20 @@
 
     function showUsersMsg(text, kind) {
       var el = document.getElementById('usersMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = '';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function showPendingMsg(text, kind) {
+      var el = document.getElementById('pendingMsg');
       if (!el) return;
       if (!text) {
         el.style.display = 'none';
@@ -280,40 +299,98 @@
           var el = document.getElementById('pendingList');
           el.innerHTML = '';
           var list = (res && res.pending) || [];
-          if (list.length === 0) { el.innerHTML = '<p class="pendingMeta">No pending items.</p>'; return; }
+          if (list.length === 0) {
+            showPendingMsg('', '');
+            el.innerHTML = '<p class="pendingMeta">No pending items.</p>';
+            return;
+          }
           list.forEach(function(a){
             var div = document.createElement('div');
             div.className = 'pendingRow';
             var title = a.title || ((a.item_type || '') + ' · ' + (a.item_id || ''));
-            div.innerHTML = '<div><strong>' + esc(a.item_type || '') + '</strong> — ' + esc(title) + '<div class="pendingMeta">' + esc(a.submitter || '') + '</div></div><div></div>';
+            var left = document.createElement('div');
+            left.innerHTML = '<strong>' + esc(a.item_type || '') + '</strong> — ' + esc(title) + '<div class="pendingMeta">' + esc(a.submitter || '') + '</div>';
+
+            var actions = document.createElement('div');
+            actions.className = 'pendingRowActions';
+
+            var noteInput = document.createElement('input');
+            noteInput.type = 'text';
+            noteInput.className = 'pendingRejectNote';
+            noteInput.setAttribute('aria-label', 'Optional note when rejecting');
+            noteInput.placeholder = 'Optional note if rejecting';
+
             var id = a.id;
+            var typeLabel = String(a.item_type || 'item');
+
             var approveBtn = document.createElement('button');
+            approveBtn.type = 'button';
             approveBtn.className = 'btn good';
             approveBtn.textContent = 'Approve';
-            approveBtn.onclick = function(){
-              fetch(api + '/api/approvals/approve', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, reviewed_by_staff_name: 'Admin', staff_id: 'admin' }),
-              }).then(function(){ loadPending(); loadUsers(); });
-            };
+
             var rejBtn = document.createElement('button');
+            rejBtn.type = 'button';
             rejBtn.className = 'btn bad';
             rejBtn.textContent = 'Reject';
-            rejBtn.onclick = function(){
-              var note = prompt('Reason (optional):', '') || '';
-              fetch(api + '/api/approvals/reject', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, decision_note: note, reviewed_by_staff_name: 'Admin', staff_id: 'admin' }),
-              }).then(function(){ loadPending(); });
-            };
-            div.lastElementChild.appendChild(approveBtn);
-            div.lastElementChild.appendChild(rejBtn);
+
+            function setBusy(busy) {
+              approveBtn.disabled = !!busy;
+              rejBtn.disabled = !!busy;
+              noteInput.disabled = !!busy;
+            }
+
+            approveBtn.addEventListener('click', function(){
+              setBusy(true);
+              postAdminJson('/api/approvals/approve', { id: id, reviewed_by_staff_name: 'Admin', staff_id: 'admin' }).then(function(res){
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showPendingMsg('Approved (' + typeLabel + ').', 'ok');
+                  loadPending();
+                  loadUsers();
+                } else {
+                  showPendingMsg((res && res.body && res.body.error) || 'Approve failed', 'err');
+                }
+              }).catch(function(){
+                showPendingMsg('Network error. Try again.', 'err');
+              }).finally(function(){
+                setBusy(false);
+              });
+            });
+
+            rejBtn.addEventListener('click', function(){
+              setBusy(true);
+              var note = (noteInput.value || '').trim();
+              postAdminJson('/api/approvals/reject', {
+                id: id,
+                decision_note: note,
+                reviewed_by_staff_name: 'Admin',
+                staff_id: 'admin',
+              }).then(function(res){
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showPendingMsg('Rejected (' + typeLabel + ').', 'ok');
+                  loadPending();
+                  loadUsers();
+                } else {
+                  showPendingMsg((res && res.body && res.body.error) || 'Reject failed', 'err');
+                }
+              }).catch(function(){
+                showPendingMsg('Network error. Try again.', 'err');
+              }).finally(function(){
+                setBusy(false);
+              });
+            });
+
+            actions.appendChild(noteInput);
+            actions.appendChild(approveBtn);
+            actions.appendChild(rejBtn);
+            div.appendChild(left);
+            div.appendChild(actions);
             el.appendChild(div);
           });
+        })
+        .catch(function(){
+          showPendingMsg('Could not load pending queue. Check your connection.', 'err');
         });
     }
 
