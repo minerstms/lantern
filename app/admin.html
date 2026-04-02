@@ -38,6 +38,11 @@
     .pendingRowActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; flex: 1; min-width: 0; }
     .pendingRejectNote { flex: 1; min-width: 140px; max-width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.28); color: var(--ink); font-size: 20px; font-family: inherit; }
     .pendingRow .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .acctInlinePanel { margin-top: 16px; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); max-width: 440px; }
+    .acctInlinePanel label { margin-top: 10px; }
+    .acctPanelHd { font-weight: 900; font-size: 24px; margin: 0 0 10px; color: var(--accent); }
+    .acctPanelActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
+    .acctPanelHint { color: var(--muted); font-size: 20px; margin: 0 0 12px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -93,7 +98,33 @@
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
     <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
-    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). <strong>Set temp password</strong> sets a one-time password: that person signs in, is prompted to choose their own password, then the rest of the app unlocks. A confirmation appears below when the reset succeeds.</p>
+
+    <div id="editUserPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+      <p class="acctPanelHd">Edit account</p>
+      <p id="editUserDisplay" class="acctPanelHint"></p>
+      <input type="hidden" id="editUserUsername" value="" />
+      <label for="editUserRole">Role</label>
+      <select id="editUserRole"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>
+      <label for="editUserActive">Account status</label>
+      <select id="editUserActive"><option value="1">Active</option><option value="0">Suspended</option></select>
+      <div class="acctPanelActions">
+        <button type="button" class="btn good" id="editUserSave">Save changes</button>
+        <button type="button" class="btn" id="editUserCancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="tempPwPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+      <p class="acctPanelHd">Set temporary password</p>
+      <p id="tempPwUserHint" class="acctPanelHint"></p>
+      <label for="tempPwInput">New password (8+ characters)</label>
+      <input id="tempPwInput" type="password" autocomplete="new-password" minlength="8" />
+      <div class="acctPanelActions">
+        <button type="button" class="btn good" id="tempPwSave">Set password</button>
+        <button type="button" class="btn" id="tempPwCancel">Cancel</button>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). <strong>Set temp password</strong> sets a one-time password: that person signs in, is prompted to choose their own password, then the rest of the app unlocks. A confirmation appears above when the reset succeeds.</p>
     <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
     <form id="addUserForm">
       <label for="nu_username">Login username</label>
@@ -196,16 +227,110 @@
       });
     }
 
-    /** POST /api/admin/users/reset-password with { username, new_password } */
-    function promptAndResetPassword(username, promptTitle) {
-      var pw = prompt((promptTitle || 'New password') + ' for ' + username + ' (8+ characters):', '');
-      if (pw === null) return;
+    function closeEditUserPanel() {
+      var p = document.getElementById('editUserPanel');
+      if (p) {
+        p.style.display = 'none';
+        p.setAttribute('aria-hidden', 'true');
+      }
+    }
+    function closeTempPwPanel() {
+      var p = document.getElementById('tempPwPanel');
+      var inp = document.getElementById('tempPwInput');
+      if (inp) inp.value = '';
+      if (p) {
+        p.style.display = 'none';
+        p.setAttribute('aria-hidden', 'true');
+      }
+    }
+    function openOnlyAcctPanel(which) {
+      closeEditUserPanel();
+      closeTempPwPanel();
+      if (which === 'edit') {
+        var el = document.getElementById('editUserPanel');
+        if (el) {
+          el.style.display = 'block';
+          el.setAttribute('aria-hidden', 'false');
+        }
+      } else if (which === 'temp') {
+        var el2 = document.getElementById('tempPwPanel');
+        if (el2) {
+          el2.style.display = 'block';
+          el2.setAttribute('aria-hidden', 'false');
+        }
+      }
+    }
+    function openEditUserPanel(u) {
+      var user = u.username != null ? String(u.username) : '';
+      var disp = document.getElementById('editUserDisplay');
+      var hid = document.getElementById('editUserUsername');
+      var roleSel = document.getElementById('editUserRole');
+      var actSel = document.getElementById('editUserActive');
+      if (disp) disp.textContent = 'Login ID: ' + user;
+      if (hid) hid.value = user;
+      if (roleSel) {
+        var rv = String(u.role || 'student').trim().toLowerCase();
+        if (rv !== 'admin' && rv !== 'teacher' && rv !== 'student') rv = 'student';
+        roleSel.value = rv;
+      }
+      var ia = u.is_active === 0 || u.is_active === '0' ? '0' : '1';
+      if (actSel) actSel.value = ia;
+      openOnlyAcctPanel('edit');
+    }
+    function openTempPwPanel(username) {
+      var hint = document.getElementById('tempPwUserHint');
+      if (hint) hint.textContent = 'Setting a new temporary password for ' + String(username) + '. They will sign in once, then choose their own password.';
+      var inp = document.getElementById('tempPwInput');
+      if (inp) {
+        inp.value = '';
+        try {
+          inp.focus();
+        } catch (e) {}
+      }
+      document.getElementById('tempPwPanel').dataset.username = String(username);
+      openOnlyAcctPanel('temp');
+    }
+
+    document.getElementById('editUserCancel').addEventListener('click', closeEditUserPanel);
+    document.getElementById('editUserSave').addEventListener('click', function(){
+      var username = (document.getElementById('editUserUsername').value || '').trim();
+      var role = (document.getElementById('editUserRole').value || 'student').trim();
+      var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
+      if (!username) return;
+      var saveBtn = document.getElementById('editUserSave');
+      var cancelBtn = document.getElementById('editUserCancel');
+      if (saveBtn) saveBtn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = true;
+      postAdminJson('/api/admin/users/update', { username: username, role: role, is_active: act }).then(function(x){
+        if (x && x.blocked) return;
+        if (x && x.okHttp && x.body && x.body.ok) {
+          showUsersMsg('Updated account ' + username + '.', 'ok');
+          closeEditUserPanel();
+          loadUsers();
+        } else {
+          showUsersMsg((x && x.body && x.body.error) || 'Update failed', 'err');
+        }
+      }).finally(function(){
+        if (saveBtn) saveBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+      });
+    });
+
+    document.getElementById('tempPwCancel').addEventListener('click', closeTempPwPanel);
+    document.getElementById('tempPwSave').addEventListener('click', function(){
+      var username = (document.getElementById('tempPwPanel').dataset.username || '').trim();
+      var pw = document.getElementById('tempPwInput').value || '';
       pw = String(pw);
+      if (!username) return;
       if (pw.length < 8) {
         showUsersMsg('Password must be at least 8 characters.', 'err');
         return;
       }
       showUsersMsg('', '');
+      var s = document.getElementById('tempPwSave');
+      var c = document.getElementById('tempPwCancel');
+      if (s) s.disabled = true;
+      if (c) c.disabled = true;
       postAdminJson('/api/admin/users/reset-password', { username: username, new_password: pw }).then(function(res){
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
@@ -213,12 +338,16 @@
             'Temporary password set for ' + username + '. They sign in with it once, then choose their own password before the rest of the app unlocks.',
             'ok'
           );
+          closeTempPwPanel();
           loadUsers();
           return;
         }
         showUsersMsg((res && res.body && res.body.error) || 'Request failed', 'err');
+      }).finally(function(){
+        if (s) s.disabled = false;
+        if (c) c.disabled = false;
       });
-    }
+    });
 
     function loadUsers(){
       fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){
@@ -243,24 +372,21 @@
           bEdit.className = 'btn';
           bEdit.textContent = 'Edit';
           bEdit.addEventListener('click', function(){
-            var role = prompt('New role (student / teacher / admin):', u.role || 'student');
-            if (!role) return;
-            var act = confirm('Account active? OK = active, Cancel = suspended') ? 1 : 0;
-            postAdminJson('/api/admin/users/update', { username: u.username, role: role.trim(), is_active: act }).then(function(x){
-              if (x && x.blocked) return;
-              if (x && x.okHttp && x.body && x.body.ok) {
-                showUsersMsg('Updated account ' + u.username + '.', 'ok');
-                loadUsers();
-              } else {
-                showUsersMsg((x && x.body && x.body.error) || 'Update failed', 'err');
-              }
-            });
+            openEditUserPanel(u);
+            try {
+              document.getElementById('editUserPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {}
           });
           var bTemp = document.createElement('button');
           bTemp.type = 'button';
           bTemp.className = 'btn good';
           bTemp.textContent = 'Set temp password';
-          bTemp.addEventListener('click', function(){ promptAndResetPassword(u.username, 'Set temp password'); });
+          bTemp.addEventListener('click', function(){
+            openTempPwPanel(u.username);
+            try {
+              document.getElementById('tempPwPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e2) {}
+          });
           cell.appendChild(bEdit);
           cell.appendChild(bTemp);
           tb.appendChild(tr);
