@@ -92,10 +92,14 @@
         }
 
         if (body && body.must_change_password) {
+          var pwdDefault =
+            window.LanternAuth && typeof window.LanternAuth.defaultRoleHomePath === 'function'
+              ? window.LanternAuth.defaultRoleHomePath(body && body.role)
+              : '/explore.html';
           var pwdReturn =
             returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)
               ? returnTo
-              : '/explore.html';
+              : pwdDefault;
           location.replace('/change-password.html?return=' + encodeURIComponent(pwdReturn));
           return;
         }
@@ -104,6 +108,24 @@
           try {
             sessionStorage.removeItem('lantern_return_to');
           } catch (e) {}
+          var rReturn =
+            window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+              ? window.LanternAuth.normalizeRole(body && body.role)
+              : String((body && body.role) || '').trim().toLowerCase();
+          if (
+            window.LanternAuth &&
+            typeof window.LanternAuth.isGenericExplorePath === 'function' &&
+            window.LanternAuth.isGenericExplorePath(returnTo)
+          ) {
+            if (rReturn === 'teacher') {
+              location.replace('/teacher.html');
+              return;
+            }
+            if (rReturn === 'admin') {
+              location.replace('/admin.html');
+              return;
+            }
+          }
           location.replace(returnTo);
           return;
         }

@@ -37,6 +37,21 @@
     return String(r || '').trim().toLowerCase();
   }
 
+  /** Path-only: /explore or /explore.html (student home), with optional query/hash ignored. */
+  function isGenericExplorePath(pathOrUrl) {
+    var pathOnly = String(pathOrUrl || '').split('?')[0].split('#')[0];
+    var p = pathOnly.replace(/\/$/, '') || '/';
+    return p === '/explore' || p === '/explore.html';
+  }
+
+  /** Default app entry after login/password when no specific return is desired. */
+  function defaultRoleHomePath(role) {
+    var r = normalizeRole(role);
+    if (r === 'admin') return '/admin.html';
+    if (r === 'teacher') return '/teacher.html';
+    return '/explore.html';
+  }
+
   /** After POST /api/auth/logout: drop client-only identity so no stale character or verify-sim keys mimic an active session. */
   function clearClientIdentityCaches() {
     try {
@@ -236,6 +251,8 @@
   var sessionApi = {
     fetchMe: fetchMe,
     normalizeRole: normalizeRole,
+    isGenericExplorePath: isGenericExplorePath,
+    defaultRoleHomePath: defaultRoleHomePath,
     clearClientIdentityCaches: clearClientIdentityCaches,
     applyStudentStorageFromSession: applyStudentStorageFromSession,
     applyStudentStorageFromLoginResponse: applyStudentStorageFromLoginResponse,
