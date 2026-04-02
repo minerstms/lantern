@@ -17,7 +17,7 @@ const corsHeaders = {
 };
 
 /** After creating the Cloudflare Pages project, set to your site origin, e.g. https://my-project.pages.dev. Required for pilot login + credentialed CORS. */
-const PRODUCTION_PAGES_ORIGIN = '';
+const PRODUCTION_PAGES_ORIGIN = 'https://lantern-42i.pages.dev';
 
 const ALLOWED_ORIGINS = [
   ...(PRODUCTION_PAGES_ORIGIN ? [PRODUCTION_PAGES_ORIGIN] : []),

@@ -5,6 +5,15 @@
 (function (global) {
   'use strict';
 
+  /** Live Worker API (Lantern). Used when pages omit window.LANTERN_AVATAR_API (e.g. index.html). */
+  var LANTERN_DEFAULT_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';
+  if (
+    global.LANTERN_AVATAR_API == null ||
+    (typeof global.LANTERN_AVATAR_API === 'string' && String(global.LANTERN_AVATAR_API).trim() === '')
+  ) {
+    global.LANTERN_AVATAR_API = LANTERN_DEFAULT_AVATAR_API;
+  }
+
   function apiBase() {
     var a = global.LANTERN_AVATAR_API;
     return a ? String(a).replace(/\/$/, '') : '';
