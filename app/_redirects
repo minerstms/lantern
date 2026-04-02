@@ -3,9 +3,11 @@
 # so the final address bar (and pathname) match our static file names. Query strings are preserved
 # by the client redirect chain per Pages behavior.
 #
-# Login + admin: ONE-WAY 301 to *.html only. Do NOT do /page.html → /page 301 AND /page → page.html 200:
-# that bidirectional pattern + Pages “pretty URLs” can cause ERR_TOO_MANY_REDIRECTS.
-# pilot-auth still normalizes extensionless paths in ?return= (lantern-pilot-auth.js).
+# Login: do NOT add /login → /login.html 301. Pages “pretty URLs” can also redirect /login.html → /login,
+# which ping-pongs with our rule and causes ERR_TOO_MANY_REDIRECTS on /login.html.
+# Use /login.html only in links (no redirect rules for /login).
+# Admin: no /admin → /admin.html 301 here (same Pages ping-pong risk as login). Use /admin.html in links.
+# pilot-auth normalizes extensionless paths in ?return= (lantern-pilot-auth.js).
 #
 # Locker, store, games — legacy three-line pattern (review separately if needed):
 # - /page/ → /page (301)
@@ -26,12 +28,6 @@
 /games.html /games 301
 /games /games.html 200
 
-/admin /admin.html 301
-/admin/ /admin.html 301
-
-/login /login.html 301
-/login/ /login.html 301
-
 /teacher /teacher.html 301
 /explore /explore.html 301
-/change-password /change-password.html 301
+# change-password: no /change-password → .html 301 (same Pages ping-pong risk). Use /change-password.html in links.
