@@ -52,7 +52,10 @@
     return '/explore.html';
   }
 
-  /** After POST /api/auth/logout: drop client-only identity so no stale character or verify-sim keys mimic an active session. */
+  /**
+   * After POST /api/auth/logout succeeds: clear client-only keys so Locker/verify UI cannot show a prior user.
+   * Pair with navigation to login; does not clear sessionStorage lantern_return_to (login flow sets that next).
+   */
   function clearClientIdentityCaches() {
     try {
       global.localStorage.removeItem('LANTERN_ADOPTED_CHARACTER');

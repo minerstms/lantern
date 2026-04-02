@@ -29,6 +29,11 @@
     a { color: var(--accent); font-weight: 800; }
     .acctActions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .acctActions .btn { margin-top: 0; margin-right: 0; font-size: 20px; padding: 8px 12px; }
+    .adminIdentityLine { margin-top: -8px; margin-bottom: 12px; min-height: 1.2em; color: var(--muted); font-size: 20px; font-weight: 800; }
+    .usersMsg { padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; font-size: 20px; font-weight: 800; line-height: 1.45; border: 1px solid var(--line); }
+    .usersMsg--ok { background: rgba(56,208,124,.12); border-color: rgba(56,208,124,.35); color: #b4ffd4; }
+    .usersMsg--err { background: rgba(255,77,109,.12); border-color: rgba(255,77,109,.35); color: #ffb4b4; }
+    #logoutMsg { color: var(--bad); font-size: 20px; font-weight: 800; margin: 8px 0 0; }
   </style>
 </head>
 <body>
@@ -61,20 +66,30 @@
         return;
       }
       try {
+        var idLine = document.getElementById('adminIdentity');
+        if (idLine && data.username != null) {
+          var u = String(data.username);
+          var dn = data.display_name != null ? String(data.display_name).trim() : '';
+          idLine.textContent = 'Signed in as ' + u + (dn ? ' · ' + dn : '');
+        }
+      } catch (eId) {}
+      try {
         document.documentElement.classList.remove(pendingClass);
       } catch (e2) {}
     });
   })();
   </script>
   <h1>Admin</h1>
+  <p id="adminIdentity" class="sub adminIdentityLine" aria-live="polite"></p>
   <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
   <p><a href="/explore.html">Explore (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
+  <p id="logoutMsg" role="status" aria-live="polite" style="display:none;"></p>
 
   <div class="card">
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
     <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
-    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). Use <strong>Set temp password</strong> to assign a new one; that user signs in with it once, then must choose their own password before the rest of the app unlocks.</p>
+    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). <strong>Set temp password</strong> sets a one-time password: that person signs in, is prompted to choose their own password, then the rest of the app unlocks. A confirmation appears below when the reset succeeds.</p>
     <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
     <form id="addUserForm">
       <label for="nu_username">Login username</label>
@@ -102,21 +117,49 @@
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c; }); }
 
+    function showLogoutErr(text) {
+      var lm = document.getElementById('logoutMsg');
+      if (!lm) return;
+      if (!text) { lm.style.display = 'none'; lm.textContent = ''; return; }
+      lm.style.display = 'block';
+      lm.textContent = text;
+    }
+
     document.getElementById('logoutBtn').addEventListener('click', function(){
-      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' }).then(function(){
-        if (window.LanternAuth && typeof window.LanternAuth.clearClientIdentityCaches === 'function') {
-          window.LanternAuth.clearClientIdentityCaches();
-        }
-        if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
-          location.href = window.LanternAuth.loginUrlWithReturn();
-        } else {
-          try {
-            sessionStorage.setItem('lantern_return_to', '/admin.html');
-          } catch (e) {}
-          location.href = '/login.html?return=%2Fadmin.html';
-        }
-      });
+      showLogoutErr('');
+      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          if (window.LanternAuth && typeof window.LanternAuth.clearClientIdentityCaches === 'function') {
+            window.LanternAuth.clearClientIdentityCaches();
+          }
+          if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
+            location.href = window.LanternAuth.loginUrlWithReturn();
+          } else {
+            try {
+              sessionStorage.setItem('lantern_return_to', '/admin.html');
+            } catch (e) {}
+            location.href = '/login.html?return=%2Fadmin.html';
+          }
+        })
+        .catch(function () {
+          showLogoutErr('Could not sign out. Check your connection and try again.');
+        });
     });
+
+    function showUsersMsg(text, kind) {
+      var el = document.getElementById('usersMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = '';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
 
     function postAdminJson(path, body) {
       return fetch(api + path, {
@@ -139,11 +182,22 @@
       var pw = prompt((promptTitle || 'New password') + ' for ' + username + ' (8+ characters):', '');
       if (pw === null) return;
       pw = String(pw);
-      if (pw.length < 8) { alert('Password must be at least 8 characters.'); return; }
+      if (pw.length < 8) {
+        showUsersMsg('Password must be at least 8 characters.', 'err');
+        return;
+      }
+      showUsersMsg('', '');
       postAdminJson('/api/admin/users/reset-password', { username: username, new_password: pw }).then(function(res){
         if (res && res.blocked) return;
-        if (res && res.okHttp && res.body && res.body.ok) loadUsers();
-        else alert((res && res.body && res.body.error) || 'Request failed');
+        if (res && res.okHttp && res.body && res.body.ok) {
+          showUsersMsg(
+            'Temporary password set for ' + username + '. They sign in with it once, then choose their own password before the rest of the app unlocks.',
+            'ok'
+          );
+          loadUsers();
+          return;
+        }
+        showUsersMsg((res && res.body && res.body.error) || 'Request failed', 'err');
       });
     }
 
@@ -175,7 +229,12 @@
             var act = confirm('Account active? OK = active, Cancel = suspended') ? 1 : 0;
             postAdminJson('/api/admin/users/update', { username: u.username, role: role.trim(), is_active: act }).then(function(x){
               if (x && x.blocked) return;
-              if (x && x.okHttp && x.body && x.body.ok) loadUsers(); else alert(x && x.body && x.body.error || 'Update failed');
+              if (x && x.okHttp && x.body && x.body.ok) {
+                showUsersMsg('Updated account ' + u.username + '.', 'ok');
+                loadUsers();
+              } else {
+                showUsersMsg((x && x.body && x.body.error) || 'Update failed', 'err');
+              }
             });
           });
           var bTemp = document.createElement('button');
@@ -204,8 +263,13 @@
       if (scn) body.student_character_name = scn;
       postAdminJson('/api/admin/users', body).then(function(res){
         if (res && res.blocked) return;
-        if (res && res.okHttp && res.body && res.body.ok) { loadUsers(); document.getElementById('addUserForm').reset(); }
-        else alert(res && res.body && res.body.error || 'Failed');
+        if (res && res.okHttp && res.body && res.body.ok) {
+          showUsersMsg('Account created for ' + body.username + '.', 'ok');
+          loadUsers();
+          document.getElementById('addUserForm').reset();
+        } else {
+          showUsersMsg((res && res.body && res.body.error) || 'Failed', 'err');
+        }
       });
     });
 
