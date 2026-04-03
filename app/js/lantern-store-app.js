@@ -694,8 +694,7 @@
       if (typeof document === 'undefined') return;
       if (window._lanternStoreWalletVisibilityWired) return;
       window._lanternStoreWalletVisibilityWired = true;
-      document.addEventListener('visibilitychange', function(){
-        if (document.visibilityState !== 'visible') return;
+      function runStoreWalletRefreshFromReturnEvents(){
         var charName = getCharacterForStore();
         if (!charName) return;
         refreshBalance({ silent: true }).then(function(balRes){
@@ -705,6 +704,14 @@
             });
           }
         });
+      }
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState !== 'visible') return;
+        runStoreWalletRefreshFromReturnEvents();
+      });
+      window.addEventListener('focus', runStoreWalletRefreshFromReturnEvents);
+      window.addEventListener('pageshow', function(e){
+        if (e.persisted) runStoreWalletRefreshFromReturnEvents();
       });
     })();
 

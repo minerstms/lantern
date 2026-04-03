@@ -1566,9 +1566,16 @@
     function wireProfileWalletVisibilityOnce(){
       if (profileWalletVisibilityWired) return;
       profileWalletVisibilityWired = true;
+      function runProfileWalletRefreshFromReturnEvents(){
+        refreshProfileWalletBalanceFromServer();
+      }
       document.addEventListener('visibilitychange', function(){
         if (document.visibilityState !== 'visible') return;
-        refreshProfileWalletBalanceFromServer();
+        runProfileWalletRefreshFromReturnEvents();
+      });
+      window.addEventListener('focus', runProfileWalletRefreshFromReturnEvents);
+      window.addEventListener('pageshow', function(e){
+        if (e.persisted) runProfileWalletRefreshFromReturnEvents();
       });
     }
 
