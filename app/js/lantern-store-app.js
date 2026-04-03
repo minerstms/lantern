@@ -364,7 +364,8 @@
       });
     }
 
-    async function refreshBalance(){
+    async function refreshBalance(opts){
+      opts = opts || {};
       var characterName = getCharacterForStore();
       if (!characterName){
         setBalanceUI({ earned: '—', spent: '—', available: '—' });
@@ -374,7 +375,9 @@
       var res = await callGetBalance(characterName);
       if (!res.ok){
         setBalanceUI({ earned: '—', spent: '—', available: '—' });
-        showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+        if (!opts.silent) {
+          showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+        }
         return null;
       }
       setBalanceUI(res);
@@ -685,6 +688,24 @@
           });
         });
       }
+    })();
+
+    (function wireStoreWalletVisibilityOnce(){
+      if (typeof document === 'undefined') return;
+      if (window._lanternStoreWalletVisibilityWired) return;
+      window._lanternStoreWalletVisibilityWired = true;
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState !== 'visible') return;
+        var charName = getCharacterForStore();
+        if (!charName) return;
+        refreshBalance({ silent: true }).then(function(balRes){
+          if (balRes && charName) {
+            callGetCosmeticOwnership(charName).then(function(o){
+              renderCosmetics(charName, balRes.available, o);
+            });
+          }
+        });
+      });
     })();
 
     async function init(){

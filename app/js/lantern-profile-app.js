@@ -1545,6 +1545,33 @@
       try { fn(); } catch (err) { console.error('[Profile]', label, 'failed', err); }
     }
 
+    function refreshProfileWalletBalanceFromServer(){
+      var adopted = getAdopted();
+      if (!adopted || !String(adopted.name || '').trim()) return;
+      if (!el('balanceEl')) return;
+      callGetBalance(String(adopted.name).trim()).then(function(res){
+        safeProfileStep('balanceVisibility', function(){
+          var n = res && (res.available != null) ? res.available : 0;
+          var nv = Number(n) || 0;
+          var vm = typeof window !== 'undefined' ? window.LANTERN_STUDENT_PROFILE_VIEW : null;
+          if (vm) vm.nuggets = nv;
+          var be = el('balanceEl');
+          if (be) be.textContent = String(nv);
+          updateNuggetProgress(nv);
+        });
+      }).catch(function(){});
+    }
+
+    var profileWalletVisibilityWired = false;
+    function wireProfileWalletVisibilityOnce(){
+      if (profileWalletVisibilityWired) return;
+      profileWalletVisibilityWired = true;
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState !== 'visible') return;
+        refreshProfileWalletBalanceFromServer();
+      });
+    }
+
     var DEFAULT_HERO_TITLE = 'Creative Student';
 
     function applyProfileHeroIdentity(vm){
@@ -2852,6 +2879,7 @@
     });
 
     /* All profile entry points (nav, student switch, redirects, deep links) converge here. When verify mode uses cloud, identity may be set async; runProfileEntry runs once identity is ready or when API is off. */
+    wireProfileWalletVisibilityOnce();
     runProfileEntry = function(){ showProfile(); };
     if (!studentIdentityFetchPending) runProfileEntry();
     if (typeof updateStudentVerifyBanner === 'function') updateStudentVerifyBanner();
