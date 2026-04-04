@@ -1170,7 +1170,7 @@
       var note = entry.decisionNote ? String(entry.decisionNote) : '';
       var snip = note.length > 40 ? note.slice(0, 40) + '…' : note;
       if (s === 'returned') return 'Needs Attention' + (snip ? ' · ' + snip : '');
-      if (s === 'pending') return 'Pending';
+      if (s === 'pending') return 'Your post is waiting for approval';
       if (s === 'approved' || s === 'accepted') return 'Approved';
       if (s === 'rejected') return 'Rejected';
       return entry.status || '';
@@ -1216,6 +1216,15 @@
       } catch (err) {}
     }
 
+    function renderMyCreationsLoading(){
+      var feed = el('postFeedEl');
+      var emptyEl = el('postFeedEmpty');
+      if (!feed) return;
+      if (emptyEl) emptyEl.style.display = 'none';
+      feed.innerHTML = '<div class="emptyState" style="min-height:100px;"><div class="emptyStateTitle">Loading your creations…</div><div class="emptyStateHint">Hang tight.</div></div>';
+      feed.classList.remove('gridView');
+    }
+
     function renderMyCreations(items, statusFilter, searchRaw){
       /* L-Rail-2: #postFeedEl is the canonical `.lanternScroller` (direct card children; no contentScrollerTrack). */
       var feed = el('postFeedEl');
@@ -1253,8 +1262,15 @@
           var hintEl = emptyEl.querySelector('.emptyStateHint');
           if (iconEl) iconEl.textContent = '📊';
           if (afterTab.length === 0){
-            if (titleEl) titleEl.textContent = 'No creations in this tab';
-            if (hintEl) hintEl.textContent = 'Submit work from Create (Contribute), Missions, or posts on Lantern (Explore) to see it here.';
+            var sf = String(statusFilter || 'all').trim().toLowerCase();
+            if (sf === 'pending'){
+              if (iconEl) iconEl.textContent = '⏳';
+              if (titleEl) titleEl.textContent = 'Nothing pending right now';
+              if (hintEl) hintEl.textContent = 'When you submit work for approval, it appears here with “Your post is waiting for approval” on the card.';
+            } else {
+              if (titleEl) titleEl.textContent = 'No creations in this tab';
+              if (hintEl) hintEl.textContent = 'Submit work from Create (Contribute), Missions, or posts on Lantern (Explore) to see it here.';
+            }
           } else {
             if (titleEl) titleEl.textContent = 'No matching creations';
             if (hintEl) hintEl.textContent = 'Try a different search.';
@@ -1824,6 +1840,7 @@
           });
         });
         if (avatarApiBase) {
+          renderMyCreationsLoading();
           fetchMyCreationsBundle().then(function(list){
             safeProfileStep('myCreations', function(){
               myCreationsItemsCache = list || [];
