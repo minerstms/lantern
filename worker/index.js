@@ -30,6 +30,22 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
 ];
 
+/** Production + Cloudflare Pages preview hosts for this project (HTTPS only). */
+function isLanternPagesOrigin(origin) {
+  const o = String(origin || '').trim();
+  if (!o) return false;
+  if (PRODUCTION_PAGES_ORIGIN && o === PRODUCTION_PAGES_ORIGIN) return true;
+  try {
+    const u = new URL(o);
+    if (u.protocol !== 'https:') return false;
+    return (
+      u.hostname === 'lantern-42i.pages.dev' || u.hostname.endsWith('.lantern-42i.pages.dev')
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 function getCorsHeaders(request) {
   const origin = request.headers.get('Origin') || '';
   const allowed = ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
@@ -46,8 +62,9 @@ function getCorsHeaders(request) {
 
 /** CORS for pilot login/logout with cookies (cannot use wildcard origin). */
 function corsForPilot(request) {
-  const origin = request.headers.get('Origin') || '';
+  const origin = String(request.headers.get('Origin') || '').trim();
   const allowed =
+    isLanternPagesOrigin(origin) ||
     ALLOWED_ORIGINS.includes(origin) ||
     origin.startsWith('http://localhost:') ||
     origin.startsWith('http://127.0.0.1:');
