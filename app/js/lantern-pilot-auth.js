@@ -25,7 +25,13 @@
     return global
       .fetch(url, { method: 'GET', credentials: 'include' })
       .then(function (r) {
-        return r.json();
+        return r.text().then(function (t) {
+          try {
+            return t ? JSON.parse(t) : { ok: false, authenticated: false, error: 'empty' };
+          } catch (e) {
+            return { ok: false, authenticated: false, error: 'invalid_json', httpStatus: r.status };
+          }
+        });
       })
       .catch(function () {
         return { ok: false, authenticated: false, error: 'network' };

@@ -50,7 +50,7 @@
   </div>
   <script>
     (function () {
-      /* No fetchMe(), no session redirect, and no use of ?return= on page load. Redirects only after successful POST /api/auth/login via redirectAfterLogin(). */
+      /* Redirects after successful POST /api/auth/login via redirectAfterLogin(body). We trust the login JSON (ok + role); fetchMe runs async for diagnostics only. */
       var api =
         typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
           ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
@@ -184,6 +184,7 @@
           return;
         }
         submitBtn.disabled = true;
+        var willRedirect = false;
         console.log('[Lantern login] POST', api + '/api/auth/login');
         fetch(api + '/api/auth/login', {
           method: 'POST',
@@ -192,26 +193,55 @@
           body: JSON.stringify({ username: username, password: password }),
         })
           .then(function (r) {
-            return r.json().then(function (j) {
+            return r.text().then(function (t) {
+              var j = null;
+              try {
+                j = t ? JSON.parse(t) : {};
+              } catch (e) {
+                console.error('[Lantern login] invalid JSON from login response', e);
+                return { okHttp: r.ok, status: r.status, body: null, parseError: true };
+              }
               return { okHttp: r.ok, status: r.status, body: j };
             });
           })
           .then(function (res) {
-            if (res.okHttp && res.body && res.body.ok === true) {
-              redirectAfterLogin(res.body);
+            if (res.parseError) {
+              showError('Sign-in failed. Try again.');
+              return;
+            }
+            var body = res.body;
+            var loginOk =
+              res.okHttp && body && body.ok === true && !body.error;
+            if (loginOk) {
+              console.log('LOGIN RESPONSE', body);
+              willRedirect = true;
+              if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
+                window.LanternAuth.fetchMe().then(function (me) {
+                  console.log('FETCH ME RESULT', me);
+                  if (!me || me.ok !== true || me.authenticated !== true) {
+                    console.error('[Lantern login] fetchMe after login did not confirm session', me);
+                  }
+                }).catch(function (err) {
+                  console.error('[Lantern login] fetchMe after login failed', err);
+                });
+              }
+              redirectAfterLogin(body);
               return;
             }
             var err =
-              (res.body && (res.body.error || res.body.message)) ||
+              (body && (body.error || body.message)) ||
               'Request failed (HTTP ' + res.status + ')';
             showError(friendlyLoginError(err));
           })
-          .catch(function () {
+          .catch(function (err) {
+            console.error('[Lantern login] network or request failed', err);
             showError('Network error. Try again.');
           })
           .finally(function () {
-            submitBtn.disabled = false;
-            submitBtn.removeAttribute('aria-busy');
+            if (!willRedirect) {
+              submitBtn.disabled = false;
+              submitBtn.removeAttribute('aria-busy');
+            }
           });
       });
     })();
