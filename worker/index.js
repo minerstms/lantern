@@ -98,7 +98,8 @@ export default {
         path.startsWith('/api/admin') ||
         path.startsWith('/api/class-access') ||
         path.startsWith('/api/economy') ||
-        path.startsWith('/api/integrations')
+        path.startsWith('/api/integrations') ||
+        path.startsWith('/api/approvals')
       ) {
         o = corsForPilot(request);
       } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
@@ -152,11 +153,12 @@ export default {
       }
     }
     if (path.startsWith('/api/approvals')) {
+      const approvalsCors = corsForPilot(request);
       try {
-        return await handleApprovalsRoutes(request, url, path, env, cors);
+        return await handleApprovalsRoutes(request, url, path, env, approvalsCors);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
+        return jsonResponse({ ok: false, error: message }, 400, approvalsCors);
       }
     }
     if (path.startsWith('/api/recognition')) {
