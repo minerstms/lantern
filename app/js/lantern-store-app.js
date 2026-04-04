@@ -203,11 +203,29 @@
       var e = el('earned');
       var s = el('spent');
       var a = el('avail');
+      var hero = el('storeHeroAvail');
+      var oldHero = NaN;
+      if (hero && hero.textContent && hero.textContent !== '—') {
+        oldHero = parseInt(String(hero.textContent).trim(), 10);
+      }
+      if (!Number.isFinite(oldHero) && a && a.textContent && a.textContent !== '—') {
+        oldHero = parseInt(String(a.textContent).trim(), 10);
+      }
       if (e) e.textContent = String(b.earned ?? '—');
       if (s) s.textContent = String(b.spent ?? '—');
       if (a) a.textContent = String(b.available ?? '—');
-      var hero = el('storeHeroAvail');
-      if (hero) hero.textContent = String(b.available ?? '—');
+      if (hero) {
+        var nv =
+          b.available !== undefined && b.available !== null && b.available !== '—'
+            ? Number(b.available)
+            : NaN;
+        if (Number.isFinite(nv) && Number.isFinite(oldHero) && nv > oldHero) {
+          hero.classList.remove('nuggetHit');
+          void hero.offsetWidth;
+          hero.classList.add('nuggetHit');
+        }
+        hero.textContent = String(b.available ?? '—');
+      }
     }
 
     var economyApiBase = (function () {

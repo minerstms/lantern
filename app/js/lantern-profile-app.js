@@ -1548,6 +1548,16 @@
       try { fn(); } catch (err) { console.error('[Profile]', label, 'failed', err); }
     }
 
+    function pulseNuggetDisplayIfGain(balanceEl, oldVal, newVal) {
+      if (!balanceEl) return;
+      var o = Number(oldVal);
+      var n = Number(newVal);
+      if (!Number.isFinite(n) || !Number.isFinite(o) || n <= o) return;
+      balanceEl.classList.remove('nuggetHit');
+      void balanceEl.offsetWidth;
+      balanceEl.classList.add('nuggetHit');
+    }
+
     function refreshProfileWalletBalanceFromServer(){
       var adopted = getAdopted();
       if (!adopted || !String(adopted.name || '').trim()) return;
@@ -1557,9 +1567,20 @@
           var n = res && (res.available != null) ? res.available : 0;
           var nv = Number(n) || 0;
           var vm = typeof window !== 'undefined' ? window.LANTERN_STUDENT_PROFILE_VIEW : null;
-          if (vm) vm.nuggets = nv;
           var be = el('balanceEl');
-          if (be) be.textContent = String(nv);
+          var oldN = NaN;
+          if (be && be.textContent) {
+            var parsed = parseInt(String(be.textContent).trim(), 10);
+            if (Number.isFinite(parsed)) oldN = parsed;
+          }
+          if (!Number.isFinite(oldN) && vm && vm.nuggets != null && Number.isFinite(Number(vm.nuggets))) {
+            oldN = Number(vm.nuggets);
+          }
+          if (vm) vm.nuggets = nv;
+          if (be) {
+            pulseNuggetDisplayIfGain(be, oldN, nv);
+            be.textContent = String(nv);
+          }
           updateNuggetProgress(nv);
         });
       }).catch(function(){});
@@ -1917,8 +1938,18 @@
       callGetBalance(adopted.name).then(function(res){
         safeProfileStep('balance', function(){
           var n = res && (res.available != null) ? res.available : 0;
+          var be = el('balanceEl');
+          var oldN = NaN;
+          if (be && be.textContent) {
+            var parsed = parseInt(String(be.textContent).trim(), 10);
+            if (Number.isFinite(parsed)) oldN = parsed;
+          }
+          if (!Number.isFinite(oldN)) oldN = Number(studentProfileVM.nuggets) || 0;
           studentProfileVM.nuggets = Number(n) || 0;
-          el('balanceEl').textContent = String(studentProfileVM.nuggets);
+          if (be) {
+            pulseNuggetDisplayIfGain(be, oldN, studentProfileVM.nuggets);
+            be.textContent = String(studentProfileVM.nuggets);
+          }
           updateNuggetProgress(studentProfileVM.nuggets);
         });
       }).catch(function(){});
