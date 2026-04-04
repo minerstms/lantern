@@ -330,7 +330,11 @@ export default {
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
     }
-    return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    return jsonResponse(
+      { ok: false, error: 'Not found' },
+      404,
+      path.startsWith('/api/approvals') ? corsForPilot(request) : cors
+    );
   },
 };
 
