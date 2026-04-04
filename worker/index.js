@@ -106,7 +106,8 @@ function stripBase64Payload(dataUrlOrB64) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const path = (url.pathname || '/').replace(/\/$/, '') || '/';
+    const pathname = String(url.pathname || '/').replace(/\/+/g, '/');
+    const path = pathname.replace(/\/$/, '') || '/';
     if (request.method === 'OPTIONS') {
       let o = corsHeaders;
       if (
@@ -132,6 +133,15 @@ export default {
         service: 'lantern-api',
         timestamp: new Date().toISOString(),
       }, 200, cors);
+    }
+    if (path.startsWith('/api/approvals')) {
+      const approvalsCors = corsForPilot(request);
+      try {
+        return await handleApprovalsRoutes(request, url, path, env);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, approvalsCors);
+      }
     }
     if (path.startsWith('/api/integrations')) {
       try {
@@ -167,15 +177,6 @@ export default {
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, cors);
-      }
-    }
-    if (path.startsWith('/api/approvals')) {
-      const approvalsCors = corsForPilot(request);
-      try {
-        return await handleApprovalsRoutes(request, url, path, env);
-      } catch (err) {
-        const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, approvalsCors);
       }
     }
     if (path.startsWith('/api/recognition')) {
