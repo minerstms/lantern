@@ -535,6 +535,7 @@ ${storeOverlay}
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
   <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/lantern-post-live-notify.js"></script>
   <script src="js/lantern-profile-app.js"></script>
   <script src="js/lantern-store-app.js"></script>
 ${lockerItemsScript}

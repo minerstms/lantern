@@ -54,91 +54,29 @@
     const el = (id)=>document.getElementById(id);
     const toastEl = el('toast');
 
-    /** Per-student map of canonical creation id → last known status (lowercase). Detects pending → approved/accepted for “post is live” toast. */
-    var LS_CREATION_STATUS_LAST = 'LANTERN_CREATION_STATUS_LAST_V1';
-
-    function toast(msg){
-      if (!toastEl) return;
-      toastEl.classList.remove('toast--postLive');
-      toastEl.innerHTML = '';
-      toastEl.textContent = msg;
-      toastEl.style.display = 'block';
-      clearTimeout(toastEl._t);
-      toastEl._t = setTimeout(function(){ toastEl.style.display='none'; }, 2400);
-    }
-
-    function readCreationStatusStore(){
-      try {
-        var raw = localStorage.getItem(LS_CREATION_STATUS_LAST);
-        if (!raw) return {};
-        var o = JSON.parse(raw);
-        return o && typeof o === 'object' ? o : {};
-      } catch (e) {
-        return {};
-      }
-    }
-
-    function writeCreationStatusStore(all){
-      try {
-        localStorage.setItem(LS_CREATION_STATUS_LAST, JSON.stringify(all));
-      } catch (e) {}
-    }
-
     function studentKeyForPostLive(){
       var a = getAdopted();
       if (!a) return '';
       return String(a.character_id || a.name || '').trim();
     }
 
-    /**
-     * After My Creations bundle loads: if any item was pending and is now approved/accepted, show a short celebratory toast.
-     * Updates stored statuses so refresh does not re-toast.
-     */
+    /** Delegates to shared js/lantern-post-live-notify.js (same localStorage as Explore). */
     function maybeToastPostLiveAfterBundle(list){
-      if (!toastEl || !list || !list.length) return;
-      var sk = studentKeyForPostLive();
-      if (!sk) return;
-      var all = readCreationStatusStore();
-      var bucket = all[sk] && typeof all[sk] === 'object' ? all[sk] : {};
-      var transitions = [];
-      var i;
-      for (i = 0; i < list.length; i++) {
-        var entry = list[i];
-        if (!entry || !entry.canonicalId) continue;
-        var curr = rawMyCreationStatus(entry.status);
-        var prevRaw = bucket[entry.canonicalId];
-        var prev = prevRaw != null && prevRaw !== undefined ? String(prevRaw).trim().toLowerCase() : '';
-        if (prev === 'pending' && (curr === 'approved' || curr === 'accepted')) {
-          transitions.push(entry);
-        }
+      if (window.LanternPostLiveNotify && typeof window.LanternPostLiveNotify.notifyFromBundle === 'function') {
+        window.LanternPostLiveNotify.notifyFromBundle(list, toastEl, studentKeyForPostLive());
       }
-      for (i = 0; i < list.length; i++) {
-        var e = list[i];
-        if (e && e.canonicalId) {
-          bucket[e.canonicalId] = rawMyCreationStatus(e.status);
-        }
-      }
-      all[sk] = bucket;
-      writeCreationStatusStore(all);
-      if (!transitions.length) return;
-      var title = transitions.length === 1 ? 'Your post is live' : 'Your posts are live';
-      var sub = 'Nice work — everyone can see it now.';
-      toastEl.classList.add('toast--postLive');
-      toastEl.innerHTML =
-        '<div class="toastPostLiveInner"><div class="toastPostLiveTitle">' +
-        esc(title) +
-        '</div><div class="toastPostLiveSub">' +
-        esc(sub) +
-        '</div></div>';
-      toastEl.style.display = 'block';
-      clearTimeout(toastEl._t);
-      toastEl._t = setTimeout(function(){
-        toastEl.style.display = 'none';
-        toastEl.classList.remove('toast--postLive');
-        toastEl.innerHTML = '';
-      }, 4200);
     }
 
+    function toast(msg){
+      if (!toastEl) return;
+      toastEl.classList.remove('toast--postLive');
+      toastEl.innerHTML = '';
+      clearTimeout(toastEl._lanternPostLiveT);
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(function(){ toastEl.style.display='none'; }, 2400);
+    }
 
     function getAdopted(){
       if (verifyStudentContext) return { character_id: verifyStudentContext.character_name, name: verifyStudentContext.character_name, avatar: verifyStudentContext.avatar || '🌟' };
