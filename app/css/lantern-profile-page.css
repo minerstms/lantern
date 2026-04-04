@@ -347,6 +347,18 @@
       padding: 0 var(--lantern-pad-x, 12px);
       box-sizing: border-box;
     }
+    .profileIdentityIdLine{
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-top: 0;
+      margin-bottom: 2px;
+      max-width: 100%;
+      text-align: center;
+      line-height: 1.25;
+      padding: 0 var(--lantern-pad-x, 12px);
+      box-sizing: border-box;
+    }
     .profileStatus{
       font-size: 22px;
       font-weight: 800;

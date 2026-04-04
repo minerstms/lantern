@@ -84,7 +84,13 @@
         if (v && String(v).trim()) return String(v).trim();
       } catch(e) {}
       var a = getAdopted();
+      if (window.LanternPilotAuth && typeof window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted === 'function') {
+        var friendly = window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted(a);
+        if (friendly) return friendly;
+      }
       if (a && a.display_name && String(a.display_name).trim()) return String(a.display_name).trim();
+      if (a && a.student_character_name && String(a.student_character_name).trim()) return String(a.student_character_name).trim();
+      if (a && a.username && String(a.username).trim()) return String(a.username).trim();
       return (a && a.name) ? String(a.name) : '';
     }
 
@@ -1578,6 +1584,22 @@
 
     var DEFAULT_HERO_TITLE = 'Creative Student';
 
+    function applyProfileIdentityIdLine(friendlyName, walletKey){
+      var idEl = el('profileIdentityIdEl');
+      if (!idEl) return;
+      var f = (friendlyName || '').trim();
+      var w = (walletKey || '').trim();
+      if (!w || f === w) {
+        idEl.textContent = '';
+        idEl.style.display = 'none';
+        idEl.setAttribute('aria-hidden', 'true');
+        return;
+      }
+      idEl.textContent = 'ID: ' + w;
+      idEl.style.display = 'block';
+      idEl.removeAttribute('aria-hidden');
+    }
+
     function applyProfileHeroIdentity(vm){
       var dnEl = el('profileDisplayNameEl');
       var stEl = el('profileStatusEl');
@@ -1589,6 +1611,8 @@
         var ht = (vm && vm.heroTitle) ? String(vm.heroTitle).trim() : '';
         stEl.textContent = ht || DEFAULT_HERO_TITLE;
       }
+      var wk = (vm && vm.walletKey != null) ? String(vm.walletKey).trim() : '';
+      applyProfileIdentityIdLine(name, wk);
     }
 
     function showProfile(){
@@ -1647,6 +1671,7 @@
       var studentProfileVM = {
         id: adopted.name,
         name: adopted.name,
+        walletKey: adopted.name,
         displayName: getStudentDisplayName() || adopted.name || '—',
         heroTitle: '',
         avatar: (adopted.avatar || '').trim() || '🌟',
