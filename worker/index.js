@@ -172,7 +172,7 @@ export default {
     if (path.startsWith('/api/approvals')) {
       const approvalsCors = corsForPilot(request);
       try {
-        return await handleApprovalsRoutes(request, url, path, env, approvalsCors);
+        return await handleApprovalsRoutes(request, url, path, env);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, approvalsCors);
@@ -2353,10 +2353,11 @@ async function handleNewsRoutes(request, url, path, env, cors) {
 }
 
 /** Lantern approvals */
-async function handleApprovalsRoutes(request, url, path, env, cors) {
+async function handleApprovalsRoutes(request, url, path, env) {
+  const approvalsCors = corsForPilot(request);
   const origin = url.origin || '';
   const db = env.DB;
-  if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+  if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, approvalsCors);
 
   if (request.method === 'GET' && path === '/api/approvals/pending') {
     const staffId = (url.searchParams.get('staff_id') || '').trim();
@@ -2476,7 +2477,7 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
         preview_url,
       });
     }
-    return jsonResponse({ ok: true, pending: out }, 200, cors);
+    return jsonResponse({ ok: true, pending: out }, 200, approvalsCors);
   }
 
   if (request.method === 'GET' && path === '/api/approvals/history') {
@@ -2506,20 +2507,20 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
         if (newsRow) it.title = newsRow.title || '';
       }
     }
-    return jsonResponse({ ok: true, history: list }, 200, cors);
+    return jsonResponse({ ok: true, history: list }, 200, approvalsCors);
   }
 
   if (request.method === 'POST' && path === '/api/approvals/approve') {
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
     const staffName = (body.reviewed_by_staff_name || body.staff_name || 'Teacher').trim();
     const staffId = (body.reviewed_by_staff_id || body.staff_id || '').trim();
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
-    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, cors);
-    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, cors);
+    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
@@ -2567,7 +2568,7 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
                   'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
                 ).bind(pollId, subId, String(pc.question).trim().slice(0, 500), choicesJson, pc.character_name || '', now, now).run();
               } catch (e3) {
-                return jsonResponse({ ok: false, error: 'Poll image persistence requires DB migration 034 (add image_url to lantern_polls)' }, 503, cors);
+                return jsonResponse({ ok: false, error: 'Poll image persistence requires DB migration 034 (add image_url to lantern_polls)' }, 503, approvalsCors);
               }
             }
             await db.prepare(
@@ -2577,21 +2578,21 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
         }
       } catch (e) { /* table missing until migration */ }
     }
-    return jsonResponse({ ok: true, id, status: 'approved' }, 200, cors);
+    return jsonResponse({ ok: true, id, status: 'approved' }, 200, approvalsCors);
   }
 
   if (request.method === 'POST' && path === '/api/approvals/return') {
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
     const decisionNote = (body.decision_note || body.reason || '').trim();
     const staffName = (body.reviewed_by_staff_name || body.staff_name || 'Teacher').trim();
     const staffId = (body.reviewed_by_staff_id || body.staff_id || '').trim();
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
-    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, cors);
-    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, cors);
+    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
@@ -2607,20 +2608,20 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
         ).bind('returned', now, staffName, decisionNote, approval.item_id).run();
       } catch (_) {}
     }
-    return jsonResponse({ ok: true, id, status: 'returned' }, 200, cors);
+    return jsonResponse({ ok: true, id, status: 'returned' }, 200, approvalsCors);
   }
 
   if (request.method === 'POST' && path === '/api/approvals/reject') {
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
     const staffName = (body.reviewed_by_staff_name || body.staff_name || 'Teacher').trim();
     const staffId = (body.reviewed_by_staff_id || body.staff_id || '').trim();
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
-    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, cors);
-    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, cors);
+    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
@@ -2640,28 +2641,28 @@ async function handleApprovalsRoutes(request, url, path, env, cors) {
         ).bind('rejected', now, staffName, (body.decision_note || body.reason || '').trim() || null, approval.item_id).run();
       } catch (_) {}
     }
-    return jsonResponse({ ok: true, id, status: 'rejected' }, 200, cors);
+    return jsonResponse({ ok: true, id, status: 'rejected' }, 200, approvalsCors);
   }
 
   if (request.method === 'POST' && path === '/api/approvals/take') {
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
     const staffId = (body.staff_id || '').trim();
     const staffName = (body.staff_name || 'Teacher').trim();
-    if (!staffId && !staffName) return jsonResponse({ ok: false, error: 'staff_id or staff_name required' }, 400, cors);
+    if (!staffId && !staffName) return jsonResponse({ ok: false, error: 'staff_id or staff_name required' }, 400, approvalsCors);
     const approval = await db.prepare('SELECT id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
-    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, cors);
-    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, cors);
+    if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     await db.prepare(
       'UPDATE lantern_approvals SET assigned_to_staff_id = ?, assigned_to_staff_name = ? WHERE id = ?'
     ).bind(staffId || null, staffName, id).run();
-    return jsonResponse({ ok: true, id }, 200, cors);
+    return jsonResponse({ ok: true, id }, 200, approvalsCors);
   }
 
-  return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
+  return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, approvalsCors);
 }
 
 /** Moderation: report/flag (user) and flagged list (teacher) */
