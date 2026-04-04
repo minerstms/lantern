@@ -93,6 +93,7 @@
     .emptyStateIcon{ font-size: 48px; margin-bottom: 14px; opacity: .6; }
     .emptyStateTitle{ font-weight: 900; font-size: 26px; margin-bottom: 8px; }
     .emptyStateHint{ color: var(--muted); font-size: 22px; line-height: 1.45; }
+    .exploreEmptyState .launchBtn{ margin-top: 14px; cursor: pointer; font-family: inherit; }
 
     .exploreUrl{
       display: inline-block;
@@ -306,6 +307,43 @@
     var exploreSeenPostKeys = Object.create(null);
     var exploreFeedHydrated = false;
 
+    function exploreFeedLoadingHtml(){
+      return '<div class="emptyState exploreEmptyState" role="status" aria-live="polite"><div class="emptyStateIcon">✨</div><div class="emptyStateTitle">Loading your feed…</div><div class="emptyStateHint">Hang tight while we get the latest posts.</div></div>';
+    }
+    function exploreFeedEmptyHtml(){
+      return '<div class="emptyState exploreEmptyState"><div class="emptyStateIcon">👇</div><div class="emptyStateTitle">Be the first to post today 👇</div><div class="emptyStateHint">Share something from Contribute or finish a mission — it shows up here after approval.</div></div>';
+    }
+    function exploreFeedErrorHtml(){
+      return '<div class="emptyState exploreEmptyState" role="alert"><div class="emptyStateIcon">↻</div><div class="emptyStateTitle">Something didn’t load</div><div class="emptyStateHint">Refresh and try again.</div><button type="button" class="launchBtn" onclick="location.reload()">Refresh</button></div>';
+    }
+    function exploreSectionLoadingHint(text){
+      return '<div class="emptyState exploreEmptyState" role="status"><div class="emptyStateHint">' + esc(text) + '</div></div>';
+    }
+    function setExploreFeedRailsLoading(){
+      var j = el('justInEl');
+      var r = el('recentEl');
+      var b = el('bestEl');
+      var h = exploreFeedLoadingHtml();
+      if (j) j.innerHTML = h;
+      if (r) r.innerHTML = h;
+      if (b) b.innerHTML = h;
+    }
+    function setExploreFeedRailsError(){
+      var j = el('justInEl');
+      var r = el('recentEl');
+      var b = el('bestEl');
+      var h = exploreFeedErrorHtml();
+      if (j) j.innerHTML = h;
+      if (r) r.innerHTML = h;
+      if (b) b.innerHTML = h;
+    }
+    function setHappeningSectionLoading(){
+      var ne = el('happeningNewsEl');
+      var ae = el('happeningActivityEl');
+      if (ne) ne.innerHTML = exploreSectionLoadingHint('Loading articles…');
+      if (ae) ae.innerHTML = exploreSectionLoadingHint('Loading activity…');
+    }
+
     function exploreKeyForFeedPost(p){
       if (!p) return '';
       if (p.id != null && String(p.id) !== '') return 'fp:' + String(p.id);
@@ -366,6 +404,10 @@
       container.innerHTML = '';
       var filtered = filterPosts(posts);
       var toShow = limit ? filtered.slice(0, limit) : filtered;
+      if (!toShow.length && containerId === 'recentEl'){
+        container.innerHTML = exploreFeedEmptyHtml();
+        return;
+      }
       toShow.forEach(function(p){ renderCard(p, container, 'medium', sectionKey || 'new'); });
     }
 
@@ -381,7 +423,7 @@
       container.innerHTML = '';
       var ordered = postsForNewRail();
       if (!ordered.length){
-        container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">✨</div><div class="emptyStateTitle">Nothing here yet</div><div class="emptyStateHint">When classmates share work, the newest pieces show up here first.</div></div>';
+        container.innerHTML = exploreFeedEmptyHtml();
         return;
       }
       var limit = 30;
@@ -577,6 +619,8 @@
         return;
       }
       if (document.getElementById('pollsSection')) document.getElementById('pollsSection').style.display = 'block';
+      var pollsLoadEl = el('pollsEl');
+      if (pollsLoadEl) pollsLoadEl.innerHTML = exploreSectionLoadingHint('Loading polls…');
       fetch(exploreApiBase + '/api/polls').then(function(r){ return r.json(); }).then(function(res){
         pollsList = (res && res.ok && res.polls) ? res.polls : [];
         renderPolls(pollsList);
@@ -584,7 +628,7 @@
         pollsList = [];
         var container = el('pollsEl');
         var section = document.getElementById('pollsSection');
-        if (container) container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">📊</div><div class="emptyStateTitle">Could not load polls</div><div class="emptyStateHint">Check your connection and try again.</div></div>';
+        if (container) container.innerHTML = '<div class="emptyState exploreEmptyState" role="alert"><div class="emptyStateIcon">📊</div><div class="emptyStateTitle">Something didn’t load</div><div class="emptyStateHint">Refresh and try again.</div><button type="button" class="launchBtn" onclick="location.reload()">Refresh</button></div>';
         if (section) section.style.display = 'block';
         syncYouCanDoSectionVisibility();
       });
@@ -845,7 +889,7 @@
       var p = period || currentLeaderboardPeriod;
       var g = (game || currentLeaderboardGame || '').trim();
       if (!g) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Choose a game above.</div></div>'; return; }
-      container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Loading…</div></div>';
+      container.innerHTML = exploreSectionLoadingHint('Loading scores…');
       fetch(exploreApiBase + '/api/leaderboards?period=' + encodeURIComponent(p) + '&game_name=' + encodeURIComponent(g) + '&limit=20')
         .then(function(r){ return r.json(); })
         .then(function(res){
@@ -867,7 +911,7 @@
           container.innerHTML = html;
         })
         .catch(function(){
-          container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Could not load leaderboard.</div></div>';
+          container.innerHTML = '<div class="emptyState exploreEmptyState" role="alert"><div class="emptyStateTitle">Something didn’t load</div><div class="emptyStateHint">Refresh and try again.</div><button type="button" class="launchBtn" onclick="location.reload()">Refresh</button></div>';
         });
     }
     var leaderboardWired = false;
@@ -902,7 +946,7 @@
       if (!container || !section) return;
       if (exploreApiBase === null) { section.style.display = 'none'; return; }
       section.style.display = 'block';
-      container.innerHTML = '<div class="emptyState" style="min-width:200px;"><div class="emptyStateHint">Loading…</div></div>';
+      container.innerHTML = exploreSectionLoadingHint('Loading game highlights…');
       var promises = GAME_HIGHLIGHTS_GAMES.map(function(gameName){
         return fetch(exploreApiBase + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=12')
           .then(function(r){ return r.json(); })
@@ -1012,10 +1056,14 @@
         feed = postsFeed.concat(missionItems).sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
         try { console.log('[explore] visible feed source (legacy): posts=' + postsFeed.length + ' missions=' + missionItems.length + ' total=' + feed.length); } catch(_) {}
         enrichFeedAvatarsThenRenderAll();
+      }).catch(function(){
+        setExploreFeedRailsError();
       });
     }
 
     function refresh(){
+      setExploreFeedRailsLoading();
+      setHappeningSectionLoading();
       loadPolls();
       loadMissionSpotlight();
       var LEDS = window.LANTERN_EXPLORE_DATASET;
