@@ -1233,6 +1233,14 @@
       font-weight: 950;
       font-size: 22px;
     }
+    .toast.toast--postLive{
+      border-color: rgba(56,208,124,.42);
+      background: linear-gradient(180deg, rgba(56,208,124,.16), rgba(0,0,0,.78));
+      padding: 14px 18px;
+    }
+    .toastPostLiveInner{ text-align: center; max-width: 22em; }
+    .toastPostLiveTitle{ font-weight: 950; font-size: 22px; line-height: 1.25; }
+    .toastPostLiveSub{ font-weight: 750; font-size: 20px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
     .verifyModeBanner{ display: none; align-items: center; flex-wrap: wrap; gap: 10px 16px; padding: 10px 14px; margin-bottom: 12px; border-radius: var(--r); border: 1px solid rgba(255,204,102,.5); background: linear-gradient(90deg, rgba(255,204,102,.18), rgba(255,204,102,.06)); font-size: 22px; }
     .verifyModeBanner.is-active{ display: flex; }
     .verifyModeBanner .verifyModeLabel{ font-weight: 900; color: var(--warn); }
