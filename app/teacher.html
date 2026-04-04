@@ -3270,14 +3270,23 @@
     function loadModerationData(){
       if (avatarApiBase === null) return;
       var staffName = (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? approvalStaffId : 'Teacher';
-      Promise.all([
-        fetch(avatarApiBase + '/api/news/approved').then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/missions/submissions/approved?limit=20').then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/news/hidden').then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/missions/submissions/hidden?limit=20').then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/moderation/flagged?limit=30').then(function(r){ return r.json(); }).then(function(res){ return (res && res.flags) || []; }).catch(function(){ return []; })
-      ]).then(function(arr){
-        var liveNews = arr[0], liveMissions = arr[1], hiddenNews = arr[2], hiddenMissions = arr[3], flagged = arr[4];
+      var isAdmin = typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin;
+      var fetchOpts = { credentials: 'omit' };
+      var fetchAdmin = { credentials: 'include' };
+      var chain = [
+        fetch(avatarApiBase + '/api/news/approved', fetchOpts).then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
+        fetch(avatarApiBase + '/api/missions/submissions/approved?limit=20', fetchOpts).then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
+      ];
+      if (isAdmin) {
+        chain.push(fetch(avatarApiBase + '/api/news/hidden', fetchAdmin).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.news) ? res.news : []; }).catch(function(){ return []; }));
+        chain.push(fetch(avatarApiBase + '/api/missions/submissions/hidden?limit=20', fetchAdmin).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function(){ return []; }));
+      }
+      chain.push(fetch(avatarApiBase + '/api/moderation/flagged?limit=30', fetchOpts).then(function(r){ return r.json(); }).then(function(res){ return (res && res.flags) || []; }).catch(function(){ return []; }));
+      Promise.all(chain).then(function(arr){
+        var liveNews = arr[0], liveMissions = arr[1];
+        var hiddenNews = isAdmin ? arr[2] : [];
+        var hiddenMissions = isAdmin ? arr[3] : [];
+        var flagged = isAdmin ? arr[4] : arr[2];
         var liveItems = [];
         (liveNews || []).slice(0, 15).forEach(function(n){ liveItems.push({ type: 'news', id: n.id, title: n.title || 'Untitled', author: n.author_name || '', full: n }); });
         (liveMissions || []).slice(0, 15).forEach(function(s){ liveItems.push({ type: 'mission', id: s.id, title: (s.mission_title || 'Mission') + ' — ' + (s.character_name || ''), author: s.character_name || '', full: s }); });
@@ -3318,19 +3327,21 @@
         viewBtn.textContent = 'View';
         viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'live', staffName); });
         actions.appendChild(viewBtn);
-        var hideBtn = document.createElement('button');
-        hideBtn.className = 'btn bad small';
-        hideBtn.textContent = 'Remove from view';
-        hideBtn.addEventListener('click', function(e){ e.stopPropagation();
-          hideBtn.disabled = true;
-          var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
-          var body = it.type === 'news' ? { id: it.id, hidden_by: staffName } : { id: it.id, hidden_by: staffName };
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
-            hideBtn.disabled = false;
-            if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
+        if (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) {
+          var hideBtn = document.createElement('button');
+          hideBtn.className = 'btn bad small';
+          hideBtn.textContent = 'Remove from view';
+          hideBtn.addEventListener('click', function(e){ e.stopPropagation();
+            hideBtn.disabled = true;
+            var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
+            var body = { id: it.id };
+            fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
+              hideBtn.disabled = false;
+              if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
+            });
           });
-        });
-        actions.appendChild(hideBtn);
+          actions.appendChild(hideBtn);
+        }
         container.appendChild(row);
       });
     }
@@ -3352,18 +3363,20 @@
         viewBtn.textContent = 'View';
         viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'hidden', staffName); });
         actions.appendChild(viewBtn);
-        var restoreBtn = document.createElement('button');
-        restoreBtn.className = 'btn good small';
-        restoreBtn.textContent = 'Restore';
-        restoreBtn.addEventListener('click', function(e){ e.stopPropagation();
-          restoreBtn.disabled = true;
-          var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
-            restoreBtn.disabled = false;
-            if (res.ok){ toast('Restored'); loadModerationData(); } else { toast(res.error || 'Failed'); }
+        if (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) {
+          var restoreBtn = document.createElement('button');
+          restoreBtn.className = 'btn good small';
+          restoreBtn.textContent = 'Restore';
+          restoreBtn.addEventListener('click', function(e){ e.stopPropagation();
+            restoreBtn.disabled = true;
+            var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
+            fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
+              restoreBtn.disabled = false;
+              if (res.ok){ toast('Restored'); loadModerationData(); } else { toast(res.error || 'Failed'); }
+            });
           });
-        });
-        actions.appendChild(restoreBtn);
+          actions.appendChild(restoreBtn);
+        }
         container.appendChild(row);
       });
     }
@@ -3387,19 +3400,21 @@
         viewBtn.textContent = 'View';
         viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(fullItem || f, 'flagged', staffName); });
         actions.appendChild(viewBtn);
-        var hideBtn = document.createElement('button');
-        hideBtn.className = 'btn bad small';
-        hideBtn.textContent = 'Hide this content';
-        hideBtn.addEventListener('click', function(e){ e.stopPropagation();
-          hideBtn.disabled = true;
-          var url = (f.item_type === 'news') ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
-          var body = { id: f.item_id, hidden_by: staffName };
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
-            hideBtn.disabled = false;
-            if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
+        if (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) {
+          var hideBtn = document.createElement('button');
+          hideBtn.className = 'btn bad small';
+          hideBtn.textContent = 'Hide this content';
+          hideBtn.addEventListener('click', function(e){ e.stopPropagation();
+            hideBtn.disabled = true;
+            var url = (f.item_type === 'news') ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
+            var body = { id: f.item_id };
+            fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
+              hideBtn.disabled = false;
+              if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
+            });
           });
-        });
-        actions.appendChild(hideBtn);
+          actions.appendChild(hideBtn);
+        }
         container.appendChild(row);
       });
     }
@@ -3478,7 +3493,7 @@
       closeBtn.textContent = 'Close';
       closeBtn.addEventListener('click', closeModerationPreview);
       actionsEl.appendChild(closeBtn);
-      if (context === 'live' || context === 'flagged'){
+      if ((context === 'live' || context === 'flagged') && typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin){
         var removeBtn = document.createElement('button');
         removeBtn.className = 'btn bad small';
         removeBtn.textContent = 'Remove from view';
@@ -3486,13 +3501,13 @@
           if (!moderationPreviewCurrent) return;
           var it = moderationPreviewCurrent;
           var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
-          var body = { id: it.id, hidden_by: it.staffName };
-          var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+          var body = { id: it.id };
+          var res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
           if (res.ok){ toast('Removed from view'); closeModerationPreview(); loadModerationData(); } else { toast(res.error || 'Failed'); }
         });
         actionsEl.appendChild(removeBtn);
       }
-      if (context === 'hidden'){
+      if (context === 'hidden' && typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin){
         var restoreBtn = document.createElement('button');
         restoreBtn.className = 'btn good small';
         restoreBtn.textContent = 'Restore';
@@ -3500,7 +3515,7 @@
           if (!moderationPreviewCurrent) return;
           var it = moderationPreviewCurrent;
           var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
-          var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+          var res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
           if (res.ok){ toast('Restored'); closeModerationPreview(); loadModerationData(); } else { toast(res.error || 'Failed'); }
         });
         actionsEl.appendChild(restoreBtn);

@@ -173,6 +173,17 @@
     </div>
   </div>
 
+  <div class="card" id="feedModerationCard">
+    <div class="cardHd">Feed visibility (students)</div>
+    <p class="acctPanelHint">Hide approved news or mission posts from Explore and other student-facing feeds without deleting them. Rows stay in the database; use Unhide to restore.</p>
+    <div id="feedModMsg" role="status" aria-live="polite" style="display:none;"></div>
+    <p class="pendingMeta" style="margin-bottom:8px;">Live on student feeds</p>
+    <div id="feedModLiveList"></div>
+    <p class="pendingMeta" style="margin:20px 0 8px;">Hidden from students (recoverable)</p>
+    <div id="feedModHiddenList"></div>
+    <p class="pendingMeta" style="margin-top:4px;"><button type="button" class="btn" id="feedModRefreshBtn">Refresh lists</button></p>
+  </div>
+
   <div class="card">
     <div class="cardHd">Pending approvals</div>
     <p class="pendingMeta">Student submissions appear here until approved. Approving publishes per item rules.</p>
@@ -662,6 +673,186 @@
       });
     });
 
+    function showFeedModMsg(text, kind) {
+      var el = document.getElementById('feedModMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = '';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function loadFeedModeration() {
+      var liveEl = document.getElementById('feedModLiveList');
+      var hidEl = document.getElementById('feedModHiddenList');
+      if (!liveEl || !hidEl) return;
+      liveEl.innerHTML = '<p class="pendingMeta">Loading…</p>';
+      hidEl.innerHTML = '<p class="pendingMeta">Loading…</p>';
+      Promise.all([
+        fetch(api + '/api/news/approved', { credentials: 'omit' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, news: [] }; }),
+        fetch(api + '/api/missions/submissions/approved?limit=40', { credentials: 'omit' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, submissions: [] }; }),
+        fetch(api + '/api/news/hidden', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
+        fetch(api + '/api/missions/submissions/hidden?limit=50', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
+      ]).then(function (arr) {
+        var newsRes = arr[0] || {};
+        var missRes = arr[1] || {};
+        var hidNewsRes = arr[2] || {};
+        var hidMissRes = arr[3] || {};
+        if (hidNewsRes && hidNewsRes.error === 'network') {
+          showFeedModMsg('Could not load hidden news (network or sign-in).', 'err');
+        } else if (hidNewsRes && !hidNewsRes.ok && hidNewsRes.error === 'forbidden') {
+          showFeedModMsg('Not authorized to list hidden content.', 'err');
+        } else {
+          showFeedModMsg('', '');
+        }
+        var liveNews = (newsRes && newsRes.news) || [];
+        var liveMiss = (missRes && missRes.submissions) || [];
+        var hiddenNews = (hidNewsRes && hidNewsRes.news) || [];
+        var hiddenMiss = (hidMissRes && hidMissRes.submissions) || [];
+
+        liveEl.innerHTML = '';
+        if (liveNews.length === 0 && liveMiss.length === 0) {
+          liveEl.innerHTML = '<p class="pendingMeta">No approved news or mission posts in the public feed lists.</p>';
+        } else {
+          liveNews.forEach(function (n) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;"><strong>News</strong> — ' +
+              esc(n.title || 'Untitled') +
+              '<div class="pendingMeta">' +
+              esc(n.author_name || '') +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var hb = document.createElement('button');
+            hb.type = 'button';
+            hb.className = 'btn bad';
+            hb.textContent = 'Hide';
+            hb.addEventListener('click', function () {
+              hb.disabled = true;
+              postAdminJson('/api/news/hide', { id: n.id }).then(function (res) {
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('News item hidden from student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Hide failed', 'err');
+                }
+              }).catch(function () {
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                hb.disabled = false;
+              });
+            });
+            actions.appendChild(hb);
+            liveEl.appendChild(div);
+          });
+          liveMiss.forEach(function (s) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            var mt = (s.mission_title || 'Mission') + ' — ' + (s.character_name || '');
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;"><strong>Mission</strong> — ' +
+              esc(mt) +
+              '<div class="pendingMeta">' +
+              esc(s.character_name || '') +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var hb = document.createElement('button');
+            hb.type = 'button';
+            hb.className = 'btn bad';
+            hb.textContent = 'Hide';
+            hb.addEventListener('click', function () {
+              hb.disabled = true;
+              postAdminJson('/api/missions/submissions/hide', { id: s.id }).then(function (res) {
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('Mission submission hidden from student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Hide failed', 'err');
+                }
+              }).catch(function () {
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                hb.disabled = false;
+              });
+            });
+            actions.appendChild(hb);
+            liveEl.appendChild(div);
+          });
+        }
+
+        hidEl.innerHTML = '';
+        var hidCombined = [];
+        (hiddenNews || []).forEach(function (n) {
+          hidCombined.push({ kind: 'news', row: n });
+        });
+        (hiddenMiss || []).forEach(function (s) {
+          hidCombined.push({ kind: 'mission', row: s });
+        });
+        if (hidCombined.length === 0) {
+          hidEl.innerHTML = '<p class="pendingMeta">Nothing hidden.</p>';
+        } else {
+          hidCombined.forEach(function (item) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            var title =
+              item.kind === 'news'
+                ? esc(item.row.title || 'Untitled')
+                : esc((item.row.mission_title || 'Mission') + ' — ' + (item.row.character_name || ''));
+            var meta =
+              item.kind === 'news'
+                ? 'News · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '')
+                : 'Mission · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '');
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;">' +
+              title +
+              '<div class="pendingMeta">' +
+              meta +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var ub = document.createElement('button');
+            ub.type = 'button';
+            ub.className = 'btn good';
+            ub.textContent = 'Unhide';
+            ub.addEventListener('click', function () {
+              ub.disabled = true;
+              var path = item.kind === 'news' ? '/api/news/restore' : '/api/missions/submissions/restore';
+              var body = { id: item.row.id };
+              postAdminJson(path, body).then(function (res) {
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('Restored to student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Unhide failed', 'err');
+                }
+              }).catch(function () {
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                ub.disabled = false;
+              });
+            });
+            actions.appendChild(ub);
+            hidEl.appendChild(div);
+          });
+        }
+      });
+    }
+
+    var feedModRefreshBtn = document.getElementById('feedModRefreshBtn');
+    if (feedModRefreshBtn) {
+      feedModRefreshBtn.addEventListener('click', function () {
+        loadFeedModeration();
+      });
+    }
+
     function loadPending(){
       fetch(api + '/api/approvals/pending?filter=mine,unassigned', { credentials: 'include' })
         .then(function(r){ return r.json(); })
@@ -765,8 +956,10 @@
     }
 
     loadUsers();
+    loadFeedModeration();
     loadPending();
     setInterval(loadPending, 60000);
+    setInterval(loadFeedModeration, 120000);
   })();
   </script>
 </body>

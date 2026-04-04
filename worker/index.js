@@ -117,7 +117,13 @@ export default {
         path.startsWith('/api/class-access') ||
         path.startsWith('/api/economy') ||
         path.startsWith('/api/integrations') ||
-        path.startsWith('/api/approvals')
+        path.startsWith('/api/approvals') ||
+        path === '/api/news/hide' ||
+        path === '/api/news/restore' ||
+        path === '/api/news/hidden' ||
+        path === '/api/missions/submissions/hide' ||
+        path === '/api/missions/submissions/restore' ||
+        path === '/api/missions/submissions/hidden'
       ) {
         o = corsForPilot(request);
       } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
@@ -784,6 +790,30 @@ async function getPilotAccountFromRequest(request, env) {
 function pilotAccountRequiresChangePassword(row) {
   if (!row) return false;
   return row.must_change_password != null && Number(row.must_change_password) !== 0;
+}
+
+/** Session must be an active admin account (for hide/restore moderation). Returns { account } or { response }. */
+async function requireAdminPilotSession(request, env, cors) {
+  const account = await getPilotAccountFromRequest(request, env);
+  if (!account) {
+    return { response: jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors) };
+  }
+  if (pilotAccountRequiresChangePassword(account)) {
+    return {
+      response: jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors),
+    };
+  }
+  if (String(account.role || '').trim().toLowerCase() !== 'admin') {
+    return { response: jsonResponse({ ok: false, error: 'forbidden' }, 403, cors) };
+  }
+  return { account };
+}
+
+function adminAuditLabel(account) {
+  if (!account) return 'admin';
+  const dn = account.display_name != null ? String(account.display_name).trim() : '';
+  const u = account.username != null ? String(account.username).trim() : '';
+  return dn || u || 'admin';
 }
 
 /**
@@ -2251,32 +2281,41 @@ async function handleNewsRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/news/hide') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
     const id = (body.id || '').trim();
-    const hiddenBy = (body.hidden_by || body.staff_name || 'Teacher').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    const hiddenBy = adminAuditLabel(gate.account);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id, status FROM lantern_news_submissions WHERE id = ?').bind(id).first();
-    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
     const now = new Date().toISOString();
     await db.prepare('UPDATE lantern_news_submissions SET hidden_at = ?, hidden_by = ? WHERE id = ?').bind(now, hiddenBy, id).run();
-    return jsonResponse({ ok: true, id, hidden_at: now }, 200, cors);
+    return jsonResponse({ ok: true, id, hidden_at: now }, 200, pilotCors);
   }
 
   if (request.method === 'POST' && path === '/api/news/restore') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
     const id = (body.id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id FROM lantern_news_submissions WHERE id = ?').bind(id).first();
-    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
     await db.prepare('UPDATE lantern_news_submissions SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
-    return jsonResponse({ ok: true, id }, 200, cors);
+    return jsonResponse({ ok: true, id }, 200, pilotCors);
   }
 
   if (request.method === 'GET' && path === '/api/news/hidden') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
     const rows = await db.prepare(
       'SELECT id, title, body, author_name, author_type, status, created_at, reviewed_at, hidden_at, hidden_by FROM lantern_news_submissions WHERE hidden_at IS NOT NULL AND hidden_at != ? ORDER BY hidden_at DESC'
     ).bind('').all();
@@ -2292,7 +2331,7 @@ async function handleNewsRoutes(request, url, path, env, cors) {
       hidden_at: r.hidden_at,
       hidden_by: r.hidden_by,
     }));
-    return jsonResponse({ ok: true, news: list }, 200, cors);
+    return jsonResponse({ ok: true, news: list }, 200, pilotCors);
   }
 
   if (request.method === 'GET' && path === '/api/news/mine') {
@@ -2963,32 +3002,41 @@ async function handleMissionsRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/missions/submissions/hide') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
     const id = (body.id || '').trim();
-    const hiddenBy = (body.hidden_by || body.teacher_name || 'Teacher').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    const hiddenBy = adminAuditLabel(gate.account);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id, status FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
-    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
     const now = new Date().toISOString();
     await db.prepare('UPDATE lantern_mission_submissions SET hidden_at = ?, hidden_by = ? WHERE id = ?').bind(now, hiddenBy, id).run();
-    return jsonResponse({ ok: true, id, hidden_at: now }, 200, cors);
+    return jsonResponse({ ok: true, id, hidden_at: now }, 200, pilotCors);
   }
 
   if (request.method === 'POST' && path === '/api/missions/submissions/restore') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
     const id = (body.id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
-    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
     await db.prepare('UPDATE lantern_mission_submissions SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
-    return jsonResponse({ ok: true, id }, 200, cors);
+    return jsonResponse({ ok: true, id }, 200, pilotCors);
   }
 
   if (request.method === 'GET' && path === '/api/missions/submissions/hidden') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
     const subRows = await db.prepare(
       'SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by, hidden_at, hidden_by FROM lantern_mission_submissions WHERE hidden_at IS NOT NULL AND hidden_at != ? ORDER BY hidden_at DESC LIMIT ?'
@@ -3013,7 +3061,7 @@ async function handleMissionsRoutes(request, url, path, env, cors) {
       hidden_by: s.hidden_by,
       mission_title: (byMission[s.mission_id] || {}).title || '',
     }));
-    return jsonResponse({ ok: true, submissions: list }, 200, cors);
+    return jsonResponse({ ok: true, submissions: list }, 200, pilotCors);
   }
 
   if (request.method === 'GET' && path === '/api/missions/submissions/character') {
