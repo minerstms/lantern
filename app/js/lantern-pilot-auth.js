@@ -5,8 +5,8 @@
 (function (global) {
   'use strict';
 
-  /** Default: same-origin /api (Pages Function proxies to Worker). Override with absolute URL for local static dev without Functions. */
-  var LANTERN_DEFAULT_AVATAR_API = '';
+  /** Default: Worker URL (avoids cross-origin cookie issues with Pages /api proxy). Override for local static dev if needed. */
+  var LANTERN_DEFAULT_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';
   if (
     global.LANTERN_AVATAR_API == null ||
     (typeof global.LANTERN_AVATAR_API === 'string' && String(global.LANTERN_AVATAR_API).trim() === '')
