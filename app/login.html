@@ -50,7 +50,7 @@
   </div>
   <script>
     (function () {
-      /* Redirects after successful POST /api/auth/login via redirectAfterLogin(body). We trust the login JSON (ok + role); fetchMe runs async for diagnostics only. */
+      /* Redirects after successful POST /api/auth/login via redirectAfterLogin(body). Invalid ?return= (/, login, empty) falls through to role-based home. */
       var api =
         typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
           ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
@@ -70,6 +70,13 @@
       function isLoginReturnTarget(p) {
         var pathOnly = String(p || '').split('?')[0].split('#')[0];
         return pathOnly === '/login' || pathOnly === '/login.html';
+      }
+      /** Reject root and login URLs; ?return=%2F must not override role-based home. */
+      function isValidReturnParam(ret) {
+        var s = String(ret || '').trim();
+        if (!s || s === '/') return false;
+        if (s.indexOf('/login') === 0) return false;
+        return true;
       }
 
       if (!form || !submitBtn || !msgEl) {
@@ -98,27 +105,39 @@
         return s;
       }
 
-      /** TEMP diagnostic: same destination URL logic as redirectAfterLogin, without navigation. Remove when reverting debug stop. */
+      /** Same destination as redirectAfterLogin (no navigation); kept in sync for tests/debug. */
       function computeRedirectTargetAfterLogin(body) {
         var params = new URLSearchParams(location.search);
-        var returnTo = params.get('return');
-        if (!returnTo) {
+        var ret = params.get('return');
+        if (!ret) {
           try {
-            returnTo = sessionStorage.getItem('lantern_return_to');
+            ret = sessionStorage.getItem('lantern_return_to');
           } catch (e) {}
         }
+        if (ret) ret = String(ret).trim();
+
         if (body && body.must_change_password) {
           var pwdDefault =
             window.LanternAuth && typeof window.LanternAuth.defaultRoleHomePath === 'function'
               ? window.LanternAuth.defaultRoleHomePath(body && body.role)
               : '/explore.html';
           var pwdReturn =
-            returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)
-              ? returnTo
+            ret &&
+            isValidReturnParam(ret) &&
+            isSafeReturnPath(ret) &&
+            !isLoginReturnTarget(ret)
+              ? ret
               : pwdDefault;
           return '/change-password.html?return=' + encodeURIComponent(pwdReturn);
         }
-        if (returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+
+        var isValidReturn =
+          ret &&
+          isValidReturnParam(ret) &&
+          isSafeReturnPath(ret) &&
+          !isLoginReturnTarget(ret);
+
+        if (isValidReturn) {
           var rReturn =
             window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
               ? window.LanternAuth.normalizeRole(body && body.role)
@@ -126,20 +145,20 @@
           if (
             window.LanternAuth &&
             typeof window.LanternAuth.isGenericExplorePath === 'function' &&
-            window.LanternAuth.isGenericExplorePath(returnTo)
+            window.LanternAuth.isGenericExplorePath(ret)
           ) {
             if (rReturn === 'teacher') return '/teacher.html';
             if (rReturn === 'admin') return '/admin.html';
           }
-          return returnTo;
+          return ret;
         }
+
         var r =
           window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
             ? window.LanternAuth.normalizeRole(body && body.role)
             : String((body && body.role) || '').trim().toLowerCase();
         if (r === 'admin') return '/admin.html';
         if (r === 'teacher') return '/teacher.html';
-        if (r === 'student') return '/explore.html';
         return '/explore.html';
       }
 
@@ -151,6 +170,7 @@
             returnTo = sessionStorage.getItem('lantern_return_to');
           } catch (e) {}
         }
+        if (returnTo) returnTo = String(returnTo).trim();
 
         if (body && body.must_change_password) {
           var pwdDefault =
@@ -158,14 +178,23 @@
               ? window.LanternAuth.defaultRoleHomePath(body && body.role)
               : '/explore.html';
           var pwdReturn =
-            returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)
+            returnTo &&
+            isValidReturnParam(returnTo) &&
+            isSafeReturnPath(returnTo) &&
+            !isLoginReturnTarget(returnTo)
               ? returnTo
               : pwdDefault;
           location.replace('/change-password.html?return=' + encodeURIComponent(pwdReturn));
           return;
         }
 
-        if (returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+        var isValidReturn =
+          returnTo &&
+          isValidReturnParam(returnTo) &&
+          isSafeReturnPath(returnTo) &&
+          !isLoginReturnTarget(returnTo);
+
+        if (isValidReturn) {
           try {
             sessionStorage.removeItem('lantern_return_to');
           } catch (e) {}
@@ -259,15 +288,7 @@
               res.okHttp && body && body.ok === true && !body.error;
             if (loginOk) {
               console.log('LOGIN RESPONSE', body);
-              console.log('LOGIN RESPONSE RAW:', res);
-              console.log('LOGIN SUCCESS PATH HIT');
-              console.log('[Lantern login debug] location.href', location.href);
-              console.log('[Lantern login debug] location.search', location.search);
-              try {
-                console.log('[Lantern login debug] return param', new URLSearchParams(location.search).get('return'));
-              } catch (eDbg) {
-                console.log('[Lantern login debug] return param (unavailable)', eDbg);
-              }
+              willRedirect = true;
               if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
                 window.LanternAuth.fetchMe().then(function (me) {
                   console.log('FETCH ME RESULT', me);
@@ -278,17 +299,7 @@
                   console.error('[Lantern login] fetchMe after login failed', err);
                 });
               }
-              /* TEMP: stop navigation for diagnosis — revert to redirectAfterLogin(body) when done */
-              var target = '/explore.html';
-              try {
-                target = computeRedirectTargetAfterLogin(body);
-                if (typeof redirectAfterLogin === 'function') {
-                  /* redirectAfterLogin performs location.replace — do not call here */
-                }
-              } catch (e) {
-                console.error('redirectAfterLogin inspection failed', e);
-              }
-              alert('LOGIN SUCCESS. TEMP TARGET: ' + target);
+              redirectAfterLogin(body);
               return;
             }
             var err =
