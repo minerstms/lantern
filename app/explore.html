@@ -303,6 +303,26 @@
     var feed = [];
     var cachedApprovedNews = [];
     var happeningNewsLimit = 12;
+    var exploreSeenPostKeys = Object.create(null);
+    var exploreFeedHydrated = false;
+
+    function exploreKeyForFeedPost(p){
+      if (!p) return '';
+      if (p.id != null && String(p.id) !== '') return 'fp:' + String(p.id);
+      return '';
+    }
+    function exploreKeyForNews(n){
+      if (!n) return '';
+      if (n.id != null && String(n.id) !== '') return 'nw:' + String(n.id);
+      return '';
+    }
+    function exploreApplyPostArrivalIfNew(el, key){
+      if (!el || !key) return;
+      if (exploreFeedHydrated && !exploreSeenPostKeys[key]) {
+        el.classList.add('postArrival');
+      }
+      exploreSeenPostKeys[key] = true;
+    }
 
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
 
@@ -337,6 +357,7 @@
         }
       });
       container.appendChild(card);
+      exploreApplyPostArrivalIfNew(card, exploreKeyForFeedPost(p));
     }
 
     function renderSection(containerId, posts, limit, sectionKey){
@@ -391,6 +412,7 @@
         }
       });
       container.appendChild(card);
+      exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
     }
 
     function renderFeaturedAnnouncementsRail(){
@@ -491,6 +513,7 @@
         });
       }
       if (typeof applyExploreSearch === 'function') applyExploreSearch();
+      exploreFeedHydrated = true;
     }
 
     function callGetExploreFeed(){
@@ -710,6 +733,7 @@
             }
           });
           container.appendChild(card);
+          exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
         });
       }
       if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
