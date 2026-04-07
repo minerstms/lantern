@@ -1078,6 +1078,51 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .lanternCardDetailMeta{ font-size: 22px; color: var(--muted); margin-bottom: 14px; }
 .lanternCardDetailCaption{ font-size: 22px; line-height: 1.4; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
 .lanternCardDetailBody{ }
+/* Admin-only (Explore): gated in JS via window.exploreViewerIsAdmin */
+.lanternCardDetailAdminModeration{
+  display: none;
+  margin: 18px 0 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 2px solid rgba(255,77,109,.55);
+  background: linear-gradient(180deg, rgba(255,77,109,.16), rgba(0,0,0,.38));
+  box-sizing: border-box;
+}
+.lanternCardDetailAdminModerationHd{
+  font-size: 22px;
+  font-weight: 950;
+  color: #ffb4c4;
+  margin: 0 0 10px;
+  letter-spacing: 0.02em;
+}
+.lanternCardDetailAdminModerationMeta{
+  font-size: 20px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+.lanternCardDetailAdminModerationWarn{
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--warn);
+  margin: 0 0 8px;
+}
+.lanternCardDetailAdminModerationBtn{
+  width: 100%;
+  text-align: center;
+  padding: 16px 20px;
+  font-size: 26px;
+  font-weight: 950;
+  font-family: inherit;
+  border-radius: 14px;
+  border: 2px solid rgba(255,77,109,.7);
+  background: linear-gradient(180deg, rgba(255,77,109,.5), rgba(160,25,65,.6));
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 22px rgba(255,50,100,.4);
+}
+.lanternCardDetailAdminModerationBtn:hover{ filter: brightness(1.07); }
+.lanternCardDetailAdminModerationBtn:disabled{ opacity: 0.55; cursor: not-allowed; }
 .lanternCardDetailActions{ margin-top: 16px; }
 .lanternCardDetailReactions{ margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.1); }
 .lanternCardDetailRxNewsWrap{

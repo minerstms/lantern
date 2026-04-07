@@ -128,6 +128,18 @@
           hdrPatch.appendChild(closePatch);
         }
       }
+      if (modalPatch) {
+        var scAdm = modalPatch.querySelector('.lanternSurfaceContent');
+        if (scAdm && !scAdm.querySelector('#lanternCardDetailAdminModeration')) {
+          var admEl = global.document.createElement('div');
+          admEl.id = 'lanternCardDetailAdminModeration';
+          admEl.className = 'lanternCardDetailAdminModeration';
+          admEl.setAttribute('aria-hidden', 'true');
+          var actEl = scAdm.querySelector('.lanternCardDetailActions');
+          if (actEl) scAdm.insertBefore(admEl, actEl);
+          else scAdm.appendChild(admEl);
+        }
+      }
       return overlay;
     }
     overlay = global.document.createElement('div');
@@ -145,6 +157,7 @@
       '<div class="lanternCardDetailIdentityWrap" id="lanternCardDetailIdentityWrap"></div>' +
       '<div class="lanternCardDetailMeta" id="lanternCardDetailMeta"></div>' +
       '<div class="lanternCardDetailBody" id="lanternCardDetailBody"></div>' +
+      '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
       '<div class="lanternCardDetailActions" id="lanternCardDetailActions"></div>' +
       '<div class="lanternCardDetailReactions" id="lanternCardDetailReactions"></div>' +
       '</div></div>';
@@ -166,6 +179,158 @@
     if (rx) rx.innerHTML = '';
     var ex = global.document.getElementById('lanternCardDetailProfileExtras');
     if (ex) ex.remove();
+    var adm = overlay.querySelector('#lanternCardDetailAdminModeration');
+    if (adm) {
+      adm.innerHTML = '';
+      adm.style.display = 'none';
+      adm.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function exploreAdminDetailModLog(action, id, type, removable, endpoint, result) {
+    try {
+      global.console.log('EXPLORE ADMIN DETAIL MODERATION', {
+        action: action,
+        id: id,
+        type: type,
+        removable: removable,
+        endpoint: endpoint || null,
+        result: result,
+      });
+    } catch (e) {}
+  }
+
+  function isExploreAdminViewer() {
+    return global.exploreViewerIsAdmin === true;
+  }
+
+  function postExploreAdminHide(path, body) {
+    var base =
+      typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null
+        ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '')
+        : null;
+    if (!base) return Promise.resolve({ okHttp: false, body: { ok: false, error: 'no_api' } });
+    return global
+      .fetch(base + path, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (global.LanternAuth && typeof global.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (global.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, body: j };
+        });
+      });
+  }
+
+  function ensureAdminModerationNode(modalRoot) {
+    if (!modalRoot) return null;
+    var sc = modalRoot.querySelector('.lanternSurfaceContent');
+    if (!sc) return null;
+    var el = sc.querySelector('#lanternCardDetailAdminModeration');
+    if (el) return el;
+    el = global.document.createElement('div');
+    el.id = 'lanternCardDetailAdminModeration';
+    el.className = 'lanternCardDetailAdminModeration';
+    el.setAttribute('aria-hidden', 'true');
+    var act = sc.querySelector('.lanternCardDetailActions');
+    if (act) sc.insertBefore(el, act);
+    else sc.appendChild(el);
+    return el;
+  }
+
+  /**
+   * spec: { removable, itemType, endpoint?, id?, body?, detail? }
+   */
+  function fillAdminModeration(modalRoot, spec) {
+    spec = spec || {};
+    var node = ensureAdminModerationNode(modalRoot);
+    if (!node) return;
+    if (!isExploreAdminViewer()) {
+      node.innerHTML = '';
+      node.style.display = 'none';
+      node.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    var removable = !!spec.removable;
+    var endpoint = spec.endpoint || '';
+    var id = spec.id != null ? String(spec.id) : '';
+    var itemType = spec.itemType || 'unknown';
+    exploreAdminDetailModLog('open', id, itemType, removable, endpoint || null, null);
+    node.style.display = 'block';
+    node.setAttribute('aria-hidden', 'false');
+    var inner = global.document.createElement('div');
+    inner.className = 'lanternCardDetailAdminModerationInner';
+    var hd = global.document.createElement('div');
+    hd.className = 'lanternCardDetailAdminModerationHd';
+    hd.textContent = 'Admin controls';
+    inner.appendChild(hd);
+    if (removable && endpoint) {
+      var meta = global.document.createElement('p');
+      meta.className = 'lanternCardDetailAdminModerationMeta';
+      meta.textContent =
+        'Remove this item from student-facing Explore feeds. It stays in the database; use Admin → Feed visibility to restore if needed.';
+      inner.appendChild(meta);
+      var btn = global.document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lanternCardDetailAdminModerationBtn';
+      btn.textContent = 'Remove from student view';
+      var path = endpoint;
+      var postBody = spec.body;
+      var typeStr = itemType;
+      btn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        btn.disabled = true;
+        postExploreAdminHide(path, postBody).then(function (res) {
+          if (res && res.blocked) {
+            exploreAdminDetailModLog('hide', id, typeStr, true, path, { blocked: true });
+            btn.disabled = false;
+            return;
+          }
+          var body = res && res.body ? res.body : {};
+          exploreAdminDetailModLog('hide', id, typeStr, true, path, body);
+          if (res && res.okHttp && body && body.ok) {
+            var toast = global.document.getElementById('toast');
+            if (toast) {
+              toast.textContent = 'Removed from student view';
+              toast.style.display = 'block';
+              setTimeout(function () {
+                toast.style.display = 'none';
+              }, 2400);
+            }
+            closeDetail();
+            if (typeof global.refreshExploreExplore === 'function') global.refreshExploreExplore();
+          } else {
+            btn.disabled = false;
+            try {
+              global.alert((body && body.error) ? String(body.error) : 'Could not remove item');
+            } catch (e2) {}
+          }
+        }).catch(function () {
+          exploreAdminDetailModLog('hide', id, typeStr, true, path, { error: 'network' });
+          btn.disabled = false;
+        });
+      });
+      inner.appendChild(btn);
+    } else {
+      var warn = global.document.createElement('p');
+      warn.className = 'lanternCardDetailAdminModerationWarn';
+      warn.textContent = 'This item type is not removable yet.';
+      inner.appendChild(warn);
+      if (spec.detail) {
+        var det = global.document.createElement('p');
+        det.className = 'lanternCardDetailAdminModerationMeta';
+        det.textContent = String(spec.detail);
+        inner.appendChild(det);
+      }
+    }
+    node.innerHTML = '';
+    node.appendChild(inner);
   }
 
   /**
@@ -184,6 +349,11 @@
     var a = modalRoot.querySelector('.lanternCardDetailActions');
     var r = modalRoot.querySelector('.lanternCardDetailReactions');
     if (!v || !t || !m || !b || !a || !r) return;
+    var admClearC = modalRoot.querySelector('#lanternCardDetailAdminModeration');
+    if (admClearC) {
+      admClearC.innerHTML = '';
+      admClearC.style.display = 'none';
+    }
     t.textContent = p.title || 'Untitled';
     var time = '';
     try {
@@ -326,6 +496,37 @@
     } else if (postId && postId.indexOf('mission_') !== 0) {
       r.innerHTML = '<p class="lanternCardDetailMuted">Adopt a character in Locker (Overview) to react to posts.</p>';
     }
+    if (previewId) {
+      fillAdminModeration(modalRoot, {
+        removable: false,
+        itemType: 'feed_post_preview',
+        id: postId,
+        detail: 'Preview / draft — not a live feed item.',
+      });
+    } else if (postId && postId.indexOf('mission_') === 0) {
+      var subId = postId.replace(/^mission_/, '');
+      fillAdminModeration(modalRoot, {
+        removable: true,
+        itemType: 'mission_submission',
+        endpoint: '/api/missions/submissions/hide',
+        id: subId,
+        body: { id: subId },
+      });
+    } else if (postId) {
+      fillAdminModeration(modalRoot, {
+        removable: false,
+        itemType: 'studio_feed_post',
+        id: postId,
+        detail: 'Design Studio / local approved post (getExploreFeed). No worker hide route for this type yet.',
+      });
+    } else {
+      fillAdminModeration(modalRoot, {
+        removable: false,
+        itemType: 'feed_post',
+        id: '',
+        detail: 'No post id — cannot target hide API.',
+      });
+    }
     var oldEx = modalRoot.querySelector('.lanternCardDetailProfileExtras');
     if (oldEx) oldEx.remove();
     if (opts.profilePostExtras && typeof opts.profilePostExtras.mount === 'function') {
@@ -376,6 +577,11 @@
     var a = modalRoot.querySelector('.lanternCardDetailActions');
     var r = modalRoot.querySelector('.lanternCardDetailReactions');
     if (!v || !t || !m || !b || !a || !r) return;
+    var admClearN = modalRoot.querySelector('#lanternCardDetailAdminModeration');
+    if (admClearN) {
+      admClearN.innerHTML = '';
+      admClearN.style.display = 'none';
+    }
     t.textContent = n.title || 'Untitled';
     var time = '';
     try {
@@ -542,6 +748,27 @@
     } else if (wrap) {
       wrap.innerHTML = '<p class="lanternCardDetailMuted">Sign in with a character to react to news.</p>';
     }
+    var newsRemovable = !!(itemId && !previewDraft && String(itemId).indexOf('preview') !== 0);
+    if (newsRemovable) {
+      fillAdminModeration(modalRoot, {
+        removable: true,
+        itemType: 'approved_news',
+        endpoint: '/api/news/hide',
+        id: itemId,
+        body: { id: itemId },
+      });
+    } else {
+      fillAdminModeration(modalRoot, {
+        removable: false,
+        itemType: 'approved_news',
+        id: itemId,
+        detail: !itemId
+          ? 'No news id on this card.'
+          : previewDraft
+            ? 'Preview / draft — not published to the API yet.'
+            : 'Not removable in this context.',
+      });
+    }
   }
 
   function openNews(n, opts) {
@@ -569,6 +796,7 @@
       '<div class="lanternCardDetailIdentityWrap"></div>' +
       '<div class="lanternCardDetailMeta"></div>' +
       '<div class="lanternCardDetailBody"></div>' +
+      '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
       '<div class="lanternCardDetailActions"></div>' +
       '<div class="lanternCardDetailReactions"></div>' +
       '</div>';
@@ -591,6 +819,7 @@
       '<div class="lanternCardDetailIdentityWrap"></div>' +
       '<div class="lanternCardDetailMeta"></div>' +
       '<div class="lanternCardDetailBody"></div>' +
+      '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
       '<div class="lanternCardDetailActions"></div>' +
       '<div class="lanternCardDetailReactions"></div>' +
       '</div>';
@@ -670,6 +899,20 @@
     var a = modalRoot.querySelector('.lanternCardDetailActions');
     var r = modalRoot.querySelector('.lanternCardDetailReactions');
     if (!v || !t || !m || !b || !a || !r) return;
+    var admClearP = modalRoot.querySelector('#lanternCardDetailAdminModeration');
+    if (admClearP) {
+      admClearP.innerHTML = '';
+      admClearP.style.display = 'none';
+    }
+
+    function pollAdminFooter() {
+      fillAdminModeration(modalRoot, {
+        removable: false,
+        itemType: 'poll',
+        id: pollId,
+        detail: 'Polls have no admin hide endpoint in the worker yet.',
+      });
+    }
 
     function setPollBodyShell() {
       b.innerHTML =
@@ -686,6 +929,7 @@
       b.innerHTML = '<p class="lanternCardDetailCaption">Load the page with API enabled to vote.</p>';
       a.innerHTML = '';
       r.innerHTML = '';
+      pollAdminFooter();
       return;
     }
     if (!res) {
@@ -696,6 +940,7 @@
       b.innerHTML = '<p class="lanternCardDetailCaption">Could not load poll.</p>';
       a.innerHTML = '';
       r.innerHTML = '';
+      pollAdminFooter();
       return;
     }
     if (res._loadFailed) {
@@ -706,6 +951,7 @@
       b.innerHTML = '<p class="lanternCardDetailCaption">Could not load poll.</p>';
       a.innerHTML = '';
       r.innerHTML = '';
+      pollAdminFooter();
       return;
     }
     if (!res.ok || !res.poll) {
@@ -716,6 +962,7 @@
       b.innerHTML = '<p class="lanternCardDetailCaption">Poll not found.</p>';
       a.innerHTML = '';
       r.innerHTML = '';
+      pollAdminFooter();
       return;
     }
 
@@ -868,6 +1115,12 @@
     if (b) b.innerHTML = '<p class="lanternCardDetailCaption">Loading poll…</p>';
     if (a) a.innerHTML = '';
     if (r) r.innerHTML = '';
+    var admPoll = modal.querySelector('#lanternCardDetailAdminModeration');
+    if (admPoll) {
+      admPoll.innerHTML = '';
+      admPoll.style.display = 'none';
+      admPoll.setAttribute('aria-hidden', 'true');
+    }
     el.classList.add('show');
     el.setAttribute('aria-hidden', 'false');
 
@@ -897,6 +1150,12 @@
     el.querySelector('#lanternCardDetailBody').innerHTML = bodyText ? '<div class="lanternCardDetailCaption">' + esc(bodyText).replace(/\n/g, '<br>') + '</div>' : '';
     el.querySelector('#lanternCardDetailActions').innerHTML = '';
     el.querySelector('#lanternCardDetailReactions').innerHTML = '';
+    var admTxt = el.querySelector('#lanternCardDetailAdminModeration');
+    if (admTxt) {
+      admTxt.innerHTML = '';
+      admTxt.style.display = 'none';
+      admTxt.setAttribute('aria-hidden', 'true');
+    }
     el.classList.add('show');
     el.setAttribute('aria-hidden', 'false');
   }
