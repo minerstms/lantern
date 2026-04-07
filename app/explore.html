@@ -210,9 +210,30 @@
       line-height: 1.25;
       text-align: right;
     }
+    /* TEMP: deployment probe — remove when verified (admin-only) */
+    #exploreAdminBuildBanner{
+      display: none;
+      position: relative;
+      z-index: 10002;
+      width: 100%;
+      margin: 0;
+      padding: 10px 14px;
+      text-align: center;
+      font-weight: 950;
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      color: #0d0d0d;
+      background: linear-gradient(90deg, #ff1744, #ff0066 40%, #ff1744);
+      box-shadow: 0 0 28px rgba(255,0,80,.85), inset 0 1px 0 rgba(255,255,255,.35);
+      border-bottom: 3px solid #ffea00;
+      text-shadow: 0 0 8px rgba(255,255,200,.9);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    #exploreAdminBuildBanner.exploreAdminBuildBanner--on{ display: block; }
   </style>
 </head>
 <body class="page-has-ticker">
+  <div id="exploreAdminBuildBanner" aria-hidden="true">ADMIN BUILD ACTIVE</div>
   <script>
   (function(){
     var auth = window.LanternAuth || window.LanternPilotAuth;
@@ -233,6 +254,21 @@
       } catch (eRole) {
         window.exploreViewerIsAdmin = false;
       }
+      try {
+        console.log("EXPLORE BUILD CHECK — ADMIN FLAG:", window.exploreViewerIsAdmin);
+      } catch (eLog) {}
+      try {
+        var buildBanner = document.getElementById('exploreAdminBuildBanner');
+        if (buildBanner) {
+          if (window.exploreViewerIsAdmin) {
+            buildBanner.classList.add('exploreAdminBuildBanner--on');
+            buildBanner.setAttribute('aria-hidden', 'false');
+          } else {
+            buildBanner.classList.remove('exploreAdminBuildBanner--on');
+            buildBanner.setAttribute('aria-hidden', 'true');
+          }
+        }
+      } catch (eBanner) {}
       try {
         var hint = document.getElementById('exploreSessionHint');
         if (hint && data && data.username != null) {
