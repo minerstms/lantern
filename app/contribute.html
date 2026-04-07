@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Contribute</title>
@@ -2479,10 +2479,14 @@
       if (!adopted) return '';
       return String(adopted.character_id || adopted.name || '').trim();
     }
-    /** Public display name — same package as Locker/Profile (display_name || name). */
+    /** Public display name — same priority as Locker/Profile (human-friendly; wallet key last). */
     function getAdoptedPublicDisplayName(){
       var adopted = getAdopted();
       if (!adopted) return '';
+      if (window.LanternPilotAuth && typeof window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted === 'function') {
+        var s = window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted(adopted);
+        if (s) return s;
+      }
       return String(adopted.display_name || adopted.name || '').trim();
     }
     function getCharacterNameForApi(){

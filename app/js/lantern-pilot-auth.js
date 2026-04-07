@@ -5,8 +5,8 @@
 (function (global) {
   'use strict';
 
-  /** Default: same-origin /api (Pages Function proxies to Worker). Override with absolute URL for local static dev without Functions. */
-  var LANTERN_DEFAULT_AVATAR_API = '';
+  /** Default: Worker URL (avoids cross-origin cookie issues with Pages /api proxy). Override for local static dev if needed. */
+  var LANTERN_DEFAULT_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';
   if (
     global.LANTERN_AVATAR_API == null ||
     (typeof global.LANTERN_AVATAR_API === 'string' && String(global.LANTERN_AVATAR_API).trim() === '')
@@ -25,7 +25,13 @@
     return global
       .fetch(url, { method: 'GET', credentials: 'include' })
       .then(function (r) {
-        return r.json();
+        return r.text().then(function (t) {
+          try {
+            return t ? JSON.parse(t) : { ok: false, authenticated: false, error: 'empty' };
+          } catch (e) {
+            return { ok: false, authenticated: false, error: 'invalid_json', httpStatus: r.status };
+          }
+        });
       })
       .catch(function () {
         return { ok: false, authenticated: false, error: 'network' };
@@ -78,6 +84,7 @@
     var scn = data.student_character_name ? String(data.student_character_name).trim() : '';
     var characterKey = String(econ || scn || username).trim();
     if (!characterKey) return;
+    var pilotDisplay = data.display_name != null && String(data.display_name).trim() ? String(data.display_name).trim() : '';
     try {
       global.localStorage.setItem(
         'LANTERN_ADOPTED_CHARACTER',
@@ -85,6 +92,9 @@
           character_id: characterKey,
           name: characterKey,
           avatar: '🌟',
+          display_name: pilotDisplay,
+          student_character_name: scn || '',
+          username: username || '',
         })
       );
     } catch (e) {}
@@ -97,6 +107,7 @@
     var scn = res.student_character_name ? String(res.student_character_name).trim() : '';
     var characterKey = String(econ || scn || username).trim();
     if (!characterKey) return;
+    var pilotDisplay = res.display_name != null && String(res.display_name).trim() ? String(res.display_name).trim() : '';
     try {
       global.localStorage.setItem(
         'LANTERN_ADOPTED_CHARACTER',
@@ -104,9 +115,27 @@
           character_id: characterKey,
           name: characterKey,
           avatar: '🌟',
+          display_name: pilotDisplay,
+          student_character_name: scn || '',
+          username: username || '',
         })
       );
     } catch (e) {}
+  }
+
+  /**
+   * Human-facing label for student UI only (Locker, Profile, bylines). Does not change wallet/API keys (name / character_id stay the economy key).
+   * Priority: display_name → student_character_name → login username → wallet key (name).
+   */
+  function studentFriendlyDisplayNameFromAdopted(a) {
+    if (!a || typeof a !== 'object') return '';
+    var dn = a.display_name != null && String(a.display_name).trim() ? String(a.display_name).trim() : '';
+    if (dn) return dn;
+    var scn = a.student_character_name != null && String(a.student_character_name).trim() ? String(a.student_character_name).trim() : '';
+    if (scn) return scn;
+    var un = a.username != null && String(a.username).trim() ? String(a.username).trim() : '';
+    if (un) return un;
+    return a.name != null && String(a.name).trim() ? String(a.name).trim() : '';
   }
 
   /**
@@ -266,6 +295,7 @@
     clearClientIdentityCaches: clearClientIdentityCaches,
     applyStudentStorageFromSession: applyStudentStorageFromSession,
     applyStudentStorageFromLoginResponse: applyStudentStorageFromLoginResponse,
+    studentFriendlyDisplayNameFromAdopted: studentFriendlyDisplayNameFromAdopted,
     loginUrlWithReturn: loginUrlWithReturn,
     guardPilotPage: guardPilotPage,
     redirectIfPasswordChangeRequired: redirectIfPasswordChangeRequired,

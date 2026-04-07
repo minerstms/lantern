@@ -17,7 +17,7 @@
   })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <title>TMS Lantern — Profile</title>
   <style id="lantern-embed-mode-style">
   html.lanternEmbedMode #lanternHeader{ display: none !important; }
@@ -428,6 +428,18 @@
       max-width: 100%;
       text-align: center;
       line-height: 1.2;
+      padding: 0 12px;
+      box-sizing: border-box;
+    }
+    .profileIdentityIdLine{
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-top: 0;
+      margin-bottom: 2px;
+      max-width: 100%;
+      text-align: center;
+      line-height: 1.25;
       padding: 0 12px;
       box-sizing: border-box;
     }
@@ -1346,7 +1358,7 @@
 
     <!-- ===== CANONICAL GOLDEN STUDENT PROFILE =====
          Approved reference profile. Renders from normalized student VM (LANTERN_STUDENT_PROFILE_VIEW).
-         Module order: 1. Your Wins (Spotlight + Achievements rails)  2. Around school  3. Creations  4. Community / discovery  5. Edit Profile  6. Testing (optional)
+         Module order: 1. Your Wins (Spotlight + Achievements rails)  2. Around school  3. Creations  4. Community / discovery  5. Edit Profile
     -->
     <div id="profileView" class="hiddenUntilReady" style="display:none;">
       <!-- Identity card: 3-column layout (stats | identity | economy) -->
@@ -1385,6 +1397,7 @@
               <button type="button" class="spotlightBadge" id="spotlightBadgeEl" style="display:none;" title="Teacher Spotlight" aria-label="Teacher Spotlight — click for details">⭐</button>
             </div>
             <div class="profileDisplayName" id="profileDisplayNameEl"></div>
+            <div class="profileIdentityIdLine" id="profileIdentityIdEl" style="display:none;" aria-hidden="true" role="note"></div>
             <div class="profileStatus" id="profileStatusEl">Creative Student</div>
             <div id="testStudentBadgeEl" class="testStudentBadge" style="display:none;" aria-label="Test student session"></div>
             <div class="bio placeholder" id="bioEl">Add a bio or tagline</div>
@@ -1499,37 +1512,6 @@
       <!-- Daily Nugget Hunt (Phase 7) - clickable nugget, positioned in content (scrolls with page) -->
       <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
 
-      <!-- Testing controls (preserved, collapsible, collapsed by default) -->
-      <div id="testingCard" class="card testingCard testingCardCollapsed" style="margin-top:24px;">
-        <div class="cardHd" id="testingToggle">
-          <div class="h">Testing Controls</div>
-          <span id="testingToggleIcon">▼</span>
-        </div>
-        <div class="cardBd" id="testingBody" style="display:none;">
-          <p class="note">Internal testing only.</p>
-          <div class="iconPreviewRow" style="display:flex; align-items:center; gap:20px; margin-bottom:14px; padding:10px 0; border-bottom:1px solid var(--line);">
-            <span style="color:var(--muted); font-weight:800;">Icon preview:</span>
-            <span class="iconPreviewItem"><img src="assets/icons/nugget.png" alt="Nugget" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;"> Nugget</span>
-            <span class="iconPreviewItem"><img src="assets/icons/diamond.png" alt="Diamond" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;"> Diamond</span>
-          </div>
-          <div class="testingControls">
-            <button class="btn small good" id="add1Btn">+1</button>
-            <button class="btn small good" id="add5Btn">+5</button>
-            <button class="btn small good" id="add10Btn">+10</button>
-            <input type="number" id="customAmount" placeholder="Custom" min="1" max="999" value="5" />
-            <button class="btn small primary" id="addCustomBtn">Add</button>
-            <button class="btn small" id="resetWalletBtn">Reset Wallet</button>
-            <button class="btn small" id="clearPurchasesBtn">Clear Purchases</button>
-            <button class="btn small good" id="seedDemoWorldBtn">Seed sample content</button>
-            <button class="btn small" id="clearDemoWorldBtn">Clear sample content</button>
-            <button class="btn small" id="minimalModeBtn">Minimal Mode</button>
-            <button class="btn small good" id="returnSeededBtn">Return to Seeded Mode</button>
-            <a href="display.html" target="_blank" class="btn small" style="text-decoration:none;">Display</a>
-            <button type="button" class="btn small accent" id="reportBetaIssueBtn">Report a Beta Issue</button>
-            <button class="btn small bad" id="resetAllBtn">Reset All</button>
-          </div>
-        </div>
-      </div>
     </div>
     <!-- LOCKER_BUILD:OVERVIEW_END -->
   </div>
@@ -1785,7 +1767,13 @@
         if (v && String(v).trim()) return String(v).trim();
       } catch(e) {}
       var a = getAdopted();
+      if (window.LanternPilotAuth && typeof window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted === 'function') {
+        var friendly = window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted(a);
+        if (friendly) return friendly;
+      }
       if (a && a.display_name && String(a.display_name).trim()) return String(a.display_name).trim();
+      if (a && a.student_character_name && String(a.student_character_name).trim()) return String(a.student_character_name).trim();
+      if (a && a.username && String(a.username).trim()) return String(a.username).trim();
       return (a && a.name) ? String(a.name) : '';
     }
 
@@ -2530,7 +2518,6 @@
         btn.innerHTML = '<span style="font-size:36px;margin-right:12px;">' + (c.avatar || '🌟') + '</span><span>' + (c.name || '') + '</span>';
         btn.addEventListener('click', function(){
           setAdopted({ character_id: c.character_id, name: c.name, avatar: c.avatar || '🌟' });
-          testingWired = false;
           postsWired = false;
           showProfile();
         });
@@ -2563,7 +2550,6 @@
             btn.innerHTML = '<span style="font-size:36px;margin-right:12px;">🧪</span><span>' + (t.display_name || t.character_name) + '</span><span style="margin-left:8px;font-size:18px;color:var(--muted);">(Test)</span>';
             btn.addEventListener('click', function(){
               setAdopted({ name: t.character_name, display_name: t.display_name || t.character_name, avatar: '🧪', isTest: true, expires_at: t.expires_at });
-              testingWired = false;
               postsWired = false;
               showProfile();
             });
@@ -2620,7 +2606,6 @@
             closeModal();
             setAdopted({ name: res.character_name, display_name: res.display_name || res.character_name, avatar: '🧪', isTest: true, expires_at: res.expires_at });
             toast('You are now testing as ' + (res.display_name || res.character_name));
-            testingWired = false;
             postsWired = false;
             showProfile();
           }).catch(function(){
@@ -3112,6 +3097,22 @@
 
     var DEFAULT_HERO_TITLE = 'Creative Student';
 
+    function applyProfileIdentityIdLine(friendlyName, walletKey){
+      var idEl = el('profileIdentityIdEl');
+      if (!idEl) return;
+      var f = (friendlyName || '').trim();
+      var w = (walletKey || '').trim();
+      if (!w || f === w) {
+        idEl.textContent = '';
+        idEl.style.display = 'none';
+        idEl.setAttribute('aria-hidden', 'true');
+        return;
+      }
+      idEl.textContent = 'ID: ' + w;
+      idEl.style.display = 'block';
+      idEl.removeAttribute('aria-hidden');
+    }
+
     function applyProfileHeroIdentity(vm){
       var dnEl = el('profileDisplayNameEl');
       var stEl = el('profileStatusEl');
@@ -3123,6 +3124,8 @@
         var ht = (vm && vm.heroTitle) ? String(vm.heroTitle).trim() : '';
         stEl.textContent = ht || DEFAULT_HERO_TITLE;
       }
+      var wk = (vm && vm.walletKey != null) ? String(vm.walletKey).trim() : '';
+      applyProfileIdentityIdLine(name, wk);
     }
 
     function showProfile(){
@@ -3167,6 +3170,7 @@
       var studentProfileVM = {
         id: adopted.name,
         name: adopted.name,
+        walletKey: adopted.name,
         displayName: getStudentDisplayName() || adopted.name || '—',
         heroTitle: '',
         avatar: (adopted.avatar || '').trim() || '🌟',
@@ -3208,7 +3212,7 @@
 
       setProfileHeroStats({ creations: 0, achievements: 0, recognitions: 0 });
       updateNuggetProgress(0);
-      safeProfileStep('wireTestingControls', wireTestingControls);
+      safeProfileStep('wireSwitchStudentButton', wireSwitchStudentButtonOnce);
 
       var revEl = el('avatarRevealEl');
       var contentEl = el('avatarContentEl');
@@ -4216,167 +4220,53 @@
       run.withSuccessHandler(function(){ toast('Submitted for approval'); showProfile(); }).withFailureHandler(function(){ toast('Failed'); }).submitForApproval({ character_name: adopted.name, submission_type: 'mission', note: 'Test submission' });
     }
 
-    var testingWired = false;
-    /**
-     * Testing Controls: wired once per profile session while a student is selected (adopted.name set).
-     * Re-wires after Switch Student. Uses live getAdopted() on each action so nuggets apply to the current student.
-     */
-    function wireTestingControls(){
-      var adopted = getAdopted();
-      if (!adopted || !String(adopted.name || '').trim()) return;
-      if (testingWired) return;
-      var add1 = el('add1Btn');
-      var add5 = el('add5Btn');
-      var add10 = el('add10Btn');
-      var addCustom = el('addCustomBtn');
-      if (!add1 || !add5 || !add10 || !addCustom) return;
-
-      if (el('submitForApprovalBtn')) el('submitForApprovalBtn').addEventListener('click', submitForApproval);
+    /** Switch Student (profile hero); independent of removed Testing Controls panel. */
+    function wireSwitchStudentButtonOnce(){
       var switchBtn = el('switchCharBtn');
-      if (switchBtn) {
-        switchBtn.addEventListener('click', function(){
-          setAdopted(null);
-          testingWired = false;
-          postsWired = false;
-          showProfile();
-        });
-      }
-
-      function applyNuggetAdd(amount, toastMsg){
-        var a = getAdopted();
-        if (!a || !String(a.name || '').trim()) { toast('Select a student first'); return; }
-        var nm = String(a.name).trim();
-        if (economyApiBase) {
-          callEconomyTransact(nm, amount, 'testing', 'TESTING', 'Testing control', {}).then(function(tRes){
-            if (tRes && tRes.ok) {
-              var bal = tRes.balance_after != null ? tRes.balance_after : (tRes.available);
-              if (el('balanceEl')) el('balanceEl').textContent = String(bal != null ? bal : 0);
-              updateNuggetProgress(bal != null ? bal : 0);
-              toast(toastMsg);
-            } else { toast(tRes && tRes.error || 'Failed'); }
-          });
-        } else {
-          addNuggets(nm, amount);
-          toast(toastMsg);
-          showProfile();
-        }
-      }
-      el('add1Btn').addEventListener('click', function(){ applyNuggetAdd(1, '+1 nugget'); });
-      el('add5Btn').addEventListener('click', function(){ applyNuggetAdd(5, '+5 nuggets'); });
-      el('add10Btn').addEventListener('click', function(){ applyNuggetAdd(10, '+10 nuggets'); });
-      el('addCustomBtn').addEventListener('click', function(){
-        var n = Math.max(1, Math.min(999, Math.floor(Number(el('customAmount').value || 0)) || 0));
-        if (!isFinite(n) || n < 1) n = 1;
-        applyNuggetAdd(n, '+' + n + ' nuggets');
-      });
-      var resetWalletBtn = el('resetWalletBtn');
-      if (resetWalletBtn) resetWalletBtn.addEventListener('click', function(){
-        var a = getAdopted();
-        if (!a || !String(a.name || '').trim()) { toast('Select a student first'); return; }
-        if (!confirm('Reset wallet? This clears activity and purchases for this student.')) return;
-        clearActivityForCharacter(a.name);
-        clearPurchasesForCharacter(a.name);
-        toast('Wallet reset');
+      if (!switchBtn || switchBtn._lanternSwitchStudentWired) return;
+      switchBtn._lanternSwitchStudentWired = true;
+      switchBtn.addEventListener('click', function(){
+        setAdopted(null);
+        postsWired = false;
         showProfile();
       });
-      var clearPurchasesBtn = el('clearPurchasesBtn');
-      if (clearPurchasesBtn) clearPurchasesBtn.addEventListener('click', function(){
-        var a = getAdopted();
-        if (!a || !String(a.name || '').trim()) { toast('Select a student first'); return; }
-        if (!confirm('Clear all purchases for this student?')) return;
-        clearPurchasesForCharacter(a.name);
-        toast('Purchases cleared');
-        showProfile();
-      });
+    }
 
-      if (el('seedDemoWorldBtn')) el('seedDemoWorldBtn').addEventListener('click', function(){
-        var DATA = window.LANTERN_DATA;
-        if (!DATA || !DATA.seedDemoWorld) { toast('Not available'); return; }
-        var r = DATA.seedDemoWorld();
-        if (r && r.ok) {
-          toast('Sample content seeded'); showProfile();
-          if (typeof window !== 'undefined' && window.location && window.location.reload) setTimeout(function(){ window.location.reload(); }, 800);
-        } else { toast(r && r.error ? r.error : 'Failed'); }
+    /** Beta report overlay: no opener button on Locker after Testing Controls removal; wiring stays safe if markup is reintroduced. */
+    function wireBetaReportOnce(){
+      if (window._lanternBetaReportWired) return;
+      var overlay = el('betaReportOverlay');
+      var openBtn = el('reportBetaIssueBtn');
+      var closeBtn = el('betaReportCloseBtn');
+      var cancelBtn = el('betaReportCancelBtn');
+      var form = document.getElementById('betaReportForm');
+      if (!overlay || !openBtn || !form) return;
+      window._lanternBetaReportWired = true;
+      function openBetaReport(){ overlay.style.display = 'flex'; }
+      function closeBetaReport(){ overlay.style.display = 'none'; form.reset(); }
+      openBtn.addEventListener('click', openBetaReport);
+      if (closeBtn) closeBtn.addEventListener('click', closeBetaReport);
+      if (cancelBtn) cancelBtn.addEventListener('click', closeBetaReport);
+      form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+        if (apiBase === null){ toast('Beta reporting requires the API to be set.'); return; }
+        var adopted = getAdopted();
+        var reporterName = (adopted && adopted.name) ? adopted.name : 'Anonymous';
+        var descEl = document.getElementById('betaReportDescription');
+        var pageEl = document.getElementById('betaReportPage');
+        var screenshotEl = document.getElementById('betaReportScreenshot');
+        var description = (descEl && descEl.value || '').trim();
+        if (!description){ toast('Please enter a description.'); return; }
+        var payload = { reporter_name: reporterName, page: (pageEl && pageEl.value) || 'Other', description: description, screenshot_url: (screenshotEl && screenshotEl.value || '').trim() || null };
+        fetch(apiBase + '/api/beta-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+          .then(function(r){ return r.json(); })
+          .then(function(res){
+            if (res && res.ok){ toast('Report submitted. Thank you!'); closeBetaReport(); }
+            else { toast(res && res.error ? res.error : 'Submit failed'); }
+          })
+          .catch(function(){ toast('Submit failed'); });
       });
-
-      if (el('clearDemoWorldBtn')) el('clearDemoWorldBtn').addEventListener('click', function(){
-        var DATA = window.LANTERN_DATA;
-        if (!DATA || !DATA.clearDemoWorld) { toast('Not available'); return; }
-        var r = DATA.clearDemoWorld();
-        if (r && r.ok) {
-          toast('Sample content cleared'); showProfile();
-          if (typeof window !== 'undefined' && window.location && window.location.reload) setTimeout(function(){ window.location.reload(); }, 500);
-        } else { toast(r && r.error ? r.error : 'Failed'); }
-      });
-
-      if (el('minimalModeBtn')) el('minimalModeBtn').addEventListener('click', function(){
-        var pw = (prompt('Enter password for Minimal Mode:') || '').trim();
-        if (pw !== 'geppetto') { toast('Incorrect'); return; }
-        var DATA = window.LANTERN_DATA;
-        if (DATA && DATA.setMode) DATA.setMode('minimal');
-        toast('Minimal mode. Reloading…');
-        setTimeout(function(){ window.location.reload(); }, 400);
-      });
-
-      if (el('returnSeededBtn')) el('returnSeededBtn').addEventListener('click', function(){
-        var DATA = window.LANTERN_DATA;
-        if (DATA && DATA.setMode) DATA.setMode('seeded');
-        toast('Seeded mode. Reloading…');
-        setTimeout(function(){ window.location.reload(); }, 400);
-      });
-
-      if (el('resetAllBtn')) el('resetAllBtn').addEventListener('click', function(){
-        if (!confirm('Reset ALL Lantern data? This clears characters, posts, activity, everything. You will need to adopt a character again.')) return;
-        var DATA = window.LANTERN_DATA;
-        if (!DATA || !DATA.resetAllLanternData) { toast('Not available'); return; }
-        if (DATA.resetAllLanternData()) { toast('All data reset'); window.location.reload(); }
-        else { toast('Reset failed'); }
-      });
-
-      var toggle = el('testingToggle');
-      var body = el('testingBody');
-      if (toggle && body){
-        toggle.addEventListener('click', function(){
-          body.style.display = body.style.display === 'none' ? '' : 'none';
-          el('testingToggleIcon').textContent = body.style.display === 'none' ? '▼' : '▲';
-        });
-      }
-      (function(){
-        if (window._lanternBetaReportWired) return;
-        var overlay = el('betaReportOverlay');
-        var openBtn = el('reportBetaIssueBtn');
-        var closeBtn = el('betaReportCloseBtn');
-        var cancelBtn = el('betaReportCancelBtn');
-        var form = document.getElementById('betaReportForm');
-        if (!overlay || !openBtn || !form) return;
-        window._lanternBetaReportWired = true;
-        function openBetaReport(){ overlay.style.display = 'flex'; }
-        function closeBetaReport(){ overlay.style.display = 'none'; form.reset(); }
-        openBtn.addEventListener('click', openBetaReport);
-        if (closeBtn) closeBtn.addEventListener('click', closeBetaReport);
-        if (cancelBtn) cancelBtn.addEventListener('click', closeBetaReport);
-        form.addEventListener('submit', function(e){
-          e.preventDefault();
-          var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-          if (apiBase === null){ toast('Beta reporting requires the API to be set.'); return; }
-          var adopted = getAdopted();
-          var reporterName = (adopted && adopted.name) ? adopted.name : 'Anonymous';
-          var descEl = document.getElementById('betaReportDescription');
-          var pageEl = document.getElementById('betaReportPage');
-          var screenshotEl = document.getElementById('betaReportScreenshot');
-          var description = (descEl && descEl.value || '').trim();
-          if (!description){ toast('Please enter a description.'); return; }
-          var payload = { reporter_name: reporterName, page: (pageEl && pageEl.value) || 'Other', description: description, screenshot_url: (screenshotEl && screenshotEl.value || '').trim() || null };
-          fetch(apiBase + '/api/beta-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-            .then(function(r){ return r.json(); })
-            .then(function(res){
-              if (res && res.ok){ toast('Report submitted. Thank you!'); closeBetaReport(); }
-              else { toast(res && res.error ? res.error : 'Submit failed'); }
-            })
-            .catch(function(){ toast('Submit failed'); });
-        });
-      })();
-      testingWired = true;
     }
 
     window.addEventListener('hashchange', function(){
@@ -4392,6 +4282,7 @@
     });
 
     /* All profile entry points (nav, student switch, redirects, deep links) converge here. When verify mode uses cloud, identity may be set async; runProfileEntry runs once identity is ready or when API is off. */
+    safeProfileStep('wireBetaReport', wireBetaReportOnce);
     runProfileEntry = function(){ showProfile(); };
     if (!studentIdentityFetchPending) runProfileEntry();
     if (typeof updateStudentVerifyBanner === 'function') updateStudentVerifyBanner();

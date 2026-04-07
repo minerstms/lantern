@@ -16,6 +16,7 @@
       '.lscOverlay{position:fixed;inset:0;z-index:2147483000;background:rgba(5,8,14,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:#eaf0ff;overflow:hidden;}',
       '.lscPhase1{position:absolute;inset:0;pointer-events:none;overflow:hidden;}',
       '.lscRocket{position:absolute;bottom:-10vh;left:50%;font-size:42px;transform:translateX(-50%);will-change:transform,opacity;text-shadow:0 0 12px rgba(90,167,255,.6);}',
+      '.lscParticle{position:absolute;pointer-events:none;border-radius:50%;will-change:transform,opacity;}',
       '@keyframes lscLaunch{0%{transform:translateX(-50%) translateY(0) scale(1.1);opacity:1}55%{transform:translateX(-50%) translateY(-52vh) scale(1);opacity:1}100%{transform:translateX(-50%) translateY(-48vh) scale(.85);opacity:.95}}',
       '@keyframes lscFall{0%{transform:translate(-50%,0) scale(.5);opacity:1}100%{transform:translate(-50%,85vh) scale(.35);opacity:0}}',
       '.lscPhase2{width:100%;max-width:520px;padding:20px;text-align:center;}',
@@ -35,6 +36,10 @@
     return 1 - Math.pow(1 - t, 3);
   }
 
+  function ease(u) {
+    return easeOutCubic(u);
+  }
+
   function runFireworks(container, done) {
     container.innerHTML = '';
     var once = false;
@@ -48,17 +53,28 @@
       var el = document.createElement('div');
       el.className = 'lscRocket';
       el.textContent = ICONS[Math.floor(Math.random() * ICONS.length)];
-      el.style.left = 8 + Math.random() * 84 + '%';
-      el.style.fontSize = 32 + Math.random() * 22 + 'px';
+      var leftPct = 8 + Math.random() * 84;
+      var yRange = 48 + Math.random() * 8;
+      var fontPx = 32 + Math.random() * 22;
+      el.style.left = leftPct + '%';
+      el.style.fontSize = fontPx + 'px';
       container.appendChild(el);
       var dur = 900 + Math.random() * 500;
       var start = performance.now();
       function tick(now) {
         var t = Math.min(1, (now - start) / dur);
         var e = easeOutCubic(t);
-        var y = -e * (48 + Math.random() * 8);
-        el.style.transform = 'translateX(-50%) translateY(' + y + 'vh) scale(' + (1.15 - e * 0.25) + ')';
+        var yVh = -e * yRange;
+        el.style.transform = 'translateX(-50%) translateY(' + yVh + 'vh) scale(' + (1.15 - e * 0.25) + ')';
         el.style.opacity = t < 0.92 ? 1 : 1 - (t - 0.92) / 0.08;
+        var cw = container.clientWidth;
+        var ch = container.clientHeight;
+        var vhPx = window.innerHeight / 100;
+        var x = (leftPct / 100) * cw;
+        var bottomEdgeY = ch + 10 * vhPx + yVh * vhPx;
+        var y = bottomEdgeY - fontPx * 0.5;
+        el._cx = x;
+        el._cy = y;
         if (t < 1) requestAnimationFrame(tick);
         else {
           burst(el);
@@ -69,50 +85,85 @@
     }
 
     function burst(parentEl) {
-      var rect = parentEl.getBoundingClientRect();
-      var cx = rect.left + rect.width / 2;
-      var cy = rect.top + rect.height / 2;
-      for (var i = 0; i < 10; i++) {
+      var cx = parentEl._cx;
+      var cy = parentEl._cy;
+      var flash = document.createElement('div');
+      flash.style.position = 'absolute';
+      flash.style.left = cx + 'px';
+      flash.style.top = cy + 'px';
+      flash.style.width = '8px';
+      flash.style.height = '8px';
+      flash.style.borderRadius = '50%';
+      flash.style.background = '#fff';
+      flash.style.transform = 'translate(-50%, -50%)';
+      flash.style.opacity = '1';
+      flash.style.pointerEvents = 'none';
+      container.appendChild(flash);
+      setTimeout(function () {
+        flash.style.transition = 'all 200ms ease-out';
+        flash.style.transform = 'translate(-50%, -50%) scale(3)';
+        flash.style.opacity = '0';
+      }, 10);
+      setTimeout(function () {
+        if (flash.parentNode) flash.remove();
+      }, 220);
+      for (var i = 0; i < 7; i++) {
         var bit = document.createElement('div');
-        bit.className = 'lscRocket';
-        bit.textContent = ICONS[Math.floor(Math.random() * ICONS.length)];
+        bit.className = 'lscParticle';
+        var hue = Math.floor(Math.random() * 360);
         bit.style.left = cx + 'px';
         bit.style.top = cy + 'px';
-        bit.style.fontSize = 16 + Math.random() * 14 + 'px';
+        var size = 2 + Math.random() * 2;
+        bit.style.width = size + 'px';
+        bit.style.height = size + 'px';
+        bit.style.background = 'hsl(' + hue + ', 90%, 60%)';
+        bit.style.boxShadow = '0 0 10px hsl(' + hue + ', 90%, 60%)';
         bit.style.transform = 'translate(-50%,-50%)';
         container.appendChild(bit);
-        var ang = (Math.PI * 2 * i) / 10 + Math.random() * 0.5;
-        var dist = 40 + Math.random() * 80;
-        var dx = Math.cos(ang) * dist;
-        var dy = Math.sin(ang) * dist + 120;
+        var angle = (i / 7) * Math.PI * 2 + Math.random() * 0.3;
+        var speed = 1 + Math.random() * 0.6;
+        var ddx = Math.cos(angle) * 120 * speed;
+        var ddy = Math.sin(angle) * 120 * speed;
         var bstart = performance.now();
         var bd = 700 + Math.random() * 400;
         (function (b, bx, by, ddx, ddy, bdur) {
           function btick(nw) {
             var u = Math.min(1, (nw - bstart) / bdur);
-            var ee = u * u;
-            b.style.left = bx + ddx * ee + 'px';
-            b.style.top = by + ddy * ee + 'px';
+            var ee = ease(u);
+            var gravity = 140 * u * u;
+            var px = ddx * ee;
+            var py = ddy * ee + gravity;
+            b.style.transform = `
+  translate(-50%, -50%)
+  translate(${px}px, ${py}px)
+  scale(${0.7 + (1 - u) * 0.3})
+`;
             b.style.opacity = 1 - u;
-            b.style.transform = 'translate(-50%,-50%) scale(' + (0.6 + (1 - u) * 0.4) + ')';
             if (u < 1) requestAnimationFrame(btick);
             else b.remove();
           }
           requestAnimationFrame(btick);
-        })(bit, cx, cy, dx, dy, bd);
+        })(bit, cx, cy, ddx, ddy, bd);
       }
     }
 
-    var n = 0;
-    var iv = setInterval(function () {
-      spawnOne();
-      n++;
-      if (n >= 22) clearInterval(iv);
-    }, 125);
-    setTimeout(function () {
-      clearInterval(iv);
-      finish();
-    }, 3000);
+    var lastSpawn = 0;
+    var startTime = performance.now();
+
+    function loop(now) {
+      if (now - lastSpawn > 120) {
+        spawnOne();
+        lastSpawn = now;
+      }
+
+      if (now - startTime < 3000) {
+        requestAnimationFrame(loop);
+      } else {
+        finish();
+      }
+    }
+
+    requestAnimationFrame(loop);
   }
 
   function genTypingChar() {

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Admin</title>
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
@@ -43,6 +43,10 @@
     .acctPanelHd { font-weight: 900; font-size: 24px; margin: 0 0 10px; color: var(--accent); }
     .acctPanelActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
     .acctPanelHint { color: var(--muted); font-size: 20px; margin: 0 0 12px; line-height: 1.4; }
+    .walletTxList { font-size: 18px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; background: rgba(0,0,0,.2); }
+    .walletTxList table { font-size: 18px; }
+    .walletKeyLine { font-size: 20px; color: var(--muted); margin: 8px 0 12px; word-break: break-all; }
+    .walletKeyLine code { color: var(--ink); font-size: 19px; }
   </style>
 </head>
 <body>
@@ -143,6 +147,43 @@
     </form>
   </div>
 
+  <div class="card" id="walletAdjustmentCard">
+    <div class="cardHd">Wallet Adjustment</div>
+    <p class="acctPanelHint">Edge-case nugget corrections only. Each change is logged in the economy ledger. Use a clear reason — it is stored with the transaction.</p>
+    <label for="walletAdjStudent">Student account (wallet target)</label>
+    <select id="walletAdjStudent" aria-describedby="walletAdjHint">
+      <option value="">— Select student —</option>
+    </select>
+    <p id="walletAdjHint" class="pendingMeta" style="margin-top:8px;">Wallet key matches the student’s economy identity (MTSS ID if set, else student character, else login ID).</p>
+    <p id="walletAdjResolvedKey" class="walletKeyLine" style="display:none;">Wallet key: <code id="walletAdjKeyDisplay"></code></p>
+    <p id="walletAdjBalance" class="pendingMeta" style="display:none;" aria-live="polite"></p>
+    <label for="walletAdjDelta">Add / Remove Nuggets</label>
+    <input id="walletAdjDelta" type="number" step="1" placeholder="e.g. 10 or -5" />
+    <p class="pendingMeta" style="margin-top:4px;">Positive adds nuggets; negative removes. Removal cannot exceed the student’s current balance.</p>
+    <label for="walletAdjReason">Reason <span style="color:var(--bad);">(required)</span></label>
+    <textarea id="walletAdjReason" rows="3" maxlength="2000" placeholder="Why is this adjustment needed? (visible in transaction history)"></textarea>
+    <div class="acctPanelActions" style="margin-top:14px;">
+      <button type="button" class="btn good" id="walletAdjSubmit">Apply adjustment</button>
+      <button type="button" class="btn" id="walletAdjRefreshBalance">Refresh balance</button>
+    </div>
+    <div id="walletAdjMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+    <div id="walletAdjRecentWrap" style="display:none;">
+      <p class="pendingMeta" style="margin-top:16px;margin-bottom:6px;">Recent transactions (same as student-facing history)</p>
+      <div id="walletAdjRecent" class="walletTxList"></div>
+    </div>
+  </div>
+
+  <div class="card" id="feedModerationCard">
+    <div class="cardHd">Feed visibility (students)</div>
+    <p class="acctPanelHint">Hide approved news or mission posts from Explore and other student-facing feeds without deleting them. Rows stay in the database; use Unhide to restore.</p>
+    <div id="feedModMsg" role="status" aria-live="polite" style="display:none;"></div>
+    <p class="pendingMeta" style="margin-bottom:8px;">Live on student feeds</p>
+    <div id="feedModLiveList"></div>
+    <p class="pendingMeta" style="margin:20px 0 8px;">Hidden from students (recoverable)</p>
+    <div id="feedModHiddenList"></div>
+    <p class="pendingMeta" style="margin-top:4px;"><button type="button" class="btn" id="feedModRefreshBtn">Refresh lists</button></p>
+  </div>
+
   <div class="card">
     <div class="cardHd">Pending approvals</div>
     <p class="pendingMeta">Student submissions appear here until approved. Approving publishes per item rules.</p>
@@ -153,6 +194,25 @@
   <script>
   (function(){
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
+    var lastUsersList = [];
+    var adminSessionMeta = { username: '', display_name: '' };
+    if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
+      window.LanternAuth.fetchMe().then(function(d){
+        if (d && d.ok && d.authenticated) {
+          adminSessionMeta.username = String(d.username || '');
+          adminSessionMeta.display_name = d.display_name != null ? String(d.display_name).trim() : '';
+        }
+      }).catch(function(){});
+    }
+    /** Same resolution as worker pilotEconomyCharacterName for student rows. */
+    function walletEconomyCharacterName(u) {
+      if (!u || String(u.role || '').trim().toLowerCase() !== 'student') return '';
+      var mid = u.mtss_student_id != null && String(u.mtss_student_id).trim() !== '' ? String(u.mtss_student_id).trim() : '';
+      if (mid) return mid;
+      var scn = u.student_character_name != null && String(u.student_character_name).trim() !== '' ? String(u.student_character_name).trim() : '';
+      if (scn) return scn;
+      return String(u.username || '').trim();
+    }
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c; }); }
 
     function showLogoutErr(text) {
@@ -228,6 +288,193 @@
         });
       });
     }
+
+    function postEconomyTransact(body) {
+      return fetch(api + '/api/economy/transact', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      }).then(function(r){
+        return r.json().then(function(j){
+          if (window.LanternAuth && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (window.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, status: r.status, body: j };
+        });
+      });
+    }
+
+    function showWalletAdjMsg(text, kind) {
+      var el = document.getElementById('walletAdjMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = 'usersMsg';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function getSelectedWalletStudent() {
+      var sel = document.getElementById('walletAdjStudent');
+      var username = sel && sel.value ? String(sel.value).trim() : '';
+      if (!username) return null;
+      var u = (lastUsersList || []).find(function(x){ return String(x.username || '') === username; });
+      if (!u || String(u.role || '').trim().toLowerCase() !== 'student') return null;
+      var key = walletEconomyCharacterName(u);
+      if (!key) return null;
+      return { user: u, wallet_key: key };
+    }
+
+    function populateWalletStudentSelect() {
+      var sel = document.getElementById('walletAdjStudent');
+      if (!sel) return;
+      var prev = sel.value;
+      sel.innerHTML = '<option value="">— Select student —</option>';
+      var count = 0;
+      (lastUsersList || []).forEach(function(u){
+        if (String(u.role || '').trim().toLowerCase() !== 'student') return;
+        if (!walletEconomyCharacterName(u)) return;
+        var opt = document.createElement('option');
+        opt.value = String(u.username || '');
+        var dn = u.display_name != null ? String(u.display_name).trim() : '';
+        opt.textContent = String(u.username || '') + (dn ? ' — ' + dn : '');
+        sel.appendChild(opt);
+        count++;
+      });
+      if (prev && Array.prototype.some.call(sel.options, function(o){ return o.value === prev; })) sel.value = prev;
+      if (count === 0) {
+        var o = document.createElement('option');
+        o.value = '';
+        o.textContent = 'No student accounts';
+        o.disabled = true;
+        sel.appendChild(o);
+      }
+    }
+
+    function renderWalletRecent(transactions) {
+      var host = document.getElementById('walletAdjRecent');
+      var wrap = document.getElementById('walletAdjRecentWrap');
+      if (!host || !wrap) return;
+      var list = Array.isArray(transactions) ? transactions : [];
+      if (list.length === 0) {
+        host.innerHTML = '<p class="pendingMeta">No transactions yet.</p>';
+        wrap.style.display = 'block';
+        return;
+      }
+      var rows = list.slice(0, 12).map(function(t){
+        var delta = Number(t.delta) || 0;
+        var sign = delta > 0 ? '+' : '';
+        return '<tr><td>' + esc(t.created_at || '') + '</td><td>' + sign + delta + '</td><td>' + esc(t.kind || '') + '</td><td>' + esc(t.source || '') + '</td><td>' + esc((t.note || '').slice(0, 80)) + '</td></tr>';
+      }).join('');
+      host.innerHTML = '<table><thead><tr><th>When</th><th>Δ</th><th>Kind</th><th>Source</th><th>Note</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      wrap.style.display = 'block';
+    }
+
+    function loadWalletBalanceForSelection() {
+      var picked = getSelectedWalletStudent();
+      var keyEl = document.getElementById('walletAdjResolvedKey');
+      var keyDisp = document.getElementById('walletAdjKeyDisplay');
+      var balEl = document.getElementById('walletAdjBalance');
+      if (!keyEl || !keyDisp || !balEl) return;
+      if (!picked) {
+        keyEl.style.display = 'none';
+        balEl.style.display = 'none';
+        document.getElementById('walletAdjRecentWrap').style.display = 'none';
+        return;
+      }
+      keyDisp.textContent = picked.wallet_key;
+      keyEl.style.display = 'block';
+      balEl.textContent = 'Loading balance…';
+      balEl.style.display = 'block';
+      fetch(api + '/api/economy/balance?character_name=' + encodeURIComponent(picked.wallet_key), { credentials: 'include' })
+        .then(function(r){ return r.json().then(function(j){ return { okHttp: r.ok, body: j }; }); })
+        .then(function(w){
+          if (!w || !w.body || !w.body.ok) {
+            balEl.textContent = (w && w.body && w.body.error) ? 'Could not load balance: ' + w.body.error : 'Could not load balance.';
+            renderWalletRecent([]);
+            return;
+          }
+          var b = w.body.balance != null ? Number(w.body.balance) : 0;
+          balEl.textContent = 'Current balance: ' + b + ' nuggets (available). Earned: ' + (w.body.earned != null ? w.body.earned : '—') + ' · Spent: ' + (w.body.spent != null ? w.body.spent : '—');
+          renderWalletRecent(w.body.recent_transactions || []);
+        })
+        .catch(function(){
+          balEl.textContent = 'Could not load balance (network).';
+        });
+    }
+
+    document.getElementById('walletAdjStudent').addEventListener('change', function(){
+      showWalletAdjMsg('', '');
+      loadWalletBalanceForSelection();
+    });
+    document.getElementById('walletAdjRefreshBalance').addEventListener('click', function(){
+      showWalletAdjMsg('', '');
+      loadWalletBalanceForSelection();
+    });
+    document.getElementById('walletAdjSubmit').addEventListener('click', function(){
+      var picked = getSelectedWalletStudent();
+      var reason = (document.getElementById('walletAdjReason').value || '').trim();
+      var deltaRaw = document.getElementById('walletAdjDelta').value;
+      var delta = Math.floor(Number(deltaRaw));
+      if (!picked) {
+        showWalletAdjMsg('Select a student account first.', 'err');
+        return;
+      }
+      if (!reason) {
+        showWalletAdjMsg('Reason is required.', 'err');
+        return;
+      }
+      if (!isFinite(delta) || delta === 0) {
+        showWalletAdjMsg('Enter a non-zero whole number for Add / Remove Nuggets.', 'err');
+        return;
+      }
+      var btn = document.getElementById('walletAdjSubmit');
+      if (btn) btn.disabled = true;
+      var meta = {
+        initiated_by: adminSessionMeta.username || 'admin',
+        initiated_by_display: adminSessionMeta.display_name || '',
+        context: 'admin_panel',
+      };
+      postEconomyTransact({
+        character_name: picked.wallet_key,
+        delta: delta,
+        kind: 'admin_adjustment',
+        source: 'ADMIN_PANEL',
+        note: reason,
+        meta: meta,
+      }).then(function(res){
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          showWalletAdjMsg('Applied. New balance: ' + (res.body.balance_after != null ? res.body.balance_after : '?') + ' nuggets.', 'ok');
+          document.getElementById('walletAdjDelta').value = '';
+          document.getElementById('walletAdjReason').value = '';
+          loadWalletBalanceForSelection();
+          return;
+        }
+        var err = res && res.body && res.body.error ? String(res.body.error) : 'Request failed';
+        if (err === 'insufficient') {
+          var avail = res.body && res.body.available != null ? res.body.available : '';
+          var need = res.body && res.body.need != null ? res.body.need : '';
+          showWalletAdjMsg('Insufficient balance to remove that many nuggets. Available: ' + avail + ', needed: ' + need + '.', 'err');
+          loadWalletBalanceForSelection();
+          return;
+        }
+        if (err === 'forbidden' || err === 'not_authenticated') {
+          showWalletAdjMsg('Not authorized. Sign in again as admin.', 'err');
+          return;
+        }
+        showWalletAdjMsg(err, 'err');
+      }).catch(function(){
+        showWalletAdjMsg('Network error. Try again.', 'err');
+      }).finally(function(){
+        if (btn) btn.disabled = false;
+      });
+    });
 
     function closeEditUserPanel() {
       var p = document.getElementById('editUserPanel');
@@ -361,7 +608,13 @@
         var res = w.body;
         var tb = document.getElementById('usersBody');
         tb.innerHTML = '';
-        if (!res || !res.ok || !res.users) return;
+        if (!res || !res.ok || !res.users) {
+          lastUsersList = [];
+          populateWalletStudentSelect();
+          return;
+        }
+        lastUsersList = res.users.slice();
+        populateWalletStudentSelect();
         res.users.forEach(function(u){
           var tr = document.createElement('tr');
           var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
@@ -419,6 +672,186 @@
         }
       });
     });
+
+    function showFeedModMsg(text, kind) {
+      var el = document.getElementById('feedModMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = '';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function loadFeedModeration() {
+      var liveEl = document.getElementById('feedModLiveList');
+      var hidEl = document.getElementById('feedModHiddenList');
+      if (!liveEl || !hidEl) return;
+      liveEl.innerHTML = '<p class="pendingMeta">Loading…</p>';
+      hidEl.innerHTML = '<p class="pendingMeta">Loading…</p>';
+      Promise.all([
+        fetch(api + '/api/news/approved', { credentials: 'omit' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, news: [] }; }),
+        fetch(api + '/api/missions/submissions/approved?limit=40', { credentials: 'omit' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, submissions: [] }; }),
+        fetch(api + '/api/news/hidden', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
+        fetch(api + '/api/missions/submissions/hidden?limit=50', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
+      ]).then(function (arr) {
+        var newsRes = arr[0] || {};
+        var missRes = arr[1] || {};
+        var hidNewsRes = arr[2] || {};
+        var hidMissRes = arr[3] || {};
+        if (hidNewsRes && hidNewsRes.error === 'network') {
+          showFeedModMsg('Could not load hidden news (network or sign-in).', 'err');
+        } else if (hidNewsRes && !hidNewsRes.ok && hidNewsRes.error === 'forbidden') {
+          showFeedModMsg('Not authorized to list hidden content.', 'err');
+        } else {
+          showFeedModMsg('', '');
+        }
+        var liveNews = (newsRes && newsRes.news) || [];
+        var liveMiss = (missRes && missRes.submissions) || [];
+        var hiddenNews = (hidNewsRes && hidNewsRes.news) || [];
+        var hiddenMiss = (hidMissRes && hidMissRes.submissions) || [];
+
+        liveEl.innerHTML = '';
+        if (liveNews.length === 0 && liveMiss.length === 0) {
+          liveEl.innerHTML = '<p class="pendingMeta">No approved news or mission posts in the public feed lists.</p>';
+        } else {
+          liveNews.forEach(function (n) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;"><strong>News</strong> — ' +
+              esc(n.title || 'Untitled') +
+              '<div class="pendingMeta">' +
+              esc(n.author_name || '') +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var hb = document.createElement('button');
+            hb.type = 'button';
+            hb.className = 'btn bad';
+            hb.textContent = 'Hide';
+            hb.addEventListener('click', function () {
+              hb.disabled = true;
+              postAdminJson('/api/news/hide', { id: n.id }).then(function (res) {
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('News item hidden from student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Hide failed', 'err');
+                }
+              }).catch(function () {
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                hb.disabled = false;
+              });
+            });
+            actions.appendChild(hb);
+            liveEl.appendChild(div);
+          });
+          liveMiss.forEach(function (s) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            var mt = (s.mission_title || 'Mission') + ' — ' + (s.character_name || '');
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;"><strong>Mission</strong> — ' +
+              esc(mt) +
+              '<div class="pendingMeta">' +
+              esc(s.character_name || '') +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var hb = document.createElement('button');
+            hb.type = 'button';
+            hb.className = 'btn bad';
+            hb.textContent = 'Hide';
+            hb.addEventListener('click', function () {
+              hb.disabled = true;
+              postAdminJson('/api/missions/submissions/hide', { id: s.id }).then(function (res) {
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('Mission submission hidden from student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Hide failed', 'err');
+                }
+              }).catch(function () {
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                hb.disabled = false;
+              });
+            });
+            actions.appendChild(hb);
+            liveEl.appendChild(div);
+          });
+        }
+
+        hidEl.innerHTML = '';
+        var hidCombined = [];
+        (hiddenNews || []).forEach(function (n) {
+          hidCombined.push({ kind: 'news', row: n });
+        });
+        (hiddenMiss || []).forEach(function (s) {
+          hidCombined.push({ kind: 'mission', row: s });
+        });
+        if (hidCombined.length === 0) {
+          hidEl.innerHTML = '<p class="pendingMeta">Nothing hidden.</p>';
+        } else {
+          hidCombined.forEach(function (item) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            var title =
+              item.kind === 'news'
+                ? esc(item.row.title || 'Untitled')
+                : esc((item.row.mission_title || 'Mission') + ' — ' + (item.row.character_name || ''));
+            var meta =
+              item.kind === 'news'
+                ? 'News · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '')
+                : 'Mission · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '');
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;">' +
+              title +
+              '<div class="pendingMeta">' +
+              meta +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var ub = document.createElement('button');
+            ub.type = 'button';
+            ub.className = 'btn good';
+            ub.textContent = 'Unhide';
+            ub.addEventListener('click', function () {
+              ub.disabled = true;
+              var path = item.kind === 'news' ? '/api/news/restore' : '/api/missions/submissions/restore';
+              var body = { id: item.row.id };
+              postAdminJson(path, body).then(function (res) {
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('Restored to student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Unhide failed', 'err');
+                }
+              }).catch(function () {
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                ub.disabled = false;
+              });
+            });
+            actions.appendChild(ub);
+            hidEl.appendChild(div);
+          });
+        }
+      });
+    }
+
+    var feedModRefreshBtn = document.getElementById('feedModRefreshBtn');
+    if (feedModRefreshBtn) {
+      feedModRefreshBtn.addEventListener('click', function () {
+        loadFeedModeration();
+      });
+    }
 
     function loadPending(){
       fetch(api + '/api/approvals/pending?filter=mine,unassigned', { credentials: 'include' })
@@ -523,8 +956,10 @@
     }
 
     loadUsers();
+    loadFeedModeration();
     loadPending();
     setInterval(loadPending, 60000);
+    setInterval(loadFeedModeration, 120000);
   })();
   </script>
 </body>

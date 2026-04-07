@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Games</title>
@@ -1048,7 +1048,19 @@
     function refreshBalance(){
       getBalance().then(function(n){
         var wAmt = document.getElementById('gamesPageWalletAmt');
-        if (wAmt) wAmt.textContent = String(n);
+        if (wAmt) {
+          var oldN = NaN;
+          if (wAmt.textContent) {
+            var p = parseInt(String(wAmt.textContent).trim(), 10);
+            if (Number.isFinite(p)) oldN = p;
+          }
+          if (Number.isFinite(oldN) && Number.isFinite(Number(n)) && Number(n) > oldN) {
+            wAmt.classList.remove('nuggetHit');
+            void wAmt.offsetWidth;
+            wAmt.classList.add('nuggetHit');
+          }
+          wAmt.textContent = String(n);
+        }
         var locked = n < 1;
         ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
           var lockEl = el(g + 'Locked');

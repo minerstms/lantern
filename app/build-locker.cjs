@@ -463,7 +463,7 @@ const html = `<!DOCTYPE html>
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <title>TMS Lantern — Locker</title>
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">
@@ -535,6 +535,7 @@ ${storeOverlay}
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
   <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/lantern-post-live-notify.js"></script>
   <script src="js/lantern-profile-app.js"></script>
   <script src="js/lantern-store-app.js"></script>
 ${lockerItemsScript}

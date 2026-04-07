@@ -54,7 +54,24 @@
     const el = (id)=>document.getElementById(id);
     const toastEl = el('toast');
 
+    function studentKeyForPostLive(){
+      var a = getAdopted();
+      if (!a) return '';
+      return String(a.character_id || a.name || '').trim();
+    }
+
+    /** Delegates to shared js/lantern-post-live-notify.js (same localStorage as Explore). */
+    function maybeToastPostLiveAfterBundle(list){
+      if (window.LanternPostLiveNotify && typeof window.LanternPostLiveNotify.notifyFromBundle === 'function') {
+        window.LanternPostLiveNotify.notifyFromBundle(list, toastEl, studentKeyForPostLive());
+      }
+    }
+
     function toast(msg){
+      if (!toastEl) return;
+      toastEl.classList.remove('toast--postLive');
+      toastEl.innerHTML = '';
+      clearTimeout(toastEl._lanternPostLiveT);
       toastEl.textContent = msg;
       toastEl.style.display = 'block';
       clearTimeout(toastEl._t);
@@ -84,7 +101,13 @@
         if (v && String(v).trim()) return String(v).trim();
       } catch(e) {}
       var a = getAdopted();
+      if (window.LanternPilotAuth && typeof window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted === 'function') {
+        var friendly = window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted(a);
+        if (friendly) return friendly;
+      }
       if (a && a.display_name && String(a.display_name).trim()) return String(a.display_name).trim();
+      if (a && a.student_character_name && String(a.student_character_name).trim()) return String(a.student_character_name).trim();
+      if (a && a.username && String(a.username).trim()) return String(a.username).trim();
       return (a && a.name) ? String(a.name) : '';
     }
 
@@ -965,7 +988,6 @@
         btn.innerHTML = '<span style="font-size:36px;margin-right:12px;">' + (c.avatar || '🌟') + '</span><span>' + (c.name || '') + '</span>';
         btn.addEventListener('click', function(){
           setAdopted({ character_id: c.character_id, name: c.name, avatar: c.avatar || '🌟' });
-          testingWired = false;
           postsWired = false;
           showProfile();
         });
@@ -998,7 +1020,6 @@
             btn.innerHTML = '<span style="font-size:36px;margin-right:12px;">🧪</span><span>' + (t.display_name || t.character_name) + '</span><span style="margin-left:8px;font-size:18px;color:var(--muted);">(Test)</span>';
             btn.addEventListener('click', function(){
               setAdopted({ name: t.character_name, display_name: t.display_name || t.character_name, avatar: '🧪', isTest: true, expires_at: t.expires_at });
-              testingWired = false;
               postsWired = false;
               showProfile();
             });
@@ -1055,7 +1076,6 @@
             closeModal();
             setAdopted({ name: res.character_name, display_name: res.display_name || res.character_name, avatar: '🧪', isTest: true, expires_at: res.expires_at });
             toast('You are now testing as ' + (res.display_name || res.character_name));
-            testingWired = false;
             postsWired = false;
             showProfile();
           }).catch(function(){
@@ -1167,7 +1187,7 @@
       var note = entry.decisionNote ? String(entry.decisionNote) : '';
       var snip = note.length > 40 ? note.slice(0, 40) + '…' : note;
       if (s === 'returned') return 'Needs Attention' + (snip ? ' · ' + snip : '');
-      if (s === 'pending') return 'Pending';
+      if (s === 'pending') return 'Your post is waiting for approval';
       if (s === 'approved' || s === 'accepted') return 'Approved';
       if (s === 'rejected') return 'Rejected';
       return entry.status || '';
@@ -1213,6 +1233,15 @@
       } catch (err) {}
     }
 
+    function renderMyCreationsLoading(){
+      var feed = el('postFeedEl');
+      var emptyEl = el('postFeedEmpty');
+      if (!feed) return;
+      if (emptyEl) emptyEl.style.display = 'none';
+      feed.innerHTML = '<div class="emptyState" style="min-height:100px;"><div class="emptyStateTitle">Loading your creations…</div><div class="emptyStateHint">Hang tight.</div></div>';
+      feed.classList.remove('gridView');
+    }
+
     function renderMyCreations(items, statusFilter, searchRaw){
       /* L-Rail-2: #postFeedEl is the canonical `.lanternScroller` (direct card children; no contentScrollerTrack). */
       var feed = el('postFeedEl');
@@ -1250,8 +1279,15 @@
           var hintEl = emptyEl.querySelector('.emptyStateHint');
           if (iconEl) iconEl.textContent = '📊';
           if (afterTab.length === 0){
-            if (titleEl) titleEl.textContent = 'No creations in this tab';
-            if (hintEl) hintEl.textContent = 'Submit work from Create (Contribute), Missions, or posts on Lantern (Explore) to see it here.';
+            var sf = String(statusFilter || 'all').trim().toLowerCase();
+            if (sf === 'pending'){
+              if (iconEl) iconEl.textContent = '⏳';
+              if (titleEl) titleEl.textContent = 'Nothing pending right now';
+              if (hintEl) hintEl.textContent = 'When you submit work for approval, it appears here with “Your post is waiting for approval” on the card.';
+            } else {
+              if (titleEl) titleEl.textContent = 'No creations in this tab';
+              if (hintEl) hintEl.textContent = 'Submit work from Create (Contribute), Missions, or posts on Lantern (Explore) to see it here.';
+            }
           } else {
             if (titleEl) titleEl.textContent = 'No matching creations';
             if (hintEl) hintEl.textContent = 'Try a different search.';
@@ -1545,7 +1581,78 @@
       try { fn(); } catch (err) { console.error('[Profile]', label, 'failed', err); }
     }
 
+    function pulseNuggetDisplayIfGain(balanceEl, oldVal, newVal) {
+      if (!balanceEl) return;
+      var o = Number(oldVal);
+      var n = Number(newVal);
+      if (!Number.isFinite(n) || !Number.isFinite(o) || n <= o) return;
+      balanceEl.classList.remove('nuggetHit');
+      void balanceEl.offsetWidth;
+      balanceEl.classList.add('nuggetHit');
+    }
+
+    function refreshProfileWalletBalanceFromServer(){
+      var adopted = getAdopted();
+      if (!adopted || !String(adopted.name || '').trim()) return;
+      if (!el('balanceEl')) return;
+      callGetBalance(String(adopted.name).trim()).then(function(res){
+        safeProfileStep('balanceVisibility', function(){
+          var n = res && (res.available != null) ? res.available : 0;
+          var nv = Number(n) || 0;
+          var vm = typeof window !== 'undefined' ? window.LANTERN_STUDENT_PROFILE_VIEW : null;
+          var be = el('balanceEl');
+          var oldN = NaN;
+          if (be && be.textContent) {
+            var parsed = parseInt(String(be.textContent).trim(), 10);
+            if (Number.isFinite(parsed)) oldN = parsed;
+          }
+          if (!Number.isFinite(oldN) && vm && vm.nuggets != null && Number.isFinite(Number(vm.nuggets))) {
+            oldN = Number(vm.nuggets);
+          }
+          if (vm) vm.nuggets = nv;
+          if (be) {
+            pulseNuggetDisplayIfGain(be, oldN, nv);
+            be.textContent = String(nv);
+          }
+          updateNuggetProgress(nv);
+        });
+      }).catch(function(){});
+    }
+
+    var profileWalletVisibilityWired = false;
+    function wireProfileWalletVisibilityOnce(){
+      if (profileWalletVisibilityWired) return;
+      profileWalletVisibilityWired = true;
+      function runProfileWalletRefreshFromReturnEvents(){
+        refreshProfileWalletBalanceFromServer();
+      }
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState !== 'visible') return;
+        runProfileWalletRefreshFromReturnEvents();
+      });
+      window.addEventListener('focus', runProfileWalletRefreshFromReturnEvents);
+      window.addEventListener('pageshow', function(e){
+        if (e.persisted) runProfileWalletRefreshFromReturnEvents();
+      });
+    }
+
     var DEFAULT_HERO_TITLE = 'Creative Student';
+
+    function applyProfileIdentityIdLine(friendlyName, walletKey){
+      var idEl = el('profileIdentityIdEl');
+      if (!idEl) return;
+      var f = (friendlyName || '').trim();
+      var w = (walletKey || '').trim();
+      if (!w || f === w) {
+        idEl.textContent = '';
+        idEl.style.display = 'none';
+        idEl.setAttribute('aria-hidden', 'true');
+        return;
+      }
+      idEl.textContent = 'ID: ' + w;
+      idEl.style.display = 'block';
+      idEl.removeAttribute('aria-hidden');
+    }
 
     function applyProfileHeroIdentity(vm){
       var dnEl = el('profileDisplayNameEl');
@@ -1558,6 +1665,8 @@
         var ht = (vm && vm.heroTitle) ? String(vm.heroTitle).trim() : '';
         stEl.textContent = ht || DEFAULT_HERO_TITLE;
       }
+      var wk = (vm && vm.walletKey != null) ? String(vm.walletKey).trim() : '';
+      applyProfileIdentityIdLine(name, wk);
     }
 
     function showProfile(){
@@ -1616,6 +1725,7 @@
       var studentProfileVM = {
         id: adopted.name,
         name: adopted.name,
+        walletKey: adopted.name,
         displayName: getStudentDisplayName() || adopted.name || '—',
         heroTitle: '',
         avatar: (adopted.avatar || '').trim() || '🌟',
@@ -1657,7 +1767,7 @@
 
       setProfileHeroStats({ creations: 0, achievements: 0, recognitions: 0 });
       updateNuggetProgress(0);
-      safeProfileStep('wireTestingControls', wireTestingControls);
+      safeProfileStep('wireSwitchStudentButton', wireSwitchStudentButtonOnce);
 
       var revEl = el('avatarRevealEl');
       var contentEl = el('avatarContentEl');
@@ -1747,8 +1857,10 @@
           });
         });
         if (avatarApiBase) {
+          renderMyCreationsLoading();
           fetchMyCreationsBundle().then(function(list){
             safeProfileStep('myCreations', function(){
+              maybeToastPostLiveAfterBundle(list || []);
               myCreationsItemsCache = list || [];
               var visible = filterMyCreationsForTab(myCreationsItemsCache, 'all');
               setProfileHeroStats({ creations: visible.length });
@@ -1861,8 +1973,18 @@
       callGetBalance(adopted.name).then(function(res){
         safeProfileStep('balance', function(){
           var n = res && (res.available != null) ? res.available : 0;
+          var be = el('balanceEl');
+          var oldN = NaN;
+          if (be && be.textContent) {
+            var parsed = parseInt(String(be.textContent).trim(), 10);
+            if (Number.isFinite(parsed)) oldN = parsed;
+          }
+          if (!Number.isFinite(oldN)) oldN = Number(studentProfileVM.nuggets) || 0;
           studentProfileVM.nuggets = Number(n) || 0;
-          el('balanceEl').textContent = String(studentProfileVM.nuggets);
+          if (be) {
+            pulseNuggetDisplayIfGain(be, oldN, studentProfileVM.nuggets);
+            be.textContent = String(studentProfileVM.nuggets);
+          }
           updateNuggetProgress(studentProfileVM.nuggets);
         });
       }).catch(function(){});
@@ -2676,167 +2798,53 @@
       run.withSuccessHandler(function(){ toast('Submitted for approval'); showProfile(); }).withFailureHandler(function(){ toast('Failed'); }).submitForApproval({ character_name: adopted.name, submission_type: 'mission', note: 'Test submission' });
     }
 
-    var testingWired = false;
-    /**
-     * Testing Controls: wired once per profile session while a student is selected (adopted.name set).
-     * Re-wires after Switch Student. Uses live getAdopted() on each action so nuggets apply to the current student.
-     */
-    function wireTestingControls(){
-      var adopted = getAdopted();
-      if (!adopted || !String(adopted.name || '').trim()) return;
-      if (testingWired) return;
-      var add1 = el('add1Btn');
-      var add5 = el('add5Btn');
-      var add10 = el('add10Btn');
-      var addCustom = el('addCustomBtn');
-      if (!add1 || !add5 || !add10 || !addCustom) return;
-
-      if (el('submitForApprovalBtn')) el('submitForApprovalBtn').addEventListener('click', submitForApproval);
+    /** Switch Student (profile hero); independent of removed Testing Controls panel. */
+    function wireSwitchStudentButtonOnce(){
       var switchBtn = el('switchCharBtn');
-      if (switchBtn) {
-        switchBtn.addEventListener('click', function(){
-          setAdopted(null);
-          testingWired = false;
-          postsWired = false;
-          showProfile();
-        });
-      }
-
-      function applyNuggetAdd(amount, toastMsg){
-        var a = getAdopted();
-        if (!a || !String(a.name || '').trim()) { toast('Select a student first'); return; }
-        var nm = String(a.name).trim();
-        if (economyApiBase) {
-          callEconomyTransact(nm, amount, 'testing', 'TESTING', 'Testing control', {}).then(function(tRes){
-            if (tRes && tRes.ok) {
-              var bal = tRes.balance_after != null ? tRes.balance_after : (tRes.available);
-              if (el('balanceEl')) el('balanceEl').textContent = String(bal != null ? bal : 0);
-              updateNuggetProgress(bal != null ? bal : 0);
-              toast(toastMsg);
-            } else { toast(tRes && tRes.error || 'Failed'); }
-          });
-        } else {
-          addNuggets(nm, amount);
-          toast(toastMsg);
-          showProfile();
-        }
-      }
-      el('add1Btn').addEventListener('click', function(){ applyNuggetAdd(1, '+1 nugget'); });
-      el('add5Btn').addEventListener('click', function(){ applyNuggetAdd(5, '+5 nuggets'); });
-      el('add10Btn').addEventListener('click', function(){ applyNuggetAdd(10, '+10 nuggets'); });
-      el('addCustomBtn').addEventListener('click', function(){
-        var n = Math.max(1, Math.min(999, Math.floor(Number(el('customAmount').value || 0)) || 0));
-        if (!isFinite(n) || n < 1) n = 1;
-        applyNuggetAdd(n, '+' + n + ' nuggets');
-      });
-      var resetWalletBtn = el('resetWalletBtn');
-      if (resetWalletBtn) resetWalletBtn.addEventListener('click', function(){
-        var a = getAdopted();
-        if (!a || !String(a.name || '').trim()) { toast('Select a student first'); return; }
-        if (!confirm('Reset wallet? This clears activity and purchases for this student.')) return;
-        clearActivityForCharacter(a.name);
-        clearPurchasesForCharacter(a.name);
-        toast('Wallet reset');
+      if (!switchBtn || switchBtn._lanternSwitchStudentWired) return;
+      switchBtn._lanternSwitchStudentWired = true;
+      switchBtn.addEventListener('click', function(){
+        setAdopted(null);
+        postsWired = false;
         showProfile();
       });
-      var clearPurchasesBtn = el('clearPurchasesBtn');
-      if (clearPurchasesBtn) clearPurchasesBtn.addEventListener('click', function(){
-        var a = getAdopted();
-        if (!a || !String(a.name || '').trim()) { toast('Select a student first'); return; }
-        if (!confirm('Clear all purchases for this student?')) return;
-        clearPurchasesForCharacter(a.name);
-        toast('Purchases cleared');
-        showProfile();
-      });
+    }
 
-      if (el('seedDemoWorldBtn')) el('seedDemoWorldBtn').addEventListener('click', function(){
-        var DATA = window.LANTERN_DATA;
-        if (!DATA || !DATA.seedDemoWorld) { toast('Not available'); return; }
-        var r = DATA.seedDemoWorld();
-        if (r && r.ok) {
-          toast('Sample content seeded'); showProfile();
-          if (typeof window !== 'undefined' && window.location && window.location.reload) setTimeout(function(){ window.location.reload(); }, 800);
-        } else { toast(r && r.error ? r.error : 'Failed'); }
+    /** Beta report overlay: no opener button on Locker after Testing Controls removal; wiring stays safe if markup is reintroduced. */
+    function wireBetaReportOnce(){
+      if (window._lanternBetaReportWired) return;
+      var overlay = el('betaReportOverlay');
+      var openBtn = el('reportBetaIssueBtn');
+      var closeBtn = el('betaReportCloseBtn');
+      var cancelBtn = el('betaReportCancelBtn');
+      var form = document.getElementById('betaReportForm');
+      if (!overlay || !openBtn || !form) return;
+      window._lanternBetaReportWired = true;
+      function openBetaReport(){ overlay.style.display = 'flex'; }
+      function closeBetaReport(){ overlay.style.display = 'none'; form.reset(); }
+      openBtn.addEventListener('click', openBetaReport);
+      if (closeBtn) closeBtn.addEventListener('click', closeBetaReport);
+      if (cancelBtn) cancelBtn.addEventListener('click', closeBetaReport);
+      form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+        if (apiBase === null){ toast('Beta reporting requires the API to be set.'); return; }
+        var adopted = getAdopted();
+        var reporterName = (adopted && adopted.name) ? adopted.name : 'Anonymous';
+        var descEl = document.getElementById('betaReportDescription');
+        var pageEl = document.getElementById('betaReportPage');
+        var screenshotEl = document.getElementById('betaReportScreenshot');
+        var description = (descEl && descEl.value || '').trim();
+        if (!description){ toast('Please enter a description.'); return; }
+        var payload = { reporter_name: reporterName, page: (pageEl && pageEl.value) || 'Other', description: description, screenshot_url: (screenshotEl && screenshotEl.value || '').trim() || null };
+        fetch(apiBase + '/api/beta-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+          .then(function(r){ return r.json(); })
+          .then(function(res){
+            if (res && res.ok){ toast('Report submitted. Thank you!'); closeBetaReport(); }
+            else { toast(res && res.error ? res.error : 'Submit failed'); }
+          })
+          .catch(function(){ toast('Submit failed'); });
       });
-
-      if (el('clearDemoWorldBtn')) el('clearDemoWorldBtn').addEventListener('click', function(){
-        var DATA = window.LANTERN_DATA;
-        if (!DATA || !DATA.clearDemoWorld) { toast('Not available'); return; }
-        var r = DATA.clearDemoWorld();
-        if (r && r.ok) {
-          toast('Sample content cleared'); showProfile();
-          if (typeof window !== 'undefined' && window.location && window.location.reload) setTimeout(function(){ window.location.reload(); }, 500);
-        } else { toast(r && r.error ? r.error : 'Failed'); }
-      });
-
-      if (el('minimalModeBtn')) el('minimalModeBtn').addEventListener('click', function(){
-        var pw = (prompt('Enter password for Minimal Mode:') || '').trim();
-        if (pw !== 'geppetto') { toast('Incorrect'); return; }
-        var DATA = window.LANTERN_DATA;
-        if (DATA && DATA.setMode) DATA.setMode('minimal');
-        toast('Minimal mode. Reloading…');
-        setTimeout(function(){ window.location.reload(); }, 400);
-      });
-
-      if (el('returnSeededBtn')) el('returnSeededBtn').addEventListener('click', function(){
-        var DATA = window.LANTERN_DATA;
-        if (DATA && DATA.setMode) DATA.setMode('seeded');
-        toast('Seeded mode. Reloading…');
-        setTimeout(function(){ window.location.reload(); }, 400);
-      });
-
-      if (el('resetAllBtn')) el('resetAllBtn').addEventListener('click', function(){
-        if (!confirm('Reset ALL Lantern data? This clears characters, posts, activity, everything. You will need to adopt a character again.')) return;
-        var DATA = window.LANTERN_DATA;
-        if (!DATA || !DATA.resetAllLanternData) { toast('Not available'); return; }
-        if (DATA.resetAllLanternData()) { toast('All data reset'); window.location.reload(); }
-        else { toast('Reset failed'); }
-      });
-
-      var toggle = el('testingToggle');
-      var body = el('testingBody');
-      if (toggle && body){
-        toggle.addEventListener('click', function(){
-          body.style.display = body.style.display === 'none' ? '' : 'none';
-          el('testingToggleIcon').textContent = body.style.display === 'none' ? '▼' : '▲';
-        });
-      }
-      (function(){
-        if (window._lanternBetaReportWired) return;
-        var overlay = el('betaReportOverlay');
-        var openBtn = el('reportBetaIssueBtn');
-        var closeBtn = el('betaReportCloseBtn');
-        var cancelBtn = el('betaReportCancelBtn');
-        var form = document.getElementById('betaReportForm');
-        if (!overlay || !openBtn || !form) return;
-        window._lanternBetaReportWired = true;
-        function openBetaReport(){ overlay.style.display = 'flex'; }
-        function closeBetaReport(){ overlay.style.display = 'none'; form.reset(); }
-        openBtn.addEventListener('click', openBetaReport);
-        if (closeBtn) closeBtn.addEventListener('click', closeBetaReport);
-        if (cancelBtn) cancelBtn.addEventListener('click', closeBetaReport);
-        form.addEventListener('submit', function(e){
-          e.preventDefault();
-          var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-          if (apiBase === null){ toast('Beta reporting requires the API to be set.'); return; }
-          var adopted = getAdopted();
-          var reporterName = (adopted && adopted.name) ? adopted.name : 'Anonymous';
-          var descEl = document.getElementById('betaReportDescription');
-          var pageEl = document.getElementById('betaReportPage');
-          var screenshotEl = document.getElementById('betaReportScreenshot');
-          var description = (descEl && descEl.value || '').trim();
-          if (!description){ toast('Please enter a description.'); return; }
-          var payload = { reporter_name: reporterName, page: (pageEl && pageEl.value) || 'Other', description: description, screenshot_url: (screenshotEl && screenshotEl.value || '').trim() || null };
-          fetch(apiBase + '/api/beta-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-            .then(function(r){ return r.json(); })
-            .then(function(res){
-              if (res && res.ok){ toast('Report submitted. Thank you!'); closeBetaReport(); }
-              else { toast(res && res.error ? res.error : 'Submit failed'); }
-            })
-            .catch(function(){ toast('Submit failed'); });
-        });
-      })();
-      testingWired = true;
     }
 
     window.addEventListener('hashchange', function(){
@@ -2852,6 +2860,8 @@
     });
 
     /* All profile entry points (nav, student switch, redirects, deep links) converge here. When verify mode uses cloud, identity may be set async; runProfileEntry runs once identity is ready or when API is off. */
+    wireProfileWalletVisibilityOnce();
+    safeProfileStep('wireBetaReport', wireBetaReportOnce);
     runProfileEntry = function(){ showProfile(); };
     if (!studentIdentityFetchPending) runProfileEntry();
     if (typeof updateStudentVerifyBanner === 'function') updateStudentVerifyBanner();

@@ -203,11 +203,29 @@
       var e = el('earned');
       var s = el('spent');
       var a = el('avail');
+      var hero = el('storeHeroAvail');
+      var oldHero = NaN;
+      if (hero && hero.textContent && hero.textContent !== '—') {
+        oldHero = parseInt(String(hero.textContent).trim(), 10);
+      }
+      if (!Number.isFinite(oldHero) && a && a.textContent && a.textContent !== '—') {
+        oldHero = parseInt(String(a.textContent).trim(), 10);
+      }
       if (e) e.textContent = String(b.earned ?? '—');
       if (s) s.textContent = String(b.spent ?? '—');
       if (a) a.textContent = String(b.available ?? '—');
-      var hero = el('storeHeroAvail');
-      if (hero) hero.textContent = String(b.available ?? '—');
+      if (hero) {
+        var nv =
+          b.available !== undefined && b.available !== null && b.available !== '—'
+            ? Number(b.available)
+            : NaN;
+        if (Number.isFinite(nv) && Number.isFinite(oldHero) && nv > oldHero) {
+          hero.classList.remove('nuggetHit');
+          void hero.offsetWidth;
+          hero.classList.add('nuggetHit');
+        }
+        hero.textContent = String(b.available ?? '—');
+      }
     }
 
     var economyApiBase = (function () {
@@ -364,7 +382,8 @@
       });
     }
 
-    async function refreshBalance(){
+    async function refreshBalance(opts){
+      opts = opts || {};
       var characterName = getCharacterForStore();
       if (!characterName){
         setBalanceUI({ earned: '—', spent: '—', available: '—' });
@@ -374,7 +393,9 @@
       var res = await callGetBalance(characterName);
       if (!res.ok){
         setBalanceUI({ earned: '—', spent: '—', available: '—' });
-        showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+        if (!opts.silent) {
+          showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+        }
         return null;
       }
       setBalanceUI(res);
@@ -685,6 +706,31 @@
           });
         });
       }
+    })();
+
+    (function wireStoreWalletVisibilityOnce(){
+      if (typeof document === 'undefined') return;
+      if (window._lanternStoreWalletVisibilityWired) return;
+      window._lanternStoreWalletVisibilityWired = true;
+      function runStoreWalletRefreshFromReturnEvents(){
+        var charName = getCharacterForStore();
+        if (!charName) return;
+        refreshBalance({ silent: true }).then(function(balRes){
+          if (balRes && charName) {
+            callGetCosmeticOwnership(charName).then(function(o){
+              renderCosmetics(charName, balRes.available, o);
+            });
+          }
+        });
+      }
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState !== 'visible') return;
+        runStoreWalletRefreshFromReturnEvents();
+      });
+      window.addEventListener('focus', runStoreWalletRefreshFromReturnEvents);
+      window.addEventListener('pageshow', function(e){
+        if (e.persisted) runStoreWalletRefreshFromReturnEvents();
+      });
     })();
 
     async function init(){

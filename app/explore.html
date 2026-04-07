@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Home</title>
@@ -93,6 +93,7 @@
     .emptyStateIcon{ font-size: 48px; margin-bottom: 14px; opacity: .6; }
     .emptyStateTitle{ font-weight: 900; font-size: 26px; margin-bottom: 8px; }
     .emptyStateHint{ color: var(--muted); font-size: 22px; line-height: 1.45; }
+    .exploreEmptyState .launchBtn{ margin-top: 14px; cursor: pointer; font-family: inherit; }
 
     .exploreUrl{
       display: inline-block;
@@ -165,6 +166,16 @@
     .pollCard .pollQuestion{ font-weight: 800; font-size: 22px; margin-bottom: 8px; line-height: 1.3; }
     .exploreSessionHint{ display: none; padding: 10px var(--lantern-pad-x) 6px; margin: 0; font-size: 20px; font-weight: 800; color: var(--muted); line-height: 1.35; }
     .exploreSessionHint.is-visible{ display: block; }
+    /* Post-live toast (shared with Locker via lantern-post-live-notify.js) */
+    #toast.toast--postLive{
+      border: 1px solid rgba(56,208,124,.42);
+      background: linear-gradient(180deg, rgba(56,208,124,.16), rgba(0,0,0,.78));
+      padding: 14px 18px;
+      font-weight: 900;
+    }
+    #toast .toastPostLiveInner{ text-align: center; max-width: 22em; margin: 0 auto; }
+    #toast .toastPostLiveTitle{ font-weight: 950; font-size: 22px; line-height: 1.25; }
+    #toast .toastPostLiveSub{ font-weight: 750; font-size: 20px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
   </style>
 </head>
 <body class="page-has-ticker">
@@ -293,6 +304,7 @@
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-post-live-notify.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
 
@@ -303,6 +315,63 @@
     var feed = [];
     var cachedApprovedNews = [];
     var happeningNewsLimit = 12;
+    var exploreSeenPostKeys = Object.create(null);
+    var exploreFeedHydrated = false;
+
+    function exploreFeedLoadingHtml(){
+      return '<div class="emptyState exploreEmptyState" role="status" aria-live="polite"><div class="emptyStateIcon">✨</div><div class="emptyStateTitle">Loading your feed…</div><div class="emptyStateHint">Hang tight while we get the latest posts.</div></div>';
+    }
+    function exploreFeedEmptyHtml(){
+      return '<div class="emptyState exploreEmptyState"><div class="emptyStateIcon">👇</div><div class="emptyStateTitle">Be the first to post today 👇</div><div class="emptyStateHint">Share something from Contribute or finish a mission — it shows up here after approval.</div></div>';
+    }
+    function exploreFeedErrorHtml(){
+      return '<div class="emptyState exploreEmptyState" role="alert"><div class="emptyStateIcon">↻</div><div class="emptyStateTitle">Something didn’t load</div><div class="emptyStateHint">Refresh and try again.</div><button type="button" class="launchBtn" onclick="location.reload()">Refresh</button></div>';
+    }
+    function exploreSectionLoadingHint(text){
+      return '<div class="emptyState exploreEmptyState" role="status"><div class="emptyStateHint">' + esc(text) + '</div></div>';
+    }
+    function setExploreFeedRailsLoading(){
+      var j = el('justInEl');
+      var r = el('recentEl');
+      var b = el('bestEl');
+      var h = exploreFeedLoadingHtml();
+      if (j) j.innerHTML = h;
+      if (r) r.innerHTML = h;
+      if (b) b.innerHTML = h;
+    }
+    function setExploreFeedRailsError(){
+      var j = el('justInEl');
+      var r = el('recentEl');
+      var b = el('bestEl');
+      var h = exploreFeedErrorHtml();
+      if (j) j.innerHTML = h;
+      if (r) r.innerHTML = h;
+      if (b) b.innerHTML = h;
+    }
+    function setHappeningSectionLoading(){
+      var ne = el('happeningNewsEl');
+      var ae = el('happeningActivityEl');
+      if (ne) ne.innerHTML = exploreSectionLoadingHint('Loading articles…');
+      if (ae) ae.innerHTML = exploreSectionLoadingHint('Loading activity…');
+    }
+
+    function exploreKeyForFeedPost(p){
+      if (!p) return '';
+      if (p.id != null && String(p.id) !== '') return 'fp:' + String(p.id);
+      return '';
+    }
+    function exploreKeyForNews(n){
+      if (!n) return '';
+      if (n.id != null && String(n.id) !== '') return 'nw:' + String(n.id);
+      return '';
+    }
+    function exploreApplyPostArrivalIfNew(el, key){
+      if (!el || !key) return;
+      if (exploreFeedHydrated && !exploreSeenPostKeys[key]) {
+        el.classList.add('postArrival');
+      }
+      exploreSeenPostKeys[key] = true;
+    }
 
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
 
@@ -337,6 +406,7 @@
         }
       });
       container.appendChild(card);
+      exploreApplyPostArrivalIfNew(card, exploreKeyForFeedPost(p));
     }
 
     function renderSection(containerId, posts, limit, sectionKey){
@@ -345,6 +415,10 @@
       container.innerHTML = '';
       var filtered = filterPosts(posts);
       var toShow = limit ? filtered.slice(0, limit) : filtered;
+      if (!toShow.length && containerId === 'recentEl'){
+        container.innerHTML = exploreFeedEmptyHtml();
+        return;
+      }
       toShow.forEach(function(p){ renderCard(p, container, 'medium', sectionKey || 'new'); });
     }
 
@@ -360,7 +434,7 @@
       container.innerHTML = '';
       var ordered = postsForNewRail();
       if (!ordered.length){
-        container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">✨</div><div class="emptyStateTitle">Nothing here yet</div><div class="emptyStateHint">When classmates share work, the newest pieces show up here first.</div></div>';
+        container.innerHTML = exploreFeedEmptyHtml();
         return;
       }
       var limit = 30;
@@ -391,6 +465,7 @@
         }
       });
       container.appendChild(card);
+      exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
     }
 
     function renderFeaturedAnnouncementsRail(){
@@ -491,6 +566,7 @@
         });
       }
       if (typeof applyExploreSearch === 'function') applyExploreSearch();
+      exploreFeedHydrated = true;
     }
 
     function callGetExploreFeed(){
@@ -554,6 +630,8 @@
         return;
       }
       if (document.getElementById('pollsSection')) document.getElementById('pollsSection').style.display = 'block';
+      var pollsLoadEl = el('pollsEl');
+      if (pollsLoadEl) pollsLoadEl.innerHTML = exploreSectionLoadingHint('Loading polls…');
       fetch(exploreApiBase + '/api/polls').then(function(r){ return r.json(); }).then(function(res){
         pollsList = (res && res.ok && res.polls) ? res.polls : [];
         renderPolls(pollsList);
@@ -561,7 +639,7 @@
         pollsList = [];
         var container = el('pollsEl');
         var section = document.getElementById('pollsSection');
-        if (container) container.innerHTML = '<div class="emptyState"><div class="emptyStateIcon">📊</div><div class="emptyStateTitle">Could not load polls</div><div class="emptyStateHint">Check your connection and try again.</div></div>';
+        if (container) container.innerHTML = '<div class="emptyState exploreEmptyState" role="alert"><div class="emptyStateIcon">📊</div><div class="emptyStateTitle">Something didn’t load</div><div class="emptyStateHint">Refresh and try again.</div><button type="button" class="launchBtn" onclick="location.reload()">Refresh</button></div>';
         if (section) section.style.display = 'block';
         syncYouCanDoSectionVisibility();
       });
@@ -710,6 +788,7 @@
             }
           });
           container.appendChild(card);
+          exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
         });
       }
       if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
@@ -821,7 +900,7 @@
       var p = period || currentLeaderboardPeriod;
       var g = (game || currentLeaderboardGame || '').trim();
       if (!g) { container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Choose a game above.</div></div>'; return; }
-      container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Loading…</div></div>';
+      container.innerHTML = exploreSectionLoadingHint('Loading scores…');
       fetch(exploreApiBase + '/api/leaderboards?period=' + encodeURIComponent(p) + '&game_name=' + encodeURIComponent(g) + '&limit=20')
         .then(function(r){ return r.json(); })
         .then(function(res){
@@ -843,7 +922,7 @@
           container.innerHTML = html;
         })
         .catch(function(){
-          container.innerHTML = '<div class="emptyState"><div class="emptyStateHint">Could not load leaderboard.</div></div>';
+          container.innerHTML = '<div class="emptyState exploreEmptyState" role="alert"><div class="emptyStateTitle">Something didn’t load</div><div class="emptyStateHint">Refresh and try again.</div><button type="button" class="launchBtn" onclick="location.reload()">Refresh</button></div>';
         });
     }
     var leaderboardWired = false;
@@ -878,7 +957,7 @@
       if (!container || !section) return;
       if (exploreApiBase === null) { section.style.display = 'none'; return; }
       section.style.display = 'block';
-      container.innerHTML = '<div class="emptyState" style="min-width:200px;"><div class="emptyStateHint">Loading…</div></div>';
+      container.innerHTML = exploreSectionLoadingHint('Loading game highlights…');
       var promises = GAME_HIGHLIGHTS_GAMES.map(function(gameName){
         return fetch(exploreApiBase + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=12')
           .then(function(r){ return r.json(); })
@@ -988,10 +1067,14 @@
         feed = postsFeed.concat(missionItems).sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
         try { console.log('[explore] visible feed source (legacy): posts=' + postsFeed.length + ' missions=' + missionItems.length + ' total=' + feed.length); } catch(_) {}
         enrichFeedAvatarsThenRenderAll();
+      }).catch(function(){
+        setExploreFeedRailsError();
       });
     }
 
     function refresh(){
+      setExploreFeedRailsLoading();
+      setHappeningSectionLoading();
       loadPolls();
       loadMissionSpotlight();
       var LEDS = window.LANTERN_EXPLORE_DATASET;
@@ -1023,6 +1106,9 @@
         renderSchoolActivity(events);
       });
       refreshDailyHunt();
+      if (exploreApiBase && getAdopted() && window.LanternPostLiveNotify && typeof window.LanternPostLiveNotify.fetchAndMaybeNotify === 'function') {
+        window.LanternPostLiveNotify.fetchAndMaybeNotify(exploreApiBase, el('toast'));
+      }
     }
 
     (function(){

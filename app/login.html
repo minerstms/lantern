@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Sign in</title>
-  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script>window.LANTERN_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
@@ -50,7 +50,7 @@
   </div>
   <script>
     (function () {
-      /* No fetchMe(), no session redirect, and no use of ?return= on page load. Redirects only after successful POST /api/auth/login via redirectAfterLogin(). */
+      /* Redirects after successful POST /api/auth/login via redirectAfterLogin(body). Invalid ?return= (/, login, empty) falls through to role-based home. */
       var api =
         typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null
           ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
@@ -70,6 +70,13 @@
       function isLoginReturnTarget(p) {
         var pathOnly = String(p || '').split('?')[0].split('#')[0];
         return pathOnly === '/login' || pathOnly === '/login.html';
+      }
+      /** Reject root and login URLs; ?return=%2F must not override role-based home. */
+      function isValidReturnParam(ret) {
+        var s = String(ret || '').trim();
+        if (!s || s === '/') return false;
+        if (s.indexOf('/login') === 0) return false;
+        return true;
       }
 
       if (!form || !submitBtn || !msgEl) {
@@ -98,6 +105,63 @@
         return s;
       }
 
+      /** Same destination as redirectAfterLogin (no navigation); kept in sync for tests/debug. */
+      function computeRedirectTargetAfterLogin(body) {
+        var params = new URLSearchParams(location.search);
+        var ret = params.get('return');
+        if (!ret) {
+          try {
+            ret = sessionStorage.getItem('lantern_return_to');
+          } catch (e) {}
+        }
+        if (ret) ret = String(ret).trim();
+
+        if (body && body.must_change_password) {
+          var pwdDefault =
+            window.LanternAuth && typeof window.LanternAuth.defaultRoleHomePath === 'function'
+              ? window.LanternAuth.defaultRoleHomePath(body && body.role)
+              : '/explore.html';
+          var pwdReturn =
+            ret &&
+            isValidReturnParam(ret) &&
+            isSafeReturnPath(ret) &&
+            !isLoginReturnTarget(ret)
+              ? ret
+              : pwdDefault;
+          return '/change-password.html?return=' + encodeURIComponent(pwdReturn);
+        }
+
+        var isValidReturn =
+          ret &&
+          isValidReturnParam(ret) &&
+          isSafeReturnPath(ret) &&
+          !isLoginReturnTarget(ret);
+
+        if (isValidReturn) {
+          var rReturn =
+            window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+              ? window.LanternAuth.normalizeRole(body && body.role)
+              : String((body && body.role) || '').trim().toLowerCase();
+          if (
+            window.LanternAuth &&
+            typeof window.LanternAuth.isGenericExplorePath === 'function' &&
+            window.LanternAuth.isGenericExplorePath(ret)
+          ) {
+            if (rReturn === 'teacher') return '/teacher.html';
+            if (rReturn === 'admin') return '/admin.html';
+          }
+          return ret;
+        }
+
+        var r =
+          window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+            ? window.LanternAuth.normalizeRole(body && body.role)
+            : String((body && body.role) || '').trim().toLowerCase();
+        if (r === 'admin') return '/admin.html';
+        if (r === 'teacher') return '/teacher.html';
+        return '/explore.html';
+      }
+
       function redirectAfterLogin(body) {
         var params = new URLSearchParams(location.search);
         var returnTo = params.get('return');
@@ -106,6 +170,7 @@
             returnTo = sessionStorage.getItem('lantern_return_to');
           } catch (e) {}
         }
+        if (returnTo) returnTo = String(returnTo).trim();
 
         if (body && body.must_change_password) {
           var pwdDefault =
@@ -113,14 +178,23 @@
               ? window.LanternAuth.defaultRoleHomePath(body && body.role)
               : '/explore.html';
           var pwdReturn =
-            returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)
+            returnTo &&
+            isValidReturnParam(returnTo) &&
+            isSafeReturnPath(returnTo) &&
+            !isLoginReturnTarget(returnTo)
               ? returnTo
               : pwdDefault;
           location.replace('/change-password.html?return=' + encodeURIComponent(pwdReturn));
           return;
         }
 
-        if (returnTo && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+        var isValidReturn =
+          returnTo &&
+          isValidReturnParam(returnTo) &&
+          isSafeReturnPath(returnTo) &&
+          !isLoginReturnTarget(returnTo);
+
+        if (isValidReturn) {
           try {
             sessionStorage.removeItem('lantern_return_to');
           } catch (e) {}
@@ -184,6 +258,7 @@
           return;
         }
         submitBtn.disabled = true;
+        var willRedirect = false;
         console.log('[Lantern login] POST', api + '/api/auth/login');
         fetch(api + '/api/auth/login', {
           method: 'POST',
@@ -192,26 +267,55 @@
           body: JSON.stringify({ username: username, password: password }),
         })
           .then(function (r) {
-            return r.json().then(function (j) {
+            return r.text().then(function (t) {
+              var j = null;
+              try {
+                j = t ? JSON.parse(t) : {};
+              } catch (e) {
+                console.error('[Lantern login] invalid JSON from login response', e);
+                return { okHttp: r.ok, status: r.status, body: null, parseError: true };
+              }
               return { okHttp: r.ok, status: r.status, body: j };
             });
           })
           .then(function (res) {
-            if (res.okHttp && res.body && res.body.ok === true) {
-              redirectAfterLogin(res.body);
+            if (res.parseError) {
+              showError('Sign-in failed. Try again.');
+              return;
+            }
+            var body = res.body;
+            var loginOk =
+              res.okHttp && body && body.ok === true && !body.error;
+            if (loginOk) {
+              console.log('LOGIN RESPONSE', body);
+              willRedirect = true;
+              if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
+                window.LanternAuth.fetchMe().then(function (me) {
+                  console.log('FETCH ME RESULT', me);
+                  if (!me || me.ok !== true || me.authenticated !== true) {
+                    console.error('[Lantern login] fetchMe after login did not confirm session', me);
+                  }
+                }).catch(function (err) {
+                  console.error('[Lantern login] fetchMe after login failed', err);
+                });
+              }
+              redirectAfterLogin(body);
               return;
             }
             var err =
-              (res.body && (res.body.error || res.body.message)) ||
+              (body && (body.error || body.message)) ||
               'Request failed (HTTP ' + res.status + ')';
             showError(friendlyLoginError(err));
           })
-          .catch(function () {
+          .catch(function (err) {
+            console.error('[Lantern login] network or request failed', err);
             showError('Network error. Try again.');
           })
           .finally(function () {
-            submitBtn.disabled = false;
-            submitBtn.removeAttribute('aria-busy');
+            if (!willRedirect) {
+              submitBtn.disabled = false;
+              submitBtn.removeAttribute('aria-busy');
+            }
           });
       });
     })();
