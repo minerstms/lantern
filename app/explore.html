@@ -176,6 +176,40 @@
     #toast .toastPostLiveInner{ text-align: center; max-width: 22em; margin: 0 auto; }
     #toast .toastPostLiveTitle{ font-weight: 950; font-size: 22px; line-height: 1.25; }
     #toast .toastPostLiveSub{ font-weight: 750; font-size: 20px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+    /* Admin-only: in-context hide (top-right; does not replace report control) */
+    .exploreAdminModWrap{
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 8;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      max-width: 140px;
+      pointer-events: auto;
+    }
+    .exploreAdminModBtn{
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,77,109,.5);
+      background: rgba(8,12,24,.88);
+      color: #ffb4c4;
+      cursor: pointer;
+      font-family: inherit;
+      line-height: 1.2;
+    }
+    .exploreAdminModBtn:hover{ background: rgba(255,77,109,.22); color: #fff; }
+    .exploreAdminModBtn:disabled{ opacity: 0.5; cursor: default; }
+    .exploreAdminModHint{
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      line-height: 1.25;
+      text-align: right;
+    }
   </style>
 </head>
 <body class="page-has-ticker">
@@ -191,17 +225,33 @@
         auth.applyStudentStorageFromSession(data);
       }
       try {
+        var nr =
+          window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+            ? window.LanternAuth.normalizeRole(data.role)
+            : String((data && data.role) || '').trim().toLowerCase();
+        window.exploreViewerIsAdmin = nr === 'admin';
+      } catch (eRole) {
+        window.exploreViewerIsAdmin = false;
+      }
+      try {
         var hint = document.getElementById('exploreSessionHint');
         if (hint && data && data.username != null) {
           var dn = data.display_name != null ? String(data.display_name).trim() : '';
-          var nr =
+          var nr2 =
             window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
               ? window.LanternAuth.normalizeRole(data.role)
               : String(data.role || '').trim().toLowerCase();
-          hint.textContent = 'Signed in as ' + String(data.username) + (dn ? ' · ' + dn : '') + ' · ' + (nr || '—');
+          hint.textContent = 'Signed in as ' + String(data.username) + (dn ? ' · ' + dn : '') + ' · ' + (nr2 || '—');
           hint.classList.add('is-visible');
         }
       } catch (e) {}
+      try {
+        if (window.exploreViewerIsAdmin) {
+          setTimeout(function () {
+            if (typeof window.refreshExploreExplore === 'function') window.refreshExploreExplore();
+          }, 0);
+        }
+      } catch (e2) {}
     });
   })();
   </script>
@@ -375,6 +425,138 @@
 
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
 
+    function exploreExploreAdminModLog(action, endpoint, id, type, result) {
+      try {
+        console.log('EXPLORE ADMIN MODERATION', { action: action, endpoint: endpoint, id: id, type: type, result: result });
+      } catch (e) {}
+    }
+
+    function explorePostAdminModerationJson(path, body) {
+      if (exploreApiBase === null) {
+        return Promise.resolve({ okHttp: false, body: { ok: false, error: 'no_api' } });
+      }
+      return fetch(exploreApiBase + path, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      }).then(function (r) {
+        return r.json().then(function (j) {
+          if (window.LanternAuth && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (window.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, body: j };
+        });
+      });
+    }
+
+    function exploreToast(msg) {
+      var t = el('toast');
+      if (!t || !msg) return;
+      t.textContent = msg;
+      t.style.display = 'block';
+      setTimeout(function () { t.style.display = 'none'; }, 2200);
+    }
+
+    /** Feed post cards: mission_* → API mission submission; other ids → Design Studio post (no worker hide). */
+    function attachExploreAdminControlsToFeedCard(card, post) {
+      if (!card || !post || !window.exploreViewerIsAdmin) return;
+      if (card.querySelector('.exploreAdminModWrap')) return;
+      try {
+        if (window.getComputedStyle(card).position === 'static') card.style.position = 'relative';
+      } catch (e) {}
+      var wrap = document.createElement('div');
+      wrap.className = 'exploreAdminModWrap';
+      wrap.setAttribute('aria-hidden', 'true');
+      var pid = post.id != null ? String(post.id) : '';
+      if (pid.indexOf('mission_') === 0) {
+        var subId = pid.replace(/^mission_/, '');
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'exploreAdminModBtn';
+        btn.textContent = 'Hide';
+        btn.title = 'Remove this submission from student-facing feeds';
+        btn.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          btn.disabled = true;
+          var ep = '/api/missions/submissions/hide';
+          explorePostAdminModerationJson(ep, { id: subId }).then(function (res) {
+            if (res && res.blocked) {
+              exploreExploreAdminModLog('hide', ep, subId, 'mission', { blocked: true });
+              exploreToast('Sign-in update required.');
+              return;
+            }
+            exploreExploreAdminModLog('hide', ep, subId, 'mission', res && res.body ? res.body : res);
+            if (res && res.okHttp && res.body && res.body.ok) {
+              exploreToast('Hidden from student feed');
+              if (typeof refresh === 'function') refresh();
+            } else {
+              exploreToast((res && res.body && res.body.error) ? String(res.body.error) : 'Could not hide');
+            }
+          }).catch(function () {
+            exploreExploreAdminModLog('hide', ep, subId, 'mission', { error: 'network' });
+            exploreToast('Network error');
+          }).finally(function () {
+            btn.disabled = false;
+          });
+        });
+        wrap.appendChild(btn);
+      } else {
+        var hint = document.createElement('span');
+        hint.className = 'exploreAdminModHint';
+        hint.textContent = 'Not removable here';
+        hint.title = 'Design Studio posts are stored separately. Hide approved news or mission cards from the API using those rows, or use Admin → Feed visibility.';
+        wrap.appendChild(hint);
+      }
+      card.appendChild(wrap);
+    }
+
+    /** Approved news row from GET /api/news/approved */
+    function attachExploreAdminControlsToNewsCard(card, newsRow) {
+      if (!card || !newsRow || !window.exploreViewerIsAdmin) return;
+      if (card.querySelector('.exploreAdminModWrap')) return;
+      try {
+        if (window.getComputedStyle(card).position === 'static') card.style.position = 'relative';
+      } catch (e) {}
+      var nid = newsRow.id != null ? String(newsRow.id) : '';
+      if (!nid) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'exploreAdminModWrap';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'exploreAdminModBtn';
+      btn.textContent = 'Hide';
+      btn.title = 'Hide this article from student-facing feeds';
+      btn.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        btn.disabled = true;
+        var ep = '/api/news/hide';
+        explorePostAdminModerationJson(ep, { id: nid }).then(function (res) {
+          if (res && res.blocked) {
+            exploreExploreAdminModLog('hide', ep, nid, 'news', { blocked: true });
+            exploreToast('Sign-in update required.');
+            return;
+          }
+          exploreExploreAdminModLog('hide', ep, nid, 'news', res && res.body ? res.body : res);
+          if (res && res.okHttp && res.body && res.body.ok) {
+            exploreToast('Hidden from student feed');
+            if (typeof refresh === 'function') refresh();
+          } else {
+            exploreToast((res && res.body && res.body.error) ? String(res.body.error) : 'Could not hide');
+          }
+        }).catch(function () {
+          exploreExploreAdminModLog('hide', ep, nid, 'news', { error: 'network' });
+          exploreToast('Network error');
+        }).finally(function () {
+          btn.disabled = false;
+        });
+      });
+      wrap.appendChild(btn);
+      card.appendChild(wrap);
+    }
+
     /* Feed cards: no raw URL or action buttons in body. Whole card is the click target. */
     function buildUrlBlock(p){
       return '';
@@ -407,6 +589,7 @@
       });
       container.appendChild(card);
       exploreApplyPostArrivalIfNew(card, exploreKeyForFeedPost(p));
+      attachExploreAdminControlsToFeedCard(card, p);
     }
 
     function renderSection(containerId, posts, limit, sectionKey){
@@ -466,6 +649,7 @@
       });
       container.appendChild(card);
       exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
+      attachExploreAdminControlsToNewsCard(card, n);
     }
 
     function renderFeaturedAnnouncementsRail(){
@@ -789,6 +973,7 @@
           });
           container.appendChild(card);
           exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
+          attachExploreAdminControlsToNewsCard(card, n);
         });
       }
       if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
@@ -1110,6 +1295,7 @@
         window.LanternPostLiveNotify.fetchAndMaybeNotify(exploreApiBase, el('toast'));
       }
     }
+    window.refreshExploreExplore = refresh;
 
     (function(){
       var nuggetEl = el('dailyHuntNuggetEl');
