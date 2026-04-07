@@ -397,6 +397,8 @@
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
     var el = function(id){ return document.getElementById(id); };
 
+    let latestNewsRequestId = 0;
+
     var LC = function(){ return window.LanternCards; };
     var feed = [];
     var cachedApprovedNews = [];
@@ -980,9 +982,17 @@
     }
 
     function renderStudentNews(news){
+      console.log('RENDER CALL >>>', {
+        length: news && news.length,
+        data: news,
+        time: Date.now()
+      });
       cachedApprovedNews = news || [];
-      var container = el('happeningNewsEl');
+      var happeningNewsEl = document.getElementById('happeningNewsEl');
+      console.log('CONTAINER:', happeningNewsEl);
+      var container = happeningNewsEl;
       if (!container) return;
+      console.log('EMPTY CHECK:', news);
       if (!news || news.length === 0){
         var loadWrapEmpty = el('happeningNewsLoadMoreWrap');
         if (loadWrapEmpty) loadWrapEmpty.style.display = 'none';
@@ -993,6 +1003,7 @@
       var limit = Math.min(happeningNewsLimit, news.length);
       var newsList = news.slice(0, limit);
       function paintHappeningNews(list){
+        console.log('PAINT INPUT:', list);
         container.innerHTML = '';
         list.forEach(function(n){
           var authorLabel = getAuthorLabel(n.author_type || 'student');
@@ -1038,6 +1049,7 @@
             loadWrap.style.display = 'block';
             loadBtn.onclick = function () {
               happeningNewsLimit += 12;
+              console.log('CALL SITE >>> renderStudentNews', cachedApprovedNews);
               renderStudentNews(cachedApprovedNews);
             };
           } else {
@@ -1304,6 +1316,7 @@
     }
 
     function refresh(){
+      console.log('refresh() >>>', Date.now());
       setExploreFeedRailsLoading();
       setHappeningSectionLoading();
       loadPolls();
@@ -1325,16 +1338,27 @@
         loadLatestPostsLegacyMergeThenRender();
       }
       happeningNewsLimit = 12;
+      const requestId = ++latestNewsRequestId;
       if (window.LANTERN_REACTIONS && window.LANTERN_REACTIONS.getFeatureFlags) {
         window.LANTERN_REACTIONS.getFeatureFlags().then(function(){
           callGetApprovedNews().then(function(res){
+            if (requestId !== latestNewsRequestId) {
+              console.log('IGNORED OLD RESPONSE', requestId);
+              return;
+            }
             var news = (res && res.news) || [];
+            console.log('CALL SITE >>> renderStudentNews', news);
             renderStudentNews(news);
           });
         });
       } else {
         callGetApprovedNews().then(function(res){
+          if (requestId !== latestNewsRequestId) {
+            console.log('IGNORED OLD RESPONSE', requestId);
+            return;
+          }
           var news = (res && res.news) || [];
+          console.log('CALL SITE >>> renderStudentNews', news);
           renderStudentNews(news);
         });
       }
