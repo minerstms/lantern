@@ -204,6 +204,19 @@
     return global.exploreViewerIsAdmin === true;
   }
 
+  function showAdminExploreToast(msg, isErr) {
+    var toast = global.document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    try {
+      toast.style.borderColor = isErr ? 'rgba(255,77,109,.55)' : 'rgba(255,255,255,.12)';
+    } catch (e) {}
+    setTimeout(function () {
+      toast.style.display = 'none';
+    }, isErr ? 4500 : 2600);
+  }
+
   function postExploreAdminHide(path, body) {
     var base =
       typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null
@@ -218,12 +231,24 @@
         body: JSON.stringify(body || {}),
       })
       .then(function (r) {
-        return r.json().then(function (j) {
+        return r.text().then(function (text) {
+          var j = {};
+          try {
+            j = text ? JSON.parse(text) : {};
+          } catch (eParse) {
+            return { okHttp: false, body: { ok: false, error: 'bad_response', detail: text ? String(text).slice(0, 240) : '' } };
+          }
           if (global.LanternAuth && typeof global.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
             if (global.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
           }
           return { okHttp: r.ok, body: j };
         });
+      })
+      .catch(function (err) {
+        return {
+          okHttp: false,
+          body: { ok: false, error: 'network', detail: err && err.message ? String(err.message) : '' },
+        };
       });
   }
 
@@ -286,34 +311,58 @@
         ev.preventDefault();
         ev.stopPropagation();
         btn.disabled = true;
+        try {
+          global.console.log('EXPLORE ADMIN DETAIL MODERATION', {
+            phase: 'before_fetch',
+            action: 'hide',
+            endpoint: path,
+            id: id,
+            type: typeStr,
+            removable: true,
+          });
+        } catch (e0) {}
         postExploreAdminHide(path, postBody).then(function (res) {
+          try {
+            global.console.log('EXPLORE ADMIN DETAIL MODERATION', {
+              phase: 'after_fetch',
+              action: 'hide',
+              endpoint: path,
+              id: id,
+              type: typeStr,
+              result: res,
+            });
+          } catch (e1) {}
           if (res && res.blocked) {
             exploreAdminDetailModLog('hide', id, typeStr, true, path, { blocked: true });
+            showAdminExploreToast('Sign-in update required (e.g. change password). Cannot remove until resolved.', true);
             btn.disabled = false;
             return;
           }
           var body = res && res.body ? res.body : {};
           exploreAdminDetailModLog('hide', id, typeStr, true, path, body);
           if (res && res.okHttp && body && body.ok) {
-            var toast = global.document.getElementById('toast');
-            if (toast) {
-              toast.textContent = 'Removed from student view';
-              toast.style.display = 'block';
-              setTimeout(function () {
-                toast.style.display = 'none';
-              }, 2400);
-            }
+            showAdminExploreToast('Removed from student view', false);
             closeDetail();
             if (typeof global.refreshExploreExplore === 'function') global.refreshExploreExplore();
+            try {
+              global.console.log('EXPLORE ADMIN DETAIL MODERATION', {
+                phase: 'after_refresh_trigger',
+                id: id,
+                type: typeStr,
+              });
+            } catch (e2) {}
           } else {
             btn.disabled = false;
+            var errMsg = (body && body.error) ? String(body.error) : res && !res.okHttp ? 'HTTP error' : 'Could not remove item';
+            showAdminExploreToast('Remove failed: ' + errMsg, true);
             try {
-              global.alert((body && body.error) ? String(body.error) : 'Could not remove item');
-            } catch (e2) {}
+              global.alert('Remove failed: ' + errMsg);
+            } catch (e3) {}
           }
-        }).catch(function () {
-          exploreAdminDetailModLog('hide', id, typeStr, true, path, { error: 'network' });
+        }).catch(function (err) {
+          exploreAdminDetailModLog('hide', id, typeStr, true, path, { error: 'network', detail: err });
           btn.disabled = false;
+          showAdminExploreToast('Remove failed: network or unexpected error.', true);
         });
       });
       inner.appendChild(btn);

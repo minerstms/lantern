@@ -218,6 +218,19 @@
   }
 
   function callGetApprovedNews() {
+    var base = apiBase();
+    if (base !== null) {
+      return fetch(base + '/api/news/approved', { credentials: 'include' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (res) {
+          return res && res.ok ? res : { ok: false, news: [] };
+        })
+        .catch(function () {
+          return { ok: false, news: [] };
+        });
+    }
     var run = createRunSafe();
     if (!run) return Promise.resolve({ ok: false, news: [] });
     return new Promise(function (resolve) {

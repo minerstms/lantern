@@ -806,14 +806,16 @@
     }
 
     function callGetApprovedNews(){
+      /* Worker /api/news/approved is the same source as POST /api/news/hide — must be used when API is configured
+         or hidden articles reappear after refresh (GAS getApprovedNews does not reflect worker hidden_at). */
+      if (exploreApiBase != null) {
+        return fetch(exploreApiBase + '/api/news/approved', { credentials: 'include' })
+          .then(function (r) { return r.json(); })
+          .then(function (res) { return res && res.ok ? res : { ok: false, news: [] }; })
+          .catch(function () { return { ok: false, news: [] }; });
+      }
       var run = createRun ? createRun() : null;
       if (!run) {
-        if (exploreApiBase != null) {
-          return fetch(exploreApiBase + '/api/news/approved')
-            .then(function (r) { return r.json(); })
-            .then(function (res) { return res && res.ok ? res : { ok: false, news: [] }; })
-            .catch(function () { return { ok: false, news: [] }; });
-        }
         return Promise.resolve({ ok: false, news: [] });
       }
       return new Promise(function(resolve){
