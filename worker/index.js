@@ -2262,7 +2262,7 @@ async function handleNewsRoutes(request, url, path, env, cors) {
 
   if (request.method === 'GET' && path === '/api/news/approved') {
     const rows = await db.prepare(
-      "SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at FROM lantern_news_submissions WHERE status = 'approved' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC"
+      "SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at FROM lantern_news_submissions WHERE LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC"
     ).all();
     const rawResults = rows.results || [];
     console.log('[GET /api/news/approved] row count:', rawResults.length);
