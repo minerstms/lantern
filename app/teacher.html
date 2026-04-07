@@ -3264,18 +3264,33 @@
       renderMissionSubmissions();
       renderNewsSubmissions();
       renderTotals();
-      if (avatarApiBase) loadModerationData();
+      if (avatarApiBase !== null) loadModerationData();
+    }
+
+    var moderationFetchCred = { credentials: 'include' };
+
+    function moderationDebugLog(action, endpoint, id, type, result) {
+      try {
+        console.log('MODERATION ACTION', {
+          action: action,
+          endpoint: endpoint,
+          id: id,
+          type: type,
+          result: result,
+        });
+      } catch (e) {}
     }
 
     function loadModerationData(){
       if (avatarApiBase === null) return;
       var staffName = (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? approvalStaffId : 'Teacher';
+      var base = avatarApiBase;
       Promise.all([
-        fetch(avatarApiBase + '/api/news/approved').then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/missions/submissions/approved?limit=20').then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/news/hidden').then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/missions/submissions/hidden?limit=20').then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
-        fetch(avatarApiBase + '/api/moderation/flagged?limit=30').then(function(r){ return r.json(); }).then(function(res){ return (res && res.flags) || []; }).catch(function(){ return []; })
+        fetch(base + '/api/news/approved', moderationFetchCred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/missions/submissions/approved?limit=20', moderationFetchCred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/news/hidden', moderationFetchCred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/missions/submissions/hidden?limit=20', moderationFetchCred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/moderation/flagged?limit=30', moderationFetchCred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.flags) || []; }).catch(function(){ return []; })
       ]).then(function(arr){
         var liveNews = arr[0], liveMissions = arr[1], hiddenNews = arr[2], hiddenMissions = arr[3], flagged = arr[4];
         var liveItems = [];
@@ -3312,11 +3327,11 @@
         row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueTitle">' + esc(it.title) + '</div><div class="approvalQueueMeta">' + esc(it.author) + ' · ' + (it.type === 'news' ? 'News' : 'Mission') + '</div></div><div class="curatePostActions"></div>';
         var leftEl = row.querySelector('.approvalQueueLeft');
         var actions = row.querySelector('.curatePostActions');
-        leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'live', staffName); });
+        leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'live', staffName, it.type); });
         var viewBtn = document.createElement('button');
         viewBtn.className = 'btn small';
         viewBtn.textContent = 'View';
-        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'live', staffName); });
+        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'live', staffName, it.type); });
         actions.appendChild(viewBtn);
         var hideBtn = document.createElement('button');
         hideBtn.className = 'btn bad small';
@@ -3325,8 +3340,9 @@
           hideBtn.disabled = true;
           var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
           var body = it.type === 'news' ? { id: it.id, hidden_by: staffName } : { id: it.id, hidden_by: staffName };
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
+          fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
             hideBtn.disabled = false;
+            moderationDebugLog('hide', url, it.id, it.type, res);
             if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
           });
         });
@@ -3346,11 +3362,11 @@
         row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueTitle">' + esc(it.title) + '</div><div class="approvalQueueMeta">Hidden by ' + esc(it.hidden_by || '') + ' · ' + (it.hidden_at ? formatNewsDate(it.hidden_at) : '') + '</div></div><div class="curatePostActions"></div>';
         var leftEl = row.querySelector('.approvalQueueLeft');
         var actions = row.querySelector('.curatePostActions');
-        leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'hidden', staffName); });
+        leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'hidden', staffName, it.type); });
         var viewBtn = document.createElement('button');
         viewBtn.className = 'btn small';
         viewBtn.textContent = 'View';
-        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'hidden', staffName); });
+        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'hidden', staffName, it.type); });
         actions.appendChild(viewBtn);
         var restoreBtn = document.createElement('button');
         restoreBtn.className = 'btn good small';
@@ -3358,8 +3374,9 @@
         restoreBtn.addEventListener('click', function(e){ e.stopPropagation();
           restoreBtn.disabled = true;
           var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
+          fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
             restoreBtn.disabled = false;
+            moderationDebugLog('restore', url, it.id, it.type, res);
             if (res.ok){ toast('Restored'); loadModerationData(); } else { toast(res.error || 'Failed'); }
           });
         });
@@ -3381,11 +3398,11 @@
         row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueType">' + esc(f.item_type || '') + ' #' + (f.item_id || '').slice(0, 12) + '</div><div class="approvalQueueMeta">Reported by ' + esc(f.reported_by || '') + (f.reason ? ' · ' + esc(f.reason) : '') + '</div></div><div class="curatePostActions"></div>';
         var leftEl = row.querySelector('.approvalQueueLeft');
         var actions = row.querySelector('.curatePostActions');
-        leftEl.addEventListener('click', function(){ openModerationPreview(fullItem || f, 'flagged', staffName); });
+        leftEl.addEventListener('click', function(){ openModerationPreview(fullItem || f, 'flagged', staffName, f.item_type === 'news' ? 'news' : 'mission'); });
         var viewBtn = document.createElement('button');
         viewBtn.className = 'btn small';
         viewBtn.textContent = 'View';
-        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(fullItem || f, 'flagged', staffName); });
+        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(fullItem || f, 'flagged', staffName, f.item_type === 'news' ? 'news' : 'mission'); });
         actions.appendChild(viewBtn);
         var hideBtn = document.createElement('button');
         hideBtn.className = 'btn bad small';
@@ -3394,8 +3411,9 @@
           hideBtn.disabled = true;
           var url = (f.item_type === 'news') ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
           var body = { id: f.item_id, hidden_by: staffName };
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; }).then(function(res){
+          fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
             hideBtn.disabled = false;
+            moderationDebugLog('hide_flagged', url, f.item_id, f.item_type === 'news' ? 'news' : 'mission', res);
             if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
           });
         });
@@ -3405,13 +3423,15 @@
     }
 
     var moderationPreviewCurrent = null;
-    function openModerationPreview(item, context, staffName){
+    function openModerationPreview(item, context, staffName, explicitType){
       if (!item) return;
+      var resolvedType =
+        explicitType || item.item_type || (item.mission_id ? 'mission' : 'news');
       moderationPreviewCurrent = {
         item: item,
         context: context,
         staffName: staffName,
-        type: item.item_type || (item.author_name !== undefined ? 'news' : 'mission'),
+        type: resolvedType,
         id: item.item_id != null ? item.item_id : item.id
       };
       var contentEl = el('moderationPreviewContent');
@@ -3487,7 +3507,8 @@
           var it = moderationPreviewCurrent;
           var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
           var body = { id: it.id, hidden_by: it.staffName };
-          var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+          var res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; });
+          moderationDebugLog('hide_preview', url, it.id, it.type, res);
           if (res.ok){ toast('Removed from view'); closeModerationPreview(); loadModerationData(); } else { toast(res.error || 'Failed'); }
         });
         actionsEl.appendChild(removeBtn);
@@ -3500,7 +3521,8 @@
           if (!moderationPreviewCurrent) return;
           var it = moderationPreviewCurrent;
           var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
-          var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+          var res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; });
+          moderationDebugLog('restore_preview', url, it.id, it.type, res);
           if (res.ok){ toast('Restored'); closeModerationPreview(); loadModerationData(); } else { toast(res.error || 'Failed'); }
         });
         actionsEl.appendChild(restoreBtn);
