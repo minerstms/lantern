@@ -687,6 +687,12 @@
       el.textContent = text;
     }
 
+    function adminFeedVisibilityLog(action, endpoint, id, type, result) {
+      try {
+        console.log('ADMIN FEED VISIBILITY ACTION', { action: action, endpoint: endpoint, id: id, type: type, result: result });
+      } catch (e) {}
+    }
+
     function loadFeedModeration() {
       var liveEl = document.getElementById('feedModLiveList');
       var hidEl = document.getElementById('feedModHiddenList');
@@ -694,8 +700,8 @@
       liveEl.innerHTML = '<p class="pendingMeta">Loading…</p>';
       hidEl.innerHTML = '<p class="pendingMeta">Loading…</p>';
       Promise.all([
-        fetch(api + '/api/news/approved', { credentials: 'omit' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, news: [] }; }),
-        fetch(api + '/api/missions/submissions/approved?limit=40', { credentials: 'omit' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, submissions: [] }; }),
+        fetch(api + '/api/news/approved', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, news: [] }; }),
+        fetch(api + '/api/missions/submissions/approved?limit=40', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, submissions: [] }; }),
         fetch(api + '/api/news/hidden', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
         fetch(api + '/api/missions/submissions/hidden?limit=50', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
       ]).then(function (arr) {
@@ -735,8 +741,15 @@
             hb.textContent = 'Hide';
             hb.addEventListener('click', function () {
               hb.disabled = true;
-              postAdminJson('/api/news/hide', { id: n.id }).then(function (res) {
-                if (res && res.blocked) return;
+              var hideEndpoint = '/api/news/hide';
+              var payload = { id: String(n.id != null ? n.id : '') };
+              postAdminJson(hideEndpoint, payload).then(function (res) {
+                if (res && res.blocked) {
+                  adminFeedVisibilityLog('hide', hideEndpoint, payload.id, 'news', { blocked: true });
+                  showFeedModMsg('Sign-in update required. Refresh the page if prompted.', 'err');
+                  return;
+                }
+                adminFeedVisibilityLog('hide', hideEndpoint, payload.id, 'news', res && res.body ? res.body : res);
                 if (res && res.okHttp && res.body && res.body.ok) {
                   showFeedModMsg('News item hidden from student feeds.', 'ok');
                   loadFeedModeration();
@@ -744,6 +757,7 @@
                   showFeedModMsg((res && res.body && res.body.error) || 'Hide failed', 'err');
                 }
               }).catch(function () {
+                adminFeedVisibilityLog('hide', hideEndpoint, payload.id, 'news', { error: 'network' });
                 showFeedModMsg('Network error.', 'err');
               }).finally(function () {
                 hb.disabled = false;
@@ -824,9 +838,14 @@
             ub.addEventListener('click', function () {
               ub.disabled = true;
               var path = item.kind === 'news' ? '/api/news/restore' : '/api/missions/submissions/restore';
-              var body = { id: item.row.id };
+              var body = { id: String(item.row.id != null ? item.row.id : '') };
               postAdminJson(path, body).then(function (res) {
-                if (res && res.blocked) return;
+                if (res && res.blocked) {
+                  adminFeedVisibilityLog('unhide', path, body.id, item.kind, { blocked: true });
+                  showFeedModMsg('Sign-in update required. Refresh the page if prompted.', 'err');
+                  return;
+                }
+                adminFeedVisibilityLog('unhide', path, body.id, item.kind, res && res.body ? res.body : res);
                 if (res && res.okHttp && res.body && res.body.ok) {
                   showFeedModMsg('Restored to student feeds.', 'ok');
                   loadFeedModeration();
@@ -834,6 +853,7 @@
                   showFeedModMsg((res && res.body && res.body.error) || 'Unhide failed', 'err');
                 }
               }).catch(function () {
+                adminFeedVisibilityLog('unhide', path, body.id, item.kind, { error: 'network' });
                 showFeedModMsg('Network error.', 'err');
               }).finally(function () {
                 ub.disabled = false;

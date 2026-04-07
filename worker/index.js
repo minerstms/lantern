@@ -816,6 +816,12 @@ function adminAuditLabel(account) {
   return dn || u || 'admin';
 }
 
+/** JSON clients often send numeric ids; (body.id || '').trim() throws on numbers. */
+function parseModerationBodyId(body) {
+  if (!body || body.id == null) return '';
+  return String(body.id).trim();
+}
+
 /**
  * Wallet / economy character_name for students: prefer linked MTSS student_id, else student_character_name, else username.
  * Keeps POST /api/economy/transact (secret) and GET balance aligned when MTSS keys wallets by student_id.
@@ -2287,7 +2293,7 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
-    const id = (body.id || '').trim();
+    const id = parseModerationBodyId(body);
     const hiddenBy = adminAuditLabel(gate.account);
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id, status FROM lantern_news_submissions WHERE id = ?').bind(id).first();
@@ -2304,7 +2310,7 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
-    const id = (body.id || '').trim();
+    const id = parseModerationBodyId(body);
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id FROM lantern_news_submissions WHERE id = ?').bind(id).first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
@@ -3008,7 +3014,7 @@ async function handleMissionsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
-    const id = (body.id || '').trim();
+    const id = parseModerationBodyId(body);
     const hiddenBy = adminAuditLabel(gate.account);
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id, status FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
@@ -3025,7 +3031,7 @@ async function handleMissionsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
-    const id = (body.id || '').trim();
+    const id = parseModerationBodyId(body);
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
     const row = await db.prepare('SELECT id FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
