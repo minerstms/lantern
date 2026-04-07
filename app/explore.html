@@ -398,6 +398,7 @@
     var el = function(id){ return document.getElementById(id); };
 
     let latestNewsRequestId = 0;
+    let lastGoodNews = [];
 
     var LC = function(){ return window.LanternCards; };
     var feed = [];
@@ -437,6 +438,10 @@
       if (b) b.innerHTML = h;
     }
     function setHappeningSectionLoading(){
+      if (lastGoodNews && lastGoodNews.length > 0) {
+        console.log('SKIP LOADING — already have data');
+        return;
+      }
       var ne = el('happeningNewsEl');
       var ae = el('happeningActivityEl');
       if (ne) ne.innerHTML = exploreSectionLoadingHint('Loading articles…');
@@ -1003,11 +1008,13 @@
       var limit = Math.min(happeningNewsLimit, news.length);
       var newsList = news.slice(0, limit);
       function paintHappeningNews(list){
-        console.log('PAINT INPUT:', list);
+        console.log('PAINT INPUT FINAL:', list);
         container.innerHTML = '';
         list.forEach(function(n){
+          console.log('ITEM:', n);
           var authorLabel = getAuthorLabel(n.author_type || 'student');
           var card = LC().createStudentCard(LC().specNewsRailCard(n, esc, authorLabel, false));
+          console.log('CARD RESULT:', card);
           if (!card) return;
           card.setAttribute('role', 'button');
           card.setAttribute('tabindex', '0');
@@ -1029,6 +1036,7 @@
             }
           });
           container.appendChild(card);
+          console.log('APPENDED CARD');
           exploreApplyPostArrivalIfNew(card, exploreKeyForNews(n));
           attachExploreAdminControlsToNewsCard(card, n);
         });
@@ -1347,8 +1355,11 @@
               return;
             }
             var news = (res && res.news) || [];
+            if (news && news.length > 0) {
+              lastGoodNews = news;
+            }
             console.log('CALL SITE >>> renderStudentNews', news);
-            renderStudentNews(news);
+            renderStudentNews(news && news.length ? news : lastGoodNews);
           });
         });
       } else {
@@ -1358,8 +1369,11 @@
             return;
           }
           var news = (res && res.news) || [];
+          if (news && news.length > 0) {
+            lastGoodNews = news;
+          }
           console.log('CALL SITE >>> renderStudentNews', news);
-          renderStudentNews(news);
+          renderStudentNews(news && news.length ? news : lastGoodNews);
         });
       }
       callGetActivityEvents(12).then(function(res){
