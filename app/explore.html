@@ -818,10 +818,11 @@
       if (exploreApiBase != null) {
         return fetch(exploreApiBase + '/api/news/approved', { credentials: 'include' })
           .then(function (r) { return r.json(); })
-          .then(function (data) {
-            console.log('NEWS DATA:', data);
-            var news = (data && data.news) || [];
-            return { ok: !!(data && data.ok), news: news };
+          .then(function (res) {
+            console.log('RAW NEWS RESPONSE >>>', res);
+            console.log('NEWS DATA:', res);
+            var news = (res && res.news) || [];
+            return { ok: !!(res && res.ok), news: news };
           })
           .catch(function () { return { ok: false, news: [] }; });
       }
@@ -831,6 +832,7 @@
       }
       return new Promise(function(resolve){
         run.withSuccessHandler(function(data){
+          console.log('RAW NEWS RESPONSE >>>', data);
           console.log('NEWS DATA:', data);
           var news = (data && data.news) || [];
           resolve({ ok: !!(data && data.ok), news: news });
@@ -1359,6 +1361,7 @@
               lastGoodNews = news;
             }
             console.log('CALL SITE >>> renderStudentNews', news);
+            console.log('PARSED NEWS >>>', (res && res.news));
             renderStudentNews(news && news.length ? news : lastGoodNews);
           });
         });
@@ -1373,6 +1376,7 @@
             lastGoodNews = news;
           }
           console.log('CALL SITE >>> renderStudentNews', news);
+          console.log('PARSED NEWS >>>', (res && res.news));
           renderStudentNews(news && news.length ? news : lastGoodNews);
         });
       }
