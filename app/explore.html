@@ -811,7 +811,11 @@
       if (exploreApiBase != null) {
         return fetch(exploreApiBase + '/api/news/approved', { credentials: 'include' })
           .then(function (r) { return r.json(); })
-          .then(function (res) { return res && res.ok ? res : { ok: false, news: [] }; })
+          .then(function (data) {
+            console.log('NEWS DATA:', data);
+            var news = (data && data.news) || [];
+            return { ok: !!(data && data.ok), news: news };
+          })
           .catch(function () { return { ok: false, news: [] }; });
       }
       var run = createRun ? createRun() : null;
@@ -819,7 +823,11 @@
         return Promise.resolve({ ok: false, news: [] });
       }
       return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, news: [] }); }).getApprovedNews();
+        run.withSuccessHandler(function(data){
+          console.log('NEWS DATA:', data);
+          var news = (data && data.news) || [];
+          resolve({ ok: !!(data && data.ok), news: news });
+        }).withFailureHandler(function(){ resolve({ ok: false, news: [] }); }).getApprovedNews();
       });
     }
 
@@ -1319,10 +1327,16 @@
       happeningNewsLimit = 12;
       if (window.LANTERN_REACTIONS && window.LANTERN_REACTIONS.getFeatureFlags) {
         window.LANTERN_REACTIONS.getFeatureFlags().then(function(){
-          callGetApprovedNews().then(function(res){ renderStudentNews((res && res.news) || []); });
+          callGetApprovedNews().then(function(res){
+            var news = (res && res.news) || [];
+            renderStudentNews(news);
+          });
         });
       } else {
-        callGetApprovedNews().then(function(res){ renderStudentNews((res && res.news) || []); });
+        callGetApprovedNews().then(function(res){
+          var news = (res && res.news) || [];
+          renderStudentNews(news);
+        });
       }
       callGetActivityEvents(12).then(function(res){
         var events = (res && res.events) || [];

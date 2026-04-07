@@ -224,8 +224,10 @@
         .then(function (r) {
           return r.json();
         })
-        .then(function (res) {
-          return res && res.ok ? res : { ok: false, news: [] };
+        .then(function (data) {
+          console.log('NEWS DATA:', data);
+          var news = (data && data.news) || [];
+          return { ok: !!(data && data.ok), news: news };
         })
         .catch(function () {
           return { ok: false, news: [] };
@@ -235,8 +237,10 @@
     if (!run) return Promise.resolve({ ok: false, news: [] });
     return new Promise(function (resolve) {
       run
-        .withSuccessHandler(function (r) {
-          resolve(r || { ok: false, news: [] });
+        .withSuccessHandler(function (data) {
+          console.log('NEWS DATA:', data);
+          var news = (data && data.news) || [];
+          resolve({ ok: !!(data && data.ok), news: news });
         })
         .withFailureHandler(function () {
           resolve({ ok: false, news: [] });
