@@ -7,10 +7,7 @@
 
   /** Default: Worker URL (avoids cross-origin cookie issues with Pages /api proxy). Override for local static dev if needed. */
   var LANTERN_DEFAULT_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';
-  if (
-    global.LANTERN_AVATAR_API == null ||
-    (typeof global.LANTERN_AVATAR_API === 'string' && String(global.LANTERN_AVATAR_API).trim() === '')
-  ) {
+  if (global.LANTERN_AVATAR_API == null) {
     global.LANTERN_AVATAR_API = LANTERN_DEFAULT_AVATAR_API;
   }
 
