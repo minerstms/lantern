@@ -5,8 +5,8 @@
 (function (global) {
   'use strict';
 
-  /** Default: Worker URL (avoids cross-origin cookie issues with Pages /api proxy). Override for local static dev if needed. */
-  var LANTERN_DEFAULT_AVATAR_API = 'https://lantern-api.mrradle.workers.dev';
+  /** Default: same-origin /api on Pages (session cookie is first-party). Set a Worker URL only for explicit cross-origin dev. */
+  var LANTERN_DEFAULT_AVATAR_API = '';
   if (global.LANTERN_AVATAR_API == null) {
     global.LANTERN_AVATAR_API = LANTERN_DEFAULT_AVATAR_API;
   }
