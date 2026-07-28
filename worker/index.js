@@ -1423,11 +1423,6 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     }
 
     const normalizedUsername = (username || '').trim().toLowerCase();
-    const normalizedAdmin = LANTERN_PRIMARY_ADMIN_USERNAME.toLowerCase();
-
-    if (normalizedUsername === normalizedAdmin) {
-      await ensureLanternPrimaryAdminCredentials(db);
-    }
 
     const row = await db
       .prepare(

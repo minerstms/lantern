@@ -97,9 +97,8 @@
     function boot() {
       if (window.LANTERN_FEED_EXPLORE) window.LANTERN_FEED_EXPLORE.init();
     }
-    if (window.classAccessReady) {
-      window.classAccessReady.then(boot).catch(boot);
-    } else {
+    document.addEventListener('lantern-class-access-resolved', boot);
+    if (document.getElementById('classAccessContentWrap') && getComputedStyle(document.getElementById('classAccessContentWrap')).visibility === 'visible') {
       boot();
     }
   })();
