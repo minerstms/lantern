@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html class="lantern-pilot-auth-pending" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <title>TMS Lantern — Feed Review</title>
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-feed.css">
+  <style>
+    body { margin: 0; background: #0b1220; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
+    .pageWrap { padding: 0 16px 32px; }
+  </style>
+</head>
+<body>
+  <script>
+  (function () {
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.guardPilotPage !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent('/feed-review.html'));
+      return;
+    }
+    auth.guardPilotPage({ mode: 'general' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
+      var r = String((data && data.role) || '').toLowerCase();
+      if (r !== 'teacher' && r !== 'staff' && r !== 'admin') {
+        location.replace('/explore.html');
+        return;
+      }
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      loadQueue();
+    });
+  })();
+  </script>
+  <div id="lanternHeader"><div id="lanternAppBarRoot"></div></div>
+  <div class="wrap lanternContent pageWrap">
+    <h1 class="feedPageTitle">Teacher Review</h1>
+    <p class="feedPageSub">Approve, reject, or return student submissions. All actions are permission-checked server-side.</p>
+    <div id="reviewQueue"></div>
+    <h2 class="feedPageTitle" style="font-size:26px;margin-top:28px;">Trivia Review</h2>
+    <div id="triviaReview"></div>
+  </div>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-feed-api.js"></script>
+  <script>
+  function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;';
+    });
+  }
+
+  function loadQueue() {
+    var feed = window.LANTERN_FEED;
+    if (!feed) return;
+    feed.getReview('submitted').then(function (res) {
+      var el = document.getElementById('reviewQueue');
+      if (!el) return;
+      var items = (res && res.items) || [];
+      if (!items.length) { el.innerHTML = '<p class="feedPageSub">No pending submissions.</p>'; return; }
+      el.innerHTML = items.map(function (it) {
+        return '<article class="reviewRow" data-id="' + esc(it.id) + '">' +
+          '<h3 class="reviewRowTitle">' + esc(it.title) + '</h3>' +
+          '<p class="reviewRowMeta">' + esc(it.authorDisplayName) + ' · ' + esc(it.typeLabel) + ' · submitted ' + esc(it.submittedAt || it.createdAt) + '</p>' +
+          '<p>' + esc(it.body || it.summary || '') + '</p>' +
+          '<div class="reviewActions">' +
+            '<textarea class="rejectFeedback" placeholder="Private feedback (reject/return)" rows="2"></textarea>' +
+            '<label><input type="checkbox" class="slideshowEligible"> Slideshow eligible</label>' +
+            '<label><input type="checkbox" class="featuredEligible"> Featured on home</label>' +
+            '<button type="button" class="approveBtn">Approve</button>' +
+            '<button type="button" class="rejectBtn">Reject</button>' +
+            '<button type="button" class="returnBtn">Return for revision</button>' +
+          '</div></article>';
+      }).join('');
+      el.querySelectorAll('.approveBtn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var row = btn.closest('.reviewRow');
+          var id = row.getAttribute('data-id');
+          feed.approve({
+            id: id,
+            slideshow_eligible: row.querySelector('.slideshowEligible').checked,
+            featured_eligible: row.querySelector('.featuredEligible').checked,
+          }).then(function (r) { if (r && r.ok) loadQueue(); });
+        });
+      });
+      el.querySelectorAll('.rejectBtn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var row = btn.closest('.reviewRow');
+          var id = row.getAttribute('data-id');
+          var fb = row.querySelector('.rejectFeedback').value.trim();
+          feed.reject({ id: id, private_feedback: fb }).then(function (r) { if (r && r.ok) loadQueue(); });
+        });
+      });
+      el.querySelectorAll('.returnBtn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var row = btn.closest('.reviewRow');
+          var id = row.getAttribute('data-id');
+          var fb = row.querySelector('.rejectFeedback').value.trim() || 'Please revise and resubmit.';
+          feed.returnItem({ id: id, private_feedback: fb }).then(function (r) { if (r && r.ok) loadQueue(); });
+        });
+      });
+    });
+
+    feed.triviaReview().then(function (res) {
+      var el = document.getElementById('triviaReview');
+      if (!el) return;
+      var items = (res && res.items) || [];
+      if (!items.length) { el.innerHTML = '<p class="feedPageSub">No pending trivia.</p>'; return; }
+      el.innerHTML = items.map(function (it) {
+        return '<article class="reviewRow" data-trivia-id="' + esc(it.id) + '">' +
+          '<h3 class="reviewRowTitle">' + esc(it.question) + '</h3>' +
+          '<p class="reviewRowMeta">' + esc(it.authorDisplayName) + '</p>' +
+          '<p>Correct: ' + esc(it.correctAnswer) + '</p>' +
+          '<div class="reviewActions">' +
+            '<textarea class="triviaFeedback" placeholder="Private feedback" rows="2"></textarea>' +
+            '<button type="button" class="triviaApproveBtn">Approve for live trivia</button>' +
+            '<button type="button" class="triviaRejectBtn">Reject</button>' +
+          '</div></article>';
+      }).join('');
+      el.querySelectorAll('.triviaApproveBtn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var row = btn.closest('.reviewRow');
+          feed.triviaApprove(row.getAttribute('data-trivia-id')).then(function (r) { if (r && r.ok) loadQueue(); });
+        });
+      });
+      el.querySelectorAll('.triviaRejectBtn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var row = btn.closest('.reviewRow');
+          var fb = row.querySelector('.triviaFeedback').value.trim();
+          feed.triviaReject({ id: row.getAttribute('data-trivia-id'), private_feedback: fb }).then(function (r) { if (r && r.ok) loadQueue(); });
+        });
+      });
+    });
+  }
+  </script>
+</body>
+</html>

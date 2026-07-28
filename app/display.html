@@ -232,6 +232,7 @@
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-media.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-feed-api.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
 
@@ -304,6 +305,7 @@
     var pageList = [];
     var pageIdx = 0;
     var pageTimer = null;
+    var feedSlideshowItems = [];
     var PAGE_ROTATE_MS = 14000;
 
     function getHeroCandidates(){
@@ -350,6 +352,20 @@
       if (grid4Achieve) list.push(grid4Achieve);
       list.push(single);
       if (newsSpot) list.push(newsSpot);
+      (feedSlideshowItems || []).forEach(function (it) {
+        list.push({
+          type: 'feed_slideshow',
+          slide: {
+            type: 'feed_item',
+            title: it.title || '',
+            subtitle: it.summary || it.body || '',
+            image: it.imageUrl || it.thumbnailUrl || null,
+            actor_name: it.authorDisplayName || '',
+            meta: { typeLabel: it.typeLabel || it.type },
+            created_at: it.approvedAt || it.createdAt || '',
+          },
+        });
+      });
       if (list.length === 0) list.push({ type: 'single', slide: { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } });
       return list;
     }
@@ -464,6 +480,10 @@
         }
         return;
       }
+      if (page.type === 'feed_slideshow'){
+        stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide, 0) + '</div>';
+        return;
+      }
       stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide || { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', meta: {}, created_at: '' }, 0) + '</div>';
     }
 
@@ -489,6 +509,19 @@
       newsList = d.newsList || [];
       startDisplay();
     });
+
+    function loadFeedSlideshowThenStart() {
+      if (window.LANTERN_FEED && window.LANTERN_FEED.getSlideshow) {
+        window.LANTERN_FEED.getSlideshow(20).then(function (res) {
+          feedSlideshowItems = (res && res.ok && res.items) ? res.items : [];
+        }).finally(function () {
+          document.dispatchEvent(new CustomEvent('lantern-ticker-display-data', { detail: { slides: slides, recognitionList: recognitionList, newsList: newsList } }));
+        });
+        return;
+      }
+      startDisplay();
+    }
+    loadFeedSlideshowThenStart();
   </script>
 </body>
 </html>

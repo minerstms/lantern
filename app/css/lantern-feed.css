@@ -1,0 +1,422 @@
+/* Lantern ONE FEED — single container layout (columns = CSS only) */
+:root {
+  --feed-fs-base: 22px;
+  --feed-fs-title: 28px;
+  --feed-fs-tag: 18px;
+  --feed-bg: #0b1220;
+  --feed-ink: #eaf0ff;
+  --feed-muted: #b9c6ea;
+  --feed-accent: #5aa7ff;
+  --feed-line: rgba(255, 255, 255, 0.12);
+  --feed-r: 18px;
+}
+
+.feedPageTitle {
+  font-size: 32px;
+  font-weight: 900;
+  margin: 0 0 8px;
+  padding: 0 var(--lantern-pad-x, 16px);
+}
+
+.feedPageSub {
+  font-size: var(--feed-fs-base);
+  color: var(--feed-muted);
+  margin: 0 0 20px;
+  padding: 0 var(--lantern-pad-x, 16px);
+  line-height: 1.4;
+}
+
+.feedToolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 var(--lantern-pad-x, 16px) 16px;
+}
+
+.feedSearchRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedSearchInput {
+  font-size: var(--feed-fs-base);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--feed-ink);
+  width: 100%;
+}
+
+.feedSortSelect {
+  font-size: var(--feed-fs-base);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--feed-ink);
+}
+
+.feedColRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.feedColBtn {
+  font-size: var(--feed-fs-base);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--feed-muted);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.feedColBtn--active {
+  background: rgba(90, 167, 255, 0.2);
+  border-color: rgba(90, 167, 255, 0.5);
+  color: var(--feed-ink);
+}
+
+.feedFilterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 var(--lantern-pad-x, 16px) 16px;
+  overflow-x: auto;
+}
+
+.feedFilterChip {
+  font-size: var(--feed-fs-tag);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--feed-muted);
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.feedFilterChip--active {
+  background: rgba(90, 167, 255, 0.2);
+  border-color: rgba(90, 167, 255, 0.5);
+  color: var(--feed-ink);
+}
+
+.feedResultsHost {
+  padding: 0 var(--lantern-pad-x, 16px) 32px;
+}
+
+.feedStatus {
+  font-size: var(--feed-fs-base);
+  color: var(--feed-muted);
+  margin-bottom: 12px;
+}
+
+.feedGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.feedGrid[data-columns="2"] {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.feedGrid[data-columns="3"] {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 720px) {
+  .feedGrid[data-columns="2"],
+  .feedGrid[data-columns="3"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feedEmpty {
+  text-align: center;
+  padding: 40px 16px;
+  font-size: var(--feed-fs-base);
+  color: var(--feed-muted);
+}
+
+.feedCard {
+  background: rgba(15, 27, 51, 0.85);
+  border: 1px solid var(--feed-line);
+  border-radius: var(--feed-r);
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.feedCardInner {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedCardTag {
+  font-size: var(--feed-fs-tag);
+  font-weight: 900;
+  color: var(--feed-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.feedCardMedia img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.feedCardTitle {
+  font-size: var(--feed-fs-title);
+  font-weight: 900;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.feedCardSummary {
+  font-size: var(--feed-fs-base);
+  color: var(--feed-muted);
+  margin: 0;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feedCardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--feed-fs-tag);
+  color: var(--feed-muted);
+  font-weight: 700;
+}
+
+.feedCardReactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.feedReactionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.feedReactionBtn--on {
+  border-color: rgba(90, 167, 255, 0.6);
+  background: rgba(90, 167, 255, 0.15);
+}
+
+.feedReactionCount {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--feed-ink);
+}
+
+.feedTeacherComments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--feed-fs-tag);
+}
+
+.feedTeacherComment {
+  padding: 8px 0;
+  border-top: 1px solid var(--feed-line);
+  line-height: 1.4;
+}
+
+.feedTeacherCommentBadge {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(56, 208, 124, 0.2);
+  color: #38d07c;
+  margin-right: 6px;
+}
+
+.feedCardOpenBtn,
+.feedAddCommentBtn {
+  font-size: var(--feed-fs-base);
+  font-weight: 800;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--feed-line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--feed-ink);
+  cursor: pointer;
+  width: 100%;
+}
+
+.feedCardSlot {
+  font-size: var(--feed-fs-base);
+  font-weight: 800;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(90, 167, 255, 0.1);
+}
+
+.feedDetailOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(5, 7, 11, 0.92);
+  overflow: auto;
+  padding: 24px 16px;
+}
+
+.feedDetailPanel {
+  max-width: 520px;
+  margin: 0 auto;
+  background: #0f1b33;
+  border-radius: var(--feed-r);
+  padding: 20px;
+  border: 1px solid var(--feed-line);
+}
+
+.feedDetailTitle {
+  font-size: 30px;
+  font-weight: 900;
+  margin: 0 0 12px;
+}
+
+.feedDetailBody {
+  font-size: var(--feed-fs-base);
+  line-height: 1.5;
+  color: var(--feed-muted);
+}
+
+.feedDetailImg {
+  width: 100%;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.feedDetailClose {
+  font-size: var(--feed-fs-base);
+  margin-top: 16px;
+  padding: 10px 16px;
+  width: 100%;
+}
+
+.homeNavGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 0 var(--lantern-pad-x, 16px) 24px;
+}
+
+.homeNavBtn {
+  display: block;
+  font-size: 26px;
+  font-weight: 900;
+  padding: 18px 16px;
+  border-radius: var(--feed-r);
+  border: 1px solid var(--feed-line);
+  background: rgba(15, 27, 51, 0.9);
+  color: var(--feed-ink);
+  text-align: center;
+  text-decoration: none;
+}
+
+.homeFeaturedGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 0 var(--lantern-pad-x, 16px) 32px;
+}
+
+.reviewRow {
+  border: 1px solid var(--feed-line);
+  border-radius: var(--feed-r);
+  padding: 14px;
+  margin-bottom: 12px;
+  background: rgba(15, 27, 51, 0.85);
+}
+
+.reviewRowTitle {
+  font-size: 26px;
+  font-weight: 900;
+  margin: 0 0 6px;
+}
+
+.reviewRowMeta {
+  font-size: var(--feed-fs-base);
+  color: var(--feed-muted);
+  margin-bottom: 10px;
+}
+
+.reviewActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reviewActions button,
+.reviewActions textarea {
+  font-size: var(--feed-fs-base);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--feed-ink);
+}
+
+.createForm label {
+  display: block;
+  font-size: var(--feed-fs-base);
+  font-weight: 800;
+  margin: 12px 0 6px;
+}
+
+.createForm input,
+.createForm select,
+.createForm textarea {
+  width: 100%;
+  font-size: var(--feed-fs-base);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--feed-line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--feed-ink);
+}
+
+.createForm textarea {
+  min-height: 120px;
+}
+
+.createFormActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.createFormActions button {
+  font-size: var(--feed-fs-base);
+  font-weight: 800;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--feed-line);
+  cursor: pointer;
+}

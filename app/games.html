@@ -520,6 +520,7 @@
 
     <div id="gamesPlayTriggersHost" class="gamesPlayTriggersHost" aria-hidden="true">
       <button type="button" id="avatarMatchPlayBtn"></button>
+      <button type="button" id="lanternLiveTriviaPlayBtn"></button>
       <button type="button" id="handbookTriviaPlayBtn"></button>
       <button type="button" id="localHistoryTriviaPlayBtn"></button>
       <button type="button" id="reactionPlayBtn"></button>
@@ -587,6 +588,7 @@
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-scroller.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-feed-api.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
     var LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
@@ -720,6 +722,7 @@
 
     var ARCADE_GAMES = [
       { id: 'avatar-match', name: 'Avatar Match', description: 'Match the avatar to the correct character name. Score based on speed and correctness.', playBtnId: 'avatarMatchPlayBtn', cost: '', icon: '👤' },
+      { id: 'lantern-live-trivia', name: 'Lantern Live Trivia', description: 'Teacher-approved questions submitted by students.', playBtnId: 'lanternLiveTriviaPlayBtn', cost: '', icon: '🏮' },
       { id: 'handbook-trivia', name: 'Handbook Trivia', description: 'Multiple-choice on school expectations and digital citizenship.', playBtnId: 'handbookTriviaPlayBtn', cost: '', icon: '📖' },
       { id: 'local-history-trivia', name: 'Local History Trivia', description: 'Multiple-choice on local history and community pride.', playBtnId: 'localHistoryTriviaPlayBtn', cost: '', icon: '🏛️' },
       { id: 'reaction', name: 'Reaction Tap', description: 'Wait for GO, then tap as fast as you can. Fastest time wins.', playBtnId: 'reactionPlayBtn', cost: '1 nugget', icon: '⚡' },
@@ -1645,6 +1648,16 @@
       el('handbookTriviaPlayBtn').addEventListener('click', function(){
         runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){
           return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getHandbookQuestions) ? window.LANTERN_GAME_CONTENT.getHandbookQuestions() : [];
+        });
+      });
+      el('lanternLiveTriviaPlayBtn').addEventListener('click', function(){
+        if (!window.LANTERN_FEED) { toast('Feed API not loaded.'); return; }
+        window.LANTERN_FEED.triviaLive().then(function(res){
+          if (!res || !res.ok || !(res.questions && res.questions.length)) {
+            toast('No approved live trivia questions yet.');
+            return;
+          }
+          runTriviaGame('Lantern Live Trivia', 'Lantern Live Trivia', function(){ return res.questions; });
         });
       });
       el('localHistoryTriviaPlayBtn').addEventListener('click', function(){

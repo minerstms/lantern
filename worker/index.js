@@ -1,9 +1,10 @@
 // force deploy sync test
 /**
  * Lantern API — Cloudflare Worker (Lantern-only)
- * Routes: /api/avatar, /api/economy, /api/news, /api/approvals, /api/recognition, /api/reactions
+ * Routes: /api/avatar, /api/economy, /api/news, /api/approvals, /api/recognition, /api/reactions, /api/feed, /api/trivia
  * No MTSS / case / private student data.
  */
+import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed-handlers.js';
 // SCHEMA RULE:
 // All field names must match docs/archive/LANTERN_SCHEMA.md (see docs/LANTERN_SYSTEM_CONTEXT.md §14)
 // Do not invent or assume column names.
@@ -123,7 +124,9 @@ export default {
         path === '/api/news/hidden' ||
         path === '/api/missions/submissions/hide' ||
         path === '/api/missions/submissions/restore' ||
-        path === '/api/missions/submissions/hidden'
+        path === '/api/missions/submissions/hidden' ||
+        path.startsWith('/api/feed') ||
+        path.startsWith('/api/trivia')
       ) {
         o = corsForPilot(request);
       } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
@@ -199,6 +202,37 @@ export default {
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, cors);
+      }
+    }
+    if (path.startsWith('/api/feed')) {
+      try {
+        const feedCors =
+          request.method === 'GET' && (path === '/api/feed' || path === '/api/feed/slideshow' || path === '/api/feed/comments')
+            ? cors
+            : corsForPilot(request);
+        const feedDeps = {
+          getPilotAccountFromRequest,
+          pilotEconomyCharacterName,
+          pilotAccountRequiresChangePassword,
+        };
+        return await handleFeedRoutes(request, url, path, env, feedCors, feedDeps);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
+      }
+    }
+    if (path.startsWith('/api/trivia')) {
+      try {
+        const triviaCors = request.method === 'GET' && path === '/api/trivia/live' ? cors : corsForPilot(request);
+        const feedDeps = {
+          getPilotAccountFromRequest,
+          pilotEconomyCharacterName,
+          pilotAccountRequiresChangePassword,
+        };
+        return await handleTriviaRoutes(request, url, path, env, triviaCors, feedDeps);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
     }
     if (path.startsWith('/api/missions')) {
@@ -3971,10 +4005,10 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
 
-/** Allowed reaction types (system-controlled vocabulary). */
-const REACTION_TYPES = ['heart', 'star', 'lightbulb', 'teamwork', 'thumbsup', 'creative', 'fire'];
+/** Allowed reaction types (system-controlled vocabulary). Positive icons only. */
+const REACTION_TYPES = ['clap', 'star', 'celebrate', 'heart', 'fire', 'lightbulb', 'teamwork', 'thumbsup', 'creative'];
 /** Allowed item types for reactions (approved public content only). */
-const REACTION_ITEM_TYPES = ['news', 'recognition'];
+const REACTION_ITEM_TYPES = ['news', 'recognition', 'feed'];
 
 /** Feature flags (env). Default false. */
 function isEarlyEncouragerEnabled(env) { return (env.ENABLE_EARLY_ENCOURAGER_REWARD || '').toString().toLowerCase() === 'true'; }
@@ -4041,6 +4075,9 @@ async function handleReactionsRoutes(request, url, path, env, cors) {
     } else if (itemType === 'recognition') {
       const row = await db.prepare('SELECT id FROM lantern_teacher_recognition WHERE id = ?').bind(itemId).first();
       if (!row) return jsonResponse({ ok: false, error: 'Item not found' }, 400, cors);
+    } else if (itemType === 'feed') {
+      const approved = await isApprovedFeedItem(db, itemId);
+      if (!approved) return jsonResponse({ ok: false, error: 'Item not approved or not found' }, 400, cors);
     }
 
     const id = 'react-' + crypto.randomUUID();
@@ -4065,6 +4102,39 @@ async function handleReactionsRoutes(request, url, path, env, cors) {
       reaction_type: reactionType,
       early_encourager_reward: earlyReward && earlyReward.granted ? { nuggets: earlyReward.nuggets } : undefined,
     }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/reactions/toggle') {
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const itemType = (body.item_type || 'feed').trim().toLowerCase();
+    const itemId = (body.item_id || '').trim();
+    const reactionType = (body.reaction_type || '').trim().toLowerCase();
+    const characterName = (body.character_name || '').trim();
+    if (!REACTION_ITEM_TYPES.includes(itemType)) return jsonResponse({ ok: false, error: 'Invalid item_type' }, 400, cors);
+    if (!itemId || !reactionType || !characterName) return jsonResponse({ ok: false, error: 'Missing fields' }, 400, cors);
+    if (!REACTION_TYPES.includes(reactionType)) return jsonResponse({ ok: false, error: 'Invalid reaction_type' }, 400, cors);
+    if (itemType === 'feed') {
+      const approved = await isApprovedFeedItem(db, itemId);
+      if (!approved) return jsonResponse({ ok: false, error: 'Item not approved or not found' }, 400, cors);
+    } else if (itemType === 'news') {
+      const row = await db.prepare('SELECT id, status FROM lantern_news_submissions WHERE id = ?').bind(itemId).first();
+      if (!row || (row.status || '').toLowerCase() !== 'approved') return jsonResponse({ ok: false, error: 'Item not approved or not found' }, 400, cors);
+    }
+    const existing = await db.prepare(
+      'SELECT id FROM lantern_reactions WHERE item_type = ? AND item_id = ? AND reaction_type = ? AND character_name = ?'
+    ).bind(itemType, itemId, reactionType, characterName).first();
+    if (existing) {
+      await db.prepare('DELETE FROM lantern_reactions WHERE id = ?').bind(existing.id).run();
+      return jsonResponse({ ok: true, toggled: 'off', item_type: itemType, item_id: itemId, reaction_type: reactionType }, 200, cors);
+    }
+    const id = 'react-' + crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db.prepare(
+      'INSERT INTO lantern_reactions (id, item_type, item_id, reaction_type, character_name, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, itemType, itemId, reactionType, characterName, now).run();
+    return jsonResponse({ ok: true, toggled: 'on', id, item_type: itemType, item_id: itemId, reaction_type: reactionType }, 200, cors);
   }
 
   if (request.method === 'GET' && path === '/api/reactions/counts') {

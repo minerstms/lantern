@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html class="lantern-pilot-auth-pending" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <title>TMS Lantern — Create</title>
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-feed.css">
+  <style>
+    body { margin: 0; background: #0b1220; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
+    .createWrap { padding: 0 16px 32px; max-width: 640px; }
+  </style>
+</head>
+<body>
+  <script>
+  (function () {
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.guardPilotPage !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent('/create.html'));
+      return;
+    }
+    auth.guardPilotPage({ mode: 'general' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
+      if (auth.applyStudentStorageFromSession) auth.applyStudentStorageFromSession(data);
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+    });
+  })();
+  </script>
+  <div id="lanternHeader"><div id="lanternAppBarRoot"></div></div>
+  <div class="wrap lanternContent createWrap">
+    <h1 class="feedPageTitle">Create &amp; Submit</h1>
+    <p class="feedPageSub">Draft your item, then submit for teacher approval. Nothing goes public until approved.</p>
+    <form id="createForm" class="createForm">
+      <label for="createType">Content type</label>
+      <select id="createType" required>
+        <option value="article">Article</option>
+        <option value="news">News</option>
+        <option value="photo">Photo</option>
+        <option value="video">Video</option>
+        <option value="shout_out">Shout-Out</option>
+        <option value="achievement">Achievement</option>
+      </select>
+      <label for="createTitle">Title</label>
+      <input id="createTitle" type="text" required maxlength="200">
+      <label for="createBody">Body or summary</label>
+      <textarea id="createBody" required maxlength="5000"></textarea>
+      <label for="createImage">Image (optional)</label>
+      <input id="createImage" type="file" accept="image/*">
+      <div class="createFormActions">
+        <button type="button" id="saveDraftBtn">Save draft</button>
+        <button type="button" id="submitReviewBtn">Submit for teacher review</button>
+      </div>
+    </form>
+    <p id="createStatus" class="feedPageSub"></p>
+    <p><a href="my-submissions.html">View my submissions →</a></p>
+    <hr style="border-color:rgba(255,255,255,.12);margin:24px 0">
+    <h2 class="feedPageTitle" style="font-size:26px;">Trivia question</h2>
+    <form id="triviaForm" class="createForm">
+      <label for="triviaQ">Question</label>
+      <input id="triviaQ" type="text" required>
+      <label for="triviaCorrect">Correct answer</label>
+      <input id="triviaCorrect" type="text" required>
+      <label for="triviaWrong1">Wrong answer 1</label>
+      <input id="triviaWrong1" type="text" required>
+      <label for="triviaWrong2">Wrong answer 2</label>
+      <input id="triviaWrong2" type="text" required>
+      <label for="triviaWrong3">Wrong answer 3 (optional)</label>
+      <input id="triviaWrong3" type="text">
+      <div class="createFormActions">
+        <button type="button" id="triviaDraftBtn">Save trivia draft</button>
+        <button type="button" id="triviaSubmitBtn">Submit trivia for review</button>
+      </div>
+    </form>
+    <p id="triviaStatus" class="feedPageSub"></p>
+  </div>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-feed-api.js"></script>
+  <script>
+  (function () {
+    var feed = window.LANTERN_FEED;
+    var draftId = null;
+    var triviaId = null;
+    var imageKey = null;
+    var statusEl = document.getElementById('createStatus');
+    var triviaStatus = document.getElementById('triviaStatus');
+
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ''; }
+    function setTriviaStatus(msg) { if (triviaStatus) triviaStatus.textContent = msg || ''; }
+
+    document.getElementById('createImage').addEventListener('change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file || !feed) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        feed.uploadImage(reader.result, file.type).then(function (res) {
+          if (res && res.ok) imageKey = res.image_r2_key;
+          else setStatus('Image upload failed.');
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function payload() {
+      return {
+        type: document.getElementById('createType').value,
+        title: document.getElementById('createTitle').value.trim(),
+        body: document.getElementById('createBody').value.trim(),
+        image_r2_key: imageKey,
+      };
+    }
+
+    document.getElementById('saveDraftBtn').addEventListener('click', function () {
+      if (!feed) return;
+      var p = payload();
+      if (!p.title) { setStatus('Title required.'); return; }
+      var req = draftId ? feed.update(Object.assign({ id: draftId }, p)) : feed.create(p);
+      req.then(function (res) {
+        if (!res || !res.ok) { setStatus((res && res.error) || 'Save failed.'); return; }
+        draftId = res.id || draftId;
+        setStatus('Draft saved.');
+      });
+    });
+
+    document.getElementById('submitReviewBtn').addEventListener('click', function () {
+      if (!feed) return;
+      var p = payload();
+      if (!p.title || !p.body) { setStatus('Title and body required.'); return; }
+      var chain = draftId
+        ? feed.update(Object.assign({ id: draftId }, p)).then(function () { return feed.submit(draftId); })
+        : feed.create(p).then(function (res) {
+            if (!res || !res.ok) return res;
+            draftId = res.id;
+            return feed.submit(draftId);
+          });
+      chain.then(function (res) {
+        if (!res || !res.ok) { setStatus((res && res.error) || 'Submit failed.'); return; }
+        setStatus('Submitted for teacher review!');
+      });
+    });
+
+    document.getElementById('triviaDraftBtn').addEventListener('click', function () {
+      if (!feed) return;
+      var body = {
+        question: document.getElementById('triviaQ').value.trim(),
+        correct_answer: document.getElementById('triviaCorrect').value.trim(),
+        wrong_answer_1: document.getElementById('triviaWrong1').value.trim(),
+        wrong_answer_2: document.getElementById('triviaWrong2').value.trim(),
+        wrong_answer_3: document.getElementById('triviaWrong3').value.trim(),
+      };
+      feed.triviaCreate(body).then(function (res) {
+        if (!res || !res.ok) { setTriviaStatus((res && res.error) || 'Failed.'); return; }
+        triviaId = res.id;
+        setTriviaStatus('Trivia draft saved.');
+      });
+    });
+
+    document.getElementById('triviaSubmitBtn').addEventListener('click', function () {
+      if (!feed || !triviaId) {
+        setTriviaStatus('Save a trivia draft first.');
+        return;
+      }
+      feed.triviaSubmit(triviaId).then(function (res) {
+        if (!res || !res.ok) { setTriviaStatus((res && res.error) || 'Submit failed.'); return; }
+        setTriviaStatus('Trivia submitted for review!');
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html class="lantern-pilot-auth-pending" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <title>TMS Lantern — Home</title>
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-feed.css">
+  <style>
+    body { margin: 0; background: #0b1220; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
+  </style>
+</head>
+<body>
+  <script>
+  (function () {
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.guardPilotPage !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent('/home.html'));
+      return;
+    }
+    auth.guardPilotPage({ mode: 'general' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+    });
+  })();
+  </script>
+  <div id="lanternHeader"><div id="lanternAppBarRoot"></div></div>
+  <div class="wrap lanternContent">
+    <h1 class="feedPageTitle">Lantern</h1>
+    <p class="feedPageSub">School stories, missions, and celebrations — teacher-approved.</p>
+    <nav class="homeNavGrid" aria-label="Lantern home">
+      <a class="homeNavBtn" href="explore.html">Explore</a>
+      <a class="homeNavBtn" href="create.html">Create / Submit</a>
+      <a class="homeNavBtn" href="my-submissions.html">My Submissions</a>
+      <a class="homeNavBtn" href="feed-review.html" id="homeTeacherReview" hidden>Teacher Review</a>
+      <a class="homeNavBtn" href="display.html">Slideshow</a>
+      <a class="homeNavBtn" href="games.html">Trivia &amp; Games</a>
+    </nav>
+    <h2 class="feedPageTitle" style="font-size:26px;">Featured</h2>
+    <div id="homeFeatured" class="homeFeaturedGrid"></div>
+    <h2 class="feedPageTitle" style="font-size:26px;">Latest</h2>
+    <div id="homeLatest" class="homeFeaturedGrid"></div>
+  </div>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-feed-api.js"></script>
+  <script src="js/lantern-feed-card.js"></script>
+  <script>
+  (function () {
+    var feed = window.LANTERN_FEED;
+    var card = window.LANTERN_FEED_CARD;
+    if (feed && feed.isTeacherRole()) {
+      var tr = document.getElementById('homeTeacherReview');
+      if (tr) tr.hidden = false;
+    }
+    function paint(el, params) {
+      if (!el || !feed || !card) return;
+      feed.getFeed(params).then(function (res) {
+        el.innerHTML = '';
+        (res.items || []).slice(0, 4).forEach(function (item) {
+          el.appendChild(card.buildCard(item));
+        });
+        if (!(res.items || []).length) el.innerHTML = '<p class="feedPageSub">No items yet.</p>';
+      });
+    }
+    paint(document.getElementById('homeFeatured'), { featured: '1', limit: 4 });
+    paint(document.getElementById('homeLatest'), { sort: 'newest', limit: 4 });
+  })();
+  </script>
+</body>
+</html>
