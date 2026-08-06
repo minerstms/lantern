@@ -25,9 +25,10 @@
   --lantern-rail-pad-y-start: var(--lantern-space-sm);
   --lantern-rail-pad-y-end: var(--lantern-space-md);
   --lantern-rail-pad-x: var(--lantern-pad-x);
-  /* Rail cards: outer height + media band are fixed — text clamps inside remaining budget (lantern-cards.css). */
-  --lantern-rail-card-height: 420px;
-  --lantern-rail-card-media-height: 128px;
+  /* Contract v2 rail cards: fixed width + 16:9 aspect (height derived in lantern-cards.css). */
+  --lantern-card-width: 280px;
+  --lantern-card-aspect-ratio: 16 / 9;
+  --lantern-rail-card-outer-width: var(--lantern-card-width);
 }
 
 #lanternHeader {

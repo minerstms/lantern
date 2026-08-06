@@ -116,14 +116,18 @@ Data flow: **Browser → Worker → D1/R2 → JSON → UI.** Not: localStorage �
 
 ## 10. Card system (constitutional)
 
-**There is exactly ONE production card system.** Violations must be removed, not worked around.
+**There is exactly ONE compact production card face (contract v2).** Violations must be removed, not worked around.
 
-- **Renderer:** `apps/lantern-app/js/lantern-cards.js` (`window.LanternCards`). Every production card (rail or opened) MUST be produced via `LanternCards` (e.g. `createFeedPostCard`, `buildNewsRailCardHtml`, `buildNewsOpenedCardHtml`, `createPollRailCard`, `buildMissionSpotlightRailElement`, `buildIconRailCardHtml`, `buildActivityPulseCardHtml`, `buildMissionDraftCardHtml`).
-- **No hand-built production card HTML** on pages for production content. No structural card-shell CSS outside **`apps/lantern-app/css/lantern-cards.css`**. Layout wrappers/grids on pages are OK; card internals are not.
-- **No inline geometry/typography** in renderer output or `lantern-media.js` explore/card output — use shared classes. Inline allowed only for non-CSS dynamic values (`src`, `href`, `data-*`, etc.).
-- **Badges** (type, curation, author) only from **`lantern-cards.js`** + shared CSS.
-- **Standard feed cards (`createFeedPostCard`):** **Type/category** = **`.exploreCardTypeBadge`** on the **media** (top-right, absolute). **Curation** (pick/featured) = **`.lanternBadge.exploreCardCurationBadge`** on the **media** (top-left, absolute). **Title row** is **title-only** — no inline curation; no duplicate **`.exploreTypeIcon`** when a type badge overlay exists.
-- **Type badge content:** **`TYPE_BADGES`** uses **one format only** — **emoji + short label** (e.g. `📷 Image`, `🛠 Create`) for every rail-capable type; no icon-only type chips on standard cards.
+- **Renderer:** `app/js/lantern-cards.js` (`window.LanternCards`, `CARD_CONTRACT_VERSION = '2'`). Every compact production card MUST use `buildCanonicalCardFaceHtml` via `createStudentCard` / spec adapters.
+- **Geometry:** fixed **280px** width, **16:9** aspect ratio, image or fallback fills frame, title + author + date/meta in bottom gradient overlay — **no normal-flow panel below the image**.
+- **Feed:** `LANTERN_FEED_CARD.buildCard` is an adapter only — returns `.exploreCard.lanternCanonicalCard`, not `.feedCard`.
+- **No hand-built production card HTML** on pages. Structural card CSS in **`app/css/lantern-cards.css`** only.
+- **Detail overlays** (full body, reactions, teacher comments) are **not** compact card faces — see `feedDetailOverlay` / `.lanternDetailSurface`.
+- **Legacy v1** (420px portrait shell, 128px media strip, `.exploreCardRailStack`, `.lcRailRow`) is **removed from the active compact render path**.
+
+**Violations include:** production `.feedCard` roots; parallel card markup; variable-height compact cards; generic `url` as card image for non-image types; structural card CSS on pages.
+
+**Detail overlay:** `app/js/lantern-card-ui.js` / feed detail overlay for expanded content; modal chrome in shared CSS.
 - **Modes:** **rail** (preview) and **opened** (detail/modal) only; same underlying model/truth.
 - **No parallel vocabulary** (e.g. `.lanternCard` as a second production shell). Production uses **`.exploreCard`** family.
 - **Composite “card-like” panels** that function as content objects are forbidden unless they are real cards from `LanternCards`.

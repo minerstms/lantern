@@ -10,6 +10,7 @@
   <title>TMS Lantern — Explore</title>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-cards.css">
   <link rel="stylesheet" href="css/lantern-feed.css">
   <style>
     :root {
@@ -82,8 +83,12 @@
     <div class="feedDetailPanel">
       <h2 class="feedDetailTitle"></h2>
       <img class="feedDetailImg" alt="" style="display:none">
+      <div class="feedDetailSlotHost"></div>
       <p class="feedDetailBody"></p>
-      <button type="button" class="feedDetailClose feedCardOpenBtn" onclick="document.getElementById('feedDetailOverlay').hidden=true">Close</button>
+      <div class="feedDetailReactionsHost"></div>
+      <div class="feedDetailCommentsHost"></div>
+      <div class="feedDetailTeacherTools"></div>
+      <button type="button" class="feedDetailClose feedDetailCloseBtn" onclick="document.getElementById('feedDetailOverlay').hidden=true">Close</button>
     </div>
   </div>
   <script src="js/class-access.js"></script>

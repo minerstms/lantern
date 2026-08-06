@@ -20,12 +20,138 @@
     webapp: '📱 App'
   };
 
-  var CARD_MODE = { RAIL: 'rail', OPENED: 'opened' };
-  /** Single outer shell: fixed width/height via CSS vars; no type/size layout variants. */
-  var HARD_RAIL_SHELL_CLASS = 'exploreCard exploreCard--rail railCardShell medium exploreCard--size-rail lcCardHardLayout';
+  var CARD_MODE = { RAIL: 'rail', OPENED: 'opened', DETAIL: 'detail' };
+  /** Contract v2 — fixed 280px 16:9 landscape canonical face. */
+  var CANONICAL_SHELL_CLASS = 'exploreCard exploreCard--rail lanternCanonicalCard lcCardHardLayout';
+  /** @deprecated v1 alias — use CANONICAL_SHELL_CLASS */
+  var HARD_RAIL_SHELL_CLASS = CANONICAL_SHELL_CLASS;
   /** Factory stamp — must match LanternCanonicalEnforce.FACTORY_EXPECTED */
   var CARD_FACTORY = 'LanternCards';
-  var CARD_CONTRACT_VERSION = '1';
+  var CARD_CONTRACT_VERSION = '2';
+
+  var IMAGE_LIKE_TYPES = { image: 1, photo: 1 };
+  var IMAGE_URL_RE = /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp)(\?|#|$)/i;
+
+  function looksLikeImageUrl(url) {
+    var u = String(url || '').trim();
+    if (!u) return false;
+    if (IMAGE_URL_RE.test(u)) return true;
+    if (/\/api\/media\/image/i.test(u)) return true;
+    if (u.indexOf('data:image/') === 0) return true;
+    return false;
+  }
+
+  /**
+   * Safe card-face image resolver — never treats generic item.url as image unless type or URL validates.
+   */
+  function resolveCardFaceImageUrl(p) {
+    p = p || {};
+    var type = String(p.type || p.fallbackType || '').toLowerCase();
+    var order = ['thumbnailUrl', 'thumbnail_url', 'thumbnail', 'preview_src', 'preview_url', 'previewImage', 'imageUrl', 'image_url', 'image'];
+    var i;
+    for (i = 0; i < order.length; i++) {
+      var v = String(p[order[i]] || '').trim();
+      if (v) return v;
+    }
+    var full = String(p.full_image_url || '').trim();
+    if (full) return full;
+    var url = String(p.url || '').trim();
+    if (url && (IMAGE_LIKE_TYPES[type] || looksLikeImageUrl(url))) return url;
+    return '';
+  }
+
+  function resolveCardFaceImageUrlWithFallbacks(p) {
+    var primary = resolveCardFaceImageUrl(p);
+    if (primary) return primary;
+    var topicUrl = getTopicLibraryImageUrl(p);
+    if (topicUrl) return topicUrl;
+    return getDefaultImageUrl(p.fallbackType || p.type || 'creation');
+  }
+
+  function truncateCanonicalTitle(s) {
+    return truncateRailTitleTwoLines(s, 48);
+  }
+
+  function buildCanonicalImageOnErrorHandler() {
+    return 'var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;return;}el.onerror=null;el.src=u;';
+  }
+
+  /**
+   * ONE compact production card-face compositor (contract v2).
+   * @param {object} model — normalized face fields
+   * @param {object} shellOpts — report/nav/class attrs
+   */
+  function buildCanonicalCardFaceHtml(model, shellOpts) {
+    model = model || {};
+    shellOpts = shellOpts || {};
+    var fbType = model.fallbackType || model.type || 'creation';
+    var typeSvg = svgTypeFallbackDataUri(fbType);
+    var uniSvg = svgUniversalLanternDataUri();
+    var faceUrl = resolveCardFaceImageUrl(model);
+    var remoteUrl = faceUrl || resolveCardFaceImageUrlWithFallbacks(model);
+    var title = esc(truncateCanonicalTitle(model.title || 'Untitled'));
+    var author = String(model.author || '').trim();
+    var dateMeta = String(model.dateMeta || '').trim();
+    var authorHtml = author ? '<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>' : '';
+    var dateHtml = dateMeta ? '<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>' : '';
+    var sep = (author && dateMeta) ? '<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">•</span>' : '';
+    var badgeLayer = '';
+    if (model.typeBadge) {
+      badgeLayer += '<span class="lanternCanonicalCardTypeBadge">' + esc(String(model.typeBadge)) + '</span>';
+    }
+    if (model.stateBadge) {
+      badgeLayer += '<span class="lanternCanonicalCardStateBadge">' + esc(String(model.stateBadge)) + '</span>';
+    }
+    var imgBlock = '<img class="lanternCanonicalCardImage" src="' + esc(remoteUrl) + '" alt="" loading="lazy" decoding="async" data-lc-t="' + esc(typeSvg) + '" data-lc-u="' + esc(uniSvg) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
+    var fallbackBlock = '<div class="lanternCanonicalCardFallback" hidden style="background:linear-gradient(135deg,' + svgSpecForContentType(fbType).a + ',' + svgSpecForContentType(fbType).b + ');" aria-hidden="true"></div>';
+    var inner =
+      '<div class="lanternCanonicalCardFrame">' +
+        imgBlock +
+        fallbackBlock +
+        '<div class="lanternCanonicalCardOverlay" aria-hidden="true">' +
+          '<div class="lanternCanonicalCardGradient"></div>' +
+          '<div class="lanternCanonicalCardCaption">' +
+            '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>' +
+            '<div class="lanternCanonicalCardMeta">' + authorHtml + sep + dateHtml + '</div>' +
+          '</div>' +
+        '</div>' +
+        (badgeLayer ? '<div class="lanternCanonicalCardBadgeLayer">' + badgeLayer + '</div>' : '') +
+      '</div>';
+    return inner;
+  }
+
+  function compactFaceSpec(model, shell) {
+    return { kind: 'rail', canonicalModel: model, shell: shell || {} };
+  }
+
+  function normalizeFeedItemToFaceModel(item) {
+    item = item || {};
+    var dateMeta = '';
+    try {
+      var iso = item.approvedAt || item.createdAt || item.created_at || item.approved_at;
+      if (iso) {
+        var d = new Date(iso);
+        if (!isNaN(d.getTime())) dateMeta = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    } catch (e) {}
+    var slot = item.contentSlot || {};
+    if (item.type === 'mission' && slot.missionId) dateMeta = (dateMeta ? dateMeta + ' · ' : '') + 'Mission';
+    if (item.type === 'game_score' && slot.score) dateMeta = (dateMeta ? dateMeta + ' · ' : '') + String(slot.score);
+    return {
+      id: item.id,
+      type: item.type || 'news',
+      title: item.title || 'Untitled',
+      author: item.authorDisplayName || item.display_name || item.author_name || '',
+      dateMeta: dateMeta,
+      thumbnailUrl: item.thumbnailUrl,
+      imageUrl: item.imageUrl || item.image_url,
+      url: item.url,
+      fallbackType: item.type || 'news',
+      typeBadge: item.typeLabel || TYPE_BADGES[item.type] || item.type || '',
+      reportType: 'feed_item',
+      reportId: item.id != null ? String(item.id) : '',
+    };
+  }
 
   function applyFactoryStampToCardElement(cardEl) {
     if (!cardEl || !cardEl.setAttribute) return;
@@ -84,33 +210,13 @@
     return t.slice(0, max - 1) + '\u2026';
   }
 
-  /** Rail identity row: first whitespace-delimited token (given name); empty → Anonymous. */
+  /** Rail identity helper — author display string for overlay meta (compact v2 faces). */
   function railIdentityFirstName(displayName) {
     var s = String(displayName || '').replace(/\s+/g, ' ').trim();
     if (!s) return 'Anonymous';
     var i = s.indexOf(' ');
     if (i === -1) return s;
     return s.slice(0, i);
-  }
-
-  /**
-   * Canonical interior row wrapper — same zone grammar for every card (see lantern-cards.css .lcRailRow--*).
-   * Zones: media | title | identity | meta only (no body/footer).
-   */
-  function lcRailRow(zone, innerHtml, extraClass) {
-    var z = String(zone || 'body').replace(/[^a-z-]/gi, '');
-    var h = String(innerHtml || '').trim();
-    if (!h) return '';
-    var xc = String(extraClass || '').trim();
-    return '<div class="lcRailRow lcRailRow--' + z + (xc ? ' ' + xc : '') + '">' + h + '</div>';
-  }
-
-  /** Row 3 only: avatar + given name (see lantern-canonical-enforce inspectRailContract). */
-  function lcRailIdentityRow(displayName, avatarPost) {
-    avatarPost = avatarPost || {};
-    var first = esc(railIdentityFirstName(String(displayName || '').trim() || 'Lantern'));
-    var av = buildExploreAuthorAvatarHtml(avatarPost);
-    return lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + av + '<span class="exploreAuthor exploreAuthor--identity">' + first + '</span></div>');
   }
 
   /**
@@ -319,8 +425,8 @@
   }
 
   function getCardImageUrl(p) {
-    var url = (p.url || p.preview_src || p.image || p.thumbnail || p.image_url || '').trim();
-    if (url) return url;
+    var resolved = resolveCardFaceImageUrl(p);
+    if (resolved) return resolved;
     var topicUrl = getTopicLibraryImageUrl(p);
     if (topicUrl) return topicUrl;
     return getDefaultImageUrl(p.type || p.mission_type || 'creation');
@@ -381,18 +487,26 @@
   }
 
   /**
-   * THE single student-facing card markup grammar: kind === 'rail' only (navHref uses same markup as legacy link wrap).
+   * THE single student-facing compact card markup grammar (contract v2).
+   * kind === 'detail' produces moderation/detail previews excluded from compact-face enforcement.
    */
   function studentFacingCardHtml(spec) {
     spec = spec || {};
     var kind = spec.kind;
 
+    if (kind === 'detail') {
+      var detHtml = spec.detailHtml != null ? String(spec.detailHtml) : '';
+      return '<div class="lanternDetailSurface" data-lantern-card-surface="detail">' + detHtml + '</div>';
+    }
+
     if (kind === 'rail') {
-      var innerHtml = spec.innerStackHtml != null ? spec.innerStackHtml : '';
+      var model = spec.canonicalModel || {};
       var opts = spec.shell || {};
+      var innerHtml = buildCanonicalCardFaceHtml(model, opts);
       var extraR = mergeShellExtras(opts);
-      var shellClass = (HARD_RAIL_SHELL_CLASS + (extraR ? ' ' + extraR : '')).replace(/\s+/g, ' ').trim();
+      var shellClass = (CANONICAL_SHELL_CLASS + (extraR ? ' ' + extraR : '')).replace(/\s+/g, ' ').trim();
       var ct = inferLanternCardTypeFromOpts(opts, shellClass);
+      if (model.type && !opts.lanternCardType) ct = String(model.type);
       var dataAttrs = opts.dataAttrs || {};
       var partsD = [];
       for (var k in dataAttrs) {
@@ -401,10 +515,10 @@
         }
       }
       var dataStr = partsD.join('');
-      var rt = opts.reportType != null ? esc(String(opts.reportType)) : '';
-      var rid = opts.reportId != null ? esc(String(opts.reportId)) : '';
+      var rt = opts.reportType != null ? esc(String(opts.reportType)) : (model.reportType != null ? esc(String(model.reportType)) : '');
+      var rid = opts.reportId != null ? esc(String(opts.reportId)) : (model.reportId != null ? esc(String(model.reportId)) : (model.id != null ? esc(String(model.id)) : ''));
       var reportData = ' data-report-type="' + rt + '" data-report-id="' + rid + '"';
-      var canonicalStamp = ' data-lantern-card="true" data-lantern-brand="lantern" data-lantern-card-factory="' + CARD_FACTORY + '" data-lantern-card-contract-version="' + CARD_CONTRACT_VERSION + '" data-lantern-card-type="' + esc(ct) + '"';
+      var canonicalStamp = ' data-lantern-card="true" data-lantern-brand="lantern" data-lantern-card-factory="' + CARD_FACTORY + '" data-lantern-card-contract-version="' + CARD_CONTRACT_VERSION + '" data-lantern-card-type="' + esc(ct) + '" data-lantern-card-surface="face"';
       var a11y = '';
       if (opts.role) a11y += ' role="' + esc(String(opts.role)) + '"';
       if (opts.tabIndex != null && opts.tabIndex !== '') a11y += ' tabindex="' + esc(String(opts.tabIndex)) + '"';
@@ -412,12 +526,12 @@
       var navHref = opts.navHref != null ? String(opts.navHref).trim() : '';
       if (navHref) {
         return '<div class="exploreCardOuterWrap" data-lantern-card-wrap="true">' +
-          '<a href="' + esc(navHref) + '" class="' + shellClass + '"' + canonicalStamp + dataStr + reportData + a11y + '><div class="exploreCardRailStack">' + innerHtml + '</div></a></div>';
+          '<a href="' + esc(navHref) + '" class="' + shellClass + '"' + canonicalStamp + dataStr + reportData + a11y + '>' + innerHtml + '</a></div>';
       }
-      return '<div class="' + shellClass + '"' + canonicalStamp + dataStr + reportData + a11y + '><div class="exploreCardRailStack">' + innerHtml + '</div></div>';
+      return '<div class="' + shellClass + '"' + canonicalStamp + dataStr + reportData + a11y + '>' + innerHtml + '</div>';
     }
 
-    throw new Error('[LanternCards] studentFacingCardHtml: unknown kind "' + kind + '" (only "rail" is valid)');
+    throw new Error('[LanternCards] studentFacingCardHtml: unknown kind "' + kind + '"');
   }
 
   /** Data-only spec for feed posts; DOM via createStudentCard(specFeedPostRail(p, options)) + wireFeedPostCard. */
@@ -439,18 +553,15 @@
       rId = pid.replace(/^learning_/, '') || pid;
     }
     var extraFeed = mergeShellExtras({ classNames: options.extraClass || '' });
-    return {
-      kind: 'rail',
-      innerStackHtml: parts.inner,
-      _feedPostWire: { p: p, options: options, parts: parts },
-      shell: {
-        classNames: extraFeed,
-        reportType: rType,
-        reportId: rId,
-        lanternCardType: String((p && p.type) ? p.type : 'link'),
-        dataAttrs: options.dataAttrs
-      }
-    };
+    var spec = compactFaceSpec(parts.model, {
+      classNames: extraFeed,
+      reportType: rType,
+      reportId: rId,
+      lanternCardType: String((p && p.type) ? p.type : 'link'),
+      dataAttrs: options.dataAttrs
+    });
+    spec._feedPostWire = { p: p, options: options, parts: parts };
+    return spec;
   }
 
   /** Apply feed-post behaviors after createStudentCard(specFeedPostRail(...)). */
@@ -519,7 +630,6 @@
     return wireFeedPostCard(card, wire);
   }
 
-  /** Sole DOM materialization path for root student-facing cards (.exploreCard / .exploreCardOuterWrap). */
   function createStudentCard(spec) {
     spec = spec || {};
     var clean = {};
@@ -529,24 +639,35 @@
     var html = studentFacingCardHtml(clean);
     var w = global.document.createElement('div');
     w.innerHTML = String(html || '').trim();
-    return w.firstElementChild;
+    var el = w.firstElementChild;
+    if (el && el.classList && el.classList.contains('exploreCard')) {
+      applyFactoryStampToCardElement(el);
+    } else if (el && el.querySelector) {
+      var card = el.querySelector('.exploreCard');
+      if (card) applyFactoryStampToCardElement(card);
+    }
+    return el;
   }
 
-  /** Shallow merge + image_url fallbacks so LanternMedia.renderMedia (explore) sees a preview when API sends full_image_url only. */
+  function createCanonicalCardFace(model, shellOpts) {
+    return createStudentCard(compactFaceSpec(model, shellOpts || {}));
+  }
+
+  /** Shallow merge — preview/thumbnail first for card faces; full_image_url last (detail views may prefer full). */
   function normalizeNewsMediaItemForExplore(n) {
     if (!n || typeof n !== 'object') return {};
     var out = {};
     for (var k in n) {
       if (Object.prototype.hasOwnProperty.call(n, k)) out[k] = n[k];
     }
-    var img = String(out.image_url || '').trim();
-    if (!img) {
-      var full = String(out.full_image_url || '').trim();
-      if (full) out.image_url = full;
-    }
-    if (!String(out.image_url || '').trim()) {
-      var pv = String(out.preview_url || '').trim();
-      if (pv) out.image_url = pv;
+    var thumb = String(out.preview_url || out.thumbnail_url || out.thumbnail || '').trim();
+    if (thumb) out.image_url = thumb;
+    else {
+      var img = String(out.image_url || out.image || '').trim();
+      if (!img) {
+        var full = String(out.full_image_url || '').trim();
+        if (full) out.image_url = full;
+      }
     }
     return out;
   }
@@ -566,76 +687,37 @@
     return '<div class="' + visualClass + '">' + badge + buildGuaranteedExploreImageHtml('news', fallbackImg) + '</div>';
   }
 
-  function buildVisualBlockForPost(p) {
-    var type = p.type || 'link';
-    var typeBadge = TYPE_BADGES[type] ? '<span class="exploreCardTypeBadge">' + TYPE_BADGES[type] + '</span>' : '';
-    var typeFb = svgTypeFallbackDataUri(type);
-    var uniFb = svgUniversalLanternDataUri();
-    var hasMedia = (p.image_url && String(p.image_url).trim()) || (p.video_url && String(p.video_url).trim()) || (p.link_url && String(p.link_url).trim());
-    if (hasMedia && global.LanternMedia && global.LanternMedia.renderMedia) {
-      var media = global.LanternMedia.renderMedia({ image_url: p.image_url, video_url: p.video_url, link_url: p.link_url }, { esc: esc, variant: 'explore', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb });
-      var mb = media && media.mediaBlock ? String(media.mediaBlock).trim() : '';
-      if (mb) return '<div class="exploreCardVisual">' + typeBadge + media.mediaBlock + '</div>';
-    }
-    var visualUrl = getCardImageUrl(p);
-    return '<div class="exploreCardVisual">' + typeBadge + buildGuaranteedExploreImageHtml(type, visualUrl) + '</div>';
-  }
-
-  /** Curation (pick/featured) as top-left overlay inside .exploreCardVisual — does not affect title row layout. */
-  function injectCurationIntoVisual(visualHtml, p) {
-    if (!visualHtml || !p) return visualHtml;
-    var hasPick = !!p.teacher_pick;
-    var hasFeat = !!p.teacher_featured && !hasPick;
-    if (!hasPick && !hasFeat) return visualHtml;
-    var curation;
-    if (hasPick) {
-      curation = '<span class="lanternBadge pick exploreCardCurationBadge" aria-hidden="true">🏆</span>';
-    } else {
-      curation = '<span class="lanternBadge featured exploreCardCurationBadge" aria-hidden="true">🌟</span>';
-    }
-    var idx = visualHtml.indexOf('exploreCardVisual');
-    if (idx === -1) return visualHtml;
-    var gt = visualHtml.indexOf('>', idx);
-    if (gt === -1) return visualHtml;
-    return visualHtml.slice(0, gt + 1) + curation + visualHtml.slice(gt + 1);
-  }
-
   function buildFeedPostParts(p, options) {
     options = options || {};
-    var authorRaw = String(p.display_name || p.character_name || '').trim();
+    var isMissionCard = (p.id && String(p.id).indexOf('mission_') === 0);
+    var authorRaw = String(p.display_name || p.character_name || p.author_name || '').trim() || 'Anonymous';
     var time = '';
     try {
-      var dt = new Date(p.created_at || '');
+      var dt = new Date(p.created_at || p.approved_at || '');
       if (!isNaN(dt.getTime())) time = dt.toLocaleDateString();
     } catch (e) {}
-    var visualBlock = injectCurationIntoVisual(buildVisualBlockForPost(p), p);
-    var isMissionCard = (p.id && String(p.id).indexOf('mission_') === 0);
-    var title = esc(p.title || 'Untitled');
     var metaLine = '';
-    if ((p.card_meta || '').trim()) metaLine = truncateMeta(String(p.card_meta).trim(), 76);
+    if ((p.card_meta || '').trim()) metaLine = truncateMeta(String(p.card_meta).trim(), 40);
     var createdBy = ((p.type === 'create' || p.type === 'image' || p.type === 'video' || p.type === 'link') && (p.created_by_teacher_name || '').trim())
       ? truncateMeta('Created by: ' + String(p.created_by_teacher_name || 'Teacher').trim(), 40) : '';
-    var capRaw = (p.caption && String(p.caption).trim()) ? String(p.caption).trim().replace(/\s+/g, ' ') : '';
-    var capForPreview = capRaw ? truncateMeta(capRaw, 220) : '';
-    var authorDisplay = authorRaw || 'Anonymous';
-    var firstName = railIdentityFirstName(authorDisplay);
-    var railIdentity = lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + buildExploreAuthorAvatarHtml(p) + '<span class="exploreAuthor exploreAuthor--identity">' + esc(firstName) + '</span></div>');
-    var previewRow = '';
-    if (capForPreview) {
-      previewRow = lcRailRow('body', '<div class="exploreCaption exploreCaption--railPreview">' + esc(capForPreview) + '</div>');
-    }
-    var metaParts = [];
-    if (time) metaParts.push(time);
-    if (metaLine) metaParts.push(metaLine);
-    if (createdBy) metaParts.push(createdBy);
-    var metaCombined = truncateMeta(metaParts.join(' · '), 76) || '\u00a0';
-    var metaRow = lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc(metaCombined) + '</div>');
-    var inner = lcRailRow('media', visualBlock) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + title + '</span></div>') +
-      railIdentity +
-      previewRow +
-      metaRow;
-    return { inner: inner, isMissionCard: isMissionCard };
+    var dateMeta = [metaLine, createdBy, time].filter(Boolean).join(' · ') || time;
+    var stateBadge = p.teacher_pick ? '🏆' : (p.teacher_featured ? '🌟' : '');
+    var model = {
+      id: p.id,
+      type: p.type || 'link',
+      title: p.title || 'Untitled',
+      author: authorRaw,
+      dateMeta: dateMeta,
+      thumbnailUrl: resolveCardFaceImageUrl(p),
+      imageUrl: String(p.image_url || p.imageUrl || '').trim(),
+      url: String(p.url || '').trim(),
+      video_url: p.video_url,
+      link_url: p.link_url,
+      fallbackType: p.type || 'link',
+      typeBadge: TYPE_BADGES[p.type] || '',
+      stateBadge: stateBadge,
+    };
+    return { model: model, isMissionCard: isMissionCard };
   }
 
   function specNewsRailCard(n, escFn, authorLabelText, isActive) {
@@ -645,109 +727,69 @@
       var dt = new Date(n.approved_at || n.created_at || '');
       if (!isNaN(dt.getTime())) dateStr = dt.toLocaleDateString();
     } catch (err) {}
-    var visualBlock = buildNewsCardVisualBlockFromItem(n, e, { exploreNewsExploreRail: true });
-    var displayNm = String((n.author_name || '').trim() || '');
-    var accountKey = String((n.character_name || n.author_name || '').trim() || '');
-    var idFirst = railIdentityFirstName(displayNm || authorLabelText || 'Anonymous');
+    var mediaItem = normalizeNewsMediaItemForExplore(n);
+    var displayNm = String((n.author_name || '').trim() || authorLabelText || 'Anonymous');
     var cat = String((n.category || '').trim());
-    var metaOne = truncateMeta([authorLabelText, dateStr].filter(Boolean).join(' · '), 80);
-    var avBlock = buildExploreAuthorAvatarHtml({
-      character_name: accountKey,
-      author_name: displayNm,
-      _canonicalAvatar: n._canonicalAvatar,
-      frame: 'none'
+    var dateMeta = [cat, dateStr].filter(Boolean).join(' · ');
+    return compactFaceSpec({
+      id: n.id,
+      type: 'news',
+      title: n.title || 'Untitled',
+      author: displayNm,
+      dateMeta: dateMeta,
+      thumbnailUrl: resolveCardFaceImageUrl(Object.assign({}, mediaItem, { type: 'news' })),
+      imageUrl: mediaItem.image_url,
+      fallbackType: 'news',
+      typeBadge: TYPE_BADGES.news,
+    }, {
+      classNames: 'exploreCard--previewRail exploreCard--newsExploreRail' + (isActive ? ' studioScrollerCardActive' : ''),
+      lanternCardType: 'news',
+      dataAttrs: { 'route-surface': 'explore_happening_news', 'route-pipeline': 'approved_news' },
+      reportType: 'news',
+      reportId: (n && n.id != null) ? String(n.id) : ''
     });
-    var titleStack = '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + e(n.title || 'Untitled') + '</span></div>';
-    if (cat) titleStack += '<div class="exploreCardCategoryBadgeWrap"><span class="exploreCardCategoryBadge">' + e(cat) + '</span></div>';
-    var inner = lcRailRow('media', visualBlock) +
-      lcRailRow('title', titleStack, cat ? 'lcRailRow--titleHasCategory' : '') +
-      lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + avBlock + '<span class="exploreAuthor exploreAuthor--identity">' + e(idFirst) + '</span></div>') +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + e(metaOne) + '</div>');
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: 'exploreCard--previewRail exploreCard--newsExploreRail' + (isActive ? ' studioScrollerCardActive' : ''),
-        lanternCardType: 'news',
-        dataAttrs: { 'route-surface': 'explore_happening_news', 'route-pipeline': 'approved_news' },
-        reportType: 'news',
-        reportId: (n && n.id != null) ? String(n.id) : ''
-      }
-    };
   }
 
-  /** Studio / moderation news preview — same four-row rail as every other card (body copy folded into meta text only). Pass _canonicalAvatar from LanternAvatar.attachCanonicalAvatarsToItems; do not pass legacy authorAvatarUrl. */
+  /** Studio / moderation news preview — detail surface, not compact face. */
   function specOpenedNews(opts) {
     opts = opts || {};
     var eFn = opts.esc || esc;
-    var title = eFn(opts.title || 'Untitled');
-    var category = String(opts.category || '').trim();
-    var authorNameRaw = String(opts.authorName || '').trim();
-    var dateStr = String(opts.dateStr || '').trim();
-    var badgeText = String(opts.badgeText || '').trim();
-    var bodySnippet = truncateMeta(stripHtmlToText(opts.bodyHtml), 48);
-    var featMedia = (opts.featuredMediaHtml && String(opts.featuredMediaHtml).trim()) ? opts.featuredMediaHtml : buildNewsCardVisualBlockFromItem(opts.newsMediaItem || {}, eFn);
-    var repId = (opts.reportId != null) ? String(opts.reportId) : '';
-    var avOpened = buildExploreAuthorAvatarHtml({
-      character_name: authorNameRaw,
-      author_name: authorNameRaw,
-      _canonicalAvatar: opts._canonicalAvatar,
-      frame: 'none'
-    });
-    var idFirst = eFn(railIdentityFirstName(authorNameRaw || 'Anonymous'));
-    var metaBits = [category, dateStr, badgeText, bodySnippet].filter(Boolean);
-    var metaOne = truncateMeta(metaBits.join(' · '), 76) || '\u00a0';
-    var inner = lcRailRow('media', featMedia) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + title + '</span></div>') +
-      lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + avOpened + '<span class="exploreAuthor exploreAuthor--identity">' + idFirst + '</span></div>') +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + eFn(metaOne) + '</div>');
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: 'exploreCard--previewRail studioNewsPreviewRail',
-        lanternCardType: 'news',
-        reportType: 'news',
-        reportId: repId
-      }
-    };
+    var bodySnippet = truncateMeta(stripHtmlToText(opts.bodyHtml), 120);
+    var detHtml = '<div class="lanternDetailPreview">' +
+      '<h3 class="lanternDetailPreviewTitle">' + eFn(opts.title || 'Untitled') + '</h3>' +
+      (opts.featuredMediaHtml ? '<div class="lanternDetailPreviewMedia">' + opts.featuredMediaHtml + '</div>' : '') +
+      '<p class="lanternDetailPreviewBody">' + eFn(bodySnippet) + '</p>' +
+      '<p class="lanternDetailPreviewMeta">' + eFn([opts.category, opts.dateStr, opts.badgeText].filter(Boolean).join(' · ')) + '</p>' +
+      '</div>';
+    return { kind: 'detail', detailHtml: detHtml };
   }
 
-  /**
-   * Poll rail card as HTML string (Explore rails, Contribute studio). Same shell as materializePollRailCard; no listeners.
-   * options.isActive — highlight center draft in studio scroller.
-   */
   function specPollRailCard(poll, options) {
     options = options || {};
     var p = poll || {};
-    var imgUrl = getCardImageUrl({ question: p.question, title: p.question, image_url: p.image_url }) || getDefaultImageUrl('poll');
-    var visualBlock = '<div class="exploreCardVisual"><span class="exploreCardTypeBadge">' + TYPE_BADGES.poll + '</span>' + buildGuaranteedExploreImageHtml('poll', imgUrl) + '</div>';
     var nch = p.choices ? p.choices.length : 0;
     var rawPollMeta = (p.card_meta && String(p.card_meta).trim()) || (options.returnedMeta && String(options.returnedMeta).trim());
-    var metaLine = rawPollMeta
-      ? esc(truncateMeta(String(rawPollMeta).trim(), 76))
-      : esc(truncateMeta(nch + ' choice' + (nch !== 1 ? 's' : '') + ' · Poll', 76));
-    var title = esc(truncateRailTitleTwoLines(p.question || 'Poll', 22));
-    var pollAv = buildExploreAuthorAvatarHtml(p);
-    var pollDisplayNm = String((p.author_name || p.display_name || '').trim() || '');
-    var pollAuthorRaw = pollDisplayNm || String((p.character_name || '').trim() || 'Community');
-    var pollFirst = esc(railIdentityFirstName(pollAuthorRaw));
-    var inner = lcRailRow('media', visualBlock) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + title + '</span></div>') +
-      lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + pollAv + '<span class="exploreAuthor exploreAuthor--identity">' + pollFirst + '</span></div>') +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + metaLine + '</div>');
-    var pollRid = (p && p.id != null) ? String(p.id) : '';
+    var dateMeta = rawPollMeta
+      ? truncateMeta(String(rawPollMeta).trim(), 40)
+      : (nch + ' choice' + (nch !== 1 ? 's' : '') + ' · Poll');
+    var pollAuthorRaw = String((p.author_name || p.display_name || p.character_name || '').trim() || 'Poll');
     var activeCls = options.isActive ? ' studioScrollerCardActive' : '';
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: 'pollCard' + activeCls,
-        lanternCardType: 'poll',
-        reportType: 'poll',
-        reportId: pollRid
-      }
-    };
+    return compactFaceSpec({
+      id: p.id,
+      type: 'poll',
+      title: p.question || 'Poll',
+      author: pollAuthorRaw,
+      dateMeta: dateMeta,
+      thumbnailUrl: resolveCardFaceImageUrl({ question: p.question, title: p.question, image_url: p.image_url, type: 'poll' }),
+      image_url: p.image_url,
+      fallbackType: 'poll',
+      typeBadge: TYPE_BADGES.poll,
+    }, {
+      classNames: 'pollCard' + activeCls,
+      lanternCardType: 'poll',
+      reportType: 'poll',
+      reportId: (p && p.id != null) ? String(p.id) : ''
+    });
   }
 
   /** Poll “opened” simulator — same structure/classes as explore poll modal (preview only). */
@@ -804,19 +846,23 @@
 
   function specMissionSpotlightRail(mission) {
     var m = mission || {};
-    var imgUrl = getCardImageUrl({ title: m.title, description: m.description, image_url: m.image_url, image: m.image });
-    var visualBlock = '<div class="exploreCardVisual"><span class="exploreCardTypeBadge">' + TYPE_BADGES.create + '</span>' + buildGuaranteedExploreImageHtml('mission', imgUrl) + '</div>';
-    var msAv = buildExploreAuthorAvatarHtml({});
-    var inner = lcRailRow('media', visualBlock) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + esc(m.title || 'Mission') + '</span></div>') +
-      lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + msAv + '<span class="exploreAuthor exploreAuthor--identity">Missions</span></div>') +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc('+' + (m.reward_amount || 0) + ' nuggets · Quick mission') + '</div>');
     var mid = (m && m.id != null) ? String(m.id) : '';
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: { classNames: 'missionSpotlightCard', lanternCardType: 'mission', reportType: 'mission', reportId: mid }
-    };
+    return compactFaceSpec({
+      id: m.id,
+      type: 'mission',
+      title: m.title || 'Mission',
+      author: 'Missions',
+      dateMeta: '+' + (m.reward_amount || 0) + ' nuggets · Quick mission',
+      thumbnailUrl: resolveCardFaceImageUrl({ title: m.title, description: m.description, image_url: m.image_url, image: m.image, type: 'mission' }),
+      image_url: m.image_url,
+      fallbackType: 'mission',
+      typeBadge: TYPE_BADGES.create,
+    }, {
+      classNames: 'missionSpotlightCard',
+      lanternCardType: 'mission',
+      reportType: 'mission',
+      reportId: mid
+    });
   }
 
   function wireMissionSpotlightRail(card, mission, options) {
@@ -869,69 +915,29 @@
     return wireMissionSpotlightRail(card, mission, options || {});
   }
 
-  /** Studio / moderation mission submission preview — same four-row rail as every other card. */
+  /** Studio / moderation mission submission preview — detail surface. */
   function specOpenedMissionDraft(missionTitle, type, imageUrl, videoUrl, linkUrl, contentText, emptyPlaceholder) {
     var e2 = esc;
     var mt = e2(String(missionTitle || 'Mission'));
     var draftType = type || 'create';
     var isEmpty = !String(contentText || '').trim() && !String(imageUrl || '').trim() && !String(videoUrl || '').trim() && !String(linkUrl || '').trim();
-    var avYou = buildExploreAuthorAvatarHtml({});
-    var metaPh = truncateMeta(String(emptyPlaceholder || 'Add your response — preview updates here.').replace(/\s+/g, ' ').trim(), 76) || '\u00a0';
-    if (isEmpty) {
-      var vb0 = '<div class="exploreCardVisual"><span class="exploreCardTypeBadge">' + TYPE_BADGES.create + '</span>' + buildGuaranteedExploreImageHtml('create', getDefaultImageUrl('creation')) + '</div>';
-      var inner0 = lcRailRow('media', vb0) +
-        lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + mt + '</span></div>') +
-        lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + avYou + '<span class="exploreAuthor exploreAuthor--identity">You</span></div>') +
-        lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + e2(metaPh) + '</div>');
-      return { kind: 'rail', innerStackHtml: inner0, shell: { lanternCardType: 'mission_draft', reportType: 'mission_draft', reportId: '' } };
-    }
-    var typeBadge = TYPE_BADGES[draftType] ? '<span class="exploreCardTypeBadge">' + TYPE_BADGES[draftType] + '</span>' : '<span class="exploreCardTypeBadge">' + TYPE_BADGES.create + '</span>';
-    var typeFb = svgTypeFallbackDataUri(type || 'create');
-    var uniFb = svgUniversalLanternDataUri();
-    var media = global.LanternMedia && global.LanternMedia.renderMedia ? global.LanternMedia.renderMedia({ image_url: imageUrl, video_url: videoUrl, link_url: linkUrl }, { esc: e2, variant: 'explore', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb }) : { mediaBlock: '' };
-    var mb = (media && media.mediaBlock) ? String(media.mediaBlock).trim() : '';
-    var visualBlock = mb
-      ? '<div class="exploreCardVisual">' + typeBadge + media.mediaBlock + '</div>'
-      : '<div class="exploreCardVisual">' + typeBadge + buildGuaranteedExploreImageHtml(type || 'create', String(imageUrl || '').trim() || getDefaultImageUrl(type)) + '</div>';
-    var ctRaw = String(contentText || '').replace(/\s+/g, ' ').trim();
-    var capPreview = ctRaw ? truncateMeta(ctRaw, 220) : '';
-    var bodyDraft = capPreview
-      ? lcRailRow('body', '<div class="exploreCaption exploreCaption--railPreview">' + e2(capPreview) + '</div>')
-      : '';
-    var inner1 = lcRailRow('media', visualBlock) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + mt + '</span></div>') +
-      lcRailRow('identity', '<div class="exploreCardIdentity exploreCardIdentity--rail">' + avYou + '<span class="exploreAuthor exploreAuthor--identity">You</span></div>') +
-      bodyDraft +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + e2('\u00a0') + '</div>');
-    return { kind: 'rail', innerStackHtml: inner1, shell: { lanternCardType: 'mission_draft', reportType: 'mission_draft', reportId: '' } };
+    var metaPh = truncateMeta(String(emptyPlaceholder || 'Add your response — preview updates here.').replace(/\s+/g, ' ').trim(), 120) || '';
+    var bodySnippet = isEmpty ? metaPh : truncateMeta(String(contentText || '').replace(/\s+/g, ' ').trim(), 200);
+    var imgSrc = String(imageUrl || '').trim() || getDefaultImageUrl(draftType);
+    var detHtml = '<div class="lanternDetailPreview">' +
+      '<h3 class="lanternDetailPreviewTitle">' + mt + '</h3>' +
+      '<div class="lanternDetailPreviewMedia"><img src="' + e2(imgSrc) + '" alt="" /></div>' +
+      '<p class="lanternDetailPreviewBody">' + e2(bodySnippet) + '</p>' +
+      '</div>';
+    return { kind: 'detail', detailHtml: detHtml };
   }
 
   function specIconRailCard(o) {
     o = o || {};
-    var e = esc;
-    var icon = o.icon || '⭐';
     var muted = o.muted ? ' exploreCardMuted' : '';
-    var imgHtml = o.imageUrl
-      ? '<img src="' + e(o.imageUrl) + '" alt="" onerror="var p=this.parentNode;this.remove();p.classList.add(\'exploreCardVisualEmoji\');p.textContent=\'' + e(icon) + '\';">'
-      : '';
-    var visualInner = imgHtml || '<span class="exploreCardVisualEmoji">' + icon + '</span>';
-    var badge = (o.typeBadge != null && String(o.typeBadge).trim() !== '')
-      ? '<span class="exploreCardTypeBadge">' + e(String(o.typeBadge)) + '</span>'
-      : '';
     var metaParts = [o.caption || '', o.meta || ''].filter(Boolean);
-    var metaOne = truncateMeta(metaParts.join(' · '), 76) || '\u00a0';
+    var metaOne = truncateMeta(metaParts.join(' · '), 40) || '';
     var idLabel = o.identityLabel != null ? o.identityLabel : o.title;
-    var avPost = { frame: 'none' };
-    if (String(o.character_name || '').trim()) {
-      avPost.character_name = String(o.character_name).trim();
-      avPost._canonicalAvatar = o._canonicalAvatar;
-    } else {
-      avPost.avatar = o.icon || '⭐';
-    }
-    var inner = lcRailRow('media', '<div class="exploreCardVisual exploreCardVisualIconRail">' + badge + visualInner + '</div>') +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + e(o.title || '') + '</span></div>') +
-      lcRailIdentityRow(idLabel, avPost) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + e(metaOne) + '</div>');
     var rt = (o && o.reportType != null) ? String(o.reportType) : 'profile_rail';
     var rid = (o && o.reportId != null) ? String(o.reportId) : '';
     var da = o.dataAttrs && typeof o.dataAttrs === 'object' ? o.dataAttrs : {};
@@ -945,52 +951,50 @@
     if (o.role) shellOpts.role = o.role;
     if (o.tabIndex != null) shellOpts.tabIndex = o.tabIndex;
     if (o.ariaLabel) shellOpts.ariaLabel = o.ariaLabel;
-    return { kind: 'rail', innerStackHtml: inner, shell: shellOpts };
+    return compactFaceSpec({
+      type: 'profile_rail',
+      title: o.title || '',
+      author: idLabel || o.title || '',
+      dateMeta: metaOne,
+      thumbnailUrl: o.imageUrl || '',
+      fallbackType: 'create',
+      typeBadge: o.typeBadge != null ? String(o.typeBadge) : '',
+    }, shellOpts);
   }
 
-  /** Games page — weekly pace link rail (canonical inner; wraps specLinkCard). */
   function specWeeklyPaceLinkCard(href, title, iconEmoji, metaLine, reportId) {
-    var e = esc;
-    var ic = iconEmoji != null ? String(iconEmoji) : '🎮';
-    var metaMerged = truncateMeta([metaLine || '', 'This week →'].filter(Boolean).join(' · '), 76) || '\u00a0';
-    var inner = lcRailRow('media', '<div class="exploreCardVisual exploreCardVisualIconRail"><span class="exploreCardTypeBadge">🌟 Weekly</span><span class="exploreCardVisualEmoji">' + e(ic) + '</span></div>') +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + e(title || '') + '</span></div>') +
-      lcRailIdentityRow(title || 'Weekly', { avatar: ic, frame: 'none' }) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + e(metaMerged) + '</div>');
-    return specLinkCard(href || 'games.html', inner, 'gameHighlightCard', 'game_highlight', reportId != null ? String(reportId) : '');
+    var metaMerged = truncateMeta([metaLine || '', 'This week →'].filter(Boolean).join(' · '), 40) || 'This week →';
+    return specLinkCard(href || 'games.html', {
+      type: 'game_highlight',
+      title: title || '',
+      author: 'Games',
+      dateMeta: metaMerged,
+      fallbackType: 'create',
+      typeBadge: '🌟 Weekly',
+    }, 'gameHighlightCard', 'game_highlight', reportId != null ? String(reportId) : '');
   }
 
-  /**
-   * Games hub: same four-row rail; optional bodyHtml from callers is ignored (play surfaces live outside the card shell).
-   */
   function specGameHubRailCard(o) {
     o = o || {};
-    var e = esc;
-    var icon = o.icon || '🎮';
-    var typeBadge = o.typeBadge != null ? String(o.typeBadge) : '🎮 Game';
-    var visual = '<div class="exploreCardVisual exploreCardVisualIconRail gamesHubCardVisual"><span class="exploreCardTypeBadge">' + e(typeBadge) + '</span><span class="exploreCardVisualEmoji">' + icon + '</span></div>';
-    var title = '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + e(o.title || '') + '</span></div>';
     var metaBits = [o.metaOne || '', o.rewardText || ''].filter(Boolean);
-    var metaMerged = truncateMeta(metaBits.join(' · '), 76) || '\u00a0';
-    var meta = '<div class="exploreCardMetaOneLine">' + e(metaMerged) + '</div>';
-    var inner = lcRailRow('media', visual) +
-      lcRailRow('title', title) +
-      lcRailIdentityRow(o.hubIdentityLabel || 'Games', { avatar: o.icon || '🎮', frame: 'none' }) +
-      lcRailRow('meta', meta);
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: ('gamesHubPlayCard ' + mergeShellExtras({ classNames: o.extraClass || '' })).replace(/\s+/g, ' ').trim(),
-        lanternCardType: 'game_hub',
-        reportType: o.reportType != null ? o.reportType : 'game_hub',
-        reportId: o.reportId != null ? o.reportId : '',
-        dataAttrs: o.dataAttrs || {},
-        role: o.role,
-        tabIndex: o.tabIndex,
-        ariaLabel: o.ariaLabel
-      }
-    };
+    var metaMerged = truncateMeta(metaBits.join(' · '), 40) || '';
+    return compactFaceSpec({
+      type: 'game_hub',
+      title: o.title || '',
+      author: o.hubIdentityLabel || 'Games',
+      dateMeta: metaMerged,
+      fallbackType: 'create',
+      typeBadge: o.typeBadge != null ? String(o.typeBadge) : '🎮 Game',
+    }, {
+      classNames: ('gamesHubPlayCard ' + mergeShellExtras({ classNames: o.extraClass || '' })).replace(/\s+/g, ' ').trim(),
+      lanternCardType: 'game_hub',
+      reportType: o.reportType != null ? o.reportType : 'game_hub',
+      reportId: o.reportId != null ? o.reportId : '',
+      dataAttrs: o.dataAttrs || {},
+      role: o.role,
+      tabIndex: o.tabIndex,
+      ariaLabel: o.ariaLabel
+    });
   }
 
   /** Games page — leaderboard summary rail (scores as single meta line). */
@@ -1013,67 +1017,45 @@
     });
   }
 
-  /** Link-card inner only (canonical structure; escapes text once). */
-  function gameHighlightLinkInnerStackHtml(labelText, headlineText, bodyText) {
-    var visual = '<div class="exploreCardVisual exploreCardVisualIconRail"><span class="exploreCardTypeBadge">🎮</span><span class="exploreCardVisualEmoji">🕹</span></div>';
-    var metaMerged = truncateMeta([headlineText || '', bodyText || ''].filter(Boolean).join(' — '), 76) || '\u00a0';
-    return lcRailRow('media', visual) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + esc(labelText || '') + '</span></div>') +
-      lcRailIdentityRow(labelText || 'Games', { avatar: '🎮', frame: 'none' }) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc(metaMerged) + '</div>');
-  }
-
-  /** Verify stress / minimal two-line link inner (canonical structure). */
-  function verifyStressLinkInnerStackHtml(titleText, metaText) {
-    var visual = '<div class="exploreCardVisual exploreCardVisualIconRail"><span class="exploreCardVisualEmoji">✓</span></div>';
-    return lcRailRow('media', visual) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + esc(titleText || '') + '</span></div>') +
-      lcRailIdentityRow('Verify', { avatar: '✓', frame: 'none' }) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc(truncateMeta(metaText || '', 76) || '\u00a0') + '</div>');
-  }
-
-  /** Navigating rail: same rail grammar; shell.navHref produces exploreCardOuterWrap + <a>. */
-  function specLinkCard(href, innerHtml, extraClass, reportType, reportId) {
-    return {
-      kind: 'rail',
-      innerStackHtml: innerHtml,
-      shell: {
-        classNames: extraClass || '',
-        navHref: href != null ? String(href) : '',
-        reportType: reportType,
-        reportId: reportId
-      }
-    };
+  /** Navigating rail: shell.navHref produces exploreCardOuterWrap + <a>. */
+  function specLinkCard(href, model, extraClass, reportType, reportId) {
+    return compactFaceSpec(model, {
+      classNames: extraClass || '',
+      navHref: href != null ? String(href) : '',
+      reportType: reportType,
+      reportId: reportId
+    });
   }
 
   function specGameHighlightLinkCard(href, labelText, headlineText, bodyText, reportId) {
-    return specLinkCard(href || 'games.html', gameHighlightLinkInnerStackHtml(labelText, headlineText, bodyText), 'gameHighlightCard', 'game_highlight', reportId != null ? String(reportId) : '');
+    var metaMerged = truncateMeta([headlineText || '', bodyText || ''].filter(Boolean).join(' — '), 40) || '';
+    return specLinkCard(href || 'games.html', {
+      type: 'game_highlight',
+      title: labelText || '',
+      author: 'Games',
+      dateMeta: metaMerged,
+      fallbackType: 'create',
+      typeBadge: '🎮',
+    }, 'gameHighlightCard', 'game_highlight', reportId != null ? String(reportId) : '');
   }
 
   function specVerifyStressLinkCard(href, titleText, metaText, reportId) {
-    return specLinkCard(href || '#', verifyStressLinkInnerStackHtml(titleText, metaText), 'railStressVerifyFake', 'verify_stress_creation', reportId != null ? String(reportId) : '');
+    return specLinkCard(href || '#', {
+      type: 'verify_stress',
+      title: titleText || '',
+      author: 'Verify',
+      dateMeta: truncateMeta(metaText || '', 40),
+      fallbackType: 'create',
+    }, 'railStressVerifyFake', 'verify_stress_creation', reportId != null ? String(reportId) : '');
   }
 
-  /**
-   * Store / locker / profile — cosmetics: four rows only; price/footer HTML from callers is flattened to meta text (tap card to buy/equip in page scripts).
-   */
   function specCosmeticRailCard(o) {
     o = o || {};
-    var spotlight = o.spotlight
-      ? '<span class="exploreCardTypeBadge exploreCardCosmeticSpotlightBadge">Spotlight</span>'
-      : '';
-    var visual = '<div class="exploreCardVisual exploreCardVisualIconRail exploreCardVisual--cosmeticRail">' + spotlight +
-      '<span class="exploreCardVisualEmoji">' + esc(o.icon != null ? String(o.icon) : '✨') + '</span></div>';
-    var titleRow = '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + esc(o.title || '') + '</span></div>';
     var rLab = (o.rarityLabel && String(o.rarityLabel).trim()) ? String(o.rarityLabel).trim() : '';
     var sub = (o.subline && String(o.subline).trim()) ? String(o.subline).trim() : '';
     var priceTxt = o.priceBandHtml ? stripHtmlToText(String(o.priceBandHtml)) : '';
     var footTxt = o.footerHtml ? stripHtmlToText(String(o.footerHtml)) : '';
-    var metaCombined = truncateMeta([rLab, sub, priceTxt, footTxt].filter(Boolean).join(' · '), 76) || '\u00a0';
-    var metaRow = lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc(metaCombined) + '</div>');
-    var inner = lcRailRow('media', visual) + lcRailRow('title', titleRow) +
-      lcRailIdentityRow(o.identityLabel || 'Store', { avatar: o.icon != null ? String(o.icon) : '✨', frame: 'none' }) +
-      metaRow;
+    var metaCombined = truncateMeta([rLab, sub, priceTxt, footTxt].filter(Boolean).join(' · '), 40) || '';
     var rar = String(o.rarityKey || 'common').toLowerCase();
     if (['common', 'uncommon', 'rare', 'epic', 'legendary'].indexOf(rar) < 0) rar = 'common';
     var state = [];
@@ -1085,84 +1067,82 @@
     if (o.future) state.push('exploreCard--cosmeticFuture');
     if (o.placeholder) state.push('exploreCard--cosmeticPlaceholder');
     var xcls = ('exploreCard--cosmeticRail exploreCard--cosmeticRarity-' + rar + ' ' + state.join(' ') + ' ' + (o.extraClass || '')).replace(/\s+/g, ' ').trim();
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: xcls,
-        lanternCardType: 'cosmetic',
-        reportType: o.reportType != null ? o.reportType : 'cosmetic',
-        reportId: o.reportId != null ? String(o.reportId) : '',
-        dataAttrs: o.dataAttrs || {},
-        role: o.role,
-        tabIndex: o.tabIndex,
-        ariaLabel: o.ariaLabel
-      }
-    };
+    return compactFaceSpec({
+      type: 'cosmetic',
+      title: o.title || '',
+      author: o.identityLabel || 'Store',
+      dateMeta: metaCombined,
+      thumbnailUrl: o.imageUrl || '',
+      fallbackType: 'create',
+      typeBadge: o.spotlight ? 'Spotlight' : '',
+      stateBadge: o.icon != null ? String(o.icon) : '✨',
+    }, {
+      classNames: xcls,
+      lanternCardType: 'cosmetic',
+      reportType: o.reportType != null ? o.reportType : 'cosmetic',
+      reportId: o.reportId != null ? String(o.reportId) : '',
+      dataAttrs: o.dataAttrs || {},
+      role: o.role,
+      tabIndex: o.tabIndex,
+      ariaLabel: o.ariaLabel
+    });
   }
 
-  /** Store leaderboard horizontal chips — same Lantern shell. */
   function specLeaderboardChipRailCard(rank, name, availText, rowIndex) {
-    var visual = '<div class="exploreCardVisual exploreCardVisualIconRail"><span class="exploreCardVisualEmoji">🏅</span></div>';
-    var inner = lcRailRow('media', visual) +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">#' + esc(String(rank)) + ' ' + esc(name) + '</span></div>') +
-      lcRailIdentityRow(name, { avatar: '🏅', frame: 'none' }) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc(truncateMeta(availText || '', 76) || '\u00a0') + '</div>');
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: 'exploreCard--leaderboardChip',
-        lanternCardType: 'leaderboard_chip',
-        reportType: 'store_leaderboard_chip',
-        reportId: String(rowIndex),
-        dataAttrs: { 'lb-row': String(rowIndex) },
-        role: 'button',
-        tabIndex: '0',
-        ariaLabel: 'Rank ' + rank + ' ' + String(name || '').slice(0, 80)
-      }
-    };
+    return compactFaceSpec({
+      type: 'leaderboard_chip',
+      title: '#' + String(rank) + ' ' + (name || ''),
+      author: 'Leaderboard',
+      dateMeta: truncateMeta(availText || '', 40),
+      fallbackType: 'create',
+      typeBadge: '🏅',
+    }, {
+      classNames: 'exploreCard--leaderboardChip',
+      lanternCardType: 'leaderboard_chip',
+      reportType: 'store_leaderboard_chip',
+      reportId: String(rowIndex),
+      dataAttrs: { 'lb-row': String(rowIndex) },
+      role: 'button',
+      tabIndex: '0',
+      ariaLabel: 'Rank ' + rank + ' ' + String(name || '').slice(0, 80)
+    });
   }
 
-  /** Display mode — news grid tile; body + praise hook folded into single meta line. */
   function specDisplayNewsSpotlightCard(id, category, title, bodySnippet) {
     var cat = String(category || 'News');
-    var metaMerged = truncateMeta([cat, String(bodySnippet || '').replace(/\s+/g, ' ').trim()].filter(Boolean).join(' · '), 76) || '\u00a0';
-    var inner = lcRailRow('media', '<div class="exploreCardVisual exploreCardVisualIconRail"><span class="exploreCardTypeBadge">📰</span><span class="exploreCardVisualEmoji">📰</span></div>') +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">' + esc(title) + '</span></div>') +
-      lcRailIdentityRow(cat, { avatar: '📰', frame: 'none' }) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine displayPraiseSummary exploreCardMetaOneLine--dim">' + esc(metaMerged) + '</div>');
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: 'exploreCard--displayNewsTile',
-        lanternCardType: 'display_news',
-        reportType: 'display_news',
-        reportId: String(id || ''),
-        dataAttrs: { 'reaction-item-type': 'news', 'reaction-item-id': String(id || '') }
-      }
-    };
+    var metaMerged = truncateMeta([cat, String(bodySnippet || '').replace(/\s+/g, ' ').trim()].filter(Boolean).join(' · '), 40) || cat;
+    return compactFaceSpec({
+      type: 'display_news',
+      title: title || '',
+      author: cat,
+      dateMeta: metaMerged,
+      fallbackType: 'news',
+      typeBadge: '📰',
+    }, {
+      classNames: 'exploreCard--displayNewsTile',
+      lanternCardType: 'display_news',
+      reportType: 'display_news',
+      reportId: String(id || ''),
+      dataAttrs: { 'reaction-item-type': 'news', 'reaction-item-id': String(id || '') }
+    });
   }
 
   function specActivityPulseCard(iconChar, lineText, timeStr, eventType, reportIdOpt) {
-    var det = esc(String(eventType || '').slice(0, 100));
-    var metaOne = truncateMeta((timeStr ? String(timeStr).trim() + ' · ' : '') + (lineText || ''), 76) || '\u00a0';
-    var inner = lcRailRow('media', '<div class="exploreCardVisual exploreCardVisualIconRail exploreCardVisualIconRail--pulse"><span class="exploreCardVisualEmoji">' + esc(iconChar || '✨') + '</span></div>') +
-      lcRailRow('title', '<div class="exploreCardHd exploreCardHd--preview"><span class="exploreTitle">Activity</span></div>') +
-      lcRailIdentityRow('Activity', { avatar: String(iconChar || '✨'), frame: 'none' }) +
-      lcRailRow('meta', '<div class="exploreCardMetaOneLine">' + esc(metaOne) + '</div>');
+    var metaOne = truncateMeta((timeStr ? String(timeStr).trim() + ' · ' : '') + (lineText || ''), 40) || '';
     var rid = reportIdOpt != null ? String(reportIdOpt) : '';
-    return {
-      kind: 'rail',
-      innerStackHtml: inner,
-      shell: {
-        classNames: 'exploreCard--activityPulse',
-        dataAttrs: { 'route-surface': 'explore_activity', 'route-detail': det },
-        reportType: 'activity',
-        reportId: rid
-      }
-    };
+    return compactFaceSpec({
+      type: 'activity',
+      title: truncateMeta(String(lineText || 'Activity'), 48),
+      author: 'Activity',
+      dateMeta: metaOne,
+      fallbackType: 'activity',
+      stateBadge: iconChar || '✨',
+    }, {
+      classNames: 'exploreCard--activityPulse',
+      dataAttrs: { 'route-surface': 'explore_activity', 'route-detail': String(eventType || '').slice(0, 100) },
+      reportType: 'activity',
+      reportId: rid
+    });
   }
 
   function postToRailModel(p, identity) {
@@ -1214,10 +1194,14 @@
     CARD_CONTRACT_VERSION: CARD_CONTRACT_VERSION,
     esc: esc,
     railIdentityFirstName: railIdentityFirstName,
-    lcRailRow: lcRailRow,
-    lcRailIdentityRow: lcRailIdentityRow,
     TYPE_ICONS: TYPE_ICONS,
     TYPE_BADGES: TYPE_BADGES,
+    resolveCardFaceImageUrl: resolveCardFaceImageUrl,
+    resolveCardFaceImageUrlWithFallbacks: resolveCardFaceImageUrlWithFallbacks,
+    buildCanonicalCardFaceHtml: buildCanonicalCardFaceHtml,
+    normalizeFeedItemToFaceModel: normalizeFeedItemToFaceModel,
+    compactFaceSpec: compactFaceSpec,
+    createCanonicalCardFace: createCanonicalCardFace,
     getCardImageUrl: getCardImageUrl,
     getDefaultImageUrl: getDefaultImageUrl,
     getDefaultAvatarImageUrl: getDefaultAvatarImageUrl,

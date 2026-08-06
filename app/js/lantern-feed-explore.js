@@ -15,10 +15,43 @@
 
   function el(id) { return global.document.getElementById(id); }
 
+  function readCardWidth() {
+    var root = global.document.documentElement;
+    var w = parseFloat(global.getComputedStyle(root).getPropertyValue('--lantern-card-width'));
+    return isNaN(w) || w <= 0 ? 280 : w;
+  }
+
+  function readGridGap(grid) {
+    if (!grid) return 16;
+    var g = parseFloat(global.getComputedStyle(grid).gap);
+    return isNaN(g) ? 16 : g;
+  }
+
+  function fitColumnCount(grid, requested) {
+    var req = Math.min(3, Math.max(1, requested || 1));
+    if (!grid) return req;
+    var cardW = readCardWidth();
+    var gap = readGridGap(grid);
+    var avail = grid.clientWidth || grid.getBoundingClientRect().width;
+    if (!avail) return req;
+    var fit = Math.floor((avail + gap) / (cardW + gap));
+    if (fit < 1) fit = 1;
+    return Math.min(req, fit);
+  }
+
+  function applyGridColumns() {
+    var grid = el('feedGrid');
+    if (!grid) return;
+    var effective = fitColumnCount(grid, state.columns);
+    grid.style.setProperty('--feed-cols', String(effective));
+    grid.classList.add('manual-cols');
+    grid.setAttribute('data-columns', String(state.columns));
+    grid.setAttribute('data-effective-columns', String(effective));
+  }
+
   function setColumns(n) {
     state.columns = Math.min(3, Math.max(1, n));
-    var grid = el('feedGrid');
-    if (grid) grid.setAttribute('data-columns', String(state.columns));
+    applyGridColumns();
   }
 
   function renderFilters() {
@@ -47,6 +80,7 @@
     grid.innerHTML = '';
     if (!state.items.length) {
       if (empty) empty.hidden = false;
+      applyGridColumns();
       return;
     }
     if (empty) empty.hidden = true;
@@ -55,6 +89,7 @@
     state.items.forEach(function (item) {
       grid.appendChild(cardApi.buildCard(item, { onRefresh: loadFeed }));
     });
+    applyGridColumns();
   }
 
   function loadFeed() {
@@ -110,6 +145,13 @@
     });
     var refreshBtn = el('feedRefreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadFeed);
+    var grid = el('feedGrid');
+    if (grid && global.ResizeObserver) {
+      var ro = new global.ResizeObserver(function () { applyGridColumns(); });
+      ro.observe(grid);
+    } else if (grid) {
+      global.addEventListener('resize', applyGridColumns);
+    }
   }
 
   function init() {
@@ -123,5 +165,6 @@
     init: init,
     refresh: loadFeed,
     getState: function () { return state; },
+    applyGridColumns: applyGridColumns,
   };
 })(typeof window !== 'undefined' ? window : self);

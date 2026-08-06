@@ -1,10 +1,23 @@
 # Lantern — Card render paths & canonical surfaces
 
-**Contract:** One production card system — `LanternCards` in `apps/lantern-app/js/lantern-cards.js` + `lantern-cards.css`. See `docs/archive/CARD_SYSTEM.md` for rail/opened rules.
+**Contract v2 (2026-08): ONE COMPACT PRODUCTION CARD FACE.**
 
-**Horizontal rail thumbscroll (shared):** `lantern-scroller.js` upgrades hosts to `.lanternScroller`. Scrollbar **thickness** (grab area) is `--lantern-rail-scrollbar-size` in `lantern-header.css`, applied in `lantern-cards.css` under `.wrap.lanternContent .lanternScroller::-webkit-scrollbar{ height: … }`. Not the same as vertical panels in `lantern-store-panel.css` (`.scrollArea` / `.studentDropdown`).
+- **Renderer:** `app/js/lantern-cards.js` (`LanternCards`, `CARD_CONTRACT_VERSION = '2'`).
+- **Compositor:** `buildCanonicalCardFaceHtml(model)` — all compact faces flow through one 280px × 16:9 landscape shell (`.exploreCard.lanternCanonicalCard`).
+- **Feed adapter:** `app/js/lantern-feed-card.js` (`LANTERN_FEED_CARD.buildCard`) normalizes feed items and delegates to `LanternCards` — **no production `.feedCard` shell**.
+- **Styles:** `app/css/lantern-cards.css` (`--lantern-card-width`, `--lantern-card-aspect-ratio`).
+- **Enforcer:** `app/js/lantern-canonical-enforce.js` — rejects v1 row grammar, `.feedCard` roots, and non-16:9 faces.
+- **Detail surfaces:** reactions, teacher comments, full body — `feedDetailOverlay` / `.lanternDetailSurface` (not compact card faces).
 
-**Opened surface + fullscreen (audit):** `docs/ui/LANTERN_RAIL_OPEN_FULLSCREEN_SYSTEM.md` — single canonical paths vs documented exceptions (e.g. Explore poll overlay).
+**Horizontal rail thumbscroll (shared):** `lantern-scroller.js` upgrades hosts to `.lanternScroller`. Fixed-width v2 cards in rails and grids.
+
+**Opened surface + fullscreen (audit):** `docs/ui/LANTERN_RAIL_OPEN_FULLSCREEN_SYSTEM.md`
+
+---
+
+## Legacy note (v1 — removed from production render path)
+
+Prior 420px portrait rail + 128px media strip + `.exploreCardRailStack` / `.lcRailRow` grammar is **not** the active compact-face path. Archived reference: `docs/archive/CARD_SYSTEM.md`.
 
 ---
 
@@ -33,20 +46,19 @@
 
 ---
 
-## STEP 2 — Canonical structure (feed / news / poll / mission rail)
+## STEP 2 — Canonical v2 compact face structure
 
-**Shared anatomy (rail cards with author or system identity):**
+**Shared anatomy (all compact production faces via `buildCanonicalCardFaceHtml`):**
 
-1. **`.exploreCardVisual`** — image/thumbnail + type badge (where applicable).  
-2. **`.exploreCardHd` / `.exploreCardHd--preview`** — title.  
-3. **`.exploreCardIdentity` / `.exploreCardIdentity--rail`** — **author avatar (image only)** + author label.  
-4. **Optional `.lcRailRow--body`** — **`.exploreCaption.exploreCaption--railPreview`** for description/body preview (2-line clamp). **Not** mixed with date/meta.  
-5. **`.exploreCardMetaOneLine`** — subordinate single-line metadata (date, category, card_meta, poll detail, etc.) only.  
-6. **Type badge** — `TYPE_BADGES` in media area or title row per CARD_SYSTEM.
+1. **`.exploreCard.lanternCanonicalCard[data-lantern-card-surface="face"]`** — 280px × 16:9 shell; `data-lantern-card-contract-version="2"`.
+2. **`.lanternCanonicalCardFrame`** — absolute fill; image or fallback only (no normal-flow body below).
+3. **`.lanternCanonicalCardImage`** — `object-fit: cover`, `loading="lazy"`, `decoding="async"`, one-time `onerror` → type SVG → universal SVG.
+4. **`.lanternCanonicalCardOverlay`** — bottom gradient + caption block.
+5. **`.lanternCanonicalCardTitle`** — 2-line clamp.
+6. **`.lanternCanonicalCardMeta`** — author/source + date/status (single line).
+7. **`.lanternCanonicalCardBadgeLayer`** — optional type/state badges.
 
-**Avatar rule (enforced in `lantern-cards.js`):**
-
-- `buildExploreAuthorAvatarHtml(p)` resolves: `avatar_url` | `author_avatar_url` | `custom_avatar` → else **`getDefaultAvatarImageUrl()`** (`default/default_avatar.png` via Worker media) → else **inline SVG** (never blank, never emoji-as-avatar).
+**Detail surfaces (not compact faces):** `.lanternDetailSurface`, `#feedDetailOverlay`, `.exploreCardVisual` in opened/moderation views — full body, reactions, teacher comments live here only.
 
 ---
 

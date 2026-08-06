@@ -93,43 +93,43 @@
   function inferSourceAndKill(el) {
     var cls = String(el.className || '');
     if (/\bmissionSpotlightCard\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.buildMissionSpotlightRailElement → createStudentCard(specMissionSpotlightRail)', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.buildMissionSpotlightRailElement → createStudentCard(specMissionSpotlightRail)', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bpollCard\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specPollRailCard / materializePollRailCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specPollRailCard / materializePollRailCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bgamesHubPlayCard\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specGameHubRailCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specGameHubRailCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bgameHighlightCard\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specLinkCard / specGameHighlightLinkCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specLinkCard / specGameHighlightLinkCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bexploreCard--cosmeticRail\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specCosmeticRailCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specCosmeticRailCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bexploreCard--leaderboardChip\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specLeaderboardChipRailCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specLeaderboardChipRailCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bexploreCard--displayNewsTile\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specDisplayNewsSpotlightCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specDisplayNewsSpotlightCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bexploreCard--activityPulse\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specActivityPulseCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specActivityPulseCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bexploreCardProfileRail\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specIconRailCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specIconRailCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\bexploreCard--previewRail\b/.test(cls)) {
-      return { sourceHint: 'LanternCards.specNewsRailCard / specOpenedNews', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specNewsRailCard / specOpenedNews', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (String(el.tagName || '').toLowerCase() === 'a' && el.classList.contains('exploreCard')) {
-      return { sourceHint: 'LanternCards.specLinkCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.specLinkCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (/\btype-[a-z0-9_-]+\b/i.test(cls)) {
-      return { sourceHint: 'LanternCards.materializeFeedPostCard', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards.materializeFeedPostCard', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     if (el.getAttribute('data-lantern-card-factory') === FACTORY_EXPECTED) {
-      return { sourceHint: 'LanternCards factory (createStudentCard)', killTarget: 'apps/lantern-app/js/lantern-cards.js — createStudentCard' };
+      return { sourceHint: 'LanternCards factory (createStudentCard)', killTarget: 'app/js/lantern-cards.js — createStudentCard' };
     }
     return { sourceHint: 'page-local markup, legacy HTML, or post-render DOM mutation', killTarget: 'Search repo for .exploreCard without LanternCards factory stamp; remove non-canonical injectors' };
   }
@@ -148,99 +148,76 @@
     if (!String(el.getAttribute('data-lantern-card-type') || '').trim()) reasons.push('MISSING_DATA_LANTERN_CARD_TYPE');
   }
 
-  function inspectRailContract(el, reasons) {
-    var stack = el.querySelector('.exploreCardRailStack');
-    if (!stack) {
-      reasons.push('MISSING_RAIL_STACK');
+  function isVisibleCompactFace(el) {
+    if (!el || !el.getBoundingClientRect) return true;
+    var r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return false;
+    if (global.getComputedStyle) {
+      var st = global.getComputedStyle(el);
+      if (st.display === 'none' || st.visibility === 'hidden') return false;
+    }
+    return true;
+  }
+
+  function inspectCanonicalCardFace(el, reasons) {
+    var surface = el.getAttribute('data-lantern-card-surface');
+    if (surface === 'detail') return;
+    if (el.getAttribute('data-lantern-card-contract-version') !== '2') {
+      reasons.push('CONTRACT_VERSION_NOT_2');
+    }
+    if (el.querySelector('.exploreCardRailStack')) reasons.push('LEGACY_RAIL_STACK');
+    if (el.querySelector('.lcRailRow')) reasons.push('LEGACY_LC_RAIL_ROW');
+    if (el.classList.contains('feedCard')) reasons.push('PARALLEL_FEED_CARD_ROOT');
+    var frame = el.querySelector(':scope > .lanternCanonicalCardFrame, :scope > a > .lanternCanonicalCardFrame');
+    if (!frame) {
+      frame = el.querySelector('.lanternCanonicalCardFrame');
+    }
+    if (!frame) {
+      reasons.push('MISSING_CANONICAL_FRAME');
       return;
     }
-    var kids = stack.children;
-    var i;
-    for (i = 0; i < kids.length; i++) {
-      if (!kids[i].classList || !kids[i].classList.contains('lcRailRow')) {
-        reasons.push('NON_CANONICAL_STACK_CHILD');
-        break;
+    var img = frame.querySelector('.lanternCanonicalCardImage');
+    var fb = frame.querySelector('.lanternCanonicalCardFallback');
+    if (!img && !fb) reasons.push('MISSING_IMAGE_OR_FALLBACK');
+    if (img && global.getComputedStyle) {
+      var fit = global.getComputedStyle(img).objectFit;
+      var cosmeticContain = el.classList.contains('exploreCard--cosmeticRail') && fit === 'contain';
+      if (fit && fit !== 'cover' && !cosmeticContain) reasons.push('IMAGE_NOT_OBJECT_FIT_COVER');
+    }
+    if (!frame.querySelector('.lanternCanonicalCardOverlay')) reasons.push('MISSING_OVERLAY');
+    if (!frame.querySelector('.lanternCanonicalCardGradient')) reasons.push('MISSING_GRADIENT');
+    if (!frame.querySelector('.lanternCanonicalCardCaption')) reasons.push('MISSING_CAPTION');
+    var titles = frame.querySelectorAll('.lanternCanonicalCardTitle');
+    if (titles.length !== 1) reasons.push('TITLE_COUNT_INVALID');
+    if (titles.length === 1 && global.getComputedStyle) {
+      var tEl = titles[0];
+      var st = global.getComputedStyle(tEl);
+      var clampRaw = st.webkitLineClamp || st.getPropertyValue('-webkit-line-clamp');
+      var clampN = parseInt(String(clampRaw || ''), 10);
+      if (!(clampN === 2)) {
+        var lh = parseFloat(st.lineHeight);
+        if (isNaN(lh) || lh <= 0) lh = parseFloat(st.fontSize) * 1.2;
+        if (tEl.scrollHeight > lh * 2 + 6) reasons.push('TITLE_EXCEEDS_TWO_LINES');
       }
     }
-    if (stack.querySelector('.lcRailRow--footer')) {
-      reasons.push('FORBIDDEN_FOOTER_ROW');
-    }
-    var topRows = stack.querySelectorAll(':scope > .lcRailRow');
-    var rowCount = topRows.length;
-    if (rowCount === 4) {
-      var order4 = ['media', 'title', 'identity', 'meta'];
-      for (var r4 = 0; r4 < 4; r4++) {
-        if (!topRows[r4].classList || !topRows[r4].classList.contains('lcRailRow--' + order4[r4])) {
-          reasons.push('RAIL_ROW_ORDER_MISMATCH');
-          break;
-        }
-      }
-    } else if (rowCount === 5) {
-      var order5 = ['media', 'title', 'identity', 'body', 'meta'];
-      for (var r5 = 0; r5 < 5; r5++) {
-        if (!topRows[r5].classList || !topRows[r5].classList.contains('lcRailRow--' + order5[r5])) {
-          reasons.push('RAIL_ROW_ORDER_MISMATCH');
-          break;
-        }
-      }
-      var bodyRow = stack.querySelector('.lcRailRow--body');
-      if (bodyRow && !bodyRow.querySelector('.exploreCaption')) {
-        reasons.push('BODY_ROW_MISSING_EXPLORE_CAPTION');
-      }
-    } else {
-      reasons.push('RAIL_STACK_ROW_COUNT_INVALID');
-    }
-    if (!stack.querySelector('.lcRailRow--identity .exploreCardIdentity--rail')) {
-      reasons.push('MISSING_CANONICAL_IDENTITY_ROW');
-    }
-    var idList = stack.querySelectorAll('.exploreCardIdentity--rail');
-    for (i = 0; i < idList.length; i++) {
-      if (!idList[i].closest('.lcRailRow--identity')) {
-        reasons.push('IDENTITY_OUTSIDE_ROW_3');
-        break;
+    var meta = frame.querySelector('.lanternCanonicalCardMeta');
+    if (!meta) reasons.push('MISSING_META_ROW');
+    else if (meta.scrollHeight > meta.clientHeight + 3) reasons.push('META_WRAPS_OR_STACKS');
+    var ew = readCssVarPx(el, '--lantern-card-width', 280);
+    if (isVisibleCompactFace(el)) {
+      if (Math.abs(el.offsetWidth - ew) > 8) reasons.push('SHELL_WIDTH_DRIFT');
+      if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+        var ratio = el.offsetWidth / el.offsetHeight;
+        if (Math.abs(ratio - (16 / 9)) > 0.08) reasons.push('ASPECT_RATIO_NOT_16_9');
       }
     }
-    var titleZone = stack.querySelector('.lcRailRow--title');
-    if (titleZone) {
-      var hd = titleZone.querySelector('.exploreCardHd--preview');
-      if (hd) {
-        var ch = hd.children;
-        var j;
-        for (j = 0; j < ch.length; j++) {
-          if (!ch[j].classList || !ch[j].classList.contains('exploreTitle')) {
-            reasons.push('TITLE_ROWS_NON_TITLE_CONTENT');
-            break;
-          }
-        }
-        var titles = hd.querySelectorAll(':scope > .exploreTitle');
-        if (titles.length !== 1) reasons.push('TITLE_NOT_SINGLE_EXPLORE_TITLE');
-        if (titles.length === 1) {
-          var tEl = titles[0];
-          var lh = parseFloat(global.getComputedStyle(tEl).lineHeight);
-          if (isNaN(lh) || lh <= 0) lh = parseFloat(global.getComputedStyle(tEl).fontSize) * 1.2;
-          if (tEl.scrollHeight > lh * 2 + 3) reasons.push('TITLE_EXCEEDS_TWO_LINES');
-        }
-      }
-    }
-    var metaEls = stack.querySelectorAll('.lcRailRow--meta .exploreCardMetaOneLine');
-    for (i = 0; i < metaEls.length; i++) {
-      if (metaEls[i].scrollHeight > metaEls[i].clientHeight + 3) reasons.push('META_WRAPS_OR_STACKS');
-    }
-    var idEls = stack.querySelectorAll('.lcRailRow--identity .exploreAuthor--identity, .lcRailRow--identity .exploreAuthor');
-    for (i = 0; i < idEls.length; i++) {
-      if (idEls[i].scrollHeight > idEls[i].clientHeight + 3) reasons.push('IDENTITY_MULTILINE');
-    }
-    var ew = readCssVarPx(el, '--lantern-rail-card-outer-width', 280);
-    var eh = readCssVarPx(el, '--lantern-rail-card-height', 420);
-    if (Math.abs(el.offsetWidth - ew) > 6) reasons.push('SHELL_WIDTH_DRIFT');
-    if (Math.abs(el.offsetHeight - eh) > 6) reasons.push('SHELL_HEIGHT_DRIFT');
-    var vis = stack.querySelector('.lcRailRow--media > .exploreCardVisual');
-    if (vis) {
-      var mh = readCssVarPx(el, '--lantern-rail-card-media-height', 128);
-      if (Math.abs(vis.offsetHeight - mh) > 6) reasons.push('MEDIA_HEIGHT_DRIFT');
-    } else {
-      reasons.push('MISSING_MEDIA_IN_ROW_0');
-    }
+    var below = el.querySelector(':scope > .lcRailRow, :scope > .feedCardInner, :scope > .exploreCardRailStack');
+    if (below) reasons.push('CONTENT_PANEL_BELOW_FRAME');
+  }
+
+  /** @deprecated v1 — delegates to inspectCanonicalCardFace */
+  function inspectRailContract(el, reasons) {
+    inspectCanonicalCardFace(el, reasons);
   }
 
   /**
@@ -254,14 +231,12 @@
     var sk = inferSourceAndKill(el);
     inspectBranding(el, reasons);
 
-    if (el.classList.contains('exploreCard--rail')) {
-      inspectRailContract(el, reasons);
-    } else if (passesLinkCardContract(el)) {
-      inspectRailContract(el, reasons);
+    if (el.getAttribute('data-lantern-card-surface') === 'face' || el.classList.contains('lanternCanonicalCard') || el.classList.contains('exploreCard--rail')) {
+      inspectCanonicalCardFace(el, reasons);
     } else if (el.querySelector('.exploreCardRailStack')) {
-      reasons.push('RAIL_STACK_WITHOUT_RAIL_CLASS');
-    } else {
-      reasons.push('UNCLASSIFIED_CARD_NOT_RAIL_OR_LINK');
+      reasons.push('RAIL_STACK_WITHOUT_FACE_SURFACE');
+    } else if (!el.classList.contains('lanternCanonicalCard')) {
+      reasons.push('UNCLASSIFIED_CARD_NOT_CANONICAL_FACE');
     }
 
     var ok = reasons.length === 0;
@@ -318,11 +293,15 @@
 
   function scanAllExploreCards(doc) {
     if (!doc || !doc.querySelectorAll) return;
-    var cards = doc.querySelectorAll('.exploreCard');
+    var cards = doc.querySelectorAll('.exploreCard[data-lantern-card-surface="face"], .exploreCard.lanternCanonicalCard');
     var report = [];
     var i;
     for (i = 0; i < cards.length; i++) {
       var el = cards[i];
+      if (!isVisibleCompactFace(el)) {
+        unmarkCancer(el);
+        continue;
+      }
       var r = inspectExploreCard(el);
       if (!r.ok) {
         markCancer(el, r);
@@ -333,6 +312,13 @@
       } else {
         unmarkCancer(el);
       }
+    }
+    var feedRoots = doc.querySelectorAll('.feedCard');
+    for (i = 0; i < feedRoots.length; i++) {
+      var fr = feedRoots[i];
+      var fake = { ok: false, reasons: ['PARALLEL_FEED_CARD_ROOT'], sourceHint: 'lantern-feed-card.js legacy', killTarget: 'app/js/lantern-feed-card.js' };
+      markCancer(fr, fake);
+      report.push(buildReportEntry(fr, fake));
     }
     global.__lanternCancerReport = report;
   }

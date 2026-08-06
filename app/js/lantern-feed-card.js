@@ -1,5 +1,6 @@
 /**
- * Lantern ONE FEED — single card shell contract.
+ * Lantern ONE FEED — adapter to LanternCards contract v2 compact faces.
+ * Detail/reactions/comments live in feedDetailOverlay, not on the card face.
  */
 (function (global) {
   'use strict';
@@ -22,24 +23,24 @@
     var slot = item.contentSlot || {};
     var type = item.type || '';
     if (type === 'mission' && slot.missionId) {
-      return '<div class="feedCardSlot feedCardSlot--mission">Mission completed</div>';
+      return '<div class="feedDetailSlot feedDetailSlot--mission">Mission completed</div>';
     }
     if (type === 'shout_out' && slot.recipient) {
-      return '<div class="feedCardSlot feedCardSlot--shout">For ' + esc(slot.recipient) + '</div>';
+      return '<div class="feedDetailSlot feedDetailSlot--shout">For ' + esc(slot.recipient) + '</div>';
     }
     if (type === 'game_score' && slot.score) {
-      return '<div class="feedCardSlot feedCardSlot--score">' + esc(slot.score) + '</div>';
+      return '<div class="feedDetailSlot feedDetailSlot--score">' + esc(slot.score) + '</div>';
     }
     if (type === 'leaderboard' && slot.rankings) {
-      return '<div class="feedCardSlot feedCardSlot--leaderboard">' + esc(String(slot.rankings).slice(0, 120)) + '</div>';
+      return '<div class="feedDetailSlot feedDetailSlot--leaderboard">' + esc(String(slot.rankings).slice(0, 120)) + '</div>';
     }
     if (type === 'trivia' && slot.questionPreview) {
-      return '<div class="feedCardSlot feedCardSlot--trivia">' + esc(slot.questionPreview) + '</div>';
+      return '<div class="feedDetailSlot feedDetailSlot--trivia">' + esc(slot.questionPreview) + '</div>';
     }
     return '';
   }
 
-  function reactionBarHtml(item, isTeacher) {
+  function reactionBarHtml(item) {
     var feed = global.LANTERN_FEED;
     if (!feed || !feed.REACTIONS) return '';
     var counts = item.reactionCounts || {};
@@ -52,7 +53,7 @@
         (c > 0 ? '<span class="feedReactionCount">' + c + '</span>' : '') +
         '</button>';
     }).join('');
-    return '<div class="feedCardReactions" data-item-id="' + esc(item.id) + '">' + parts + '</div>';
+    return '<div class="feedDetailReactions" data-item-id="' + esc(item.id) + '">' + parts + '</div>';
   }
 
   function commentsHtml(item) {
@@ -65,40 +66,48 @@
     return '<ul class="feedTeacherComments">' + rows + '</ul>';
   }
 
-  function buildCard(item, opts) {
+  function openDetailOverlay(item, opts) {
     opts = opts || {};
-    var isTeacher = opts.isTeacher || (global.LANTERN_FEED && global.LANTERN_FEED.isTeacherRole());
-    var img = item.thumbnailUrl || item.imageUrl;
-    var imgBlock = img
-      ? '<div class="feedCardMedia"><img src="' + esc(img) + '" alt="" loading="lazy"></div>'
-      : '';
-    var el = document.createElement('article');
-    el.className = 'feedCard';
-    el.setAttribute('data-feed-id', item.id);
-    el.setAttribute('data-feed-type', item.type || '');
-    el.innerHTML =
-      '<div class="feedCardInner">' +
-        '<div class="feedCardTag">' + esc(item.typeLabel || item.type || 'Item') + '</div>' +
-        imgBlock +
-        '<h3 class="feedCardTitle">' + esc(item.title) + '</h3>' +
-        contentSlotHtml(item) +
-        '<p class="feedCardSummary">' + esc(item.summary || item.body || '') + '</p>' +
-        '<div class="feedCardMeta">' +
-          '<span class="feedCardAuthor">' + esc(item.authorDisplayName) + '</span>' +
-          '<span class="feedCardDate">' + esc(formatDate(item.approvedAt || item.createdAt)) + '</span>' +
-        '</div>' +
-        reactionBarHtml(item, isTeacher) +
-        commentsHtml(item) +
-        (isTeacher ? '<div class="feedCardTeacherTools"><button type="button" class="feedAddCommentBtn">Add teacher comment</button></div>' : '') +
-        '<button type="button" class="feedCardOpenBtn">Open</button>' +
-      '</div>';
-    wireCard(el, item, opts);
-    return el;
+    if (item.detailUrl) {
+      global.location.href = item.detailUrl;
+      return;
+    }
+    var detail = global.document.getElementById('feedDetailOverlay');
+    if (!detail) return;
+    var titleEl = detail.querySelector('.feedDetailTitle');
+    var bodyEl = detail.querySelector('.feedDetailBody');
+    var imgEl = detail.querySelector('.feedDetailImg');
+    var slotHost = detail.querySelector('.feedDetailSlotHost');
+    var reactHost = detail.querySelector('.feedDetailReactionsHost');
+    var commentHost = detail.querySelector('.feedDetailCommentsHost');
+    var teacherHost = detail.querySelector('.feedDetailTeacherTools');
+    if (titleEl) titleEl.textContent = item.title || '';
+    if (bodyEl) bodyEl.textContent = item.body || item.summary || '';
+    var src = item.imageUrl || item.thumbnailUrl;
+    if (imgEl) {
+      if (src) { imgEl.src = src; imgEl.style.display = ''; }
+      else { imgEl.removeAttribute('src'); imgEl.style.display = 'none'; }
+    }
+    if (slotHost) slotHost.innerHTML = contentSlotHtml(item);
+    if (reactHost) {
+      reactHost.innerHTML = reactionBarHtml(item);
+      wireDetailReactions(reactHost, item, opts);
+    }
+    if (commentHost) commentHost.innerHTML = commentsHtml(item);
+    if (teacherHost) {
+      var isTeacher = opts.isTeacher || (global.LANTERN_FEED && global.LANTERN_FEED.isTeacherRole());
+      teacherHost.innerHTML = isTeacher ? '<button type="button" class="feedAddCommentBtn">Add teacher comment</button>' : '';
+      wireDetailTeacherTools(teacherHost, item, opts);
+    }
+    detail.hidden = false;
+    var closeBtn = detail.querySelector('.feedDetailClose');
+    if (closeBtn) closeBtn.focus();
   }
 
-  function wireCard(el, item, opts) {
+  function wireDetailReactions(host, item, opts) {
     var feed = global.LANTERN_FEED;
-    el.querySelectorAll('.feedReactionBtn').forEach(function (btn) {
+    if (!host) return;
+    host.querySelectorAll('.feedReactionBtn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!feed) return;
         var rt = btn.getAttribute('data-reaction');
@@ -118,41 +127,80 @@
         });
       });
     });
-    var openBtn = el.querySelector('.feedCardOpenBtn');
-    if (openBtn) {
-      openBtn.addEventListener('click', function () {
-        if (item.detailUrl) {
-          global.location.href = item.detailUrl;
-          return;
-        }
-        var detail = global.document.getElementById('feedDetailOverlay');
-        if (detail) {
-          detail.querySelector('.feedDetailTitle').textContent = item.title || '';
-          detail.querySelector('.feedDetailBody').textContent = item.body || item.summary || '';
-          var imgEl = detail.querySelector('.feedDetailImg');
-          var src = item.imageUrl || item.thumbnailUrl;
-          if (imgEl) {
-            if (src) { imgEl.src = src; imgEl.style.display = ''; }
-            else { imgEl.removeAttribute('src'); imgEl.style.display = 'none'; }
-          }
-          detail.hidden = false;
-        }
-      });
-    }
-    var addComment = el.querySelector('.feedAddCommentBtn');
+  }
+
+  function wireDetailTeacherTools(host, item, opts) {
+    var feed = global.LANTERN_FEED;
+    var addComment = host && host.querySelector('.feedAddCommentBtn');
     if (addComment && feed && feed.isTeacherRole()) {
       addComment.addEventListener('click', function () {
         var text = global.prompt('Teacher comment (public):');
         if (!text || !String(text).trim()) return;
         feed.addComment(item.id, String(text).trim()).then(function (res) {
           if (res && res.ok && opts.onRefresh) opts.onRefresh();
+          else if (res && res.ok) openDetailOverlay(item, opts);
         });
       });
     }
   }
 
+  function buildCard(item, opts) {
+    opts = opts || {};
+    var cards = global.LanternCards;
+    if (!cards || typeof cards.createStudentCard !== 'function') {
+      throw new Error('[LANTERN_FEED_CARD] LanternCards required');
+    }
+    var model = cards.normalizeFeedItemToFaceModel ? cards.normalizeFeedItemToFaceModel(item) : {
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      author: item.authorDisplayName,
+      dateMeta: formatDate(item.approvedAt || item.createdAt),
+      thumbnailUrl: item.thumbnailUrl,
+      imageUrl: item.imageUrl,
+      fallbackType: item.type,
+      typeBadge: item.typeLabel || item.type,
+    };
+    model.reportType = 'feed_item';
+    model.reportId = item.id != null ? String(item.id) : '';
+    var spec = cards.compactFaceSpec(model, {
+      lanternCardType: item.type || 'news',
+      reportType: 'feed_item',
+      reportId: model.reportId,
+      classNames: 'feedExploreCard',
+    });
+    var el = cards.createStudentCard(spec);
+    var card = el && el.classList && el.classList.contains('exploreCard') ? el : (el && el.querySelector ? el.querySelector('.exploreCard') : el);
+    if (!card) return el;
+    wireCard(card, item, opts);
+    if (cards.applyReportControl) cards.applyReportControl(card);
+    return el.classList && el.classList.contains('exploreCardOuterWrap') ? el : card;
+  }
+
+  function wireCard(el, item, opts) {
+    opts = opts || {};
+    var card = el.classList && el.classList.contains('exploreCard') ? el : el.querySelector('.exploreCard');
+    if (!card) return;
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', 'Open: ' + (item.title || 'feed item'));
+    card.classList.add('exploreCard--activatable');
+    function activate(e) {
+      if (e && e.target && e.target.closest('.exploreCardReportBtn')) return;
+      openDetailOverlay(item, opts);
+    }
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activate(e);
+      }
+    });
+  }
+
   global.LANTERN_FEED_CARD = {
     buildCard: buildCard,
+    openDetail: openDetailOverlay,
     esc: esc,
   };
 })(typeof window !== 'undefined' ? window : self);
