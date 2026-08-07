@@ -204,7 +204,7 @@ export async function collectApprovedFeed(db, origin, opts) {
   return [...feedItems, ...newsItems, ...missionItems];
 }
 
-function filterFeedItems(items, params) {
+export function filterFeedItems(items, params) {
   let out = items.slice();
   const typeFilter = (params.type || 'all').trim().toLowerCase();
   if (typeFilter && typeFilter !== 'all') {
@@ -248,7 +248,7 @@ function filterFeedItems(items, params) {
   return out.slice(0, lim);
 }
 
-async function attachReactionsAndComments(db, items, viewerCharacterName) {
+export async function attachReactionsAndComments(db, items, viewerCharacterName) {
   if (!items.length) return items;
   const ids = items.map((it) => it.id);
   const placeholders = ids.map(() => '?').join(',');

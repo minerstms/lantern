@@ -1,54 +1,73 @@
-    /* ===== Bootstrap: ensure base data exists ===== */
+    /* ===== Bootstrap: catalog only (no fake character seeding on Locker) ===== */
     (function(){
       try {
-        if (window.LANTERN_DATA && window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters();
         if (window.LANTERN_DATA && window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog();
         if (window.LANTERN_DATA && window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode();
       } catch (e) {}
     })();
 
-    /* ===== PRESERVED: Core logic ===== */
+    /* ===== PRESERVED: Core logic — identity from GET /api/locker/me only ===== */
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
-    const LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
 
-    var VERIFY_STUDENT_DISPLAY_NAMES = { zane_morrison: 'Zane Morrison', winnie_addair: 'Winnie Addair', brett_simms: 'Brett Simms', kimber_pace: 'Kimber Pace', velma_voss: 'Velma Voss', archie_rivers: 'Archie Rivers', raven_hart: 'Raven Hart', tori_sparks: 'Tori Sparks', miles_parker: 'Miles Parker', lola_luna: 'Lola Luna' };
-
-    var verifyStudentContext = null;
-    var studentVerifyIdentitySource = '';
-    var studentIdentityFetchPending = false;
+    var lockerBootPending = true;
     var runProfileEntry = function(){};
-    (function(){
-      try {
-        var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
-        var sim = params.get('simStudent');
-        if (sim && String(sim).trim()) {
-          var cname = String(sim).trim();
-          verifyStudentContext = { character_name: cname, display_name: VERIFY_STUDENT_DISPLAY_NAMES[cname] || cname, avatar: '🌟' };
-          studentVerifyIdentitySource = 'URL';
-        }
-      } catch(e) {}
-    })();
 
-    var VERIFY_STUDENT_AVATAR_PATHS = { zane_morrison: 'avatars/students/zane_morrison.png', winnie_addair: 'avatars/students/winnie_addair.png', brett_simms: 'avatars/students/brett_simms.png', kimber_pace: 'avatars/students/kimber_pace.png', velma_voss: 'avatars/students/velma_voss.png', archie_rivers: 'avatars/students/archie_rivers.png', raven_hart: 'avatars/students/raven_hart.png', tori_sparks: 'avatars/students/tori_sparks.png', miles_parker: 'avatars/students/miles_parker.png', lola_luna: 'avatars/students/lola_luna.png' };
-    function updateStudentVerifyBanner(){
-      var banner = document.getElementById('studentVerifyBanner');
-      if (!banner) return;
-      if (!verifyStudentContext) { banner.classList.remove('is-active'); return; }
-      banner.classList.add('is-active');
-      var srcEl = document.getElementById('studentVerifySource'); if (srcEl) srcEl.textContent = studentVerifyIdentitySource || 'Cloud';
-      var nameEl = document.getElementById('studentVerifyDisplayName'); if (nameEl) nameEl.textContent = verifyStudentContext.display_name || verifyStudentContext.character_name || '—';
-      var charEl = document.getElementById('studentVerifyCharacterName'); if (charEl) charEl.textContent = verifyStudentContext.character_name || '—';
-      var emojiEl = document.getElementById('studentVerifyAvatarEmoji');
-      var imgEl = document.getElementById('studentVerifyAvatarImg');
-      if (emojiEl) { emojiEl.textContent = verifyStudentContext.avatar || '🌟'; emojiEl.setAttribute('aria-hidden', 'false'); }
-      var avatarPath = VERIFY_STUDENT_AVATAR_PATHS[verifyStudentContext.character_name] || ('avatars/students/' + (verifyStudentContext.character_name || '') + '.png');
-      if (imgEl && emojiEl && verifyStudentContext.character_name) {
-        imgEl.alt = (verifyStudentContext.display_name || verifyStudentContext.character_name) + ' avatar';
-        imgEl.src = avatarPath;
-        imgEl.style.display = '';
-        emojiEl.style.display = 'none';
-        imgEl.onerror = function(){ imgEl.style.display = 'none'; emojiEl.style.display = ''; };
-      } else if (imgEl) { imgEl.removeAttribute('src'); imgEl.style.display = 'none'; if (emojiEl) emojiEl.style.display = ''; }
+    window.LANTERN_LOCKER_BOOT = function(locker){
+      lockerBootPending = false;
+      runProfileEntry();
+    };
+
+    function getLockerMe(){
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.getLockerMe === 'function') {
+        return window.LanternLockerMe.getLockerMe();
+      }
+      return (typeof window !== 'undefined' && window.LANTERN_LOCKER_ME && window.LANTERN_LOCKER_ME.ok) ? window.LANTERN_LOCKER_ME : null;
+    }
+
+    function lockerCategoryItems(cat) {
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.lockerCategoryItems === 'function') {
+        return window.LanternLockerMe.lockerCategoryItems(cat);
+      }
+      if (!cat) return [];
+      if (Array.isArray(cat)) return cat;
+      return Array.isArray(cat.items) ? cat.items : [];
+    }
+
+    function lockerCategoryAvailable(cat) {
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.lockerCategoryAvailable === 'function') {
+        return window.LanternLockerMe.lockerCategoryAvailable(cat);
+      }
+      if (!cat) return false;
+      if (Array.isArray(cat)) return true;
+      return cat.available !== false;
+    }
+
+    function slugFromOwnedItemName(name) {
+      return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    }
+
+    function ownedCosmeticIdsFromLocker(locker) {
+      var ownedCat = locker && locker.owned_items ? locker.owned_items : {};
+      if (Array.isArray(ownedCat.owned_ids) && ownedCat.owned_ids.length) {
+        return ownedCat.owned_ids.slice();
+      }
+      var catalog = (window.LANTERN_DATA && window.LANTERN_DATA.getCosmetics) ? window.LANTERN_DATA.getCosmetics() : [];
+      var items = lockerCategoryItems(ownedCat);
+      var ids = [];
+      items.forEach(function(o) {
+        var cid = o.item_id ? String(o.item_id).trim() : '';
+        if (!cid) return;
+        if (catalog.length) {
+          var exact = catalog.find(function(c) { return c.id === cid; });
+          if (exact) { ids.push(exact.id); return; }
+          var bySlug = catalog.find(function(c) {
+            return slugFromOwnedItemName(c.name) === cid || slugFromOwnedItemName(c.id) === cid;
+          });
+          if (bySlug) { ids.push(bySlug.id); return; }
+        }
+        ids.push(cid);
+      });
+      return ids;
     }
 
     const el = (id)=>document.getElementById(id);
@@ -79,85 +98,36 @@
     }
 
     function getAdopted(){
-      if (verifyStudentContext) return { character_id: verifyStudentContext.character_name, name: verifyStudentContext.character_name, avatar: verifyStudentContext.avatar || '🌟' };
-      try{
-        var raw = localStorage.getItem(LS_ADOPTED);
-        if (!raw) return null;
-        var a = JSON.parse(raw);
-        if (a && a.isTest && a.expires_at) {
-          if (new Date(a.expires_at) <= new Date()) {
-            try { localStorage.removeItem(LS_ADOPTED); } catch(e) {}
-            return null;
-          }
-        }
-        return a;
-      }catch(e){ return null; }
+      var locker = getLockerMe();
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.adoptedFromLocker === 'function') {
+        return window.LanternLockerMe.adoptedFromLocker(locker);
+      }
+      if (!locker) return null;
+      var acct = locker.account || {};
+      var id = locker.identity || {};
+      var role = String(acct.role || '').trim().toLowerCase();
+      var displayName = (acct.display_name && String(acct.display_name).trim()) || acct.username || '';
+      if (role === 'teacher' || role === 'admin') {
+        return { character_id: acct.username, name: acct.username, display_name: displayName, username: acct.username, role: role, teacher_id: id.teacher_id || null, avatar: '🌟' };
+      }
+      var walletKey = String(id.economy_character_name || id.student_character_name || acct.username || '').trim();
+      if (!walletKey) return null;
+      return { character_id: walletKey, name: walletKey, display_name: displayName, student_character_name: id.student_character_name || '', username: acct.username || '', role: role, avatar: '🌟' };
     }
 
     function getStudentDisplayName(){
-      if (verifyStudentContext) return verifyStudentContext.display_name || verifyStudentContext.character_name || '';
-      try {
-        var v = localStorage.getItem('LANTERN_VERIFY_NAME');
-        if (v && String(v).trim()) return String(v).trim();
-      } catch(e) {}
-      var a = getAdopted();
-      if (window.LanternPilotAuth && typeof window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted === 'function') {
-        var friendly = window.LanternPilotAuth.studentFriendlyDisplayNameFromAdopted(a);
-        if (friendly) return friendly;
+      var locker = getLockerMe();
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.displayNameFromLocker === 'function') {
+        var dn = window.LanternLockerMe.displayNameFromLocker(locker);
+        if (dn) return dn;
       }
+      var a = getAdopted();
       if (a && a.display_name && String(a.display_name).trim()) return String(a.display_name).trim();
       if (a && a.student_character_name && String(a.student_character_name).trim()) return String(a.student_character_name).trim();
       if (a && a.username && String(a.username).trim()) return String(a.username).trim();
       return (a && a.name) ? String(a.name) : '';
     }
-
-    function setAdopted(char){
-      try{
-        localStorage.setItem(LS_ADOPTED, JSON.stringify(char));
-      }catch(e){}
-    }
-
-    (function(){
-      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-      var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
-      if (params.get('simStudent')) return;
-      if (apiBase === null) return;
-      studentIdentityFetchPending = true;
-      var verifyP = fetch(apiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return null; });
-      var pilotP = fetch(apiBase + '/api/auth/me', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
-      Promise.all([verifyP, pilotP]).then(function(pair){
-        var res = pair[0];
-        var pilot = pair[1];
-        if (pilot && pilot.ok && pilot.authenticated && pilot.must_change_password) {
-          studentIdentityFetchPending = false;
-          var ret =
-            typeof location !== 'undefined'
-              ? location.pathname + location.search + (location.hash || '')
-              : '/explore.html';
-          location.replace('/change-password.html?return=' + encodeURIComponent(ret));
-          return;
-        }
-        if (pilot && pilot.ok && pilot.authenticated && String(pilot.role || '').trim() === 'student') {
-          verifyStudentContext = null;
-          if (window.LanternPilotAuth && typeof window.LanternPilotAuth.applyStudentStorageFromSession === 'function') {
-            window.LanternPilotAuth.applyStudentStorageFromSession(pilot);
-          }
-        } else if (res && res.ok && res.state && res.state.character_name) {
-          var c = String(res.state.character_name).trim();
-          var d = (res.state.display_name && String(res.state.display_name).trim()) || VERIFY_STUDENT_DISPLAY_NAMES[c] || c;
-          verifyStudentContext = { character_name: c, display_name: d, avatar: '🌟' };
-          studentVerifyIdentitySource = 'Cloud';
-        }
-        studentIdentityFetchPending = false;
-        runProfileEntry();
-        if (typeof updateStudentVerifyBanner === 'function') updateStudentVerifyBanner();
-      }).catch(function(){
-        studentIdentityFetchPending = false;
-        runProfileEntry();
-      });
-    })();
     var profileStats = { creations: null, achievements: null, recognitions: null };
-    var lanternWinsState = { rec: [], hist: [], spotlight: false };
     function setProfileHeroStats(updates){
       if (updates.creations !== undefined) profileStats.creations = updates.creations;
       if (updates.achievements !== undefined) profileStats.achievements = updates.achievements;
@@ -185,17 +155,9 @@
       if (barEl) { barEl.setAttribute('aria-valuenow', Math.round(pct)); }
     }
 
-    var FALLBACK_CHARACTERS = [
-      { character_id: 'char1', name: 'Alex Adventure', avatar: '🌟', balance: 10, owned: [] },
-      { character_id: 'char2', name: 'Sam Star', avatar: '⭐', balance: 5, owned: [] },
-      { character_id: 'char3', name: 'Jordan Joy', avatar: '✨', balance: 15, owned: [] },
-      { character_id: 'char4', name: 'Casey Cool', avatar: '🎯', balance: 0, owned: [] },
-      { character_id: 'char5', name: 'Riley Rise', avatar: '🚀', balance: 8, owned: [] },
-    ];
+    var FALLBACK_CHARACTERS = [];
     function getCharacters(){
-      var chars = (window.LANTERN_DATA && window.LANTERN_DATA.ensureCharacters) ? window.LANTERN_DATA.ensureCharacters() : [];
-      if (!chars || chars.length === 0) chars = (window.LANTERN_DATA && window.LANTERN_DATA.DEFAULT_CHARACTERS) ? window.LANTERN_DATA.DEFAULT_CHARACTERS.slice() : FALLBACK_CHARACTERS.slice();
-      return chars;
+      return [];
     }
 
     function addNuggets(name, amount){
@@ -241,6 +203,15 @@
       return String(raw).replace(/\/$/, '');
     })();
     function callGetBalance(name){
+      var locker = getLockerMe();
+      if (locker && locker.ok && locker.wallet && locker.wallet.available !== false) {
+        return Promise.resolve({
+          ok: true,
+          available: Number(locker.wallet.balance) || 0,
+          earned: null,
+          spent: null,
+        });
+      }
       if (economyApiBase != null) {
         return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent };
@@ -461,6 +432,10 @@
     }
 
     function callGetRecognitionForCharacter(name){
+      var locker = getLockerMe();
+      if (locker && locker.ok && locker.recognitions && lockerCategoryAvailable(locker.recognitions)) {
+        return Promise.resolve({ ok: true, recognition: lockerCategoryItems(locker.recognitions) });
+      }
       var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
       if (apiBase && name) {
         return fetch(apiBase + '/api/recognition/list?character_name=' + encodeURIComponent(name) + '&limit=50').then(function(r){ return r.json(); }).then(function(res){ return res && res.ok ? res : { ok: false, recognition: [] }; }).catch(function(){ return { ok: false, recognition: [] }; });
@@ -473,6 +448,27 @@
     }
 
     function callGetCosmeticOwnership(name){
+      var locker = getLockerMe();
+      if (locker && locker.ok) {
+        var ownedCat = locker.owned_items || {};
+        var eqCat = locker.equipped_items || {};
+        var ownedIds = ownedCosmeticIdsFromLocker(locker);
+        var equipUnavailable = eqCat.available === false;
+        var equippedMap = (!equipUnavailable && eqCat.equipped && typeof eqCat.equipped === 'object')
+          ? eqCat.equipped
+          : lockerCategoryItems(eqCat).reduce(function(acc, row) {
+            if (row && row.category && row.item_id) acc[row.category] = row.item_id;
+            return acc;
+          }, {});
+        return Promise.resolve({
+          ok: lockerCategoryAvailable(ownedCat) || ownedIds.length > 0,
+          owned: ownedIds,
+          equipped: equipUnavailable ? {} : equippedMap,
+          equip_unavailable: equipUnavailable,
+          equip_reason: eqCat.reason || null,
+          owned_reason: ownedCat.reason || null,
+        });
+      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false, owned: [], equipped: {} });
       return new Promise(function(resolve){
@@ -481,11 +477,14 @@
     }
 
     function callEquipCosmetic(name, cosmeticId, category){
-      var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false });
-      return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).equipCosmetic({ character_name: name, cosmetic_id: cosmeticId || '', category: category });
-      });
+      var locker = getLockerMe();
+      if (locker && locker.ok && locker.equipped_items && locker.equipped_items.available === false) {
+        return Promise.resolve({ ok: false, error: 'equipped_items_not_server_backed', reason: locker.equipped_items.reason });
+      }
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.callEquipCosmetic === 'function') {
+        return window.LanternLockerMe.callEquipCosmetic(category, cosmeticId || '');
+      }
+      return Promise.resolve({ ok: false, error: 'equip_api_unavailable' });
     }
 
     function callPurchaseCosmetic(characterName, cosmeticId){
@@ -494,7 +493,12 @@
       if (!c || c.purchasable === false) return Promise.resolve({ ok: false, error: 'Cosmetic not found or unlock only' });
       var cost = Number(c.cost) || 0;
       if (economyApiBase) {
-        return callEconomyTransact(characterName, -cost, 'cosmetic', '', (c.name || cosmeticId) + ' purchase', {}).then(function(tRes){
+        var idemKey = 'cosmetic-' + cosmeticId + '-' + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()));
+        return callEconomyTransact(characterName, 0, 'cosmetic', '', (c.name || cosmeticId) + ' purchase', {
+          cosmetic_id: cosmeticId,
+          item_name: c.name || cosmeticId,
+          idempotency_key: idemKey,
+        }).then(function(tRes){
           if (!tRes || !tRes.ok) return { ok: false, error: tRes && (tRes.error === 'insufficient' ? 'Not enough nuggets' : tRes.error) || 'Purchase failed' };
           var run = createRun ? createRun() : null;
           if (!run) return { ok: true, cosmetic: c, cost: cost, available_after: tRes.balance_after };
@@ -585,7 +589,6 @@
     }
 
     var myCreationsItemsCache = [];
-    var myCreationsSearchQuery = '';
     function getProfileApiBase(){
       return (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     }
@@ -679,32 +682,18 @@
     }
 
     function fetchMyCreationsBundle(){
-      var apiBase = getProfileApiBase();
-      var adopted = getAdopted();
-      /* Must match missions.html / contribute.html / explore: API rows are keyed by canonical character_name (character_id), not display name. */
-      var characterNameForApi = adopted && String((adopted.character_id || adopted.name || '')).trim();
-      /* News student submissions store author_name from contribute (display name). */
-      var newsAuthorMine = adopted && String((adopted.name || adopted.character_id || '')).trim();
-      if (apiBase === null || !characterNameForApi) return Promise.resolve([]);
-
-      var urlPoll = apiBase + '/api/polls/contributions?character_name=' + encodeURIComponent(characterNameForApi);
-      var urlMiss = apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(characterNameForApi);
-      var urlNews = apiBase + '/api/news/mine?author_name=' + encodeURIComponent(newsAuthorMine);
-
-      var pPoll = fetch(urlPoll).then(function(r){ return r.json(); }).then(function(res){ return (res && res.contributions) || []; }).catch(function(){ return []; });
-      var pMiss = fetch(urlMiss).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function(){ return []; });
-      var pNews = fetch(urlNews).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.news) ? res.news : []; }).catch(function(){ return []; });
-
-      return Promise.all([pPoll, pMiss, pNews]).then(function(arr){
+      var locker = getLockerMe();
+      if (locker && locker.ok && locker.submissions && lockerCategoryAvailable(locker.submissions)) {
         var out = [];
-        (arr[0] || []).forEach(function(item){ if (item && item.id) out.push(normalizePollContributionItem(item)); });
-        (arr[1] || []).forEach(function(s){ if (s && s.id) out.push(normalizeMissionSubmissionItem(s)); });
-        (arr[2] || []).forEach(function(n){ if (n && n.id) out.push(normalizeNewsSubmissionItem(n)); });
-        try {
-          console.log('[profile][my-creations] bundle', { character_name: characterNameForApi, news_author_name: newsAuthorMine, total: out.length });
-        } catch(_) {}
-        return out;
-      });
+        lockerCategoryItems(locker.submissions).forEach(function(item){
+          if (!item || !item.id) return;
+          if (item.type === 'poll_contribution') out.push(normalizePollContributionItem(item));
+          else if (item.type === 'mission_submission') out.push(normalizeMissionSubmissionItem(item));
+          else if (item.type === 'news_submission') out.push(normalizeNewsSubmissionItem(item));
+        });
+        return Promise.resolve(out);
+      }
+      return Promise.resolve([]);
     }
 
     var LS_PROFILE_NEWS_AUTHOR = 'LANTERN_PROFILE_NEWS_AUTHOR_TYPE';
@@ -791,7 +780,6 @@
       });
     }
 
-    var submissionsStatusFilter = 'all';
     var currentProfile = null;
     var FRAME_OPTIONS = [{ v: 'none', l: 'None' }, { v: 'gold', l: 'Gold' }, { v: 'blue', l: 'Blue' }, { v: 'green', l: 'Green' }, { v: 'purple', l: 'Purple' }];
     /* Supported profile themes: internal key and user-facing name. Same set drives body[data-theme] and hero theme tint/cards. */
@@ -944,146 +932,15 @@
       });
     }
 
-    /* ===== Student picker (when no student selected) — canonical avatar: approved image > legacy emoji > default ===== */
-    function refreshStudentPickerAvatars(listEl){
-      var list = listEl || el('characterList');
-      if (!list || typeof window.LanternAvatar === 'undefined' || !window.LanternAvatar.getCanonicalAvatar) return;
-      var buttons = list.querySelectorAll('.adopt-char-btn');
-      [].forEach.call(buttons, function(btn){
-        var name = (btn.dataset && btn.dataset.name) || '';
-        var emoji = (btn.dataset && btn.dataset.avatar) || '';
-        if (!emoji && name && window.LanternAvatar.getLegacyEmojiForCharacter) {
-          emoji = window.LanternAvatar.getLegacyEmojiForCharacter(name);
-        }
-        if (!emoji) emoji = '🌟';
-        window.LanternAvatar.getCanonicalAvatar(name, emoji).then(function(r){
-          var first = btn.firstElementChild;
-          if (!first) return;
-          if (r.imageUrl){
-            var img = document.createElement('img');
-            img.src = r.imageUrl;
-            img.alt = '';
-            img.style.cssText = 'width:36px;height:36px;margin-right:12px;object-fit:cover;border-radius:50%;';
-            first.parentNode.replaceChild(img, first);
-          } else {
-            first.textContent = r.emoji;
-          }
-        });
-      });
+    function refreshStudentPickerAvatars(){
+      /* Removed with authenticated Locker — no student picker avatars. */
     }
     function renderPicker(){
-      var chars = getCharacters();
-      var list = el('characterList');
-      if (!list) return;
-      list.innerHTML = '';
-      chars.forEach(function(c){
-        var btn = document.createElement('button');
-        btn.className = 'btn primary adopt-char-btn';
-        btn.setAttribute('data-id', c.character_id || '');
-        btn.setAttribute('data-name', c.name || '');
-        btn.setAttribute('data-avatar', c.avatar || '🌟');
-        btn.style.marginBottom = '10px';
-        btn.style.width = '100%';
-        btn.style.justifyContent = 'flex-start';
-        btn.innerHTML = '<span style="font-size:36px;margin-right:12px;">' + (c.avatar || '🌟') + '</span><span>' + (c.name || '') + '</span>';
-        btn.addEventListener('click', function(){
-          setAdopted({ character_id: c.character_id, name: c.name, avatar: c.avatar || '🌟' });
-          postsWired = false;
-          showProfile();
-        });
-        list.appendChild(btn);
-      });
-      var apiBase = (function () {
-        if (typeof window === 'undefined') return null;
-        var raw =
-          typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
-          window.LANTERN_ECONOMY_API !== null &&
-          String(window.LANTERN_ECONOMY_API).trim() !== ''
-            ? window.LANTERN_ECONOMY_API
-            : window.LANTERN_AVATAR_API;
-        if (typeof raw === 'undefined' || raw === null) return null;
-        return String(raw).replace(/\/$/, '');
-      })();
-      if (apiBase != null) {
-        fetch(apiBase + '/api/test-students').then(function(r){ return r.json(); }).then(function(res){
-          if (!res || !res.ok || !res.test_students || !res.test_students.length) return;
-          res.test_students.forEach(function(t){
-            var btn = document.createElement('button');
-            btn.className = 'btn adopt-char-btn';
-            btn.setAttribute('data-id', t.id || '');
-            btn.setAttribute('data-name', t.character_name || '');
-            btn.setAttribute('data-display-name', t.display_name || '');
-            btn.setAttribute('data-expires', t.expires_at || '');
-            btn.style.marginBottom = '10px';
-            btn.style.width = '100%';
-            btn.style.justifyContent = 'flex-start';
-            btn.innerHTML = '<span style="font-size:36px;margin-right:12px;">🧪</span><span>' + (t.display_name || t.character_name) + '</span><span style="margin-left:8px;font-size:18px;color:var(--muted);">(Test)</span>';
-            btn.addEventListener('click', function(){
-              setAdopted({ name: t.character_name, display_name: t.display_name || t.character_name, avatar: '🧪', isTest: true, expires_at: t.expires_at });
-              postsWired = false;
-              showProfile();
-            });
-            list.appendChild(btn);
-          });
-        }).catch(function(){});
-      }
-      refreshStudentPickerAvatars(list);
-      wireCreateTestStudentModal();
+      /* Removed: authenticated Locker has no student picker. */
     }
 
     function wireCreateTestStudentModal(){
-      var overlay = el('createTestStudentOverlay');
-      var openBtn = el('createTestStudentBtn');
-      var closeBtn = el('createTestStudentClose');
-      var cancelBtn = el('createTestStudentCancel');
-      var submitBtn = el('createTestStudentSubmit');
-      var nameInput = el('createTestStudentName');
-      if (!overlay || !openBtn) return;
-      if (openBtn._testStudentWired) return;
-      openBtn._testStudentWired = true;
-      function openModal(){ overlay.style.display = 'flex'; overlay.classList.add('show'); if (nameInput) nameInput.value = ''; var r = document.querySelector('input[name="createTestStudentDuration"]:checked'); if (r) r.checked = true; }
-      function closeModal(){ overlay.style.display = 'none'; overlay.classList.remove('show'); }
-      openBtn.addEventListener('click', openModal);
-      if (closeBtn) closeBtn.addEventListener('click', closeModal);
-      if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-      overlay.addEventListener('click', function(e){ if (e.target === overlay) closeModal(); });
-      if (submitBtn && nameInput) {
-        submitBtn.addEventListener('click', function(){
-          var displayName = (nameInput.value || '').trim();
-          if (!displayName) { toast('Enter a name'); return; }
-          var durationRadio = document.querySelector('input[name="createTestStudentDuration"]:checked');
-          var durationDays = durationRadio ? parseInt(durationRadio.value, 10) : 1;
-          var apiBase = (function () {
-            if (typeof window === 'undefined') return null;
-            var raw =
-              typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
-              window.LANTERN_ECONOMY_API !== null &&
-              String(window.LANTERN_ECONOMY_API).trim() !== ''
-                ? window.LANTERN_ECONOMY_API
-                : window.LANTERN_AVATAR_API;
-            if (typeof raw === 'undefined' || raw === null) return null;
-            return String(raw).replace(/\/$/, '');
-          })();
-          if (apiBase == null) { toast('Test students require the API'); return; }
-          submitBtn.disabled = true;
-          fetch(apiBase + '/api/test-students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ display_name: displayName, duration_days: durationDays })
-          }).then(function(r){ return r.json(); }).then(function(res){
-            submitBtn.disabled = false;
-            if (!res || !res.ok) { toast((res && res.error && res.error !== 'Not found') ? res.error : 'Could not create test student'); return; }
-            closeModal();
-            setAdopted({ name: res.character_name, display_name: res.display_name || res.character_name, avatar: '🧪', isTest: true, expires_at: res.expires_at });
-            toast('You are now testing as ' + (res.display_name || res.character_name));
-            postsWired = false;
-            showProfile();
-          }).catch(function(){
-            submitBtn.disabled = false;
-            toast('Failed to create test student');
-          });
-        });
-      }
+      /* Removed: test student flow is not available in production Locker. */
     }
 
     function todayStr(){
@@ -1098,7 +955,7 @@
       var hintEl = el('dailyHuntHintEl');
       var nuggetEl = el('dailyHuntNuggetEl');
       if (!hintEl && !nuggetEl) return;
-      var spotSel = '#profileView .profileHero, #profileView .card, #profileView .section';
+      var spotSel = '#lockerPanelOverview .lanternExplorePageContainer, #lockerPanelStore .lockerSection, #lockerPanelItems .lockerSection';
       var spots = document.querySelectorAll(spotSel);
       var spotCount = spots.length;
       callGetDailyHuntStatus(characterName || '', page || 'index', spotCount).then(function(res){
@@ -1211,370 +1068,6 @@
       } catch (e) {}
     }
 
-    function prepareProfileNeedsAttentionFromHash(){
-      if ((location.hash || '') !== '#profileNeedsAttention') return;
-      submissionsStatusFilter = 'returned';
-      var tabsContainer = el('myCreationsTabs');
-      if (tabsContainer) {
-        tabsContainer.querySelectorAll('.contentTab').forEach(function(t){
-          t.classList.toggle('active', (t.getAttribute('data-status') || '') === 'returned');
-        });
-      }
-    }
-
-    function finishProfileNeedsAttentionFromHash(){
-      if ((location.hash || '') !== '#profileNeedsAttention') return;
-      requestAnimationFrame(function(){
-        var anchor = el('profileNeedsAttention');
-        if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      });
-      try {
-        history.replaceState(null, '', location.pathname + (location.search || ''));
-      } catch (err) {}
-    }
-
-    function renderMyCreationsLoading(){
-      var feed = el('postFeedEl');
-      var emptyEl = el('postFeedEmpty');
-      if (!feed) return;
-      if (emptyEl) emptyEl.style.display = 'none';
-      feed.innerHTML = '<div class="emptyState" style="min-height:100px;"><div class="emptyStateTitle">Loading your creations…</div><div class="emptyStateHint">Hang tight.</div></div>';
-      feed.classList.remove('gridView');
-    }
-
-    function renderMyCreations(items, statusFilter, searchRaw){
-      /* L-Rail-2: #postFeedEl is the canonical `.lanternScroller` (direct card children; no contentScrollerTrack). */
-      var feed = el('postFeedEl');
-      var emptyEl = el('postFeedEmpty');
-      if (!feed) return;
-      var LC = window.LanternCards;
-      if (!LC || !LC.CARD_MODE) {
-        if (emptyEl) emptyEl.style.display = 'block';
-        syncNeedsAttentionNavCountFromCache();
-        return;
-      }
-      var qNorm = String(searchRaw != null ? searchRaw : myCreationsSearchQuery || '').trim().toLowerCase();
-      var afterTab = filterMyCreationsForTab(items, statusFilter);
-      var list = afterTab.filter(function(e){ return myCreationMatchesSearch(e, qNorm); });
-      try {
-        console.log('[profile][my-creations] render', {
-          statusFilter: statusFilter || 'all',
-          search: qNorm || '(none)',
-          tabCount: afterTab.length,
-          visibleCount: list.length
-        });
-      } catch(_) {}
-      list.sort(function(a, b){
-        var ta = String(a.sortKey || a.createdAt || '').replace(/[^0-9]/g, '');
-        var tb = String(b.sortKey || b.createdAt || '').replace(/[^0-9]/g, '');
-        return tb.localeCompare(ta);
-      });
-      feed.innerHTML = '';
-      feed.classList.remove('gridView');
-      if (list.length === 0){
-        if (emptyEl) {
-          emptyEl.style.display = 'block';
-          var iconEl = emptyEl.querySelector('.emptyStateIcon');
-          var titleEl = emptyEl.querySelector('.emptyStateTitle');
-          var hintEl = emptyEl.querySelector('.emptyStateHint');
-          if (iconEl) iconEl.textContent = '📊';
-          if (afterTab.length === 0){
-            var sf = String(statusFilter || 'all').trim().toLowerCase();
-            if (sf === 'pending'){
-              if (iconEl) iconEl.textContent = '⏳';
-              if (titleEl) titleEl.textContent = 'Nothing pending right now';
-              if (hintEl) hintEl.textContent = 'When you submit work for approval, it appears here with “Your post is waiting for approval” on the card.';
-            } else {
-              if (titleEl) titleEl.textContent = 'No creations in this tab';
-              if (hintEl) hintEl.textContent = 'Submit work from Create (Contribute), Missions, or posts on Lantern (Explore) to see it here.';
-            }
-          } else {
-            if (titleEl) titleEl.textContent = 'No matching creations';
-            if (hintEl) hintEl.textContent = 'Try a different search.';
-          }
-        }
-        syncNeedsAttentionNavCountFromCache();
-        return;
-      }
-      if (emptyEl) emptyEl.style.display = 'none';
-
-      var dn = lanternProfileDisplayName();
-
-      list.forEach(function(entry){
-        var st = rawMyCreationStatus(entry.status);
-        var isReturned = st === 'returned';
-        var meta = myCreationCardMetaLine(entry);
-        var card = null;
-
-        if (entry.contentType === 'poll_contribution'){
-          var pitem = entry.raw;
-          var pollModel = { id: pitem.id, question: pitem.question || 'Poll', choices: pitem.choices || [], image_url: pitem.image_url || null, card_meta: meta };
-          card = LC.materializePollRailCard(pollModel, {
-            isReturned: isReturned,
-            onActivate: function(){
-              if (isReturned) window.location.href = 'contribute.html?type=poll&resubmit=' + encodeURIComponent(pitem.id);
-            }
-          });
-        } else if (entry.contentType === 'mission_submission'){
-          var ms = entry.raw;
-          var imgT = (ms.submission_type === 'image_url' || ms.image_url);
-          var vidT = (ms.submission_type === 'video' || ms.video_url);
-          card = LC.materializeFeedPostCard({
-            type: imgT ? 'image' : (vidT ? 'video' : 'create'),
-            id: 'mission_' + ms.id,
-            title: entry.title,
-            caption: entry.previewText,
-            display_name: dn,
-            character_name: dn,
-            avatar: '🛠',
-            frame: 'none',
-            created_at: ms.created_at || '',
-            image_url: ms.image_url || '',
-            video_url: ms.video_url || '',
-            link_url: '',
-            card_meta: meta,
-            created_by_teacher_name: ms.created_by_teacher_name || 'Teacher',
-            lantern_route: { surface: 'profile', pipeline: 'mission_submission' }
-          }, {
-            size: 'medium',
-            mode: LC.CARD_MODE.RAIL,
-            noNavigate: true,
-            onCardActivate: function(){ window.location.href = 'missions.html'; }
-          });
-        } else if (entry.contentType === 'news_submission'){
-          var nw = entry.raw;
-          card = LC.materializeFeedPostCard({
-            type: 'news',
-            id: 'news_' + nw.id,
-            title: entry.title,
-            caption: entry.previewText.slice(0, 300),
-            display_name: dn,
-            character_name: dn,
-            avatar: '📰',
-            frame: 'none',
-            created_at: nw.created_at || '',
-            image_url: nw.image_url || '',
-            video_url: nw.video_url || '',
-            link_url: nw.link_url || '',
-            card_meta: meta,
-            lantern_route: { surface: 'profile', pipeline: 'news_submission' }
-          }, {
-            size: 'medium',
-            mode: LC.CARD_MODE.RAIL,
-            noNavigate: true,
-            onCardActivate: function(){
-              var nwr = entry.raw;
-              var st = String((nwr && nwr.status) || '').toLowerCase();
-              if (st === 'returned' && nwr){
-                try {
-                  sessionStorage.setItem('LANTERN_NEWS_ARTICLE_RESUBMIT', JSON.stringify({
-                    id: nwr.id,
-                    title: nwr.title || '',
-                    body: nwr.body || ''
-                  }));
-                } catch (e) {}
-                window.location.href = 'contribute.html?type=post';
-                return;
-              }
-              window.location.href = 'explore.html';
-            }
-          });
-        }
-
-        if (card) feed.appendChild(card);
-      });
-      syncNeedsAttentionNavCountFromCache();
-    }
-
-    function renderYourWinsSpotlightRail(recognitionList, history, hasTeacherSpotlight){
-      /* L-Rail-1: #spotlightRailEl is the canonical `.lanternScroller` (direct card children). */
-      var rail = el('spotlightRailEl');
-      if (!rail) return;
-      var LC = window.LanternCards;
-      if (!LC) return;
-      var cards = [];
-      var apiPickTitleKey = {};
-      (recognitionList || []).forEach(function(r){
-        var msg = String(r.message || '').trim();
-        var cat = String(r.category || '');
-        if (msg.indexOf('Teacher Pick:') === 0 || cat.indexOf('Teacher Pick') >= 0){
-          var tit = msg.indexOf('Teacher Pick:') === 0 ? msg.replace(/^Teacher Pick:\s*/i, '').trim().toLowerCase() : msg.toLowerCase();
-          if (tit) apiPickTitleKey[tit] = true;
-        }
-      });
-      if (hasTeacherSpotlight){
-        cards.push({ kind: 'spot', ts: 1e15, title: 'Teacher Spotlight', caption: 'Your work stood out.', emoji: '⭐' });
-      }
-      (recognitionList || []).slice(0, 12).forEach(function(r){
-        var t = 0;
-        try { t = new Date(r.created_at || 0).getTime() || 0; } catch (e) {}
-        cards.push({ kind: 'rec', ts: t, r: r });
-      });
-      (history || []).forEach(function(h){
-        var lbl = getActivityLabel(h);
-        if (!lbl || !lbl.spotlight) return;
-        var note = String(h.note_text || '');
-        if (note.indexOf('Teacher Pick:') === 0){
-          var tk = note.replace(/^Teacher Pick:\s*/i, '').trim().toLowerCase();
-          if (tk && apiPickTitleKey[tk]) return;
-        }
-        var t = 0;
-        try { t = new Date(h.timestamp || 0).getTime() || 0; } catch (e) {}
-        cards.push({ kind: 'hist', ts: t, lbl: lbl, h: h });
-      });
-      cards.sort(function(a, b){ return b.ts - a.ts; });
-      cards = cards.slice(0, 12);
-      var dn = lanternProfileDisplayName();
-      var posts = [];
-      if (cards.length === 0){
-            posts.push({ type: 'shoutout', title: 'Nothing here yet', caption: 'Teacher recognition, peer shout-outs (after approval), and teacher picks appear here as you earn them.', display_name: 'Spotlight', character_name: 'Spotlight', avatar: '⭐', frame: 'none', created_at: '', card_meta: 'Your wins', lantern_route: { surface: 'spotlight', pipeline: 'empty' } });
-      } else {
-        cards.forEach(function(c){
-          if (c.kind === 'spot'){
-            posts.push({ type: 'shoutout', title: c.title, caption: c.caption, display_name: dn, character_name: dn, avatar: '⭐', frame: 'none', created_at: '', card_meta: 'Badge', teacher_pick: true, lantern_route: { surface: 'spotlight', pipeline: 'teacher_spotlight_badge' } });
-          } else if (c.kind === 'rec'){
-            var r = c.r;
-            var msgFull = String(r.message || '').trim() || 'Recognition';
-            var fromT = (r.created_by_teacher_name || '').trim() ? r.created_by_teacher_name : 'Teacher';
-            if ((r.category || '').trim()) fromT += ' · ' + r.category;
-            var dateStr = '';
-            try { var dt = new Date(r.created_at || ''); if (!isNaN(dt.getTime())) dateStr = dt.toLocaleDateString(); } catch (e) {}
-            var rid = String(r.id || '');
-            var peerShout = rid.indexOf('shoutout-news-') === 0;
-            var pickD1 = !peerShout && ((String(r.category || '').indexOf('Teacher Pick') >= 0) || (String(r.message || '').indexOf('Teacher Pick:') === 0));
-            var studentKey = String(r.character_name || '').trim() || dn;
-            posts.push({
-              type: 'shoutout',
-              title: fromT,
-              caption: msgFull,
-              display_name: dn,
-              character_name: studentKey,
-              _canonicalAvatar: r._canonicalAvatar,
-              avatar: '⭐',
-              image_url: '',
-              video_url: '',
-              link_url: '',
-              created_at: r.created_at || '',
-              card_meta: dateStr,
-              teacher_pick: true,
-              lantern_route: { surface: 'spotlight', pipeline: peerShout ? 'peer_shoutout' : (pickD1 ? 'teacher_pick_recognition' : 'teacher_recognition') }
-            });
-          } else {
-            var lbl = c.lbl;
-            var full = lbl.text || '';
-            var d = '';
-            try { var dt2 = new Date(c.h.timestamp || ''); if (!isNaN(dt2.getTime())) d = dt2.toLocaleDateString(); } catch (e2) {}
-            var titleLine = full.length > 56 ? full.slice(0, 56) + '…' : full;
-            var tp = full.indexOf('Teacher Pick') >= 0;
-            var tf = full.indexOf('Featured:') >= 0 || (full.indexOf('Featured') >= 0 && full.indexOf('Teacher Pick') < 0);
-            posts.push({
-              type: 'shoutout',
-              title: titleLine || 'Moment',
-              caption: full,
-              display_name: dn,
-              character_name: dn,
-              avatar: '🌟',
-              frame: 'none',
-              created_at: c.h.timestamp || '',
-              card_meta: d,
-              teacher_pick: tp,
-              teacher_featured: tf && !tp,
-              lantern_route: { surface: 'spotlight', pipeline: 'history_spotlight', detail: full.slice(0, 100) }
-            });
-          }
-        });
-      }
-      rail.innerHTML = '';
-      var frag = document.createDocumentFragment();
-      function mountSpotlightRail(list){
-        list.forEach(function(p){
-          var cap = String(p.caption || '').replace(/<[^>]*>/g, '');
-          var pl = (p.lantern_route && p.lantern_route.pipeline) || '';
-          frag.appendChild(LC.materializeFeedPostCard(p, {
-            size: 'medium',
-            noNavigate: true,
-            mode: LC.CARD_MODE.RAIL,
-            onCardActivate: function () {
-              if (!window.LanternCardUI) return;
-              if (pl === 'empty') window.LanternCardUI.openTextDetail('Spotlight', 'Your wins', cap);
-              else window.LanternCardUI.openTextDetail(p.title, p.card_meta || '', cap || p.title);
-            }
-          }));
-        });
-        rail.appendChild(frag);
-      }
-      if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && posts.length) {
-        window.LanternAvatar.attachCanonicalAvatarsToItems(posts).then(function(){ mountSpotlightRail(posts); });
-      } else {
-        mountSpotlightRail(posts);
-      }
-    }
-
-    function renderAchievements(achievements){
-      /* L-Rail-1: #achievementsRailEl is the canonical `.lanternScroller`. */
-      var rail = el('achievementsRailEl');
-      var LC = window.LanternCards;
-      if (!rail || !LC) return;
-      var dn = lanternProfileDisplayName();
-      var vm = typeof window !== 'undefined' && window.LANTERN_STUDENT_PROFILE_VIEW;
-      var accName = (vm && vm.name) ? String(vm.name).trim() : (getAdopted() && getAdopted().name) ? String(getAdopted().name).trim() : '';
-      var idChar = accName || dn;
-      function mountAchievementsFrag(canonAv){
-        var frag = document.createDocumentFragment();
-        if (!achievements || achievements.length === 0){
-          frag.appendChild(LC.materializeFeedPostCard({
-            type: 'teach',
-            title: 'Achievements',
-            caption: '',
-            display_name: dn,
-            character_name: idChar,
-            _canonicalAvatar: canonAv,
-            avatar: '🏆',
-            frame: 'none',
-            created_at: '',
-            card_meta: 'Keep creating to unlock badges',
-            lantern_route: { surface: 'achievements', pipeline: 'placeholder' }
-          }, { size: 'medium', noNavigate: true, mode: LC.CARD_MODE.RAIL, extraClass: 'exploreCardMuted' }));
-        } else {
-          achievements.forEach(function(a){
-            var desc = (a.desc || '').trim();
-            var ic = a.icon || '🏆';
-            if (typeof ic === 'string' && ic.indexOf('<') >= 0) ic = '🏆';
-            var achMeta = (a.unlocked ? 'Unlocked' : 'Locked') + (desc ? ' · ' + desc.replace(/\s+/g, ' ').trim().slice(0, 52) + (desc.length > 52 ? '…' : '') : '');
-            frag.appendChild(LC.materializeFeedPostCard({
-              type: 'teach',
-              title: a.name || 'Badge',
-              caption: '',
-              display_name: dn,
-              character_name: idChar,
-              _canonicalAvatar: canonAv,
-              avatar: ic,
-              frame: 'none',
-              created_at: '',
-              card_meta: achMeta,
-              lantern_route: { surface: 'achievements', flags: { unlocked: !!a.unlocked } }
-            }, {
-              size: 'medium',
-              noNavigate: true,
-              mode: LC.CARD_MODE.RAIL,
-              extraClass: a.unlocked ? '' : 'exploreCardMuted',
-              onCardActivate: function () {
-                if (window.LanternCardUI) window.LanternCardUI.openTextDetail(a.name || 'Badge', a.unlocked ? 'Unlocked' : 'Locked', desc || 'Achievement milestone');
-              }
-            }));
-          });
-        }
-        rail.innerHTML = '';
-        rail.appendChild(frag);
-      }
-      if (accName && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
-        var stub = { character_name: accName };
-        window.LanternAvatar.attachCanonicalAvatarsToItems([stub]).then(function(){ mountAchievementsFrag(stub._canonicalAvatar); });
-      } else {
-        mountAchievementsFrag(null);
-      }
-    }
-
     /* ===== PRESERVED: showProfile with new layout ===== */
     /* Profile contains multiple optional feature modules; one failing module should not break the whole page. */
     function safeProfileStep(label, fn){
@@ -1670,28 +1163,15 @@
     }
 
     function showProfile(){
-      if (typeof updateStudentVerifyBanner === 'function') updateStudentVerifyBanner();
       var adopted = getAdopted();
       var needCharEl = el('pilotLockerNeedCharacter');
       if (needCharEl) needCharEl.style.display = 'none';
       var ctx = document.getElementById('lanternAppBarContext');
       var _lp = (typeof LANTERN_NAV !== 'undefined' && LANTERN_NAV.getCurrentPage) ? LANTERN_NAV.getCurrentPage() : '';
       var isProfilePage = _lp === 'profile' || _lp === 'locker';
+      if (lockerBootPending) return;
       if (!adopted || !adopted.name){
-        var allowDemoPicker = window.LANTERN_DEV_STUDENT_PICKER === true;
-        if (!allowDemoPicker) {
-          el('pickerCard').style.display = 'none';
-          el('profileView').style.display = 'none';
-          if (needCharEl) needCharEl.style.display = 'block';
-          if (isProfilePage && ctx) {
-            ctx.textContent = 'Locker';
-            ctx.classList.remove('lanternAppBarContext--empty');
-          }
-          return;
-        }
-        el('pickerCard').style.display = 'block';
-        el('profileView').style.display = 'none';
-        renderPicker();
+        if (needCharEl) needCharEl.style.display = 'block';
         if (isProfilePage && ctx) {
           ctx.textContent = 'Locker';
           ctx.classList.remove('lanternAppBarContext--empty');
@@ -1699,35 +1179,22 @@
         return;
       }
 
-      el('pickerCard').style.display = 'none';
-      el('profileView').style.display = 'block';
       if (isProfilePage && ctx) {
         ctx.innerHTML = '<span class="lanternAppBarContextGlow">' + esc(getStudentDisplayName() || adopted.name) + '</span>';
         ctx.classList.remove('lanternAppBarContext--empty');
       }
       if (typeof setLegendSelection === 'function') setLegendSelection(null);
 
-      var badgeEl = el('testStudentBadgeEl');
-      if (badgeEl) {
-        if (adopted.isTest && adopted.expires_at) {
-          var exp = new Date(adopted.expires_at);
-          var now = new Date();
-          var daysLeft = Math.max(0, Math.ceil((exp - now) / (24 * 60 * 60 * 1000)));
-          badgeEl.textContent = 'Test Student · Expires in ' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '');
-          badgeEl.style.display = 'inline-block';
-        } else {
-          badgeEl.style.display = 'none';
-          badgeEl.textContent = '';
-        }
-      }
-
-      /* Normalized student profile view model: one data object per profile load. Future students render from the same template using this shape. */
+      var locker = getLockerMe();
+      var lockerProfile = locker && locker.profile ? locker.profile : {};
+      var accountRole = adopted.role || (locker && locker.account && locker.account.role) || 'student';
+      var heroTitleDefault = String(accountRole).trim().toLowerCase() === 'teacher' ? 'Teacher' : (String(accountRole).trim().toLowerCase() === 'admin' ? 'Admin' : 'Creative Student');
       var studentProfileVM = {
         id: adopted.name,
         name: adopted.name,
         walletKey: adopted.name,
         displayName: getStudentDisplayName() || adopted.name || '—',
-        heroTitle: '',
+        heroTitle: heroTitleDefault,
         avatar: (adopted.avatar || '').trim() || '🌟',
         motto: '',
         nuggets: 0,
@@ -1740,34 +1207,11 @@
       };
       if (typeof window !== 'undefined') window.LANTERN_STUDENT_PROFILE_VIEW = studentProfileVM;
 
-      lanternWinsState = { rec: [], hist: [], spotlight: false };
       myCreationsItemsCache = [];
-      myCreationsSearchQuery = '';
-      submissionsStatusFilter = 'all';
       syncNeedsAttentionNavCountFromCache();
-      var searchElReset = el('myCreationsSearchEl');
-      if (searchElReset) searchElReset.value = '';
-      var tabsStripReset = el('myCreationsTabs');
-      if (tabsStripReset){
-        tabsStripReset.querySelectorAll('.contentTab').forEach(function(t){
-          var st = t.getAttribute('data-status') || '';
-          t.classList.toggle('active', st === 'all');
-        });
-      }
-      var spRail = el('spotlightRailEl');
-      var achRail = el('achievementsRailEl');
-      if (spRail && window.LanternCards){
-        spRail.innerHTML = '';
-        spRail.appendChild(window.LanternCards.materializeFeedPostCard({ id: 'profile_spotlight_loading', type: 'shoutout', title: 'Loading…', caption: '', display_name: 'Spotlight', character_name: 'Spotlight', avatar: '⭐', frame: 'none', created_at: '', card_meta: 'Fetching…' }, { size: 'medium', noNavigate: true, mode: window.LanternCards.CARD_MODE.RAIL }));
-      }
-      if (achRail && window.LanternCards){
-        achRail.innerHTML = '';
-        achRail.appendChild(window.LanternCards.materializeFeedPostCard({ id: 'profile_achievements_loading', type: 'teach', title: 'Loading…', caption: '', display_name: 'Achievements', character_name: 'Achievements', avatar: '🏆', frame: 'none', created_at: '', card_meta: 'Fetching…' }, { size: 'medium', noNavigate: true, mode: window.LanternCards.CARD_MODE.RAIL, extraClass: 'exploreCardMuted' }));
-      }
 
       setProfileHeroStats({ creations: 0, achievements: 0, recognitions: 0 });
       updateNuggetProgress(0);
-      safeProfileStep('wireSwitchStudentButton', wireSwitchStudentButtonOnce);
 
       var revEl = el('avatarRevealEl');
       var contentEl = el('avatarContentEl');
@@ -1778,8 +1222,11 @@
         ctx.classList.remove('lanternAppBarContext--empty');
       }
       applyProfileHeroIdentity(studentProfileVM);
-      el('bioEl').textContent = studentProfileVM.motto || 'Add a bio or tagline';
-      el('bioEl').classList.add('placeholder');
+      var bioElInit = el('bioEl');
+      if (bioElInit) {
+        bioElInit.textContent = studentProfileVM.motto || 'Add a bio or tagline';
+        bioElInit.classList.add('placeholder');
+      }
 
       var avatarApiBase = getProfileApiBase();
       try { console.log('[profile] current character for profile', adopted.name || ''); } catch(_) {}
@@ -1798,6 +1245,9 @@
       }).then(function(bundle){
         var p = (bundle && bundle.profile) || {};
         var canon = (bundle && bundle.canon) || { imageUrl: null, emoji: '🌟' };
+        if (lockerProfile && lockerProfile.avatar) {
+          canon = { imageUrl: lockerProfile.avatar, emoji: canon.emoji || '🌟' };
+        }
         studentProfileVM.displayName = (p.display_name || '').trim() || getStudentDisplayName() || adopted.name || '—';
         studentProfileVM.heroTitle = (p.hero_title || '').trim();
         studentProfileVM.motto = (p.bio || '').trim();
@@ -1807,8 +1257,11 @@
         studentProfileVM.custom_avatar = (canon.imageUrl && String(canon.imageUrl).trim()) ? String(canon.imageUrl).trim() : '';
         if (ctx) ctx.innerHTML = '<span class="lanternAppBarContextGlow">' + esc(studentProfileVM.displayName) + '</span>';
         applyProfileHeroIdentity(studentProfileVM);
-        el('bioEl').textContent = studentProfileVM.motto || 'Add a bio or tagline';
-        el('bioEl').classList.toggle('placeholder', !studentProfileVM.motto);
+        var bioEl = el('bioEl');
+        if (bioEl) {
+          bioEl.textContent = studentProfileVM.motto || 'Add a bio or tagline';
+          bioEl.classList.toggle('placeholder', !studentProfileVM.motto);
+        }
         var contentEl = el('avatarContentEl');
         var revEl = el('avatarRevealEl');
         if (contentEl && revEl) {
@@ -1840,58 +1293,22 @@
         }
         currentProfile = profile;
         refreshProfileFeaturedPost(profile);
-        callGetRecognitionForCharacter(adopted.name).then(function(res){
-          safeProfileStep('recognition', function(){
-          var list = (res && res.recognition) || [];
-          studentProfileVM.stats.recognitions = list.length;
-          setProfileHeroStats({ recognitions: list.length });
-          function applyRec(l){
-            lanternWinsState.rec = l;
-            renderYourWinsSpotlightRail(lanternWinsState.rec, lanternWinsState.hist, lanternWinsState.spotlight);
-          }
-          if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && list.length) {
-            window.LanternAvatar.attachCanonicalAvatarsToItems(list).then(function(){ applyRec(list); });
-          } else {
-            applyRec(list);
-          }
-          });
+        fetchMyCreationsBundle().then(function(list){
+          maybeToastPostLiveAfterBundle(list || []);
+          myCreationsItemsCache = list || [];
+          syncNeedsAttentionNavCountFromCache();
+        }).catch(function(){
+          myCreationsItemsCache = [];
+          syncNeedsAttentionNavCountFromCache();
         });
-        if (avatarApiBase) {
-          renderMyCreationsLoading();
-          fetchMyCreationsBundle().then(function(list){
-            safeProfileStep('myCreations', function(){
-              maybeToastPostLiveAfterBundle(list || []);
-              myCreationsItemsCache = list || [];
-              var visible = filterMyCreationsForTab(myCreationsItemsCache, 'all');
-              setProfileHeroStats({ creations: visible.length });
-              prepareProfileNeedsAttentionFromHash();
-              renderMyCreations(myCreationsItemsCache, submissionsStatusFilter, myCreationsSearchQuery);
-              finishProfileNeedsAttentionFromHash();
-              safeProfileStep('profileMyArticles', function(){ renderProfileMyArticles(); });
-            });
-          }).catch(function(){
-            safeProfileStep('myCreations', function(){
-              myCreationsItemsCache = [];
-              setProfileHeroStats({ creations: 0 });
-              prepareProfileNeedsAttentionFromHash();
-              renderMyCreations([], submissionsStatusFilter, myCreationsSearchQuery);
-              finishProfileNeedsAttentionFromHash();
-              safeProfileStep('profileMyArticles', function(){ renderProfileMyArticles(); });
-            });
-          });
-        } else {
-          safeProfileStep('myCreations', function(){
-            myCreationsItemsCache = [];
-            setProfileHeroStats({ creations: 0 });
-            prepareProfileNeedsAttentionFromHash();
-            renderMyCreations([], submissionsStatusFilter, myCreationsSearchQuery);
-            finishProfileNeedsAttentionFromHash();
-            safeProfileStep('profileMyArticles', function(){ renderProfileMyArticles(); });
-          });
-        }
-        var avatarStatusPromise = avatarApiBase
-          ? fetch(avatarApiBase + '/api/avatar/status?character_name=' + encodeURIComponent(adopted.name)).then(function(r){ return r.json(); }).then(function(s){ return (s && s.ok && s.status) ? { ok: true, status: s.status } : { ok: false, status: {} }; }).catch(function(){ return { ok: false, status: {} }; })
-          : callGetAvatarStatus(adopted.name);
+        var avatarStatusPromise = Promise.resolve({
+          ok: true,
+          status: {
+            active_image: lockerProfile.avatar || null,
+            has_pending: !!(lockerProfile.avatar_pending && lockerProfile.avatar_pending.image),
+            pending_image: lockerProfile.avatar_pending ? lockerProfile.avatar_pending.image : null,
+          },
+        });
         return Promise.all([
           callGetCosmeticOwnership(adopted.name),
           avatarStatusPromise
@@ -1902,8 +1319,12 @@
         var avatarRes = results && results[1];
         var equipped = (cosRes && cosRes.equipped) || {};
         var cosmetics = (window.LANTERN_DATA && window.LANTERN_DATA.getCosmetics) ? window.LANTERN_DATA.getCosmetics() : [];
+        var lockerSurface = document.querySelector('.lanternLockerSurface');
+        if (lockerSurface && window.LANTERN_SURFACE_THEME) {
+          window.LANTERN_SURFACE_THEME.applyLockerTheme(lockerSurface, equipped, { effectLayerId: 'cosmeticEffectLayer' });
+        }
         var hero = el('profileHeroEl') || document.querySelector('.profileHero');
-        if (!hero) return;
+        if (hero) {
         [].slice.call(hero.classList).forEach(function(cls){ if (cls.indexOf('cosmetic-') === 0) hero.classList.remove(cls); });
         var badgeEl = el('cosmeticBadgeEl');
         var accessoryEl = el('cosmeticAccessoryEl');
@@ -1911,6 +1332,11 @@
         if (badgeEl) badgeEl.style.display = 'none';
         if (accessoryEl) accessoryEl.style.display = 'none';
         if (decorationEl) decorationEl.style.display = 'none';
+        if (lockerSurface && window.LANTERN_SURFACE_THEME) {
+          document.body.removeAttribute('data-background');
+          document.body.removeAttribute('data-theme');
+          document.body.removeAttribute('data-effect');
+        } else {
         if (equipped.background) {
           var bgVal = equipped.background.replace('bg_', '');
           hero.classList.add('cosmetic-bg-' + bgVal);
@@ -1940,6 +1366,7 @@
         }
         if (equipped.accent) hero.classList.add('cosmetic-accent-' + equipped.accent.replace('accent_', ''));
         if (equipped.frame) hero.classList.add('cosmetic-frame-' + equipped.frame.replace('frame_', ''));
+        }
         var badgeId = equipped.badge;
         if (badgeId && badgeEl) {
           var c = cosmetics.find(function(x){ return x.id === badgeId; });
@@ -1954,6 +1381,7 @@
         if (decId && decorationEl) {
           var dc = cosmetics.find(function(x){ return x.id === decId; });
           if (dc) { decorationEl.textContent = dc.icon || ''; decorationEl.style.display = 'block'; }
+        }
         }
         // Avatar status / pending preview
         var status = (avatarRes && avatarRes.status) || {};
@@ -1989,23 +1417,42 @@
         });
       }).catch(function(){});
 
-      Promise.all([
-        callStudentHistory(adopted.name),
-        callGetAchievements(adopted.name)
+      var lockerForHistory = getLockerMe();
+      var walletHistory = (lockerForHistory && lockerForHistory.wallet && Array.isArray(lockerForHistory.wallet.transactions))
+        ? lockerForHistory.wallet.transactions.map(function(tx){
+            return {
+              timestamp: tx.created_at,
+              note_text: tx.note || tx.kind || '',
+              nugget_delta: tx.delta,
+              kind: tx.kind,
+              source: tx.source,
+            };
+          })
+        : [];
+      Promise.resolve([
+        { ok: true, history: walletHistory },
+        (function(){
+          var achCat = lockerForHistory && lockerForHistory.achievements;
+          var unavailable = achCat && achCat.available === false;
+          var achievementItems = unavailable ? [] : lockerCategoryItems(achCat);
+          return {
+            ok: true,
+            achievements: achievementItems,
+            achievements_unavailable: !!unavailable,
+            achievements_reason: achCat && achCat.reason ? achCat.reason : null,
+          };
+        })(),
       ]).then(function(results){
         safeProfileStep('historyAndAchievements', function(){
           var history = (results[0] && results[0].history) || [];
-          var achievements = (results[1] && results[1].achievements) || [];
+          var achResult = results[1] || {};
+          var achievements = achResult.achievements || [];
           var unlockedCount = achievements.filter(function(a){ return a.unlocked; }).length;
-          studentProfileVM.stats.achievements = unlockedCount;
-          setProfileHeroStats({ achievements: unlockedCount });
+          studentProfileVM.stats.achievements = achResult.achievements_unavailable ? null : unlockedCount;
+          setProfileHeroStats({ achievements: achResult.achievements_unavailable ? null : unlockedCount });
           studentProfileVM.has_spotlight = achievements.some(function(a){ return a.id === 'teacher_spotlight' && a.unlocked; });
           var badge = el('spotlightBadgeEl');
           if (badge) badge.style.display = studentProfileVM.has_spotlight ? 'flex' : 'none';
-          lanternWinsState.hist = history;
-          lanternWinsState.spotlight = studentProfileVM.has_spotlight;
-          renderYourWinsSpotlightRail(lanternWinsState.rec, lanternWinsState.hist, lanternWinsState.spotlight);
-          renderAchievements(achievements);
         });
       }).catch(function(){});
 
@@ -2219,10 +1666,19 @@
         { key: 'accent', label: 'Card theme (from Store)', hint: 'Overrides Profile theme above. Rainbow, Glow, and Silver use Classic style.' }
       ];
 
-      function buildCosmeticEquip(owned, equipped, cosmetics){
+      function buildCosmeticEquip(owned, equipped, cosmetics, opts){
+        opts = opts || {};
         var wrap = el('editProfileCosmeticsEl');
         if (!wrap) return;
         wrap.innerHTML = '';
+        if (opts.equip_unavailable) {
+          var msg = '<p class="note" style="margin:0;">Owned items sync from your account purchases. Equipping items requires server storage (not yet available).</p>';
+          if (owned && owned.length) {
+            msg += '<p class="note" style="margin:8px 0 0;">You own ' + owned.length + ' item(s) from Store purchases.</p>';
+          }
+          wrap.innerHTML = msg;
+          return;
+        }
         if (!owned || owned.length === 0){
           wrap.innerHTML = '<p class="note" style="margin:0;">No cosmetics yet. Buy some in the Store!</p>';
           return;
@@ -2449,7 +1905,9 @@
         }
         buildFramePicker(profile.frame || 'none');
         buildThemePicker(normalizeThemeForPicker(profile.theme));
-        buildCosmeticEquip(ownership.owned || [], ownership.equipped || {}, cosmetics || []);
+        buildCosmeticEquip(ownership.owned || [], ownership.equipped || {}, cosmetics || [], {
+          equip_unavailable: !!ownership.equip_unavailable,
+        });
         if (featuredSelect){
           featuredSelect.innerHTML = '<option value="">None</option>';
           (posts || []).forEach(function(p){
@@ -2758,28 +2216,6 @@
     function wirePostsUI(){
       if (postsWired) return;
       postsWired = true;
-      var tabsContainer = el('myCreationsTabs');
-      if (tabsContainer) {
-        tabsContainer.querySelectorAll('.contentTab').forEach(function(tab){
-          tab.addEventListener('click', function(){
-            tabsContainer.querySelectorAll('.contentTab').forEach(function(t){ t.classList.remove('active'); });
-            tab.classList.add('active');
-            var status = tab.getAttribute('data-status');
-            if (status !== null) {
-              submissionsStatusFilter = status.trim() || 'all';
-              renderMyCreations(myCreationsItemsCache, submissionsStatusFilter, myCreationsSearchQuery);
-            }
-          });
-        });
-      }
-      var searchEl = el('myCreationsSearchEl');
-      if (searchEl && !searchEl._lanternMyCreationsSearchBound){
-        searchEl._lanternMyCreationsSearchBound = true;
-        searchEl.addEventListener('input', function(){
-          myCreationsSearchQuery = searchEl.value;
-          renderMyCreations(myCreationsItemsCache, submissionsStatusFilter, myCreationsSearchQuery);
-        });
-      }
       if (el('newPostBtn')) el('newPostBtn').addEventListener('click', function(){ window.location.href = 'contribute.html?type=profile_post'; });
       var pnat = el('profileNewsAuthorType');
       if (pnat && !pnat._lanternProfileNewsAuthorBound){
@@ -2798,17 +2234,8 @@
       run.withSuccessHandler(function(){ toast('Submitted for approval'); showProfile(); }).withFailureHandler(function(){ toast('Failed'); }).submitForApproval({ character_name: adopted.name, submission_type: 'mission', note: 'Test submission' });
     }
 
-    /** Switch Student (profile hero); independent of removed Testing Controls panel. */
-    function wireSwitchStudentButtonOnce(){
-      var switchBtn = el('switchCharBtn');
-      if (!switchBtn || switchBtn._lanternSwitchStudentWired) return;
-      switchBtn._lanternSwitchStudentWired = true;
-      switchBtn.addEventListener('click', function(){
-        setAdopted(null);
-        postsWired = false;
-        showProfile();
-      });
-    }
+    /** Student switch control removed — Locker identity comes from the server session only. */
+    function wireSwitchStudentButtonOnce(){}
 
     /** Beta report overlay: no opener button on Locker after Testing Controls removal; wiring stays safe if markup is reintroduced. */
     function wireBetaReportOnce(){
@@ -2847,23 +2274,10 @@
       });
     }
 
-    window.addEventListener('hashchange', function(){
-      if ((location.hash || '') !== '#profileNeedsAttention') return;
-      var adopted = getAdopted();
-      if (!adopted || !adopted.name) return;
-      var pv = el('profileView');
-      if (pv && pv.style.display !== 'none') {
-        prepareProfileNeedsAttentionFromHash();
-        renderMyCreations(myCreationsItemsCache, submissionsStatusFilter, myCreationsSearchQuery);
-        finishProfileNeedsAttentionFromHash();
-      }
-    });
-
     /* All profile entry points (nav, student switch, redirects, deep links) converge here. When verify mode uses cloud, identity may be set async; runProfileEntry runs once identity is ready or when API is off. */
     wireProfileWalletVisibilityOnce();
     safeProfileStep('wireBetaReport', wireBetaReportOnce);
     runProfileEntry = function(){ showProfile(); };
-    if (!studentIdentityFetchPending) runProfileEntry();
-    if (typeof updateStudentVerifyBanner === 'function') updateStudentVerifyBanner();
+    if (!lockerBootPending) runProfileEntry();
 
     /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */

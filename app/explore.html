@@ -5,13 +5,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <script src="js/lantern-pilot-auth.js"></script>
+  <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Explore</title>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
-  <link rel="stylesheet" href="css/lantern-feed.css">
+  <link rel="stylesheet" href="css/lantern-feed.css?v=20260808-feedlayout">
+  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260808-feedlayout">
   <style>
     :root {
       --bg: #0b1220;
@@ -49,34 +50,35 @@
     <div id="lanternTicker"></div>
     <div id="lanternAppBarRoot"></div>
   </div>
-  <div class="wrap lanternContent">
+  <div class="wrap lanternContent lanternContent--feedWide">
     <div id="classAccessBannerEl"></div>
     <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
+      <main class="lanternExploreSurface" data-surface-context="explore">
+      <div class="lanternExplorePageContainer">
       <h1 class="feedPageTitle">Explore</h1>
-      <p class="feedPageSub">One feed — filter, search, and sort approved Lantern content.</p>
-      <div class="feedToolbar">
-        <div class="feedSearchRow">
-          <input type="search" id="feedSearchInput" class="feedSearchInput" placeholder="Search titles, authors, tags…" aria-label="Search feed">
-          <select id="feedSortSelect" class="feedSortSelect" aria-label="Sort feed">
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="title">Title A–Z</option>
-          </select>
-        </div>
-        <div class="feedColRow" aria-label="Column layout">
-          <button type="button" class="feedColBtn feedColBtn--active" data-feed-columns="1">1 column</button>
-          <button type="button" class="feedColBtn" data-feed-columns="2">2 columns</button>
-          <button type="button" class="feedColBtn" data-feed-columns="3">3 columns</button>
-          <button type="button" id="feedRefreshBtn" class="feedColBtn">Refresh</button>
+      <p class="feedPageSub">One feed — filter and sort approved Lantern content.</p>
+      <div class="feedFiltersHost">
+        <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+        <div id="feedFiltersPanel" class="feedFiltersPanel" hidden>
+          <div class="feedFiltersToolbarRow">
+            <select id="feedSortSelect" class="feedSortSelect" aria-label="Sort feed">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A–Z</option>
+            </select>
+            <button type="button" id="feedRefreshBtn" class="feedToolbarBtn">Refresh</button>
+          </div>
+          <div id="feedFilterBar" class="feedFilterBar" role="toolbar" aria-label="Category filters"></div>
         </div>
       </div>
-      <div id="feedFilterBar" class="feedFilterBar" role="toolbar" aria-label="Category filters"></div>
       <div class="feedResultsHost">
         <div id="feedStatus" class="feedStatus"></div>
         <div id="feedEmpty" class="feedEmpty" hidden>No approved items match your filters yet. Try All or create something new.</div>
-        <div id="feedGrid" class="feedGrid" data-columns="1" role="feed" aria-label="Lantern feed"></div>
+        <div id="feedGrid" class="feedGrid" role="feed" aria-label="Lantern feed"></div>
       </div>
+      </div>
+      </main>
     </div>
   </div>
   <div id="feedDetailOverlay" class="feedDetailOverlay" hidden>
@@ -92,13 +94,14 @@
     </div>
   </div>
   <script src="js/class-access.js"></script>
-  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-nav.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-canonical-enforce.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-feed-card.js"></script>
-  <script src="js/lantern-feed-explore.js"></script>
+  <script src="js/lantern-surface-theme.js?v=20260808-feedlayout"></script>
+  <script src="js/lantern-feed-explore.js?v=20260808-feedlayout"></script>
   <script>
   (function () {
     function boot() {

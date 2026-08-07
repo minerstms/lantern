@@ -64,15 +64,13 @@
 
   function getAdoptedFromStorage() {
     try {
-      var raw = localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
-      if (!raw) return null;
-      var obj = JSON.parse(raw);
-      if (!obj || !obj.name) return null;
-      if (obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) return null;
-      return obj;
-    } catch (e) {
-      return null;
-    }
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+        var a = auth.adoptedFromPilotMe();
+        if (a && a.name) return a;
+      }
+    } catch (e) {}
+    return null;
   }
 
   function fetchProfileNeedsAttentionCount() {
@@ -236,29 +234,27 @@
       });
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAvatar(); });
       try {
-        var raw = localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
-        if (raw && typeof global.LanternAvatar !== 'undefined' && global.LanternAvatar.getCanonicalAvatar) {
-          var adopted = JSON.parse(raw);
-          var name = adopted && adopted.name;
-          var emoji = (adopted && adopted.avatar) ? adopted.avatar : '';
-          if (!emoji && name && global.LanternAvatar.getLegacyEmojiForCharacter) {
-            emoji = global.LanternAvatar.getLegacyEmojiForCharacter(name);
-          }
-          if (name) {
-            global.LanternAvatar.getCanonicalAvatar(name, emoji || undefined).then(function (r) {
-              if (!avatarBtn) return;
-              if (r.imageUrl) {
-                var img = document.createElement('img');
-                img.src = r.imageUrl;
-                img.alt = '';
-                img.style.cssText = 'width:32px;height:32px;object-fit:cover;border-radius:50%;';
-                avatarBtn.innerHTML = '';
-                avatarBtn.appendChild(img);
-              } else {
-                avatarBtn.textContent = r.emoji;
-              }
-            });
-          }
+        var auth = global.LanternAuth || global.LanternPilotAuth;
+        var adopted = auth && typeof auth.adoptedFromPilotMe === 'function' ? auth.adoptedFromPilotMe() : null;
+        var name = adopted && adopted.name;
+        var emoji = (adopted && adopted.avatar) ? adopted.avatar : '';
+        if (!emoji && name && global.LanternAvatar && global.LanternAvatar.getLegacyEmojiForCharacter) {
+          emoji = global.LanternAvatar.getLegacyEmojiForCharacter(name);
+        }
+        if (name && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function') {
+          global.LanternAvatar.getCanonicalAvatar(name, emoji || undefined).then(function (r) {
+            if (!avatarBtn) return;
+            if (r.imageUrl) {
+              var img = document.createElement('img');
+              img.src = r.imageUrl;
+              img.alt = '';
+              img.style.cssText = 'width:32px;height:32px;object-fit:cover;border-radius:50%;';
+              avatarBtn.innerHTML = '';
+              avatarBtn.appendChild(img);
+            } else {
+              avatarBtn.textContent = r.emoji;
+            }
+          });
         }
       } catch (e) {}
     }
@@ -271,6 +267,30 @@
       searchTrigger.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); searchWrap.classList.add('is-expanded'); searchInput.focus(); } });
       searchInput.addEventListener('blur', function () { setTimeout(function () { if (!searchInput.value.trim()) searchWrap.classList.remove('is-expanded'); }, 180); });
     }
+    wireHeaderFeedSearch();
+  }
+
+  function wireHeaderFeedSearch() {
+    var page = getCurrentPage();
+    if (page !== 'explore' && page !== 'locker') return;
+    var searchInput = document.getElementById('lanternExploreSearch');
+    if (!searchInput) return;
+    var timer;
+    function applySearch() {
+      if (!global.LANTERN_FEED_EXPLORE || typeof global.LANTERN_FEED_EXPLORE.setSearch !== 'function') return;
+      global.LANTERN_FEED_EXPLORE.setSearch(searchInput.value);
+    }
+    searchInput.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(applySearch, 300);
+    });
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(timer);
+        applySearch();
+      }
+    });
   }
 
   function refreshNeedsAttentionBellFromApi() {

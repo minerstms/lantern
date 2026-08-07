@@ -42,18 +42,16 @@
 
   function viewerName() {
     try {
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (auth && typeof auth.sessionEconomyKey === 'function') {
+        var k = auth.sessionEconomyKey();
+        if (k) return k;
+      }
       var me = global.LANTERN_PILOT_ME;
       if (me && me.economy_character_name) return String(me.economy_character_name);
       if (me && me.student_character_name) return String(me.student_character_name);
       if (me && me.username) return String(me.username);
     } catch (e) {}
-    try {
-      var raw = global.localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
-      if (raw) {
-        var o = JSON.parse(raw);
-        return String(o.name || o.character_id || '');
-      }
-    } catch (e2) {}
     return '';
   }
 
@@ -105,6 +103,18 @@
       return fetchJson('/api/feed/slideshow?limit=' + (limit || 30));
     },
     getMine: function () { return fetchJson('/api/feed/mine'); },
+    getLockerPersonalFeed: function (params) {
+      var q = Object.assign({}, params || {});
+      return fetchJson(
+        '/api/locker/personal-feed?' +
+          Object.keys(q)
+            .map(function (k) {
+              return encodeURIComponent(k) + '=' + encodeURIComponent(q[k]);
+            })
+            .join('&'),
+        { credentials: 'include' }
+      );
+    },
     getReview: function (status) { return fetchJson('/api/feed/review?status=' + encodeURIComponent(status || 'submitted')); },
     create: function (body) { return fetchJson('/api/feed/create', { method: 'POST', body: body }); },
     update: function (body) { return fetchJson('/api/feed/update', { method: 'POST', body: body }); },

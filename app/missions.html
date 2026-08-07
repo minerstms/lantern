@@ -199,15 +199,6 @@
 
     var missionVerifyModeActive = false;
     (function(){
-      try {
-        var params = new URLSearchParams(typeof location !== 'undefined' && location.search || '');
-        var sim = params.get('simStudent');
-        if (sim && String(sim).trim()) {
-          missionVerifyModeActive = true;
-          return;
-        }
-      } catch (e) {}
-
       function applyLegacyVerifyHints() {
         try {
           if (localStorage.getItem('LANTERN_VERIFY_CHARACTER_NAME')) {
@@ -282,16 +273,14 @@
     }
 
     function getAdopted(){
-      try{
-        var raw = localStorage.getItem(LS_ADOPTED);
-        if (!raw) return null;
-        var obj = JSON.parse(raw);
-        if (obj && obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
-          try { localStorage.removeItem(LS_ADOPTED); } catch(e) {}
-          return null;
+      try {
+        var auth = window.LanternAuth || window.LanternPilotAuth;
+        if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+          var a = auth.adoptedFromPilotMe();
+          if (a && a.name) return a;
         }
-        return obj;
-      }catch(e){ return null; }
+      } catch (e) {}
+      return null;
     }
     function getCharacterNameForApi(){
       var adopted = getAdopted();

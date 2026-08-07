@@ -3,13 +3,7 @@
  * Fictional data only. No real student or production data.
  */
 (function (global) {
-  var DEFAULT_CHARACTERS = [
-    { character_id: 'char1', name: 'Alex Adventure', avatar: '🌟', balance: 10, owned: [] },
-    { character_id: 'char2', name: 'Sam Star', avatar: '⭐', balance: 5, owned: [] },
-    { character_id: 'char3', name: 'Jordan Joy', avatar: '✨', balance: 15, owned: [] },
-    { character_id: 'char4', name: 'Casey Cool', avatar: '🎯', balance: 0, owned: [] },
-    { character_id: 'char5', name: 'Riley Rise', avatar: '🚀', balance: 8, owned: [] },
-  ];
+  var DEFAULT_CHARACTERS = [];
 
   var DEFAULT_CATALOG = [
     { item_id: 'pencil', item_name: 'Pencil', cost: 5, stock: 100 },
@@ -158,8 +152,8 @@
 
   function ensureCharacters() {
     var chars = getFromLS(LS_KEYS.CHARACTERS, null);
-    if (!chars || !Array.isArray(chars) || chars.length === 0) {
-      chars = JSON.parse(JSON.stringify(DEFAULT_CHARACTERS));
+    if (!chars || !Array.isArray(chars)) {
+      chars = [];
       setToLS(LS_KEYS.CHARACTERS, chars);
     }
     return chars;
@@ -179,13 +173,11 @@
   }
 
   function getCosmeticOwnership() {
-    var raw = getFromLS(LS_KEYS.COSMETIC_OWNERSHIP, null);
-    if (!raw || typeof raw !== 'object') return {};
-    return raw;
+    return {};
   }
 
   function setCosmeticOwnership(val) {
-    setToLS(LS_KEYS.COSMETIC_OWNERSHIP, val);
+    return;
   }
 
   function ensureStaff() {
@@ -478,7 +470,7 @@
         { title: 'Soccer Tryouts', body: 'Soccer tryouts are next Monday and Wednesday after school. Bring cleats and water. Coach Davis will run drills and scrimmages. Everyone is welcome to try out. The season starts in two weeks. We need players for both JV and varsity. See you on the field!', category: 'Sports' },
         { title: 'Drama Club Auditions', body: 'Auditions for the spring play are next week. Sign up outside the drama room. We need actors, stage crew, and tech help. No experience needed. The play is a comedy. Rehearsals start in March. Performances are in May. Join us for a fun semester!', category: 'Clubs' },
         { title: 'New Recycling Program', body: 'The green team is starting a new recycling program. Blue bins are in every classroom. We collect paper, plastic bottles, and aluminum cans. The program runs all year. Prizes for the class that recycles the most each month. Let us keep our school green!', category: 'Announcements' },
-        { title: 'Student Spotlight: Riley', body: 'This month we spotlight Riley Rise, who built a weather station for the science fair. Riley coded the data display and built the hardware. The project won second place at regionals. Riley also plays in the band and helps with the school garden. Way to go, Riley!', category: 'Student Spotlight' },
+        { title: 'Student Spotlight', body: 'This month we spotlight a student who built a weather station for the science fair — coding the data display and building the hardware. The project won second place at regionals. Way to go!', category: 'Student Spotlight' },
         { title: 'Math Olympiad Results', body: 'Our math team competed at the regional Olympiad. We placed third overall. Alex solved the most problems. Sam got a perfect score on the geometry section. The team practiced every Tuesday. Thank you to Mr. Chen for coaching. Next stop: state competition!', category: 'School News' },
         { title: 'Book Club Picks', body: 'The book club has chosen our next three reads. March: a mystery novel. April: a science fiction classic. May: a memoir. Meetings are every other Thursday in the library. New members welcome. We discuss, snack, and have fun. Sign up with Ms. Foster.', category: 'Clubs' },
         { title: 'Spring Concert Date', body: 'Mark your calendars! The spring concert is May 10th at 7 PM. Band, choir, and orchestra will perform. Tickets are free for students. Families are welcome. The program includes classical and modern pieces. We have been rehearsing since January. Do not miss it!', category: 'Events' },
@@ -632,17 +624,19 @@
   function ensureStartupMode() {
     var mode = getFromLS(LS_KEYS.MODE, null);
     if (mode === null || mode === '') {
-      setToLS(LS_KEYS.MODE, 'seeded');
-      mode = 'seeded';
+      setToLS(LS_KEYS.MODE, 'minimal');
+      mode = 'minimal';
     }
     if (mode === 'minimal') return;
-    try {
-      const posts = JSON.parse(localStorage.getItem('LANTERN_POSTS') || '[]');
-      if (!posts || posts.length < 5) {
+    if (typeof global !== 'undefined' && global.LANTERN_DEV_SEED === true) {
+      try {
+        const posts = JSON.parse(localStorage.getItem('LANTERN_POSTS') || '[]');
+        if (!posts || posts.length < 5) {
+          seedDemoWorld();
+        }
+      } catch (e) {
         seedDemoWorld();
       }
-    } catch (e) {
-      seedDemoWorld();
     }
   }
 

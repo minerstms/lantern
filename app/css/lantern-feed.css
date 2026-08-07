@@ -1,4 +1,4 @@
-/* Lantern ONE FEED — single container layout (columns = CSS only) */
+/* Lantern ONE FEED — donor-style wide grid + shared Explore/Locker layout */
 :root {
   --feed-fs-base: 22px;
   --feed-fs-title: 28px;
@@ -9,44 +9,92 @@
   --feed-accent: #5aa7ff;
   --feed-line: rgba(255, 255, 255, 0.12);
   --feed-r: 18px;
+  /* Donor archive-content-wide: 6 × 280px + 5 × 1rem gaps */
+  --feed-grid-max-width: 1760px;
+  --lantern-feed-page-max-width: var(--feed-grid-max-width);
+}
+
+/* Wide feed pages break out of the default 980px shell */
+.wrap.lanternContent.lanternContent--feedWide {
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lanternExplorePageContainer {
+  width: min(var(--lantern-feed-page-max-width), calc(100vw - 2.5rem));
+  max-width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
 }
 
 .feedPageTitle {
   font-size: 32px;
   font-weight: 900;
   margin: 0 0 8px;
-  padding: 0 var(--lantern-pad-x, 16px);
+  padding: 0;
 }
 
 .feedPageSub {
   font-size: var(--feed-fs-base);
   color: var(--feed-muted);
-  margin: 0 0 20px;
-  padding: 0 var(--lantern-pad-x, 16px);
+  margin: 0 0 16px;
+  padding: 0;
   line-height: 1.4;
+  max-width: 52rem;
 }
 
-.feedToolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 var(--lantern-pad-x, 16px) 16px;
+.feedFiltersHost {
+  margin: 0 0 16px;
 }
 
-.feedSearchRow {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.feedSearchInput {
+.feedFiltersToggle {
   font-size: var(--feed-fs-base);
-  padding: 12px 14px;
+  font-weight: 900;
+  padding: 10px 16px;
   border-radius: 12px;
   border: 1px solid var(--feed-line);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.22);
   color: var(--feed-ink);
-  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 48px;
+}
+
+.feedFiltersToggle:hover,
+.feedFiltersToggle:focus-visible {
+  border-color: rgba(90, 167, 255, 0.45);
+  outline: 2px solid rgba(90, 167, 255, 0.35);
+  outline-offset: 2px;
+}
+
+.feedFiltersPanel {
+  margin-top: 12px;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--feed-line);
+}
+
+.feedFiltersPanel[hidden] {
+  display: none !important;
+}
+
+.feedFiltersSection {
+  margin-bottom: 14px;
+}
+
+.feedFiltersSectionLabel {
+  font-size: var(--feed-fs-base);
+  font-weight: 800;
+  color: var(--feed-muted);
+  margin: 0 0 8px;
+}
+
+.feedFiltersToolbarRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 .feedSortSelect {
@@ -56,37 +104,33 @@
   border: 1px solid var(--feed-line);
   background: rgba(0, 0, 0, 0.25);
   color: var(--feed-ink);
+  min-height: 48px;
 }
 
-.feedColRow {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.feedColBtn {
+.feedToolbarBtn {
   font-size: var(--feed-fs-base);
-  padding: 8px 14px;
-  border-radius: 999px;
+  padding: 10px 16px;
+  border-radius: 12px;
   border: 1px solid var(--feed-line);
   background: rgba(0, 0, 0, 0.2);
   color: var(--feed-muted);
   cursor: pointer;
   font-weight: 800;
+  min-height: 48px;
+  font-family: inherit;
 }
 
-.feedColBtn--active {
-  background: rgba(90, 167, 255, 0.2);
-  border-color: rgba(90, 167, 255, 0.5);
+.feedToolbarBtn:hover {
   color: var(--feed-ink);
+  border-color: rgba(90, 167, 255, 0.45);
 }
 
 .feedFilterBar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 var(--lantern-pad-x, 16px) 16px;
-  overflow-x: auto;
+  padding: 0 0 8px;
+  overflow-x: visible;
 }
 
 .feedFilterChip {
@@ -108,7 +152,13 @@
 }
 
 .feedResultsHost {
-  padding: 0 var(--lantern-pad-x, 16px) 32px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  transform: none;
+  position: relative;
+  padding: 0 0 32px;
+  box-sizing: border-box;
 }
 
 .feedStatus {
@@ -122,14 +172,21 @@
 #homeFeatured,
 #homeLatest {
   display: grid;
+  /* Donor .archive-grid — fixed track width, auto-fit column count, centered */
   grid-template-columns: repeat(auto-fit, var(--lantern-card-width, 280px));
   gap: var(--lantern-card-gap, 1rem);
   justify-content: center;
   align-items: start;
+  width: 100%;
 }
 
-.feedGrid.manual-cols {
-  grid-template-columns: repeat(var(--feed-cols, 1), var(--lantern-card-width, 280px));
+.feedGrid > .exploreCard,
+.feedGrid > .exploreCardOuterWrap,
+.homeFeaturedGrid > .exploreCard,
+.homeFeaturedGrid > .exploreCardOuterWrap {
+  width: var(--lantern-card-width, 280px);
+  max-width: var(--lantern-card-width, 280px);
+  justify-self: center;
 }
 
 .feedEmpty {

@@ -441,7 +441,7 @@
         <div class="identity-row">Simulated character_name: <kbd id="currentCharacterName">—</kbd></div>
         <div class="identity-row">Simulated display name: <kbd id="currentDisplayName">—</kbd></div>
         <div class="identity-row"><strong>Identity source:</strong> <span id="identitySourceLabel" class="pill accent">—</span></div>
-        <p class="note" id="identitySourceNote">On teacher/student pages, identity source is <strong>URL</strong> when set via ?simTeacher= or ?simStudent=, <strong>Cloud</strong> when API is on and state comes from Worker, or <strong>Local fallback</strong> when API is off.</p>
+        <p class="note" id="identitySourceNote">On teacher/student pages, identity comes from your signed-in session when the API is on, or <strong>Local fallback</strong> when API is off.</p>
         <p class="note" style="margin-top:12px;"><strong>How to test:</strong> Teacher A vs Teacher B isolation — act as Teacher A, create mission, have student submit; switch to Teacher B, confirm they do not see that submission and get 403 if they try to approve it. Student mission visibility — act as a student, confirm only allowed missions appear. Dashboard correctness — act as teacher, refresh; counts and rows should match.</p>
       </div>
     </div>
@@ -804,12 +804,7 @@
     var displayName = (s && s.displayName) || (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].dataset.displayName) || cname;
     var payload = { role: 'student', character_name: cname, display_name: displayName, teacher_id: '' };
     putState(payload).then(function(){
-      try {
-        localStorage.setItem('LANTERN_VERIFY_CHARACTER_NAME', cname);
-        localStorage.setItem('LANTERN_VERIFY_NAME', displayName);
-        localStorage.setItem('LANTERN_ADOPTED_CHARACTER', JSON.stringify({ character_id: cname, name: cname, avatar: '🌟' }));
-      } catch(e) {}
-      window.location.href = 'locker.html?simStudent=' + encodeURIComponent(cname) + '#overview';
+      window.location.href = '/login.html?return=' + encodeURIComponent('/locker.html');
     });
   });
 

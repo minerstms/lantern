@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Admin</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <script src="js/lantern-pilot-auth.js"></script>
+  <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -103,16 +103,21 @@
   <div class="card">
     <div class="cardHd">Accounts</div>
     <div id="usersMsg"></div>
-    <table id="usersTable"><thead><tr><th>Login ID</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <table id="usersTable"><thead><tr><th>Login ID</th><th>First Name</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
 
     <div id="editUserPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
       <p class="acctPanelHd">Edit account</p>
       <p id="editUserDisplay" class="acctPanelHint"></p>
+      <p class="acctPanelHint" style="color:var(--muted);">First Name changes how the account is shown. Login and data identity fields remain unchanged.</p>
       <input type="hidden" id="editUserUsername" value="" />
+      <label for="editUserFirstName">First Name</label>
+      <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
       <label for="editUserRole">Role</label>
       <select id="editUserRole"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>
       <label for="editUserActive">Account status</label>
       <select id="editUserActive"><option value="1">Active</option><option value="0">Suspended</option></select>
+      <label for="editUserMustChangePw">Must change password</label>
+      <select id="editUserMustChangePw"><option value="0">No</option><option value="1">Yes — require on next sign-in</option></select>
       <div class="acctPanelActions">
         <button type="button" class="btn good" id="editUserSave">Save changes</button>
         <button type="button" class="btn" id="editUserCancel">Cancel</button>
@@ -136,7 +141,9 @@
       <label for="nu_username">Login username</label>
       <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">This is the <strong>Login ID</strong> they type at sign-in (for students, usually the Student ID your school uses—stored as text).</p>
       <input id="nu_username" type="text" required autocomplete="off" aria-describedby="nu_username_hint" />
-      <label>Display name <input id="nu_display" type="text" /></label>
+      <label for="nu_display">First Name</label>
+      <p id="nu_display_hint" class="sub" style="margin:0 0 8px;">Required. Shown in the app header and Locker. Does not change the Login ID or data identity keys.</p>
+      <input id="nu_display" type="text" required maxlength="64" autocomplete="off" aria-describedby="nu_display_hint" />
       <label>Role
         <select id="nu_role"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>
       </label>
@@ -212,6 +219,17 @@
       var scn = u.student_character_name != null && String(u.student_character_name).trim() !== '' ? String(u.student_character_name).trim() : '';
       if (scn) return scn;
       return String(u.username || '').trim();
+    }
+    function formatFirstName(u) {
+      var dn = u.display_name != null ? String(u.display_name).trim() : '';
+      return dn || '—';
+    }
+    function validateFirstNameClient(value) {
+      var v = String(value || '').trim();
+      if (!v) return 'First Name is required.';
+      if (v.length > 64) return 'First Name must be 64 characters or fewer.';
+      if (/[\x00-\x1F\x7F]/.test(v)) return 'First Name contains invalid characters.';
+      return '';
     }
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c; }); }
 
@@ -515,8 +533,11 @@
       var hid = document.getElementById('editUserUsername');
       var roleSel = document.getElementById('editUserRole');
       var actSel = document.getElementById('editUserActive');
+      var fnInput = document.getElementById('editUserFirstName');
+      var mcpSel = document.getElementById('editUserMustChangePw');
       if (disp) disp.textContent = 'Login ID: ' + user;
       if (hid) hid.value = user;
+      if (fnInput) fnInput.value = u.display_name != null ? String(u.display_name).trim() : '';
       if (roleSel) {
         var rv = String(u.role || 'student').trim().toLowerCase();
         if (rv !== 'admin' && rv !== 'teacher' && rv !== 'student') rv = 'student';
@@ -524,6 +545,8 @@
       }
       var ia = u.is_active === 0 || u.is_active === '0' ? '0' : '1';
       if (actSel) actSel.value = ia;
+      var mcp = u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true;
+      if (mcpSel) mcpSel.value = mcp ? '1' : '0';
       openOnlyAcctPanel('edit');
     }
     function openTempPwPanel(username) {
@@ -543,14 +566,22 @@
     document.getElementById('editUserCancel').addEventListener('click', closeEditUserPanel);
     document.getElementById('editUserSave').addEventListener('click', function(){
       var username = (document.getElementById('editUserUsername').value || '').trim();
+      var firstName = (document.getElementById('editUserFirstName').value || '').trim();
       var role = (document.getElementById('editUserRole').value || 'student').trim();
       var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
+      var mustChange = parseInt(document.getElementById('editUserMustChangePw').value, 10) ? true : false;
       if (!username) return;
+      var fnErr = validateFirstNameClient(firstName);
+      if (fnErr) {
+        showUsersMsg(fnErr, 'err');
+        return;
+      }
       var saveBtn = document.getElementById('editUserSave');
       var cancelBtn = document.getElementById('editUserCancel');
       if (saveBtn) saveBtn.disabled = true;
       if (cancelBtn) cancelBtn.disabled = true;
-      postAdminJson('/api/admin/users/update', { username: username, role: role, is_active: act }).then(function(x){
+      var payload = { username: username, display_name: firstName, role: role, is_active: act, must_change_password: mustChange ? 1 : 0 };
+      postAdminJson('/api/admin/users/update', payload).then(function(x){
         if (x && x.blocked) return;
         if (x && x.okHttp && x.body && x.body.ok) {
           showUsersMsg('Updated account ' + username + '.', 'ok');
@@ -620,7 +651,7 @@
           var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
           var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
           var mcpLabel = mcp ? 'Yes' : 'No';
-          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td>' + mcpLabel + '</td><td class="acctActions"></td>';
+          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(formatFirstName(u)) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td>' + mcpLabel + '</td><td class="acctActions"></td>';
           var cell = tr.querySelector('.acctActions');
           var bEdit = document.createElement('button');
           bEdit.type = 'button';
@@ -651,9 +682,15 @@
 
     document.getElementById('addUserForm').addEventListener('submit', function(e){
       e.preventDefault();
+      var firstName = document.getElementById('nu_display').value.trim();
+      var fnErr = validateFirstNameClient(firstName);
+      if (fnErr) {
+        showUsersMsg(fnErr, 'err');
+        return;
+      }
       var body = {
         username: document.getElementById('nu_username').value.trim(),
-        display_name: document.getElementById('nu_display').value.trim(),
+        display_name: firstName,
         role: document.getElementById('nu_role').value,
         password: document.getElementById('nu_password').value,
       };

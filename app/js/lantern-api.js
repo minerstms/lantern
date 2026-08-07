@@ -1592,69 +1592,25 @@
   var SECRET_COSMETIC_IDS = ['frame_nugget_seeker', 'frame_hallway_hero', 'bg_hidden_lantern', 'bg_newsroom', 'badge_secret_finder', 'dec_lantern_glow'];
 
   function grantSecretCosmetic(characterName, cosmeticId) {
-    var key = String(characterName || '').trim();
-    if (!key || !cosmeticId) return false;
-    var cosmetics = getCosmetics();
-    var cosmetic = cosmetics.find(function (c) { return c.id === cosmeticId; });
-    if (!cosmetic || cosmetic.purchasable !== false) return false;
-    var all = DATA.getCosmeticOwnership ? DATA.getCosmeticOwnership() : {};
-    var rec = all[key] || { owned: [], equipped: {} };
-    if (!Array.isArray(rec.owned)) rec.owned = [];
-    if (rec.owned.indexOf(cosmeticId) >= 0) return true;
-    rec.owned.push(cosmeticId);
-    all[key] = rec;
-    DATA.setCosmeticOwnership(all);
-    if (cosmetic.category === 'frame') grantHiddenUnlock(characterName, 'frames', cosmeticId);
-    if (cosmetic.category === 'background') grantHiddenUnlock(characterName, 'backgrounds', cosmeticId);
-    return true;
+    return false;
   }
 
   function purchaseCosmetic(characterName, cosmeticId, economyBackendCharged, availableAfterFromPayload) {
     var key = String(characterName || '').trim();
     if (!key) return { ok: false, error: 'character_name required' };
-    var cosmetics = getCosmetics();
-    var cosmetic = cosmetics.find(function (c) { return c.id === cosmeticId; });
-    if (!cosmetic) return { ok: false, error: 'Cosmetic not found' };
-    if (cosmetic.purchasable === false) return { ok: false, error: 'Unlock only — find it by discovery' };
-    var cost = Number(cosmetic.cost) || 0;
-    if (!economyBackendCharged) {
-      var balance = getCharacterBalance(characterName);
-      if (balance < cost) return { ok: false, error: 'Not enough nuggets. Need ' + cost + ', available ' + balance };
+    if (economyBackendCharged) {
+      return {
+        ok: true,
+        cosmetic_id: cosmeticId,
+        available_after: availableAfterFromPayload != null ? Number(availableAfterFromPayload) : null,
+        server_authoritative: true,
+      };
     }
-    var all = DATA.getCosmeticOwnership ? DATA.getCosmeticOwnership() : {};
-    var rec = all[key] || { owned: [], equipped: {} };
-    if (!Array.isArray(rec.owned)) rec.owned = [];
-    if (rec.owned.indexOf(cosmeticId) >= 0) return { ok: false, error: 'Already owned' };
-    rec.owned.push(cosmeticId);
-    all[key] = rec;
-    DATA.setCosmeticOwnership(all);
-    if (!economyBackendCharged) addPurchase(characterName, cosmeticId, cosmetic.name || cosmeticId, 1, cost, 'Cosmetic');
-    checkAndUnlockAchievements(characterName);
-    var balanceAfter = economyBackendCharged && (availableAfterFromPayload != null) ? Number(availableAfterFromPayload) : getCharacterBalance(characterName);
-    return { ok: true, cosmetic: cosmetic, cost: cost, available_after: balanceAfter };
+    return { ok: false, error: 'server_purchase_required' };
   }
 
   function equipCosmetic(characterName, cosmeticId, category) {
-    var key = String(characterName || '').trim();
-    if (!key) return false;
-    var all = DATA.getCosmeticOwnership ? DATA.getCosmeticOwnership() : {};
-    var rec = all[key] || { owned: [], equipped: {} };
-    if (!Array.isArray(rec.owned)) rec.owned = [];
-    if (!rec.equipped || typeof rec.equipped !== 'object') rec.equipped = {};
-    if (!cosmeticId) {
-      if (category) delete rec.equipped[category];
-      all[key] = rec;
-      DATA.setCosmeticOwnership(all);
-      return true;
-    }
-    if (rec.owned.indexOf(cosmeticId) < 0) return false;
-    var cosmetics = getCosmetics();
-    var cosmetic = cosmetics.find(function (c) { return c.id === cosmeticId; });
-    if (!cosmetic || cosmetic.category !== category) return false;
-    rec.equipped[category] = cosmeticId;
-    all[key] = rec;
-    DATA.setCosmeticOwnership(all);
-    return true;
+    return false;
   }
 
   function addPendingSubmission(characterName, submissionType, note) {
@@ -1888,30 +1844,15 @@
   ];
 
   function getAchievements() {
-    var raw = DATA.getFromLS ? DATA.getFromLS(LS.ACHIEVEMENTS, {}) : {};
-    return raw && typeof raw === 'object' ? raw : {};
+    return {};
   }
 
   function getAchievementsForCharacter(characterName) {
-    var all = getAchievements();
-    var key = String(characterName || '').trim();
-    return all[key] || {};
+    return {};
   }
 
   function unlockAchievement(characterName, achId) {
-    var key = String(characterName || '').trim();
-    if (!key) return false;
-    var all = getAchievements();
-    var byChar = all[key] || {};
-    if (byChar[achId]) return false;
-    var def = ACHIEVEMENT_DEFS.find(function (d) { return d.id === achId; });
-    var name = def ? def.name : achId;
-    byChar[achId] = new Date().toISOString();
-    all[key] = byChar;
-    DATA.setToLS(LS.ACHIEVEMENTS, all);
-    addActivity(characterName, 0, 'POSITIVE', 'ACHIEVEMENT', 'Achievement: ' + name);
-    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'achievement', object_id: achId, event_type: 'achievement_unlocked', meta: { achievement_name: name } });
-    return true;
+    return false;
   }
 
   function getDailyNuggetHuntClaimDates(characterName) {
@@ -1945,47 +1886,7 @@
   }
 
   function checkAndUnlockAchievements(characterName) {
-    var key = String(characterName || '').trim();
-    if (!key) return;
-    var unlocked = getAchievementsForCharacter(characterName);
-    var missions = getMissionsForCharacter(characterName);
-    var posts = getPostsForCharacter(characterName);
-    var approvedPosts = posts.filter(function (p) { return p.approved === true; });
-    var purchases = getPurchases().filter(function (r) { return r.character_name === key; });
-    var activity = getActivity().filter(function (r) { return r.character_name === key; });
-    var earned = getCharacterEarned(characterName);
-    var hasSpotlight = activity.some(function (r) { return (r.note_text || '').indexOf('Spotlight') >= 0; });
-    var storePurchases = purchases.filter(function (p) { return (p.item_id || '') !== 'game_play'; });
-    var thanks = getThanksForCharacter(characterName);
-    var thanksAccepted = thanks.some(function (t) { return (t.status || '') === 'accepted'; });
-    var news = getNewsForAuthor(characterName);
-    var newsApproved = news.some(function (n) { return (n.status || '') === 'approved'; });
-    var missionSubs = getMissionSubmissionsForCharacter(characterName);
-    var missionAccepted = missionSubs.some(function (s) { return (s.status || '') === 'accepted'; });
-    var curations = getPostCurations();
-    var hasFeatured = approvedPosts.some(function (p) { return !!(curations[p.id] || {}).teacher_featured; });
-    var hasTeacherPick = approvedPosts.some(function (p) { return !!(curations[p.id] || {}).teacher_pick; });
-    var hasCreativeBuilder = approvedPosts.some(function (p) { return (p.type || '') === 'project' || (p.type || '') === 'webapp'; });
-    var dailyHuntDates = getDailyNuggetHuntClaimDates(characterName);
-
-    if (!unlocked.first_post && posts.length >= 1) unlockAchievement(characterName, 'first_post');
-    if (!unlocked.first_game && missions.first_game) unlockAchievement(characterName, 'first_game');
-    if (!unlocked.first_purchase && storePurchases.length >= 1) unlockAchievement(characterName, 'first_purchase');
-    if (!unlocked.daily_checkin && missions.daily_checkin_last) unlockAchievement(characterName, 'daily_checkin');
-    if (!unlocked.hidden_nugget && missions.hidden_nugget) unlockAchievement(characterName, 'hidden_nugget');
-    if (!unlocked.teacher_spotlight && hasSpotlight) unlockAchievement(characterName, 'teacher_spotlight');
-    if (!unlocked.ten_nuggets && earned >= 10) unlockAchievement(characterName, 'ten_nuggets');
-    if (!unlocked.five_posts && approvedPosts.length >= 5) unlockAchievement(characterName, 'five_posts');
-    if (!unlocked.thank_you_writer && thanks.length >= 1) unlockAchievement(characterName, 'thank_you_writer');
-    if (!unlocked.news_reporter && newsApproved) unlockAchievement(characterName, 'news_reporter');
-    if (!unlocked['7_day_nugget_streak'] && hasSevenDayNuggetStreak(characterName)) unlockAchievement(characterName, '7_day_nugget_streak');
-    if (!unlocked.daily_nugget_finder && dailyHuntDates.length >= 1) unlockAchievement(characterName, 'daily_nugget_finder');
-    if (!unlocked.teacher_mission_finisher && missionAccepted) unlockAchievement(characterName, 'teacher_mission_finisher');
-    if (!unlocked.featured_creator && hasFeatured) unlockAchievement(characterName, 'featured_creator');
-    if (!unlocked.teacher_pick && hasTeacherPick) unlockAchievement(characterName, 'teacher_pick');
-    if (!unlocked.kindness_writer && thanksAccepted) unlockAchievement(characterName, 'kindness_writer');
-    if (!unlocked.creative_builder && hasCreativeBuilder) unlockAchievement(characterName, 'creative_builder');
-    if (!unlocked.consistent_contributor && approvedPosts.length >= 10) unlockAchievement(characterName, 'consistent_contributor');
+    return;
   }
 
   function getDisplaySlides() {
@@ -3209,11 +3110,10 @@
   global.LANTERN_MISSIONS = {
     completeFirstGame: function () {
       try {
-        var raw = (typeof localStorage !== 'undefined' && localStorage.getItem) ? localStorage.getItem('LANTERN_ADOPTED_CHARACTER') : null;
-        if (!raw) return { ok: false };
-        var adopted = JSON.parse(raw);
-        if (!adopted || !adopted.name) return { ok: false };
-        return completeFirstGame(adopted.name);
+        var auth = (typeof global !== 'undefined' && (global.LanternAuth || global.LanternPilotAuth)) || null;
+        var key = auth && typeof auth.sessionEconomyKey === 'function' ? auth.sessionEconomyKey() : '';
+        if (!key) return { ok: false };
+        return completeFirstGame(key);
       } catch (e) { return { ok: false }; }
     },
   };

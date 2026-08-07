@@ -266,17 +266,15 @@
     var toastEl = el('toast');
 
     function loadAdoptedOrRedirect(){
-      try{
-        if (typeof localStorage === 'undefined' || !localStorage.getItem) { window.top.location.href = 'locker.html'; return null; }
-        var raw = localStorage.getItem(LS_ADOPTED);
-        if (!raw) { window.top.location.href = 'locker.html'; return null; }
-        var obj = JSON.parse(raw);
-        if (!obj || !obj.name) { window.top.location.href = 'locker.html'; return null; }
-        return obj;
-      }catch(e){
-        window.top.location.href = 'locker.html';
-        return null;
-      }
+      try {
+        var auth = window.LanternAuth || window.LanternPilotAuth;
+        if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+          var a = auth.adoptedFromPilotMe();
+          if (a && a.name) return a;
+        }
+      } catch (e) {}
+      window.top.location.href = 'login.html?return=' + encodeURIComponent('grades.html');
+      return null;
     }
 
     function toast(msg){

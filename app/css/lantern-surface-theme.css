@@ -1,0 +1,311 @@
+/* Shared Explore/Locker surface theme tokens — shell only, not canonical cards */
+
+:root,
+.lanternExploreSurface {
+  --surface-bg: linear-gradient(180deg, #070b12, #05070b);
+  --surface-bg-image: none;
+  --surface-ink: #eaf0ff;
+  --surface-muted: #b9c6ea;
+  --surface-accent: #5aa7ff;
+  --surface-accent-strong: #7bb8ff;
+  --surface-progress: #5aa7ff;
+  --surface-chip-border: rgba(255, 255, 255, 0.12);
+  --surface-chip-active: rgba(90, 167, 255, 0.28);
+  --surface-decoration-opacity: 0;
+}
+
+.lanternExploreSurface {
+  color: var(--surface-ink);
+  background: var(--surface-bg);
+  background-image: var(--surface-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 18px;
+  padding: 18px 0 24px;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lanternLockerSurface.lanternLockerSurface--themed {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.lanternExploreSurface .feedFilterChip {
+  border-color: var(--surface-chip-border);
+}
+
+.lanternExploreSurface .feedFilterChip--active,
+.lanternExploreSurface .lockerRelationshipChip.feedFilterChip--active {
+  background: var(--surface-chip-active);
+  border-color: color-mix(in srgb, var(--surface-accent) 55%, transparent);
+}
+
+.lanternExploreSurface .feedToolbarBtn,
+.lanternExploreSurface .feedSortSelect {
+  border-color: color-mix(in srgb, var(--surface-accent) 35%, rgba(255, 255, 255, 0.12));
+}
+
+.lanternExploreSurface .feedPageTitle,
+.lanternExploreSurface .lockerHeaderTitle {
+  color: var(--surface-ink);
+}
+
+.lanternExploreSurface .feedPageSub,
+.lanternExploreSurface .lockerHeaderMetricLabel,
+.lanternExploreSurface .lockerHeaderBioEmpty {
+  color: var(--surface-muted);
+}
+
+/* Profile header */
+.lockerProfileHeader {
+  margin: 0 0 18px;
+  padding: 0;
+  width: 100%;
+}
+
+.lockerHeaderGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  max-width: min(1200px, 100%);
+  margin-inline: auto;
+}
+
+.lockerHeaderTitle {
+  font-size: 26px;
+  font-weight: 900;
+  margin: 0 0 12px;
+  color: var(--surface-accent-strong, var(--feed-accent, #5aa7ff));
+}
+
+.lockerHeaderMetric {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+
+.lockerHeaderMetricLabel {
+  color: var(--surface-muted, var(--feed-muted, #b9c6ea));
+  font-weight: 700;
+}
+
+.lockerHeaderMetricValue {
+  font-weight: 900;
+}
+
+.lockerHeaderProgressBar {
+  margin-top: 10px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.lockerHeaderProgressFill {
+  height: 100%;
+  background: var(--surface-progress, var(--feed-accent, #5aa7ff));
+  border-radius: 999px;
+}
+
+.lockerHeaderIdentity {
+  text-align: center;
+}
+
+.lockerHeaderAvatarWrap {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 12px;
+}
+
+.lockerHeaderAvatar {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.lockerHeaderAvatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56px;
+}
+
+.lanternLockerSurface[data-surface-frame] .lockerHeaderAvatarWrap::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 4px solid var(--surface-accent, #5aa7ff);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--surface-accent) 45%, transparent);
+}
+
+.lanternLockerSurface[data-surface-frame='gold'] .lockerHeaderAvatarWrap::after {
+  border-color: #e8c547;
+  box-shadow: 0 0 18px rgba(232, 197, 71, 0.45);
+}
+
+.lanternLockerSurface[data-surface-frame='rainbow'] .lockerHeaderAvatarWrap::after {
+  border-image: linear-gradient(135deg, #ff7eb9, #ffd36e, #7bb8ff, #56d078) 1;
+  border-style: solid;
+  border-width: 4px;
+}
+
+.lockerHeaderName {
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.lockerHeaderBio {
+  font-size: 22px;
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lockerHeaderAboutHd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.lockerHeaderAboutHd .lockerHeaderTitle {
+  margin-bottom: 0;
+}
+
+.lockerHeaderBioEditBtn {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-chip-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--surface-ink, #eaf0ff);
+  font-weight: 800;
+  font-size: 20px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.lockerHeaderBioEditBtn:hover,
+.lockerHeaderBioEditBtn:focus-visible {
+  border-color: color-mix(in srgb, var(--surface-accent) 45%, transparent);
+}
+
+.lockerHeaderBioLabel {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  color: var(--surface-muted, #b9c6ea);
+}
+
+.lockerHeaderBioTextarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 96px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--surface-accent) 35%, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--surface-ink, #eaf0ff);
+  font-size: 22px;
+  line-height: 1.45;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.lockerHeaderBioHint,
+.lockerHeaderBioCount {
+  font-size: 18px;
+  color: var(--surface-muted, #b9c6ea);
+  margin: 6px 0 0;
+}
+
+.lockerHeaderBioError {
+  font-size: 20px;
+  color: #ff8a8a;
+  margin: 8px 0 0;
+  font-weight: 800;
+}
+
+.lockerHeaderBioActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.lockerRelationshipSection[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 1024px) {
+  .lockerHeaderGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lockerHeaderIdentity {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .lockerHeaderGrid {
+    grid-template-columns: 1fr;
+  }
+  .lockerHeaderIdentity {
+    order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lanternLockerSurface .cosmeticEffectLayer {
+    display: none !important;
+  }
+}
+
+.cosmeticEffectLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: var(--surface-decoration-opacity, 0);
+}
+
+.cosmeticEffectLayer--sparkles {
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.35) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.25) 0 2px, transparent 3px),
+    radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.2) 0 1px, transparent 2px);
+  animation: surfaceSparkleDrift 12s linear infinite;
+}
+
+@keyframes surfaceSparkleDrift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-24px); }
+}
+
+.lanternLockerSurface.surface-cosmetic-badge-star .lockerHeaderName::after {
+  content: ' ⭐';
+}
+
+.lanternLockerSurface.surface-cosmetic-badge-crown .lockerHeaderName::after {
+  content: ' 👑';
+}

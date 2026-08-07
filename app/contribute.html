@@ -1220,13 +1220,14 @@
     var toastEl = el('toast');
 
     function getAdopted(){
-      try{
-        if (typeof localStorage === 'undefined' || !localStorage.getItem) return null;
-        var raw = localStorage.getItem(LS_ADOPTED);
-        if (!raw) return null;
-        var obj = JSON.parse(raw);
-        return obj && obj.name ? obj : null;
-      }catch(e){ return null; }
+      try {
+        var auth = window.LanternAuth || window.LanternPilotAuth;
+        if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+          var a = auth.adoptedFromPilotMe();
+          if (a && a.name) return a;
+        }
+      } catch(e) {}
+      return null;
     }
 
     var FERPA_STUDENT_SUBMIT_MESSAGE = 'Your teacher will review this before posting. Make sure it does not include personal details.';

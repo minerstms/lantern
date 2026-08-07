@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TMS Lantern — Sign in</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <script src="js/lantern-pilot-auth.js"></script>
+  <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
     * { box-sizing: border-box; }
@@ -288,18 +288,25 @@
               res.okHttp && body && body.ok === true && !body.error;
             if (loginOk) {
               console.log('LOGIN RESPONSE', body);
-              willRedirect = true;
-              if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
-                window.LanternAuth.fetchMe().then(function (me) {
-                  console.log('FETCH ME RESULT', me);
-                  if (!me || me.ok !== true || me.authenticated !== true) {
-                    console.error('[Lantern login] fetchMe after login did not confirm session', me);
-                  }
-                }).catch(function (err) {
-                  console.error('[Lantern login] fetchMe after login failed', err);
-                });
+              var authApi = window.LanternAuth || window.LanternPilotAuth;
+              if (!authApi || typeof authApi.confirmSessionAfterLogin !== 'function') {
+                showError('Sign-in failed. Try again.');
+                return;
               }
-              redirectAfterLogin(body);
+              authApi.confirmSessionAfterLogin().then(function (confirmed) {
+                if (!confirmed || !confirmed.ok) {
+                  console.error('[Lantern login] session not confirmed after login', confirmed);
+                  showError(
+                    'Sign-in succeeded but the session did not persist. Try a private window or contact support.'
+                  );
+                  return;
+                }
+                willRedirect = true;
+                redirectAfterLogin(confirmed.me || body);
+              }).catch(function (err) {
+                console.error('[Lantern login] confirmSessionAfterLogin failed', err);
+                showError('Could not verify session. Check your connection and try again.');
+              });
               return;
             }
             var err =

@@ -15,10 +15,26 @@ function rewriteSetCookieForFirstParty(cookie) {
     .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
     .replace(/;\s*SameSite=Strict/gi, '; SameSite=Lax');
   if (!/;\s*SameSite=/i.test(s)) s += '; SameSite=Lax';
-  if (!/;\s*Secure\s*(;|$)/i.test(s)) s += '; Secure';
-  if (!/;\s*HttpOnly\s*(;|$)/i.test(s)) s += '; HttpOnly';
+  if (!/;\s*Secure(?:\s*;|\s*$)/i.test(s)) s += '; Secure';
+  if (!/;\s*HttpOnly(?:\s*;|\s*$)/i.test(s)) s += '; HttpOnly';
   if (!/;\s*Path=/i.test(s)) s += '; Path=/';
   return s;
+}
+
+/**
+ * Collect every Set-Cookie from an upstream fetch Response without merging them.
+ * @param {Response} upstream
+ * @returns {string[]}
+ */
+function collectSetCookies(upstream) {
+  if (typeof upstream.headers.getSetCookie === 'function') {
+    const list = upstream.headers.getSetCookie();
+    if (Array.isArray(list) && list.length) return list;
+  }
+  const raw = upstream.headers.get('Set-Cookie');
+  if (!raw) return [];
+  // Do not split on commas — Expires=Wed, 21 Oct ... breaks naive parsing.
+  return [raw];
 }
 
 function buildProxiedResponse(upstream) {
@@ -27,13 +43,7 @@ function buildProxiedResponse(upstream) {
     if (key.toLowerCase() === 'set-cookie') continue;
     headers.append(key, value);
   }
-  let cookies = [];
-  if (typeof upstream.headers.getSetCookie === 'function') {
-    cookies = upstream.headers.getSetCookie();
-  } else {
-    const single = upstream.headers.get('Set-Cookie');
-    if (single) cookies = [single];
-  }
+  const cookies = collectSetCookies(upstream);
   for (let i = 0; i < cookies.length; i++) {
     headers.append('Set-Cookie', rewriteSetCookieForFirstParty(cookies[i]));
   }

@@ -599,17 +599,13 @@
 
     function loadAdopted(){
       try {
-        if (typeof localStorage === 'undefined' || !localStorage.getItem) return null;
-        var raw = localStorage.getItem(LS_ADOPTED);
-        if (!raw) return null;
-        var obj = JSON.parse(raw);
-        if (!obj || !obj.name) return null;
-        if (obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
-          try { localStorage.removeItem(LS_ADOPTED); } catch(e) {}
-          return null;
+        var auth = window.LanternAuth || window.LanternPilotAuth;
+        if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+          var a = auth.adoptedFromPilotMe();
+          if (a && a.name) return a;
         }
-        return obj;
-      } catch(e){ return null; }
+      } catch(e) {}
+      return null;
     }
 
     function redirectIfNoCharacter(){

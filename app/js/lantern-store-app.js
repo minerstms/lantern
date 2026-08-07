@@ -1,8 +1,7 @@
 (function () {
   'use strict';
-    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+    (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
-    const LS_ADOPTED = 'LANTERN_ADOPTED_CHARACTER';
 
     const el = (id)=>document.getElementById(id);
     const overlay = el('storePurchaseOverlay');
@@ -31,20 +30,15 @@
     if (overlay) overlay.addEventListener('click', (e)=>{ if (e.target === overlay) hideModal(); });
 
     function loadAdoptedOrRedirect(){
-      try{
-        if (typeof localStorage === 'undefined' || !localStorage.getItem) { return null; }
-        var raw = localStorage.getItem(LS_ADOPTED);
-        if (!raw) { return null; }
-        var obj = JSON.parse(raw);
-        if (!obj || !obj.name) { return null; }
-        if (obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
-          try { localStorage.removeItem(LS_ADOPTED); } catch(e) {}
-          return null;
-        }
-        return obj;
-      }catch(e){
-        return null;
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.adoptedFromLocker === 'function') {
+        var locker = window.LanternLockerMe.getLockerMe();
+        var adopted = window.LanternLockerMe.adoptedFromLocker(locker);
+        if (adopted && adopted.name) return adopted;
       }
+      if (typeof window !== 'undefined' && window.LANTERN_LOCKER_ME && window.LANTERN_LOCKER_ME.ok && window.LanternLockerMe) {
+        return window.LanternLockerMe.adoptedFromLocker(window.LANTERN_LOCKER_ME);
+      }
+      return null;
     }
 
     function getCharacterForStore(){
@@ -261,13 +255,13 @@
       });
     }
 
-    function callEconomyTransact(characterName, delta, kind, source, note){
+    function callEconomyTransact(characterName, delta, kind, source, note, meta){
       if (economyApiBase == null) return Promise.resolve({ ok: false });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
+        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
     }
 
@@ -279,7 +273,46 @@
       });
     }
 
+    function ownedIdsFromLockerMe() {
+      var locker = (window.LanternLockerMe && window.LanternLockerMe.getLockerMe) ? window.LanternLockerMe.getLockerMe() : null;
+      if (!locker || !locker.ok) return [];
+      var ownedCat = locker.owned_items || {};
+      if (Array.isArray(ownedCat.owned_ids) && ownedCat.owned_ids.length) {
+        return ownedCat.owned_ids.slice();
+      }
+      var items = (window.LanternLockerMe && window.LanternLockerMe.lockerCategoryItems)
+        ? window.LanternLockerMe.lockerCategoryItems(locker.owned_items)
+        : [];
+      var ids = [];
+      items.forEach(function(o) {
+        if (o && o.item_id) ids.push(String(o.item_id));
+      });
+      if (!ids.length || !cosmetics.length) return ids;
+      return ids.map(function(cid) {
+        var exact = cosmetics.find(function(c) { return c.id === cid; });
+        if (exact) return exact.id;
+        var slug = cid.toLowerCase();
+        var bySlug = cosmetics.find(function(c) {
+          return String(c.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') === slug;
+        });
+        return bySlug ? bySlug.id : cid;
+      });
+    }
+
     function callGetCosmeticOwnership(characterName){
+      var locker = (window.LanternLockerMe && window.LanternLockerMe.getLockerMe) ? window.LanternLockerMe.getLockerMe() : null;
+      if (locker && locker.ok) {
+        var ownedIds = ownedIdsFromLockerMe();
+        var eqCat = locker.equipped_items || {};
+        var equipped = (eqCat.available !== false && eqCat.equipped && typeof eqCat.equipped === 'object') ? eqCat.equipped : {};
+        return Promise.resolve({
+          ok: true,
+          owned: ownedIds,
+          equipped: equipped,
+          equip_unavailable: eqCat.available === false,
+          equip_reason: eqCat.reason || null,
+        });
+      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false, owned: [], equipped: {} });
       return new Promise(function(resolve){
@@ -292,13 +325,22 @@
         var c = cosmetics.find(function(x){ return x.id === cosmeticId; });
         if (!c || c.purchasable === false) return Promise.resolve({ ok: false, error: 'Cosmetic not found or unlock only' });
         var cost = Number(c.cost) || 0;
-        return callEconomyTransact(characterName, -cost, 'cosmetic', '', (c.name || cosmeticId) + ' purchase', {}).then(function(tRes){
+        var idemKey = 'cosmetic-' + cosmeticId + '-' + (global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : String(Date.now()));
+        return callEconomyTransact(characterName, 0, 'cosmetic', '', (c.name || cosmeticId) + ' purchase', {
+          cosmetic_id: cosmeticId,
+          item_name: c.name || cosmeticId,
+          idempotency_key: idemKey,
+        }).then(function(tRes){
           if (!tRes || !tRes.ok) return { ok: false, error: tRes && (tRes.error === 'insufficient' ? 'Not enough nuggets' : tRes.error) || 'Purchase failed' };
-          var run = createRun ? createRun() : null;
-          if (!run) return { ok: true, cosmetic: c, cost: cost, available_after: tRes.balance_after };
-          return new Promise(function(resolve, reject){
-            run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).purchaseCosmetic({ character_name: characterName, cosmetic_id: cosmeticId, economy_backend_charged: true, available_after: tRes.balance_after });
-          });
+          if (window.LanternLockerMe && typeof window.LanternLockerMe.invalidateLockerMe === 'function') {
+            window.LanternLockerMe.invalidateLockerMe();
+          }
+          if (window.LanternLockerMe && typeof window.LanternLockerMe.fetchLockerMe === 'function') {
+            return window.LanternLockerMe.fetchLockerMe().then(function () {
+              return { ok: true, cosmetic: c, cost: cost, available_after: tRes.balance_after };
+            });
+          }
+          return { ok: true, cosmetic: c, cost: cost, available_after: tRes.balance_after };
         });
       }
       var run = createRun ? createRun() : null;

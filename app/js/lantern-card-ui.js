@@ -910,10 +910,10 @@
     var fromOpts = String(opts.characterName || '').trim();
     if (fromOpts) return fromOpts;
     try {
-      var raw = global.localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
-      if (raw) {
-        var o = JSON.parse(raw);
-        if (o && o.name) return String(o.name).trim();
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (auth && typeof auth.sessionEconomyKey === 'function') {
+        var k = auth.sessionEconomyKey();
+        if (k) return k;
       }
     } catch (e) {}
     return '';
@@ -1291,10 +1291,9 @@
     var apiBase = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     var reportedBy = '';
     try {
-      var raw = global.localStorage.getItem('LANTERN_ADOPTED_CHARACTER');
-      if (raw) {
-        var o = JSON.parse(raw);
-        if (o && o.name) reportedBy = String(o.name).trim();
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (auth && typeof auth.sessionEconomyKey === 'function') {
+        reportedBy = auth.sessionEconomyKey() || '';
       }
     } catch (e) {}
     if (apiBase === null) {

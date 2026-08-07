@@ -1,170 +1,236 @@
 /**
- * Lantern ONE FEED — Explore controller (one container, many filters).
+ * Lantern shared Explore surface — one controller for /explore and /locker contexts.
+ * Explore = community feed + default theme. Locker = personal feed + equipped shell theme.
  */
 (function (global) {
   'use strict';
 
-  var state = {
-    type: 'all',
-    search: '',
-    sort: 'newest',
-    columns: 1,
-    items: [],
-    loading: false,
-  };
+  var RELATIONSHIP_FILTERS = [
+    { id: 'all', label: 'All' },
+    { id: 'submitted', label: 'Submitted' },
+    { id: 'reacted', label: 'Reacted' },
+    { id: 'tagged', label: 'Tagged' },
+  ];
 
-  function el(id) { return global.document.getElementById(id); }
+  var activeController = null;
 
-  function readCardWidth() {
-    var root = global.document.documentElement;
-    var w = parseFloat(global.getComputedStyle(root).getPropertyValue('--lantern-card-width'));
-    return isNaN(w) || w <= 0 ? 280 : w;
-  }
+  function createController(config) {
+    config = config || {};
+    var context = config.context === 'locker' ? 'locker' : 'explore';
+    var surfaceSelector = config.surfaceSelector || '.lanternExploreSurface';
+    var state = {
+      context: context,
+      type: 'all',
+      relationship: 'all',
+      search: '',
+      sort: 'newest',
+      items: [],
+      loading: false,
+    };
 
-  function readGridGap(grid) {
-    if (!grid) return 16;
-    var g = parseFloat(global.getComputedStyle(grid).gap);
-    return isNaN(g) ? 16 : g;
-  }
-
-  function fitColumnCount(grid, requested) {
-    var req = Math.min(3, Math.max(1, requested || 1));
-    if (!grid) return req;
-    var cardW = readCardWidth();
-    var gap = readGridGap(grid);
-    var avail = grid.clientWidth || grid.getBoundingClientRect().width;
-    if (!avail) return req;
-    var fit = Math.floor((avail + gap) / (cardW + gap));
-    if (fit < 1) fit = 1;
-    return Math.min(req, fit);
-  }
-
-  function applyGridColumns() {
-    var grid = el('feedGrid');
-    if (!grid) return;
-    var effective = fitColumnCount(grid, state.columns);
-    grid.style.setProperty('--feed-cols', String(effective));
-    grid.classList.add('manual-cols');
-    grid.setAttribute('data-columns', String(state.columns));
-    grid.setAttribute('data-effective-columns', String(effective));
-  }
-
-  function setColumns(n) {
-    state.columns = Math.min(3, Math.max(1, n));
-    applyGridColumns();
-  }
-
-  function renderFilters() {
-    var wrap = el('feedFilterBar');
-    if (!wrap || !global.LANTERN_FEED) return;
-    wrap.innerHTML = '';
-    global.LANTERN_FEED.FEED_FILTERS.forEach(function (f) {
-      var btn = global.document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'feedFilterChip' + (state.type === f.id ? ' feedFilterChip--active' : '');
-      btn.textContent = f.label;
-      btn.setAttribute('data-filter', f.id);
-      btn.addEventListener('click', function () {
-        state.type = f.id;
-        renderFilters();
-        loadFeed();
-      });
-      wrap.appendChild(btn);
-    });
-  }
-
-  function renderGrid() {
-    var grid = el('feedGrid');
-    var empty = el('feedEmpty');
-    if (!grid) return;
-    grid.innerHTML = '';
-    if (!state.items.length) {
-      if (empty) empty.hidden = false;
-      applyGridColumns();
-      return;
+    function el(id) {
+      return global.document.getElementById(id);
     }
-    if (empty) empty.hidden = true;
-    var cardApi = global.LANTERN_FEED_CARD;
-    if (!cardApi) return;
-    state.items.forEach(function (item) {
-      grid.appendChild(cardApi.buildCard(item, { onRefresh: loadFeed }));
-    });
-    applyGridColumns();
-  }
 
-  function loadFeed() {
-    if (!global.LANTERN_FEED || state.loading) return;
-    state.loading = true;
-    var status = el('feedStatus');
-    if (status) status.textContent = 'Loading…';
-    global.LANTERN_FEED.getFeed({
-      type: state.type,
-      search: state.search,
-      sort: state.sort,
-      limit: 60,
-    }).then(function (res) {
-      state.loading = false;
-      if (status) status.textContent = '';
-      if (!res || !res.ok) {
-        if (status) status.textContent = 'Could not load feed.';
-        state.items = [];
-      } else {
-        state.items = res.items || [];
-        if (status) status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
-      }
-      renderGrid();
-    });
-  }
-
-  function bindControls() {
-    var searchInput = el('feedSearchInput');
-    if (searchInput) {
-      var timer;
-      searchInput.addEventListener('input', function () {
-        clearTimeout(timer);
-        timer = setTimeout(function () {
-          state.search = searchInput.value.trim();
+    function renderRelationshipFilters() {
+      if (context !== 'locker') return;
+      var wrap = el('lockerRelationshipFilterBar');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      RELATIONSHIP_FILTERS.forEach(function (f) {
+        var btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.className =
+          'feedFilterChip lockerRelationshipChip' +
+          (state.relationship === f.id ? ' feedFilterChip--active' : '');
+        btn.textContent = f.label;
+        btn.setAttribute('data-relationship', f.id);
+        btn.addEventListener('click', function () {
+          state.relationship = f.id;
+          renderRelationshipFilters();
           loadFeed();
-        }, 300);
-      });
-    }
-    var sortSel = el('feedSortSelect');
-    if (sortSel) {
-      sortSel.addEventListener('change', function () {
-        state.sort = sortSel.value;
-        loadFeed();
-      });
-    }
-    global.document.querySelectorAll('[data-feed-columns]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        setColumns(parseInt(btn.getAttribute('data-feed-columns'), 10));
-        global.document.querySelectorAll('[data-feed-columns]').forEach(function (b) {
-          b.classList.toggle('feedColBtn--active', b === btn);
         });
+        wrap.appendChild(btn);
       });
-    });
-    var refreshBtn = el('feedRefreshBtn');
-    if (refreshBtn) refreshBtn.addEventListener('click', loadFeed);
-    var grid = el('feedGrid');
-    if (grid && global.ResizeObserver) {
-      var ro = new global.ResizeObserver(function () { applyGridColumns(); });
-      ro.observe(grid);
-    } else if (grid) {
-      global.addEventListener('resize', applyGridColumns);
     }
+
+    function renderFilters() {
+      var wrap = el('feedFilterBar');
+      if (!wrap || !global.LANTERN_FEED) return;
+      wrap.innerHTML = '';
+      global.LANTERN_FEED.FEED_FILTERS.forEach(function (f) {
+        var btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'feedFilterChip' + (state.type === f.id ? ' feedFilterChip--active' : '');
+        btn.textContent = f.label;
+        btn.setAttribute('data-filter', f.id);
+        btn.addEventListener('click', function () {
+          state.type = f.id;
+          renderFilters();
+          loadFeed();
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    function renderGrid() {
+      var grid = el('feedGrid');
+      var empty = el('feedEmpty');
+      if (!grid) return;
+      grid.innerHTML = '';
+      if (!state.items.length) {
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      var cardApi = global.LANTERN_FEED_CARD;
+      if (!cardApi) return;
+      state.items.forEach(function (item) {
+        grid.appendChild(cardApi.buildCard(item, { onRefresh: loadFeed }));
+      });
+    }
+
+    function applyThemeForContext() {
+      var theme = global.LANTERN_SURFACE_THEME;
+      var surface = global.document.querySelector(surfaceSelector);
+      if (!theme || !surface) return;
+      if (context === 'explore') {
+        theme.applyDefaultTheme(surface);
+        return;
+      }
+      var locker = global.LANTERN_LOCKER_ME && global.LANTERN_LOCKER_ME.getLockerMe
+        ? global.LANTERN_LOCKER_ME.getLockerMe()
+        : null;
+      var equipped =
+        locker && locker.equipped_items && locker.equipped_items.equipped
+          ? locker.equipped_items.equipped
+          : {};
+      theme.applyLockerTheme(surface, equipped, { effectLayerId: 'cosmeticEffectLayer' });
+    }
+
+    function loadFeed() {
+      if (!global.LANTERN_FEED || state.loading) return;
+      state.loading = true;
+      var status = el('feedStatus');
+      if (status) status.textContent = 'Loading…';
+      var req;
+      if (context === 'locker' && global.LANTERN_FEED.getLockerPersonalFeed) {
+        req = global.LANTERN_FEED.getLockerPersonalFeed({
+          relationship: state.relationship,
+          type: state.type,
+          search: state.search,
+          sort: state.sort,
+          limit: 60,
+        });
+      } else {
+        req = global.LANTERN_FEED.getFeed({
+          type: state.type,
+          search: state.search,
+          sort: state.sort,
+          limit: 60,
+        });
+      }
+      req.then(function (res) {
+        state.loading = false;
+        if (status) status.textContent = '';
+        if (!res || !res.ok) {
+          if (status) status.textContent = 'Could not load feed.';
+          state.items = [];
+        } else {
+          state.items = res.items || [];
+          if (status) {
+            status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
+          }
+        }
+        renderGrid();
+      });
+    }
+
+    function bindFiltersDisclosure() {
+      var toggle = el('feedFiltersToggle');
+      var panel = el('feedFiltersPanel');
+      if (!toggle || !panel) return;
+      function setOpen(open) {
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        panel.hidden = !open;
+        toggle.textContent = open ? 'Filters ▾' : 'Filters ▸';
+      }
+      setOpen(false);
+      toggle.addEventListener('click', function () {
+        setOpen(!!panel.hidden);
+      });
+    }
+
+    function initRelationshipSection() {
+      var section = el('lockerRelationshipSection');
+      if (section) section.hidden = context !== 'locker';
+    }
+
+    function bindControls() {
+      bindFiltersDisclosure();
+      var sortSel = el('feedSortSelect');
+      if (sortSel) {
+        sortSel.addEventListener('change', function () {
+          state.sort = sortSel.value;
+          loadFeed();
+        });
+      }
+      var refreshBtn = el('feedRefreshBtn');
+      if (refreshBtn) refreshBtn.addEventListener('click', loadFeed);
+    }
+
+    function init() {
+      activeController = controllerApi;
+      applyThemeForContext();
+      initRelationshipSection();
+      renderRelationshipFilters();
+      renderFilters();
+      bindControls();
+      loadFeed();
+    }
+
+    var controllerApi = {
+      init: init,
+      refresh: loadFeed,
+      applyTheme: applyThemeForContext,
+      setSearch: function (query) {
+        state.search = query != null ? String(query).trim() : '';
+      },
+      getSearch: function () {
+        return state.search;
+      },
+      getState: function () {
+        return state;
+      },
+      getContext: function () {
+        return context;
+      },
+    };
+
+    return controllerApi;
   }
 
-  function init() {
-    renderFilters();
-    bindControls();
-    setColumns(1);
-    loadFeed();
-  }
+  var exploreController = createController({ context: 'explore', surfaceSelector: '.lanternExploreSurface' });
 
   global.LANTERN_FEED_EXPLORE = {
-    init: init,
-    refresh: loadFeed,
-    getState: function () { return state; },
-    applyGridColumns: applyGridColumns,
+    init: function () {
+      return exploreController.init();
+    },
+    refresh: function () {
+      return exploreController.refresh();
+    },
+    getState: function () {
+      return exploreController.getState();
+    },
+    getActiveController: function () {
+      return activeController || exploreController;
+    },
+    setSearch: function (query) {
+      var ctrl = activeController || exploreController;
+      ctrl.setSearch(query);
+      return ctrl.refresh();
+    },
+    createController: createController,
+    RELATIONSHIP_FILTERS: RELATIONSHIP_FILTERS,
   };
 })(typeof window !== 'undefined' ? window : self);

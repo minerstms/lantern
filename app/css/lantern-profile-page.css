@@ -531,7 +531,7 @@
       .profileLegendPanel{ margin-left: auto; margin-right: auto; }
     }
 
-    /* Identity controls on profile hero (Edit Profile, Switch Student) */
+    /* Identity controls on profile hero (Edit Profile) */
     .profileHeroActions{
       display: flex;
       flex-wrap: wrap;

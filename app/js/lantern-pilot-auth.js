@@ -16,11 +16,19 @@
     return a ? String(a).replace(/\/$/, '') : '';
   }
 
+  function getCachedPilotMe() {
+    try {
+      return global.LANTERN_PILOT_ME && global.LANTERN_PILOT_ME.ok ? global.LANTERN_PILOT_ME : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function fetchMe() {
     var base = apiBase();
     var url = base ? base + '/api/auth/me' : '/api/auth/me';
     return global
-      .fetch(url, { method: 'GET', credentials: 'include' })
+      .fetch(url, { method: 'GET', credentials: 'include', cache: 'no-store' })
       .then(function (r) {
         return r.text().then(function (t) {
           try {
@@ -73,51 +81,60 @@
     } catch (e3) {}
   }
 
-  /** Sync adopted character for legacy APIs that read LANTERN_ADOPTED_CHARACTER — values come from server /me only. Prefers economy_character_name (MTSS-linked wallet key) when present; else student_character_name; else username. */
+  /** Sync session cache only — do not write LANTERN_ADOPTED_CHARACTER (production identity is server session). */
   function applyStudentStorageFromSession(data) {
-    if (!data || normalizeRole(data.role) !== 'student') return;
-    var username = data.username ? String(data.username).trim() : '';
-    var econ = data.economy_character_name ? String(data.economy_character_name).trim() : '';
-    var scn = data.student_character_name ? String(data.student_character_name).trim() : '';
-    var characterKey = String(econ || scn || username).trim();
-    if (!characterKey) return;
-    var pilotDisplay = data.display_name != null && String(data.display_name).trim() ? String(data.display_name).trim() : '';
-    try {
-      global.localStorage.setItem(
-        'LANTERN_ADOPTED_CHARACTER',
-        JSON.stringify({
-          character_id: characterKey,
-          name: characterKey,
-          avatar: '🌟',
-          display_name: pilotDisplay,
-          student_character_name: scn || '',
-          username: username || '',
-        })
-      );
-    } catch (e) {}
+    cachePilotMe(data);
   }
 
   function applyStudentStorageFromLoginResponse(res) {
-    if (!res || normalizeRole(res.role) !== 'student') return;
-    var username = res.username ? String(res.username).trim() : '';
-    var econ = res.economy_character_name ? String(res.economy_character_name).trim() : '';
-    var scn = res.student_character_name ? String(res.student_character_name).trim() : '';
-    var characterKey = String(econ || scn || username).trim();
-    if (!characterKey) return;
-    var pilotDisplay = res.display_name != null && String(res.display_name).trim() ? String(res.display_name).trim() : '';
+    cachePilotMe(res);
+  }
+
+  function cachePilotMe(data) {
+    if (!data || !data.ok) return;
     try {
-      global.localStorage.setItem(
-        'LANTERN_ADOPTED_CHARACTER',
-        JSON.stringify({
-          character_id: characterKey,
-          name: characterKey,
-          avatar: '🌟',
-          display_name: pilotDisplay,
-          student_character_name: scn || '',
-          username: username || '',
-        })
-      );
+      global.LANTERN_PILOT_ME = {
+        ok: true,
+        username: data.username,
+        display_name: data.display_name,
+        role: data.role,
+        student_character_name: data.student_character_name || null,
+        teacher_id: data.teacher_id || null,
+        mtss_student_id: data.mtss_student_id || null,
+        economy_character_name: data.economy_character_name || null,
+        must_change_password: data.must_change_password,
+        authenticated: data.authenticated !== false,
+      };
     } catch (e) {}
+  }
+
+  function sessionEconomyKey(me) {
+    me = me || (global.LANTERN_PILOT_ME && global.LANTERN_PILOT_ME.ok ? global.LANTERN_PILOT_ME : null);
+    if (!me) return '';
+    var role = normalizeRole(me.role);
+    if (role === 'teacher' || role === 'admin') {
+      return me.teacher_id ? String(me.teacher_id).trim() : (me.username ? String(me.username).trim() : '');
+    }
+    if (role === 'student') {
+      return String(me.economy_character_name || me.student_character_name || me.username || '').trim();
+    }
+    return '';
+  }
+
+  function adoptedFromPilotMe() {
+    var me = getCachedPilotMe();
+    if (!me) return null;
+    var key = sessionEconomyKey(me);
+    if (!key) return null;
+    return {
+      character_id: key,
+      name: key,
+      display_name: me.display_name || me.username || key,
+      student_character_name: me.student_character_name || '',
+      username: me.username || '',
+      role: me.role || '',
+      avatar: '🌟',
+    };
   }
 
   /**
@@ -211,10 +228,17 @@
       }
     } catch (e) {}
     return fetchMe().then(function (data) {
+      if (data && data.error === 'network') {
+        try {
+          global.document.documentElement.classList.remove(pendingClass);
+        } catch (eNet) {}
+        return;
+      }
       if (!data || !data.ok || !data.authenticated) {
         global.location.replace(loginUrlWithReturn());
         return;
       }
+      cachePilotMe(data);
       if (data.must_change_password) {
         global.location.replace('/change-password.html?return=' + encodeURIComponent(currentReturnPath()));
         return;
@@ -257,7 +281,20 @@
         global.document.documentElement.classList.remove(pendingClass);
       } catch (e2) {}
     }).catch(function () {
-      global.location.replace(loginUrlWithReturn());
+      try {
+        global.document.documentElement.classList.remove(pendingClass);
+      } catch (eCatch) {}
+    });
+  }
+
+  /** After POST /api/auth/login succeeds: confirm HttpOnly session before navigation. */
+  function confirmSessionAfterLogin() {
+    return fetchMe().then(function (me) {
+      if (!me || me.ok !== true || me.authenticated !== true) {
+        return { ok: false, error: 'session_not_confirmed', me: me || null };
+      }
+      cachePilotMe(me);
+      return { ok: true, me: me };
     });
   }
 
@@ -290,11 +327,16 @@
     isGenericExplorePath: isGenericExplorePath,
     defaultRoleHomePath: defaultRoleHomePath,
     clearClientIdentityCaches: clearClientIdentityCaches,
+    cachePilotMe: cachePilotMe,
+    sessionEconomyKey: sessionEconomyKey,
+    getCachedPilotMe: getCachedPilotMe,
+    adoptedFromPilotMe: adoptedFromPilotMe,
     applyStudentStorageFromSession: applyStudentStorageFromSession,
     applyStudentStorageFromLoginResponse: applyStudentStorageFromLoginResponse,
     studentFriendlyDisplayNameFromAdopted: studentFriendlyDisplayNameFromAdopted,
     loginUrlWithReturn: loginUrlWithReturn,
     guardPilotPage: guardPilotPage,
+    confirmSessionAfterLogin: confirmSessionAfterLogin,
     redirectIfPasswordChangeRequired: redirectIfPasswordChangeRequired,
   };
   global.LanternAuth = sessionApi;

@@ -18,22 +18,30 @@
     return String(st || '').trim().toLowerCase();
   }
 
+  function sessionCharacterName() {
+    try {
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (auth && typeof auth.sessionEconomyKey === 'function') {
+        var k = auth.sessionEconomyKey();
+        if (k) return k;
+      }
+      if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+        var a = auth.adoptedFromPilotMe();
+        if (a && a.name) return String(a.name).trim();
+      }
+    } catch (e) {}
+    return '';
+  }
+
   function getAdoptedFromStorage() {
     try {
-      var raw = localStorage.getItem(LS_ADOPTED);
-      if (!raw) return null;
-      var obj = JSON.parse(raw);
-      if (!obj || !obj.name) return null;
-      if (obj.isTest && obj.expires_at && new Date(obj.expires_at) <= new Date()) {
-        try {
-          localStorage.removeItem(LS_ADOPTED);
-        } catch (e) {}
-        return null;
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (auth && typeof auth.adoptedFromPilotMe === 'function') {
+        var a = auth.adoptedFromPilotMe();
+        if (a && a.name) return a;
       }
-      return obj;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) {}
+    return null;
   }
 
   function readCreationStatusStore() {

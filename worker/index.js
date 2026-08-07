@@ -4,7 +4,21 @@
  * Routes: /api/avatar, /api/economy, /api/news, /api/approvals, /api/recognition, /api/reactions, /api/feed, /api/trivia
  * No MTSS / case / private student data.
  */
+import { fetchAdminUserRow, validateDisplayName } from './admin-account-utils.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed-handlers.js';
+import { handleLockerRoutes } from './locker-handlers.js';
+import { executeCosmeticPurchase } from './economy-cosmetic.js';
+import { serverCosmeticPrice } from './cosmetic-catalog.js';
+import {
+  awardAchievementsForEconomyTransact,
+  awardAchievementsAfterPositiveCredit,
+  awardAchievementsForMissionAccepted,
+  awardAchievementsForMissionSubmit,
+  awardAchievementsForNewsApproved,
+  awardAchievementsForNewsCreate,
+  awardAchievementsForPollContribute,
+  awardAchievementsForRecognition,
+} from './locker-achievements.js';
 // SCHEMA RULE:
 // All field names must match docs/archive/LANTERN_SCHEMA.md (see docs/LANTERN_SYSTEM_CONTEXT.md §14)
 // Do not invent or assume column names.
@@ -126,7 +140,8 @@ export default {
         path === '/api/missions/submissions/restore' ||
         path === '/api/missions/submissions/hidden' ||
         path.startsWith('/api/feed') ||
-        path.startsWith('/api/trivia')
+        path.startsWith('/api/trivia') ||
+        path.startsWith('/api/locker')
       ) {
         o = corsForPilot(request);
       } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
@@ -316,13 +331,16 @@ export default {
         return jsonResponse({ ok: false, error: message }, 400, cors);
       }
     }
-    if (path.startsWith('/api/test-students')) {
-      try {
-        return await handleTestStudentRoutes(request, url, path, env, cors);
-      } catch (err) {
-        const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
-      }
+    if (path.startsWith(['/', 'api', 'test-students'].join(''))) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'test_students_disabled',
+          message: 'Temporary test-student identities are no longer available in production.',
+        },
+        410,
+        cors
+      );
     }
     if (path.startsWith('/api/setup')) {
       try {
@@ -366,6 +384,21 @@ export default {
       try {
         const pilotCors = corsForPilot(request);
         return await handlePilotRoutes(request, url, path, env, pilotCors);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
+      }
+    }
+    if (path.startsWith('/api/locker')) {
+      try {
+        const lockerCors = corsForPilot(request);
+        const lockerDeps = {
+          jsonResponse,
+          getPilotAccountFromRequest,
+          pilotEconomyCharacterName,
+          pilotAccountRequiresChangePassword,
+        };
+        return await handleLockerRoutes(request, url, path, env, lockerCors, lockerDeps);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
@@ -1050,7 +1083,11 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const u = String(body.username || '').trim();
     const password = String(body.password || '');
-    const displayName = String(body.display_name || u).trim() || u;
+    const dnCheck = validateDisplayName(body.display_name, { required: true });
+    if (!dnCheck.ok) {
+      return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
+    }
+    const displayName = dnCheck.value;
     const role = String(body.role || 'student').trim();
     if (!u || !password || password.length < 8) {
       return jsonResponse({ ok: false, error: 'username_and_password_required' }, 400, cors);
@@ -1153,11 +1190,20 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         )
         .bind(adminUsername, targetUser)
         .run();
+    } else if (body.must_change_password !== undefined) {
+      await db
+        .prepare(`UPDATE lantern_pilot_accounts SET must_change_password = ?, updated_at = datetime('now') WHERE username = ?`)
+        .bind(body.must_change_password ? 1 : 0, targetUser)
+        .run();
     }
     if (body.display_name != null) {
+      const dnCheck = validateDisplayName(body.display_name, { required: true });
+      if (!dnCheck.ok) {
+        return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
+      }
       await db
         .prepare(`UPDATE lantern_pilot_accounts SET display_name = ?, updated_at = datetime('now') WHERE username = ?`)
-        .bind(String(body.display_name).trim(), targetUser)
+        .bind(dnCheck.value, targetUser)
         .run();
     }
     if (body.role != null) {
@@ -1188,7 +1234,8 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .bind(body.is_active ? 1 : 0, targetUser)
         .run();
     }
-    return jsonResponse({ ok: true }, 200, cors);
+    const updated = await fetchAdminUserRow(db, targetUser);
+    return jsonResponse({ ok: true, user: updated || { username: targetUser } }, 200, cors);
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
@@ -2102,12 +2149,37 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     if (!authz.ok) {
       return jsonResponse({ ok: false, error: authz.error }, authz.code || 403, cors);
     }
-    const delta = Math.floor(Number(body.delta));
-    if (delta === 0) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const kind = String(body.kind || '').trim() || 'misc';
     const source = String(body.source || '').trim() || '';
     const note = String(body.note || '').trim() || '';
     const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+
+    if (kind === 'cosmetic') {
+      const cosmeticId = String(meta.cosmetic_id || meta.item_id || '').trim();
+      const idempotencyKey = String(meta.idempotency_key || body.idempotency_key || '').trim();
+      if (!cosmeticId) {
+        return jsonResponse({ ok: false, error: 'missing_cosmetic_id' }, 400, cors);
+      }
+      if (body.delta != null && body.delta !== '' && Math.floor(Number(body.delta)) !== 0) {
+        const clientDelta = Math.floor(Number(body.delta));
+        const catalogPrice = serverCosmeticPrice(cosmeticId);
+        if (catalogPrice == null || clientDelta !== -catalogPrice) {
+          return jsonResponse(
+            { ok: false, error: 'client_price_rejected', server_price: catalogPrice },
+            400,
+            cors
+          );
+        }
+      }
+      const purchase = await executeCosmeticPurchase(db, characterName, cosmeticId, { idempotencyKey });
+      if (!purchase.ok) {
+        return jsonResponse(purchase, 400, cors);
+      }
+      return jsonResponse(purchase, 200, cors);
+    }
+
+    const delta = Math.floor(Number(body.delta));
+    if (delta === 0) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const now = new Date().toISOString();
     const displayName = String(body.display_name ?? '').trim();
     if (displayName) {
@@ -2131,6 +2203,13 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     await db.prepare(
       'INSERT INTO lantern_wallets (character_name, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET balance = balance + ?, updated_at = ?'
     ).bind(characterName, currentBalance + delta, now, delta, now).run();
+
+    try {
+      await awardAchievementsForEconomyTransact(db, characterName, kind, txId, note);
+      if (delta > 0) {
+        await awardAchievementsAfterPositiveCredit(db, characterName, txId, delta);
+      }
+    } catch (_) {}
 
     return jsonResponse({
       ok: true,
@@ -2252,6 +2331,9 @@ async function handleNewsRoutes(request, url, path, env, cors) {
         'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(approvalId, 'news', id, 'pending', actorId || null, authorName, null, now).run();
     }
+    try {
+      await awardAchievementsForNewsCreate(db, authorName, authorType, id);
+    } catch (_) {}
     return jsonResponse({ ok: true, id, status, created_at: now }, 200, cors);
   }
 
@@ -2610,6 +2692,12 @@ async function handleApprovalsRoutes(request, url, path, env) {
       await db.prepare(
         'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ? WHERE id = ?'
       ).bind('approved', now, staffId || null, staffName, approval.item_id).run();
+      try {
+        const newsRow = await db.prepare('SELECT author_name FROM lantern_news_submissions WHERE id = ?').bind(approval.item_id).first();
+        if (newsRow && newsRow.author_name) {
+          await awardAchievementsForNewsApproved(db, newsRow.author_name, approval.item_id);
+        }
+      } catch (_) {}
     } else if (approval.item_type === 'avatar') {
       const row = await db.prepare('SELECT id, character_name, image_key, status FROM lantern_avatar_submissions WHERE id = ?').bind(approval.item_id).first();
       if (row && row.status === 'pending') {
@@ -2948,6 +3036,9 @@ async function handleMissionsRoutes(request, url, path, env, cors) {
     await db.prepare(
       'INSERT INTO lantern_mission_submissions (id, mission_id, character_name, submission_type, submission_content, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, missionId, characterName, submissionType, finalContent, 'pending', now).run();
+    try {
+      await awardAchievementsForMissionSubmit(db, characterName, id);
+    } catch (_) {}
     return jsonResponse({ ok: true, id, mission: { id: mission.id, title: mission.title, reward_amount: mission.reward_amount, submission_type: mission.submission_type } }, 200, cors);
   }
 
@@ -3167,6 +3258,9 @@ async function handleMissionsRoutes(request, url, path, env, cors) {
     await db.prepare(
       'UPDATE lantern_mission_submissions SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?'
     ).bind('accepted', acceptedBy, now, id).run();
+    try {
+      await awardAchievementsForMissionAccepted(db, row.character_name, id);
+    } catch (_) {}
     try { console.log('[missions] approved id=' + id + ' teacher_id=' + (teacherId || '') + ' result=ok'); } catch (_) {}
     if ((row.submission_type || '').trim() === 'poll' && row.submission_content) {
       let pollData;
@@ -3307,6 +3401,9 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     await db.prepare(
       'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(approvalId, 'poll_contribution', contribId, 'pending', characterName, characterName, null, now).run();
+    try {
+      await awardAchievementsForPollContribute(db, characterName, contribId);
+    } catch (_) {}
     return jsonResponse({ ok: true, id: contribId, status: 'pending', message: 'Submitted for teacher approval.' }, 200, cors);
   }
 
@@ -3635,87 +3732,6 @@ async function handleBugReportsRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
 
-/** Test students — temporary tester identities. Create and list only; no auth. */
-async function handleTestStudentRoutes(request, url, path, env, cors) {
-  const db = env.DB;
-  if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
-  const now = new Date().toISOString();
-
-  if (request.method === 'POST' && path === '/api/test-students') {
-    const text = await request.text();
-    let body;
-    try {
-      body = JSON.parse(text || '{}');
-    } catch (_) {
-      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
-    }
-    const displayName = (body.display_name || '').trim().slice(0, 120);
-    if (!displayName) return jsonResponse({ ok: false, error: 'Missing display_name' }, 400, cors);
-    const durationDays = [1, 7].includes(parseInt(body.duration_days, 10)) ? parseInt(body.duration_days, 10) : 1;
-    const id = 'ts_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-    const characterName = 'test_' + id.replace('ts_', '');
-    const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-    try {
-      await db.prepare(
-        'INSERT INTO lantern_test_students (id, character_name, display_name, mode, created_at, expires_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      )
-        .bind(id, characterName, displayName, 'test', now, expiresAt, 1)
-        .run();
-    } catch (e) {
-      return jsonResponse({ ok: false, error: 'Failed to create test student' }, 500, cors);
-    }
-    return jsonResponse({
-      ok: true,
-      id,
-      character_name: characterName,
-      display_name: displayName,
-      mode: 'test',
-      created_at: now,
-      expires_at: expiresAt,
-      is_active: true,
-    }, 200, cors);
-  }
-
-  if (request.method === 'GET' && path === '/api/test-students') {
-    let rows;
-    try {
-      rows = await db.prepare(
-        'SELECT id, character_name, display_name, mode, created_at, expires_at, is_active FROM lantern_test_students WHERE is_active = 1 AND expires_at > ? ORDER BY created_at DESC LIMIT 100'
-      )
-        .bind(now)
-        .all();
-    } catch (e) {
-      return jsonResponse({ ok: true, test_students: [] }, 200, cors);
-    }
-    const list = (rows.results || []).map((r) => ({
-      id: r.id,
-      character_name: r.character_name,
-      display_name: r.display_name || r.character_name,
-      mode: r.mode || 'test',
-      created_at: r.created_at,
-      expires_at: r.expires_at,
-      is_active: !!r.is_active,
-    }));
-    return jsonResponse({ ok: true, test_students: list }, 200, cors);
-  }
-
-  if (request.method === 'GET' && path === '/api/test-students/validate') {
-    const characterName = (url.searchParams.get('character_name') || '').trim();
-    if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
-    if (!characterName.startsWith('test_')) return jsonResponse({ ok: true, valid: false, reason: 'not_test' }, 200, cors);
-    const row = await db.prepare(
-      'SELECT id, expires_at, is_active FROM lantern_test_students WHERE character_name = ?'
-    )
-      .bind(characterName)
-      .first();
-    if (!row) return jsonResponse({ ok: true, valid: false, reason: 'not_found' }, 200, cors);
-    const valid = !!row.is_active && row.expires_at > now;
-    return jsonResponse({ ok: true, valid, expires_at: row.expires_at }, 200, cors);
-  }
-
-  return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
-}
-
 /** Games — culture/identity endpoints. FERPA-safe: public character list for Avatar Match only. */
 async function handleGamesRoutes(request, url, path, env, cors) {
   const origin = url.origin || '';
@@ -3928,6 +3944,9 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     await db.prepare(
       'INSERT INTO lantern_teacher_recognition (id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, characterName, message, category, now, createdByTeacherId, createdByTeacherName).run();
+    try {
+      await awardAchievementsForRecognition(db, characterName, category, message, id);
+    } catch (_) {}
     return jsonResponse({
       ok: true,
       id,
