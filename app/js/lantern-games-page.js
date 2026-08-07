@@ -480,8 +480,10 @@
       var pid = (card.getAttribute('data-games-proxy-play') || '').trim();
       var target = pid && el(pid);
       if (!target) return;
-      if (target.disabled || state.playStarting) {
-        toast('Not enough Nuggets or game is starting…');
+      if (target.disabled || (global.LanternGamesPaidStart && global.LanternGamesPaidStart.isInFlight && global.LanternGamesPaidStart.isInFlight())) {
+        if (global.LanternGamesPaidStart && global.LanternGamesPaidStart.isInFlight && global.LanternGamesPaidStart.isInFlight()) {
+          toast('Game is starting…');
+        }
         return;
       }
       target.click();

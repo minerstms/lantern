@@ -114,6 +114,36 @@
       });
   }
 
+  function economyTransactUrl() {
+    if (!canUseHttpEconomy()) return null;
+    var base = economyApiBase();
+    return (base != null ? base : '') + '/api/economy/transact';
+  }
+
+  function canUseHttpEconomy() {
+    return economyApiBase() !== null || typeof global.fetch === 'function';
+  }
+
+  function postEconomyTransact(body) {
+    var url = economyTransactUrl();
+    if (!url || typeof global.fetch !== 'function') {
+      return Promise.resolve({ ok: false, error: 'economy_unavailable' });
+    }
+    return global
+      .fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      })
+      .then(function (r) {
+        return r.json();
+      })
+      .catch(function () {
+        return { ok: false, error: 'Network error' };
+      });
+  }
+
   function fetchMyBalance() {
     if (economyApiBase() !== null || typeof global.fetch === 'function') {
       return fetchBalanceFromHttp(null);
@@ -146,6 +176,9 @@
     AVATAR_UPLOAD_COST: AVATAR_UPLOAD_COST,
     economyApiBase: economyApiBase,
     economyBalanceUrl: economyBalanceUrl,
+    economyTransactUrl: economyTransactUrl,
+    canUseHttpEconomy: canUseHttpEconomy,
+    postEconomyTransact: postEconomyTransact,
     normalizeWalletBalance: normalizeWalletBalance,
     fetchBalance: fetchAuthoritativeBalance,
     fetchMyBalance: fetchMyBalance,

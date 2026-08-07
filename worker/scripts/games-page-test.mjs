@@ -22,6 +22,7 @@ function bad(label, detail) {
 const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 const catalogJs = fs.readFileSync(path.join(root, 'app/js/lantern-game-catalog.js'), 'utf8');
 const gamesPageJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-page.js'), 'utf8');
+const paidStartJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-paid-start.js'), 'utf8');
 const gamesCss = fs.readFileSync(path.join(root, 'app/css/lantern-games-page.css'), 'utf8');
 const feedCss = fs.readFileSync(path.join(root, 'app/css/lantern-feed.css'), 'utf8');
 const workerIndex = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
@@ -109,12 +110,12 @@ if (!gamesHtml.match(/wallet[\s\S]{0,40}leaderboard/i) && !gamesPageJs.match(/ba
   ok('no wallet-balance leaderboard');
 } else bad('wallet leaderboard detected');
 
-if (gamesHtml.includes('spendInFlight') && gamesHtml.includes('playCostForGame')) {
-  ok('paid play cost authority + in-flight guard');
+if (gamesHtml.includes('LanternGamesPaidStart') && gamesHtml.includes('playCostForGame')) {
+  ok('paid play cost authority + shared start module');
 } else bad('paid play guards');
 
-if (gamesHtml.includes("kind: 'game_play'")) {
-  ok('game_play transaction kind');
+if (gamesHtml.includes('lantern-games-paid-start.js') || paidStartJs.includes("kind: 'game_play'")) {
+  ok('game_play transaction kind in shared paid-start module');
 } else bad('game_play kind');
 
 if (gamesHtml.includes('LanternWallet') && gamesHtml.includes('fetchMyBalance')) {

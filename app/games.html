@@ -650,6 +650,7 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-game-catalog.js"></script>
+  <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-games-page.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
@@ -699,46 +700,43 @@
       return String(raw).replace(/\/$/, '');
     })();
     function getBalance(){
-      if (window.LanternWallet && typeof window.LanternWallet.fetchMyBalance === 'function') {
-        return window.LanternWallet.fetchMyBalance().then(function(res){
-          return (res && res.ok && res.available != null) ? res.available : 0;
+      if (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.fetchMyWallet === 'function') {
+        return window.LanternGamesPaidStart.fetchMyWallet().then(function(wallet){
+          if (wallet && wallet.ok && wallet.available != null) return wallet.available;
+          return null;
         });
       }
-      var name = loadAdopted() && loadAdopted().name;
-      if (!name) return Promise.resolve(0);
-      if (economyApiBase != null) {
-        return fetch(economyApiBase + '/api/economy/balance', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
-          return (res && res.ok) ? (res.available != null ? res.available : (res.balance || 0)) : 0;
-        }).catch(function(){ return 0; });
+      if (window.LanternWallet && typeof window.LanternWallet.fetchMyBalance === 'function') {
+        return window.LanternWallet.fetchMyBalance().then(function(res){
+          return (res && res.ok && res.available != null) ? res.available : null;
+        });
       }
-      return new Promise(function(resolve){
-        if (!run) return resolve(0);
-        run.withSuccessHandler(function(r){ resolve(r.available || 0); }).withFailureHandler(function(){ resolve(0); }).storeGetBalance({ student_name: name });
-      });
+      return Promise.resolve(null);
     }
 
     function playCostForGame(gameName){
-      var cat = window.LANTERN_GAME_CATALOG;
-      if (cat && typeof cat.getGameByName === 'function') {
-        var g = cat.getGameByName(gameName);
-        if (g && g.play_cost != null) return Math.max(1, Math.floor(Number(g.play_cost) || 1));
+      if (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.playCostForGame === 'function') {
+        return window.LanternGamesPaidStart.playCostForGame(gameName);
       }
       return 1;
     }
 
-    var spendInFlight = false;
+    function spendAndPlay(gameName, onSuccess){
+      if (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.startPaidGame === 'function') {
+        window.LanternGamesPaidStart.startPaidGame(gameName, onSuccess);
+        return;
+      }
+      toast('Couldn\'t start game. Try again.');
+    }
 
     function callEconomyTransact(characterName, delta, kind, source, note){
-      if (economyApiBase == null) return Promise.resolve({ ok: false });
-      return fetch(economyApiBase + '/api/economy/transact', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
-      }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+      if (window.LanternWallet && typeof window.LanternWallet.postEconomyTransact === 'function' && window.LanternWallet.canUseHttpEconomy()) {
+        return window.LanternWallet.postEconomyTransact({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} });
+      }
+      return Promise.resolve({ ok: false });
     }
     function awardGameWinWithEconomy(characterName, gameName, nuggets, onSuccess, onFailure){
-      if (economyApiBase != null) {
+      if (window.LanternWallet && window.LanternWallet.canUseHttpEconomy && window.LanternWallet.canUseHttpEconomy()) {
         callEconomyTransact(characterName, nuggets, 'game_win', 'GAME', (gameName || 'Game') + ' win').then(function(tRes){
           if (!tRes || !tRes.ok) { if (onFailure) onFailure(); return; }
           if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onSuccess) onSuccess(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets, economy_backend_charged: true });
@@ -748,73 +746,6 @@
       }
       if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onFailure) onFailure(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets });
       else if (onSuccess) onSuccess();
-    }
-    function spendAndPlay(gameName, onSuccess){
-      var adopted = loadAdopted();
-      if (!adopted) {
-        toast('Choose a character in Locker (Overview) to play.');
-        return;
-      }
-      if (spendInFlight) return;
-      var cost = playCostForGame(gameName);
-      spendInFlight = true;
-      if (window.LanternGamesPage && typeof window.LanternGamesPage.setPlayStarting === 'function') {
-        window.LanternGamesPage.setPlayStarting(true);
-      }
-      function finishStart(ok){
-        spendInFlight = false;
-        if (window.LanternGamesPage && typeof window.LanternGamesPage.setPlayStarting === 'function') {
-          window.LanternGamesPage.setPlayStarting(false);
-        }
-        if (ok && typeof onSuccess === 'function') onSuccess();
-      }
-      if (economyApiBase) {
-        fetch(economyApiBase + '/api/economy/transact', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ character_name: adopted.name, delta: -cost, kind: 'game_play', source: 'GAME', note: gameName || 'Game', meta: { game_name: gameName || '' } })
-        }).then(function(r){ return r.json(); }).then(function(tRes){
-          if (tRes && tRes.ok){
-            if (run) {
-              run.withSuccessHandler(function(r){
-                if (r && r.ok && r.nuggets) callEconomyTransact(adopted.name, r.nuggets, 'first_game', 'MISSION', 'First Game Played');
-                refreshBalance();
-                finishStart(true);
-              }).withFailureHandler(function(){ refreshBalance(); finishStart(true); }).completeFirstGame({ character_name: adopted.name, economy_backend_charged: true });
-            } else {
-              refreshBalance();
-              finishStart(true);
-            }
-          } else if (tRes && tRes.error === 'insufficient') {
-            var need = tRes.need != null ? tRes.need : cost;
-            toast('You need ' + need + ' Nugget' + (need === 1 ? '' : 's') + ' to play.');
-            finishStart(false);
-          } else {
-            toast('Couldn\'t start game. Try again.');
-            finishStart(false);
-          }
-        }).catch(function(){ toast('Couldn\'t start game. Try again.'); finishStart(false); });
-        return;
-      }
-      if (!run) {
-        toast('Couldn\'t start game. Try again.');
-        finishStart(false);
-        return;
-      }
-      run.withSuccessHandler(function(r){
-        if (r && r.ok){
-          if (window.LANTERN_MISSIONS && window.LANTERN_MISSIONS.completeFirstGame) window.LANTERN_MISSIONS.completeFirstGame();
-          refreshBalance();
-          finishStart(true);
-        } else if (r && r.error === 'insufficient'){
-          toast('Not enough Nuggets.');
-          finishStart(false);
-        } else {
-          toast('Couldn\'t start game. Try again.');
-          finishStart(false);
-        }
-      }).withFailureHandler(function(){ toast('Couldn\'t start game. Try again.'); finishStart(false); }).spendOnGame({ character_name: adopted.name, game_name: gameName });
     }
 
     var gamesApiBaseForArcade = (function () {
@@ -833,7 +764,8 @@
       loadAdopted: loadAdopted,
       toast: toast,
       gamesApiBase: gamesApiBaseForArcade,
-      refreshDailyHunt: null
+      refreshDailyHunt: null,
+      refreshBalance: null
     };
 
     function initGamesPage(){
@@ -846,26 +778,31 @@
       getBalance().then(function(n){
         var wAmt = document.getElementById('gamesPageWalletAmt');
         if (wAmt) {
-          var oldN = NaN;
-          if (wAmt.textContent) {
-            var p = parseInt(String(wAmt.textContent).trim(), 10);
-            if (Number.isFinite(p)) oldN = p;
+          if (n == null) {
+            if (wAmt.textContent === '' || wAmt.textContent === '…') wAmt.textContent = '—';
+          } else {
+            var oldN = NaN;
+            if (wAmt.textContent) {
+              var p = parseInt(String(wAmt.textContent).trim(), 10);
+              if (Number.isFinite(p)) oldN = p;
+            }
+            if (Number.isFinite(oldN) && Number.isFinite(Number(n)) && Number(n) > oldN) {
+              wAmt.classList.remove('nuggetHit');
+              void wAmt.offsetWidth;
+              wAmt.classList.add('nuggetHit');
+            }
+            wAmt.textContent = String(n);
           }
-          if (Number.isFinite(oldN) && Number.isFinite(Number(n)) && Number(n) > oldN) {
-            wAmt.classList.remove('nuggetHit');
-            void wAmt.offsetWidth;
-            wAmt.classList.add('nuggetHit');
-          }
-          wAmt.textContent = String(n);
         }
-        var locked = n < playCostForGame('Reaction Tap');
-        ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
-          var lockEl = el(g + 'Locked');
-          var playBtn = el(g + 'PlayBtn');
-          var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
-          if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
-          if (playBtn) playBtn.disabled = n < minCost;
-        });
+        if (n != null) {
+          ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+            var lockEl = el(g + 'Locked');
+            var playBtn = el(g + 'PlayBtn');
+            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+            if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
+            if (playBtn) playBtn.disabled = n < minCost;
+          });
+        }
         if (window.LanternGamesPage && typeof window.LanternGamesPage.refreshWalletDisplay === 'function') {
           window.LanternGamesPage.refreshWalletDisplay();
         }
@@ -873,19 +810,11 @@
     }
 
     function tryPlay(gameName, showGameFn){
-      if (!loadAdopted()) {
-        toast('Choose a character in Locker (Overview) to play.');
+      if (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.startPaidGame === 'function') {
+        window.LanternGamesPaidStart.startPaidGame(gameName, showGameFn);
         return;
       }
-      if (spendInFlight) return;
-      var cost = playCostForGame(gameName);
-      getBalance().then(function(n){
-        if (n < cost){
-          toast('You need ' + cost + ' Nugget' + (cost === 1 ? '' : 's') + ' to play.');
-          return;
-        }
-        spendAndPlay(gameName, showGameFn);
-      });
+      toast('Couldn\'t start game. Try again.');
     }
 
     var RESULT_DELAY_MS = 2500;
@@ -1564,6 +1493,7 @@
     }
 
     window.LanternGamesRuntime.refreshDailyHunt = refreshDailyHunt;
+    window.LanternGamesRuntime.refreshBalance = refreshBalance;
 
     wireDailyHuntNugget();
 

@@ -104,6 +104,10 @@ if (pilotSelfEconomyKey(lucasAccount, pilotEconomyCharacterName) === '20889') {
   ok('pilotSelfEconomyKey prefers MTSS/economy id over display student_character_name');
 } else bad('pilotSelfEconomyKey mismatch');
 
+const gamePlay = resolveEconomyGamePlayTransact(lucasAccount, 'Lucas', pilotEconomyCharacterName);
+if (gamePlay.ok && gamePlay.characterName === '20889') ok('game_play transact session wallet is 20889 not Lucas');
+else bad('game_play transact identity', gamePlay);
+
 if (/id\.economy_key/.test(profileJs)) ok('profile getAdopted fallback prefers economy_key');
 else bad('profile getAdopted missing economy_key preference');
 

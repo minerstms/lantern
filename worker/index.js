@@ -9,7 +9,7 @@ import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
-import { resolveEconomyBalanceRead } from './economy-balance-auth.js';
+import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import {
   awardAchievementsForEconomyTransact,
@@ -2153,9 +2153,22 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const characterName = (body.character_name || '').trim();
-    if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
     const pilotAccount = await getPilotAccountFromRequest(request, env);
+    const kindEarly = String(body.kind || '').trim() || 'misc';
+    let characterName = (body.character_name || '').trim();
+    if (kindEarly === 'game_play') {
+      const playAuth = resolveEconomyGamePlayTransact(
+        pilotAccount,
+        characterName,
+        pilotEconomyCharacterName
+      );
+      if (!playAuth.ok) {
+        return jsonResponse({ ok: false, error: playAuth.error }, playAuth.code || 403, cors);
+      }
+      characterName = playAuth.characterName;
+    } else if (!characterName) {
+      return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+    }
     const authz = economyTransactAllowed(env, request, characterName, pilotAccount);
     if (!authz.ok) {
       return jsonResponse({ ok: false, error: authz.error }, authz.code || 403, cors);
