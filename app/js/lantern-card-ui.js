@@ -876,27 +876,139 @@
     fillCreationDetailModal(modal, p, Object.assign({ embeddedPreview: true }, opts || {}));
   }
 
-  /** Contribute poll preview only (static .pollModal). Explore uses openPoll + fillPollDetailModal. */
-  function mountPollOpenedInto(container, poll, escFn) {
+  /** Contribute / embedded: same opened-poll DOM as Explore openPoll, without overlay shell or live vote. */
+  function mountPollDetailInto(container, poll, opts) {
     if (!container) return;
-    var e = escFn || esc;
-    var LC = global.LanternCards;
+    opts = opts || {};
     var p = poll || {};
+    container.innerHTML = '';
+    var modal = global.document.createElement('div');
+    modal.className = 'lanternCardDetailModal lanternCardDetailModal--embedded lanternSurface';
+    modal.setAttribute('role', 'region');
+    modal.setAttribute('aria-label', 'When opened');
+    modal.innerHTML =
+      '<div class="lanternSurfaceContent">' +
+      '<div class="lanternCardDetailVisual"></div>' +
+      '<h2 class="lanternCardDetailTitle"></h2>' +
+      '<div class="lanternCardDetailIdentityWrap"></div>' +
+      '<div class="lanternCardDetailMeta"></div>' +
+      '<div class="lanternCardDetailBody"></div>' +
+      '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
+      '<div class="lanternCardDetailActions"></div>' +
+      '<div class="lanternCardDetailReactions"></div>' +
+      '</div>';
+    container.appendChild(modal);
+    fillPollDetailModal(modal, {
+      embeddedPreview: true,
+      draftPoll: p,
+      pollId: String(p.id || 'preview-draft').trim(),
+      characterName: String(opts.characterName || p.character_name || p.author_name || '').trim(),
+    });
+  }
+
+  /** @deprecated — delegates to mountPollDetailInto (production fillPollDetailModal path). */
+  function mountPollOpenedInto(container, poll, escFn) {
+    mountPollDetailInto(container, poll, {});
+  }
+
+  function fillPollDetailFromDraft(modalRoot, p, payload) {
+    payload = payload || {};
+    p = p || {};
+    var LC = global.LanternCards;
+    var pollId = String(payload.pollId || p.id || 'preview-draft').trim();
+    var v = modalRoot.querySelector('.lanternCardDetailVisual');
+    var t = modalRoot.querySelector('.lanternCardDetailTitle');
+    var idw = modalRoot.querySelector('.lanternCardDetailIdentityWrap');
+    var m = modalRoot.querySelector('.lanternCardDetailMeta');
+    var b = modalRoot.querySelector('.lanternCardDetailBody');
+    var a = modalRoot.querySelector('.lanternCardDetailActions');
+    var r = modalRoot.querySelector('.lanternCardDetailReactions');
+    if (!v || !t || !m || !b || !a || !r) return;
+
     var fk = String(p.fallback_key || 'poll').trim();
     var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : fk === 'shoutout' ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
     var imgUrl = String(p.image_url || '').trim();
     if (!imgUrl && LC && LC.getDefaultImageUrl) imgUrl = LC.getDefaultImageUrl(typeForDefault);
-    var q = e(p.question || '');
-    var choices = p.choices || [];
-    var html = '<div class="pollModal lanternSurface"><div class="lanternSurfaceContent">';
-    html += '<div class="pollModalImageWrap" style="' + (imgUrl ? '' : 'display:none;') + '"><img class="pollModalImage" src="' + e(imgUrl) + '" alt="" /></div>';
-    html += '<div class="pollModalQuestion">' + q + '</div><div class="pollModalChoices">';
-    for (var i = 0; i < choices.length; i++) {
-      html += '<button type="button" class="pollChoiceBtn" disabled tabindex="-1">' + e(choices[i]) + '</button>';
+    if (imgUrl) {
+      v.innerHTML =
+        '<div class="lanternCardDetailVisualInner">' +
+        '<div class="lanternDetailMedia lanternDetailMedia--img">' +
+        '<div class="newsCardImageWrap"><img class="newsCardImage" src="' + esc(imgUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'" /></div>' +
+        '</div></div>';
+    } else {
+      v.innerHTML = '';
     }
-    html += '</div>';
-    html += '<p class="lanternCardDetailMuted" style="margin-top:16px;">Preview — votes and nuggets work on Lantern after approval.</p></div></div>';
-    container.innerHTML = html;
+    wireOpenedPostMediaInteractions(modalRoot);
+
+    t.textContent = p.question || 'Poll';
+    var cn = String((p.character_name || p.author_name || '').trim());
+    function renderPollAuthorIdentity(canon) {
+      if (!idw || !LC || !LC.buildExploreAuthorAvatarHtml) return;
+      if (!cn) {
+        idw.innerHTML = '';
+        return;
+      }
+      var idFirst = LC.railIdentityFirstName ? LC.railIdentityFirstName(cn) : cn;
+      var pm = { character_name: cn, author_name: cn, frame: 'none' };
+      if (canon && typeof canon === 'object') pm._canonicalAvatar = canon;
+      idw.innerHTML =
+        '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
+        LC.buildExploreAuthorAvatarHtml(pm) +
+        '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirst) + '</span></div>';
+    }
+    if (cn && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function') {
+      renderPollAuthorIdentity(null);
+      var legP = global.LanternAvatar.getLegacyEmojiForCharacter ? global.LanternAvatar.getLegacyEmojiForCharacter(cn) : '';
+      global.LanternAvatar.getCanonicalAvatar(cn, legP || undefined).then(function (canon) {
+        renderPollAuthorIdentity(canon);
+      });
+    } else {
+      renderPollAuthorIdentity(null);
+    }
+    var nch = (p.choices || []).length;
+    var time = '';
+    try {
+      var dt = new Date(p.created_at || '');
+      if (!isNaN(dt.getTime())) time = dt.toLocaleDateString();
+    } catch (e2) {}
+    m.textContent = [nch + ' choice' + (nch !== 1 ? 's' : ''), 'Poll', time].filter(Boolean).join(' · ');
+
+    b.innerHTML =
+      '<div id="lanternPollDetailChoices"></div>' +
+      '<div id="lanternPollDetailResults" class="pollResultsWrap" style="display:none;"></div>' +
+      '<p class="pollVoterNugget" id="lanternPollDetailNugget" style="display:none;"></p>';
+    var choicesEl = modalRoot.querySelector('#lanternPollDetailChoices');
+    if (choicesEl) {
+      choicesEl.innerHTML = '';
+      (p.choices || []).forEach(function (choice, idx) {
+        var btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pollChoiceBtn';
+        btn.textContent = choice || ('Choice ' + (idx + 1));
+        btn.disabled = true;
+        btn.setAttribute('tabindex', '-1');
+        btn.setAttribute('aria-disabled', 'true');
+        choicesEl.appendChild(btn);
+      });
+    }
+
+    a.innerHTML = '';
+    var rep = global.document.createElement('button');
+    rep.type = 'button';
+    rep.className = 'lanternReportDetailBtn';
+    rep.textContent = 'Report';
+    rep.disabled = true;
+    rep.setAttribute('aria-label', 'Report unavailable in preview');
+    a.appendChild(rep);
+
+    r.innerHTML = '<p class="lanternCardDetailMuted">Preview — votes and nuggets work on Lantern after approval.</p>';
+
+    fillAdminModeration(modalRoot, {
+      removable: false,
+      itemType: 'poll_preview',
+      id: pollId,
+      detail: 'Preview / draft — not published to the API yet.',
+    });
   }
 
   function getPollApiBase(opts) {
@@ -968,6 +1080,11 @@
         '<div id="lanternPollDetailChoices"></div>' +
         '<div id="lanternPollDetailResults" class="pollResultsWrap" style="display:none;"></div>' +
         '<p class="pollVoterNugget" id="lanternPollDetailNugget" style="display:none;"></p>';
+    }
+
+    if (payload.embeddedPreview && payload.draftPoll) {
+      fillPollDetailFromDraft(modalRoot, payload.draftPoll, payload);
+      return;
     }
 
     if (apiBase === null) {
@@ -1359,6 +1476,7 @@
     fillPollDetailModal: fillPollDetailModal,
     mountNewsDetailInto: mountNewsDetailInto,
     mountCreationDetailInto: mountCreationDetailInto,
+    mountPollDetailInto: mountPollDetailInto,
     mountPollOpenedInto: mountPollOpenedInto
   };
 })(typeof window !== 'undefined' ? window : this);
