@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="stylesheet" href="css/lantern-feed.css">
+  <link rel="stylesheet" href="css/lantern-games-page.css">
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="explore.html">
   <link rel="prefetch" href="explore.html">
@@ -491,32 +493,90 @@
     <div id="classAccessBannerEl" hidden aria-hidden="true"></div>
     <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
-    <div class="gamesPageShell">
+    <div class="gamesPageShell gamesPageContainer">
     <div id="dailyHuntHintEl" class="dailyHuntHint" style="display:none;" data-help="daily_nugget_hunt"></div>
     <div id="dailyHuntNuggetEl" class="dailyHuntNugget" style="display:none;" title="Click to claim!" data-help="daily_nugget_hunt"><img src="assets/icons/nugget.png" alt="Hidden nugget"></div>
 
-    <section class="gamesRailSection" aria-label="Featured games" data-help="games">
-      <div class="sectionHd">Featured Games</div>
-      <div id="gamesFeaturedScroller" data-lantern-rail-host="true" data-scroller-aria-label="Featured games"></div>
-    </section>
+    <header class="gamesPageHero" data-help="games">
+      <div class="gamesPageHeroRow">
+        <div>
+          <h1 class="gamesPageTitle">Games</h1>
+          <p class="gamesPageSub">Play, compete, and climb the boards.</p>
+        </div>
+        <a class="gamesPageWalletInline" href="locker.html#store" title="Available Nuggets">
+          <span aria-hidden="true">🟡</span>
+          <span id="gamesPageWalletAmt" class="gamesPageWalletAmt">…</span>
+          <span class="gamesPageWalletLbl">Nuggets available</span>
+        </a>
+      </div>
+    </header>
 
-    <section class="gamesRailSection" id="gamesSectionDaily" aria-label="Nugget games" data-help="games">
-      <div id="gamesArcadeScroller" data-lantern-rail-host="true" data-scroller-aria-label="Arcade games"></div>
-    </section>
-
-    <section class="gamesRailSection" data-help="culture_games" aria-label="Culture games">
-      <div id="gamesCultureScroller" data-lantern-rail-host="true" data-scroller-aria-label="Culture games"></div>
-    </section>
-
-    <section class="gamesRailSection" id="leaderboardSection" aria-label="Leaderboards" data-help="games">
-      <div id="leaderboardSummariesEl">
-        <div id="leaderboardSummariesScroller" data-lantern-rail-host="true" data-scroller-aria-label="Leaderboard summaries"></div>
+    <section class="gamesLeaderboardSection" id="leaderboardSection" aria-label="Leaderboards" data-help="games_leaderboard">
+      <h2 class="gamesLeaderboardHeading">🏆 Leaderboards</h2>
+      <p class="gamesLeaderboardSub">Top players across Lantern Games</p>
+      <div id="gamesLeaderboardPeriods" class="gamesLeaderboardPeriods" role="tablist" aria-label="Leaderboard timeframe">
+        <button type="button" role="tab" data-period="24h" aria-selected="false">24H</button>
+        <button type="button" role="tab" data-period="7d" class="is-active" aria-selected="true">7 Days</button>
+        <button type="button" role="tab" data-period="30d" aria-selected="false">30 Days</button>
+        <button type="button" role="tab" data-period="all" aria-selected="false">All Time</button>
+      </div>
+      <div id="gamesLeaderboardCarousel" class="gamesLeaderboardCarousel">
+        <div id="gamesLeaderboardCarouselStatus" class="gamesLeaderboardCarouselStatus" aria-live="polite"></div>
+        <div id="gamesLeaderboardViewport" class="gamesLeaderboardViewport">
+          <div id="gamesLeaderboardTrack" class="gamesLeaderboardTrack"></div>
+        </div>
+        <div class="gamesLbCarouselControls">
+          <button type="button" id="gamesLeaderboardPrev" class="gamesLbCarouselBtn" aria-label="Previous leaderboard">‹</button>
+          <div id="gamesLeaderboardDots" class="gamesLbDots" aria-label="Leaderboard position"></div>
+          <button type="button" id="gamesLeaderboardNext" class="gamesLbCarouselBtn" aria-label="Next leaderboard">›</button>
+        </div>
       </div>
     </section>
 
-    <section class="gamesRailSection" id="gameHighlightsSection" aria-label="Weekly pace" data-help="games">
-      <div id="gameHighlightsScroller" data-lantern-rail-host="true" data-scroller-aria-label="This week pace"></div>
+    <section class="gamesLibrarySection" aria-label="Game library" data-help="games">
+      <header class="feedHeading" aria-label="Games library controls">
+        <div class="feedHeadingRow">
+          <h2 class="feedPageTitle">Games</h2>
+          <button type="button" id="gamesFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="gamesFiltersPanel">Filters ▸</button>
+        </div>
+        <div class="feedMetaRow">
+          <p class="feedPageSub">One library — every playable Lantern game.</p>
+          <div id="gamesLibraryCount" class="feedStatus feedItemCount" aria-live="polite"></div>
+        </div>
+        <div id="gamesFiltersPanel" class="feedFiltersPanel" hidden>
+          <div class="feedFiltersToolbarRow">
+            <select id="gamesTypeFilter" class="feedSortSelect" aria-label="Game type">
+              <option value="all">All types</option>
+              <option value="trivia">Trivia</option>
+              <option value="arcade">Arcade</option>
+              <option value="memory">Memory</option>
+            </select>
+            <select id="gamesStatusFilter" class="feedSortSelect" aria-label="Game status">
+              <option value="all">All status</option>
+              <option value="playable">Playable now</option>
+              <option value="coming_soon">Coming soon</option>
+            </select>
+            <select id="gamesSortSelect" class="feedSortSelect" aria-label="Sort games">
+              <option value="featured">Featured</option>
+              <option value="az">A–Z</option>
+              <option value="newest">Newest</option>
+            </select>
+          </div>
+        </div>
+      </header>
+      <div class="feedResultsHost">
+        <div id="gamesLibraryGrid" class="feedGrid" role="list" aria-label="Lantern games"></div>
+      </div>
     </section>
+
+    <div id="gamesLbModal" class="gamesLbModal" hidden>
+      <div class="gamesLbModalPanel" role="dialog" aria-labelledby="gamesLbModalTitle">
+        <h2 id="gamesLbModalTitle" class="gamesLbModalTitle">Leaderboard</h2>
+        <div id="gamesLbModalBody"></div>
+        <p id="gamesLbModalYou" class="gamesLbModalYou"></p>
+        <button type="button" id="gamesLbModalClose" class="gamesLbModalClose">Close</button>
+      </div>
+    </div>
 
     <div id="gamesPlayTriggersHost" class="gamesPlayTriggersHost" aria-hidden="true">
       <button type="button" id="avatarMatchPlayBtn"></button>
@@ -588,6 +648,9 @@
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-scroller.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-wallet.js"></script>
+  <script src="js/lantern-game-catalog.js"></script>
+  <script src="js/lantern-games-page.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
@@ -636,11 +699,16 @@
       return String(raw).replace(/\/$/, '');
     })();
     function getBalance(){
+      if (window.LanternWallet && typeof window.LanternWallet.fetchMyBalance === 'function') {
+        return window.LanternWallet.fetchMyBalance().then(function(res){
+          return (res && res.ok && res.available != null) ? res.available : 0;
+        });
+      }
       var name = loadAdopted() && loadAdopted().name;
       if (!name) return Promise.resolve(0);
       if (economyApiBase != null) {
-        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
-          return (res && res.ok) ? (res.balance || 0) : 0;
+        return fetch(economyApiBase + '/api/economy/balance', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
+          return (res && res.ok) ? (res.available != null ? res.available : (res.balance || 0)) : 0;
         }).catch(function(){ return 0; });
       }
       return new Promise(function(resolve){
@@ -648,6 +716,17 @@
         run.withSuccessHandler(function(r){ resolve(r.available || 0); }).withFailureHandler(function(){ resolve(0); }).storeGetBalance({ student_name: name });
       });
     }
+
+    function playCostForGame(gameName){
+      var cat = window.LANTERN_GAME_CATALOG;
+      if (cat && typeof cat.getGameByName === 'function') {
+        var g = cat.getGameByName(gameName);
+        if (g && g.play_cost != null) return Math.max(1, Math.floor(Number(g.play_cost) || 1));
+      }
+      return 1;
+    }
+
+    var spendInFlight = false;
 
     function callEconomyTransact(characterName, delta, kind, source, note){
       if (economyApiBase == null) return Promise.resolve({ ok: false });
@@ -676,68 +755,68 @@
         toast('Choose a character in Locker (Overview) to play.');
         return;
       }
+      if (spendInFlight) return;
+      var cost = playCostForGame(gameName);
+      spendInFlight = true;
+      if (window.LanternGamesPage && typeof window.LanternGamesPage.setPlayStarting === 'function') {
+        window.LanternGamesPage.setPlayStarting(true);
+      }
+      function finishStart(ok){
+        spendInFlight = false;
+        if (window.LanternGamesPage && typeof window.LanternGamesPage.setPlayStarting === 'function') {
+          window.LanternGamesPage.setPlayStarting(false);
+        }
+        if (ok && typeof onSuccess === 'function') onSuccess();
+      }
       if (economyApiBase) {
         fetch(economyApiBase + '/api/economy/transact', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ character_name: adopted.name, delta: -1, kind: 'game_play', source: '', note: gameName || 'Game', meta: {} })
+          body: JSON.stringify({ character_name: adopted.name, delta: -cost, kind: 'game_play', source: 'GAME', note: gameName || 'Game', meta: { game_name: gameName || '' } })
         }).then(function(r){ return r.json(); }).then(function(tRes){
           if (tRes && tRes.ok){
             if (run) {
               run.withSuccessHandler(function(r){
                 if (r && r.ok && r.nuggets) callEconomyTransact(adopted.name, r.nuggets, 'first_game', 'MISSION', 'First Game Played');
                 refreshBalance();
-                onSuccess();
-              }).withFailureHandler(function(){ refreshBalance(); onSuccess(); }).completeFirstGame({ character_name: adopted.name, economy_backend_charged: true });
+                finishStart(true);
+              }).withFailureHandler(function(){ refreshBalance(); finishStart(true); }).completeFirstGame({ character_name: adopted.name, economy_backend_charged: true });
             } else {
               refreshBalance();
-              onSuccess();
+              finishStart(true);
             }
-          } else if (tRes && tRes.error === 'insufficient') toast('Need at least 1 nugget to play.');
-          else toast('Couldn\'t start game. Try again.');
-        }).catch(function(){ toast('Couldn\'t start game. Try again.'); });
+          } else if (tRes && tRes.error === 'insufficient') {
+            var need = tRes.need != null ? tRes.need : cost;
+            toast('You need ' + need + ' Nugget' + (need === 1 ? '' : 's') + ' to play.');
+            finishStart(false);
+          } else {
+            toast('Couldn\'t start game. Try again.');
+            finishStart(false);
+          }
+        }).catch(function(){ toast('Couldn\'t start game. Try again.'); finishStart(false); });
         return;
       }
       if (!run) {
         toast('Couldn\'t start game. Try again.');
+        finishStart(false);
         return;
       }
       run.withSuccessHandler(function(r){
         if (r && r.ok){
           if (window.LANTERN_MISSIONS && window.LANTERN_MISSIONS.completeFirstGame) window.LANTERN_MISSIONS.completeFirstGame();
           refreshBalance();
-          onSuccess();
+          finishStart(true);
         } else if (r && r.error === 'insufficient'){
-          toast('Need at least 1 nugget to play.');
+          toast('Not enough Nuggets.');
+          finishStart(false);
         } else {
           toast('Couldn\'t start game. Try again.');
+          finishStart(false);
         }
-      }).withFailureHandler(function(){ toast('Couldn\'t start game. Try again.'); }).spendOnGame({ character_name: adopted.name, game_name: gameName });
+      }).withFailureHandler(function(){ toast('Couldn\'t start game. Try again.'); finishStart(false); }).spendOnGame({ character_name: adopted.name, game_name: gameName });
     }
 
-    var ARCADE_GAMES = [
-      { id: 'avatar-match', name: 'Avatar Match', description: 'Match the avatar to the correct character name. Score based on speed and correctness.', playBtnId: 'avatarMatchPlayBtn', cost: '', icon: '👤' },
-      { id: 'lantern-live-trivia', name: 'Lantern Live Trivia', description: 'Teacher-approved questions submitted by students.', playBtnId: 'lanternLiveTriviaPlayBtn', cost: '', icon: '🏮' },
-      { id: 'handbook-trivia', name: 'Handbook Trivia', description: 'Multiple-choice on school expectations and digital citizenship.', playBtnId: 'handbookTriviaPlayBtn', cost: '', icon: '📖' },
-      { id: 'local-history-trivia', name: 'Local History Trivia', description: 'Multiple-choice on local history and community pride.', playBtnId: 'localHistoryTriviaPlayBtn', cost: '', icon: '🏛️' },
-      { id: 'reaction', name: 'Reaction Tap', description: 'Wait for GO, then tap as fast as you can. Fastest time wins.', playBtnId: 'reactionPlayBtn', cost: '1 nugget', icon: '⚡' },
-      { id: 'clickrush', name: 'Nugget Click Rush', description: '10-second tap challenge. Tap as many times as you can!', playBtnId: 'clickrushPlayBtn', cost: '1 nugget', icon: '🖱️' },
-      { id: 'memory', name: 'Memory Match', description: 'Match the emoji pairs. Flip two cards at a time.', playBtnId: 'memoryPlayBtn', cost: '1 nugget', icon: '🧠' },
-      { id: 'nuggetHunt', name: 'Nugget Hunt', description: 'Find the special icon among decoys. Full-screen search.', playBtnId: 'nuggetHuntPlayBtn', cost: '1 nugget', icon: '🔍' }
-    ];
-    var ARCADE_LOWER_BETTER = ['Reaction Tap', 'Nugget Hunt'];
-    /** Featured Play now rail: same picks as before; full catalog in Daily + Culture rails. */
-    var HERO_PICK_GAME_IDS = ['avatar-match', 'reaction'];
-    var HERO_FEATURED_META = {
-      'avatar-match': 'Match the face — speed wins',
-      'reaction': 'GO flashes — tap first',
-      'handbook-trivia': 'Handbook quiz — tap to play',
-      'local-history-trivia': 'Local trivia — community pride',
-      'clickrush': '10-second tap sprint',
-      'memory': 'Flip pairs — clear the grid',
-      'nuggetHunt': 'Find the icon — hunt mode'
-    };
     var gamesApiBaseForArcade = (function () {
       if (typeof window === 'undefined') return null;
       var raw =
@@ -750,298 +829,17 @@
       return String(raw).replace(/\/$/, '');
     })();
 
-    function mountGamesDom(){
-      if (!window.LanternCards || !window.LanternCards.specGameHubRailCard || !window.LanternCards.createStudentCard) {
-        window.LanternCanonicalFailClosed('LanternCards.specGameHubRailCard + createStudentCard required on games.html');
-      }
-      var LC = window.LanternCards;
-      var cultureRail = document.getElementById('gamesCultureScroller');
-      var arcadeRail = document.getElementById('gamesArcadeScroller');
-      if (!cultureRail || !arcadeRail) {
-        window.LanternCanonicalFailClosed('Missing #gamesCultureScroller or #gamesArcadeScroller');
-      }
-      var cultureSpec = [
-        { title: 'Avatar Match', icon: '👤', metaOne: 'Match the face — tap card to play', reportId: 'culture_avatar', playBtnId: 'avatarMatchPlayBtn', gameName: 'Avatar Match', ariaLabel: 'Play Avatar Match' },
-        { title: 'Handbook Trivia', icon: '📖', metaOne: 'School rules & digital life — tap to play', reportId: 'culture_handbook', playBtnId: 'handbookTriviaPlayBtn', gameName: 'Handbook Trivia', ariaLabel: 'Play Handbook Trivia' },
-        { title: 'Local History Trivia', icon: '🏛️', metaOne: 'Community pride — tap to play', reportId: 'culture_local', playBtnId: 'localHistoryTriviaPlayBtn', gameName: 'Local History Trivia', ariaLabel: 'Play Local History Trivia' }
-      ];
-      cultureRail.innerHTML = '';
-      for (var ci = 0; ci < 12; ci++) {
-        var cs = cultureSpec[ci % 3];
-        var cnode = LC.createStudentCard(LC.specGameHubRailCard({
-          title: cs.title,
-          icon: cs.icon,
-          metaOne: cs.metaOne,
-          rewardText: '🏆 Weekly leaderboard',
-          typeBadge: '🎮 Game',
-          reportId: cs.reportId + '_slot' + ci,
-          dataAttrs: { gamesProxyPlay: cs.playBtnId, gameName: cs.gameName },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: cs.ariaLabel
-        }));
-        if (cnode) cultureRail.appendChild(cnode);
-      }
-      var arcadeFullSpecs = [
-        {
-          title: 'Reaction Tap',
-          icon: '⚡',
-          metaOne: 'Wait for GO — then tap fast',
-          rewardText: '1 nugget · 🏆 weekly',
-          typeBadge: '🕹 Arcade',
-          reportId: 'arcade_reaction',
-          dataAttrs: { gamesProxyPlay: 'reactionPlayBtn', gameName: 'Reaction Tap' },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: 'Play Reaction Tap'
-        },
-        {
-          title: 'Nugget Click Rush',
-          icon: '🖱️',
-          metaOne: '10-second tap sprint',
-          rewardText: '1 nugget · 🏆 weekly',
-          typeBadge: '🕹 Arcade',
-          reportId: 'arcade_clickrush',
-          dataAttrs: { gamesProxyPlay: 'clickrushPlayBtn', gameName: 'Nugget Click Rush' },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: 'Play Nugget Click Rush'
-        },
-        {
-          title: 'Memory Match',
-          icon: '🧠',
-          metaOne: 'Flip pairs — clear the grid',
-          rewardText: '1 nugget · 🏆 weekly',
-          typeBadge: '🕹 Arcade',
-          reportId: 'arcade_memory',
-          dataAttrs: { gamesProxyPlay: 'memoryPlayBtn', gameName: 'Memory Match' },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: 'Play Memory Match'
-        },
-        {
-          title: 'Nugget Hunt',
-          icon: '🔍',
-          metaOne: 'Find the target in a sea of icons',
-          rewardText: '1 nugget · win up to +3',
-          typeBadge: '🕹 Arcade',
-          reportId: 'arcade_hunt',
-          dataAttrs: { gamesProxyPlay: 'nuggetHuntPlayBtn', gameName: 'Nugget Hunt' },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: 'Play Nugget Hunt'
-        }
-      ];
-      var arcadeFull = arcadeFullSpecs.map(function(as){ return LC.createStudentCard(LC.specGameHubRailCard(as)); }).filter(Boolean);
-      var arcadeLite = [
-        { title: 'Reaction Tap', icon: '⚡', metaOne: 'Quick play — same game', rewardText: '1 nugget · 🏆 weekly', typeBadge: '🕹 Arcade', reportId: 'arcade_reaction_dup', playBtnId: 'reactionPlayBtn', gameName: 'Reaction Tap', ariaLabel: 'Play Reaction Tap' },
-        { title: 'Nugget Click Rush', icon: '🖱️', metaOne: 'Quick play — same game', rewardText: '1 nugget · 🏆 weekly', typeBadge: '🕹 Arcade', reportId: 'arcade_clickrush_dup', playBtnId: 'clickrushPlayBtn', gameName: 'Nugget Click Rush', ariaLabel: 'Play Nugget Click Rush' },
-        { title: 'Memory Match', icon: '🧠', metaOne: 'Quick play — same game', rewardText: '1 nugget · 🏆 weekly', typeBadge: '🕹 Arcade', reportId: 'arcade_memory_dup', playBtnId: 'memoryPlayBtn', gameName: 'Memory Match', ariaLabel: 'Play Memory Match' },
-        { title: 'Nugget Hunt', icon: '🔍', metaOne: 'Quick play — same game', rewardText: '1 nugget · win up to +3', typeBadge: '🕹 Arcade', reportId: 'arcade_hunt_dup', playBtnId: 'nuggetHuntPlayBtn', gameName: 'Nugget Hunt', ariaLabel: 'Play Nugget Hunt' }
-      ];
-      var arcadeParts = arcadeFull.slice();
-      for (var ai = 0; ai < 8; ai++) {
-        var al = arcadeLite[ai % 4];
-        var an = LC.createStudentCard(LC.specGameHubRailCard({
-          title: al.title,
-          icon: al.icon,
-          metaOne: al.metaOne,
-          rewardText: al.rewardText,
-          typeBadge: al.typeBadge,
-          reportId: al.reportId + '_slot' + (4 + ai),
-          dataAttrs: { gamesProxyPlay: al.playBtnId, gameName: al.gameName },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: al.ariaLabel
-        }));
-        if (an) arcadeParts.push(an);
-      }
-      arcadeRail.innerHTML = '';
-      arcadeParts.forEach(function(ap){ arcadeRail.appendChild(ap); });
-      LC.enhanceReportControlsIn(cultureRail);
-      LC.enhanceReportControlsIn(arcadeRail);
-    }
-    mountGamesDom();
+    window.LanternGamesRuntime = {
+      loadAdopted: loadAdopted,
+      toast: toast,
+      gamesApiBase: gamesApiBaseForArcade,
+      refreshDailyHunt: null
+    };
 
-    function fetchLeaderboardForGame(gameName, limit){
-      if (gamesApiBaseForArcade == null) return Promise.resolve({ ok: false, entries: [] });
-      return fetch(gamesApiBaseForArcade + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=' + (limit || 5)).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, entries: [] }; });
-    }
-
-    function wireGamesHubCardClicks(){
-      var shell = document.querySelector('.gamesPageShell');
-      if (!shell || shell._gamesHubCardClickWired) return;
-      shell._gamesHubCardClickWired = true;
-      function gameAreaForProxyPlay(pid){
-        if (pid === 'reactionPlayBtn') return el('reactionArea');
-        if (pid === 'clickrushPlayBtn') return el('clickrushArea');
-        if (pid === 'memoryPlayBtn') return el('memoryArea');
-        return null;
+    function initGamesPage(){
+      if (window.LanternGamesPage && typeof window.LanternGamesPage.init === 'function') {
+        window.LanternGamesPage.init();
       }
-      function proxyPlayFromCard(card){
-        if (!card) return;
-        var pid = (card.getAttribute('data-games-proxy-play') || '').trim();
-        var target = pid && el(pid);
-        if (!target) return;
-        if (target.disabled) {
-          toast('Need at least 1 nugget to play.');
-          return;
-        }
-        target.click();
-      }
-      shell.addEventListener('click', function(e){
-        if (e.target.closest('.exploreCardReportBtn')) return;
-        if (e.target.closest('a.exploreCard')) return;
-        var card = e.target.closest('.gamesHubPlayCard[data-games-proxy-play]');
-        if (!card) return;
-        var pid = (card.getAttribute('data-games-proxy-play') || '').trim();
-        var ga = gameAreaForProxyPlay(pid);
-        if (ga){
-          var cs = window.getComputedStyle(ga);
-          var gaLive = cs.display !== 'none' && cs.visibility !== 'hidden';
-          if (gaLive && !e.target.closest('.gameArea')) return;
-        }
-        e.preventDefault();
-        proxyPlayFromCard(card);
-      });
-      shell.addEventListener('keydown', function(e){
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        if (e.target.closest('.exploreCardReportBtn')) return;
-        var card = e.target.closest('.gamesHubPlayCard[data-games-proxy-play]');
-        if (!card || e.target !== card) return;
-        e.preventDefault();
-        proxyPlayFromCard(card);
-      });
-    }
-
-    function hydrateGameHubCardsLeaderMeta(){
-      var shell = document.querySelector('.gamesPageShell');
-      if (!shell || gamesApiBaseForArcade == null) return;
-      shell.querySelectorAll('.gamesHubPlayCard[data-game-name][data-games-proxy-play]').forEach(function(card){
-        if (card.classList.contains('exploreCard--gamesLbSummary')) return;
-        var gn = card.getAttribute('data-game-name');
-        if (!gn) return;
-        fetchLeaderboardForGame(gn, 8).then(function(res){
-          var metaEl = card.querySelector('.exploreCardMetaOneLine');
-          var entries = (res && res.ok && res.entries) ? res.entries : [];
-          if (entries.length > 0){
-            var top = entries[0];
-            var scoreStr = top.score_display != null ? String(top.score_display) : String(top.score || '');
-            var leaderLine = '👑 #1 ' + (top.character_name || '') + ' · ' + scoreStr;
-            var tail = '🔥 ' + entries.length + ' on board · 🏆 weekly';
-            if (metaEl) metaEl.textContent = (leaderLine + ' · ' + tail).length > 76 ? (leaderLine + ' · +' + entries.length + ' · 🏆') : (leaderLine + ' · ' + tail);
-          } else {
-            if (metaEl) metaEl.textContent = 'Be first on the board this week · 🏆 Weekly leaderboard';
-          }
-        });
-      });
-    }
-
-    function renderGamesScroller(){
-      var scroller = el('gamesFeaturedScroller');
-      if (!scroller || !window.LanternCards) {
-        window.LanternCanonicalFailClosed('#gamesFeaturedScroller and LanternCards required');
-      }
-      var LC = window.LanternCards;
-      var featuredSlots = [];
-      for (var fi = 0; fi < 12; fi++) {
-        featuredSlots.push(ARCADE_GAMES[fi % ARCADE_GAMES.length]);
-      }
-      scroller.innerHTML = '';
-      featuredSlots.forEach(function(g, idx){
-        var metaOne = HERO_FEATURED_META[g.id] || (String(g.description || '').split('.')[0] || '').trim().slice(0, 72);
-        var rewardText = g.cost ? (String(g.cost) + ' · 🏆 weekly') : '🏆 Weekly leaderboard';
-        var reportId = 'feat_' + g.id + '_' + idx;
-        var fn = LC.createStudentCard(LC.specGameHubRailCard({
-          title: g.name,
-          icon: g.icon,
-          metaOne: metaOne,
-          rewardText: rewardText,
-          typeBadge: '⭐ Featured',
-          reportId: reportId,
-          extraClass: 'exploreCard--gamesFeatured',
-          dataAttrs: { gamesProxyPlay: g.playBtnId, gameName: g.name, routeSurface: 'games_featured', routeDetail: g.id },
-          role: 'button',
-          tabIndex: 0,
-          ariaLabel: 'Play ' + g.name
-        }));
-        if (fn) scroller.appendChild(fn);
-      });
-      LC.enhanceReportControlsIn(scroller);
-    }
-
-    function loadGameHighlights(){
-      var scroller = el('gameHighlightsScroller');
-      if (!scroller || !window.LanternCards) {
-        window.LanternCanonicalFailClosed('#gameHighlightsScroller and LanternCards required');
-      }
-      var LC = window.LanternCards;
-      if (gamesApiBaseForArcade == null) {
-        scroller.innerHTML = '';
-        for (var hi = 0; hi < 12; hi++) {
-          var g = ARCADE_GAMES[hi % ARCADE_GAMES.length];
-          var hn = LC.createStudentCard(LC.specWeeklyPaceLinkCard('games.html', g.name, g.icon, 'Be first on the board this week', g.id + '_pace' + hi));
-          if (hn) scroller.appendChild(hn);
-        }
-        LC.enhanceReportControlsIn(scroller);
-        return;
-      }
-      Promise.all(ARCADE_GAMES.map(function(g){ return fetchLeaderboardForGame(g.name, 3).then(function(r){ return { game: g, res: r }; }); })).then(function(results){
-        scroller.innerHTML = '';
-        for (var hi = 0; hi < 12; hi++) {
-          var o = results[hi % results.length];
-          var g = o.game;
-          var entries = (o.res && o.res.ok && o.res.entries) ? o.res.entries : [];
-          var lowerBetter = ARCADE_LOWER_BETTER.indexOf(g.name) >= 0;
-          var line;
-          if (entries.length > 0) {
-            var top = entries[0];
-            line = lowerBetter ? (top.character_name + ' set the pace at ' + (top.score_display || top.score)) : (top.character_name + ' leads with ' + (top.score_display || top.score));
-          } else {
-            line = 'Be first on the board this week';
-          }
-          var hn2 = LC.createStudentCard(LC.specWeeklyPaceLinkCard('games.html', g.name, g.icon, line, g.id + '_pace' + hi));
-          if (hn2) scroller.appendChild(hn2);
-        }
-        LC.enhanceReportControlsIn(scroller);
-      });
-    }
-
-    function loadLeaderboardSummaries(){
-      var scroller = el('leaderboardSummariesScroller');
-      if (!scroller || !window.LanternCards) {
-        window.LanternCanonicalFailClosed('#leaderboardSummariesScroller and LanternCards required');
-      }
-      var LC = window.LanternCards;
-      if (gamesApiBaseForArcade == null) {
-        scroller.innerHTML = '';
-        for (var li = 0; li < 12; li++) {
-          var g = ARCADE_GAMES[li % ARCADE_GAMES.length];
-          var ln = LC.createStudentCard(LC.specGamesLeaderboardSummaryCard(g.name, g.id + '_lb' + li, []));
-          if (ln) scroller.appendChild(ln);
-        }
-        LC.enhanceReportControlsIn(scroller);
-        return;
-      }
-      Promise.all(ARCADE_GAMES.map(function(g){ return fetchLeaderboardForGame(g.name, 5).then(function(r){ return { game: g, res: r }; }); })).then(function(results){
-        scroller.innerHTML = '';
-        for (var li = 0; li < 12; li++) {
-          var o = results[li % results.length];
-          var g = o.game;
-          var entries = (o.res && o.res.ok && o.res.entries) ? o.res.entries : [];
-          var ln2 = LC.createStudentCard(LC.specGamesLeaderboardSummaryCard(g.name, g.id + '_lb' + li, entries));
-          if (ln2) scroller.appendChild(ln2);
-        }
-        LC.enhanceReportControlsIn(scroller);
-      });
-    }
-
-    function initArcade(){
-      renderGamesScroller();
-      wireGamesHubCardClicks();
-      hydrateGameHubCardsLeaderMeta();
-      loadGameHighlights();
-      loadLeaderboardSummaries();
     }
 
     function refreshBalance(){
@@ -1060,13 +858,17 @@
           }
           wAmt.textContent = String(n);
         }
-        var locked = n < 1;
+        var locked = n < playCostForGame('Reaction Tap');
         ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
           var lockEl = el(g + 'Locked');
           var playBtn = el(g + 'PlayBtn');
-          if (lockEl) lockEl.style.display = locked ? 'block' : 'none';
-          if (playBtn) playBtn.disabled = locked;
+          var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+          if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
+          if (playBtn) playBtn.disabled = n < minCost;
         });
+        if (window.LanternGamesPage && typeof window.LanternGamesPage.refreshWalletDisplay === 'function') {
+          window.LanternGamesPage.refreshWalletDisplay();
+        }
       });
     }
 
@@ -1075,8 +877,13 @@
         toast('Choose a character in Locker (Overview) to play.');
         return;
       }
+      if (spendInFlight) return;
+      var cost = playCostForGame(gameName);
       getBalance().then(function(n){
-        if (n < 1){ toast('Need at least 1 nugget to play.'); return; }
+        if (n < cost){
+          toast('You need ' + cost + ' Nugget' + (cost === 1 ? '' : 's') + ' to play.');
+          return;
+        }
         spendAndPlay(gameName, showGameFn);
       });
     }
@@ -1476,7 +1283,12 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ game_name: gameName, character_name: characterName, score: score, score_display: scoreDisplay || String(score) })
-      }).then(function(r){ return r.json(); }).then(function(res){ if (onDone) onDone(res && res.ok); }).catch(function(){ if (onDone) onDone(false); });
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res && res.ok && window.LanternGamesPage && typeof window.LanternGamesPage.loadAllLeaderboards === 'function') {
+          window.LanternGamesPage.loadAllLeaderboards();
+        }
+        if (onDone) onDone(res && res.ok);
+      }).catch(function(){ if (onDone) onDone(false); });
     }
 
     (function(){
@@ -1493,6 +1305,7 @@
       function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
 
       el('avatarMatchPlayBtn').addEventListener('click', function(){
+        tryPlay('Avatar Match', function(){
         var adopted = loadAdopted();
         if (!adopted){ toast('Choose a character in Locker (Overview) to play.'); return; }
         openOverlay('Avatar Match');
@@ -1599,6 +1412,7 @@
           toast('Score recorded on leaderboard.');
         }
         fetchThenStart();
+        });
       });
 
       function runTriviaGame(title, gameName, getQuestions){
@@ -1642,23 +1456,29 @@
         showQuestion();
       }
       el('handbookTriviaPlayBtn').addEventListener('click', function(){
-        runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){
-          return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getHandbookQuestions) ? window.LANTERN_GAME_CONTENT.getHandbookQuestions() : [];
+        tryPlay('Handbook Trivia', function(){
+          runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){
+            return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getHandbookQuestions) ? window.LANTERN_GAME_CONTENT.getHandbookQuestions() : [];
+          });
         });
       });
       el('lanternLiveTriviaPlayBtn').addEventListener('click', function(){
-        if (!window.LANTERN_FEED) { toast('Feed API not loaded.'); return; }
-        window.LANTERN_FEED.triviaLive().then(function(res){
-          if (!res || !res.ok || !(res.questions && res.questions.length)) {
-            toast('No approved live trivia questions yet.');
-            return;
-          }
-          runTriviaGame('Lantern Live Trivia', 'Lantern Live Trivia', function(){ return res.questions; });
+        tryPlay('Lantern Live Trivia', function(){
+          if (!window.LANTERN_FEED) { toast('Feed API not loaded.'); return; }
+          window.LANTERN_FEED.triviaLive().then(function(res){
+            if (!res || !res.ok || !(res.questions && res.questions.length)) {
+              toast('No approved live trivia questions yet.');
+              return;
+            }
+            runTriviaGame('Lantern Live Trivia', 'Lantern Live Trivia', function(){ return res.questions; });
+          });
         });
       });
       el('localHistoryTriviaPlayBtn').addEventListener('click', function(){
-        runTriviaGame('Local History Trivia', 'Local History Trivia', function(){
-          return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions) ? window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions() : [];
+        tryPlay('Local History Trivia', function(){
+          runTriviaGame('Local History Trivia', 'Local History Trivia', function(){
+            return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions) ? window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions() : [];
+          });
         });
       });
     })();
@@ -1683,7 +1503,7 @@
       var hintEl = el('dailyHuntHintEl');
       var nuggetEl = el('dailyHuntNuggetEl');
       if (!hintEl && !nuggetEl) return;
-      var spotSel = '.wrap .gamesHubPlayCard, .wrap #gamesFeaturedScroller .exploreCard--gamesFeatured';
+      var spotSel = '.wrap #gamesLibraryGrid .gamesHubPlayCard';
       var spots = document.querySelectorAll(spotSel);
       var spotCount = spots.length;
       callGetDailyHuntStatus(adopted.name, 'games', spotCount).then(function(res){
@@ -1743,16 +1563,14 @@
       });
     }
 
+    window.LanternGamesRuntime.refreshDailyHunt = refreshDailyHunt;
+
     wireDailyHuntNugget();
-    refreshDailyHunt();
-
-    /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */
-
-    // Nav
 
     if (redirectIfNoCharacter()) {
       refreshBalance();
-      initArcade();
+      initGamesPage();
+      refreshDailyHunt();
     }
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>

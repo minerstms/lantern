@@ -1,0 +1,345 @@
+/* Games page — leaderboard carousel + library (shared Explore container rhythm) */
+
+.gamesPageContainer {
+  max-width: var(--feed-grid-max-width, 1760px);
+  margin: 0 auto;
+  padding: 0 var(--lantern-pad-x, 1.25rem);
+}
+
+.gamesPageHero {
+  margin-bottom: 1.5rem;
+}
+
+.gamesPageHeroRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.gamesPageTitle {
+  font-weight: 900;
+  font-size: 32px;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.gamesPageSub {
+  margin: 0.25rem 0 0;
+  color: var(--muted, #b9c6ea);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.gamesPageWalletInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 204, 102, 0.45);
+  background: rgba(255, 204, 102, 0.12);
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--ink, #eaf0ff);
+  text-decoration: none;
+}
+
+.gamesPageWalletInline:hover {
+  background: rgba(255, 204, 102, 0.22);
+}
+
+.gamesPageWalletAmt {
+  color: #ffcc66;
+  font-weight: 900;
+}
+
+.gamesLeaderboardSection {
+  margin-bottom: 2rem;
+}
+
+.gamesLeaderboardHeading {
+  font-weight: 900;
+  font-size: 28px;
+  margin: 0 0 0.25rem;
+}
+
+.gamesLeaderboardSub {
+  margin: 0 0 1rem;
+  color: var(--muted, #b9c6ea);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.gamesLeaderboardPeriods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.gamesLeaderboardPeriods button {
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink, #eaf0ff);
+  font-weight: 800;
+  font-size: 20px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gamesLeaderboardPeriods button.is-active {
+  border-color: var(--accent, #5aa7ff);
+  background: rgba(90, 167, 255, 0.2);
+}
+
+.gamesLeaderboardPeriods button:focus-visible {
+  outline: 2px solid var(--accent, #5aa7ff);
+  outline-offset: 2px;
+}
+
+.gamesLeaderboardCarousel {
+  position: relative;
+}
+
+.gamesLeaderboardCarouselStatus {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.gamesLeaderboardViewport {
+  overflow: hidden;
+  width: 100%;
+}
+
+.gamesLeaderboardTrack {
+  display: flex;
+  transition: transform 0.45s ease;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gamesLeaderboardTrack {
+    transition: none;
+  }
+}
+
+.gamesLbSlide {
+  flex: 0 0 100%;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .gamesLbSlide {
+    flex: 0 0 50%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gamesLbSlide {
+    flex: 0 0 33.333%;
+  }
+}
+
+.gamesLbCard {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.gamesLbCardTitle {
+  margin: 0 0 0.75rem;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.gamesLbTop3 {
+  flex: 1;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.gamesLbRow {
+  margin-bottom: 0.35rem;
+}
+
+.gamesLbEmpty {
+  margin: 0;
+  color: var(--muted, #b9c6ea);
+  font-size: 22px;
+}
+
+.gamesLbYou {
+  margin: 0.5rem 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--warn, #ffcc66);
+}
+
+.gamesLbCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.gamesLbViewBtn,
+.gamesLbPlayBtn {
+  padding: 0.45rem 0.85rem;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink, #eaf0ff);
+  font-weight: 800;
+  font-size: 18px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gamesLbPlayBtn {
+  border-color: rgba(255, 204, 102, 0.5);
+  background: rgba(255, 204, 102, 0.15);
+}
+
+.gamesLbViewBtn:focus-visible,
+.gamesLbPlayBtn:focus-visible,
+.gamesLbCarouselBtn:focus-visible {
+  outline: 2px solid var(--accent, #5aa7ff);
+  outline-offset: 2px;
+}
+
+.gamesLbCarouselControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.gamesLbCarouselBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink, #eaf0ff);
+  font-size: 24px;
+  font-weight: 900;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gamesLbDots {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.gamesLbDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.gamesLbDot.is-active {
+  background: var(--accent, #5aa7ff);
+}
+
+.gamesLbModal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.gamesLbModal[hidden] {
+  display: none !important;
+}
+
+.gamesLbModalPanel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow: auto;
+  background: var(--panel, #0f1b33);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 1.25rem;
+}
+
+.gamesLbModalTitle {
+  margin: 0 0 1rem;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.gamesLbModalList {
+  margin: 0;
+  padding: 0 0 0 1.25rem;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.gamesLbModalRank {
+  font-weight: 900;
+  color: var(--warn, #ffcc66);
+}
+
+.gamesLbModalYou {
+  margin-top: 1rem;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--warn, #ffcc66);
+}
+
+.gamesLbModalClose {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink, #eaf0ff);
+  font-weight: 800;
+  font-size: 22px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gamesLibrarySection .feedGrid {
+  margin-top: 0.5rem;
+}
+
+.gamesPlayTriggersHost {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}

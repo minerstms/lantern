@@ -3821,6 +3821,8 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
       since = new Date(startYear, 7, 1).toISOString();
       const endYear = now.getMonth() >= 7 ? now.getFullYear() + 1 : now.getFullYear();
       until = new Date(endYear, 4, 31, 23, 59, 59, 999).toISOString();
+    } else if (period === 'all_time' || period === 'all') {
+      since = null;
     } else {
       since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     }
@@ -3831,7 +3833,11 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     let rows;
     try {
       if (gameName) {
-        if (until) {
+        if (since == null && !until) {
+          rows = await db.prepare(
+            `SELECT character_name, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? GROUP BY character_name ${orderBy} LIMIT ?`
+          ).bind(gameName, limit).all();
+        } else if (until) {
           rows = await db.prepare(
             `SELECT character_name, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? AND created_at <= ? GROUP BY character_name ${orderBy} LIMIT ?`
           ).bind(gameName, since, until, limit).all();
@@ -3841,7 +3847,11 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
           ).bind(gameName, since, limit).all();
         }
       } else {
-        if (until) {
+        if (since == null && !until) {
+          rows = await db.prepare(
+            'SELECT character_name, MAX(score) AS score FROM lantern_leaderboard_entries GROUP BY character_name ORDER BY score DESC LIMIT ?'
+          ).bind(limit).all();
+        } else if (until) {
           rows = await db.prepare(
             'SELECT character_name, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? AND created_at <= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
           ).bind(since, until, limit).all();
