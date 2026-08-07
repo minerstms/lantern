@@ -139,7 +139,6 @@ function normalizeNewsRow(row, origin) {
     extra_json: JSON.stringify({ linkUrl: row.link_url || null, newsId: row.id }),
   };
   const item = normalizeFeedItemRow(adapted, origin, 'news');
-  item.detailUrl = `news.html?id=${encodeURIComponent(row.id)}`;
   return item;
 }
 

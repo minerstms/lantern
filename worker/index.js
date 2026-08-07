@@ -6,6 +6,7 @@
  */
 import { fetchAdminUserRow, validateDisplayName } from './admin-account-utils.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed-handlers.js';
+import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
@@ -4069,6 +4070,14 @@ async function maybeGrantEarlyEncouragerReward(db, characterName, itemType, item
 async function handleReactionsRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+
+  const finalHandled = await handleFinalReactionRoutes(request, url, path, env, cors, {
+    getPilotAccountFromRequest,
+    pilotEconomyCharacterName,
+    pilotAccountRequiresChangePassword,
+    jsonResponse,
+  });
+  if (finalHandled) return finalHandled;
 
   if (request.method === 'POST' && path === '/api/reactions/add') {
     const text = await request.text();

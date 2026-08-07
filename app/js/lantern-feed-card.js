@@ -68,8 +68,8 @@
 
   function openDetailOverlay(item, opts) {
     opts = opts || {};
-    if (item.detailUrl) {
-      global.location.href = item.detailUrl;
+    if (global.LanternCardUI && typeof global.LanternCardUI.openFeedItem === 'function') {
+      global.LanternCardUI.openFeedItem(item, opts);
       return;
     }
     var detail = global.document.getElementById('feedDetailOverlay');
@@ -187,7 +187,7 @@
     card.classList.add('exploreCard--activatable');
     function activate(e) {
       if (e && e.target && e.target.closest('.exploreCardReportBtn')) return;
-      openDetailOverlay(item, opts);
+      openDetailOverlay(item, Object.assign({}, opts, { triggerEl: card }));
     }
     card.addEventListener('click', activate);
     card.addEventListener('keydown', function (e) {

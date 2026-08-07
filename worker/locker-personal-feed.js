@@ -76,15 +76,16 @@ function isTaggedForIdentity(item, keys) {
 
 /**
  * @param {import('@cloudflare/workers-types').D1Database} db
- * @param {string} economyKey
- * @param {Set<string>} identityKeys
+ * @param {string} reactorUsername
  */
-async function reactedFeedIds(db, economyKey) {
+async function reactedFeedIds(db, reactorUsername) {
+  const un = String(reactorUsername || '').trim();
+  if (!un) return new Set();
   const rows = await db
     .prepare(
-      "SELECT DISTINCT item_id FROM lantern_reactions WHERE item_type = 'feed' AND lower(trim(character_name)) = lower(trim(?))"
+      "SELECT DISTINCT item_id FROM lantern_final_reaction_responses WHERE item_type = 'feed' AND lower(trim(reactor_username)) = lower(trim(?))"
     )
-    .bind(economyKey)
+    .bind(un)
     .all();
   return new Set((rows.results || []).map((r) => String(r.item_id)));
 }
@@ -101,7 +102,7 @@ export async function buildLockerPersonalFeed(db, origin, account, economyKey, p
   let items = await collectApprovedFeed(db, origin, { limit: 300 });
 
   const reactedIds = relationship === 'reacted' || relationship === 'all'
-    ? await reactedFeedIds(db, economyKey)
+    ? await reactedFeedIds(db, username)
     : new Set();
 
   function submittedSet() {

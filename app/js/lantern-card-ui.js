@@ -1469,11 +1469,127 @@
     el.setAttribute('aria-hidden', 'false');
   }
 
+  function feedItemTypeBadge(item) {
+    return String((item && item.typeLabel) || (item && item.type) || 'Post').trim();
+  }
+
+  function feedItemToMediaModel(item) {
+    item = item || {};
+    return {
+      image_url: item.imageUrl || item.thumbnailUrl || '',
+      thumbnail_url: item.thumbnailUrl || '',
+      video_url: item.videoUrl || (item.contentSlot && item.contentSlot.videoUrl) || '',
+      link_url: (item.contentSlot && item.contentSlot.linkUrl) || '',
+      type: item.type || 'article'
+    };
+  }
+
+  function formatFeedItemDate(item) {
+    var iso = (item && (item.approvedAt || item.createdAt)) || '';
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString();
+    } catch (e) {}
+    return '';
+  }
+
+  /**
+   * ONE FEED canonical item → shared Lantern detail modal (Explore/Locker).
+   */
+  function fillFeedItemDetailModal(modalRoot, item, opts) {
+    opts = opts || {};
+    if (!modalRoot || !item) return;
+    var LC = global.LanternCards;
+    var v = modalRoot.querySelector('.lanternCardDetailVisual');
+    var t = modalRoot.querySelector('.lanternCardDetailTitle');
+    var idw = modalRoot.querySelector('.lanternCardDetailIdentityWrap');
+    var m = modalRoot.querySelector('.lanternCardDetailMeta');
+    var b = modalRoot.querySelector('.lanternCardDetailBody');
+    var a = modalRoot.querySelector('.lanternCardDetailActions');
+    var r = modalRoot.querySelector('.lanternCardDetailReactions');
+    if (!v || !t || !m || !b || !a || !r) return;
+
+    var adm = modalRoot.querySelector('#lanternCardDetailAdminModeration');
+    if (adm) {
+      adm.innerHTML = '';
+      adm.style.display = 'none';
+    }
+
+    t.textContent = item.title || 'Untitled';
+    var author = String(item.authorDisplayName || 'Anonymous').trim();
+    var dateStr = formatFeedItemDate(item);
+    var typeLabel = feedItemTypeBadge(item);
+    if (idw) idw.innerHTML = '';
+    m.textContent = [author, typeLabel, dateStr].filter(Boolean).join(' · ');
+
+    var body = String(item.body || item.summary || '').trim();
+    b.innerHTML = body ? '<div class="lanternCardDetailCaption">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '';
+
+    var mediaModel = feedItemToMediaModel(item);
+    var typeFb = LC && LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(item.type || 'article') : '';
+    var uniFb = LC && LC.getUniversalFallbackMediaDataUri ? LC.getUniversalFallbackMediaDataUri() : '';
+    if (global.LanternMedia && global.LanternMedia.renderMedia) {
+      var dm = global.LanternMedia.renderMedia(mediaModel, { esc: esc, variant: 'detail', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb });
+      if (dm && dm.mediaBlock && String(dm.mediaBlock).trim()) {
+        v.innerHTML = '<div class="lanternCardDetailVisualInner">' + dm.mediaBlock + '</div>';
+      } else if (LC && LC.buildGuaranteedExploreImageHtml) {
+        v.innerHTML = '<div class="lanternCardDetailVisualInner">' + LC.buildGuaranteedExploreImageHtml(item.type || 'article', mediaModel.image_url || '') + '</div>';
+      } else {
+        v.innerHTML = '';
+      }
+    } else if (LC && LC.buildGuaranteedExploreImageHtml) {
+      v.innerHTML = '<div class="lanternCardDetailVisualInner">' + LC.buildGuaranteedExploreImageHtml(item.type || 'article', mediaModel.image_url || '') + '</div>';
+    } else {
+      v.innerHTML = '';
+    }
+    wireOpenedPostMediaInteractions(modalRoot);
+
+    r.innerHTML = '<div class="lanternFinalRxHost"></div>';
+    var rxHost = r.querySelector('.lanternFinalRxHost');
+    if (global.LANTERN_FINAL_REACTIONS && global.LANTERN_FINAL_REACTIONS.mountFinalReactionPanel && rxHost) {
+      global.LANTERN_FINAL_REACTIONS.mountFinalReactionPanel(rxHost, {
+        item_type: 'feed',
+        item_id: String(item.id || '').trim()
+      });
+    }
+
+    a.innerHTML = '';
+    var imgSrc = String(item.imageUrl || item.thumbnailUrl || '').trim();
+    if (imgSrc) {
+      var fullBtn = global.document.createElement('button');
+      fullBtn.type = 'button';
+      fullBtn.className = 'btn lanternCardDetailViewFullImgBtn';
+      fullBtn.textContent = 'View full image';
+      fullBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        openMediaFullscreen('image', { src: imgSrc });
+      });
+      a.appendChild(fullBtn);
+    }
+  }
+
+  function openFeedItem(item, opts) {
+    opts = opts || {};
+    if (!item) return;
+    var el = ensureOverlay();
+    var modal = el.querySelector('.lanternCardDetailModal');
+    if (!modal) return;
+    fillFeedItemDetailModal(modal, item, opts);
+    el.classList.add('show');
+    el.setAttribute('aria-hidden', 'false');
+    var lastCard = opts.triggerEl || null;
+    el._lanternFeedTriggerEl = lastCard;
+    var closeBtn = el.querySelector('.lanternCardDetailClose');
+    if (closeBtn) closeBtn.focus();
+  }
+
   global.LanternCardUI = {
     openCreation: openCreation,
     openNews: openNews,
     openPoll: openPoll,
     openTextDetail: openTextDetail,
+    openFeedItem: openFeedItem,
     closeDetail: closeDetail,
     ensureOverlay: ensureOverlay,
     openReportModal: openReportModal,
@@ -1482,6 +1598,8 @@
     fillNewsDetailModal: fillNewsDetailModal,
     fillCreationDetailModal: fillCreationDetailModal,
     fillPollDetailModal: fillPollDetailModal,
+    fillFeedItemDetailModal: fillFeedItemDetailModal,
+    openMediaFullscreen: openMediaFullscreen,
     mountNewsDetailInto: mountNewsDetailInto,
     mountCreationDetailInto: mountCreationDetailInto,
     mountPollOpenedInto: mountPollOpenedInto,
