@@ -56,6 +56,10 @@ if (/avatarCropAvailable == null/.test(profileJs) && /avatarCropSubmitting/.test
   ok('profile-app: blocks submit while loading or in flight');
 } else bad('profile-app missing submit guards');
 
+if (/syncAvatarCropSubmitState/.test(profileJs) && /avatarCropImageReady/.test(profileJs)) {
+  ok('profile-app: submit gated on image ready and wallet');
+} else bad('profile-app missing combined submit gate');
+
 if (/avatarCropAvailable >= cost|avatarCropAvailable >= AVATAR_UPLOAD_COST/.test(profileJs)) {
   ok('profile-app: affordability uses Available threshold');
 } else bad('profile-app missing Available affordability check');
