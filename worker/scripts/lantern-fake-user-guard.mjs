@@ -16,6 +16,7 @@ const EXCLUDE_DIR_NAMES = new Set([
 
 const EXCLUDE_PATH_PREFIXES = [
   'docs/archive/',
+  'archive/verify-page/',
   'app/assets/know-your-town/',
 ];
 

@@ -321,12 +321,45 @@
     return false;
   }
 
+  /**
+   * POST /api/auth/logout — clear HttpOnly session cookie, then redirect caller to login.
+   * @returns {Promise<{ ok: boolean, status?: number, error?: string }>}
+   */
+  function performLogout() {
+    var base = apiBase();
+    var url = base ? base + '/api/auth/logout' : '/api/auth/logout';
+    return global
+      .fetch(url, { method: 'POST', credentials: 'include', cache: 'no-store' })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var body;
+          try {
+            body = t ? JSON.parse(t) : {};
+          } catch (e) {
+            body = {};
+          }
+          return { ok: !!(r.ok && body && body.ok), status: r.status, body: body };
+        });
+      })
+      .then(function (res) {
+        if (res.ok) {
+          clearClientIdentityCaches();
+          global.location.replace('/login.html');
+        }
+        return res;
+      })
+      .catch(function () {
+        return { ok: false, error: 'network' };
+      });
+  }
+
   var sessionApi = {
     fetchMe: fetchMe,
     normalizeRole: normalizeRole,
     isGenericExplorePath: isGenericExplorePath,
     defaultRoleHomePath: defaultRoleHomePath,
     clearClientIdentityCaches: clearClientIdentityCaches,
+    performLogout: performLogout,
     cachePilotMe: cachePilotMe,
     sessionEconomyKey: sessionEconomyKey,
     getCachedPilotMe: getCachedPilotMe,

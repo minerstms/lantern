@@ -22,7 +22,6 @@
     if (/teacher\.html/.test(path)) return 'teacher';
     if (/display\.html/.test(path)) return 'display';
     if (/staff\.html/.test(path)) return 'staff';
-    if (/verify\.html/.test(path)) return 'verify';
     if (/contribute\.html/.test(path)) return 'contribute';
     if (/school-survival\.html/.test(path)) return 'school_survival';
     return '';
@@ -32,7 +31,7 @@
     return '';
   }
 
-  /** Chevron menu: NAVIGATION (Locker, Create, Play, Missions) + STAFF (Display, Teacher, Verify). Home = Lantern link → explore.html. */
+  /** Chevron menu: NAVIGATION + STAFF + Log out (session end). Home = Lantern link → explore.html. */
   function buildLanternNavDropdownHtml(current) {
     return '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
@@ -44,7 +43,9 @@
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
       '<a href="display.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'display' ? ' is-active' : '') + '" data-page="display" target="_blank">Display</a>' +
       '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'teacher' ? ' is-active' : '') + '" data-page="teacher">Teacher</a>' +
-      '<a href="verify.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'verify' ? ' is-active' : '') + '" data-page="verify">Verify</a>' +
+      '</div>' +
+      '<div class="lanternAppBarDropdownSection lanternAppBarDropdownSection--logout" id="lanternNavLogoutSection" hidden>' +
+      '<button type="button" class="lanternAppBarDropdownLogout" id="lanternNavLogoutBtn" role="menuitem">Log out</button>' +
       '</div></div>';
   }
 
@@ -141,7 +142,7 @@
       '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink">My Missions</a>' +
       '<a href="locker.html#profileNeedsAttention" role="menuitem" class="lanternAppBarDropdownLink">Needs Attention</a>' +
       '<a href="#" role="menuitem" class="lanternAppBarDropdownLink">Settings</a>' +
-      '<a href="#" role="menuitem" class="lanternAppBarDropdownLink">Logout</a></div>';
+      '<button type="button" role="menuitem" class="lanternAppBarDropdownLogout lanternAppBarDropdownLogout--avatar" id="lanternAvatarLogoutBtn" hidden>Log out</button></div>';
     var avatarBtn = '<div class="lanternAppBarAvatarWrap" id="lanternExploreAvatarBtn" aria-haspopup="true" aria-expanded="false" tabindex="0">&#128100;</div>';
     var right = '<div class="lanternAppBarRight">' + bellBtn + '<div class="lanternAppBarMenuWrap">' + avatarBtn + avatarDropdown + '</div></div>';
     return '<div class="lanternAppBar lanternAppBarExplore" id="lanternAppBar">' +
@@ -190,6 +191,11 @@
       '.lanternAppBarDropdownLink:hover{ background: rgba(157,212,240,.25); color: ' + NAV.navy + '; }',
       '.lanternAppBarDropdownLink.is-active{ background: rgba(157,212,240,.35); color: #0a1d35; }',
       '.lanternAppBarDropdownLink{ position: relative; }',
+      '.lanternAppBarDropdownSection--logout{ border-top: 1px solid rgba(15,39,68,.16); padding-top: 6px; margin-top: 2px; }',
+      '.lanternAppBarDropdownLogout{ display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 16px; font-weight: 800; color: #7a2030; background: transparent; border: none; cursor: pointer; font-family: inherit; box-sizing: border-box; }',
+      '.lanternAppBarDropdownLogout:hover{ background: rgba(157,212,240,.25); color: #5a1020; }',
+      '.lanternAppBarDropdownLogout:disabled{ opacity: .65; cursor: wait; }',
+      '.lanternAppBarDropdownLogout--avatar{ color: #7a2030; }',
       '.lanternNavBadge{ display: inline-block; min-width: 20px; padding: 2px 6px; margin-left: 6px; font-size: 12px; font-weight: 800; background: ' + NAV.columbiaBlue + '; color: ' + NAV.navy + '; border-radius: 10px; }',
       '.lanternNavBadge:empty{ display: none; }',
       '.lanternHelpSlot{ display: flex; align-items: center; flex-shrink: 0; }',
@@ -221,6 +227,34 @@
     document.head.appendChild(s);
   }
 
+  function showAuthenticatedLogoutControls() {
+    var mainSection = document.getElementById('lanternNavLogoutSection');
+    var avatarBtn = document.getElementById('lanternAvatarLogoutBtn');
+    if (mainSection) mainSection.removeAttribute('hidden');
+    if (avatarBtn) avatarBtn.removeAttribute('hidden');
+  }
+
+  function wireLogoutButton(btn, closeDropdownFn) {
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof closeDropdownFn === 'function') closeDropdownFn();
+      var auth = global.LanternAuth || global.LanternPilotAuth;
+      if (!auth || typeof auth.performLogout !== 'function') return;
+      btn.disabled = true;
+      auth.performLogout().then(function (res) {
+        if (!res || !res.ok) {
+          btn.disabled = false;
+          if (global.alert) global.alert('Could not log out. Check your connection and try again.');
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        if (global.alert) global.alert('Could not log out. Check your connection and try again.');
+      });
+    });
+  }
+
   function wireInteractiveChrome() {
     var avatarBtn = document.getElementById('lanternExploreAvatarBtn');
     var avatarDropdown = document.getElementById('lanternExploreAvatarDropdown');
@@ -233,6 +267,7 @@
         if (avatarDropdown && !avatarDropdown.contains(e.target) && avatarBtn && !avatarBtn.contains(e.target)) closeAvatar();
       });
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAvatar(); });
+      wireLogoutButton(document.getElementById('lanternAvatarLogoutBtn'), closeAvatar);
       try {
         var auth = global.LanternAuth || global.LanternPilotAuth;
         var adopted = auth && typeof auth.adoptedFromPilotMe === 'function' ? auth.adoptedFromPilotMe() : null;
@@ -338,13 +373,15 @@
     });
 
     wireInteractiveChrome();
+    wireLogoutButton(document.getElementById('lanternNavLogoutBtn'), close);
     applyBellCount(0);
     refreshNeedsAttentionBellFromApi();
     (function pilotSessionShellGate(){
       if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return;
       var api = String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
-      fetch(api + '/api/auth/me', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(data){
+      fetch(api + '/api/auth/me', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(data){
         if (!data || !data.ok || !data.authenticated) return;
+        showAuthenticatedLogoutControls();
         if (data.must_change_password) {
           var path = (typeof location !== 'undefined' && location.pathname) ? String(location.pathname) : '';
           if (/change-password/i.test(path)) return;

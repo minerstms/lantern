@@ -44,7 +44,6 @@ const PAGES = [
   'locker.html',
   'store.html',
   'display.html',
-  'verify.html',
 ];
 
 const VIEWPORTS = [
