@@ -159,7 +159,7 @@ const lockerTabCss = `
        Matches former lantern-rails .contentScroller margin/padding + .contentScrollerTrack gap (14px); no scroll-snap. */
     #lockerPanelItems .lanternScroller{
       gap: 14px;
-      align-items: stretch;
+      align-items: flex-start;
       margin: 0 calc(-1 * var(--lantern-pad-x, 12px));
       padding: 8px var(--lantern-pad-x, 12px) 16px;
       min-width: 0;
@@ -376,6 +376,7 @@ const lockerItemsScript = `
           var card = LC.createStudentCard(LC.specCosmeticRailCard({
             title: c.name || c.id,
             icon: c.icon || '✨',
+            identityLabel: 'Locker',
             rarityKey: rar,
             rarityLabel: RARITY_LABELS_ITEMS[c.rarity || 'common'] || 'Common',
             subline: subUse,
