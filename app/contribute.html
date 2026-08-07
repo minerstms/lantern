@@ -389,10 +389,11 @@
         position: absolute;
         top: 0;
         bottom: 0;
-        left: calc(50vw - var(--lantern-studio-center-half) - var(--lantern-studio-col-gap) - var(--lantern-studio-left-col-width));
-        width: var(--lantern-studio-left-col-width);
+        left: 0;
+        right: calc(50vw + var(--lantern-studio-center-half) + var(--lantern-studio-col-gap));
+        width: auto;
         min-width: 0;
-        max-width: var(--lantern-studio-left-col-max);
+        max-width: none;
         overflow-x: hidden;
         overflow-y: auto;
         display: flex;
@@ -404,9 +405,10 @@
         top: 0;
         bottom: 0;
         left: calc(50vw + var(--lantern-studio-center-half) + var(--lantern-studio-col-gap));
-        width: var(--lantern-studio-right-col-width);
-        min-width: var(--lantern-studio-right-col-width);
-        max-width: var(--lantern-studio-right-col-width);
+        right: 0;
+        width: auto;
+        min-width: 0;
+        max-width: none;
         overflow-x: hidden;
         overflow-y: auto;
         display: flex;
@@ -768,6 +770,7 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
+      align-items: center;
       overflow-x: hidden;
     }
     /* Poll opened — same classes + lanternSurface as explore.html (mountPollOpenedInto) */
@@ -802,7 +805,7 @@
       font-family: inherit;
     }
     #studioOpenedPreviewInner .lanternCardDetailModal--studioPreview{
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       min-height: 0;
     }
     body.contributeStudioOpen #contributePreviewCompact{ display: none !important; }

@@ -17,15 +17,12 @@
   --lantern-rail-card-outer-width: var(--lantern-card-width);
   /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
   --lantern-opened-content-max-width: 520px;
-  /* Contribute Studio desktop canvas — CENTER page-centered at 50vw. */
-  --lantern-studio-left-col-min: 120px;
-  --lantern-studio-left-col-max: 600px;
-  --lantern-studio-left-available: calc(50vw - var(--lantern-studio-center-half) - var(--lantern-studio-col-gap) - max(var(--lantern-pad-x), env(safe-area-inset-left, 0px)));
-  --lantern-studio-left-col-width: clamp(var(--lantern-studio-left-col-min), var(--lantern-studio-left-available), var(--lantern-studio-left-col-max));
-  --lantern-studio-right-col-width: 600px;
+  /* Contribute Studio desktop canvas — CENTER page-centered at 50vw; side panes edge-anchored. */
   --lantern-studio-center-width: 640px;
   --lantern-studio-center-half: 320px;
   --lantern-studio-col-gap: 20px;
+  --lantern-studio-modal-content-min: 280px;
+  --lantern-studio-grid-card-max: 200px;
   /* Touch/coarse stacked Studio below this width; fine-pointer desktop ignores width for three-pane canvas. */
   --lantern-studio-touch-stack-max: 1199px;
   /* Identity row (Explore rail, feed posts, news, missions, detail overlay): avatar + first name — one contract. */
@@ -1215,19 +1212,45 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 
 /* Contribute Studio — RIGHT production modal emulator (shared detail renderer) */
 #studioOpenedPreviewInner .lanternCardDetailModal--studioPreview {
-  width: 100%;
+  width: min(100%, var(--lantern-opened-content-max-width, 520px));
+  min-width: var(--lantern-studio-modal-content-min, 280px);
   max-width: 100%;
-  margin: 0;
+  margin-inline: auto;
+  margin-block: 0;
   box-sizing: border-box;
   border: none;
   box-shadow: none;
   background: transparent;
+  flex-shrink: 0;
 }
 #studioOpenedPreviewInner .lanternCardDetailModal--studioPreview .lanternSurfaceContent {
-  max-width: var(--lantern-opened-content-max-width, 520px);
+  width: 100%;
+  max-width: 100%;
   margin-inline: auto;
   padding: 0 8px 16px;
   box-sizing: border-box;
+}
+/* Studio-preview only — fluid width without squashing media aspect ratio */
+#studioOpenedPreviewInner .lanternCardDetailModal--studioPreview .lanternCardDetailVisual {
+  width: 100%;
+}
+#studioOpenedPreviewInner .lanternCardDetailModal--studioPreview .lanternCardDetailVisualInner .exploreCardVisual {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  max-height: none;
+}
+#studioOpenedPreviewInner .lanternCardDetailModal--studioPreview .lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImage {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+}
+#studioOpenedPreviewInner .lanternCardDetailModal--studioPreview .lanternCardDetailVisualInner .lanternDetailMedia--video .newsCardVideo {
+  width: 100%;
+  max-height: none;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
 }
 
 /* ===== Games hub (games.html) — actions inside LanternCards rail shell ===== */

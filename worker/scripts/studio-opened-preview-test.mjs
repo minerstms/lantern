@@ -28,17 +28,40 @@ function bad(msg, detail) {
 if (/--lantern-studio-center-width:\s*640px/.test(cardsCss)) ok('CENTER width token 640px');
 else bad('CENTER width token');
 
-if (/--lantern-studio-right-col-width:\s*600px/.test(cardsCss)) ok('RIGHT panel 600px');
-else bad('RIGHT panel width');
+if (!/--lantern-studio-right-col-width:\s*600px/.test(cardsCss)) ok('obsolete fixed 600px RIGHT removed');
+else bad('fixed 600px RIGHT still present');
 
-if (/--lantern-studio-left-col-max:\s*600px/.test(cardsCss)) ok('LEFT pane max 600px');
-else bad('LEFT pane max');
+if (!/--lantern-studio-left-col-max:\s*600px/.test(cardsCss)) ok('obsolete LEFT max-600 removed');
+else bad('LEFT max-600 still present');
 
-if (/--lantern-studio-left-col-width:\s*clamp\(/.test(cardsCss)) ok('LEFT responsive clamp width');
-else bad('LEFT clamp width');
+if (!/--lantern-studio-left-col-width:\s*clamp\(/.test(cardsCss)) ok('obsolete LEFT clamp removed');
+else bad('LEFT clamp still present');
 
-if (!/--lantern-studio-left-col-width:\s*300px/.test(cardsCss)) ok('obsolete fixed 300px LEFT removed');
-else bad('fixed 300px LEFT still present');
+if (/--lantern-studio-modal-content-min:\s*280px/.test(cardsCss)) ok('RIGHT modal content minimum token');
+else bad('RIGHT modal min token');
+
+if (/--lantern-studio-grid-card-max:\s*200px/.test(cardsCss)) ok('LEFT grid card maximum token');
+else bad('LEFT grid max token');
+
+if (
+  /\.studioColLeft[\s\S]*left:\s*0;[\s\S]*right:\s*calc\(50vw \+ var\(--lantern-studio-center-half\) \+ var\(--lantern-studio-col-gap\)\)/.test(contributeHtml)
+) {
+  ok('LEFT pane edge-anchored to viewport left and CENTER gap');
+} else bad('LEFT edge anchoring');
+
+if (
+  /\.studioColRight[\s\S]*left:\s*calc\(50vw \+ var\(--lantern-studio-center-half\) \+ var\(--lantern-studio-col-gap\)\)[\s\S]*right:\s*0;/.test(contributeHtml)
+) {
+  ok('RIGHT pane edge-anchored to CENTER gap and viewport right');
+} else bad('RIGHT edge anchoring');
+
+if (!/width:\s*var\(--lantern-studio-right-col-width\)/.test(contributeHtml)) {
+  ok('no fixed RIGHT column width in layout');
+} else bad('fixed RIGHT width still in layout');
+
+if (!/width:\s*var\(--lantern-studio-left-col-width\)/.test(contributeHtml)) {
+  ok('no explicit LEFT column width in layout');
+} else bad('explicit LEFT width still in layout');
 
 if (/\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw - var\(--lantern-studio-center-half\)\)/.test(contributeHtml)) {
   ok('CENTER page-centered via 50vw minus half-width');
@@ -142,9 +165,13 @@ if (contributeHtml.includes('renderStudioLeftDraft') && contributeHtml.includes(
 if (contributeHtml.includes('lantern-feed-api.js')) ok('contribute loads feed API for context cards');
 else bad('contribute missing feed API script');
 
-if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview/.test(cardsCss + contributeHtml)) {
-  ok('Studio RIGHT modal emulator CSS');
-} else bad('Studio emulator CSS');
+if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*aspect-ratio:\s*16 \/ 9/.test(cardsCss)) {
+  ok('Studio preview media preserves 16:9 aspect ratio');
+} else bad('Studio preview aspect-ratio fix');
+
+if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*min-width:\s*var\(--lantern-studio-modal-content-min/.test(cardsCss)) {
+  ok('Studio preview modal minimum useful width');
+} else bad('Studio preview modal min width');
 
 if (!/studioOpenedHero|studioOpenedPreviewShell/.test(cardUiJs)) ok('no duplicate Studio modal HTML builder');
 else bad('duplicate Studio modal template');
@@ -240,19 +267,22 @@ vm.runInContext(streamGridJs, sandbox);
 const SG = sandbox.LANTERN_STUDIO_STREAM_GRID;
 if (SG && typeof SG.computeLayout === 'function') {
   const pad = 12;
-  const widePane = SG.computeLeftPaneWidth(2000, pad);
-  const normalPane = SG.computeLeftPaneWidth(1366, pad);
-  const zoomPane = SG.computeLeftPaneWidth(1090, pad);
-  if (widePane === 600) ok('wide ~2000px LEFT reaches 600px max');
-  else bad('wide LEFT width', String(widePane));
-  if (normalPane >= 300 && normalPane <= 340) ok('1366px LEFT uses available ~331px');
-  else bad('1366 LEFT width', String(normalPane));
-  if (zoomPane >= 120 && zoomPane < 250) ok('1090px LEFT narrows for 125% zoom');
-  else bad('1090 LEFT width', String(zoomPane));
+  const sideAt = (vw) => SG.computeSidePaneWidth(vw, pad);
+  const widePane = sideAt(2000);
+  const normalPane = sideAt(1366);
+  const zoomPane = sideAt(1090);
+  if (widePane >= 620 && widePane <= 660) ok('wide ~2000px side panes ~636px each');
+  else bad('wide side width', String(widePane));
+  if (normalPane >= 300 && normalPane <= 330) ok('1366px side panes ~319px each');
+  else bad('1366 side width', String(normalPane));
+  if (zoomPane >= 170 && zoomPane <= 195) ok('1090px side panes ~181px each');
+  else bad('1090 side width', String(zoomPane));
+  if (Math.abs(widePane - normalPane) > 200) ok('wide side panes expand beyond 1366');
+  else bad('wide expansion', widePane + ' vs ' + normalPane);
 
   const wideGrid = SG.computeLayout(widePane - 16, 500);
-  if (wideGrid.cardW >= 170 && wideGrid.cardW <= 195) ok('wide LEFT mini cards ~175-190px');
-  else bad('wide card width', String(wideGrid.cardW));
+  if (wideGrid.cardW === SG.MAX_CARD_DISPLAY_WIDTH) ok('wide LEFT mini cards capped at max');
+  else bad('wide card max', String(wideGrid.cardW));
   const normalGrid = SG.computeLayout(normalPane - 16, 400);
   if (normalGrid.cardW >= 96 && normalGrid.cardW <= 110) ok('1366 LEFT mini cards ~96-110px');
   else bad('normal card width', String(normalGrid.cardW));
@@ -268,8 +298,12 @@ if (SG && typeof SG.computeLayout === 'function') {
   } else bad('clip floor', JSON.stringify(tight));
   if (SG.CENTER_INDEX === 4) ok('center draft is grid slot 5');
   else bad('center slot');
-  if (!streamGridJs.includes('MAX_CARD_W = 128')) ok('obsolete 128px card cap removed');
-  else bad('128px cap still present');
+  if (!streamGridJs.includes('LEFT_PANE_MAX = 600')) ok('obsolete LEFT_PANE_MAX removed');
+  else bad('LEFT_PANE_MAX still present');
+  if (streamGridJs.includes('MAX_CARD_W = 200')) ok('LEFT grid card max constant');
+  else bad('MAX_CARD_W missing');
+  if (streamGridJs.includes('computeSidePaneWidth')) ok('symmetric side pane width helper');
+  else bad('computeSidePaneWidth missing');
 } else bad('computeLayout export');
 
 console.log('\n--- studio-opened-preview-test: ' + pass + ' passed, ' + fail + ' failed ---');
