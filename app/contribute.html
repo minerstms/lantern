@@ -325,7 +325,7 @@
       .containerStudio3Panel.studioThreeCols .studioColLeft{ order: 0; width: 100%; }
       .containerStudio3Panel.studioThreeCols .studioColRight{ order: 1; width: 100%; }
     }
-    /* Tablet + desktop: full-bleed write wrap + inner row fills it (avoids clip inside 980px .wrap) */
+    /* Tablet + desktop: full-bleed write wrap + protected three-pane geometry */
     @media (min-width: 900px){
       #contributeWriteWrap{
         width: 100vw;
@@ -335,19 +335,21 @@
         padding-left: max(var(--lantern-pad-x), env(safe-area-inset-left, 0px));
         padding-right: max(var(--lantern-pad-x), env(safe-area-inset-right, 0px));
         box-sizing: border-box;
+        overflow-x: clip;
       }
       #creationStudioShell{
         width: 100%;
         max-width: none;
         margin-left: 0;
         margin-right: 0;
+        overflow-x: clip;
       }
       .containerStudio3Panel.studioThreeCols{
         display: flex;
         flex-direction: row;
         flex-wrap: nowrap;
         align-items: stretch;
-        gap: 16px 24px;
+        gap: var(--lantern-studio-col-gap);
         width: 100%;
         max-width: none;
         margin-left: 0;
@@ -355,38 +357,61 @@
         padding-left: 0;
         padding-right: 0;
         box-sizing: border-box;
+        min-width: calc(
+          var(--lantern-studio-left-col-width)
+          + var(--lantern-studio-center-min-width)
+          + var(--lantern-studio-right-col-width)
+          + (2 * var(--lantern-studio-col-gap))
+        );
       }
       .containerStudio3Panel.studioThreeCols .studioColLeft,
       .containerStudio3Panel.studioThreeCols .studioColCenter,
       .containerStudio3Panel.studioThreeCols .studioColRight{
         order: 0;
-        min-width: 0;
       }
-      .studioColLeft,
-      .studioColRight{
-        flex: 1 1 0;
-        min-width: 160px;
+      .studioColLeft{
+        flex: 0 0 var(--lantern-studio-left-col-width);
+        width: var(--lantern-studio-left-col-width);
+        min-width: var(--lantern-studio-left-col-width);
+        max-width: var(--lantern-studio-left-col-width);
         overflow-x: visible;
+        overflow-y: auto;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .studioColRight{
+        flex: 0 0 var(--lantern-studio-right-col-width);
+        width: var(--lantern-studio-right-col-width);
+        min-width: var(--lantern-studio-right-col-width);
+        max-width: var(--lantern-studio-right-col-width);
+        overflow-x: visible;
+        overflow-y: auto;
         align-self: stretch;
         display: flex;
         flex-direction: column;
         min-height: 0;
       }
       .studioColCenter{
-        flex: 0 0 auto;
-        width: min(100%, var(--lantern-page-max-width));
-        max-width: var(--lantern-page-max-width);
+        flex: 1 1 auto;
+        width: auto;
+        min-width: var(--lantern-studio-center-min-width);
+        max-width: var(--lantern-studio-center-max-width);
         display: flex;
         flex-direction: column;
-        min-width: 0;
+        overflow-x: hidden;
+        overflow-y: visible;
       }
-      /* Stage: opened preview centered large card inside pane */
+      /* Stage: opened preview centered large card inside fixed RIGHT column */
       .studioColRight .studioSidePanelBd--preview{
         align-items: center;
+        overflow-x: visible;
       }
       .studioColRight .studioOpenedPreviewHost{
         width: 100%;
         max-width: 100%;
+        overflow-x: visible;
       }
       .studioColCenter .studioCenterCard{
         flex: 1 1 auto;
@@ -443,22 +468,23 @@
       }
       #studioFullPreview{
         max-width: 100%;
-        overflow-x: hidden;
+        overflow-x: visible;
         word-break: break-word;
       }
       .studioCol{ min-width: 0; }
     }
     @media (min-width: 1100px){
       .containerStudio3Panel.studioThreeCols{
-        gap: 20px 28px;
+        gap: 28px;
+        --lantern-studio-col-gap: 28px;
       }
-      /* Bounded studio height: vertical flex chain; overflow visible on X so 3-zone row is never clipped */
+      /* Bounded studio height: vertical flex chain; horizontal clip at write-wrap for extreme zoom */
       body.contributeStudioOpen #contributeWriteWrap{
         display: flex;
         flex-direction: column;
         max-height: calc(100dvh - 88px);
         min-height: 0;
-        overflow-x: visible;
+        overflow-x: clip;
         overflow-y: auto;
       }
       body.contributeStudioOpen #creationStudioShell{
@@ -466,7 +492,7 @@
         min-height: 0;
         display: flex;
         flex-direction: column;
-        overflow-x: visible;
+        overflow-x: clip;
         overflow-y: visible;
       }
       body.contributeStudioOpen .containerStudio3Panel.studioThreeCols{

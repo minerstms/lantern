@@ -30,6 +30,36 @@ else bad('hero aspect-ratio');
 if (/--lantern-studio-opened-card-width:\s*440px/.test(cardsCss)) ok('stable large-preview width token 440px');
 else bad('large-preview width token');
 
+if (/--lantern-studio-right-col-width:\s*460px/.test(cardsCss)) ok('RIGHT column width token 460px');
+else bad('RIGHT column width token');
+
+if (/--lantern-studio-center-max-width:\s*760px/.test(cardsCss)) ok('CENTER max width 760px (not 980px)');
+else bad('CENTER max width');
+
+if (/\.studioColCenter[\s\S]*max-width:\s*var\(--lantern-studio-center-max-width\)/.test(contributeHtml)) ok('CENTER uses flexible studio max-width');
+else bad('CENTER studio max-width wiring');
+
+if (!/\.studioColCenter[\s\S]*--lantern-page-max-width/.test(contributeHtml)) ok('CENTER no longer locked to 980px page max');
+else bad('CENTER still uses 980px page max');
+
+if (/\.studioColRight[\s\S]*flex:\s*0\s*0\s*var\(--lantern-studio-right-col-width\)/.test(contributeHtml)) ok('RIGHT column flex-shrink locked');
+else bad('RIGHT column flex lock');
+
+if (/\.studioColLeft[\s\S]*flex:\s*0\s*0\s*var\(--lantern-studio-left-col-width\)/.test(contributeHtml)) ok('LEFT column flex-shrink locked');
+else bad('LEFT column flex lock');
+
+if (/@media \(min-width:\s*900px\)[\s\S]*\.studioOpenedHero[\s\S]*width:\s*var\(--lantern-studio-opened-card-width\)/.test(cardsCss)) ok('desktop RIGHT card fixed at 440px (no min shrink)');
+else bad('desktop fixed card width');
+
+if (/overflow-x:\s*clip/.test(contributeHtml)) ok('Studio shell uses overflow-x clip for extreme zoom');
+else bad('overflow-x clip');
+
+if (/min-width:\s*calc\([\s\S]*--lantern-studio-left-col-width[\s\S]*--lantern-studio-right-col-width/.test(contributeHtml)) ok('three-pane row min-width protects large preview geometry');
+else bad('row min-width protect');
+
+if (/@media \(max-width:\s*899px\)/.test(contributeHtml)) ok('stacked layout breakpoint preserved at 899px');
+else bad('mobile stack breakpoint');
+
 if (/\.studioOpenedHero[\s\S]*width:\s*min\(var\(--lantern-studio-opened-card-width\),\s*100%\)/.test(cardsCss)) ok('hero uses min(target, 100%) width lock');
 else bad('hero width lock');
 

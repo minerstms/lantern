@@ -24,6 +24,12 @@
   --lantern-studio-opened-meta-size: 15px;
   --lantern-studio-opened-badge-size: 15px;
   --lantern-studio-opened-overlay-max: 36%;
+  /* Contribute Studio three-pane desktop geometry (RIGHT large preview protected). */
+  --lantern-studio-left-col-width: 300px;
+  --lantern-studio-right-col-width: 460px;
+  --lantern-studio-center-min-width: 400px;
+  --lantern-studio-center-max-width: 760px;
+  --lantern-studio-col-gap: 24px;
   /* Identity row (Explore rail, feed posts, news, missions, detail overlay): avatar + first name — one contract. */
   --lantern-card-identity-avatar-size: 32px;
   --lantern-card-identity-gap: 12px;
@@ -1223,6 +1229,14 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   max-width: var(--lantern-studio-opened-card-width);
   margin-inline: auto;
   flex-shrink: 0;
+}
+@media (min-width: 900px) {
+  /* Desktop: fixed large preview — outer Studio shell clips instead of crushing card width. */
+  .studioOpenedHero,
+  .studioOpenedBody {
+    width: var(--lantern-studio-opened-card-width);
+    max-width: var(--lantern-studio-opened-card-width);
+  }
 }
 .studioOpenedHeroFrame {
   position: relative;
