@@ -27,6 +27,43 @@ function bad(msg, detail) {
 if (/\.studioOpenedHeroFrame[\s\S]*aspect-ratio:\s*16\s*\/\s*9/.test(cardsCss)) ok('RIGHT hero frame is 16:9');
 else bad('hero aspect-ratio');
 
+if (/--lantern-studio-opened-card-width:\s*440px/.test(cardsCss)) ok('stable large-preview width token 440px');
+else bad('large-preview width token');
+
+if (/\.studioOpenedHero[\s\S]*width:\s*min\(var\(--lantern-studio-opened-card-width\),\s*100%\)/.test(cardsCss)) ok('hero uses min(target, 100%) width lock');
+else bad('hero width lock');
+
+if (/\.studioOpenedHero[\s\S]*margin-inline:\s*auto/.test(cardsCss)) ok('hero centered in pane');
+else bad('hero centering');
+
+if (/\.studioOpenedHeroFrame \.lanternCanonicalCardTitle[\s\S]*--lantern-studio-opened-title-size/.test(cardsCss)) ok('large-preview title typography scoped');
+else bad('large title typography');
+
+if (/\.studioOpenedHeroFrame \.lanternCanonicalCardTitle[\s\S]*-webkit-line-clamp:\s*2/.test(cardsCss)) ok('large-preview title two-line clamp');
+else bad('large title clamp');
+
+if (/\.studioOpenedHeroFrame \.lanternCanonicalCardMeta[\s\S]*--lantern-studio-opened-meta-size/.test(cardsCss)) ok('large-preview meta typography scoped');
+else bad('large meta typography');
+
+if (/\.studioOpenedHeroFrame \.lanternCanonicalCardOverlay[\s\S]*--lantern-studio-opened-overlay-max/.test(cardsCss)) ok('large-preview bottom overlay rhythm');
+else bad('overlay rhythm');
+
+const leftW = 280;
+const leftH = Math.round((280 * 9) / 16);
+const rightW = 440;
+const rightH = Math.round((440 * 9) / 16);
+if (rightW > leftW && rightH > leftH) ok('RIGHT target (' + rightW + '×' + rightH + ') larger than LEFT (' + leftW + '×' + leftH + ')');
+else bad('RIGHT vs LEFT size');
+
+if (/--lantern-card-width:\s*280px/.test(cardsCss) && /\.exploreCard\.lanternCanonicalCard[\s\S]*var\(--lantern-card-width\)/.test(cardsCss)) ok('LEFT canonical card remains 280px');
+else bad('LEFT width unchanged');
+
+if (!/\.exploreCard\.lanternCanonicalCard \.lanternCanonicalCardTitle/.test(cardsCss)) ok('LEFT title rule not scoped to large preview');
+else bad('LEFT title accidentally overridden');
+
+if (/font-size:\s*5vw/.test(cardsCss.match(/studioOpened[\s\S]*/)?.[0] || '')) bad('fluid vw typography in studio preview');
+else ok('no aggressive vw typography on studio preview');
+
 if (/\.lanternCanonicalCardBadgeLayer[\s\S]*top:\s*8px[\s\S]*left:\s*8px/.test(cardsCss)) ok('canonical badge layer is ULHC');
 else bad('badge ULHC');
 

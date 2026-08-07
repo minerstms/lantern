@@ -17,6 +17,13 @@
   --lantern-rail-card-outer-width: var(--lantern-card-width);
   /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
   --lantern-opened-content-max-width: 520px;
+  /* Contribute Studio RIGHT opened preview — large sibling of 280px canonical rail card. */
+  --lantern-studio-opened-card-width: 440px;
+  --lantern-studio-opened-title-size: 26px;
+  --lantern-studio-opened-title-line-height: 1.12;
+  --lantern-studio-opened-meta-size: 15px;
+  --lantern-studio-opened-badge-size: 15px;
+  --lantern-studio-opened-overlay-max: 36%;
   /* Identity row (Explore rail, feed posts, news, missions, detail overlay): avatar + first name — one contract. */
   --lantern-card-identity-avatar-size: 32px;
   --lantern-card-identity-gap: 12px;
@@ -1202,14 +1209,20 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   object-fit: cover;
 }
 
-/* Contribute Studio — RIGHT opened preview (expanded canonical hero, body below) */
+/* Contribute Studio — RIGHT opened preview (large stable canonical hero, body below) */
 .studioOpenedPreviewShell {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .studioOpenedHero {
-  width: 100%;
+  width: min(var(--lantern-studio-opened-card-width), 100%);
+  max-width: var(--lantern-studio-opened-card-width);
+  margin-inline: auto;
+  flex-shrink: 0;
 }
 .studioOpenedHeroFrame {
   position: relative;
@@ -1218,6 +1231,40 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   overflow: hidden;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.25);
+}
+.studioOpenedHeroFrame .lanternCanonicalCardOverlay {
+  max-height: var(--lantern-studio-opened-overlay-max);
+}
+.studioOpenedHeroFrame .lanternCanonicalCardCaption {
+  padding: 0 16px 14px;
+  padding-right: 16px;
+}
+.studioOpenedHeroFrame .lanternCanonicalCardTitle {
+  font-size: var(--lantern-studio-opened-title-size);
+  font-weight: 900;
+  line-height: var(--lantern-studio-opened-title-line-height);
+  max-height: calc(var(--lantern-studio-opened-title-line-height) * 2em);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.studioOpenedHeroFrame .lanternCanonicalCardMeta {
+  font-size: var(--lantern-studio-opened-meta-size);
+  margin-top: 6px;
+  line-height: 1.2;
+}
+.studioOpenedHeroFrame .lanternCanonicalCardBadgeLayer {
+  top: 10px;
+  left: 10px;
+  right: auto;
+}
+.studioOpenedHeroFrame .lanternCanonicalCardTypeBadge,
+.studioOpenedHeroFrame .lanternCanonicalCardStateBadge {
+  font-size: var(--lantern-studio-opened-badge-size);
+  padding: 5px 10px;
+  border-radius: 9px;
 }
 .studioOpenedHeroFrame .lanternCanonicalCardImage,
 .studioOpenedHeroFrame .lanternCanonicalCardFallback {
@@ -1258,6 +1305,9 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   display: none !important;
 }
 .studioOpenedBody {
+  width: min(var(--lantern-studio-opened-card-width), 100%);
+  max-width: var(--lantern-studio-opened-card-width);
+  margin-inline: auto;
   padding: 14px 2px 4px;
   box-sizing: border-box;
 }

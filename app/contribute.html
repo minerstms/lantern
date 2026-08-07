@@ -380,9 +380,9 @@
         flex-direction: column;
         min-width: 0;
       }
-      /* Stage: opened preview fills pane (same surface contract as Explore) */
+      /* Stage: opened preview centered large card inside pane */
       .studioColRight .studioSidePanelBd--preview{
-        align-items: stretch;
+        align-items: center;
       }
       .studioColRight .studioOpenedPreviewHost{
         width: 100%;
@@ -695,6 +695,7 @@
       min-height: 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
+      align-items: center;
     }
     body.contributeStudioOpen #contributePreviewCompact{ display: none !important; }
     #contributePreviewCompact{
