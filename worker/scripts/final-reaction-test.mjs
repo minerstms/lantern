@@ -116,7 +116,8 @@ const studentB = {
   role: 'student',
   student_character_name: '20999',
 };
-const teacher = { username: 'teacher1', role: 'teacher' };
+const teacher = { username: 'teacher1', role: 'teacher', teacher_id: 'teacher1' };
+const admin = { username: 'admin1', role: 'admin' };
 
 let currentAccount = studentA;
 
@@ -215,10 +216,60 @@ const unauth = await finalize({ item_type: 'feed', item_id: 'feed-item-1', react
 if (unauth.status === 401) ok('J unauthenticated finalize rejected');
 else bad('J unauthenticated', unauth);
 
-// K. teacher cannot finalize
-const teacherAttempt = await finalize({ item_type: 'feed', item_id: 'feed-item-1', reaction_type: 'heart' }, teacher);
-if (teacherAttempt.status === 403 && teacherAttempt.body.error === 'students_only') ok('K teacher finalize rejected');
-else bad('K teacher finalize', teacherAttempt);
+// K. teacher may finalize
+state.approvedFeed.add('feed-item-teacher');
+const teacherFinalize = await finalize({ item_type: 'feed', item_id: 'feed-item-teacher', reaction_type: 'heart' }, teacher);
+if (teacherFinalize.status === 200 && teacherFinalize.body.ok && teacherFinalize.body.finalized) {
+  ok('K teacher may finalize');
+} else bad('K teacher finalize', teacherFinalize);
+
+// K2. admin may finalize
+state.approvedFeed.add('feed-item-admin');
+const adminFinalize = await finalize({ item_type: 'feed', item_id: 'feed-item-admin', reaction_type: 'star' }, admin);
+if (adminFinalize.status === 200 && adminFinalize.body.ok && adminFinalize.body.finalized) {
+  ok('K2 admin may finalize');
+} else bad('K2 admin finalize', adminFinalize);
+
+// K3. teacher cannot change finalized answer
+const teacherSwitch = await finalize({ item_type: 'feed', item_id: 'feed-item-teacher', reaction_type: 'fire' }, teacher);
+if (teacherSwitch.status === 409 && teacherSwitch.body.error === 'reaction_already_finalized') {
+  ok('K3 teacher cannot change finalized answer');
+} else bad('K3 teacher immutable conflict', teacherSwitch);
+
+// K4. admin cannot change finalized answer
+const adminSwitch = await finalize({ item_type: 'feed', item_id: 'feed-item-admin', reaction_type: 'fire' }, admin);
+if (adminSwitch.status === 409 && adminSwitch.body.error === 'reaction_already_finalized') {
+  ok('K4 admin cannot change finalized answer');
+} else bad('K4 admin immutable conflict', adminSwitch);
+
+// K5. inactive account rejected (getPilotAccountFromRequest returns null)
+const inactiveDeps = {
+  ...deps,
+  getPilotAccountFromRequest: async () => null,
+};
+async function finalizeInactive(body) {
+  const req = new Request('https://lantern.test/api/reactions/finalize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const url = new URL(req.url);
+  const res = await handleFinalReactionRoutes(req, url, '/api/reactions/finalize', env, cors, inactiveDeps);
+  return { status: res.status, body: await res.json() };
+}
+const inactiveAttempt = await finalizeInactive({ item_type: 'feed', item_id: 'feed-item-1', reaction_type: 'heart' });
+if (inactiveAttempt.status === 401) ok('K5 inactive/unauthenticated account rejected');
+else bad('K5 inactive account', inactiveAttempt);
+
+// K6. shared aggregate pool includes all roles
+state.approvedFeed.add('feed-item-pool');
+await finalize({ item_type: 'feed', item_id: 'feed-item-pool', reaction_type: 'heart' }, studentB);
+await finalize({ item_type: 'feed', item_id: 'feed-item-pool', reaction_type: 'lightbulb' }, teacher);
+const poolStatus = await status('feed-item-pool', studentB);
+const poolRows = state.finalRows.filter((r) => r.item_id === 'feed-item-pool');
+if (poolStatus.body.finalized && poolStatus.body.total_responses === 2 && poolRows.length === 2) {
+  ok('K6 shared aggregate pool across roles');
+} else bad('K6 shared pool', { poolStatus: poolStatus.body, poolRows: poolRows.length });
 
 // L. unapproved item rejected
 state.approvedFeed.delete('feed-hidden');
@@ -238,8 +289,15 @@ if (cardUiJs.includes('openFeedItem') && cardUiJs.includes('fillFeedItemDetailMo
 } else bad('LanternCardUI adapter');
 
 const finalJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.js'), 'utf8');
-if (finalJs.includes('Lock In') && finalJs.includes('lanternFinalRxConfirmCancel') && FINAL_REACTION_TYPES.length === 5) {
-  ok('final reaction UI lifecycle present');
+if (
+  finalJs.includes('Lock In') &&
+  finalJs.includes('lanternFinalRxConfirmCancel') &&
+  FINAL_REACTION_TYPES.length === 5 &&
+  !finalJs.includes('Student reactions appear') &&
+  !finalJs.includes('students_only') &&
+  finalJs.includes('isAuthenticatedViewer')
+) {
+  ok('final reaction UI lifecycle present for all authenticated accounts');
 } else bad('final reaction UI');
 
 const feedHandlers = fs.readFileSync(path.join(root, 'worker/feed-handlers.js'), 'utf8');

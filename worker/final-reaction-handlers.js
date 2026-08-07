@@ -62,16 +62,6 @@ export async function handleFinalReactionRoutes(request, url, path, env, cors, d
     return { account };
   }
 
-  async function requireStudentAccount() {
-    const auth = await requireAuthedAccount();
-    if (auth.error) return auth;
-    const role = String(auth.account.role || '').trim().toLowerCase();
-    if (role !== 'student') {
-      return { error: jsonResponse({ ok: false, error: 'students_only' }, 403, cors) };
-    }
-    return auth;
-  }
-
   if (request.method === 'GET' && path === '/api/reactions/finalized-status') {
     const itemType = (url.searchParams.get('item_type') || '').trim().toLowerCase();
     const itemId = (url.searchParams.get('item_id') || '').trim();
@@ -99,7 +89,7 @@ export async function handleFinalReactionRoutes(request, url, path, env, cors, d
   }
 
   if (request.method === 'POST' && path === '/api/reactions/finalize') {
-    const auth = await requireStudentAccount();
+    const auth = await requireAuthedAccount();
     if (auth.error) return auth.error;
     const account = auth.account;
     const username = String(account.username || '').trim();
