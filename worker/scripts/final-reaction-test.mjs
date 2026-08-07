@@ -321,7 +321,8 @@ if (
 
 const finalJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.js'), 'utf8');
 if (
-  finalJs.includes('Lock In') &&
+  finalJs.includes('Leave a reaction!') &&
+  !finalJs.includes('How did this make you feel?') &&
   finalJs.includes('lanternFinalRxConfirmCancel') &&
   FINAL_REACTION_TYPES.length === 5 &&
   !finalJs.includes('Student reactions appear') &&
