@@ -861,6 +861,10 @@
       if (msg) toast(msg);
     }
 
+    function scheduleCloseAfterResult(resetFn){
+      setTimeout(function(){ closeGamePlayerAfterResult(resetFn); }, RESULT_DELAY_MS);
+    }
+
     var RESULT_DELAY_MS = 2500;
 
     // ---- Reaction Tap: ready → playing → result → auto-reset → ready ----
@@ -910,7 +914,7 @@
           msg.style.color = 'var(--bad)';
           tapZone.textContent = 'False Start -1 nugget';
           tapZone.className = 'tapZone';
-          setTimeout(function(){ closeGamePlayerAfterResult(resetReactionGame); }, RESULT_DELAY_MS);
+          scheduleCloseAfterResult(resetReactionGame);
           return;
         }
         if (!tapZone._start) return;
@@ -924,8 +928,14 @@
         if (adopted && run && run.recordGameResult) {
           run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Reaction Tap', meta: { score: ms, score_display: ms + ' ms' } });
         }
-        if (adopted) postLeaderboardScore('Reaction Tap', adopted.name, ms, ms + ' ms', function(){});
-        setTimeout(function(){ closeGamePlayerAfterResult(resetReactionGame); }, RESULT_DELAY_MS);
+        if (adopted) {
+          postLeaderboardScore('Reaction Tap', adopted.name, ms, ms + ' ms', function(ok){
+            if (ok) toast('Score recorded on leaderboard.');
+            scheduleCloseAfterResult(resetReactionGame);
+          });
+        } else {
+          scheduleCloseAfterResult(resetReactionGame);
+        }
       });
 
       playBtn.addEventListener('click', function(){
@@ -977,6 +987,7 @@
         tryPlay('Nugget Click Rush', function(){
           var count = 0;
           var remaining = 10;
+          var scorePosted = false;
           countEl.textContent = '0';
           timerEl.textContent = '10';
           tapZone.textContent = 'Tap here!';
@@ -994,12 +1005,20 @@
               tickInterval = null;
               tapZone.onclick = null;
               tapZone.textContent = 'Time\'s up! ' + count + ' taps';
+              if (scorePosted) return;
+              scorePosted = true;
               var adopted = loadAdopted();
               if (adopted && run && run.recordGameResult) {
                 run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Click Rush', meta: { score: count, score_display: count + ' taps' } });
               }
-              if (adopted) postLeaderboardScore('Nugget Click Rush', adopted.name, count, count + ' taps', function(){});
-              setTimeout(function(){ closeGamePlayerAfterResult(resetClickRushGame); }, RESULT_DELAY_MS);
+              if (adopted) {
+                postLeaderboardScore('Nugget Click Rush', adopted.name, count, count + ' taps', function(ok){
+                  if (ok) toast('Score recorded on leaderboard.');
+                  scheduleCloseAfterResult(resetClickRushGame);
+                });
+              } else {
+                scheduleCloseAfterResult(resetClickRushGame);
+              }
             }
           }, 1000);
         }, { surface: area, onExit: resetClickRushGame, returnFocus: playBtn });
@@ -1032,6 +1051,8 @@
           grid.innerHTML = '';
           var flipped = [];
           var matched = 0;
+          var startedAt = Date.now();
+          var scorePosted = false;
           pairs.forEach(function(emoji, idx){
             var card = document.createElement('div');
             card.className = 'memCard';
@@ -1052,12 +1073,21 @@
                   matched += 2;
                   flipped = [];
                   if (matched === pairs.length){
+                    var secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
                     grid.innerHTML = '';
                     var doneEl = document.createElement('div');
                     doneEl.className = 'big';
-                    doneEl.textContent = 'All matched!';
+                    doneEl.textContent = 'All matched! ' + secs + 's';
                     grid.appendChild(doneEl);
-                    resetTimeout = setTimeout(function(){ closeGamePlayerAfterResult(resetMemoryGame); }, RESULT_DELAY_MS);
+                    var adopted = loadAdopted();
+                    if (adopted && !scorePosted) {
+                      scorePosted = true;
+                      postLeaderboardScore('Memory Match', adopted.name, secs, secs + 's', function(){
+                        resetTimeout = setTimeout(function(){ closeGamePlayerAfterResult(resetMemoryGame); }, RESULT_DELAY_MS);
+                      });
+                    } else {
+                      resetTimeout = setTimeout(function(){ closeGamePlayerAfterResult(resetMemoryGame); }, RESULT_DELAY_MS);
+                    }
                   }
                 } else {
                   setTimeout(function(){
@@ -1246,18 +1276,61 @@
       if (typeof raw === 'undefined' || raw === null) return null;
       return String(raw).replace(/\/$/, '');
     })();
+    var leaderboardSubmitGuard = Object.create(null);
+    function canonicalLeaderboardKey(gameName){
+      var cat = window.LANTERN_GAME_CATALOG;
+      if (cat && typeof cat.leaderboardKey === 'function') {
+        var key = cat.leaderboardKey(gameName);
+        if (key) return key;
+      }
+      return gameName;
+    }
     function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
-      if (gamesApiBase == null || !characterName || !gameName) { if (onDone) onDone(false); return; }
-      fetch(gamesApiBase + '/api/leaderboards/record', {
+      var key = canonicalLeaderboardKey(gameName);
+      var numericScore = Math.floor(Number(score));
+      if (gamesApiBase == null || !characterName || !key || !Number.isFinite(numericScore)) {
+        toast('Score couldn\'t be saved. Try again.');
+        if (onDone) onDone(false);
+        return Promise.resolve(false);
+      }
+      var guardKey = key + '|' + String(characterName) + '|' + String(numericScore) + '|' + String(scoreDisplay || '');
+      if (leaderboardSubmitGuard[guardKey]) {
+        if (onDone) onDone(true);
+        return Promise.resolve(true);
+      }
+      leaderboardSubmitGuard[guardKey] = true;
+      return fetch(gamesApiBase + '/api/leaderboards/record', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game_name: gameName, character_name: characterName, score: score, score_display: scoreDisplay || String(score) })
-      }).then(function(r){ return r.json(); }).then(function(res){
-        if (res && res.ok && window.LanternGamesPage && typeof window.LanternGamesPage.loadAllLeaderboards === 'function') {
-          window.LanternGamesPage.loadAllLeaderboards();
+        body: JSON.stringify({
+          game_name: key,
+          character_name: characterName,
+          score: numericScore,
+          score_display: scoreDisplay || String(numericScore)
+        })
+      }).then(function(r){
+        return r.json().then(function(res){ return { httpOk: r.ok, res: res }; }).catch(function(){
+          return { httpOk: r.ok, res: null };
+        });
+      }).then(function(pack){
+        var ok = !!(pack && pack.httpOk && pack.res && pack.res.ok);
+        if (ok) {
+          if (window.LanternGamesPage && typeof window.LanternGamesPage.loadAllLeaderboards === 'function') {
+            window.LanternGamesPage.loadAllLeaderboards();
+          }
+        } else {
+          delete leaderboardSubmitGuard[guardKey];
+          toast('Score couldn\'t be saved. Try again.');
         }
-        if (onDone) onDone(res && res.ok);
-      }).catch(function(){ if (onDone) onDone(false); });
+        if (onDone) onDone(ok);
+        return ok;
+      }).catch(function(){
+        delete leaderboardSubmitGuard[guardKey];
+        toast('Score couldn\'t be saved. Try again.');
+        if (onDone) onDone(false);
+        return false;
+      });
     }
 
     (function(){
@@ -1379,8 +1452,9 @@
         function showAvatarMatchResult(){
           setScore('Score: ' + totalScore);
           gameBody.innerHTML = '<div class="resultMsg win">Match complete!</div><div class="avatarMatchResultScore">' + totalScore + ' points</div>';
-          postLeaderboardScore('Avatar Match', adopted.name, totalScore, totalScore + ' pts', function(){});
-          toast('Score recorded on leaderboard.');
+          postLeaderboardScore('Avatar Match', adopted.name, totalScore, totalScore + ' pts', function(ok){
+            if (ok) toast('Score recorded on leaderboard.');
+          });
         }
         fetchThenStart();
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('avatarMatchPlayBtn') });
@@ -1421,8 +1495,9 @@
           var score = correctCount * 10;
           setScore('Score: ' + score);
           gameBody.innerHTML = '<div class="resultMsg win">' + correctCount + ' correct! Score: ' + score + '</div>';
-          postLeaderboardScore(gameName, adopted.name, score, correctCount + '/10 · ' + score + ' pts', function(){});
-          toast('Score recorded on leaderboard.');
+          postLeaderboardScore(gameName, adopted.name, score, correctCount + '/10 · ' + score + ' pts', function(ok){
+            if (ok) toast('Score recorded on leaderboard.');
+          });
         }
         showQuestion();
       }

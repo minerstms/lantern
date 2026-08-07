@@ -3839,7 +3839,7 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     } else {
       since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     }
-    const LOWER_IS_BETTER = ['Reaction Tap', 'Nugget Hunt'];
+    const LOWER_IS_BETTER = ['Reaction Tap', 'Nugget Hunt', 'Memory Match'];
     const lowerBetter = gameName && LOWER_IS_BETTER.includes(gameName);
     const agg = lowerBetter ? 'MIN(score)' : 'MAX(score)';
     const orderBy = lowerBetter ? 'ORDER BY score ASC' : 'ORDER BY score DESC';

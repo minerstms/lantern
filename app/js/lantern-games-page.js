@@ -20,9 +20,21 @@
     return global.LanternCards || null;
   }
 
+  /**
+   * HTTP prefix for /api/*. Empty string means same-origin (LANTERN_AVATAR_API = '').
+   * Only null means "cannot fetch".
+   */
   function apiBase() {
-    if (global.LanternGamesRuntime && global.LanternGamesRuntime.gamesApiBase != null) {
-      return global.LanternGamesRuntime.gamesApiBase;
+    if (global.LanternGamesRuntime && typeof global.LanternGamesRuntime.gamesApiBase !== 'undefined') {
+      var runtimeBase = global.LanternGamesRuntime.gamesApiBase;
+      if (runtimeBase === null) return null;
+      return String(runtimeBase).replace(/\/$/, '');
+    }
+    if (typeof global.LANTERN_ECONOMY_API !== 'undefined' && global.LANTERN_ECONOMY_API !== null && String(global.LANTERN_ECONOMY_API).trim() !== '') {
+      return String(global.LANTERN_ECONOMY_API).replace(/\/$/, '');
+    }
+    if (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) {
+      return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
     }
     return null;
   }
@@ -60,14 +72,17 @@
 
   function fetchLeaderboard(gameName, limit, periodUi) {
     var base = apiBase();
-    if (!base) return Promise.resolve({ ok: false, entries: [] });
+    if (base === null) return Promise.resolve({ ok: false, entries: [] });
+    var cat = catalog();
+    var key =
+      cat && typeof cat.leaderboardKey === 'function' ? cat.leaderboardKey(gameName) : gameName;
     var period = periodApiKey(periodUi || state.period);
     var url =
       base +
       '/api/leaderboards?period=' +
       encodeURIComponent(period) +
       '&game_name=' +
-      encodeURIComponent(gameName) +
+      encodeURIComponent(key) +
       '&limit=' +
       (limit || 25);
     return fetch(url, { credentials: 'include' })

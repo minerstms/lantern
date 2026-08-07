@@ -139,6 +139,12 @@
     return BY_NAME[name] || null;
   }
 
+  /** Canonical leaderboard key — same string for record POST and GET query. */
+  function leaderboardKey(nameOrId) {
+    var g = getGameByName(nameOrId) || getGameById(nameOrId);
+    return g ? g.name : nameOrId ? String(nameOrId) : '';
+  }
+
   function playCostLabel(cost) {
     var n = Math.max(1, Math.floor(Number(cost) || 1));
     return n === 1 ? '1 Nugget' : n + ' Nuggets';
@@ -164,6 +170,7 @@
     listGames: listGames,
     getGameById: getGameById,
     getGameByName: getGameByName,
+    leaderboardKey: leaderboardKey,
     playCostLabel: playCostLabel,
     playCostCardMeta: playCostCardMeta,
     playActionLabel: playActionLabel,
