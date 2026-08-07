@@ -481,7 +481,12 @@
       location.replace('/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash));
       return;
     }
-    auth.guardPilotPage({ mode: 'general' });
+    auth.guardPilotPage({ mode: 'general' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
+      if (auth.applyStudentStorageFromSession) auth.applyStudentStorageFromSession(data);
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      if (typeof window.__bootGamesPage === 'function') window.__bootGamesPage();
+    });
   })();
   </script>
   <script src="js/lantern-canonical-route-boot.js"></script>
@@ -670,14 +675,6 @@
         }
       } catch(e) {}
       return null;
-    }
-
-    function redirectIfNoCharacter(){
-      if (!loadAdopted()) {
-        window.top.location.href = 'locker.html';
-        return false;
-      }
-      return true;
     }
 
     function toast(msg){
@@ -1497,10 +1494,23 @@
 
     wireDailyHuntNugget();
 
-    if (redirectIfNoCharacter()) {
+    var gamesPageBooted = false;
+    window.__bootGamesPage = function bootGamesPage(){
+      if (gamesPageBooted) return;
+      var auth = window.LanternAuth || window.LanternPilotAuth;
+      var me = auth && typeof auth.getCachedPilotMe === 'function' ? auth.getCachedPilotMe() : null;
+      if (!me || me.authenticated !== true) return;
+      gamesPageBooted = true;
       refreshBalance();
       initGamesPage();
       refreshDailyHunt();
+    };
+    document.addEventListener('lantern-class-access-resolved', function(){
+      window.__bootGamesPage();
+    });
+    var contentWrap = document.getElementById('classAccessContentWrap');
+    if (contentWrap && getComputedStyle(contentWrap).visibility === 'visible') {
+      window.__bootGamesPage();
     }
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>
