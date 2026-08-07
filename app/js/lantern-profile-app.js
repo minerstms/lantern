@@ -209,12 +209,20 @@
       if (window.LanternWallet && typeof window.LanternWallet.fetchBalance === 'function') {
         return window.LanternWallet.fetchBalance(name);
       }
-      if (economyApiBase != null) {
+      if (economyApiBase != null || typeof fetch === 'function') {
+        var prefix = economyApiBase != null ? economyApiBase : '';
         var balanceUrl = (name == null || String(name).trim() === '')
-          ? economyApiBase + '/api/economy/balance'
-          : economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name);
+          ? prefix + '/api/economy/balance'
+          : prefix + '/api/economy/balance?character_name=' + encodeURIComponent(name);
         return fetch(balanceUrl, { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
-          if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent, student_name: res.character_name || name };
+          if (window.LanternWallet && typeof window.LanternWallet.normalizeWalletBalance === 'function') {
+            return window.LanternWallet.normalizeWalletBalance(res, name || '');
+          }
+          if (res && res.ok) {
+            var av = res.available != null ? Number(res.available) : Number(res.balance);
+            if (!Number.isFinite(av)) return { ok: false, error: 'invalid_balance_payload', available: null };
+            return { ok: true, available: av, earned: res.earned, spent: res.spent, student_name: res.character_name || name };
+          }
           return { ok: false, error: (res && res.error) || 'Failed', available: null };
         }).catch(function(){ return { ok: false, error: 'Network error', available: null }; });
       }
@@ -1732,7 +1740,15 @@
         return;
       }
       avatarCropBalanceLoaded = true;
-      avatarCropAvailable = Number(opts.available) || 0;
+      var parsedAvailable = Number(opts.available);
+      if (!Number.isFinite(parsedAvailable)) {
+        avatarCropBalanceLoaded = false;
+        avatarCropAvailable = null;
+        if (statusEl) statusEl.textContent = opts.error || 'Could not check balance. Try again.';
+        syncAvatarCropSubmitState();
+        return;
+      }
+      avatarCropAvailable = parsedAvailable;
       if (statusEl) {
         if (avatarCropAvailable >= cost) {
           statusEl.textContent = 'Available: ' + avatarCropAvailable + ' nuggets';
@@ -2025,7 +2041,9 @@
                   callGetCosmeticOwnership(characterName).then(function(o){
                     callGetBalance().then(function(bRes){
                       var nextOwnership = o || { owned: [], equipped: {} };
-                      var nextBalance = Number((bRes && bRes.available) || 0);
+                      var nextBalance = (bRes && bRes.ok && bRes.available != null && Number.isFinite(Number(bRes.available)))
+                        ? Number(bRes.available)
+                        : 0;
                       buildCosmeticEquip(nextOwnership.owned || [], nextOwnership.equipped || {}, cosmetics);
                       buildCosmeticBuyGrid(characterName, nextOwnership, nextBalance, cosmetics);
                       showProfile();
@@ -2145,7 +2163,9 @@
           var ownership = results[2] || { owned: [], equipped: {} };
           var avatarStatus = results[3] || { status: {} };
           var balanceRes = results[4] || {};
-          var balance = Number(balanceRes.available) || 0;
+          var balance = (balanceRes && balanceRes.ok && balanceRes.available != null && Number.isFinite(Number(balanceRes.available)))
+            ? Number(balanceRes.available)
+            : 0;
           var praiseRes = results[5] || {};
           if (praiseRes && praiseRes.ok && praiseRes.reaction_types) profile.praise_types = praiseRes.reaction_types;
           var cosmetics = (window.LANTERN_DATA && window.LANTERN_DATA.getCosmetics) ? window.LANTERN_DATA.getCosmetics() : [];

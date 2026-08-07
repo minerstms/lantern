@@ -1,6 +1,7 @@
 /**
  * Shared authoritative wallet balance — GET /api/economy/balance.
  * Self wallet uses session-scoped GET /api/economy/balance (no client identity param).
+ * Empty LANTERN_AVATAR_API means same-origin /api (Pages proxy), not local runner.
  */
 (function (global) {
   'use strict';
@@ -19,63 +20,105 @@
     return String(raw).replace(/\/$/, '');
   }
 
-  function parseBalanceResponse(res, fallbackName) {
-    if (res && res.ok) {
+  function economyBalanceUrl(characterName) {
+    var base = economyApiBase();
+    var prefix = base != null ? base : '';
+    if (characterName != null && String(characterName).trim() !== '') {
+      return prefix + '/api/economy/balance?character_name=' + encodeURIComponent(String(characterName).trim());
+    }
+    return prefix + '/api/economy/balance';
+  }
+
+  function finiteWalletNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    var n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function normalizeWalletBalance(res, fallbackName) {
+    if (!res || !res.ok) {
       return {
-        ok: true,
-        student_name: (res.character_name || fallbackName || '').trim(),
-        available: Number(res.balance) || 0,
-        earned: res.earned,
-        spent: res.spent,
+        ok: false,
+        error: (res && res.error) || 'Failed',
+        available: null,
+        earned: null,
+        spent: null,
+        economy_key: null,
+        student_name: fallbackName || null,
       };
     }
+    var available = finiteWalletNumber(res.available);
+    if (available === null) available = finiteWalletNumber(res.balance);
+    if (available === null) {
+      return {
+        ok: false,
+        error: 'invalid_balance_payload',
+        available: null,
+        earned: null,
+        spent: null,
+        economy_key: (res.character_name || fallbackName || '').trim() || null,
+        student_name: (res.character_name || fallbackName || '').trim() || fallbackName || null,
+      };
+    }
+    var earned = finiteWalletNumber(res.earned);
+    var spent = finiteWalletNumber(res.spent);
+    var economyKey = (res.character_name || fallbackName || '').trim() || null;
     return {
-      ok: false,
-      error: (res && res.error) || 'Failed',
-      available: null,
-      earned: null,
-      spent: null,
+      ok: true,
+      available: available,
+      earned: earned,
+      spent: spent,
+      economy_key: economyKey,
+      student_name: economyKey,
     };
   }
 
-  function fetchMyBalance() {
-    var base = economyApiBase();
-    if (base) {
-      return global
-        .fetch(base + '/api/economy/balance', {
-          credentials: 'include',
-          cache: 'no-store',
-        })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (res) {
-          return parseBalanceResponse(res, '');
-        })
-        .catch(function () {
-          return { ok: false, error: 'Network error', available: null, earned: null, spent: null };
-        });
-    }
+  function fetchBalanceFromLocalRunner(characterName) {
     var createRun =
       typeof global.LANTERN_API !== 'undefined' && global.LANTERN_API.createRun ? global.LANTERN_API.createRun() : null;
     if (!createRun) {
       return Promise.resolve({ ok: false, error: 'API not loaded', available: null, earned: null, spent: null });
     }
-    var lockerName = '';
-    if (global.LanternLockerMe && typeof global.LanternLockerMe.economyKeyFromLocker === 'function') {
+    var lockerName = String(characterName || '').trim();
+    if (!lockerName && global.LanternLockerMe && typeof global.LanternLockerMe.economyKeyFromLocker === 'function') {
       var locker = global.LanternLockerMe.getLockerMe ? global.LanternLockerMe.getLockerMe() : null;
       lockerName = global.LanternLockerMe.economyKeyFromLocker(locker);
     }
     return new Promise(function (resolve) {
       createRun
         .withSuccessHandler(function (res) {
-          resolve(res || { ok: false, available: null });
+          resolve(normalizeWalletBalance(res, lockerName));
         })
         .withFailureHandler(function () {
-          resolve({ ok: false, available: null });
+          resolve({ ok: false, error: 'local_runner_failed', available: null, earned: null, spent: null });
         })
         .storeGetBalance({ student_name: lockerName });
     });
+  }
+
+  function fetchBalanceFromHttp(characterName) {
+    if (typeof global.fetch !== 'function') {
+      return fetchBalanceFromLocalRunner(characterName);
+    }
+    var url = economyBalanceUrl(characterName);
+    return global
+      .fetch(url, { credentials: 'include', cache: 'no-store' })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (res) {
+        return normalizeWalletBalance(res, characterName || '');
+      })
+      .catch(function () {
+        return { ok: false, error: 'Network error', available: null, earned: null, spent: null };
+      });
+  }
+
+  function fetchMyBalance() {
+    if (economyApiBase() !== null || typeof global.fetch === 'function') {
+      return fetchBalanceFromHttp(null);
+    }
+    return fetchBalanceFromLocalRunner('');
   }
 
   function fetchAuthoritativeBalance(characterName) {
@@ -83,39 +126,10 @@
     if (!explicit) {
       return fetchMyBalance();
     }
-    var name = String(characterName).trim();
-    var base = economyApiBase();
-    if (base) {
-      return global
-        .fetch(base + '/api/economy/balance?character_name=' + encodeURIComponent(name), {
-          credentials: 'include',
-          cache: 'no-store',
-        })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (res) {
-          return parseBalanceResponse(res, name);
-        })
-        .catch(function () {
-          return { ok: false, error: 'Network error', available: null, earned: null, spent: null };
-        });
+    if (economyApiBase() !== null || typeof global.fetch === 'function') {
+      return fetchBalanceFromHttp(String(characterName).trim());
     }
-    var createRun =
-      typeof global.LANTERN_API !== 'undefined' && global.LANTERN_API.createRun ? global.LANTERN_API.createRun() : null;
-    if (!createRun) {
-      return Promise.resolve({ ok: false, error: 'API not loaded', available: null, earned: null, spent: null });
-    }
-    return new Promise(function (resolve) {
-      createRun
-        .withSuccessHandler(function (res) {
-          resolve(res || { ok: false, available: null });
-        })
-        .withFailureHandler(function () {
-          resolve({ ok: false, available: null });
-        })
-        .storeGetBalance({ student_name: name });
-    });
+    return fetchBalanceFromLocalRunner(String(characterName).trim());
   }
 
   function refreshAllVisibleWalletDisplays(opts) {
@@ -131,6 +145,8 @@
   global.LanternWallet = {
     AVATAR_UPLOAD_COST: AVATAR_UPLOAD_COST,
     economyApiBase: economyApiBase,
+    economyBalanceUrl: economyBalanceUrl,
+    normalizeWalletBalance: normalizeWalletBalance,
     fetchBalance: fetchAuthoritativeBalance,
     fetchMyBalance: fetchMyBalance,
     refreshAllVisible: refreshAllVisibleWalletDisplays,

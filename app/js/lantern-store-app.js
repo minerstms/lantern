@@ -253,12 +253,20 @@
       if (window.LanternWallet && typeof window.LanternWallet.fetchBalance === 'function') {
         return window.LanternWallet.fetchBalance(characterName);
       }
-      if (economyApiBase != null) {
+      if (economyApiBase != null || typeof fetch === 'function') {
+        var prefix = economyApiBase != null ? economyApiBase : '';
         var balanceUrl = (characterName == null || String(characterName).trim() === '')
-          ? economyApiBase + '/api/economy/balance'
-          : economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(characterName);
+          ? prefix + '/api/economy/balance'
+          : prefix + '/api/economy/balance?character_name=' + encodeURIComponent(characterName);
         return fetch(balanceUrl, { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
-          if (res && res.ok) return { ok: true, student_name: res.character_name || characterName, earned: res.earned, spent: res.spent, available: res.balance };
+          if (window.LanternWallet && typeof window.LanternWallet.normalizeWalletBalance === 'function') {
+            return window.LanternWallet.normalizeWalletBalance(res, characterName || '');
+          }
+          if (res && res.ok) {
+            var av = res.available != null ? Number(res.available) : Number(res.balance);
+            if (!Number.isFinite(av)) return { ok: false, error: 'invalid_balance_payload' };
+            return { ok: true, student_name: res.character_name || characterName, earned: res.earned, spent: res.spent, available: av };
+          }
           return { ok: false, error: res && res.error || 'Failed' };
         }).catch(function(){ return { ok: false, error: 'Network error' }; });
       }
