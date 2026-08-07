@@ -11,6 +11,9 @@
   var GRID_GAP = 6;
   var MIN_CARD_W = 96;
   var MAX_CARD_W = 200;
+  var DRAFT_FOCUS_SCALE_MAX = 1.25;
+  var DRAFT_FOCUS_SCALE_MIN = 1;
+  var DRAFT_FOCUS_TAPER_START = 112;
   var CENTER_HALF = 320;
   var CENTER_WIDTH = 640;
   var STUDIO_COL_GAP = 20;
@@ -88,6 +91,17 @@
   }
 
   /**
+   * Focal draft enlargement tapers toward 1× only when perimeter cards are already at minimum width.
+   */
+  function computeDraftFocusScale(cardW) {
+    cardW = cardW || MIN_CARD_W;
+    if (cardW >= DRAFT_FOCUS_TAPER_START) return DRAFT_FOCUS_SCALE_MAX;
+    if (cardW <= MIN_CARD_W) return DRAFT_FOCUS_SCALE_MIN;
+    var t = (cardW - MIN_CARD_W) / (DRAFT_FOCUS_TAPER_START - MIN_CARD_W);
+    return DRAFT_FOCUS_SCALE_MIN + t * (DRAFT_FOCUS_SCALE_MAX - DRAFT_FOCUS_SCALE_MIN);
+  }
+
+  /**
    * Compute displayed card size from viewport inner width. Never shrink below MIN_CARD_W — viewport clips instead.
    */
   function computeLayout(viewportW, viewportH) {
@@ -100,6 +114,7 @@
     var sceneW = 3 * cardW + 2 * GRID_GAP;
     var sceneH = 3 * cardH + 2 * GRID_GAP;
     var scale = cardW / CANONICAL_W;
+    var draftFocusScale = computeDraftFocusScale(cardW);
     var viewportMinH = viewportH > 0 ? Math.min(sceneH, viewportH) : sceneH;
     return {
       cardW: cardW,
@@ -107,6 +122,9 @@
       sceneW: sceneW,
       sceneH: sceneH,
       scale: scale,
+      draftFocusScale: draftFocusScale,
+      draftDisplayW: cardW * draftFocusScale,
+      draftDisplayH: cardH * draftFocusScale,
       gap: GRID_GAP,
       viewportMinH: viewportMinH,
       clipsHorizontally: sceneW > viewportW + 0.5,
@@ -200,10 +218,16 @@
     host.style.setProperty('--studio-grid-card-w', layout.cardW + 'px');
     host.style.setProperty('--studio-grid-card-h', layout.cardH + 'px');
     host.style.setProperty('--studio-grid-scale', String(layout.scale));
+    host.style.setProperty('--studio-grid-draft-focus-scale', String(layout.draftFocusScale));
 
     host.querySelectorAll('.studioStreamGridCardFit').forEach(function (fit) {
       fit.style.width = layout.cardW + 'px';
       fit.style.height = layout.cardH + 'px';
+      if (fit.classList.contains('studioStreamGridCardFit--draft')) {
+        fit.style.transform = 'scale(' + layout.draftFocusScale + ')';
+      } else {
+        fit.style.transform = '';
+      }
     });
     host.querySelectorAll('.studioStreamGridCardScale').forEach(function (sc) {
       sc.style.transform = 'scale(' + layout.scale + ')';
@@ -301,8 +325,10 @@
     MIN_CARD_DISPLAY_WIDTH: MIN_CARD_W,
     MAX_CARD_DISPLAY_WIDTH: MAX_CARD_W,
     CENTER_WIDTH: CENTER_WIDTH,
+    DRAFT_FOCUS_SCALE_MAX: DRAFT_FOCUS_SCALE_MAX,
     GRID_GAP: GRID_GAP,
     computeLayout: computeLayout,
+    computeDraftFocusScale: computeDraftFocusScale,
     computeSidePaneWidth: computeSidePaneWidth,
     computeLeftPaneWidth: computeLeftPaneWidth,
     getFallbackContextItems: getFallbackContextItems

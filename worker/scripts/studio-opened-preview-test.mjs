@@ -304,7 +304,40 @@ if (SG && typeof SG.computeLayout === 'function') {
   else bad('MAX_CARD_W missing');
   if (streamGridJs.includes('computeSidePaneWidth')) ok('symmetric side pane width helper');
   else bad('computeSidePaneWidth missing');
+
+  if (typeof SG.computeDraftFocusScale === 'function') ok('draft focus scale helper');
+  else bad('computeDraftFocusScale missing');
+  if (SG.DRAFT_FOCUS_SCALE_MAX === 1.25) ok('draft focus target ~1.25x');
+  else bad('draft focus max', String(SG.DRAFT_FOCUS_SCALE_MAX));
+  if (wideGrid.draftFocusScale > 1 && wideGrid.draftFocusScale <= 1.25) ok('wide draft visually larger than perimeter');
+  else bad('wide draft focus', String(wideGrid.draftFocusScale));
+  if (Math.abs(wideGrid.draftDisplayW - wideGrid.cardW * wideGrid.draftFocusScale) < 0.01) {
+    ok('draft display width preserves 16:9 focal scale');
+  } else bad('draft display width');
+  if (Math.abs(wideGrid.draftDisplayH / wideGrid.draftDisplayW - SG.CANONICAL_CARD_HEIGHT / SG.CANONICAL_CARD_WIDTH) < 0.001) {
+    ok('draft focal enlargement preserves 16:9');
+  } else bad('draft 16:9');
+  if (wideGrid.draftDisplayW > wideGrid.cardW + 0.5) ok('center draft display exceeds perimeter width');
+  else bad('draft not larger than perimeter');
+  if (wideGrid.sceneW === 3 * wideGrid.cardW + 2 * SG.GRID_GAP && wideGrid.draftFocusScale > 1) {
+    ok('grid scene geometry unchanged by draft enlargement');
+  } else bad('scene reflowed');
+  const tightFocus = SG.computeDraftFocusScale(SG.MIN_CARD_DISPLAY_WIDTH);
+  if (tightFocus === 1) ok('extreme narrow draft focus tapers to 1x');
+  else bad('tight draft focus', String(tightFocus));
 } else bad('computeLayout export');
+
+if (/\.studioStreamGridCardFit--draft[\s\S]*transform-origin:\s*center center/.test(contributeHtml)) {
+  ok('draft enlargement uses center transform origin');
+} else bad('draft transform origin');
+
+if (/\.studioStreamGridCell--draft[\s\S]*z-index:\s*2/.test(contributeHtml)) {
+  ok('draft cell stacks above perimeter');
+} else bad('draft z-index');
+
+if (/--studio-grid-draft-focus-scale/.test(contributeHtml + streamGridJs)) {
+  ok('draft focus scale CSS variable wired');
+} else bad('draft focus variable');
 
 console.log('\n--- studio-opened-preview-test: ' + pass + ' passed, ' + fail + ' failed ---');
 process.exit(fail ? 1 : 0);

@@ -696,20 +696,28 @@
     }
     .studioStreamGridCell--draft{
       position: relative;
-      z-index: 1;
+      z-index: 2;
+      align-items: center;
+      justify-content: center;
     }
     .studioStreamGridCardFit{
       position: relative;
       overflow: hidden;
       flex-shrink: 0;
     }
+    .studioStreamGridCardFit--draft{
+      transform: scale(var(--studio-grid-draft-focus-scale, 1.25));
+      transform-origin: center center;
+      z-index: 2;
+      overflow: visible;
+    }
     .studioStreamGridCardFit--draft::before{
       content: '';
       position: absolute;
       top: 50%;
       left: 50%;
-      width: calc(var(--studio-grid-card-w, 96px) + 14px);
-      height: calc(var(--studio-grid-card-h, 54px) + 10px);
+      width: calc(var(--studio-grid-card-w, 96px) * var(--studio-grid-draft-focus-scale, 1.25) + 14px);
+      height: calc(var(--studio-grid-card-h, 54px) * var(--studio-grid-draft-focus-scale, 1.25) + 10px);
       transform: translate(-50%, -50%);
       border-radius: 12px;
       background: radial-gradient(ellipse at center, rgba(90,167,255,.42) 0%, rgba(90,167,255,.14) 52%, transparent 72%);
