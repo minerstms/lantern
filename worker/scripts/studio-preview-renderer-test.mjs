@@ -131,6 +131,12 @@ function loadCardUiMinimal() {
 if (contributeHtml.includes('js/lantern-studio-draft.js')) ok('contribute includes lantern-studio-draft.js');
 else bad('contribute missing lantern-studio-draft.js');
 
+if (contributeHtml.includes('js/lantern-studio-detail-emulator.js')) ok('contribute includes detail scale emulator');
+else bad('contribute missing detail scale emulator');
+
+if (contributeHtml.includes('studioDetailScaleStage')) ok('RIGHT preview uses scale stage mount');
+else bad('scale stage mount missing');
+
 if (contributeHtml.includes('LanternStudioDraft.buildNewsDraft')) ok('contribute uses buildNewsDraft adapter');
 else bad('contribute missing buildNewsDraft');
 

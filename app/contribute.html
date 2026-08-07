@@ -635,7 +635,7 @@
     #studioRailScroller .studioScrollerCardActive{
       box-shadow: 0 0 0 2px rgba(90,167,255,.55), 0 8px 28px rgba(0,0,0,.35);
     }
-    /* Opened preview: shell hosts one scroll surface (.lanternCardDetailModal.lanternSurface or .pollModal.lanternSurface) */
+    /* Opened preview: production detail rendered at intrinsic width, scaled to fit pane */
     .studioOpenedPreviewHost{
       border-radius: 4px;
       border: 1px solid var(--line);
@@ -658,6 +658,45 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+    }
+    .studioDetailViewport{
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      flex: 0 0 auto;
+      padding: 8px 4px 12px;
+    }
+    .studioDetailScaleStage{
+      width: var(--studio-detail-intrinsic-width, var(--lantern-opened-content-max-width, 520px));
+      max-width: var(--studio-detail-intrinsic-width, var(--lantern-opened-content-max-width, 520px));
+      min-width: var(--studio-detail-intrinsic-width, var(--lantern-opened-content-max-width, 520px));
+      flex-shrink: 0;
+      transform-origin: top center;
+      will-change: transform;
+      box-sizing: border-box;
+    }
+    /* Reuse production overlay spacing rules without fixed full-viewport shell */
+    .studioDetailScaleStage.lanternCardDetailOverlay{
+      position: static;
+      display: block;
+      inset: auto;
+      z-index: auto;
+      overflow: visible;
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+      margin: 0;
+    }
+    .studioDetailScaleStage .lanternCardDetailModal--embedded{
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     /* Poll opened — same classes + lanternSurface as explore.html (mountPollOpenedInto) */
     #studioFullPreview .pollModalImageWrap,
@@ -689,16 +728,6 @@
       font-weight: 800;
       cursor: default;
       font-family: inherit;
-    }
-    #studioOpenedPreviewInner .lanternCardDetailModal--embedded{
-      max-width: 100%;
-      width: 100%;
-      box-sizing: border-box;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-    #studioOpenedPreviewInner .lanternCardDetailModal--embedded .lanternCardDetailTitle{
-      margin-right: 0;
     }
     body.contributeStudioOpen #contributePreviewCompact{ display: none !important; }
     #contributePreviewCompact{
@@ -1046,7 +1075,11 @@
               </div>
               <div class="studioSidePanelBd studioSidePanelBd--preview">
                 <div id="studioFullPreview" class="studioOpenedPreviewHost">
-                  <div id="studioOpenedPreviewInner" class="studioOpenedPreviewInner"></div>
+                  <div id="studioOpenedPreviewInner" class="studioOpenedPreviewInner">
+                    <div id="studioDetailViewport" class="studioDetailViewport">
+                      <div id="studioDetailScaleStage" class="studioDetailScaleStage lanternCardDetailOverlay"></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1106,6 +1139,7 @@
   <script src="js/lantern-reactions.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-studio-draft.js"></script>
+  <script src="js/lantern-studio-detail-emulator.js"></script>
   <script src="js/lantern-unified-media-field.js"></script>
   <script src="js/lantern-submission-celebration.js"></script>
   <script src="js/lantern-avatar.js"></script>
@@ -1658,6 +1692,20 @@
         .catch(function(){ toast('Could not load returned poll.'); });
     })();
 
+    function getStudioDetailMountEl() {
+      if (window.LanternStudioDetailEmulator && typeof window.LanternStudioDetailEmulator.getMountEl === 'function') {
+        var mount = window.LanternStudioDetailEmulator.getMountEl();
+        if (mount) return mount;
+      }
+      return el('studioOpenedPreviewInner');
+    }
+
+    function notifyStudioDetailMount() {
+      if (window.LanternStudioDetailEmulator && typeof window.LanternStudioDetailEmulator.afterMount === 'function') {
+        window.LanternStudioDetailEmulator.afterMount();
+      }
+    }
+
     function mountStudioPollDetail(container, pollDraft) {
       if (!container || !window.LanternCardUI) return;
       container.innerHTML = '';
@@ -1680,7 +1728,7 @@
       function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
       var ct = getContributeType();
       var rail = el('studioRailScroller');
-      var openedEl = el('studioOpenedPreviewInner');
+      var openedEl = getStudioDetailMountEl();
       var prev = el('contributePreviewCompact');
       var inner = el('contributePreviewInner');
       if (ct === 'mission'){
@@ -1731,6 +1779,7 @@
           });
           openedEl.innerHTML = '';
           mountStudioPollDetail(openedEl, pollDraftM);
+          notifyStudioDetailMount();
           if (prev) prev.style.display = 'none';
           if (inner) inner.innerHTML = '';
           requestAnimationFrame(function(){
@@ -1757,6 +1806,7 @@
           openedEl.innerHTML = '';
           function mountBugDetail(){
             if (LUI && LUI.mountCreationDetailInto) LUI.mountCreationDetailInto(openedEl, bugPost, { characterName: charBug });
+            notifyStudioDetailMount();
           }
           if (bugPost.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
             window.LanternAvatar.attachCanonicalAvatarsToItems([bugPost]).then(mountBugDetail);
@@ -1792,6 +1842,7 @@
         openedEl.innerHTML = '';
         function mountMissionPostDetail(){
           if (LUI && LUI.mountCreationDetailInto) LUI.mountCreationDetailInto(openedEl, postModel, { characterName: charM });
+          notifyStudioDetailMount();
         }
         if (postModel.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
           window.LanternAvatar.attachCanonicalAvatarsToItems([postModel]).then(mountMissionPostDetail);
@@ -1853,6 +1904,7 @@
             var a = t && t.querySelector('.studioScrollerCardActive');
             if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
           });
+          notifyStudioDetailMount();
         }
         if (pollDraft.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
           window.LanternAvatar.attachCanonicalAvatarsToItems([pollDraft]).then(finishPollStudio);
@@ -1902,6 +1954,7 @@
             var a = t && t.querySelector('.studioScrollerCardActive');
             if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
           });
+          notifyStudioDetailMount();
         }
         if ((profDraft.character_name || profDraft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
           window.LanternAvatar.attachCanonicalAvatarsToItems([profDraft]).then(finishProfilePostPreview);
@@ -1967,6 +2020,7 @@
           var a = t && t.querySelector('.studioScrollerCardActive');
           if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
         });
+        notifyStudioDetailMount();
       }
       if ((newsDraft.character_name || newsDraft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
         window.LanternAvatar.attachCanonicalAvatarsToItems([newsDraft]).then(finishNewsPreview);
