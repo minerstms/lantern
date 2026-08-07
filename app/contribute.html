@@ -661,18 +661,18 @@
       color: rgba(185,198,234,.88);
       line-height: 1.35;
     }
-    /* LEFT stream grid — 3×3 canonical cards scaled to pane; center draft highlighted */
+    /* LEFT stream grid — 3×3 canonical cards scaled to fill pane; center draft glow emphasis */
     .studioStreamGridHost{
       width: 100%;
       max-width: 100%;
       overflow-x: hidden;
-      overflow-y: auto;
+      overflow-y: visible;
     }
     .studioStreamGrid{
-      --studio-grid-scale: 0.31;
+      --studio-grid-scale: calc((100% - 6px) / 3 / var(--lantern-card-width));
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 4px;
+      gap: 3px;
       width: 100%;
       max-width: 100%;
       overflow-x: hidden;
@@ -683,16 +683,34 @@
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      overflow: hidden;
+      overflow: visible;
     }
     .studioStreamGridCell--draft{
       position: relative;
+      z-index: 1;
     }
     .studioStreamGridCardFit{
       width: 100%;
       height: calc(var(--lantern-card-width) * var(--studio-grid-scale) * 9 / 16);
       position: relative;
       overflow: visible;
+    }
+    .studioStreamGridCardFit--draft::before{
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: calc(var(--lantern-card-width) * var(--studio-grid-scale) + 14px);
+      height: calc(var(--lantern-card-width) * var(--studio-grid-scale) * 9 / 16 + 10px);
+      transform: translate(-50%, -50%);
+      border-radius: 12px;
+      background: radial-gradient(ellipse at center, rgba(90,167,255,.42) 0%, rgba(90,167,255,.14) 52%, transparent 72%);
+      box-shadow:
+        0 0 20px rgba(90,167,255,.55),
+        0 0 36px rgba(90,167,255,.28),
+        0 0 52px rgba(56,208,124,.12);
+      pointer-events: none;
+      z-index: 0;
     }
     .studioStreamGridCardScale{
       position: absolute;
@@ -701,25 +719,27 @@
       width: var(--lantern-card-width);
       transform: translateX(-50%) scale(var(--studio-grid-scale));
       transform-origin: top center;
-    }
-    .studioStreamGridCell--draft::after{
-      content: 'Your draft';
-      position: absolute;
-      bottom: 2px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      color: rgba(90,167,255,.95);
-      text-transform: uppercase;
-      pointer-events: none;
-      white-space: nowrap;
-      z-index: 2;
+      z-index: 1;
     }
     .studioStreamGridCell--draft .studioScrollerCardActive,
     .studioStreamGridCell--draft .studioScrollerCardActive.exploreCard{
-      box-shadow: 0 0 0 2px rgba(90,167,255,.65), 0 0 18px rgba(90,167,255,.35), 0 6px 20px rgba(0,0,0,.4);
+      box-shadow:
+        0 0 0 2px rgba(130,200,255,.92),
+        0 0 0 4px rgba(90,167,255,.28),
+        0 0 22px rgba(90,167,255,.72),
+        0 0 40px rgba(90,167,255,.38),
+        inset 0 0 14px rgba(90,167,255,.12);
+    }
+    @media (min-width: 1200px){
+      .studioColLeft .studioSidePanelHd{
+        padding: 8px 10px 6px;
+      }
+      .studioColLeft .studioSidePanelTitle{
+        margin: 0;
+      }
+      .studioColLeft .studioSidePanelBd{
+        padding: 6px 4px 8px;
+      }
     }
     /* Opened preview: shell hosts one scroll surface (.lanternCardDetailModal.lanternSurface or .pollModal.lanternSurface) */
     .studioOpenedPreviewHost{
@@ -973,7 +993,6 @@
             <div class="card studioSidePanel">
               <div class="studioSidePanelHd">
                 <div class="studioSidePanelTitle">In the stream</div>
-                <p class="studioPanelMicro">Mini feed · your draft in center</p>
               </div>
               <div class="studioSidePanelBd">
                 <div id="studioStreamGrid" class="studioStreamGridHost" aria-label="Stream preview grid"></div>
