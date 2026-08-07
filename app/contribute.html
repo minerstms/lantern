@@ -661,9 +661,65 @@
       color: rgba(185,198,234,.88);
       line-height: 1.35;
     }
-    /* Stream rail (left): canonical .lanternScroller + LanternCards — active chip only */
-    #studioRailScroller .studioScrollerCardActive{
-      box-shadow: 0 0 0 2px rgba(90,167,255,.55), 0 8px 28px rgba(0,0,0,.35);
+    /* LEFT stream grid — 3×3 canonical cards scaled to pane; center draft highlighted */
+    .studioStreamGridHost{
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    .studioStreamGrid{
+      --studio-grid-scale: 0.31;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    .studioStreamGridCell{
+      min-width: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow: hidden;
+    }
+    .studioStreamGridCell--draft{
+      position: relative;
+    }
+    .studioStreamGridCardFit{
+      width: 100%;
+      height: calc(var(--lantern-card-width) * var(--studio-grid-scale) * 9 / 16);
+      position: relative;
+      overflow: visible;
+    }
+    .studioStreamGridCardScale{
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: var(--lantern-card-width);
+      transform: translateX(-50%) scale(var(--studio-grid-scale));
+      transform-origin: top center;
+    }
+    .studioStreamGridCell--draft::after{
+      content: 'Your draft';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: rgba(90,167,255,.95);
+      text-transform: uppercase;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 2;
+    }
+    .studioStreamGridCell--draft .studioScrollerCardActive,
+    .studioStreamGridCell--draft .studioScrollerCardActive.exploreCard{
+      box-shadow: 0 0 0 2px rgba(90,167,255,.65), 0 0 18px rgba(90,167,255,.35), 0 6px 20px rgba(0,0,0,.4);
     }
     /* Opened preview: shell hosts one scroll surface (.lanternCardDetailModal.lanternSurface or .pollModal.lanternSurface) */
     .studioOpenedPreviewHost{
@@ -917,10 +973,10 @@
             <div class="card studioSidePanel">
               <div class="studioSidePanelHd">
                 <div class="studioSidePanelTitle">In the stream</div>
-                <p class="studioPanelMicro">Happening rail · highlighted</p>
+                <p class="studioPanelMicro">Mini feed · your draft in center</p>
               </div>
               <div class="studioSidePanelBd">
-                <div id="studioRailScroller" data-lantern-rail-host="true" data-scroller-aria-label="Stream preview"></div>
+                <div id="studioStreamGrid" class="studioStreamGridHost" aria-label="Stream preview grid"></div>
               </div>
             </div>
           </aside>
@@ -1219,6 +1275,8 @@
   <script src="js/lantern-media.js"></script>
   <script src="js/lantern-scroller.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-feed-api.js"></script>
+  <script src="js/lantern-studio-stream-grid.js"></script>
   <script src="js/lantern-reactions.js"></script>
   <script src="js/lantern-final-reactions.js"></script>
   <script src="js/lantern-card-ui.js"></script>
@@ -1267,7 +1325,7 @@
       toastEl._t = setTimeout(function(){ toastEl.style.display = 'none'; }, typeof durationMs === 'number' ? durationMs : 2400);
     }
 
-    /* Studio fake rails MUST exist before first syncContributeTypeUI() → mountNewsUnifiedForType → onClear → updateStudioAll */
+    /* Studio stream grid helpers — used by updateStudioAll for LEFT preview */
     function getNewsAuthorLabel(type){
       if (window.LanternCardUI && typeof window.LanternCardUI.newsRoleLabelFromAuthorType === 'function') {
         return window.LanternCardUI.newsRoleLabelFromAuthorType(type);
@@ -1278,27 +1336,24 @@
       if (type === 'admin') return 'Admin Update';
       return 'Student Reporter';
     }
-    function appendStudioNewsCardToRail(rail, n, escFn, isActive){
-      if (!rail || !window.LanternCards || !window.LanternCards.specNewsRailCard || !window.LanternCards.createStudentCard) return;
-      var nc = window.LanternCards.createStudentCard(window.LanternCards.specNewsRailCard(n, escFn, getNewsAuthorLabel(n.author_type || 'student'), isActive));
-      if (nc) rail.appendChild(nc);
+    function appendStudioNewsCardNode(n, escFn, isActive){
+      if (!window.LanternCards || !window.LanternCards.specNewsRailCard || !window.LanternCards.createStudentCard) return null;
+      return window.LanternCards.createStudentCard(window.LanternCards.specNewsRailCard(n, escFn, getNewsAuthorLabel(n.author_type || 'student'), isActive));
     }
-    var STUDIO_FAKE_NEWS_RAIL = [
-      { id: '_sf1', title: 'Morning announcements', category: 'Announcements', author_name: 'Jamie', author_type: 'student', created_at: new Date().toISOString() },
-      { id: '_sf2', title: 'Art club showcase Friday', category: 'Events', author_name: 'Riley', author_type: 'student', created_at: new Date().toISOString() },
-      { id: '_sf3', title: 'Soccer — regional finals', category: 'Sports', author_name: 'Coach T', author_type: 'teacher', created_at: new Date().toISOString() },
-      { id: '_sf4', title: 'Library hours extended', category: 'School News', author_name: 'Staff', author_type: 'staff', created_at: new Date().toISOString() }
-    ];
-    var STUDIO_FAKE_POLL_RAIL = [
-      { id: '_fp1', question: 'Spirit week theme?', choices: ['Retro', 'Future', 'Nature'], image_url: '' },
-      { id: '_fp2', question: 'Friday movie vote', choices: ['Comedy', 'Action'], image_url: '' },
-      { id: '_fp3', question: 'Best lunch lineup?', choices: ['Taco', 'Pizza'], image_url: '' },
-      { id: '_fp4', question: 'Club fair interest?', choices: ['Yes', 'Maybe'], image_url: '' }
-    ];
-    var STUDIO_FAKE_MISSIONS = [
-      { id: '_studioM1', title: 'Spotlight mission', reward_amount: 2, description: '', image_url: '' },
-      { id: '_studioM2', title: 'Community challenge', reward_amount: 3, description: '', image_url: '' }
-    ];
+    function buildStudioPollCardNode(poll, options){
+      if (!window.LanternCards || !window.LanternCards.specPollRailCard || !window.LanternCards.createStudentCard) return null;
+      return window.LanternCards.createStudentCard(window.LanternCards.specPollRailCard(poll, options || {}));
+    }
+    function buildStudioFeedPostCardNode(p, options){
+      if (!window.LanternCards || !window.LanternCards.materializeFeedPostCard) return null;
+      var mode = window.LanternCards.CARD_MODE ? window.LanternCards.CARD_MODE.RAIL : 'rail';
+      return window.LanternCards.materializeFeedPostCard(p, Object.assign({ mode: mode }, options || {}));
+    }
+    function renderStudioLeftDraft(draftCardEl, escFn){
+      var host = el('studioStreamGrid');
+      if (!host || !window.LANTERN_STUDIO_STREAM_GRID || typeof window.LANTERN_STUDIO_STREAM_GRID.mount !== 'function') return;
+      window.LANTERN_STUDIO_STREAM_GRID.mount(host, draftCardEl, { esc: escFn });
+    }
 
     function getContributeType(){ return (el('contributeTypeSelect') && el('contributeTypeSelect').value) || 'post'; }
     var SHOUT_LABELS = { kindness: 'Kindness', effort: 'Effort', teamwork: 'Teamwork', helping: 'Helping out', great_work: 'Great work' };
@@ -1777,33 +1832,12 @@
     function updateStudioAll(){
       function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
       var ct = getContributeType();
-      var rail = el('studioRailScroller');
       var openedEl = el('studioOpenedPreviewInner');
       var prev = el('contributePreviewCompact');
       var inner = el('contributePreviewInner');
       if (ct === 'mission'){
-        if (!window.LanternCards || !rail || !openedEl) return;
+        if (!window.LanternCards || !openedEl) return;
         var LUI = window.LanternCardUI;
-        var LCM = window.LanternCards;
-        rail.innerHTML = '';
-        STUDIO_FAKE_MISSIONS.forEach(function(fm){
-          var node = LCM.buildMissionSpotlightRailElement(fm);
-          if (!node) return;
-          var clone = node.cloneNode(true);
-          if (currentMissionForSubmit && String(currentMissionForSubmit.id) === String(fm.id)) clone.classList.add('studioScrollerCardActive');
-          rail.appendChild(clone);
-        });
-        if (currentMissionForSubmit){
-          var dup = STUDIO_FAKE_MISSIONS.some(function(f){ return String(f.id) === String(currentMissionForSubmit.id); });
-          if (!dup){
-            var nodeA = LCM.buildMissionSpotlightRailElement(currentMissionForSubmit);
-            if (nodeA){
-              var c2 = nodeA.cloneNode(true);
-              c2.classList.add('studioScrollerCardActive');
-              rail.appendChild(c2);
-            }
-          }
-        }
         var mSt = currentMissionForSubmit ? String(currentMissionForSubmit.submission_type || '').trim() : '';
         if (mSt === 'poll' && currentMissionForSubmit){
           var mpq = (el('missionSubmitPollQuestion') && el('missionSubmitPollQuestion').value || '').trim() || 'Poll question';
@@ -1817,32 +1851,24 @@
             character_name: getAdoptedAccountKey(),
             author_name: getAdoptedPublicDisplayName() || ''
           };
-          rail.innerHTML = '';
-          [
-            [STUDIO_FAKE_POLL_RAIL[0], {}],
-            [pollDraftM, { isActive: true }],
-            [STUDIO_FAKE_POLL_RAIL[1], {}],
-            [STUDIO_FAKE_POLL_RAIL[2], {}]
-          ].forEach(function(pair){
-            var pn = LCM.createStudentCard(LCM.specPollRailCard(pair[0], pair[1]));
-            if (pn) rail.appendChild(pn);
-          });
-          openedEl.innerHTML = '';
-          if (LUI && LUI.mountStudioPollOpenedInto) LUI.mountStudioPollOpenedInto(openedEl, pollDraftM, esc);
-          if (prev) prev.style.display = 'none';
-          if (inner) inner.innerHTML = '';
-          requestAnimationFrame(function(){
-            var t = el('studioRailScroller');
-            var a = t && t.querySelector('.studioScrollerCardActive');
-            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
-          });
+          function finishMissionPollPreview(){
+            renderStudioLeftDraft(buildStudioPollCardNode(pollDraftM, { isActive: true }), esc);
+            openedEl.innerHTML = '';
+            if (LUI && LUI.mountStudioPollOpenedInto) LUI.mountStudioPollOpenedInto(openedEl, pollDraftM, esc);
+            if (prev) prev.style.display = 'none';
+            if (inner) inner.innerHTML = '';
+          }
+          if (pollDraftM.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+            window.LanternAvatar.attachCanonicalAvatarsToItems([pollDraftM]).then(finishMissionPollPreview);
+          } else {
+            finishMissionPollPreview();
+          }
           return;
         }
         if (mSt === 'bug_report' && currentMissionForSubmit){
           var mTitleB = currentMissionForSubmit.title || 'Bug report';
           var bDesc = (el('missionSubmitBugReportDesc') && el('missionSubmitBugReportDesc').value || '').trim();
           var bShot = (el('missionSubmitBugReportScreenshot') && el('missionSubmitBugReportScreenshot').value || '').trim();
-          var adoptedBug = getAdopted();
           var charBug = getAdoptedAccountKey();
           var bugPost = {
             id: 'preview-mission-bug',
@@ -1857,22 +1883,24 @@
             link_url: '',
             url: bShot
           };
-          openedEl.innerHTML = '';
           function mountBugDetail(){
+            openedEl.innerHTML = '';
             if (LUI && LUI.mountStudioCreationOpenedInto) LUI.mountStudioCreationOpenedInto(openedEl, bugPost, { characterName: charBug });
           }
+          function finishBugPreview(){
+            renderStudioLeftDraft(buildStudioFeedPostCardNode(bugPost), esc);
+            if (prev) prev.style.display = 'none';
+            if (inner) inner.innerHTML = '';
+          }
           if (bugPost.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
-            window.LanternAvatar.attachCanonicalAvatarsToItems([bugPost]).then(mountBugDetail);
+            window.LanternAvatar.attachCanonicalAvatarsToItems([bugPost]).then(function(){
+              mountBugDetail();
+              finishBugPreview();
+            });
           } else {
             mountBugDetail();
+            finishBugPreview();
           }
-          if (prev) prev.style.display = 'none';
-          if (inner) inner.innerHTML = '';
-          requestAnimationFrame(function(){
-            var t = el('studioRailScroller');
-            var a = t && t.querySelector('.studioScrollerCardActive');
-            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
-          });
           return;
         }
         var mTitle = (currentMissionForSubmit && currentMissionForSubmit.title) ? currentMissionForSubmit.title : 'Mission';
@@ -1897,22 +1925,24 @@
           link_url: mLink,
           url: mDraftType === 'link' ? mLink : (mDraftType === 'image' ? mImg : '')
         };
-        openedEl.innerHTML = '';
         function mountMissionPostDetail(){
+          openedEl.innerHTML = '';
           if (LUI && LUI.mountStudioCreationOpenedInto) LUI.mountStudioCreationOpenedInto(openedEl, postModel, { characterName: charM });
         }
+        function finishMissionPostPreview(){
+          renderStudioLeftDraft(buildStudioFeedPostCardNode(postModel), esc);
+          if (prev) prev.style.display = 'none';
+          if (inner) inner.innerHTML = '';
+        }
         if (postModel.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
-          window.LanternAvatar.attachCanonicalAvatarsToItems([postModel]).then(mountMissionPostDetail);
+          window.LanternAvatar.attachCanonicalAvatarsToItems([postModel]).then(function(){
+            mountMissionPostDetail();
+            finishMissionPostPreview();
+          });
         } else {
           mountMissionPostDetail();
+          finishMissionPostPreview();
         }
-        if (prev) prev.style.display = 'none';
-        if (inner) inner.innerHTML = '';
-        requestAnimationFrame(function(){
-          var t = el('studioRailScroller');
-          var a = t && t.querySelector('.studioScrollerCardActive');
-          if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
-        });
         return;
       }
       if (!window.LanternCards) return;
@@ -1933,19 +1963,7 @@
           author_name: getAdoptedPublicDisplayName() || (adPollStudio && adPollStudio.name) || ''
         };
         function finishPollStudio(){
-          if (rail) {
-            rail.innerHTML = '';
-            [
-              [STUDIO_FAKE_POLL_RAIL[0], {}],
-              [STUDIO_FAKE_POLL_RAIL[1], {}],
-              [pollDraft, { isActive: true }],
-              [STUDIO_FAKE_POLL_RAIL[2], {}],
-              [STUDIO_FAKE_POLL_RAIL[3], {}]
-            ].forEach(function(pair){
-              var pnc = LC.createStudentCard(LC.specPollRailCard(pair[0], pair[1]));
-              if (pnc) rail.appendChild(pnc);
-            });
-          }
+          renderStudioLeftDraft(buildStudioPollCardNode(pollDraft, { isActive: true }), esc);
           if (openedEl) {
             openedEl.innerHTML = '';
             if (window.LanternCardUI && window.LanternCardUI.mountStudioPollOpenedInto) {
@@ -1959,11 +1977,6 @@
             }
           }
           if (prev) prev.style.display = 'block';
-          requestAnimationFrame(function(){
-            var t = el('studioRailScroller');
-            var a = t && t.querySelector('.studioScrollerCardActive');
-            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
-          });
         }
         if (pollDraft.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
           window.LanternAvatar.attachCanonicalAvatarsToItems([pollDraft]).then(finishPollStudio);
@@ -1977,7 +1990,6 @@
         var pCap = (el('profilePostCaption') && el('profilePostCaption').value || '').trim();
         var pUrl = (el('profilePostUrl') && el('profilePostUrl').value || '').trim();
         var pType = (el('profilePostType') && el('profilePostType').value || 'link').trim();
-        var adP = getAdopted();
         var nowIsoP = new Date().toISOString();
         var profileDisplayName = getAdoptedPublicDisplayName();
         var profileAccountKey = getAdoptedAccountKey();
@@ -1998,13 +2010,7 @@
           photo_credit: ''
         };
         function finishProfilePostPreview(){
-          if (rail) {
-            rail.innerHTML = '';
-            appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[0], esc, false);
-            appendStudioNewsCardToRail(rail, profDraft, esc, true);
-            appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[1], esc, false);
-            appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[2], esc, false);
-          }
+          renderStudioLeftDraft(appendStudioNewsCardNode(profDraft, esc, true), esc);
           var profChar = profDraft.character_name || '';
           var profOpts = { characterName: profChar };
           if (openedEl && window.LanternCardUI && window.LanternCardUI.mountStudioNewsOpenedInto) {
@@ -2018,11 +2024,6 @@
             }
           }
           if (prev) prev.style.display = 'block';
-          requestAnimationFrame(function(){
-            var t = el('studioRailScroller');
-            var a = t && t.querySelector('.studioScrollerCardActive');
-            if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
-          });
         }
         if ((profDraft.character_name || profDraft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
           window.LanternAvatar.attachCanonicalAvatarsToItems([profDraft]).then(finishProfilePostPreview);
@@ -2065,14 +2066,7 @@
         photo_credit: photoCredit
       };
       function finishNewsPreview(){
-        if (rail) {
-          rail.innerHTML = '';
-          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[0], esc, false);
-          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[1], esc, false);
-          appendStudioNewsCardToRail(rail, newsDraft, esc, true);
-          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[2], esc, false);
-          appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[3], esc, false);
-        }
+        renderStudioLeftDraft(appendStudioNewsCardNode(newsDraft, esc, true), esc);
         var newsOpts = { characterName: String(newsDraft.character_name || getAdoptedAccountKey() || '').trim() };
         if (openedEl && window.LanternCardUI && window.LanternCardUI.mountStudioNewsOpenedInto) {
           openedEl.innerHTML = '';
@@ -2085,11 +2079,6 @@
           }
         }
         if (prev) prev.style.display = 'block';
-        requestAnimationFrame(function(){
-          var t = el('studioRailScroller');
-          var a = t && t.querySelector('.studioScrollerCardActive');
-          if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
-        });
       }
       if ((newsDraft.character_name || newsDraft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
         window.LanternAvatar.attachCanonicalAvatarsToItems([newsDraft]).then(finishNewsPreview);

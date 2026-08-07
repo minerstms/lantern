@@ -12,6 +12,7 @@ const cardsCss = fs.readFileSync(path.join(root, 'app/css/lantern-cards.css'), '
 const cardUiJs = fs.readFileSync(path.join(root, 'app/js/lantern-card-ui.js'), 'utf8');
 const finalRxJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.js'), 'utf8');
 const contributeHtml = fs.readFileSync(path.join(root, 'app/contribute.html'), 'utf8');
+const streamGridJs = fs.readFileSync(path.join(root, 'app/js/lantern-studio-stream-grid.js'), 'utf8');
 
 let pass = 0;
 let fail = 0;
@@ -69,6 +70,37 @@ if (finalRxJs.includes('mode === \'preview\'') && finalRxJs.includes('renderPrev
 
 if (contributeHtml.includes('lantern-final-reactions.js')) ok('contribute loads final reactions');
 else bad('contribute missing final reactions script');
+
+if (contributeHtml.includes('lantern-studio-stream-grid.js') && contributeHtml.includes('id="studioStreamGrid"')) {
+  ok('LEFT stream grid host + script');
+} else bad('LEFT stream grid missing');
+
+if (!/id="studioRailScroller"|studioRailScroller/.test(contributeHtml)) {
+  ok('obsolete LEFT stream rail scroller removed');
+} else bad('LEFT rail scroller still present');
+
+if (/\.studioStreamGrid[\s\S]*grid-template-columns:\s*repeat\(3,\s*1fr\)/.test(contributeHtml)) {
+  ok('3x3 stream grid CSS');
+} else bad('3x3 grid CSS');
+
+if (
+  streamGridJs.includes('CENTER_INDEX = 4') &&
+  streamGridJs.includes('LANTERN_STUDIO_STREAM_GRID') &&
+  streamGridJs.includes('specNewsRailCard')
+) {
+  ok('stream grid uses canonical card renderer');
+} else bad('stream grid renderer');
+
+if (streamGridJs.includes('getFallbackContextItems') && streamGridJs.includes('LANTERN_FEED')) {
+  ok('stream grid feed fetch with deterministic fallback');
+} else bad('stream grid data source');
+
+if (contributeHtml.includes('renderStudioLeftDraft') && contributeHtml.includes('LANTERN_STUDIO_STREAM_GRID.mount')) {
+  ok('draft updates wired to center grid tile');
+} else bad('draft grid wiring');
+
+if (contributeHtml.includes('lantern-feed-api.js')) ok('contribute loads feed API for context cards');
+else bad('contribute missing feed API script');
 
 if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview/.test(cardsCss + contributeHtml)) {
   ok('Studio RIGHT modal emulator CSS');
