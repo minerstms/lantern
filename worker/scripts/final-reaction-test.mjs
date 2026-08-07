@@ -204,10 +204,18 @@ if (pre.body.ok && pre.body.finalized === false && pre.body.reaction_type === nu
   ok('H status hides results before finalize');
 } else bad('H pre-finalize status', pre.body);
 
-// I. status reveals results after finalize
+// I. status reveals results after finalize (no participant total exposed)
 const post = await status('feed-item-1', studentA);
-if (post.body.ok && post.body.finalized && post.body.reaction_type === 'heart' && Array.isArray(post.body.results) && post.body.total_responses >= 1) {
-  ok('I status reveals results after finalize');
+if (
+  post.body.ok &&
+  post.body.finalized &&
+  post.body.reaction_type === 'heart' &&
+  Array.isArray(post.body.results) &&
+  post.body.results.length === 5 &&
+  post.body.total_responses === undefined &&
+  post.body.results.find((r) => r.reaction_type === 'heart').percentage >= 0
+) {
+  ok('I status reveals percentages without total_responses');
 } else bad('I post-finalize status', post.body);
 
 // J. unauthenticated finalize rejected
@@ -261,13 +269,22 @@ const inactiveAttempt = await finalizeInactive({ item_type: 'feed', item_id: 'fe
 if (inactiveAttempt.status === 401) ok('K5 inactive/unauthenticated account rejected');
 else bad('K5 inactive account', inactiveAttempt);
 
-// K6. shared aggregate pool includes all roles
+// K6. shared aggregate pool includes all roles (percentages only in API)
 state.approvedFeed.add('feed-item-pool');
 await finalize({ item_type: 'feed', item_id: 'feed-item-pool', reaction_type: 'heart' }, studentB);
 await finalize({ item_type: 'feed', item_id: 'feed-item-pool', reaction_type: 'lightbulb' }, teacher);
 const poolStatus = await status('feed-item-pool', studentB);
 const poolRows = state.finalRows.filter((r) => r.item_id === 'feed-item-pool');
-if (poolStatus.body.finalized && poolStatus.body.total_responses === 2 && poolRows.length === 2) {
+const heartPct = poolStatus.body.results && poolStatus.body.results.find((r) => r.reaction_type === 'heart');
+const bulbPct = poolStatus.body.results && poolStatus.body.results.find((r) => r.reaction_type === 'lightbulb');
+if (
+  poolStatus.body.finalized &&
+  poolStatus.body.total_responses === undefined &&
+  poolRows.length === 2 &&
+  heartPct && bulbPct &&
+  heartPct.percentage === 50 &&
+  bulbPct.percentage === 50
+) {
   ok('K6 shared aggregate pool across roles');
 } else bad('K6 shared pool', { poolStatus: poolStatus.body, poolRows: poolRows.length });
 
@@ -288,6 +305,20 @@ if (cardUiJs.includes('openFeedItem') && cardUiJs.includes('fillFeedItemDetailMo
   ok('LanternCardUI openFeedItem adapter present');
 } else bad('LanternCardUI adapter');
 
+// M. finalize response omits total_responses
+const finalizeBody = await finalize({ item_type: 'feed', item_id: 'feed-item-1', reaction_type: 'heart' }, studentA);
+if (finalizeBody.body.total_responses === undefined && finalizeBody.status === 409) {
+  ok('M finalize/status API omits total_responses');
+} else bad('M API count leak', finalizeBody.body);
+
+const reactionsCss = fs.readFileSync(path.join(root, 'app/css/lantern-reactions.css'), 'utf8');
+if (
+  reactionsCss.includes('grid-template-columns: repeat(5, 1fr)') &&
+  reactionsCss.includes('.lanternFinalRxResultCell')
+) {
+  ok('five-column reaction grid CSS');
+} else bad('reaction centering CSS');
+
 const finalJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.js'), 'utf8');
 if (
   finalJs.includes('Lock In') &&
@@ -295,10 +326,19 @@ if (
   FINAL_REACTION_TYPES.length === 5 &&
   !finalJs.includes('Student reactions appear') &&
   !finalJs.includes('students_only') &&
-  finalJs.includes('isAuthenticatedViewer')
+  finalJs.includes('isAuthenticatedViewer') &&
+  !finalJs.includes('shared response') &&
+  !finalJs.includes('lanternFinalRxLockedNote') &&
+  finalJs.includes('lanternFinalRxLockedNotice') &&
+  finalJs.includes('wireLockedChoiceAttempts') &&
+  finalJs.includes('lanternFinalRxResultCell')
 ) {
-  ok('final reaction UI lifecycle present for all authenticated accounts');
+  ok('final reaction UI polish present');
 } else bad('final reaction UI');
+
+if (cardUiJs.includes('lanternCardDetailViewFullImgWrap') && cardUiJs.includes('r.appendChild(fullBtnWrap)')) {
+  ok('View full image below reactions in feed modal');
+} else bad('View full image order');
 
 const feedHandlers = fs.readFileSync(path.join(root, 'worker/feed-handlers.js'), 'utf8');
 if (!feedHandlers.includes('news.html?id=')) ok('feed-handlers no news.html detailUrl');

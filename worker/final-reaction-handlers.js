@@ -84,7 +84,6 @@ export async function handleFinalReactionRoutes(request, url, path, env, cors, d
       reaction_type: row.reaction_type,
       finalized_at: row.finalized_at,
       results: agg.results,
-      total_responses: agg.total_responses,
     }, 200, cors);
   }
 
@@ -156,7 +155,6 @@ export async function handleFinalReactionRoutes(request, url, path, env, cors, d
       reaction_type: reactionType,
       finalized_at: now,
       results: agg.results,
-      total_responses: agg.total_responses,
     }, 200, cors);
   }
 

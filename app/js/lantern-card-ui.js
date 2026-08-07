@@ -1557,6 +1557,8 @@
     a.innerHTML = '';
     var imgSrc = String(item.imageUrl || item.thumbnailUrl || '').trim();
     if (imgSrc) {
+      var fullBtnWrap = global.document.createElement('div');
+      fullBtnWrap.className = 'lanternCardDetailViewFullImgWrap';
       var fullBtn = global.document.createElement('button');
       fullBtn.type = 'button';
       fullBtn.className = 'btn lanternCardDetailViewFullImgBtn';
@@ -1565,7 +1567,8 @@
         e.preventDefault();
         openMediaFullscreen('image', { src: imgSrc });
       });
-      a.appendChild(fullBtn);
+      fullBtnWrap.appendChild(fullBtn);
+      r.appendChild(fullBtnWrap);
     }
   }
 

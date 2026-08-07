@@ -12,6 +12,8 @@
     { type: 'fire', emoji: '🔥', label: 'Fire' }
   ];
 
+  var LOCKED_NOTICE_MS = 3200;
+
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {
       return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;';
@@ -63,13 +65,67 @@
     return false;
   }
 
-  function renderResultsHtml(results, total) {
-    var parts = (results || []).map(function (r) {
-      var em = emojiForType(r.reaction_type);
-      return '<span class="lanternFinalRxResultItem">' + esc(em) + ' ' + esc(String(r.percentage || 0)) + '%</span>';
-    }).join('');
-    var totalLine = total > 0 ? '<p class="lanternFinalRxTotal">' + esc(String(total)) + ' shared response' + (total !== 1 ? 's' : '') + '</p>' : '';
-    return '<div class="lanternFinalRxResults">' + parts + '</div>' + totalLine;
+  function percentageByType(results) {
+    var map = {};
+    (results || []).forEach(function (r) {
+      map[r.reaction_type] = r.percentage;
+    });
+    return map;
+  }
+
+  function renderResultsHtml(results) {
+    var pctMap = percentageByType(results);
+    var html = '<div class="lanternFinalRxResults" role="list">';
+    FINAL_VOCAB.forEach(function (v) {
+      var pct = pctMap[v.type] != null ? pctMap[v.type] : 0;
+      html += '<div class="lanternFinalRxResultCell" role="listitem">' +
+        esc(v.emoji) + ' ' + esc(String(pct)) + '%</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function showLockedChangeNotice(panel) {
+    if (!panel) return;
+    var existing = panel.querySelector('.lanternFinalRxLockedNotice');
+    if (existing) {
+      existing.classList.add('lanternFinalRxLockedNotice--show');
+      if (existing._hideTimer) clearTimeout(existing._hideTimer);
+      existing._hideTimer = setTimeout(function () {
+        existing.classList.remove('lanternFinalRxLockedNotice--show');
+      }, LOCKED_NOTICE_MS);
+      return;
+    }
+    var notice = global.document.createElement('div');
+    notice.className = 'lanternFinalRxLockedNotice';
+    notice.setAttribute('role', 'status');
+    notice.innerHTML =
+      '<p class="lanternFinalRxLockedNoticeTitle">Response Locked</p>' +
+      '<p class="lanternFinalRxLockedNoticeSub">Your response can\u2019t be changed after you lock it in.</p>';
+    panel.appendChild(notice);
+    global.requestAnimationFrame(function () {
+      notice.classList.add('lanternFinalRxLockedNotice--show');
+    });
+    notice._hideTimer = setTimeout(function () {
+      notice.classList.remove('lanternFinalRxLockedNotice--show');
+    }, LOCKED_NOTICE_MS);
+  }
+
+  function wireLockedChoiceAttempts(panel, lockedType) {
+    if (!panel) return;
+    panel.querySelectorAll('.lanternFinalRxChoice[data-locked="true"]').forEach(function (btn) {
+      function onAttempt(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        showLockedChangeNotice(panel);
+      }
+      btn.addEventListener('click', onAttempt);
+      btn.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onAttempt(e);
+        }
+      });
+    });
   }
 
   /**
@@ -110,18 +166,19 @@
     html += '<div class="lanternFinalRxChoices lanternFinalRxChoices--locked">';
     FINAL_VOCAB.forEach(function (v) {
       var on = v.type === rt ? ' lanternFinalRxChoice--locked-on' : '';
-      html += '<button type="button" class="lanternFinalRxChoice' + on + '" disabled aria-label="' + esc(v.label) + '">' + v.emoji + '</button>';
+      html += '<button type="button" class="lanternFinalRxChoice' + on + '" data-locked="true" data-rx-type="' + esc(v.type) + '" aria-disabled="true" aria-label="' + esc(v.label) + '">' + v.emoji + '</button>';
     });
     html += '</div>';
     if (status.results && status.results.length) {
-      html += renderResultsHtml(status.results, status.total_responses);
+      html += renderResultsHtml(status.results);
     }
     if (rt) {
       html += '<p class="lanternFinalRxYour">Your response: ' + esc(em) + '</p>';
-      html += '<p class="lanternFinalRxLockedNote">Response locked</p>';
     }
     html += '</div>';
     container.innerHTML = html;
+    var panel = container.querySelector('.lanternFinalRxPanel');
+    wireLockedChoiceAttempts(panel, rt);
   }
 
   function renderDraft(container, itemType, itemId, opts) {
@@ -222,6 +279,8 @@
     finalizeReaction: finalizeReaction,
     mountFinalReactionPanel: mountFinalReactionPanel,
     emojiForType: emojiForType,
-    isAuthenticatedViewer: isAuthenticatedViewer
+    isAuthenticatedViewer: isAuthenticatedViewer,
+    renderResultsHtml: renderResultsHtml,
+    showLockedChangeNotice: showLockedChangeNotice
   };
 })(typeof window !== 'undefined' ? window : self);
