@@ -28,24 +28,61 @@
   box-sizing: border-box;
 }
 
+.feedHeading {
+  width: 100%;
+  margin: 0 0 16px;
+  box-sizing: border-box;
+}
+
+.feedHeadingRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.feedMetaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
 .feedPageTitle {
   font-size: 32px;
   font-weight: 900;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .feedPageSub {
   font-size: var(--feed-fs-base);
   color: var(--feed-muted);
-  margin: 0 0 16px;
+  margin: 0;
   padding: 0;
   line-height: 1.4;
-  max-width: 52rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: min(100%, 42rem);
 }
 
-.feedFiltersHost {
-  margin: 0 0 16px;
+.feedHeadingRow .feedFiltersToggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.feedItemCount,
+.feedMetaRow .feedStatus {
+  flex: 0 0 auto;
+  margin: 0;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .feedFiltersToggle {
@@ -164,7 +201,6 @@
 .feedStatus {
   font-size: var(--feed-fs-base);
   color: var(--feed-muted);
-  margin-bottom: 12px;
 }
 
 .feedGrid,

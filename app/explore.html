@@ -56,10 +56,15 @@
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
       <main class="lanternExploreSurface" data-surface-context="explore">
       <div class="lanternExplorePageContainer">
-      <h1 class="feedPageTitle">Explore</h1>
-      <p class="feedPageSub">One feed — filter and sort approved Lantern content.</p>
-      <div class="feedFiltersHost">
-        <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+      <header class="feedHeading" aria-label="Feed controls">
+        <div class="feedHeadingRow">
+          <h1 class="feedPageTitle">Explore</h1>
+          <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+        </div>
+        <div class="feedMetaRow">
+          <p class="feedPageSub">One feed — filter and sort approved Lantern content.</p>
+          <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
+        </div>
         <div id="feedFiltersPanel" class="feedFiltersPanel" hidden>
           <div class="feedFiltersToolbarRow">
             <select id="feedSortSelect" class="feedSortSelect" aria-label="Sort feed">
@@ -71,9 +76,8 @@
           </div>
           <div id="feedFilterBar" class="feedFilterBar" role="toolbar" aria-label="Category filters"></div>
         </div>
-      </div>
+      </header>
       <div class="feedResultsHost">
-        <div id="feedStatus" class="feedStatus"></div>
         <div id="feedEmpty" class="feedEmpty" hidden>No approved items match your filters yet. Try All or create something new.</div>
         <div id="feedGrid" class="feedGrid" role="feed" aria-label="Lantern feed"></div>
       </div>

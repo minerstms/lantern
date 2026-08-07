@@ -64,6 +64,37 @@ if (feedCss.includes('.feedFiltersToggle') && feedCss.includes('.feedFiltersPane
   ok('filters disclosure CSS');
 } else bad('filters disclosure CSS');
 
+if (
+  feedCss.includes('.feedHeadingRow') &&
+  feedCss.includes('.feedMetaRow') &&
+  feedCss.includes('justify-content: space-between')
+) {
+  ok('shared compact feed heading rows in CSS');
+} else bad('compact feed heading CSS');
+
+function hasCompactFeedHeading(html) {
+  return (
+    html.includes('class="feedHeading"') &&
+    html.includes('class="feedHeadingRow"') &&
+    html.includes('class="feedMetaRow"') &&
+    /class="feedHeadingRow"[\s\S]*?feedPageTitle[\s\S]*?feedFiltersToggle/.test(html) &&
+    /class="feedMetaRow"[\s\S]*?feedPageSub[\s\S]*?id="feedStatus"/.test(html) &&
+    !html.includes('feedFiltersHost')
+  );
+}
+
+if (hasCompactFeedHeading(exploreHtml)) ok('Explore compact two-row feed heading');
+else bad('Explore compact feed heading markup');
+
+if (hasCompactFeedHeading(lockerHtml)) ok('Locker compact two-row feed heading');
+else bad('Locker compact feed heading markup');
+
+if (!exploreHtml.includes('feedResultsHost') || !/feedResultsHost[\s\S]*?feedGrid/.test(exploreHtml)) {
+  bad('feedResultsHost structure');
+} else if (!/feedMetaRow[\s\S]*?feedStatus/.test(exploreHtml) && !/feedMetaRow[\s\S]*?id="feedStatus"/.test(exploreHtml)) {
+  bad('item count not in feedMetaRow');
+} else ok('item count lives in feedMetaRow, not above grid stack');
+
 if (!exploreHtml.includes('feedSearchInput') && !lockerHtml.includes('feedSearchInput')) {
   ok('page-local search removed from Explore and Locker HTML');
 } else bad('page-local search still in HTML');

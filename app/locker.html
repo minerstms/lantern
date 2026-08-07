@@ -131,10 +131,15 @@
       <p class="lockerEditProfileAccess">
         <button type="button" class="profileHeroAction feedToolbarBtn" id="editProfileBtn" data-help="edit_profile">Edit Profile</button>
       </p>
-      <h1 class="feedPageTitle">My Lantern</h1>
-      <p class="feedPageSub">Your relationship with community content — same cards as Explore, filtered to you.</p>
-      <div class="feedFiltersHost">
-        <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+      <header class="feedHeading" aria-label="Feed controls">
+        <div class="feedHeadingRow">
+          <h1 class="feedPageTitle">My Lantern</h1>
+          <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+        </div>
+        <div class="feedMetaRow">
+          <p class="feedPageSub">Your relationship with community content — same cards as Explore, filtered to you.</p>
+          <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
+        </div>
         <div id="feedFiltersPanel" class="feedFiltersPanel" hidden>
           <div id="lockerRelationshipSection" class="feedFiltersSection lockerRelationshipSection">
             <p class="feedFiltersSectionLabel">Relationship</p>
@@ -150,9 +155,8 @@
           </div>
           <div id="feedFilterBar" class="feedFilterBar" role="toolbar" aria-label="Category filters"></div>
         </div>
-      </div>
+      </header>
       <div class="feedResultsHost">
-        <div id="feedStatus" class="feedStatus"></div>
         <div id="feedEmpty" class="feedEmpty" hidden>No items match your filters yet.</div>
         <div id="feedGrid" class="feedGrid" role="feed" aria-label="Locker personal feed"></div>
       </div>
