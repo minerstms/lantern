@@ -40,7 +40,7 @@
     cosmetics: 'Buy cosmetics like frames, backgrounds, and badges in Locker → Store. Equip them in Edit Profile on Locker → Overview.',
     display_page: 'The Display page shows approved work on a big screen, like in a hallway. It rotates through teacher picks, news, and achievements.',
     filter_chips: 'Tap a chip to filter what you see (when this row is on the page).',
-    feed_tabs: 'On the Games page: this row jumps to Explore, News, Missions, or stays on Games. The home feed (Explore) has no filter row — scroll through all sections.',
+    feed_tabs: 'On the Games page: this row jumps to Lantern, News, Missions, or stays on Games. The home feed (Lantern) has no filter row — scroll through all sections.',
     back_to_profile: 'Go back to Locker.',
     news_image: 'One media spot per article: click the box, then paste a picture, short video, or link, drag a file, or choose a file. It is not for typing — your story goes in the body above.',
     unified_media: 'This box is for photo, video, or link only. Click in it first, then paste, drag, or choose a file. Typing letters here won’t work on purpose.',
@@ -50,7 +50,7 @@
     approvals_queue: 'Items waiting for your review: news articles and avatar uploads. Use Approve, Reject, or Return. Approving can grant nuggets (see Rewards Panel). Only approved items appear to students.',
     moderation: 'Moderation: hide live posts from public view or restore hidden items. Hidden content stays listed here until you restore it. Flagged items may need review.',
     rewards_panel: 'Teachers grant and manage nugget rewards here through Approvals, Create Mission, and Manual catalog reward below. Students spend nuggets only in Locker → Store — that Store is the student catalog, not a teacher tool.',
-    verify_page: 'Verify & Simulate: QA tools for seeing how content flows through approvals to Locker and Explore rails. Simulation is not real authentication — use the routing matrix card for code-backed paths.',
+    verify_page: 'Verify & Simulate: QA tools for seeing how content flows through approvals to Locker and Lantern rails. Simulation is not real authentication — use the routing matrix card for code-backed paths.',
   };
 
   function isHelpModeOn() {

@@ -808,7 +808,7 @@
     for (var i = 0; i < choices.length; i++) {
       html += '<button type="button" class="pollChoiceBtn" disabled tabindex="-1">' + e(choices[i]) + '</button>';
     }
-    html += '</div><p class="pollStudioOpenedHint">After approval, votes and nuggets work like on Explore.</p></div>';
+    html += '</div><p class="pollStudioOpenedHint">After approval, votes and nuggets work like on Lantern.</p></div>';
     return html;
   }
 

@@ -31,7 +31,7 @@
     {
       id: 'peer_shoutout_approved',
       itemType: 'Approved peer shout-out (news)',
-      normalDestinations: 'School News (Explore Articles lane); body Shout-out… or Recognizing:',
+      normalDestinations: 'School News (Lantern Articles lane); body Shout-out… or Recognizing:',
       approval: 'Yes',
       recognitionAlso: 'Yes — merged into recognition list for named student',
       spotlightEligible: 'Yes (recipient only)',
@@ -40,7 +40,7 @@
     {
       id: 'teacher_pick_creation',
       itemType: 'Teacher Pick on approved creation',
-      normalDestinations: 'Explore Announcements + Latest Posts (same post in both rails)',
+      normalDestinations: 'Lantern Announcements + Latest Posts (same post in both rails)',
       approval: 'Post must be approved first',
       recognitionAlso: 'Yes when LANTERN_AVATAR_API: POST /api/recognition/create from teacher.html; else history only',
       spotlightEligible: 'Yes',
@@ -49,7 +49,7 @@
     {
       id: 'teacher_feature_creation',
       itemType: 'Teacher Featured creation',
-      normalDestinations: 'Explore Announcements + Latest Posts',
+      normalDestinations: 'Lantern Announcements + Latest Posts',
       approval: 'Yes',
       recognitionAlso: 'Via activity history Spotlight (Featured: note), not auto D1 row',
       spotlightEligible: 'Yes (history)',
@@ -58,7 +58,7 @@
     {
       id: 'approved_creation',
       itemType: 'Approved student creation/post',
-      normalDestinations: 'My Creations, Explore Latest Posts (+ Announcements if curated)',
+      normalDestinations: 'My Creations, Lantern Latest Posts (+ Announcements if curated)',
       approval: 'Yes',
       recognitionAlso: 'No unless pick/feature/praise/spotlight',
       spotlightEligible: 'Only if curated/highlighted',
@@ -67,7 +67,7 @@
     {
       id: 'mission_complete_default',
       itemType: 'Mission completion / default approval',
-      normalDestinations: 'Missions UI, profile stats, optional Explore merge',
+      normalDestinations: 'Missions UI, profile stats, optional Lantern merge',
       approval: 'Usually yes',
       recognitionAlso: 'No by default',
       spotlightEligible: 'Only if teacher marks Spotlight on approve',
@@ -76,7 +76,7 @@
     {
       id: 'poll_published',
       itemType: 'Poll approval / publication',
-      normalDestinations: 'Explore Missions & Actions / polls; vote APIs',
+      normalDestinations: 'Lantern Missions & Actions / polls; vote APIs',
       approval: 'Yes',
       recognitionAlso: 'No',
       spotlightEligible: 'No unless separately recognized',
@@ -85,7 +85,7 @@
     {
       id: 'news_published',
       itemType: 'Published news/article (non-shout-out)',
-      normalDestinations: 'Explore School News (Articles), Display',
+      normalDestinations: 'Lantern School News (Articles), Display',
       approval: 'Yes',
       recognitionAlso: 'No',
       spotlightEligible: 'No unless shout-out merge applies',

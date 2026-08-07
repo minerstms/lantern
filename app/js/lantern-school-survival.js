@@ -719,7 +719,7 @@
           '<p class="ss-done-muted">' +
           esc(muted) +
           '</p>' +
-          '<p style="margin-top:20px;"><a href="explore.html" style="color:#5aa7ff;font-weight:800;font-size:22px;">Back to Explore</a></p></div></div>';
+          '<p style="margin-top:20px;"><a href="explore.html" style="color:#5aa7ff;font-weight:800;font-size:22px;">Back to Lantern</a></p></div></div>';
         document.getElementById('ssPlayAgain').addEventListener('click', function () {
           questions = questionsForPack(packKey);
           idx = 0;

@@ -76,8 +76,8 @@
           what: 'Teacher Pick saved as a recognition row for Spotlight.',
           approval: 'The creation was already approved; Teacher Pick is an extra teacher action.',
           whyHere: 'When the API is enabled, Teacher Pick also creates a row in the recognition list so Spotlight matches other recognition items.',
-          whereElse: 'The same creation stays in Explore Announcements and Latest Posts while it is still recent.',
-          summary: 'This Spotlight card is tied to Teacher Pick on your work. The post itself still lives in Explore rails.'
+          whereElse: 'The same creation stays in Lantern Announcements and Latest Posts while it is still recent.',
+          summary: 'This Spotlight card is tied to Teacher Pick on your work. The post itself still lives in Lantern rails.'
         };
       }
       if (pipeline === 'history_spotlight') {
@@ -85,7 +85,7 @@
           what: 'A highlight from your Lantern history (like a pick, feature, or praise).',
           approval: 'Usually yes for the underlying post, and a teacher action (pick/feature/praise) added this note.',
           whyHere: 'The app only shows history lines tagged as spotlight-style (curation or special notes) in your Spotlight rail.',
-          whereElse: 'The original post may also appear on Explore if it is public; picks/features also appear in Announcements.',
+          whereElse: 'The original post may also appear on Lantern if it is public; picks/features also appear in Announcements.',
           summary: 'This card comes from your account history when something was marked as a spotlight moment.'
         };
       }
@@ -132,7 +132,7 @@
         what: 'One line from the school activity log (event type: ' + esc(et) + ').',
         approval: approvalLine,
         whyHere: 'The app reads the last activity events from the same store used for the ticker (getActivityEvents) and maps them into cards on Locker → Overview.',
-        whereElse: 'Similar events can appear in Explore School News under Activity.',
+        whereElse: 'Similar events can appear in Lantern School News under Activity.',
         summary: 'This is a recorded school activity event. It is here so you can see what happened recently around Lantern.'
       };
     }
@@ -143,15 +143,15 @@
           what: 'A creation chosen for the Community / discovery strip.',
           approval: 'Yes. Items are approved student work; this one is flagged spotlight in the discovery feed data.',
           whyHere: 'getDiscoveryFeed picked this entry for your Locker → Overview discovery scroller.',
-          whereElse: 'The same post may appear on Explore if it is in the public feed.',
+          whereElse: 'The same post may appear on Lantern if it is in the public feed.',
           summary: 'This is spotlighted approved work picked for discovery on your profile.'
         };
       }
       return {
         what: 'A creation listed in your Community / discovery feed.',
         approval: 'Yes. Discovery only lists approved creations from the app feed data.',
-        whyHere: 'The app loads getDiscoveryFeed and renders each item as an Explore-style card here.',
-        whereElse: 'Explore Latest Posts can show the same post if it is in the shared feed.',
+        whyHere: 'The app loads getDiscoveryFeed and renders each item as a Lantern-style card here.',
+        whereElse: 'Lantern Latest Posts can show the same post if it is in the shared feed.',
         summary: 'This is approved work the app included in the curated discovery list for you.'
       };
     }
@@ -170,7 +170,7 @@
         what: 'One of your profile posts (creation).',
         approval: 'Yes. Posts only show on your profile after teacher approval in the normal post flow.',
         whyHere: 'The app lists your own approved posts (and missions) in this strip.',
-        whereElse: 'If picked or featured, the same post can appear on Explore for everyone.',
+        whereElse: 'If picked or featured, the same post can appear on Lantern for everyone.',
         summary: 'This is your own approved post. Teachers approved it before it showed in Locker → Overview.'
       };
     }
@@ -181,7 +181,7 @@
       return {
         what: pick ? 'A Teacher Pick' : (feat ? 'Featured creation' : 'Announcements rail item'),
         approval: 'The post was already approved. A teacher then marked it pick or feature.',
-        whyHere: 'Explore only puts teacher_pick or teacher_featured posts in Announcements (code filters the feed).',
+        whyHere: 'Lantern only puts teacher_pick or teacher_featured posts in Announcements (code filters the feed).',
         whereElse: 'The same post can also appear in Latest Posts below.',
         summary: pick ? 'A teacher marked this as a pick after it was approved.' : 'A teacher featured this standout work after approval.'
       };
@@ -190,8 +190,8 @@
     if (surface === 'explore_new') {
       return {
         what: 'An approved creation, newest first.',
-        approval: 'Yes. Only approved posts enter the explore feed used here.',
-        whyHere: 'Explore sorts the shared feed by date and shows it in the Latest Posts rail.',
+        approval: 'Yes. Only approved posts enter the Lantern feed used here.',
+        whyHere: 'Lantern sorts the shared feed by date and shows it in the Latest Posts rail.',
         whereElse: 'If it gets a pick or feature, it can also show in Announcements.',
         summary: 'This is public approved work, shown because it is recent in Latest Posts.'
       };
@@ -211,8 +211,8 @@
       return {
         what: 'A school activity blurb (same log as Locker → Overview Around school, shorter card).',
         approval: 'It is a log line, not a post. Some events refer to things that already went through approval.',
-        whyHere: 'Explore maps getActivityEvents into compact activity cards under School News.',
-        whereElse: 'Locker → Overview (Around school) uses the same event types with full Explore-style cards.',
+        whyHere: 'Lantern maps getActivityEvents into compact activity cards under School News.',
+        whereElse: 'Locker → Overview (Around school) uses the same event types with full Lantern-style cards.',
         summary: 'This text comes from the activity event log (type: ' + esc(detail || 'unknown') + ').'
       };
     }
@@ -221,9 +221,9 @@
       return {
         what: 'An active poll.',
         approval: 'Yes. A student (or staff) submitted it on Contribute and a teacher approved it before it went live.',
-        whyHere: 'Explore loads approved polls from the polls API and lists them here.',
+        whyHere: 'Lantern loads approved polls from the polls API and lists them here.',
         whereElse: null,
-        summary: 'This poll is here so students can vote; it is part of Explore Missions & Actions.'
+        summary: 'This poll is here so students can vote; it is part of Lantern Missions & Actions.'
       };
     }
 
@@ -231,7 +231,7 @@
       return {
         what: 'A mission your teacher published for students.',
         approval: 'Teachers create missions; students do not approve them.',
-        whyHere: 'Explore picks one active mission from the missions API to feature as “Try this.”',
+        whyHere: 'Lantern picks one active mission from the missions API to feature as “Try this.”',
         whereElse: 'Missions page lists all active missions for you.',
         summary: 'This mission card is here as today’s highlighted task from the active mission list.'
       };

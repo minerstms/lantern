@@ -298,7 +298,7 @@
       var meta = global.document.createElement('p');
       meta.className = 'lanternCardDetailAdminModerationMeta';
       meta.textContent =
-        'Remove this item from student-facing Explore feeds. It stays in the database; use Admin → Feed visibility to restore if needed.';
+        'Remove this item from student-facing Lantern feeds. It stays in the database; use Admin → Feed visibility to restore if needed.';
       inner.appendChild(meta);
       var btn = global.document.createElement('button');
       btn.type = 'button';
@@ -895,7 +895,7 @@
       html += '<button type="button" class="pollChoiceBtn" disabled tabindex="-1">' + e(choices[i]) + '</button>';
     }
     html += '</div>';
-    html += '<p class="lanternCardDetailMuted" style="margin-top:16px;">Preview — votes and nuggets work on Explore after approval.</p></div></div>';
+    html += '<p class="lanternCardDetailMuted" style="margin-top:16px;">Preview — votes and nuggets work on Lantern after approval.</p></div></div>';
     container.innerHTML = html;
   }
 

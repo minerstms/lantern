@@ -902,7 +902,7 @@
     <div class="card studioCenterCard" id="contributeMainCard" data-help="new_post">
       <div class="cardHd">
         <div class="h">Create</div>
-        <p class="cardHdMini">Teacher-reviewed · track status in <strong>Locker</strong> (Overview) under <strong>My Articles</strong> · read published stories on <a href="explore.html" style="color:var(--accent);font-weight:800;">Lantern (Explore)</a></p>
+        <p class="cardHdMini">Teacher-reviewed · track status in <strong>Locker</strong> (Overview) under <strong>My Articles</strong> · read published stories on <a href="explore.html" style="color:var(--accent);font-weight:800;">Lantern</a></p>
       </div>
       <div class="cardBd studioCenterScroll" id="contributeUnifiedBd">
         <div class="contributeCenterInner">
@@ -2334,11 +2334,11 @@
           if (ban) {
             ban.style.display = 'block';
             if (res.status === 'approved') {
-              ban.innerHTML = 'Published<span class="contributePostSuccessSub">Your article is live on Explore for the school.</span>';
+              ban.innerHTML = 'Published<span class="contributePostSuccessSub">Your article is live on Lantern for the school.</span>';
             } else if (wasNewsResubmit) {
               ban.innerHTML = 'Resubmitted<span class="contributePostSuccessSub">Back in the teacher queue for review.</span>';
             } else if (authorType === 'student') {
-              ban.innerHTML = 'Sent for review<span class="contributePostSuccessSub">Your teacher approves posts before they appear on Explore. Track status in Locker → My Articles.</span>';
+              ban.innerHTML = 'Sent for review<span class="contributePostSuccessSub">Your teacher approves posts before they appear on Lantern. Track status in Locker → My Articles.</span>';
             } else {
               ban.innerHTML = 'Submitted<span class="contributePostSuccessSub">Your article is in the teacher review queue.</span>';
             }

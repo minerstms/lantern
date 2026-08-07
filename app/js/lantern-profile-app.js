@@ -1490,7 +1490,7 @@
       { key: 'new_post', text: 'Share something you made. It goes to a teacher for approval first.' },
       { key: 'content_tabs', text: 'My Creations: your Contribute polls, mission submissions, and news articles from the server — tabs All / Pending / Needs Attention (returned) / Approved. Mission “accepted” counts as Approved. Search only filters what you already loaded.' },
       { key: 'achievements', text: 'Badges you earn for things like your first post, daily nugget, or teacher pick.' },
-      { key: 'trophy_case', text: 'Your Wins uses the same Explore cards as the feed (horizontal scroll); locked achievements look muted.' },
+      { key: 'trophy_case', text: 'Your Wins uses the same Lantern cards as the feed (horizontal scroll); locked achievements look muted.' },
       { key: 'teacher_spotlight', text: 'You were spotlighted by a teacher. It’s a special recognition in Locker → Overview.' }
     ];
     function getLegendText(key){
