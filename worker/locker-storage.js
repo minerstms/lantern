@@ -227,23 +227,25 @@ export function equippedItemsList(equippedMap) {
 }
 
 /**
- * Persist private Locker bio on the authenticated profile row (character_name = economy key).
+ * Persist private Locker bio on the authenticated pilot account row.
  * @param {import('@cloudflare/workers-types').D1Database} db
- * @param {string} characterName
+ * @param {string} username
  * @param {string|null} bio
  */
-export async function updateProfileBio(db, characterName, bio) {
-  const key = String(characterName || '').trim();
-  if (!key || !db) return { ok: false, error: 'missing_fields' };
+export async function updateAccountBio(db, username, bio) {
+  const user = String(username || '').trim();
+  if (!user || !db) return { ok: false, error: 'missing_fields' };
   const now = new Date().toISOString();
   const storedBio = bio == null ? null : String(bio);
-  await db
-    .prepare(
-      `INSERT INTO lantern_avatar_profiles (character_name, bio, updated_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT(character_name) DO UPDATE SET bio = excluded.bio, updated_at = excluded.updated_at`
-    )
-    .bind(key, storedBio, now)
+  const result = await db
+    .prepare('UPDATE lantern_pilot_accounts SET bio = ?, updated_at = ? WHERE username = ?')
+    .bind(storedBio, now, user)
     .run();
+  if (!result.success) return { ok: false, error: 'bio_update_failed' };
   return { ok: true, bio: normalizeBioFromDb(storedBio), updated_at: now };
+}
+
+/** @deprecated — bio no longer persisted on avatar profile rows */
+export async function updateProfileBio(db, characterName, bio) {
+  return updateAccountBio(db, characterName, bio);
 }

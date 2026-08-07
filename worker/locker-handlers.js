@@ -10,12 +10,12 @@ import {
   fetchCosmeticOwnershipRow,
   mergeOwnedItemIds,
   setEquippedCosmetic,
-  updateProfileBio,
+  updateAccountBio,
 } from './locker-storage.js';
 import { syncDerivedAchievements } from './locker-achievements.js';
 import { fetchLockerProgress } from './locker-progress.js';
 import { buildLockerPersonalFeed } from './locker-personal-feed.js';
-import { normalizeBioFromDb, sanitizeBioInput } from './locker-bio.js';
+import { normalizeBioFromDb, sanitizeBioInput, resolveProfileBio } from './locker-bio.js';
 
 const LOCKER_FORBIDDEN_QUERY_PARAMS = [
   'character_name',
@@ -194,7 +194,7 @@ async function fetchAvatarProfile(db, origin, characterName) {
     return {
       available: false,
       reason: 'account_link_missing',
-      bio: null,
+      legacy_avatar_bio: null,
       avatar: null,
       avatar_pending: null,
     };
@@ -218,7 +218,7 @@ async function fetchAvatarProfile(db, origin, characterName) {
   return {
     available: true,
     reason: null,
-    bio: normalizeBioFromDb(profile ? profile.bio : null),
+    legacy_avatar_bio: normalizeBioFromDb(profile ? profile.bio : null),
     avatar: activeImage,
     avatar_pending: pending
       ? {
@@ -491,9 +491,10 @@ export async function buildLockerMeResponse(account, env, origin) {
     } catch (_) {}
   }
 
-  const [profileRaw, walletBundle, cosmeticSpendRows, news, missions, polls, recognitions, achievementRows, cosmeticRow] =
+  const [profileRaw, accountBioRow, walletBundle, cosmeticSpendRows, news, missions, polls, recognitions, achievementRows, cosmeticRow] =
     await Promise.all([
     fetchAvatarProfile(db, origin, avatarKey),
+    db.prepare('SELECT bio FROM lantern_pilot_accounts WHERE username = ?').bind(username).first(),
     economyKey
       ? fetchWalletBundle(db, economyKey)
       : lockerCategory(false, role === 'student' ? 'account_link_missing' : 'not_applicable_for_role', [], {
@@ -510,6 +511,12 @@ export async function buildLockerMeResponse(account, env, origin) {
     economyKey ? fetchAchievementRows(db, economyKey) : Promise.resolve([]),
     economyKey ? fetchCosmeticOwnershipRow(db, economyKey) : Promise.resolve({ owned: [], equipped: {} }),
   ]);
+
+  const profile = {
+    ...profileRaw,
+    bio: resolveProfileBio(accountBioRow ? accountBioRow.bio : null, profileRaw.legacy_avatar_bio),
+  };
+  delete profile.legacy_avatar_bio;
 
   const submissions = [...polls, ...missions, ...news];
   const txRows = walletBundle.transactions || [];
@@ -601,7 +608,7 @@ export async function buildLockerMeResponse(account, env, origin) {
       economy_character_name: economyCharacterName,
       economy_key: economyKey,
     },
-    profile: profileRaw,
+    profile,
     submissions: submissionsCategory,
     wallet: walletCategory,
     purchases: purchasesCategory,
@@ -696,7 +703,13 @@ export async function handleLockerRoutes(request, url, path, env, cors, deps) {
     }
     const sanitized = sanitizeBioInput(body.bio);
     if (!sanitized.ok) return jsonResponse(sanitized, 400, cors);
-    const result = await updateProfileBio(db, session.economyKey, sanitized.bio);
+    let result;
+    try {
+      result = await updateAccountBio(db, session.account.username, sanitized.bio);
+    } catch (err) {
+      console.error('[locker] bio save failed', err);
+      return jsonResponse({ ok: false, error: 'bio_update_failed' }, 500, cors);
+    }
     if (!result.ok) return jsonResponse(result, 400, cors);
     return jsonResponse(
       {

@@ -6,8 +6,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleLockerRoutes, buildLockerMeResponse } from '../locker-handlers.js';
-import { sanitizeBioInput, normalizeBioFromDb, BIO_MAX_LENGTH } from '../locker-bio.js';
-import { updateProfileBio } from '../locker-storage.js';
+import { sanitizeBioInput, normalizeBioFromDb, resolveProfileBio, BIO_MAX_LENGTH } from '../locker-bio.js';
+import { updateAccountBio } from '../locker-storage.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 let pass = 0;
@@ -30,13 +30,18 @@ function jsonResponse(obj, status, cors) {
   });
 }
 
-const migrationPath = path.join(root, 'worker/migrations/045_lantern_avatar_profile_bio.sql');
+const migrationPath = path.join(root, 'worker/migrations/047_lantern_account_bio.sql');
 const migrationSql = fs.readFileSync(migrationPath, 'utf8');
-if (migrationSql.includes('ADD COLUMN bio TEXT')) ok('migration file adds bio column');
-else bad('migration file', migrationSql);
+if (migrationSql.includes('ALTER TABLE lantern_pilot_accounts') && migrationSql.includes('ADD COLUMN bio TEXT')) {
+  ok('account bio migration adds lantern_pilot_accounts.bio');
+} else bad('account bio migration', migrationSql);
+
+if (!/ALTER TABLE\s+lantern_avatar_profiles/i.test(migrationSql)) ok('migration does not alter avatar profile table');
+else bad('migration touches avatar profiles');
 
 function makeDb(state) {
   state.avatarProfiles = state.avatarProfiles || {};
+  state.pilotAccounts = state.pilotAccounts || {};
   state.wallets = state.wallets || {};
   state.transactions = state.transactions || {};
   state.cosmeticOwnership = state.cosmeticOwnership || {};
@@ -54,6 +59,10 @@ function makeDb(state) {
         async first() {
           if (s.includes('FROM lantern_wallets')) return state.wallets[binds[0]] || null;
           if (s.includes('FROM lantern_avatar_profiles')) return state.avatarProfiles[binds[0]] || null;
+          if (s.includes('FROM lantern_pilot_accounts') && s.includes('bio')) {
+            const user = binds[0];
+            return state.pilotAccounts[user] ? { bio: state.pilotAccounts[user].bio ?? null } : null;
+          }
           if (s.includes('lantern_avatar_submissions') && s.includes('pending')) return null;
           if (s.includes('FROM lantern_cosmetic_ownership')) return state.cosmeticOwnership[binds[0]] || null;
           if (s.includes("LOWER(TRIM(status)) = 'accepted'")) return { c: 0 };
@@ -71,18 +80,20 @@ function makeDb(state) {
           return { results: [] };
         },
         async run() {
-          if (s.includes('INSERT INTO lantern_avatar_profiles') && s.includes('bio')) {
-            const key = binds[0];
-            const bio = binds[1];
-            const updatedAt = binds[2];
-            const existing = state.avatarProfiles[key] || { character_name: key };
-            state.avatarProfiles[key] = {
-              ...existing,
-              character_name: key,
-              bio,
-              updated_at: updatedAt,
-            };
+          if (s.includes('UPDATE lantern_pilot_accounts') && s.includes('bio')) {
+            const bio = binds[0];
+            const updatedAt = binds[1];
+            const user = binds[2];
+            if (!state.pilotAccounts[user]) {
+              state.pilotAccounts[user] = { username: user };
+            }
+            state.pilotAccounts[user].bio = bio;
+            state.pilotAccounts[user].updated_at = updatedAt;
             return { success: true };
+          }
+          if (s.includes('INSERT INTO lantern_avatar_profiles') && s.includes('bio')) {
+            bad('save must not insert avatar profile row for bio-only update');
+            return { success: false };
           }
           return { success: true };
         },
@@ -152,42 +163,68 @@ else bad('empty clear', empty);
 if (normalizeBioFromDb('  hi ') === 'hi' && normalizeBioFromDb('') === null) ok('normalizeBioFromDb');
 else bad('normalizeBioFromDb');
 
+if (resolveProfileBio('Account bio', 'Legacy bio') === 'Account bio') ok('account bio takes precedence');
+else bad('account precedence');
+
+if (resolveProfileBio(null, 'Legacy bio') === 'Legacy bio') ok('legacy avatar bio fallback when account empty');
+else bad('legacy fallback');
+
+if (resolveProfileBio('New account bio', 'Legacy bio') === 'New account bio') ok('new account value beats legacy fallback');
+else bad('new beats legacy');
+
 if (BIO_MAX_LENGTH === 180) ok('max length constant');
 else bad('max length constant', BIO_MAX_LENGTH);
 
-async function testReadStudentBio() {
+async function testReadAccountBio() {
   const db = makeDb({
+    pilotAccounts: { '20889': { username: '20889', bio: 'Account-level bio.' } },
+    wallets: { '20889': { balance: 5 } },
+  });
+  const body = await buildLockerMeResponse(studentA, { DB: db }, 'https://lantern.test');
+  if (body.profile && body.profile.bio === 'Account-level bio.') ok('student reads account bio');
+  else bad('student read account bio', body.profile);
+}
+
+async function testReadLegacyFallback() {
+  const db = makeDb({
+    pilotAccounts: { '20889': { username: '20889', bio: null } },
     avatarProfiles: {
       '20889': { character_name: '20889', current_avatar_key: 'avatars/x.png', bio: 'I like science.' },
     },
     wallets: { '20889': { balance: 5 } },
   });
   const body = await buildLockerMeResponse(studentA, { DB: db }, 'https://lantern.test');
-  if (body.profile && body.profile.bio === 'I like science.') ok('student reads own persisted bio');
-  else bad('student read bio', body.profile);
+  if (body.profile && body.profile.bio === 'I like science.') ok('legacy avatar bio fallback read');
+  else bad('legacy fallback read', body.profile);
 }
 
 async function testReadTeacherBio() {
   const db = makeDb({
-    avatarProfiles: {
-      teacher1: { character_name: 'teacher1', bio: 'Teacher bio here.' },
-    },
+    pilotAccounts: { teacher1: { username: 'teacher1', bio: 'Teacher bio here.' } },
     wallets: { teacher1: { balance: 0 } },
   });
   const body = await buildLockerMeResponse(teacherA, { DB: db }, 'https://lantern.test');
-  if (body.profile && body.profile.bio === 'Teacher bio here.') ok('teacher reads own persisted bio');
+  if (body.profile && body.profile.bio === 'Teacher bio here.') ok('teacher reads own account bio');
   else bad('teacher read bio', body.profile);
 }
 
 async function testNullBio() {
-  const db = makeDb({ avatarProfiles: {}, wallets: { '20889': { balance: 0 } } });
+  const db = makeDb({
+    pilotAccounts: { '20889': { username: '20889', bio: null } },
+    avatarProfiles: {},
+    wallets: { '20889': { balance: 0 } },
+  });
   const body = await buildLockerMeResponse(studentA, { DB: db }, 'https://lantern.test');
-  if (body.profile && body.profile.bio === null) ok('null bio when no row/value');
+  if (body.profile && body.profile.bio === null) ok('null bio when no account or legacy value');
   else bad('null bio', body.profile);
 }
 
-async function testPatchOwnBio() {
-  const state = { avatarProfiles: {}, wallets: { '20889': { balance: 0 } } };
+async function testPatchOwnBioWithoutAvatarRow() {
+  const state = {
+    pilotAccounts: { '20889': { username: '20889', bio: null } },
+    avatarProfiles: {},
+    wallets: { '20889': { balance: 0 } },
+  };
   const db = makeDb(state);
   const req = new Request('https://lantern.test/api/locker/me/bio', {
     method: 'PATCH',
@@ -196,14 +233,21 @@ async function testPatchOwnBio() {
   });
   const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
   const body = await res.json();
-  if (res.status === 200 && body.ok && body.profile.bio === 'My real bio.') ok('student updates own bio');
-  else bad('student patch bio', body);
-  if (state.avatarProfiles['20889'] && state.avatarProfiles['20889'].bio === 'My real bio.') ok('bio persisted in avatar profile row');
-  else bad('bio persisted', state.avatarProfiles);
+  if (res.status === 200 && body.ok && body.profile.bio === 'My real bio.') ok('student saves bio without avatar profile row');
+  else bad('student patch bio without avatar row', body);
+  if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio === 'My real bio.') {
+    ok('bio persisted on pilot account row');
+  } else bad('bio persisted on account', state.pilotAccounts);
+  if (!state.avatarProfiles['20889']) ok('save did not create avatar profile row');
+  else bad('avatar row created', state.avatarProfiles);
 }
 
 async function testPatchTeacherBio() {
-  const state = { avatarProfiles: {}, wallets: { teacher1: { balance: 0 } } };
+  const state = {
+    pilotAccounts: { teacher1: { username: 'teacher1', bio: null } },
+    avatarProfiles: {},
+    wallets: { teacher1: { balance: 0 } },
+  };
   const db = makeDb(state);
   const req = new Request('https://lantern.test/api/locker/me/bio', {
     method: 'PATCH',
@@ -212,7 +256,7 @@ async function testPatchTeacherBio() {
   });
   const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(teacherA));
   const body = await res.json();
-  if (res.status === 200 && body.ok && body.profile.bio === 'Classroom leader.') ok('teacher updates own bio');
+  if (res.status === 200 && body.ok && body.profile.bio === 'Classroom leader.') ok('teacher updates own account bio');
   else bad('teacher patch bio', body);
 }
 
@@ -246,14 +290,14 @@ async function testMustChangePassword() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bio: 'nope' }),
   });
-  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: makeDb({ wallets: { '20889': { balance: 0 } } }) }, {}, deps);
+  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: makeDb({ wallets: { '20889': { balance: 0 } }, pilotAccounts: { '20889': { username: '20889' } } }) }, {}, deps);
   const body = await res.json();
   if (res.status === 403 && body.error === 'must_change_password') ok('must_change_password rejected');
   else bad('must_change_password', body);
 }
 
 async function testRejectBodyIdentity() {
-  const db = makeDb({ wallets: { '20889': { balance: 0 } } });
+  const db = makeDb({ wallets: { '20889': { balance: 0 } }, pilotAccounts: { '20889': { username: '20889' } } });
   const req = new Request('https://lantern.test/api/locker/me/bio', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -266,7 +310,7 @@ async function testRejectBodyIdentity() {
 }
 
 async function testRejectQueryIdentity() {
-  const db = makeDb({ wallets: { '20889': { balance: 0 } } });
+  const db = makeDb({ wallets: { '20889': { balance: 0 } }, pilotAccounts: { '20889': { username: '20889' } } });
   const req = new Request('https://lantern.test/api/locker/me/bio?character_name=99999', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -280,7 +324,11 @@ async function testRejectQueryIdentity() {
 
 async function testSessionIsolation() {
   const state = {
-    avatarProfiles: { '99999': { character_name: '99999', bio: 'Other bio' } },
+    pilotAccounts: {
+      '20889': { username: '20889', bio: null },
+      '99999': { username: '99999', bio: 'Other bio' },
+    },
+    avatarProfiles: {},
     wallets: { '20889': { balance: 0 }, '99999': { balance: 0 } },
   };
   const db = makeDb(state);
@@ -290,15 +338,16 @@ async function testSessionIsolation() {
     body: JSON.stringify({ bio: 'Student A bio' }),
   });
   await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
-  if (state.avatarProfiles['20889'] && state.avatarProfiles['20889'].bio === 'Student A bio') ok('session writes own row only');
-  else bad('session isolation write', state.avatarProfiles);
-  if (state.avatarProfiles['99999'].bio === 'Other bio') ok('other account bio untouched');
-  else bad('other account untouched', state.avatarProfiles);
+  if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio === 'Student A bio') ok('session writes own account row only');
+  else bad('session isolation write', state.pilotAccounts);
+  if (state.pilotAccounts['99999'].bio === 'Other bio') ok('other account bio untouched');
+  else bad('other account untouched', state.pilotAccounts);
 }
 
 async function testClearBio() {
   const state = {
-    avatarProfiles: { '20889': { character_name: '20889', bio: 'Old bio' } },
+    pilotAccounts: { '20889': { username: '20889', bio: 'Old bio' } },
+    avatarProfiles: {},
     wallets: { '20889': { balance: 0 } },
   };
   const db = makeDb(state);
@@ -313,13 +362,20 @@ async function testClearBio() {
   else bad('clear bio response', body);
 }
 
-async function testUpdateProfileBioDirect() {
-  const state = { avatarProfiles: {} };
+async function testUpdateAccountBioDirect() {
+  const state = { pilotAccounts: { '20889': { username: '20889' } } };
   const db = makeDb(state);
-  const result = await updateProfileBio(db, '20889', 'Direct write');
-  if (result.ok && result.bio === 'Direct write') ok('updateProfileBio storage helper');
-  else bad('updateProfileBio', result);
+  const result = await updateAccountBio(db, '20889', 'Direct write');
+  if (result.ok && result.bio === 'Direct write') ok('updateAccountBio storage helper');
+  else bad('updateAccountBio', result);
 }
+
+const handlersJs = fs.readFileSync(path.join(root, 'worker/locker-handlers.js'), 'utf8');
+if (handlersJs.includes('updateAccountBio(db, session.account.username')) ok('PATCH uses server-derived account username');
+else bad('PATCH identity source');
+
+if (handlersJs.includes('resolveProfileBio')) ok('read path resolves account + legacy bio');
+else bad('resolveProfileBio in handlers');
 
 // UI static checks
 const shellJs = fs.readFileSync(path.join(root, 'app/js/lantern-locker-shell.js'), 'utf8');
@@ -331,10 +387,11 @@ else bad('UI no feed rerender');
 if (!exploreHtml.includes('lockerHeaderBio')) ok('Explore does not display personal bio');
 else bad('Explore bio leak');
 
-await testReadStudentBio();
+await testReadAccountBio();
+await testReadLegacyFallback();
 await testReadTeacherBio();
 await testNullBio();
-await testPatchOwnBio();
+await testPatchOwnBioWithoutAvatarRow();
 await testPatchTeacherBio();
 await testUnauthenticated();
 await testMustChangePassword();
@@ -342,7 +399,7 @@ await testRejectBodyIdentity();
 await testRejectQueryIdentity();
 await testSessionIsolation();
 await testClearBio();
-await testUpdateProfileBioDirect();
+await testUpdateAccountBioDirect();
 
 console.log('\n--- locker-bio-test:', pass, 'passed,', fail, 'failed ---');
 process.exit(fail ? 1 : 0);

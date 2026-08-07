@@ -29,3 +29,15 @@ export function normalizeBioFromDb(raw) {
   const s = String(raw).trim();
   return s || null;
 }
+
+/**
+ * Prefer account-level bio; fall back to legacy avatar-profile bio when account bio absent.
+ * @param {unknown} accountBio
+ * @param {unknown} legacyAvatarBio
+ * @returns {string|null}
+ */
+export function resolveProfileBio(accountBio, legacyAvatarBio) {
+  const account = normalizeBioFromDb(accountBio);
+  if (account) return account;
+  return normalizeBioFromDb(legacyAvatarBio);
+}
