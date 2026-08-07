@@ -899,6 +899,131 @@
     container.innerHTML = html;
   }
 
+  function buildStudioHeroMediaHtml(item, fallbackType, escFn) {
+    var LC = global.LanternCards;
+    if (!LC) return '';
+    var fbType = fallbackType || (item && item.type) || 'news';
+    if (global.LanternMedia && global.LanternMedia.renderMedia) {
+      var typeFb = LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(fbType) : '';
+      var uniFb = LC.getUniversalFallbackMediaDataUri ? LC.getUniversalFallbackMediaDataUri() : '';
+      var dm = global.LanternMedia.renderMedia(item || {}, { esc: escFn || esc, variant: 'explore', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb });
+      if (dm && dm.mediaBlock && String(dm.mediaBlock).trim()) {
+        return '<div class="studioOpenedHeroMedia">' + dm.mediaBlock + '</div>';
+      }
+    }
+    return '';
+  }
+
+  function mountStudioNewsOpenedInto(container, n, opts) {
+    if (!container || !global.LanternCards) return;
+    opts = opts || {};
+    n = n || {};
+    var LC = global.LanternCards;
+    var TB = LC.TYPE_BADGES || {};
+    var mediaItem = LC.normalizeNewsMediaItemForExplore ? LC.normalizeNewsMediaItemForExplore(n) : n;
+    var dateStr = '';
+    try {
+      var dt = new Date(n.approved_at || n.created_at || '');
+      if (!isNaN(dt.getTime())) dateStr = dt.toLocaleDateString();
+    } catch (e0) {}
+    var displayNm = String((n.author_name || '').trim() || 'Anonymous');
+    var cat = String((n.category || '').trim());
+    var ct = String(opts.contributeType || '').trim();
+    var typeBadge = ct === 'shoutout' ? (TB.shoutout || '⭐ Shoutout') : (TB.news || '📢 News');
+    var body = String(n.body || '').trim();
+    var bodyHtml = body ? '<div class="studioOpenedBodyCaption">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '';
+    var mediaHtml = buildStudioHeroMediaHtml(mediaItem, 'news', esc);
+    container.innerHTML = LC.buildStudioOpenedHeroShell({
+      model: {
+        type: 'news',
+        fallbackType: 'news',
+        title: n.title || 'Untitled',
+        author: displayNm,
+        dateMeta: [cat, dateStr].filter(Boolean).join(' · '),
+        typeBadge: typeBadge,
+        thumbnailUrl: mediaItem.image_url,
+        image_url: mediaItem.image_url,
+        video_url: mediaItem.video_url,
+        link_url: mediaItem.link_url
+      },
+      mediaHtml: mediaHtml,
+      bodyHtml: bodyHtml
+    });
+  }
+
+  function mountStudioCreationOpenedInto(container, p, opts) {
+    if (!container || !global.LanternCards) return;
+    opts = opts || {};
+    p = p || {};
+    var LC = global.LanternCards;
+    var TB = LC.TYPE_BADGES || {};
+    var parts = LC.buildFeedPostParts ? LC.buildFeedPostParts(p, opts) : { model: { title: p.title, author: p.display_name || p.author_name, dateMeta: '', typeBadge: TB.create || '' } };
+    var model = parts.model || {};
+    var type = p.type || 'create';
+    var mediaHtml = buildStudioHeroMediaHtml(p, type, esc);
+    var cap = String(p.caption || '').trim();
+    var bodyHtml = cap ? '<div class="studioOpenedBodyCaption">' + esc(cap).replace(/\n/g, '<br>') + '</div>' : '';
+    container.innerHTML = LC.buildStudioOpenedHeroShell({
+      model: {
+        type: type,
+        fallbackType: model.fallbackType || type,
+        title: model.title || p.title || 'Untitled',
+        author: model.author || '',
+        dateMeta: model.dateMeta || '',
+        typeBadge: model.typeBadge || TB[type] || TB.create || '',
+        stateBadge: model.stateBadge || '',
+        thumbnailUrl: model.thumbnailUrl,
+        image_url: p.image_url,
+        video_url: p.video_url,
+        link_url: p.link_url,
+        url: p.url
+      },
+      mediaHtml: mediaHtml,
+      bodyHtml: bodyHtml
+    });
+  }
+
+  function mountStudioPollOpenedInto(container, poll, escFn) {
+    if (!container || !global.LanternCards) return;
+    var e = escFn || esc;
+    var LC = global.LanternCards;
+    var TB = LC.TYPE_BADGES || {};
+    var p = poll || {};
+    var fk = String(p.fallback_key || 'poll').trim();
+    var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : fk === 'shoutout' ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
+    var choices = p.choices || [];
+    var nch = choices.length;
+    var time = '';
+    try {
+      var dt = new Date(p.created_at || '');
+      if (!isNaN(dt.getTime())) time = dt.toLocaleDateString();
+    } catch (e2) {}
+    var pollAuthor = String((p.author_name || p.display_name || p.character_name || '').trim() || 'Poll');
+    var bodyHtml = '<div class="studioOpenedPollChoices">';
+    for (var i = 0; i < choices.length; i++) {
+      bodyHtml += '<button type="button" class="pollChoiceBtn" disabled tabindex="-1">' + e(choices[i]) + '</button>';
+    }
+    bodyHtml += '</div>';
+    var mediaHtml = buildStudioHeroMediaHtml({ image_url: p.image_url, type: 'poll', question: p.question, title: p.question }, typeForDefault, e);
+    if (!mediaHtml && !String(p.image_url || '').trim() && LC.getDefaultImageUrl) {
+      mediaHtml = '';
+    }
+    container.innerHTML = LC.buildStudioOpenedHeroShell({
+      model: {
+        type: 'poll',
+        fallbackType: typeForDefault,
+        title: p.question || 'Poll',
+        author: pollAuthor,
+        dateMeta: [nch ? (nch + ' choice' + (nch !== 1 ? 's' : '')) : '', 'Poll', time].filter(Boolean).join(' · '),
+        typeBadge: TB.poll || '📊 Poll',
+        image_url: p.image_url,
+        question: p.question
+      },
+      mediaHtml: mediaHtml,
+      bodyHtml: bodyHtml
+    });
+  }
+
   function getPollApiBase(opts) {
     opts = opts || {};
     if (opts.apiBase) return String(opts.apiBase).replace(/\/$/, '');
@@ -1359,6 +1484,9 @@
     fillPollDetailModal: fillPollDetailModal,
     mountNewsDetailInto: mountNewsDetailInto,
     mountCreationDetailInto: mountCreationDetailInto,
-    mountPollOpenedInto: mountPollOpenedInto
+    mountPollOpenedInto: mountPollOpenedInto,
+    mountStudioNewsOpenedInto: mountStudioNewsOpenedInto,
+    mountStudioCreationOpenedInto: mountStudioCreationOpenedInto,
+    mountStudioPollOpenedInto: mountStudioPollOpenedInto
   };
 })(typeof window !== 'undefined' ? window : this);

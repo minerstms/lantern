@@ -690,15 +690,11 @@
       cursor: default;
       font-family: inherit;
     }
-    #studioOpenedPreviewInner .lanternCardDetailModal--embedded{
-      max-width: 100%;
-      width: 100%;
-      box-sizing: border-box;
+    #studioOpenedPreviewInner .studioOpenedPreviewShell{
       flex: 1 1 auto;
       min-height: 0;
-    }
-    #studioOpenedPreviewInner .lanternCardDetailModal--embedded .lanternCardDetailTitle{
-      margin-right: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     body.contributeStudioOpen #contributePreviewCompact{ display: none !important; }
     #contributePreviewCompact{
@@ -1801,7 +1797,7 @@
             if (pn) rail.appendChild(pn);
           });
           openedEl.innerHTML = '';
-          if (LUI && LUI.mountPollOpenedInto) LUI.mountPollOpenedInto(openedEl, pollDraftM, esc);
+          if (LUI && LUI.mountStudioPollOpenedInto) LUI.mountStudioPollOpenedInto(openedEl, pollDraftM, esc);
           if (prev) prev.style.display = 'none';
           if (inner) inner.innerHTML = '';
           requestAnimationFrame(function(){
@@ -1832,7 +1828,7 @@
           };
           openedEl.innerHTML = '';
           function mountBugDetail(){
-            if (LUI && LUI.mountCreationDetailInto) LUI.mountCreationDetailInto(openedEl, bugPost, { characterName: charBug });
+            if (LUI && LUI.mountStudioCreationOpenedInto) LUI.mountStudioCreationOpenedInto(openedEl, bugPost, { characterName: charBug });
           }
           if (bugPost.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
             window.LanternAvatar.attachCanonicalAvatarsToItems([bugPost]).then(mountBugDetail);
@@ -1872,7 +1868,7 @@
         };
         openedEl.innerHTML = '';
         function mountMissionPostDetail(){
-          if (LUI && LUI.mountCreationDetailInto) LUI.mountCreationDetailInto(openedEl, postModel, { characterName: charM });
+          if (LUI && LUI.mountStudioCreationOpenedInto) LUI.mountStudioCreationOpenedInto(openedEl, postModel, { characterName: charM });
         }
         if (postModel.character_name && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
           window.LanternAvatar.attachCanonicalAvatarsToItems([postModel]).then(mountMissionPostDetail);
@@ -1921,8 +1917,8 @@
           }
           if (openedEl) {
             openedEl.innerHTML = '';
-            if (window.LanternCardUI && window.LanternCardUI.mountPollOpenedInto) {
-              window.LanternCardUI.mountPollOpenedInto(openedEl, pollDraft, esc);
+            if (window.LanternCardUI && window.LanternCardUI.mountStudioPollOpenedInto) {
+              window.LanternCardUI.mountStudioPollOpenedInto(openedEl, pollDraft, esc);
             }
           }
           if (inner) {
@@ -1980,9 +1976,9 @@
           }
           var profChar = profDraft.character_name || '';
           var profOpts = { characterName: profChar };
-          if (openedEl && window.LanternCardUI && window.LanternCardUI.mountNewsDetailInto) {
+          if (openedEl && window.LanternCardUI && window.LanternCardUI.mountStudioNewsOpenedInto) {
             openedEl.innerHTML = '';
-            window.LanternCardUI.mountNewsDetailInto(openedEl, profDraft, profOpts);
+            window.LanternCardUI.mountStudioNewsOpenedInto(openedEl, profDraft, profOpts);
           }
           if (inner) {
             inner.innerHTML = '';
@@ -2047,9 +2043,9 @@
           appendStudioNewsCardToRail(rail, STUDIO_FAKE_NEWS_RAIL[3], esc, false);
         }
         var newsOpts = { characterName: String(newsDraft.character_name || getAdoptedAccountKey() || '').trim() };
-        if (openedEl && window.LanternCardUI && window.LanternCardUI.mountNewsDetailInto) {
+        if (openedEl && window.LanternCardUI && window.LanternCardUI.mountStudioNewsOpenedInto) {
           openedEl.innerHTML = '';
-          window.LanternCardUI.mountNewsDetailInto(openedEl, newsDraft, newsOpts);
+          window.LanternCardUI.mountStudioNewsOpenedInto(openedEl, newsDraft, Object.assign({}, newsOpts, { contributeType: ct }));
         }
         if (inner) {
           inner.innerHTML = '';
