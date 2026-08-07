@@ -128,6 +128,45 @@
     });
   }
 
+  function renderPreviewPanel(container) {
+    var draft = null;
+    var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft lanternFinalRxPanel--preview" data-final-rx-preview="1">';
+    html += '<h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
+    html += '<div class="lanternFinalRxChoices" data-final-rx-choices="1">';
+    FINAL_VOCAB.forEach(function (v) {
+      html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + esc(v.type) + '" aria-label="' + esc(v.label) + '" aria-pressed="false">' + v.emoji + '</button>';
+    });
+    html += '</div>';
+    html += '<button type="button" class="lanternFinalRxLockBtn" disabled>Lock In</button>';
+    html += '</div>';
+    container.innerHTML = html;
+    var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
+    var lockBtn = container.querySelector('.lanternFinalRxLockBtn');
+    function syncDraftUi() {
+      choiceBtns.forEach(function (btn) {
+        var t = btn.getAttribute('data-rx-type');
+        var on = t === draft;
+        btn.classList.toggle('lanternFinalRxChoice--on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      if (lockBtn) lockBtn.disabled = !draft;
+    }
+    choiceBtns.forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var t = btn.getAttribute('data-rx-type');
+        draft = draft === t ? null : t;
+        syncDraftUi();
+      });
+    });
+    if (lockBtn) {
+      lockBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+      });
+    }
+    syncDraftUi();
+  }
+
   /**
    * Mount finalized-reaction UI into container.
    * opts: { item_type, item_id, onFinalized }
@@ -135,6 +174,10 @@
   function mountFinalReactionPanel(container, opts) {
     if (!container) return;
     opts = opts || {};
+    if (opts.mode === 'preview') {
+      renderPreviewPanel(container);
+      return;
+    }
     var itemType = String(opts.item_type || 'feed').trim();
     var itemId = String(opts.item_id || '').trim();
     if (!itemId) {

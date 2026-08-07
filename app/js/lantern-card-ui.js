@@ -899,129 +899,173 @@
     container.innerHTML = html;
   }
 
-  function buildStudioHeroMediaHtml(item, fallbackType, escFn) {
-    var LC = global.LanternCards;
-    if (!LC) return '';
-    var fbType = fallbackType || (item && item.type) || 'news';
-    if (global.LanternMedia && global.LanternMedia.renderMedia) {
-      var typeFb = LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(fbType) : '';
-      var uniFb = LC.getUniversalFallbackMediaDataUri ? LC.getUniversalFallbackMediaDataUri() : '';
-      var dm = global.LanternMedia.renderMedia(item || {}, { esc: escFn || esc, variant: 'explore', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb });
-      if (dm && dm.mediaBlock && String(dm.mediaBlock).trim()) {
-        return '<div class="studioOpenedHeroMedia">' + dm.mediaBlock + '</div>';
-      }
-    }
-    return '';
+  /** Shared production detail modal shell (overlay + Studio embedded preview). */
+  function buildProductionDetailModalShell(opts) {
+    opts = opts || {};
+    var modal = global.document.createElement('div');
+    var cls = 'lanternCardDetailModal lanternSurface lanternCardDetailModal--embedded';
+    if (opts.studioPreview) cls += ' lanternCardDetailModal--studioPreview';
+    modal.className = cls;
+    modal.setAttribute('role', opts.studioPreview ? 'region' : 'dialog');
+    modal.setAttribute('aria-label', 'When opened');
+    modal.innerHTML =
+      '<div class="lanternSurfaceContent">' +
+      '<header class="lanternCardDetailHeader" role="presentation">' +
+      '<button type="button" class="lanternCardDetailClose" aria-label="Close preview">✕</button>' +
+      '</header>' +
+      '<div class="lanternCardDetailVisual"></div>' +
+      '<h2 class="lanternCardDetailTitle"></h2>' +
+      '<div class="lanternCardDetailIdentityWrap"></div>' +
+      '<div class="lanternCardDetailMeta"></div>' +
+      '<div class="lanternCardDetailBody"></div>' +
+      '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
+      '<div class="lanternCardDetailActions"></div>' +
+      '<div class="lanternCardDetailReactions"></div>' +
+      '</div>';
+    return modal;
   }
 
-  function mountStudioNewsOpenedInto(container, n, opts) {
-    if (!container || !global.LanternCards) return;
+  function wireStudioPreviewClose(modal) {
+    if (!modal) return;
+    var closeBtn = modal.querySelector('.lanternCardDetailClose');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    }
+  }
+
+  function inferStudioFeedTypeFromDraft(draft) {
+    if (draft.videoUrl || draft.video_url) return 'video';
+    if (draft.imageUrl || draft.image_url || draft.thumbnailUrl) return 'photo';
+    if (draft.linkUrl || draft.link_url) return 'link';
+    return draft.type || 'article';
+  }
+
+  function studioNewsDraftToFeedItem(n, opts) {
     opts = opts || {};
     n = n || {};
     var LC = global.LanternCards;
-    var TB = LC.TYPE_BADGES || {};
-    var mediaItem = LC.normalizeNewsMediaItemForExplore ? LC.normalizeNewsMediaItemForExplore(n) : n;
-    var dateStr = '';
-    try {
-      var dt = new Date(n.approved_at || n.created_at || '');
-      if (!isNaN(dt.getTime())) dateStr = dt.toLocaleDateString();
-    } catch (e0) {}
-    var displayNm = String((n.author_name || '').trim() || 'Anonymous');
-    var cat = String((n.category || '').trim());
+    var TB = LC && LC.TYPE_BADGES ? LC.TYPE_BADGES : {};
     var ct = String(opts.contributeType || '').trim();
-    var typeBadge = ct === 'shoutout' ? (TB.shoutout || '⭐ Shoutout') : (TB.news || '📢 News');
-    var body = String(n.body || '').trim();
-    var bodyHtml = body ? '<div class="studioOpenedBodyCaption">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '';
-    var mediaHtml = buildStudioHeroMediaHtml(mediaItem, 'news', esc);
-    container.innerHTML = LC.buildStudioOpenedHeroShell({
-      model: {
+    var cat = String((n.category || '').trim());
+    var typeLabel = cat || (ct === 'shoutout' ? (TB.shoutout || 'Shout-out') : (TB.news || 'News'));
+    var media = LC && LC.normalizeNewsMediaItemForExplore ? LC.normalizeNewsMediaItemForExplore(n) : n;
+    var iso = n.approved_at || n.created_at || new Date().toISOString();
+    return {
+      id: String(n.id || 'preview-draft'),
+      type: inferStudioFeedTypeFromDraft({
         type: 'news',
-        fallbackType: 'news',
-        title: n.title || 'Untitled',
-        author: displayNm,
-        dateMeta: [cat, dateStr].filter(Boolean).join(' · '),
-        typeBadge: typeBadge,
-        thumbnailUrl: mediaItem.image_url,
-        image_url: mediaItem.image_url,
-        video_url: mediaItem.video_url,
-        link_url: mediaItem.link_url
-      },
-      mediaHtml: mediaHtml,
-      bodyHtml: bodyHtml
-    });
+        imageUrl: media.image_url,
+        videoUrl: media.video_url,
+        linkUrl: media.link_url
+      }),
+      typeLabel: typeLabel,
+      title: n.title || (ct === 'shoutout' ? 'Shout-out' : 'Untitled'),
+      body: n.body || '',
+      summary: n.body || '',
+      authorDisplayName: String(n.author_name || 'Anonymous').trim(),
+      authorRole: n.author_type || 'student',
+      createdAt: iso,
+      approvedAt: iso,
+      imageUrl: media.image_url || '',
+      thumbnailUrl: media.image_url || '',
+      videoUrl: media.video_url || '',
+      contentSlot: { linkUrl: media.link_url || '', photoCredit: n.photo_credit || '' }
+    };
   }
 
-  function mountStudioCreationOpenedInto(container, p, opts) {
-    if (!container || !global.LanternCards) return;
+  function studioCreationDraftToFeedItem(p, opts) {
     opts = opts || {};
     p = p || {};
     var LC = global.LanternCards;
-    var TB = LC.TYPE_BADGES || {};
-    var parts = LC.buildFeedPostParts ? LC.buildFeedPostParts(p, opts) : { model: { title: p.title, author: p.display_name || p.author_name, dateMeta: '', typeBadge: TB.create || '' } };
+    var TB = LC && LC.TYPE_BADGES ? LC.TYPE_BADGES : {};
+    var parts = LC && LC.buildFeedPostParts ? LC.buildFeedPostParts(p, opts) : { model: {} };
     var model = parts.model || {};
     var type = p.type || 'create';
-    var mediaHtml = buildStudioHeroMediaHtml(p, type, esc);
-    var cap = String(p.caption || '').trim();
-    var bodyHtml = cap ? '<div class="studioOpenedBodyCaption">' + esc(cap).replace(/\n/g, '<br>') + '</div>' : '';
-    container.innerHTML = LC.buildStudioOpenedHeroShell({
-      model: {
+    var iso = p.created_at || new Date().toISOString();
+    return {
+      id: String(p.id || 'preview-draft'),
+      type: inferStudioFeedTypeFromDraft({
         type: type,
-        fallbackType: model.fallbackType || type,
-        title: model.title || p.title || 'Untitled',
-        author: model.author || '',
-        dateMeta: model.dateMeta || '',
-        typeBadge: model.typeBadge || TB[type] || TB.create || '',
-        stateBadge: model.stateBadge || '',
-        thumbnailUrl: model.thumbnailUrl,
-        image_url: p.image_url,
-        video_url: p.video_url,
-        link_url: p.link_url,
-        url: p.url
-      },
-      mediaHtml: mediaHtml,
-      bodyHtml: bodyHtml
-    });
+        imageUrl: p.image_url,
+        videoUrl: p.video_url,
+        linkUrl: p.link_url || p.url
+      }),
+      typeLabel: model.typeBadge || TB[type] || TB.create || 'Post',
+      title: model.title || p.title || 'Untitled',
+      body: p.caption || '',
+      summary: p.caption || '',
+      authorDisplayName: String(p.display_name || p.author_name || 'Anonymous').trim(),
+      authorRole: 'student',
+      createdAt: iso,
+      approvedAt: iso,
+      imageUrl: p.image_url || '',
+      thumbnailUrl: p.image_url || '',
+      videoUrl: p.video_url || '',
+      contentSlot: { linkUrl: p.link_url || p.url || '' }
+    };
+  }
+
+  /**
+   * Shared production detail renderer — Explore/Locker overlay + Studio RIGHT preview.
+   */
+  function renderFeedItemDetailInto(container, item, opts) {
+    opts = opts || {};
+    if (!container || !item) return null;
+    var isStudio = opts.mode === 'studio-preview';
+    container.innerHTML = '';
+    var modal = buildProductionDetailModalShell({ studioPreview: isStudio });
+    container.appendChild(modal);
+    if (isStudio) wireStudioPreviewClose(modal);
+    fillFeedItemDetailModal(modal, item, opts);
+    return modal;
+  }
+
+  function renderPollDraftDetailInto(container, poll, escFn) {
+    if (!container) return;
+    var e = escFn || esc;
+    poll = poll || {};
+    container.innerHTML = '';
+    var modal = buildProductionDetailModalShell({ studioPreview: true });
+    container.appendChild(modal);
+    wireStudioPreviewClose(modal);
+    var v = modal.querySelector('.lanternCardDetailVisual');
+    var t = modal.querySelector('.lanternCardDetailTitle');
+    var m = modal.querySelector('.lanternCardDetailMeta');
+    var b = modal.querySelector('.lanternCardDetailBody');
+    var a = modal.querySelector('.lanternCardDetailActions');
+    var r = modal.querySelector('.lanternCardDetailReactions');
+    if (t) t.textContent = poll.question || 'Poll';
+    if (m) {
+      var nch = (poll.choices || []).length;
+      m.textContent = ['Poll', nch ? (nch + ' choices') : ''].filter(Boolean).join(' · ');
+    }
+    if (v && global.LanternMedia && global.LanternMedia.renderMedia && poll.image_url) {
+      var dm = global.LanternMedia.renderMedia({ image_url: poll.image_url, type: 'poll' }, { esc: e, variant: 'detail' });
+      if (dm && dm.mediaBlock) v.innerHTML = '<div class="lanternCardDetailVisualInner">' + dm.mediaBlock + '</div>';
+    }
+    if (b) {
+      var rows = (poll.choices || []).map(function (c) {
+        return '<button type="button" class="pollChoiceBtn" disabled tabindex="-1">' + e(c) + '</button>';
+      }).join('');
+      b.innerHTML = rows ? '<div class="pollModalChoices">' + rows + '</div>' : '';
+    }
+    if (a) a.innerHTML = '';
+    if (r) r.innerHTML = '';
+  }
+
+  function mountStudioNewsOpenedInto(container, n, opts) {
+    renderFeedItemDetailInto(container, studioNewsDraftToFeedItem(n, opts), Object.assign({ mode: 'studio-preview' }, opts || {}));
+  }
+
+  function mountStudioCreationOpenedInto(container, p, opts) {
+    renderFeedItemDetailInto(container, studioCreationDraftToFeedItem(p, opts), Object.assign({ mode: 'studio-preview' }, opts || {}));
   }
 
   function mountStudioPollOpenedInto(container, poll, escFn) {
-    if (!container || !global.LanternCards) return;
-    var e = escFn || esc;
-    var LC = global.LanternCards;
-    var TB = LC.TYPE_BADGES || {};
-    var p = poll || {};
-    var fk = String(p.fallback_key || 'poll').trim();
-    var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : fk === 'shoutout' ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
-    var choices = p.choices || [];
-    var nch = choices.length;
-    var time = '';
-    try {
-      var dt = new Date(p.created_at || '');
-      if (!isNaN(dt.getTime())) time = dt.toLocaleDateString();
-    } catch (e2) {}
-    var pollAuthor = String((p.author_name || p.display_name || p.character_name || '').trim() || 'Poll');
-    var bodyHtml = '<div class="studioOpenedPollChoices">';
-    for (var i = 0; i < choices.length; i++) {
-      bodyHtml += '<button type="button" class="pollChoiceBtn" disabled tabindex="-1">' + e(choices[i]) + '</button>';
-    }
-    bodyHtml += '</div>';
-    var mediaHtml = buildStudioHeroMediaHtml({ image_url: p.image_url, type: 'poll', question: p.question, title: p.question }, typeForDefault, e);
-    if (!mediaHtml && !String(p.image_url || '').trim() && LC.getDefaultImageUrl) {
-      mediaHtml = '';
-    }
-    container.innerHTML = LC.buildStudioOpenedHeroShell({
-      model: {
-        type: 'poll',
-        fallbackType: typeForDefault,
-        title: p.question || 'Poll',
-        author: pollAuthor,
-        dateMeta: [nch ? (nch + ' choice' + (nch !== 1 ? 's' : '')) : '', 'Poll', time].filter(Boolean).join(' · '),
-        typeBadge: TB.poll || '📊 Poll',
-        image_url: p.image_url,
-        question: p.question
-      },
-      mediaHtml: mediaHtml,
-      bodyHtml: bodyHtml
-    });
+    renderPollDraftDetailInto(container, poll, escFn);
   }
 
   function getPollApiBase(opts) {
@@ -1525,6 +1569,10 @@
 
     var body = String(item.body || item.summary || '').trim();
     b.innerHTML = body ? '<div class="lanternCardDetailCaption">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '';
+    var photoCredit = item.contentSlot && String(item.contentSlot.photoCredit || '').trim();
+    if (photoCredit) {
+      b.innerHTML += '<div class="lanternCardDetailCaption lanternCardDetailPhotoCredit">Photo: ' + esc(photoCredit) + '</div>';
+    }
 
     var mediaModel = feedItemToMediaModel(item);
     var typeFb = LC && LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(item.type || 'article') : '';
@@ -1547,10 +1595,12 @@
 
     r.innerHTML = '<div class="lanternFinalRxHost"></div>';
     var rxHost = r.querySelector('.lanternFinalRxHost');
+    var isStudioPreview = opts.mode === 'studio-preview';
     if (global.LANTERN_FINAL_REACTIONS && global.LANTERN_FINAL_REACTIONS.mountFinalReactionPanel && rxHost) {
       global.LANTERN_FINAL_REACTIONS.mountFinalReactionPanel(rxHost, {
         item_type: 'feed',
-        item_id: String(item.id || '').trim()
+        item_id: isStudioPreview ? '' : String(item.id || '').trim(),
+        mode: isStudioPreview ? 'preview' : 'interactive'
       });
     }
 
@@ -1602,6 +1652,9 @@
     fillCreationDetailModal: fillCreationDetailModal,
     fillPollDetailModal: fillPollDetailModal,
     fillFeedItemDetailModal: fillFeedItemDetailModal,
+    renderFeedItemDetailInto: renderFeedItemDetailInto,
+    studioNewsDraftToFeedItem: studioNewsDraftToFeedItem,
+    studioCreationDraftToFeedItem: studioCreationDraftToFeedItem,
     openMediaFullscreen: openMediaFullscreen,
     mountNewsDetailInto: mountNewsDetailInto,
     mountCreationDetailInto: mountCreationDetailInto,

@@ -341,6 +341,10 @@ if (cardUiJs.includes('lanternCardDetailViewFullImgWrap') && cardUiJs.includes('
   ok('View full image below reactions in feed modal');
 } else bad('View full image order');
 
+if (cardUiJs.includes('renderFeedItemDetailInto') && cardUiJs.includes('studio-preview')) {
+  ok('shared renderFeedItemDetailInto for Studio preview');
+} else bad('Studio shared renderer');
+
 const feedHandlers = fs.readFileSync(path.join(root, 'worker/feed-handlers.js'), 'utf8');
 if (!feedHandlers.includes('news.html?id=')) ok('feed-handlers no news.html detailUrl');
 else bad('feed-handlers still sets news.html detailUrl');

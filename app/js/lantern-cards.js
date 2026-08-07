@@ -120,58 +120,6 @@
     return inner;
   }
 
-  /**
-   * Contribute Studio RIGHT opened preview — expanded 16:9 canonical hero + optional body below.
-   * Reuses .lanternCanonicalCard* overlay, badge (ULHC), title, and meta; not fixed 280px geometry.
-   * @param {{ model?: object, mediaHtml?: string, bodyHtml?: string }} opts
-   */
-  function buildStudioOpenedHeroShell(opts) {
-    opts = opts || {};
-    var model = opts.model || {};
-    var fbType = model.fallbackType || model.type || 'creation';
-    var typeSvg = svgTypeFallbackDataUri(fbType);
-    var uniSvg = svgUniversalLanternDataUri();
-    var title = esc(String(model.title || 'Untitled'));
-    var author = String(model.author || '').trim();
-    var dateMeta = String(model.dateMeta || '').trim();
-    var authorHtml = author ? '<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>' : '';
-    var dateHtml = dateMeta ? '<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>' : '';
-    var sep = (author && dateMeta) ? '<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">•</span>' : '';
-    var badgeLayer = '';
-    if (model.typeBadge) {
-      badgeLayer += '<span class="lanternCanonicalCardTypeBadge">' + esc(String(model.typeBadge)) + '</span>';
-    }
-    if (model.stateBadge) {
-      badgeLayer += '<span class="lanternCanonicalCardStateBadge">' + esc(String(model.stateBadge)) + '</span>';
-    }
-    var mediaHtml = String(opts.mediaHtml || '').trim();
-    if (!mediaHtml) {
-      var faceUrl = resolveCardFaceImageUrl(model);
-      var remoteUrl = faceUrl || resolveCardFaceImageUrlWithFallbacks(model);
-      mediaHtml = '<img class="lanternCanonicalCardImage" src="' + esc(remoteUrl) + '" alt="" decoding="async" data-lc-t="' + esc(typeSvg) + '" data-lc-u="' + esc(uniSvg) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
-      mediaHtml += '<div class="lanternCanonicalCardFallback" hidden style="background:linear-gradient(135deg,' + svgSpecForContentType(fbType).a + ',' + svgSpecForContentType(fbType).b + ');" aria-hidden="true"></div>';
-    }
-    var bodyHtml = String(opts.bodyHtml || '').trim();
-    return (
-      '<div class="studioOpenedPreviewShell">' +
-        '<div class="studioOpenedHero">' +
-          '<div class="studioOpenedHeroFrame">' +
-            mediaHtml +
-            '<div class="lanternCanonicalCardOverlay" aria-hidden="true">' +
-              '<div class="lanternCanonicalCardGradient"></div>' +
-              '<div class="lanternCanonicalCardCaption">' +
-                '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>' +
-                '<div class="lanternCanonicalCardMeta">' + authorHtml + sep + dateHtml + '</div>' +
-              '</div>' +
-            '</div>' +
-            (badgeLayer ? '<div class="lanternCanonicalCardBadgeLayer">' + badgeLayer + '</div>' : '') +
-          '</div>' +
-        '</div>' +
-        (bodyHtml ? '<div class="studioOpenedBody">' + bodyHtml + '</div>' : '') +
-      '</div>'
-    );
-  }
-
   function compactFaceSpec(model, shell) {
     return { kind: 'rail', canonicalModel: model, shell: shell || {} };
   }
@@ -1251,7 +1199,6 @@
     resolveCardFaceImageUrl: resolveCardFaceImageUrl,
     resolveCardFaceImageUrlWithFallbacks: resolveCardFaceImageUrlWithFallbacks,
     buildCanonicalCardFaceHtml: buildCanonicalCardFaceHtml,
-    buildStudioOpenedHeroShell: buildStudioOpenedHeroShell,
     normalizeFeedItemToFaceModel: normalizeFeedItemToFaceModel,
     compactFaceSpec: compactFaceSpec,
     createCanonicalCardFace: createCanonicalCardFace,
