@@ -169,6 +169,7 @@
       '/teacher': '/teacher.html',
       '/explore': '/explore.html',
       '/games': '/games.html',
+      '/missions': '/missions.html',
       '/store': '/store.html',
       '/change-password': '/change-password.html',
     };

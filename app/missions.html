@@ -1,12 +1,13 @@
 <!-- ===== TMS Lantern — Missions (student work hub) ===== -->
 <!DOCTYPE html>
-<html>
+<html class="lantern-pilot-auth-pending">
 <head>
   <base target="_top">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Missions</title>
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="thanks.html">
@@ -142,8 +143,26 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="stylesheet" href="css/lantern-feed.css">
+  <link rel="stylesheet" href="css/lantern-missions-page.css">
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
 </head>
 <body class="page-has-ticker">
+  <script>
+  (function(){
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.guardPilotPage !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash));
+      return;
+    }
+    auth.guardPilotPage({ mode: 'general' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
+      if (auth.applyStudentStorageFromSession) auth.applyStudentStorageFromSession(data);
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      if (typeof window.__bootMissionsPage === 'function') window.__bootMissionsPage();
+    });
+  })();
+  </script>
   <script src="js/lantern-canonical-route-boot.js"></script>
   <div id="lanternHeader">
     <div id="lanternTicker"></div>
@@ -153,27 +172,140 @@
     <div id="classAccessBannerEl"></div>
     <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
-    <div class="section">
-      <div class="sectionHd">Quick Missions</div>
-      <div class="sectionBd">
-        <div id="quickMissionsTrack" data-lantern-rail-host="true" data-scroller-aria-label="Quick missions"><p class="sectionPlaceholder">Loading quick missions…</p></div>
+    <div class="missionsPageContainer">
+
+    <header class="missionsPageHero" data-help="missions">
+      <div class="missionsPageHeroRow">
+        <div>
+          <h1 class="missionsPageTitle">Missions</h1>
+          <p class="missionsPageSub">Complete missions, create things, and earn Nuggets.</p>
+        </div>
+        <a class="missionsPageWalletInline" href="locker.html#store" title="Available Nuggets">
+          <span aria-hidden="true">🟡</span>
+          <span id="missionsPageWalletAmt" class="missionsPageWalletAmt">…</span>
+          <span class="missionsPageWalletLbl">Nuggets available</span>
+        </a>
+      </div>
+    </header>
+
+    <div class="missionsStatusBar">
+      <div id="missionsStatusTabs" class="missionsStatusTabs" role="tablist" aria-label="Mission status">
+        <button type="button" role="tab" data-mission-status="available" class="is-active" aria-selected="true">Available</button>
+        <button type="button" role="tab" data-mission-status="in_progress" aria-selected="false">In Progress</button>
+        <button type="button" role="tab" data-mission-status="completed" aria-selected="false">Completed</button>
+      </div>
+      <button type="button" id="missionsFiltersToggle" class="missionsFiltersToggle" aria-expanded="false" aria-controls="missionsFiltersPanel">Filters ▸</button>
+    </div>
+
+    <div id="missionsFiltersPanel" class="missionsFiltersPanel" hidden>
+      <div class="missionsFiltersToolbarRow">
+        <select id="missionsTypeFilter" class="missionsSortSelect" aria-label="Mission type">
+          <option value="all">All types</option>
+          <option value="quick">Quick</option>
+          <option value="teacher">Teacher</option>
+          <option value="reflection">Reflection</option>
+          <option value="create">Create</option>
+        </select>
+        <select id="missionsRewardFilter" class="missionsSortSelect" aria-label="Reward filter">
+          <option value="any">Any reward</option>
+          <option value="has_reward">Has reward</option>
+        </select>
+        <select id="missionsSortSelect" class="missionsSortSelect" aria-label="Sort missions">
+          <option value="recommended">Recommended</option>
+          <option value="newest">Newest</option>
+          <option value="reward">Reward</option>
+          <option value="az">A–Z</option>
+        </select>
       </div>
     </div>
 
-    <div class="section" data-help="missions">
-      <div class="sectionHd">Available for You</div>
-      <div class="sectionBd">
-        <div id="activeMissionsList" data-lantern-rail-host="true" data-scroller-aria-label="Available missions"></div>
-      </div>
-    </div>
+    <p id="missionsLibraryCount" class="missionsLibraryCount" aria-live="polite"></p>
+    <div id="missionsLibraryGrid" class="feedGrid" role="list" aria-label="Mission library"></div>
 
-    <div class="section">
-      <div class="sectionHd">Completed Missions</div>
-      <div class="sectionBd">
-        <div id="completedMissionsList" data-lantern-rail-host="true" data-scroller-aria-label="Completed missions"></div>
+    </div>
+    </div>
+  </div>
+
+  <div id="missionDetailOverlay" class="missionDetailOverlay" hidden aria-hidden="true">
+    <div class="missionDetailPanel" role="dialog" aria-modal="true" aria-labelledby="missionDetailTitle">
+      <div class="missionDetailTopbar">
+        <div>
+          <h2 id="missionDetailTitle" class="missionDetailTitle">Mission</h2>
+          <p id="missionDetailMeta" class="missionDetailMeta"></p>
+        </div>
+        <button type="button" id="missionDetailClose" class="missionDetailClose" aria-label="Close mission">× Close</button>
+      </div>
+      <p id="missionDetailDesc" class="missionDetailDesc"></p>
+      <div id="missionDetailBody">
+        <div id="missionSubmitFormWrap">
+          <div id="missionSubmitTextWrap">
+            <label id="missionSubmitLabel">Your response</label>
+            <textarea id="missionSubmitContent" placeholder="Enter your response..." style="min-height:100px;"></textarea>
+            <p id="missionSubmitMinCharsHint" class="studioPanelMicro" style="display:none;margin-top:8px;color:var(--warn);font-size:22px;"></p>
+            <div id="missionSubmitProgressWrap" class="missionSubmitProgressWrap" style="display:none;">
+              <div class="missionSubmitProgressBar" id="missionSubmitProgressBar"><div class="missionSubmitProgressFill neutral" id="missionSubmitProgressFill"></div></div>
+              <p class="missionSubmitCountdown neutral" id="missionSubmitCountdown"></p>
+            </div>
+            <p id="missionSubmitBurstWarning" class="missionBurstWarning" style="display:none;">Slow down — type your own words.</p>
+            <p id="missionSubmitVerifyBypassHint" class="missionVerifyBypassHint" style="display:none;">Verify mode: writing checks relaxed.</p>
+          </div>
+          <input type="hidden" id="missionSubmitImageUrl" value="" />
+          <input type="url" id="missionSubmitVideoUrl" placeholder="" style="display:none;" aria-hidden="true" />
+          <input type="url" id="missionSubmitUrl" placeholder="" style="display:none;" aria-hidden="true" />
+          <img id="missionSubmitImageUploadPreviewImg" alt="" style="display:none;position:absolute;width:0;height:0;opacity:0;" />
+          <div id="missionUnifiedMediaOuter" style="display:none;">
+            <label id="missionUnifiedMediaLabel">Add media</label>
+            <div id="missionUnifiedMediaMount"></div>
+          </div>
+          <div id="missionSubmitImagePreview" class="missionMediaPreviewWrap" style="display:none;"><img id="missionSubmitImagePreviewImg" alt="" /><p id="missionSubmitImagePreviewFallback" class="missionImagePreviewFallback" style="display:none;">Preview unavailable</p></div>
+          <div id="missionSubmitVideoPreview" class="missionMediaPreviewWrap" style="display:none;"><video id="missionSubmitVideoPreviewEl" controls preload="metadata"></video><p id="missionSubmitVideoPreviewFallback" class="missionVideoPreviewFallback" style="display:none;">Preview unavailable</p></div>
+          <div id="missionSubmitLinkPreview" class="missionLinkPreviewCard" style="display:none;"><a id="missionSubmitLinkPreviewA" href="#" target="_blank" rel="noopener"></a><div class="missionLinkDomain" id="missionSubmitLinkPreviewDomain"></div></div>
+          <div id="missionSubmitPollWrap" style="display:none;">
+            <label for="missionSubmitPollQuestion">Poll question</label>
+            <input type="text" id="missionSubmitPollQuestion" maxlength="500" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;margin-bottom:8px;" />
+            <input type="text" id="missionSubmitPollChoice1" placeholder="Choice 1" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+            <input type="text" id="missionSubmitPollChoice2" placeholder="Choice 2" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+            <input type="text" id="missionSubmitPollChoice3" placeholder="Choice 3 (optional)" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+            <input type="text" id="missionSubmitPollChoice4" placeholder="Choice 4 (optional)" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <input type="url" id="missionSubmitPollImageUrl" placeholder="Poll image URL" style="flex:1;min-width:0;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+              <button type="button" class="btn small" id="missionSubmitPollLibraryBtn">Library</button>
+            </div>
+            <div id="missionSubmitPollImagePreview" style="display:none;margin-top:10px;"><img id="missionSubmitPollImagePreviewImg" alt="" style="max-height:160px;border-radius:12px;" /></div>
+          </div>
+          <div id="missionSubmitBugReportWrap" style="display:none;">
+            <label for="missionSubmitBugReportDesc">Description (required)</label>
+            <textarea id="missionSubmitBugReportDesc" placeholder="Describe the bug or issue…" style="min-height:120px;width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;"></textarea>
+            <label for="missionSubmitBugReportScreenshot" style="margin-top:14px;">Screenshot URL (optional)</label>
+            <input type="url" id="missionSubmitBugReportScreenshot" placeholder="https://…" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;margin-top:8px;" />
+          </div>
+          <div class="missionSubmitPreviewWrap" id="missionSubmitPreviewWrap" style="display:none;">
+            <div class="missionSubmitPreviewLabel">Preview</div>
+            <div class="missionSubmitPreviewCard" id="missionSubmitPreviewCard"></div>
+          </div>
+          <button class="btn good" id="missionSubmitBtn" type="button" style="width:100%;margin-top:12px;">Submit mission</button>
+        </div>
       </div>
     </div>
   </div>
+
+  <div id="missionCropperModal" class="missionCropperModal" style="display:none;">
+    <div class="missionCropperBox">
+      <div class="missionCropperTitle">Crop image</div>
+      <div class="missionCropperImgWrap"><img id="missionCropperImg" alt="" /></div>
+      <div class="missionCropperActions">
+        <button type="button" class="btn good" id="missionCropperUseBtn">Use image</button>
+        <button type="button" class="btn small" id="missionCropperCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="missionSubmitLibraryModal" class="overlay" style="display:none;z-index:10150;">
+    <div class="modal" style="max-width:640px;">
+      <div class="modalHd"><span class="h">Picture library</span><button type="button" class="x" id="missionSubmitLibraryCloseBtn" aria-label="Close">×</button></div>
+      <div id="missionSubmitLibraryCategories" style="margin-bottom:12px;"></div>
+      <div id="missionSubmitLibraryImages" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;"></div>
+    </div>
   </div>
 
   <div id="toastEl" class="toastWrap" role="status" aria-live="polite"></div>
@@ -186,11 +318,15 @@
   <script src="js/lantern-media.js"></script>
   <script src="js/lantern-scroller.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-wallet.js"></script>
+  <script src="js/lantern-missions-page.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
+  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/lantern-unified-media-field.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
@@ -305,7 +441,7 @@
     }
     function callGetActiveTeacherMissionsForCharacter(characterName){
       if (missionsApiBase != null && characterName) {
-        return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName))
+        return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName), { credentials: 'include' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
           .catch(function(){ return { ok: false, missions: [] }; });
@@ -318,7 +454,7 @@
     }
     function callGetMissionSubmissionsForCharacter(name){
       if (missionsApiBase != null && name) {
-        return fetch(missionsApiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name))
+        return fetch(missionsApiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name), { credentials: 'include' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.submissions)) ? { ok: true, submissions: res.submissions } : { ok: false, submissions: [] }; })
           .catch(function(){ return { ok: false, submissions: [] }; });
@@ -333,6 +469,7 @@
       if (missionsApiBase != null && missionId && characterName) {
         return fetch(missionsApiBase + '/api/missions/submit', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
         }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
@@ -347,6 +484,7 @@
       if (missionsApiBase != null && id) {
         return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: id, submission_content: submissionContent || '' })
         }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
@@ -884,292 +1022,440 @@
       if (submitBtn) submitBtn.disabled = remaining > 0;
     }
 
-    function renderQuickMissions(missions){
-      var track = el('quickMissionsTrack');
-      if (!track) return;
-      var LC = window.LanternCards;
-      if (!LC || !LC.materializeFeedPostCard) {
-        track.innerHTML = '<p class="sectionPlaceholder">Cards unavailable.</p>';
-        return;
+    var FERPA_STUDENT_SUBMIT_MESSAGE = 'Submitted! Your teacher will review it.';
+    var missionDetailScrollY = 0;
+    var missionDetailReturnFocus = null;
+
+    function closeMissionDetailModal(opts){
+      opts = opts || {};
+      var overlay = el('missionDetailOverlay');
+      if (overlay) {
+        overlay.classList.remove('is-open');
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
       }
-      track.innerHTML = '';
-      var adopted = getAdopted();
-      var hasChar = !!(adopted && adopted.name);
+      document.body.classList.remove('mission-detail-open');
+      document.body.style.top = '';
+      if (!opts.skipScrollRestore) global.scrollTo(0, missionDetailScrollY);
+      destroyMissionUnifiedField();
+      currentMissionForSubmit = null;
+      currentResubmitId = null;
+      if (missionDetailReturnFocus && typeof missionDetailReturnFocus.focus === 'function') {
+        try { missionDetailReturnFocus.focus(); } catch (e) {}
+      }
+      missionDetailReturnFocus = null;
+    }
+
+    function openMissionDetailModal(){
+      var overlay = el('missionDetailOverlay');
+      if (!overlay) return;
+      missionDetailScrollY = global.scrollY || document.documentElement.scrollTop || 0;
+      document.body.classList.add('mission-detail-open');
+      document.body.style.top = '-' + missionDetailScrollY + 'px';
+      overlay.hidden = false;
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      var closeBtn = el('missionDetailClose');
+      if (closeBtn) closeBtn.focus();
+    }
+
+    function buildUnifiedMissionItems(missions, teacherMissions, submissions){
+      missions = missions || {};
+      teacherMissions = teacherMissions || [];
+      submissions = submissions || [];
       var today = todayStr();
-      var dailyClaimed = false;
-      var hiddenDone = false;
-      var firstGameDone = false;
-      if (missions && typeof missions === 'object'){
-        dailyClaimed = (missions.daily_checkin_last || '') === today;
-        hiddenDone = !!missions.hidden_nugget;
-        firstGameDone = !!missions.first_game;
-      }
-
-      track.appendChild(LC.materializeFeedPostCard({
-        type: 'teach',
-        title: 'Thank-You Letter',
-        caption: 'Thank school staff and earn nuggets.',
-        display_name: 'Quick Mission',
-        character_name: 'Quick',
-        avatar: '💌',
-        frame: 'none',
-        url: 'thanks.html',
-        card_meta: 'Earn nuggets · Opens thank-you flow'
-      }, { size: 'medium', mode: LC.CARD_MODE.RAIL }));
-
-      track.appendChild(LC.materializeFeedPostCard({
-        type: 'teach',
-        title: 'Grade Reflection',
-        caption: 'Reflect on your grades and earn nuggets.',
-        display_name: 'Quick Mission',
-        character_name: 'Quick',
-        avatar: '📊',
-        frame: 'none',
-        url: 'grades.html',
-        card_meta: 'Earn nuggets · Opens reflection'
-      }, { size: 'medium', mode: LC.CARD_MODE.RAIL }));
-
-      var dailyBody = !hasChar
-        ? 'Adopt a character in Locker → Overview to claim your daily reward.'
-        : (dailyClaimed ? 'Come back tomorrow for another +3 nuggets.' : 'Tap this card to claim +3 nuggets once per day.');
-      var dailyMeta = !hasChar ? 'Locker required · +3 nuggets' : (dailyClaimed ? 'Completed · +3 nuggets' : 'Tap to claim · +3 nuggets');
-      function dailyClaimHandler(){
-        var a = getAdopted();
-        if (!a || !a.name){
-          toast('Pick a student in Locker → Overview first.');
-          return;
-        }
-        if ((missions && typeof missions === 'object' ? (missions.daily_checkin_last || '') === todayStr() : false)){
-          toast('Already claimed today');
-          return;
-        }
-        callClaimDailyCheckIn(a.name).then(function(res){
-          if (res && res.ok){
-            toast('+3 nuggets! Daily check-in complete.');
-            loadMissions();
-          } else if (res && res.already){
-            toast('Already claimed today');
-            loadMissions();
-          } else {
-            toast('Failed');
-          }
-        });
-      }
-      track.appendChild(LC.materializeFeedPostCard({
-        type: 'create',
-        title: 'Daily Check-In',
-        caption: dailyBody,
-        display_name: 'Quick Mission',
-        character_name: 'Quick',
-        avatar: '✅',
-        frame: 'none',
-        card_meta: dailyMeta
-      }, {
-        size: 'medium',
-        noNavigate: true,
-        mode: LC.CARD_MODE.RAIL,
-        onCardActivate: function () {
-          if (dailyClaimed && window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', dailyMeta, dailyBody);
-          else dailyClaimHandler();
-        }
-      }));
-
-      var hiddenBody = hiddenDone ? 'You found the hidden nugget. +5 nuggets earned.' : 'Find the daily hidden nugget on Lantern pages and tap it.';
-      track.appendChild(LC.materializeFeedPostCard({
-        type: 'create',
-        title: 'Hidden Nugget',
-        caption: hiddenBody,
-        display_name: 'Quick Mission',
-        character_name: 'Quick',
-        avatar: '🔍',
-        frame: 'none',
-        card_meta: hiddenDone ? 'Completed · +5 nuggets' : 'Lantern · +5 nuggets'
-      }, {
-        size: 'medium',
-        noNavigate: true,
-        mode: LC.CARD_MODE.RAIL,
-        onCardActivate: function () {
-          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenBody);
-        }
-      }));
-
-      if (firstGameDone){
-        track.appendChild(LC.materializeFeedPostCard({
-          type: 'create',
-          title: 'First Game Played',
-          caption: 'You played a game and earned +10 nuggets.',
-          display_name: 'Quick Mission',
-          character_name: 'Quick',
-          avatar: '🎮',
-          frame: 'none',
-          card_meta: 'Completed · +10 nuggets'
-        }, {
-          size: 'medium',
-          noNavigate: true,
-          mode: LC.CARD_MODE.RAIL,
-          onCardActivate: function () {
-            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +10 nuggets.');
-          }
-        }));
-      } else {
-        track.appendChild(LC.materializeFeedPostCard({
-          type: 'create',
-          title: 'First Game Played',
-          caption: 'Play any game once to earn +10 nuggets.',
-          display_name: 'Quick Mission',
-          character_name: 'Quick',
-          avatar: '🎮',
-          frame: 'none',
-          url: 'games.html',
-          card_meta: 'Games · +10 nuggets'
-        }, { size: 'medium', mode: LC.CARD_MODE.RAIL }));
-      }
-    }
-
-    function renderMissions(missions){
-      renderQuickMissions(missions || {});
-    }
-
-    function computeMissionRailBadges(activeMissions){
-      var badgeById = {};
-      var sorted = activeMissions.slice().sort(function(a, b){
-        var fa = a.featured ? 1 : 0;
-        var fb = b.featured ? 1 : 0;
-        if (fb !== fa) return fb - fa;
-        return (b.created_at || '').localeCompare(a.created_at || '');
-      });
-      var flagged = sorted.filter(function(m){ return m.featured; }).slice(0, 2);
-      flagged.forEach(function(m){ badgeById[m.id] = 'FEATURED'; });
-      if (Object.keys(badgeById).length === 0 && sorted.length) {
-        badgeById[sorted[0].id] = 'FEATURED';
-      }
-      if (sorted.length >= 2) {
-        var badgeCount = Object.keys(badgeById).length;
-        if (badgeCount < 2) {
-          for (var i = 0; i < sorted.length; i++) {
-            var mid = sorted[i].id;
-            if (!badgeById[mid]) {
-              badgeById[mid] = 'TODAY';
-              break;
-            }
-          }
-        }
-      }
-      return { order: sorted, badgeById: badgeById };
-    }
-
-    function renderMyMissions(missions, submissions){
-      var activeList = el('activeMissionsList');
-      var completedList = el('completedMissionsList');
-      if (!activeList || !completedList) return;
-      var adopted = getAdopted();
-      if (!adopted || !adopted.name){
-        activeList.innerHTML = '<p class="sectionPlaceholder">Select a student in <a href="locker.html">Locker</a> (Overview) to see your missions.</p>';
-        completedList.innerHTML = '';
-        return;
-      }
-      if (!missions || missions.length === 0){
-        activeList.innerHTML = '<p class="sectionPlaceholder">No teacher missions right now. Check back soon!</p>';
-        completedList.innerHTML = '';
-        return;
-      }
+      var dailyClaimed = (missions.daily_checkin_last || '') === today;
+      var hiddenDone = !!missions.hidden_nugget;
+      var firstGameDone = !!missions.first_game;
       var subByMission = {};
-      (submissions || []).forEach(function(s){ subByMission[s.mission_id] = s; });
-      var activeMissions = missions.filter(function(m){ var s = subByMission[m.id]; var st = s ? (s.status || 'pending') : null; return st !== 'accepted' && st !== 'rejected'; });
-      var completedMissions = missions.filter(function(m){ var s = subByMission[m.id]; return s && (s.status === 'accepted' || s.status === 'rejected'); });
-      var rail = computeMissionRailBadges(activeMissions);
+      submissions.forEach(function(s){ subByMission[s.mission_id] = s; });
+      var items = [];
 
-      activeList.innerHTML = '';
-      if (rail.order.length === 0) {
-        activeList.innerHTML = '<p class="sectionPlaceholder">No active missions right now.</p>';
+      function pushQuick(o){ items.push(o); }
+
+      pushQuick({
+        id: 'quick_thank_you',
+        kind: 'quick',
+        typeFilter: 'reflection',
+        typeBadge: '✍ Reflection',
+        icon: '💌',
+        title: 'Thank-You Letter',
+        description: 'Thank school staff and earn nuggets.',
+        reward: null,
+        status: 'available',
+        statusLabel: 'Start →',
+        url: 'thanks.html',
+        created_at: '',
+        featured: true,
+      });
+
+      pushQuick({
+        id: 'quick_grade_reflection',
+        kind: 'quick',
+        typeFilter: 'reflection',
+        typeBadge: '✍ Reflection',
+        icon: '📊',
+        title: 'Grade Reflection',
+        description: 'Reflect on your grades and earn nuggets.',
+        reward: null,
+        status: 'available',
+        statusLabel: 'Start →',
+        url: 'grades.html',
+        created_at: '',
+        featured: false,
+      });
+
+      pushQuick({
+        id: 'quick_daily_checkin',
+        kind: 'quick',
+        typeFilter: 'quick',
+        typeBadge: '⚡ Quick',
+        icon: '✅',
+        title: 'Daily Check-In',
+        description: dailyClaimed ? 'Come back tomorrow for another +3 nuggets.' : 'Claim +3 nuggets once per day.',
+        reward: 3,
+        status: dailyClaimed ? 'completed' : 'available',
+        statusLabel: dailyClaimed ? '✅ Completed today' : 'Claim →',
+        created_at: today,
+        featured: true,
+        onActivate: function(){
+          if (dailyClaimed) {
+            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', 'Completed', 'Come back tomorrow for another +3 nuggets.');
+            return;
+          }
+          var a = getAdopted();
+          if (!a || !a.name) { toast('Sign in to claim your daily check-in.'); return; }
+          callClaimDailyCheckIn(a.name).then(function(res){
+            if (res && res.ok){
+              toast('+3 nuggets! Daily check-in complete.');
+              loadMissions();
+            } else if (res && res.already){
+              toast('Already claimed today');
+              loadMissions();
+            } else {
+              toast('Could not claim check-in. Try again.');
+            }
+          });
+        },
+      });
+
+      pushQuick({
+        id: 'quick_hidden_nugget',
+        kind: 'quick',
+        typeFilter: 'quick',
+        typeBadge: '⚡ Quick',
+        icon: '🔍',
+        title: 'Hidden Nugget',
+        description: hiddenDone ? 'You found the hidden nugget. +5 nuggets earned.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
+        reward: 5,
+        status: hiddenDone ? 'completed' : 'available',
+        statusLabel: hiddenDone ? '✅ Completed' : 'How it works →',
+        created_at: '',
+        onActivate: function(){
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found the hidden nugget. +5 nuggets earned.' : 'Find the daily hidden nugget on Lantern pages and tap it.');
+        },
+      });
+
+      if (firstGameDone) {
+        pushQuick({
+          id: 'quick_first_game',
+          kind: 'quick',
+          typeFilter: 'quick',
+          typeBadge: '⚡ Quick',
+          icon: '🎮',
+          title: 'First Game Played',
+          description: 'You played a game and earned +10 nuggets.',
+          reward: 10,
+          status: 'completed',
+          statusLabel: '✅ Completed',
+          created_at: '',
+          onActivate: function(){
+            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +10 nuggets.');
+          },
+        });
       } else {
-        rail.order.forEach(function(m){
-          appendMissionRow(activeList, m, subByMission[m.id], true, rail.badgeById[m.id]);
+        pushQuick({
+          id: 'quick_first_game',
+          kind: 'quick',
+          typeFilter: 'quick',
+          typeBadge: '⚡ Quick',
+          icon: '🎮',
+          title: 'First Game Played',
+          description: 'Play any game once to earn +10 nuggets.',
+          reward: 10,
+          status: 'available',
+          statusLabel: 'Go to Games →',
+          url: 'games.html',
+          created_at: '',
         });
       }
 
-      completedList.innerHTML = '';
-      completedMissions.forEach(function(m){ appendMissionRow(completedList, m, subByMission[m.id], false); });
-      if (completedMissions.length === 0) completedList.innerHTML = '<p class="sectionPlaceholder">No completed missions yet.</p>';
-    }
-
-    function missionToCardModel(m, sub){
-      var status = sub ? (sub.status || 'pending') : null;
-      var reward = m.reward_amount || 1;
-      var teacherName = (m.created_by_teacher_name || 'Teacher');
-      var statusText = status === 'accepted'
-        ? '+' + (sub.mission_reward || reward) + ' Earned'
-        : (status === 'rejected' ? 'Rejected' : (status === 'returned' ? 'Returned for Improvements' : (status === 'pending' ? 'Pending Review' : '')));
-
-      var desc = (m.description || '').trim();
-      var fullCaption = desc;
-      if (status === 'returned' && sub && sub.returned_reason){
-        var rr = String(sub.returned_reason || '').trim();
-        if (rr) fullCaption = fullCaption ? (fullCaption + '\n\nTeacher feedback:\n' + rr) : ('Teacher feedback:\n' + rr);
-      }
-
-      return {
-        type: 'teach',
-        title: (m.title || 'Mission').trim() || 'Mission',
-        caption: fullCaption,
-        display_name: teacherName,
-        character_name: teacherName,
-        avatar: '🧠',
-        frame: 'none',
-        created_at: '',
-        card_meta: '+' + reward + ' nuggets · ' + teacherName + (statusText ? ' · ' + statusText : ''),
-      };
-    }
-
-    function appendMissionRow(container, m, sub, canSubmit, railBadge){
-      var LC = window.LanternCards;
-      if (!LC || !LC.materializeFeedPostCard) return;
-
-      var status = sub ? (sub.status || 'pending') : null;
-      var model = missionToCardModel(m, sub);
-      var card = LC.materializeFeedPostCard(model, {
-        size: 'medium',
-        noNavigate: true,
-        mode: LC.CARD_MODE.RAIL,
-        onCardActivate: function () {
-          if (canSubmit){
-            openMissionSubmitModal(m, status === 'returned' ? sub.id : null, status === 'returned' ? (sub.submission_content || '') : '');
-          } else if (window.LanternCardUI) {
-            window.LanternCardUI.openTextDetail(m.title || 'Mission', model.card_meta, model.caption || (m.description || ''));
-          }
+      teacherMissions.forEach(function(m){
+        var sub = subByMission[m.id] || null;
+        var st = sub ? (sub.status || 'pending') : null;
+        var status = 'available';
+        var statusLabel = 'Start →';
+        if (st === 'accepted') {
+          status = 'completed';
+          statusLabel = '✅ Completed';
+        } else if (st === 'rejected') {
+          status = 'completed';
+          statusLabel = 'Not accepted';
+        } else if (st === 'pending') {
+          status = 'in_progress';
+          statusLabel = 'Awaiting teacher review';
+        } else if (st === 'returned') {
+          status = 'in_progress';
+          statusLabel = 'Returned — revise & resubmit';
         }
+        var tf = 'teacher';
+        var badge = '🧠 Teacher';
+        var stype = String(m.submission_type || '').trim();
+        if (stype === 'poll') { tf = 'create'; badge = '🎨 Create'; }
+        else if (stype === 'bug_report') { tf = 'create'; badge = '📸 Photo'; }
+        items.push({
+          id: m.id,
+          kind: 'teacher',
+          typeFilter: tf,
+          typeBadge: badge,
+          icon: '🧠',
+          title: m.title || 'Mission',
+          description: (m.description || '').trim(),
+          reward: m.reward_amount != null ? Number(m.reward_amount) : null,
+          status: status,
+          statusLabel: statusLabel,
+          featured: !!m.featured,
+          created_at: m.created_at || '',
+          raw: m,
+          submission: sub,
+          onActivate: function(){
+            if (status === 'completed') {
+              if (window.LanternCardUI) {
+                var cap = (m.description || '').trim();
+                if (sub && sub.status === 'returned' && sub.returned_reason) cap += '\n\nTeacher feedback:\n' + sub.returned_reason;
+                window.LanternCardUI.openTextDetail(m.title || 'Mission', statusLabel, cap || 'Mission complete.');
+              }
+              return;
+            }
+            openMissionSubmitModal(m, st === 'returned' ? sub.id : null, st === 'returned' ? (sub.submission_content || '') : '');
+          },
+        });
       });
-      card.style.cursor = 'pointer';
-      if (railBadge) {
-        var visual = card.querySelector('.exploreCardVisual');
-        if (visual) {
-          var pill = document.createElement('span');
-          pill.className = 'missionFeaturedPill' + (railBadge === 'TODAY' ? ' missionFeaturedPill--today' : '');
-          pill.setAttribute('aria-label', railBadge);
-          pill.textContent = railBadge;
-          visual.insertBefore(pill, visual.firstChild);
-        }
+
+      return items;
+    }
+
+    function refreshMissionLibrary(missions, teacherMissions, submissions, loading){
+      if (window.LanternMissionsPage && typeof window.LanternMissionsPage.setItems === 'function') {
+        window.LanternMissionsPage.setItems(buildUnifiedMissionItems(missions, teacherMissions, submissions), loading);
       }
-      container.appendChild(card);
+      var badge = document.getElementById('lanternNavMissionsBadge');
+      if (badge) {
+        var avail = buildUnifiedMissionItems(missions, teacherMissions, submissions).filter(function(i){ return i.status === 'available'; }).length;
+        badge.textContent = avail > 0 ? String(avail) : '';
+      }
     }
 
     function openMissionSubmitModal(m, resubmitId, prefill){
-      try {
-        var prefStr = '';
-        if (prefill != null && prefill !== '') {
-          prefStr = typeof prefill === 'object' ? JSON.stringify(prefill) : String(prefill);
+      currentMissionForSubmit = m;
+      currentResubmitId = resubmitId || null;
+      missionDetailReturnFocus = document.activeElement;
+      destroyMissionUnifiedField();
+      var titleEl = el('missionDetailTitle');
+      var metaEl = el('missionDetailMeta');
+      var descEl = el('missionDetailDesc');
+      var labelEl = el('missionSubmitLabel');
+      var contentEl = el('missionSubmitContent');
+      var textWrap = el('missionSubmitTextWrap');
+      var urlEl = el('missionSubmitUrl');
+      var imageUrlEl = el('missionSubmitImageUrl');
+      var videoUrlEl = el('missionSubmitVideoUrl');
+      var pollWrap = el('missionSubmitPollWrap');
+      var bugWrap = el('missionSubmitBugReportWrap');
+      var stMission = String(m.submission_type || '').trim();
+      var isPollMission = stMission === 'poll';
+      var isBugMission = stMission === 'bug_report';
+      var allowsText = m.allows_text !== false && m.allows_text !== 0;
+      var allowsImage = !!(m.allows_image);
+      var allowsVideo = !!(m.allows_video);
+      var allowsLink = !!(m.allows_link);
+      var anyMed = !isPollMission && !isBugMission && (allowsImage || allowsVideo || allowsLink);
+      var rew = m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : 0;
+      if (titleEl) titleEl.textContent = (currentResubmitId ? 'Resubmit: ' : '') + (m.title || 'Mission');
+      if (metaEl) metaEl.textContent = typeBadgeForTeacher(m) + (rew ? ' · 🟡 +' + rew : '');
+      if (descEl) descEl.textContent = (m.description || '').trim();
+      if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
+      if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';
+      if (pollWrap) pollWrap.style.display = isPollMission ? 'block' : 'none';
+      if (bugWrap) bugWrap.style.display = isBugMission ? 'block' : 'none';
+      var outer = el('missionUnifiedMediaOuter');
+      if (outer) outer.style.display = anyMed ? 'block' : 'none';
+      var pf = (typeof prefill === 'string') ? prefill : '';
+      missionVideoUploadedUrl = '';
+      if (contentEl) contentEl.value = '';
+      if (imageUrlEl) imageUrlEl.value = '';
+      if (videoUrlEl) videoUrlEl.value = '';
+      if (urlEl) urlEl.value = '';
+      if (isPollMission || isBugMission) {
+        currentMissionMinChars = 0;
+        currentMissionRequiresImage = false;
+      } else {
+        if (contentEl) contentEl.value = allowsText ? pf : '';
+        if (imageUrlEl) imageUrlEl.value = m.submission_type === 'image_url' ? pf : '';
+        var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
+        var enforceMin = allowsText && minChars > 0;
+        currentMissionMinChars = enforceMin ? minChars : 0;
+        currentMissionRequiresImage = allowsImage && !allowsText && !allowsVideo && !allowsLink;
+        var minCharsHint = el('missionSubmitMinCharsHint');
+        if (minCharsHint) {
+          if (allowsText && minChars > 0) {
+            minCharsHint.textContent = 'Minimum characters required: ' + minChars;
+            minCharsHint.style.display = 'block';
+          } else minCharsHint.style.display = 'none';
         }
-        sessionStorage.setItem('LANTERN_STUDIO_MISSION_OPEN', JSON.stringify({
-          mission: m,
-          resubmitId: resubmitId || null,
-          prefill: prefStr
-        }));
-      } catch (e) {}
-      window.location.href = 'contribute.html?type=mission';
+        var progressWrap = el('missionSubmitProgressWrap');
+        if (progressWrap) progressWrap.style.display = currentMissionMinChars > 0 ? 'block' : 'none';
+      }
+      if (anyMed) mountMissionUnifiedField(allowsImage, allowsVideo, allowsLink);
+      var previewWrap = el('missionSubmitPreviewWrap');
+      if (previewWrap) previewWrap.style.display = 'block';
+      updateMissionSubmitPreview();
+      updateMissionSubmitProgress();
+      openMissionDetailModal();
     }
 
-    function wireMissions(){
-      /* Daily check-in is handled on the Quick Missions card (renderQuickMissions). */
+    function typeBadgeForTeacher(m){
+      var st = String(m.submission_type || '').trim();
+      if (st === 'poll') return '🎨 Create';
+      if (st === 'bug_report') return '📸 Photo';
+      return '🧠 Teacher';
+    }
+
+    function wireMissionDetailModal(){
+      var closeBtn = el('missionDetailClose');
+      var overlay = el('missionDetailOverlay');
+      if (closeBtn && !closeBtn._wired) {
+        closeBtn._wired = true;
+        closeBtn.addEventListener('click', function(){ closeMissionDetailModal(); });
+      }
+      if (overlay && !overlay._wired) {
+        overlay._wired = true;
+        overlay.addEventListener('click', function(e){
+          if (e.target === overlay) closeMissionDetailModal();
+        });
+        document.addEventListener('keydown', function(e){
+          if (e.key === 'Escape' && overlay.classList.contains('is-open')) {
+            e.preventDefault();
+            closeMissionDetailModal();
+          }
+        });
+      }
+      if (el('missionSubmitContent') && !el('missionSubmitContent')._wiredInput) {
+        el('missionSubmitContent')._wiredInput = true;
+        el('missionSubmitContent').addEventListener('input', handleMissionContentInput);
+      }
+      if (el('missionSubmitBtn') && !el('missionSubmitBtn')._wired) {
+        el('missionSubmitBtn')._wired = true;
+        el('missionSubmitBtn').addEventListener('click', submitCurrentMission);
+      }
+      if (el('missionCropperUseBtn')) el('missionCropperUseBtn').addEventListener('click', finishMissionCropper);
+      if (el('missionCropperCancelBtn')) el('missionCropperCancelBtn').addEventListener('click', function(){
+        if (missionCropperInstance){ try { missionCropperInstance.destroy(); } catch(e){} missionCropperInstance = null; }
+        el('missionCropperModal').style.display = 'none';
+      });
+      if (el('missionSubmitPollLibraryBtn')) el('missionSubmitPollLibraryBtn').addEventListener('click', function(){ openLibraryPicker('poll'); });
+      if (el('missionSubmitLibraryCloseBtn')) el('missionSubmitLibraryCloseBtn').addEventListener('click', function(){
+        var lm = el('missionSubmitLibraryModal');
+        if (lm){ lm.style.display = 'none'; lm.classList.remove('show'); }
+      });
+    }
+
+    function submitCurrentMission(){
+      var adopted = getAdopted();
+      if (!adopted || !adopted.name){ toast('Sign in to submit missions.'); return; }
+      if (!currentMissionForSubmit){ toast('No mission selected'); return; }
+      var m = currentMissionForSubmit;
+      var btnM = el('missionSubmitBtn');
+      var mst = String(m.submission_type || '').trim();
+      if (mst === 'poll'){
+        var pq = (el('missionSubmitPollQuestion') && el('missionSubmitPollQuestion').value || '').trim();
+        var pch = [1,2,3,4].map(function(i){ return (el('missionSubmitPollChoice' + i) && el('missionSubmitPollChoice' + i).value || '').trim(); }).filter(Boolean);
+        var pimg = (el('missionSubmitPollImageUrl') && el('missionSubmitPollImageUrl').value || '').trim();
+        if (!pq){ toast('Enter your poll question.'); return; }
+        if (pch.length < 2 || pch.length > 4){ toast('Enter 2 to 4 answer choices.'); return; }
+        if (!pimg){ toast('Add a poll image URL or pick from the library.'); return; }
+        var pollPayload = JSON.stringify({ question: pq.slice(0, 500), choices: pch.map(function(c){ return c.slice(0, 200); }), image_url: pimg.slice(0, 500) });
+        btnM.disabled = true;
+        var resPP = currentResubmitId
+          ? callResubmitMissionSubmission(currentResubmitId, pollPayload)
+          : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, 'poll', pollPayload);
+        Promise.resolve(resPP).then(function(resP){
+          btnM.disabled = false;
+          if (!resP || !resP.ok){ toast((resP && resP.error) || 'Failed'); return; }
+          toast(FERPA_STUDENT_SUBMIT_MESSAGE);
+          closeMissionDetailModal();
+          loadMissions();
+        });
+        return;
+      }
+      if (mst === 'bug_report'){
+        var bdesc = (el('missionSubmitBugReportDesc') && el('missionSubmitBugReportDesc').value || '').trim();
+        var bimg = (el('missionSubmitBugReportScreenshot') && el('missionSubmitBugReportScreenshot').value || '').trim();
+        if (!bdesc){ toast('Description is required.'); return; }
+        var bugPayload = JSON.stringify({ description: bdesc.slice(0, 2000), image_url: bimg ? bimg.slice(0, 500) : '' });
+        btnM.disabled = true;
+        Promise.resolve(currentResubmitId
+          ? callResubmitMissionSubmission(currentResubmitId, bugPayload)
+          : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, 'bug_report', bugPayload)
+        ).then(function(resB){
+          btnM.disabled = false;
+          if (!resB || !resB.ok){ toast((resB && resB.error) || 'Failed'); return; }
+          toast(FERPA_STUDENT_SUBMIT_MESSAGE);
+          closeMissionDetailModal();
+          loadMissions();
+        });
+        return;
+      }
+      var allowsText = m.allows_text !== false && m.allows_text !== 0;
+      var allowsImage = !!(m.allows_image);
+      var allowsVideo = !!(m.allows_video);
+      var allowsLink = !!(m.allows_link);
+      var textVal = (el('missionSubmitContent') && el('missionSubmitContent').value || '').trim();
+      var imageVal = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      var videoVal = (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim();
+      var linkVal = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
+      var minChars = currentMissionMinChars;
+      var validText = allowsText && (minChars <= 0 ? textVal.length > 0 : textVal.length >= minChars);
+      var validImage = allowsImage && (imageVal.length > 0 || (el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src));
+      var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
+      var validLink = allowsLink && linkVal.length > 0;
+      if (!(validText || validImage || validVideo || validLink)) {
+        if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) toast('Minimum ' + minChars + ' characters required.');
+        else toast('Please add a valid submission before sending.');
+        return;
+      }
+      var type = 'text';
+      var content = '';
+      if (allowsText && textVal){ type = 'text'; content = textVal; }
+      else if (allowsImage && imageVal){ type = 'image_url'; content = imageVal; }
+      else if (allowsVideo && missionVideoUploadedUrl){ type = 'video'; content = missionVideoUploadedUrl; }
+      else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }
+      else if (allowsLink && linkVal){ type = 'link'; content = linkVal; }
+      if (m.submission_type === 'confirmation') type = 'confirmation';
+      btnM.disabled = true;
+      Promise.resolve(currentResubmitId
+        ? callResubmitMissionSubmission(currentResubmitId, content)
+        : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, type, content)
+      ).then(function(res){
+        btnM.disabled = false;
+        if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; }
+        toast(FERPA_STUDENT_SUBMIT_MESSAGE);
+        closeMissionDetailModal();
+        loadMissions();
+        if (window.LanternMissionsPage && typeof window.LanternMissionsPage.refreshWalletDisplay === 'function') {
+          window.LanternMissionsPage.refreshWalletDisplay();
+        }
+      });
     }
 
     var STALE_MISSION_TITLES = { 'fff': 1, 'ff': 1, 'help someone': 1 };
@@ -1180,54 +1466,66 @@
         return !STALE_MISSION_TITLES[t];
       });
     }
+
     function loadMissions(){
       var adopted = getAdopted();
-      var activeList = el('activeMissionsList');
       if (!adopted || !adopted.name){
-        if (activeList) activeList.innerHTML = '<p class="sectionPlaceholder">Select a student in <a href="locker.html">Locker</a> (Overview) first.</p>';
-        var badge = document.getElementById('lanternNavMissionsBadge');
-        if (badge) badge.textContent = '';
-        renderQuickMissions(null);
+        refreshMissionLibrary({}, [], [], false);
         return;
       }
+      refreshMissionLibrary({}, [], [], true);
       var characterNameForApi = getCharacterNameForApi() || adopted.name;
+      var quickData = {};
+      var teacherData = [];
+      var subsData = [];
+      var pending = 3;
+      function done(){
+        pending--;
+        if (pending <= 0) refreshMissionLibrary(quickData, filterStaleMissions(teacherData), subsData, false);
+      }
       callGetMissions(adopted.name).then(function(res){
-        var missions = (res && res.missions) || {};
-        renderMissions(missions);
+        quickData = (res && res.missions) || {};
+        done();
       });
       callGetActiveTeacherMissionsForCharacter(characterNameForApi).then(function(res){
-        if (!res || !res.ok) {
-          if (activeList) activeList.innerHTML = '<p class="sectionPlaceholder" style="color:var(--warn);">Missions failed to load. Check connection and try again.</p>';
-          return;
-        }
-        var missions = filterStaleMissions(res.missions || []);
-        var n = missions.length;
-        var badge = document.getElementById('lanternNavMissionsBadge');
-        if (badge) badge.textContent = n > 0 ? String(n) : '';
-        callGetMissionSubmissionsForCharacter(characterNameForApi).then(function(sres){
-          var subs = (sres && sres.submissions) || [];
-          renderMyMissions(missions, subs);
-        });
-      }).catch(function(){
-        if (activeList) activeList.innerHTML = '<p class="sectionPlaceholder" style="color:var(--warn);">Missions failed to load. Check connection and try again.</p>';
+        teacherData = (res && res.ok && res.missions) ? res.missions : [];
+        done();
+      }).catch(function(){ done(); });
+      callGetMissionSubmissionsForCharacter(characterNameForApi).then(function(sres){
+        subsData = (sres && sres.submissions) || [];
+        done();
       });
     }
 
-    function init(){
-      wireMissions();
-      var adopted = getAdopted();
-      if (!adopted || !adopted.name){
-        el('activeMissionsList').innerHTML = '<p class="sectionPlaceholder">Select a student in <a href="locker.html">Locker</a> (Overview) first.</p>';
-        var badge = document.getElementById('lanternNavMissionsBadge');
-        if (badge) badge.textContent = '';
-        renderQuickMissions(null);
-        return;
+    window.LanternMissionsRuntime = {
+      getAdopted: getAdopted,
+      getCharacterNameForApi: getCharacterNameForApi,
+      toast: toast,
+      loadMissions: loadMissions,
+      openMissionSubmitModal: openMissionSubmitModal,
+    };
+
+    var missionsPageBooted = false;
+    window.__bootMissionsPage = function bootMissionsPage(){
+      if (missionsPageBooted) return;
+      var auth = window.LanternAuth || window.LanternPilotAuth;
+      var me = auth && typeof auth.getCachedPilotMe === 'function' ? auth.getCachedPilotMe() : null;
+      if (!me || me.authenticated !== true) return;
+      missionsPageBooted = true;
+      wireMissionDetailModal();
+      if (window.LanternMissionsPage && typeof window.LanternMissionsPage.init === 'function') {
+        window.LanternMissionsPage.init();
       }
       loadMissions();
-    }
+    };
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-    else init();
+    document.addEventListener('lantern-class-access-resolved', function(){
+      window.__bootMissionsPage();
+    });
+    var contentWrap = document.getElementById('classAccessContentWrap');
+    if (contentWrap && getComputedStyle(contentWrap).visibility === 'visible') {
+      window.__bootMissionsPage();
+    }
 
     /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */
   </script>

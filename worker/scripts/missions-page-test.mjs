@@ -1,0 +1,176 @@
+/**
+ * Missions page — unified library, identity, modal workflow (Prompt #63).
+ * Usage: node worker/scripts/missions-page-test.mjs
+ */
+import fs from 'fs';
+import path from 'path';
+import vm from 'vm';
+import { fileURLToPath } from 'url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+let pass = 0;
+let fail = 0;
+
+function ok(label) {
+  pass++;
+  console.log('PASS', label);
+}
+function bad(label, detail) {
+  fail++;
+  console.error('FAIL', label, detail || '');
+}
+
+const missionsHtml = fs.readFileSync(path.join(root, 'app/missions.html'), 'utf8');
+const missionsPageJs = fs.readFileSync(path.join(root, 'app/js/lantern-missions-page.js'), 'utf8');
+const missionsCss = fs.readFileSync(path.join(root, 'app/css/lantern-missions-page.css'), 'utf8');
+const feedCss = fs.readFileSync(path.join(root, 'app/css/lantern-feed.css'), 'utf8');
+const pilotAuthJs = fs.readFileSync(path.join(root, 'app/js/lantern-pilot-auth.js'), 'utf8');
+const helpJs = fs.readFileSync(path.join(root, 'app/js/lantern-help.js'), 'utf8');
+
+if (!missionsHtml.includes('Quick Missions') && !missionsHtml.includes('quickMissionsTrack')) {
+  ok('Quick Missions rail retired from missions.html');
+} else bad('Quick Missions rail still present');
+
+if (!missionsHtml.includes('Available for You') && !missionsHtml.includes('Completed Missions')) {
+  ok('old giant section headings removed');
+} else bad('old section headings still present');
+
+if (!missionsHtml.includes('CARD_MODE') && !missionsHtml.includes('data-lantern-rail-host')) {
+  ok('no horizontal mission rail hosts');
+} else bad('rail host markup still present');
+
+if (missionsHtml.includes('id="missionsLibraryGrid"') && missionsHtml.includes('class="feedGrid"')) {
+  ok('one unified mission library grid');
+} else bad('unified grid missing');
+
+if (missionsHtml.includes('id="missionsStatusTabs"') && missionsHtml.includes('data-mission-status="available"')) {
+  ok('status tabs: Available default markup');
+} else bad('status tabs missing');
+
+if (missionsPageJs.includes("status: 'available'") && missionsPageJs.includes('in_progress') && missionsPageJs.includes('completed')) {
+  ok('missions page module supports three status views');
+} else bad('status view logic missing');
+
+if (/id="missionsFiltersPanel"[^>]*\shidden/.test(missionsHtml)) {
+  ok('filters collapsed by default');
+} else bad('filters panel not collapsed');
+
+if (missionsHtml.includes('lantern-feed.css') && missionsHtml.includes('lantern-missions-page.css')) {
+  ok('shared feed + missions page CSS linked');
+} else bad('CSS links missing');
+
+if (missionsCss.includes('280px') && missionsCss.includes('1760px')) {
+  ok('canonical grid geometry in missions CSS');
+} else bad('grid geometry');
+
+if (feedCss.includes('--feed-grid-max-width: 1760px')) {
+  ok('shared feed max-width token');
+} else bad('feed max-width token');
+
+if (missionsHtml.includes('guardPilotPage({ mode: \'general\' }') && missionsHtml.includes('__bootMissionsPage')) {
+  ok('Missions boots after guardPilotPage callback');
+} else bad('guardPilotPage boot missing');
+
+if (missionsHtml.includes('adoptedFromPilotMe') || missionsHtml.includes('getAdopted')) {
+  ok('session identity via adoptedFromPilotMe');
+} else bad('session identity missing');
+
+if (!missionsHtml.match(/Select a student in Locker/i) && !helpJs.match(/Select a student in Locker/i)) {
+  ok('Locker picker copy removed from student missions UX');
+} else bad('Locker dependency copy still present');
+
+if (!missionsHtml.match(/location\.(href|replace|assign)\s*=\s*['"]contribute\.html/)) {
+  ok('no contribute.html redirect for mission submit');
+} else bad('contribute redirect still used');
+
+if (missionsHtml.includes('id="missionDetailOverlay"') && missionsHtml.includes('missionDetailPanel')) {
+  ok('mission detail modal DOM present');
+} else bad('mission detail modal missing');
+
+if (missionsCss.includes('min(960px') && missionsCss.includes('@media (max-width: 640px)')) {
+  ok('desktop modal width + phone fullscreen rules');
+} else bad('modal responsive CSS');
+
+if (missionsHtml.includes('credentials: \'include\'') && missionsHtml.includes('/api/missions/active')) {
+  ok('mission API fetches send credentials');
+} else bad('credentials on mission fetches');
+
+if (pilotAuthJs.includes("'/missions': '/missions.html'")) {
+  ok('pilot-auth maps /missions to /missions.html');
+} else bad('/missions route normalization');
+
+if (missionsHtml.includes('lantern-wallet.js') && missionsPageJs.includes('fetchMyBalance')) {
+  ok('wallet display uses authoritative session helper');
+} else bad('wallet integration');
+
+if (missionsPageJs.includes('specGameHubRailCard') && missionsPageJs.includes('createStudentCard')) {
+  ok('reuses shared Lantern card primitives');
+} else bad('card primitives');
+
+if (missionsPageJs.includes('typeBadgeFor') && missionsPageJs.includes('⚡ Quick')) {
+  ok('Quick mission as badge metadata');
+} else bad('type badges');
+
+if (missionsPageJs.includes('rewardMeta') && !missionsPageJs.includes('reward: 5')) {
+  ok('reward display derived from item data, not hardcoded in module');
+} else bad('hardcoded rewards in page module');
+
+if (missionsPageJs.includes('LanternNav.onHeaderSearch')) {
+  ok('mission-scoped header search wired');
+} else bad('header search');
+
+if (helpJs.includes('Available, In Progress, and Completed')) {
+  ok('help copy matches unified library');
+} else bad('help copy outdated');
+
+// Mock workflow: buildUnifiedMissionItems status mapping
+const buildFnMatch = missionsHtml.match(/function buildUnifiedMissionItems\([\s\S]*?return items;\s*\}/);
+if (buildFnMatch) {
+  const sandbox = {
+    todayStr: () => '2026-08-07',
+    console,
+  };
+  vm.createContext(sandbox);
+  try {
+    vm.runInContext(buildFnMatch[0], sandbox);
+    const items = sandbox.buildUnifiedMissionItems(
+      { daily_checkin_last: '', hidden_nugget: false, first_game: false },
+      [
+        {
+          id: 'm1',
+          title: 'Thank-You Letter',
+          description: 'Write a note',
+          reward_amount: 5,
+          submission_type: 'text',
+        },
+        {
+          id: 'm2',
+          title: 'Photo Mission',
+          description: 'Snap a photo',
+          reward_amount: 3,
+          submission_type: 'image_url',
+        },
+      ],
+      [{ mission_id: 'm1', status: 'pending' }, { mission_id: 'm2', status: 'accepted' }]
+    );
+    const avail = items.filter((i) => i.status === 'available').length;
+    const prog = items.filter((i) => i.status === 'in_progress').length;
+    const done = items.filter((i) => i.status === 'completed').length;
+    if (avail >= 4 && prog === 1 && done >= 1) {
+      ok('status derivation: pending → in_progress, accepted → completed');
+    } else bad('status derivation counts', { avail, prog, done, total: items.length });
+    const pendingItem = items.find((i) => i.id === 'm1');
+    if (pendingItem && pendingItem.statusLabel.includes('review')) {
+      ok('student-friendly in-progress label');
+    } else bad('in-progress label');
+    const dupIds = items.map((i) => i.id);
+    if (new Set(dupIds).size === dupIds.length) {
+      ok('no duplicate mission IDs in unified list');
+    } else bad('duplicate mission IDs');
+  } catch (e) {
+    bad('buildUnifiedMissionItems mock run', e.message);
+  }
+} else bad('buildUnifiedMissionItems not found');
+
+console.log('\nMissions page tests:', pass, 'passed,', fail, 'failed');
+process.exit(fail ? 1 : 0);

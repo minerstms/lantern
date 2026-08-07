@@ -1,0 +1,294 @@
+/**
+ * Missions page — unified mission library grid (Prompt #63).
+ */
+(function (global) {
+  'use strict';
+
+  var state = {
+    status: 'available',
+    typeFilter: 'all',
+    rewardFilter: 'any',
+    sort: 'recommended',
+    search: '',
+    filtersOpen: false,
+    items: [],
+    loading: true,
+  };
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  function runtime() {
+    return global.LanternMissionsRuntime || null;
+  }
+
+  function cardsApi() {
+    return global.LanternCards || null;
+  }
+
+  function toast(msg) {
+    var rt = runtime();
+    if (rt && typeof rt.toast === 'function') rt.toast(msg);
+  }
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function typeBadgeFor(item) {
+    if (item.typeBadge) return item.typeBadge;
+    if (item.kind === 'quick') return '⚡ Quick';
+    return '🧠 Teacher';
+  }
+
+  function rewardMeta(reward) {
+    if (reward == null || reward === '' || Number(reward) <= 0) return '';
+    return '🟡 +' + Number(reward);
+  }
+
+  function statusMeta(item) {
+    if (item.statusLabel) return item.statusLabel;
+    if (item.status === 'completed') return '✅ Completed';
+    if (item.status === 'in_progress') return '⏳ In progress';
+    return 'Start →';
+  }
+
+  function cardMetaLine(item) {
+    var bits = [rewardMeta(item.reward), statusMeta(item)].filter(Boolean);
+    return bits.join(' · ');
+  }
+
+  function matchesFilters(item) {
+    if (item.status !== state.status) return false;
+    if (state.typeFilter !== 'all' && item.typeFilter !== state.typeFilter) return false;
+    if (state.rewardFilter === 'has_reward' && !(Number(item.reward) > 0)) return false;
+    var q = String(state.search || '')
+      .trim()
+      .toLowerCase();
+    if (q) {
+      var hay = (item.title + ' ' + item.description + ' ' + item.typeBadge).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  }
+
+  function sortItems(list) {
+    var out = list.slice();
+    if (state.sort === 'az') {
+      out.sort(function (a, b) {
+        return String(a.title).localeCompare(String(b.title));
+      });
+    } else if (state.sort === 'reward') {
+      out.sort(function (a, b) {
+        return (Number(b.reward) || 0) - (Number(a.reward) || 0);
+      });
+    } else if (state.sort === 'newest') {
+      out.sort(function (a, b) {
+        return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+      });
+    } else {
+      out.sort(function (a, b) {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        if (a.kind === 'quick' && b.kind !== 'quick') return -1;
+        if (a.kind !== 'quick' && b.kind === 'quick') return 1;
+        return String(a.title).localeCompare(String(b.title));
+      });
+    }
+    return out;
+  }
+
+  function countByStatus(status) {
+    return state.items.filter(function (i) {
+      return i.status === status;
+    }).length;
+  }
+
+  function updateStatusTabLabels() {
+    var avail = countByStatus('available');
+    var prog = countByStatus('in_progress');
+    var done = countByStatus('completed');
+    var map = {
+      available: 'Available' + (state.loading ? '' : ' ' + avail),
+      in_progress: 'In Progress' + (state.loading ? '' : ' ' + prog),
+      completed: 'Completed' + (state.loading ? '' : ' ' + done),
+    };
+    var bar = el('missionsStatusTabs');
+    if (!bar) return;
+    bar.querySelectorAll('[data-mission-status]').forEach(function (btn) {
+      var key = btn.getAttribute('data-mission-status');
+      if (map[key]) btn.textContent = map[key];
+      btn.classList.toggle('is-active', key === state.status);
+      btn.setAttribute('aria-selected', key === state.status ? 'true' : 'false');
+    });
+  }
+
+  function emptyMessage() {
+    if (state.loading) return 'Loading missions…';
+    if (state.status === 'available') return 'No missions available right now.';
+    if (state.status === 'in_progress') return 'Nothing in progress.';
+    return 'No completed missions yet.';
+  }
+
+  function renderGrid() {
+    var grid = el('missionsLibraryGrid');
+    var countEl = el('missionsLibraryCount');
+    var LC = cardsApi();
+    if (!grid) return;
+    if (!LC || !LC.specGameHubRailCard || !LC.createStudentCard) {
+      grid.innerHTML = '<p class="missionsLibraryEmpty">Mission cards unavailable.</p>';
+      return;
+    }
+    var filtered = sortItems(state.items.filter(matchesFilters));
+    if (countEl) {
+      countEl.textContent = state.loading
+        ? '…'
+        : filtered.length + ' mission' + (filtered.length === 1 ? '' : 's');
+    }
+    grid.innerHTML = '';
+    updateStatusTabLabels();
+    if (!filtered.length) {
+      grid.innerHTML = '<p class="missionsLibraryEmpty">' + escapeHtml(emptyMessage()) + '</p>';
+      return;
+    }
+    filtered.forEach(function (item) {
+      var metaOne = cardMetaLine(item);
+      var spec = LC.specGameHubRailCard({
+        title: item.title,
+        icon: item.icon || '✨',
+        metaOne: metaOne,
+        rewardText: rewardMeta(item.reward),
+        typeBadge: typeBadgeFor(item),
+        reportId: 'mission_' + (item.id || ''),
+        extraClass: 'exploreCard--missionsLibrary missionsHubCard',
+        dataAttrs: {
+          missionId: item.id || '',
+          missionKind: item.kind || '',
+          routeSurface: 'missions_library',
+          routeDetail: item.id || '',
+        },
+        role: 'button',
+        tabIndex: 0,
+        ariaLabel: item.title + ' — ' + metaOne,
+      });
+      var node = LC.createStudentCard(spec);
+      if (!node) return;
+      if (item.url) {
+        var outer = node.querySelector('.exploreCardOuterWrap');
+        if (outer && outer.tagName === 'A') {
+          outer.href = item.url;
+        }
+      } else {
+        node.addEventListener('click', function (e) {
+          if (e.target.closest('.exploreCardReportBtn')) return;
+          e.preventDefault();
+          if (typeof item.onActivate === 'function') item.onActivate();
+        });
+        node.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          if (e.target !== node && !node.contains(e.target)) return;
+          e.preventDefault();
+          if (typeof item.onActivate === 'function') item.onActivate();
+        });
+      }
+      grid.appendChild(node);
+    });
+    LC.enhanceReportControlsIn(grid);
+  }
+
+  function wireControls() {
+    var bar = el('missionsStatusTabs');
+    if (bar && !bar._wired) {
+      bar._wired = true;
+      bar.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-mission-status]');
+        if (!btn) return;
+        var next = btn.getAttribute('data-mission-status');
+        if (!next || next === state.status) return;
+        state.status = next;
+        renderGrid();
+      });
+    }
+    var toggle = el('missionsFiltersToggle');
+    var panel = el('missionsFiltersPanel');
+    if (toggle && panel && !toggle._wired) {
+      toggle._wired = true;
+      toggle.addEventListener('click', function () {
+        state.filtersOpen = !state.filtersOpen;
+        panel.hidden = !state.filtersOpen;
+        toggle.setAttribute('aria-expanded', state.filtersOpen ? 'true' : 'false');
+        toggle.textContent = state.filtersOpen ? 'Filters ▾' : 'Filters ▸';
+      });
+    }
+    var typeSel = el('missionsTypeFilter');
+    var rewardSel = el('missionsRewardFilter');
+    var sortSel = el('missionsSortSelect');
+    if (typeSel && !typeSel._wired) {
+      typeSel._wired = true;
+      typeSel.addEventListener('change', function () {
+        state.typeFilter = typeSel.value || 'all';
+        renderGrid();
+      });
+    }
+    if (rewardSel && !rewardSel._wired) {
+      rewardSel._wired = true;
+      rewardSel.addEventListener('change', function () {
+        state.rewardFilter = rewardSel.value || 'any';
+        renderGrid();
+      });
+    }
+    if (sortSel && !sortSel._wired) {
+      sortSel._wired = true;
+      sortSel.addEventListener('change', function () {
+        state.sort = sortSel.value || 'recommended';
+        renderGrid();
+      });
+    }
+    if (global.LanternNav && typeof global.LanternNav.onHeaderSearch === 'function' && !global._missionsHeaderSearchWired) {
+      global._missionsHeaderSearchWired = true;
+      global.LanternNav.onHeaderSearch(function (q) {
+        state.search = q;
+        renderGrid();
+      });
+    }
+  }
+
+  function refreshWalletDisplay() {
+    var amt = el('missionsPageWalletAmt');
+    if (!amt || !global.LanternWallet) return Promise.resolve();
+    return global.LanternWallet.fetchMyBalance().then(function (res) {
+      if (res && res.ok && res.available != null) {
+        amt.textContent = String(res.available);
+      } else if (amt.textContent === '' || amt.textContent === '…') {
+        amt.textContent = '—';
+      }
+    });
+  }
+
+  function setItems(items, loading) {
+    state.items = Array.isArray(items) ? items : [];
+    state.loading = !!loading;
+    renderGrid();
+  }
+
+  function init() {
+    wireControls();
+    renderGrid();
+    refreshWalletDisplay();
+  }
+
+  global.LanternMissionsPage = {
+    init: init,
+    setItems: setItems,
+    renderGrid: renderGrid,
+    refreshWalletDisplay: refreshWalletDisplay,
+    getStatus: function () {
+      return state.status;
+    },
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

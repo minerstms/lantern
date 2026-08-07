@@ -237,6 +237,16 @@
       };
     }
 
+    if (surface === 'missions_library') {
+      return {
+        what: 'A mission in your personal mission library.',
+        approval: 'Teacher missions need teacher review before they are marked complete and any Nuggets are awarded.',
+        whyHere: 'The Missions page loads your available, in-progress, and completed missions in one grid.',
+        whereElse: 'Spotlight missions on Lantern home link here for the full list.',
+        summary: 'Tap to open the mission, submit your work, or view what you already turned in.'
+      };
+    }
+
     if (surface === 'games_leaderboard') {
       return {
         what: 'Weekly arcade game scores.',

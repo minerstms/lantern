@@ -27,7 +27,7 @@
     culture_games: 'Culture games: handbook trivia, local history, and similar activities on this row. Tap a card to play. Most games cost 1 nugget like the arcade row above.',
     news: 'Read school news and submit your own articles. Student reporters and staff can write. Articles need approval before they appear.',
     teacher: 'Teachers use this page to approve student work, read thank-you letters, and create missions. The Rewards Panel explains how teacher nugget rewards relate to the student Store. Students do not use this page.',
-    missions: 'Teacher missions are tasks your teacher gives you. Complete them to earn nuggets. Tap a mission to see how to submit.',
+    missions: 'Missions are tasks you can complete to create, reflect, practice, and sometimes earn Nuggets. Use Available, In Progress, and Completed to filter one library. Tap a mission to open it and submit your work.',
     mission_spotlight: 'Missions: one highlighted task you can start today from the active mission list.',
     achievements: 'These are badges you earn when you do things like share your first post, find the daily nugget, or get a teacher pick.',
     trophy_case: 'Your trophy case shows all the achievements you can earn. Gray ones are locked. Green ones you have unlocked.',
