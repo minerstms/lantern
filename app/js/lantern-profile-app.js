@@ -203,25 +203,19 @@
       return String(raw).replace(/\/$/, '');
     })();
     function callGetBalance(name){
-      var locker = getLockerMe();
-      if (locker && locker.ok && locker.wallet && locker.wallet.available !== false) {
-        return Promise.resolve({
-          ok: true,
-          available: Number(locker.wallet.balance) || 0,
-          earned: null,
-          spent: null,
-        });
+      if (window.LanternWallet && typeof window.LanternWallet.fetchBalance === 'function') {
+        return window.LanternWallet.fetchBalance(name);
       }
       if (economyApiBase != null) {
-        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
+        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent };
-          return { ok: false, available: 0 };
-        }).catch(function(){ return { ok: false, available: 0 }; });
+          return { ok: false, available: null };
+        }).catch(function(){ return { ok: false, available: null }; });
       }
       var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false, available: 0 });
+      if (!run) return Promise.resolve({ ok: false, available: null });
       return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, available: 0 }); }).storeGetBalance({ student_name: name });
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false, available: null }); }).storeGetBalance({ student_name: name });
       });
     }
     function callEconomyTransact(characterName, delta, kind, source, note, meta){
@@ -268,17 +262,35 @@
 
     function callSubmitAvatarUpload(name, imageData, cost){
       var base = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+      function formatInsufficient(err, costAmt, available) {
+        if (err === 'insufficient' || (typeof err === 'string' && err.indexOf('insufficient') >= 0)) {
+          return 'Not enough nuggets. Need ' + costAmt + ', available ' + (available != null ? available : 0);
+        }
+        return err || 'Failed to submit avatar.';
+      }
+      function afterEconomyCharge(tRes, payload) {
+        if (!tRes || !tRes.ok) {
+          return {
+            ok: false,
+            error: formatInsufficient(tRes && tRes.error, cost, tRes && tRes.available),
+            available: tRes && tRes.available,
+          };
+        }
+        return payload;
+      }
       if (base) {
         return fetch(base + '/api/avatar/upload', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ character_name: name, image: imageData })
         }).then(function(r){ return r.json(); }).then(function(upRes){
           if (!upRes || !upRes.ok) return Promise.reject(new Error(upRes && upRes.error || 'Upload failed'));
           if (economyApiBase) {
             return callEconomyTransact(name, -cost, 'avatar_upload', '', 'Avatar upload', {}).then(function(tRes){
-              if (!tRes || !tRes.ok) return Promise.reject(new Error(tRes && tRes.error || 'Deduction failed'));
-              return { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status };
+              var out = afterEconomyCharge(tRes, { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status, available_after: tRes.balance_after });
+              if (!out.ok) return Promise.reject(new Error(out.error));
+              return out;
             });
           }
           var run = createRun ? createRun() : null;
@@ -290,12 +302,13 @@
       }
       if (economyApiBase) {
         return callEconomyTransact(name, -cost, 'avatar_upload', '', 'Avatar upload', {}).then(function(tRes){
-          if (!tRes || !tRes.ok) return { ok: false, error: tRes && tRes.error || 'Deduction failed' };
+          var out = afterEconomyCharge(tRes, { ok: true, id: 'local', status: 'pending', available_after: tRes.balance_after });
+          if (!out.ok) return out;
           var run = createRun ? createRun() : null;
           if (!run) return { ok: true, id: 'local', status: 'pending' };
           return new Promise(function(resolve, reject){
             run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost, economy_backend_charged: true });
-          }).then(function(r){ return { ok: true, id: (r && r.id) || 'local', status: 'pending' }; });
+          }).then(function(r){ return { ok: true, id: (r && r.id) || 'local', status: 'pending', available_after: tRes.balance_after }; });
         }).catch(function(err){ return { ok: false, error: String(err && err.message || err) }; });
       }
       var run = createRun ? createRun() : null;
@@ -1614,6 +1627,99 @@
     var avatarCropper = null;
     var avatarCropDataUrl = null;
     var avatarCropOpenGuard = false;
+    var avatarCropSubmitting = false;
+    var avatarCropAvailable = null;
+    var AVATAR_UPLOAD_COST = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST) || 25;
+
+    function refreshProfileBalanceDisplay(res){
+      if (!res || !res.ok || res.available == null) return;
+      var n = Number(res.available) || 0;
+      var be = el('balanceEl');
+      var oldN = NaN;
+      if (be && be.textContent) {
+        var parsed = parseInt(String(be.textContent).trim(), 10);
+        if (Number.isFinite(parsed)) oldN = parsed;
+      }
+      if (!Number.isFinite(oldN)) oldN = Number(studentProfileVM.nuggets) || 0;
+      studentProfileVM.nuggets = n;
+      if (be) {
+        pulseNuggetDisplayIfGain(be, oldN, studentProfileVM.nuggets);
+        be.textContent = String(studentProfileVM.nuggets);
+      }
+      updateNuggetProgress(studentProfileVM.nuggets);
+    }
+
+    function updateAvatarCropAffordability(opts){
+      opts = opts || {};
+      var statusEl = el('avatarCropBalanceStatus');
+      var errorEl = el('avatarCropError');
+      var submitBtn = el('avatarCropSubmitBtn');
+      var cost = AVATAR_UPLOAD_COST;
+      if (opts.loading) {
+        avatarCropAvailable = null;
+        if (statusEl) statusEl.textContent = 'Checking balance…';
+        if (errorEl && !opts.keepError) errorEl.textContent = '';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submit avatar (' + cost + ' nuggets)';
+        }
+        return;
+      }
+      if (!opts.ok || opts.available == null) {
+        avatarCropAvailable = null;
+        if (statusEl) statusEl.textContent = '';
+        if (errorEl) errorEl.textContent = opts.error || 'Could not load wallet balance.';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submit avatar (' + cost + ' nuggets)';
+        }
+        return;
+      }
+      avatarCropAvailable = Number(opts.available) || 0;
+      if (statusEl) {
+        statusEl.textContent = 'Available: ' + avatarCropAvailable + ' nuggets';
+      }
+      if (avatarCropAvailable >= cost) {
+        if (errorEl) errorEl.textContent = '';
+        if (submitBtn) {
+          submitBtn.disabled = !!avatarCropSubmitting;
+          submitBtn.textContent = 'Submit avatar (' + cost + ' nuggets)';
+        }
+      } else {
+        if (errorEl) {
+          errorEl.textContent = 'Not enough nuggets. Need ' + cost + ', available ' + avatarCropAvailable;
+        }
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submit avatar (' + cost + ' nuggets)';
+        }
+      }
+    }
+
+    function refreshAvatarCropAffordability(characterName){
+      updateAvatarCropAffordability({ loading: true });
+      return callGetBalance(characterName).then(function(res){
+        updateAvatarCropAffordability({
+          ok: !!(res && res.ok),
+          available: res && res.available,
+          error: res && res.error,
+        });
+        return res;
+      });
+    }
+
+    function refreshWalletAfterAvatarPurchase(characterName){
+      if (window.LanternLockerMe && typeof window.LanternLockerMe.invalidateLockerMe === 'function') {
+        window.LanternLockerMe.invalidateLockerMe();
+      }
+      var refresh = window.LanternWallet && window.LanternWallet.refreshAllVisible
+        ? window.LanternWallet.refreshAllVisible({ force: true })
+        : callGetBalance(characterName);
+      return Promise.resolve(refresh).then(function(res){
+        refreshProfileBalanceDisplay(res);
+        return res;
+      });
+    }
 
       function buildFramePicker(selected){
         if (!framePicker) return;
@@ -2059,6 +2165,7 @@
             overlayEl.classList.add('show');
             avatarCropOpenGuard = true;
             setTimeout(function(){ avatarCropOpenGuard = false; }, 400);
+            refreshAvatarCropAffordability(adopted && adopted.name);
             imgEl.onload = function(){
               try{
                 var naturalMin = Math.min(imgEl.naturalWidth || 0, imgEl.naturalHeight || 0);
@@ -2095,10 +2202,19 @@
       function closeAvatarCropOverlay(){
         var overlayEl = el('avatarCropOverlay');
         var errorEl = el('avatarCropError');
+        var statusEl = el('avatarCropBalanceStatus');
         if (overlayEl) overlayEl.classList.remove('show');
         if (errorEl) errorEl.textContent = '';
+        if (statusEl) statusEl.textContent = '';
         destroyAvatarCropper();
         avatarCropDataUrl = null;
+        avatarCropAvailable = null;
+        avatarCropSubmitting = false;
+        var submitBtn = el('avatarCropSubmitBtn');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit avatar (' + AVATAR_UPLOAD_COST + ' nuggets)';
+        }
       }
 
       var cropCloseBtn = el('avatarCropCloseBtn');
@@ -2162,16 +2278,38 @@
             if (errorEl) errorEl.textContent = 'Unable to crop image.';
             return;
           }
+          if (avatarCropSubmitting) return;
+          if (avatarCropAvailable == null) {
+            if (errorEl) errorEl.textContent = 'Checking balance…';
+            return;
+          }
+          if (avatarCropAvailable < AVATAR_UPLOAD_COST){
+            if (errorEl) errorEl.textContent = 'Not enough nuggets. Need ' + AVATAR_UPLOAD_COST + ', available ' + avatarCropAvailable;
+            return;
+          }
           cropSubmitBtn.disabled = true;
-          callSubmitAvatarUpload(adopted.name, avatarCropDataUrl, 25).then(function(res){
+          avatarCropSubmitting = true;
+          updateAvatarCropAffordability({ ok: true, available: avatarCropAvailable });
+          callSubmitAvatarUpload(adopted.name, avatarCropDataUrl, AVATAR_UPLOAD_COST).then(function(res){
+            avatarCropSubmitting = false;
             cropSubmitBtn.disabled = false;
             if (!res || !res.ok){
               if (errorEl) errorEl.textContent = (res && res.error) || 'Failed to submit avatar.';
+              refreshAvatarCropAffordability(adopted.name).then(function(){
+                updateAvatarCropAffordability({
+                  ok: true,
+                  available: avatarCropAvailable,
+                  keepError: true,
+                });
+                if (errorEl) errorEl.textContent = (res && res.error) || 'Failed to submit avatar.';
+              });
               return;
             }
-            toast('Avatar submitted for approval. -25 nuggets');
+            toast('Avatar submitted for approval. -' + AVATAR_UPLOAD_COST + ' nuggets');
             closeAvatarCropOverlay();
-            showProfile();
+            refreshWalletAfterAvatarPurchase(adopted.name).then(function(){
+              showProfile();
+            });
           });
         });
       }

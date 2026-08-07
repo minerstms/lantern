@@ -247,8 +247,11 @@
     }
 
     function callGetBalance(characterName){
+      if (window.LanternWallet && typeof window.LanternWallet.fetchBalance === 'function') {
+        return window.LanternWallet.fetchBalance(characterName);
+      }
       if (economyApiBase != null) {
-        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(characterName), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
+        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(characterName), { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok) return { ok: true, student_name: characterName, earned: res.earned, spent: res.spent, available: res.balance };
           return { ok: false, error: res && res.error || 'Failed' };
         }).catch(function(){ return { ok: false, error: 'Network error' }; });
