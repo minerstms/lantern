@@ -17,19 +17,20 @@
   --lantern-rail-card-outer-width: var(--lantern-card-width);
   /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
   --lantern-opened-content-max-width: 520px;
-  /* Contribute Studio RIGHT opened preview — large sibling of 280px canonical rail card. */
-  --lantern-studio-opened-card-width: 440px;
-  --lantern-studio-opened-title-size: 26px;
-  --lantern-studio-opened-title-line-height: 1.12;
-  --lantern-studio-opened-meta-size: 15px;
-  --lantern-studio-opened-badge-size: 15px;
+  /* Contribute Studio RIGHT opened preview — 2× canonical rail card (560 × 315). */
+  --lantern-studio-opened-card-width: 560px;
+  --lantern-studio-opened-title-size: 32px;
+  --lantern-studio-opened-title-line-height: 1.1;
+  --lantern-studio-opened-meta-size: 18px;
+  --lantern-studio-opened-badge-size: 17px;
   --lantern-studio-opened-overlay-max: 36%;
-  /* Contribute Studio three-pane desktop geometry (RIGHT large preview protected). */
+  /* Contribute Studio desktop canvas — CENTER page-centered at 50vw. */
   --lantern-studio-left-col-width: 300px;
-  --lantern-studio-right-col-width: 460px;
-  --lantern-studio-center-min-width: 400px;
-  --lantern-studio-center-max-width: 760px;
-  --lantern-studio-col-gap: 24px;
+  --lantern-studio-right-col-width: 600px;
+  --lantern-studio-center-width: 640px;
+  --lantern-studio-center-half: 320px;
+  --lantern-studio-col-gap: 20px;
+  --lantern-studio-desktop-break: 1200px;
   /* Identity row (Explore rail, feed posts, news, missions, detail overlay): avatar + first name — one contract. */
   --lantern-card-identity-avatar-size: 32px;
   --lantern-card-identity-gap: 12px;
@@ -1230,8 +1231,8 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   margin-inline: auto;
   flex-shrink: 0;
 }
-@media (min-width: 900px) {
-  /* Desktop: fixed large preview — outer Studio shell clips instead of crushing card width. */
+@media (min-width: 1200px) {
+  /* Desktop: fixed 560px large preview — outer Studio shell clips instead of crushing card width. */
   .studioOpenedHero,
   .studioOpenedBody {
     width: var(--lantern-studio-opened-card-width);
@@ -1250,8 +1251,8 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   max-height: var(--lantern-studio-opened-overlay-max);
 }
 .studioOpenedHeroFrame .lanternCanonicalCardCaption {
-  padding: 0 16px 14px;
-  padding-right: 16px;
+  padding: 0 18px 16px;
+  padding-right: 18px;
 }
 .studioOpenedHeroFrame .lanternCanonicalCardTitle {
   font-size: var(--lantern-studio-opened-title-size);
@@ -1266,12 +1267,12 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 }
 .studioOpenedHeroFrame .lanternCanonicalCardMeta {
   font-size: var(--lantern-studio-opened-meta-size);
-  margin-top: 6px;
+  margin-top: 8px;
   line-height: 1.2;
 }
 .studioOpenedHeroFrame .lanternCanonicalCardBadgeLayer {
-  top: 10px;
-  left: 10px;
+  top: 12px;
+  left: 12px;
   right: auto;
 }
 .studioOpenedHeroFrame .lanternCanonicalCardTypeBadge,
