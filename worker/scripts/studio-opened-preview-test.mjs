@@ -31,6 +31,15 @@ else bad('CENTER width token');
 if (/--lantern-studio-right-col-width:\s*600px/.test(cardsCss)) ok('RIGHT panel 600px');
 else bad('RIGHT panel width');
 
+if (/--lantern-studio-left-col-max:\s*600px/.test(cardsCss)) ok('LEFT pane max 600px');
+else bad('LEFT pane max');
+
+if (/--lantern-studio-left-col-width:\s*clamp\(/.test(cardsCss)) ok('LEFT responsive clamp width');
+else bad('LEFT clamp width');
+
+if (!/--lantern-studio-left-col-width:\s*300px/.test(cardsCss)) ok('obsolete fixed 300px LEFT removed');
+else bad('fixed 300px LEFT still present');
+
 if (/\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw - var\(--lantern-studio-center-half\)\)/.test(contributeHtml)) {
   ok('CENTER page-centered via 50vw minus half-width');
 } else bad('CENTER page centering');
@@ -230,14 +239,28 @@ if (LUI && LUI.renderFeedItemDetailInto) {
 vm.runInContext(streamGridJs, sandbox);
 const SG = sandbox.LANTERN_STUDIO_STREAM_GRID;
 if (SG && typeof SG.computeLayout === 'function') {
-  const normal = SG.computeLayout(284, 400);
-  if (normal.cardW >= SG.MIN_CARD_DISPLAY_WIDTH && normal.cardW <= SG.MAX_CARD_DISPLAY_WIDTH) {
-    ok('normal layout card width in useful range');
-  } else bad('normal card width', String(normal.cardW));
-  const expectedH = normal.cardW * (SG.CANONICAL_CARD_HEIGHT / SG.CANONICAL_CARD_WIDTH);
-  if (Math.abs(normal.cardH - expectedH) < 0.01) ok('wrapper reserves correct 16:9 height');
-  else bad('16:9 height', normal.cardH + ' vs ' + expectedH);
-  if (normal.sceneW === 3 * normal.cardW + 2 * SG.GRID_GAP) ok('scene width deterministic');
+  const pad = 12;
+  const widePane = SG.computeLeftPaneWidth(2000, pad);
+  const normalPane = SG.computeLeftPaneWidth(1366, pad);
+  const zoomPane = SG.computeLeftPaneWidth(1090, pad);
+  if (widePane === 600) ok('wide ~2000px LEFT reaches 600px max');
+  else bad('wide LEFT width', String(widePane));
+  if (normalPane >= 300 && normalPane <= 340) ok('1366px LEFT uses available ~331px');
+  else bad('1366 LEFT width', String(normalPane));
+  if (zoomPane >= 120 && zoomPane < 250) ok('1090px LEFT narrows for 125% zoom');
+  else bad('1090 LEFT width', String(zoomPane));
+
+  const wideGrid = SG.computeLayout(widePane - 16, 500);
+  if (wideGrid.cardW >= 170 && wideGrid.cardW <= 195) ok('wide LEFT mini cards ~175-190px');
+  else bad('wide card width', String(wideGrid.cardW));
+  const normalGrid = SG.computeLayout(normalPane - 16, 400);
+  if (normalGrid.cardW >= 96 && normalGrid.cardW <= 110) ok('1366 LEFT mini cards ~96-110px');
+  else bad('normal card width', String(normalGrid.cardW));
+
+  const expectedH = wideGrid.cardW * (SG.CANONICAL_CARD_HEIGHT / SG.CANONICAL_CARD_WIDTH);
+  if (Math.abs(wideGrid.cardH - expectedH) < 0.01) ok('wrapper reserves correct 16:9 height');
+  else bad('16:9 height', wideGrid.cardH + ' vs ' + expectedH);
+  if (wideGrid.sceneW === 3 * wideGrid.cardW + 2 * SG.GRID_GAP) ok('scene width deterministic');
   else bad('scene width');
   const tight = SG.computeLayout(120, 200);
   if (tight.cardW === SG.MIN_CARD_DISPLAY_WIDTH && tight.clipsHorizontally) {
@@ -245,6 +268,8 @@ if (SG && typeof SG.computeLayout === 'function') {
   } else bad('clip floor', JSON.stringify(tight));
   if (SG.CENTER_INDEX === 4) ok('center draft is grid slot 5');
   else bad('center slot');
+  if (!streamGridJs.includes('MAX_CARD_W = 128')) ok('obsolete 128px card cap removed');
+  else bad('128px cap still present');
 } else bad('computeLayout export');
 
 console.log('\n--- studio-opened-preview-test: ' + pass + ' passed, ' + fail + ' failed ---');

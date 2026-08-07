@@ -10,7 +10,11 @@
   var CANONICAL_H = 157.5;
   var GRID_GAP = 6;
   var MIN_CARD_W = 96;
-  var MAX_CARD_W = 128;
+  var LEFT_PANE_MIN = 120;
+  var LEFT_PANE_MAX = 600;
+  var CENTER_HALF = 320;
+  var STUDIO_COL_GAP = 20;
+  var DEFAULT_PAD_X = 12;
 
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -70,13 +74,22 @@
   }
 
   /**
-   * Compute displayed card size. Never shrink below MIN_CARD_W — viewport clips instead.
+   * Mirror CSS --lantern-studio-left-col-width clamp for tests/layout.
+   */
+  function computeLeftPaneWidth(viewportW, padX) {
+    padX = padX == null ? DEFAULT_PAD_X : padX;
+    var available = viewportW * 0.5 - CENTER_HALF - STUDIO_COL_GAP - padX;
+    return Math.max(LEFT_PANE_MIN, Math.min(LEFT_PANE_MAX, available));
+  }
+
+  /**
+   * Compute displayed card size from viewport inner width. Never shrink below MIN_CARD_W — viewport clips instead.
    */
   function computeLayout(viewportW, viewportH) {
     viewportW = Math.max(0, viewportW || 0);
     viewportH = Math.max(0, viewportH || 0);
-    var fitW = viewportW > 0 ? (viewportW - 2 * GRID_GAP) / 3 : MAX_CARD_W;
-    var cardW = Math.min(MAX_CARD_W, fitW);
+    var fitW = viewportW > 0 ? (viewportW - 2 * GRID_GAP) / 3 : MIN_CARD_W;
+    var cardW = fitW;
     if (cardW < MIN_CARD_W) cardW = MIN_CARD_W;
     var cardH = cardW * (CANONICAL_H / CANONICAL_W);
     var sceneW = 3 * cardW + 2 * GRID_GAP;
@@ -281,9 +294,11 @@
     CANONICAL_CARD_WIDTH: CANONICAL_W,
     CANONICAL_CARD_HEIGHT: CANONICAL_H,
     MIN_CARD_DISPLAY_WIDTH: MIN_CARD_W,
-    MAX_CARD_DISPLAY_WIDTH: MAX_CARD_W,
+    LEFT_PANE_MIN: LEFT_PANE_MIN,
+    LEFT_PANE_MAX: LEFT_PANE_MAX,
     GRID_GAP: GRID_GAP,
     computeLayout: computeLayout,
+    computeLeftPaneWidth: computeLeftPaneWidth,
     getFallbackContextItems: getFallbackContextItems
   };
 })(typeof window !== 'undefined' ? window : self);

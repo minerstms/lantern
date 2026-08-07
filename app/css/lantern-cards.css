@@ -18,7 +18,10 @@
   /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
   --lantern-opened-content-max-width: 520px;
   /* Contribute Studio desktop canvas — CENTER page-centered at 50vw. */
-  --lantern-studio-left-col-width: 300px;
+  --lantern-studio-left-col-min: 120px;
+  --lantern-studio-left-col-max: 600px;
+  --lantern-studio-left-available: calc(50vw - var(--lantern-studio-center-half) - var(--lantern-studio-col-gap) - max(var(--lantern-pad-x), env(safe-area-inset-left, 0px)));
+  --lantern-studio-left-col-width: clamp(var(--lantern-studio-left-col-min), var(--lantern-studio-left-available), var(--lantern-studio-left-col-max));
   --lantern-studio-right-col-width: 600px;
   --lantern-studio-center-width: 640px;
   --lantern-studio-center-half: 320px;
