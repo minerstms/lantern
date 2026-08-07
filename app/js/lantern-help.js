@@ -34,9 +34,9 @@
     content_tabs: 'Filter your creations by type: All, Image, Link, Video, Web App, or Project.',
     pin_post: 'Pin a post to keep it at the top of your creations in Locker → Overview. Only you see your pinned posts there.',
     reactions: 'Like, favorite, or fire a post to show you enjoyed it. These are positive reactions only.',
-    redeem_nuggets: 'Moved: teachers issue catalog rewards in Teacher → Rewards Panel (Manual catalog reward). Students spend nuggets in Locker → Store on cosmetics and unlocks.',
+    redeem_nuggets: 'Teachers record manual sales in Teacher → Rewards Panel (Manual sale). Students spend nuggets in Locker → Store on cosmetics and unlocks.',
     store_wallet: 'Your nugget totals (Available, Earned, Spent) for the character you adopted in Locker Overview. Refresh balance updates the numbers.',
-    teacher_catalog_reward: 'Pick a student, choose a catalog item, set quantity, and tap Issue reward. This deducts nuggets from that student’s wallet. Students browse and buy in Locker → Store on their own.',
+    teacher_manual_sale: 'Pick a student, enter a Nugget amount, optionally add a sale note, and tap Record Sale. This deducts nuggets from that student’s wallet through the same ledger as store redemptions.',
     cosmetics: 'Buy cosmetics like frames, backgrounds, and badges in Locker → Store. Equip them in Edit Profile on Locker → Overview.',
     display_page: 'The Display page shows approved work on a big screen, like in a hallway. It rotates through teacher picks, news, and achievements.',
     filter_chips: 'Tap a chip to filter what you see (when this row is on the page).',
@@ -49,7 +49,7 @@
     school_survival: 'Mini Games: handbook and local picture activities. Tap answers to learn why; scores are not saved to your account.',
     approvals_queue: 'Items waiting for your review: news articles and avatar uploads. Use Approve, Reject, or Return. Approving can grant nuggets (see Rewards Panel). Only approved items appear to students.',
     moderation: 'Moderation: hide live posts from public view or restore hidden items. Hidden content stays listed here until you restore it. Flagged items may need review.',
-    rewards_panel: 'Teachers grant and manage nugget rewards here through Approvals, Create Mission, and Manual catalog reward below. Students spend nuggets only in Locker → Store — that Store is the student catalog, not a teacher tool.',
+    rewards_panel: 'Teachers grant and manage nugget rewards here through Approvals, Create Mission, and Manual sale below. Students spend nuggets only in Locker → Store — that Store is the student catalog, not a teacher tool.',
     verify_page: 'Verify & Simulate: QA tools for seeing how content flows through approvals to Locker and Lantern rails. Simulation is not real authentication — use the routing matrix card for code-backed paths.',
   };
 

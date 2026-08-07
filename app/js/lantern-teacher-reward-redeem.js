@@ -1,15 +1,13 @@
 (function () {
   'use strict';
-  (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
+  (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
 
   var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
   var el = function (id) { return document.getElementById(id); };
   var overlay = el('teacherRewardOverlay');
 
-  var catalog = [];
   var students = [];
   var selectedStudentName = '';
-  var selectedItemId = '';
 
   function tryPlayCash(){
     if (window.MTSS_SFX && typeof window.MTSS_SFX.playChaChing === 'function') {
@@ -69,34 +67,46 @@
   }
 
   function callEconomyTransact(characterName, delta, kind, source, note){
-    if (economyApiBase == null) return Promise.resolve({ ok: false });
+    if (economyApiBase == null) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
     return fetch(economyApiBase + '/api/economy/transact', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
-    }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+    }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
   }
 
-  function callRedeem(characterName, itemId, qty, note){
-    var cat = (window.LANTERN_DATA && window.LANTERN_DATA.ensureCatalog) ? window.LANTERN_DATA.ensureCatalog() : [];
-    var item = cat.find(function(x){ return x.item_id === itemId; }) || (cat[0] || { item_id: 'GENERIC', item_name: 'Reward', cost: 1 });
-    var cost = Number(item.cost) || 1;
-    var totalCost = cost * (Math.max(1, Math.floor(Number(qty) || 1)));
+  function parseSaleAmount(raw){
+    var n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return null;
+    return n;
+  }
+
+  function callManualSale(characterName, amount, note){
+    var ledgerNote = (note && String(note).trim()) || 'Manual sale';
     if (economyApiBase) {
-      return callEconomyTransact(characterName, -totalCost, 'store_redeem', 'REDEEM', note || item.item_name).then(function(tRes){
-        if (!tRes || !tRes.ok) return { ok: false, error: tRes && (tRes.error === 'insufficient' ? 'Not enough nuggets. Need ' + totalCost + ', available ' + (tRes.available || 0) : tRes.error) || 'Redeem failed' };
-        var run = createRun ? createRun() : null;
-        if (!run) return { ok: true, student_name: characterName, item: item, qty: qty, total_cost: totalCost, available_before: (tRes.balance_after || 0) + totalCost, available_after: tRes.balance_after };
-        return new Promise(function(resolve, reject){
-          run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).storeRedeem({ student_name: characterName, item_id: itemId, qty: qty, note: note, economy_backend_charged: true, available_after: tRes.balance_after });
-        });
+      return callEconomyTransact(characterName, -amount, 'store_redeem', 'TEACHER_MANUAL_SALE', ledgerNote).then(function(tRes){
+        if (!tRes || !tRes.ok) {
+          var errMsg = tRes && tRes.error === 'insufficient'
+            ? 'Not enough nuggets. Need ' + amount + ', available ' + (tRes.available || 0)
+            : (tRes && tRes.error || 'Sale failed');
+          return { ok: false, error: errMsg };
+        }
+        return {
+          ok: true,
+          student_name: characterName,
+          amount: amount,
+          total_cost: amount,
+          available_before: (tRes.balance_after != null ? Number(tRes.balance_after) : 0) + amount,
+          available_after: tRes.balance_after,
+          transaction_id: tRes.id || '',
+        };
       });
     }
     var run = createRun ? createRun() : null;
     if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
     return new Promise(function(resolve){
-      run.withSuccessHandler(function(res){ resolve(res); }).withFailureHandler(function(err){ resolve({ok:false, error: String(err && err.message || err)}); }).storeRedeem({ student_name: characterName, item_id: itemId, qty: qty, note: note });
+      run.withSuccessHandler(function(res){ resolve(res); }).withFailureHandler(function(err){ resolve({ok:false, error: String(err && err.message || err)}); }).storeManualSale({ student_name: characterName, amount: amount, note: ledgerNote });
     });
   }
 
@@ -144,34 +154,6 @@
       var pill = el('teacherRewardSelectedPill');
       if (pill) pill.style.display = 'none';
     }
-  }
-
-  function setSelectedItem(itemId){
-    selectedItemId = (itemId && String(itemId).trim()) || '';
-    renderCatalogSelectionState();
-    updateSelectedItemHint();
-  }
-
-  function updateSelectedItemHint(){
-    var hint = el('teacherRewardSelectedHint');
-    if (!hint) return;
-    if (!selectedItemId){
-      hint.textContent = 'No catalog item selected.';
-      hint.classList.remove('hasSelection');
-      return;
-    }
-    var it = catalog.find(function(x){ return (x.item_id || '') === selectedItemId; });
-    hint.textContent = 'Selected: ' + (it ? (it.item_name || it.item_id) : selectedItemId);
-    hint.classList.add('hasSelection');
-  }
-
-  function renderCatalogSelectionState(){
-    var grid = el('teacherRewardCatalogGrid');
-    if (!grid) return;
-    grid.querySelectorAll('.teacherRewardCatalogPick').forEach(function(card){
-      var id = (card.dataset && card.dataset.itemId) || '';
-      card.classList.toggle('is-selected', id === selectedItemId);
-    });
   }
 
   function openStudentDropdown(){
@@ -230,104 +212,107 @@
     var res = await callGetBalance(characterName);
     if (!res.ok){
       setBalanceUI({ earned: '—', spent: '—', available: '—' });
-      showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+      showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml(res.error || 'Unknown error') + '</div>');
       return null;
     }
     setBalanceUI(res);
     return res;
   }
 
-  function renderCatalogCards(){
-    var grid = el('teacherRewardCatalogGrid');
-    if (!grid) return;
-    grid.innerHTML = '';
-    (catalog || []).forEach(function(it){
-      var card = document.createElement('div');
-      card.className = 'teacherRewardCatalogPick';
-      card.dataset.itemId = it.item_id || '';
-      card.innerHTML = '<div class="teacherRewardCatalogName">' + escapeHtml(it.item_name || it.item_id || '') + '</div><div class="teacherRewardCatalogCost">' + (Number(it.cost) || 0) + ' nuggets</div>';
-      card.addEventListener('click', function(){
-        setSelectedItem(it.item_id || '');
-      });
-      grid.appendChild(card);
+  function clearSaleForm(){
+    var amountEl = el('teacherRewardSaleAmount');
+    if (amountEl) amountEl.value = '';
+    if (el('teacherRewardNote')) el('teacherRewardNote').value = '';
+  }
+
+  function showSaleConfirm(characterName, amount, note, onConfirm){
+    var noteLine = note ? '<div style="margin-top:8px;font-size:22px;opacity:.85;">Note: ' + escapeHtml(note) + '</div>' : '';
+    showModal('Confirm sale', '<div style="font-size:22px;">Record a sale of <b>' + amount + '</b> Nuggets for <b>' + escapeHtml(characterName) + '</b>?</div>' + noteLine +
+      '<div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">' +
+      '<button type="button" class="btn" id="teacherRewardSaleCancelBtn">Cancel</button>' +
+      '<button type="button" class="btn good" id="teacherRewardSaleConfirmBtn">Record Sale</button></div>');
+    var cancelBtn = el('teacherRewardSaleCancelBtn');
+    var confirmBtn = el('teacherRewardSaleConfirmBtn');
+    if (cancelBtn) cancelBtn.addEventListener('click', hideModal);
+    if (confirmBtn) confirmBtn.addEventListener('click', function(){
+      hideModal();
+      if (typeof onConfirm === 'function') onConfirm();
     });
-    renderCatalogSelectionState();
-    updateSelectedItemHint();
   }
 
-  function setQty(v){
-    var n = Math.max(1, Math.floor(Number(v)) || 1);
-    var q = el('teacherRewardQty');
-    var d = el('teacherRewardQtyDisplay');
-    if (q) q.value = String(n);
-    if (d) d.textContent = String(n);
-  }
-
-  async function issueReward(){
+  async function executeRecordSale(){
     var characterName = getSelectedStudent();
-    var itemId = selectedItemId;
-    var qty = Math.max(1, Math.floor(Number(el('teacherRewardQty') && el('teacherRewardQty').value || 1)));
+    var amount = parseSaleAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
     var note = (el('teacherRewardNote') && el('teacherRewardNote').value || '').trim();
 
     if (!characterName){
       showModal('Select a character', '<div style="font-size:22px;">Choose a student from the list above first.</div>');
       return;
     }
-    if (!itemId){
-      showModal('Select an item', '<div style="font-size:22px;">Tap a catalog card to select an item, then tap Issue reward.</div>');
+    if (amount == null){
+      showModal('Invalid amount', '<div style="font-size:22px;">Enter a whole number of Nuggets (minimum 1).</div>');
       return;
     }
 
-    var btn = el('teacherRewardIssueBtn');
+    var btn = el('teacherRewardRecordSaleBtn');
     if (btn){
       btn.disabled = true;
-      btn.textContent = 'Issuing…';
+      btn.textContent = 'Recording…';
     }
 
-    var res = await callRedeem(characterName, itemId, qty, note);
+    var res = await callManualSale(characterName, amount, note);
 
     if (btn){
       btn.disabled = false;
-      btn.textContent = 'Issue reward';
+      btn.textContent = 'Record Sale';
     }
 
     if (!res.ok){
-      showModal('Issue failed', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml(res.error || 'Unknown error') + '</div><div style="margin-top:14px;font-size:22px;opacity:.9;">Not enough nuggets on this student’s wallet? Refresh balance and try a smaller quantity or a lower-cost item.</div>');
+      showModal('Sale failed', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml(res.error || 'Unknown error') + '</div><div style="margin-top:14px;font-size:22px;opacity:.9;">Refresh balance and try a smaller amount if the student does not have enough Nuggets.</div>');
       return;
     }
 
     tryPlayCash();
-    showModal('Issued ✅', '<div style="font-weight:900; font-size:22px; margin-bottom:8px;">' + escapeHtml(res.student_name) + ' — ' + res.qty + ' × ' + escapeHtml(res.item.item_name) + '</div><div style="color:#b9c6ea; font-weight:800;">Cost: ' + res.total_cost + ' nuggets<br/>Available: ' + res.available_before + ' → <b style="color:#38d07c;">' + res.available_after + '</b></div>');
+    showModal('Sale recorded', '<div style="font-weight:900; font-size:22px; margin-bottom:8px;">' + escapeHtml(res.student_name) + ' — ' + res.amount + ' Nuggets</div><div style="color:#b9c6ea; font-weight:800;">Available: ' + res.available_before + ' → <b style="color:#38d07c;">' + res.available_after + '</b></div>');
 
-    setQty(1);
-    if (el('teacherRewardNote')) el('teacherRewardNote').value = '';
-    setBalanceUI({ earned: res.earned != null ? res.earned : '—', spent: res.spent != null ? res.spent : '—', available: String(res.available_after) });
+    clearSaleForm();
     var balRes = await callGetBalance(characterName);
     if (balRes && balRes.ok) setBalanceUI(balRes);
-    updateSelectedItemHint();
+    else if (res.available_after != null) setBalanceUI({ earned: '—', spent: '—', available: String(res.available_after) });
+  }
+
+  function recordSale(){
+    var characterName = getSelectedStudent();
+    var amount = parseSaleAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
+    var note = (el('teacherRewardNote') && el('teacherRewardNote').value || '').trim();
+
+    if (!characterName){
+      showModal('Select a character', '<div style="font-size:22px;">Choose a student from the list above first.</div>');
+      return;
+    }
+    if (amount == null){
+      showModal('Invalid amount', '<div style="font-size:22px;">Enter a whole number of Nuggets (minimum 1).</div>');
+      return;
+    }
+    showSaleConfirm(characterName, amount, note, executeRecordSale);
   }
 
   async function bootstrapTeacherRewardTool(){
-    if (!el('teacherRewardCatalogGrid')) return;
+    if (!el('teacherRewardManualSalePanel')) return;
     var res = await callStoreBootstrap();
     if (!res.ok){
       showModal('Rewards data error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
       return;
     }
     students = (res.students || []).map(function(s){ return (s && s.student_name != null) ? String(s.student_name).trim() : (typeof s === 'string' ? s.trim() : ''); }).filter(Boolean);
-    catalog = res.catalog || [];
     closeStudentDropdown();
-    renderCatalogCards();
     setSelectedStudent('');
     setBalanceUI({ earned: '—', spent: '—', available: '—' });
-    setQty(1);
-    if (el('teacherRewardNote')) el('teacherRewardNote').value = '';
-    selectedItemId = '';
-    updateSelectedItemHint();
+    clearSaleForm();
   }
 
   function wireTeacherRewardTool(){
-    if (!el('teacherRewardCatalogGrid')) return;
+    if (!el('teacherRewardManualSalePanel')) return;
 
     var refreshBtn = el('teacherRewardRefreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', function(){
@@ -339,8 +324,15 @@
       refreshBalance();
     });
 
-    var issueBtn = el('teacherRewardIssueBtn');
-    if (issueBtn) issueBtn.addEventListener('click', function(){ issueReward(); });
+    var saleBtn = el('teacherRewardRecordSaleBtn');
+    if (saleBtn) saleBtn.addEventListener('click', function(){ recordSale(); });
+
+    var amountInput = el('teacherRewardSaleAmount');
+    if (amountInput) {
+      amountInput.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') { e.preventDefault(); recordSale(); }
+      });
+    }
 
     var inp = el('teacherRewardStudentInput');
     var dd = el('teacherRewardStudentDropdown');
@@ -354,11 +346,6 @@
       inp.addEventListener('blur', function(){ setTimeout(closeStudentDropdown, 180); });
       dd.addEventListener('mousedown', function(e){ e.preventDefault(); });
     }
-
-    var qp = el('teacherRewardQtyPlus');
-    var qm = el('teacherRewardQtyMinus');
-    if (qp) qp.addEventListener('click', function(){ setQty(Number(el('teacherRewardQty').value || 1) + 1); });
-    if (qm) qm.addEventListener('click', function(){ setQty(Number(el('teacherRewardQty').value || 1) - 1); });
 
     bootstrapTeacherRewardTool();
   }

@@ -2118,6 +2118,31 @@
           available_after: availableAfter,
         }).then(successFn).catch(failureFn);
       },
+      storeManualSale: function (payload) {
+        var characterName = String((payload && payload.student_name) || '').trim();
+        var amount = Math.floor(Number((payload && payload.amount) || 0));
+        var note = String((payload && payload.note) || '').trim() || 'Manual sale';
+        if (!characterName || amount < 1) {
+          Promise.resolve({ ok: false, error: 'Invalid sale amount' }).then(function (r) { failureFn(new Error(r.error)); }).catch(failureFn);
+          return;
+        }
+        var available = getCharacterBalance(characterName);
+        if (available < amount) {
+          Promise.resolve({ ok: false, error: 'Not enough nuggets. Need ' + amount + ', available ' + available }).then(function (r) { failureFn(new Error(r.error)); }).catch(failureFn);
+          return;
+        }
+        addPurchase(characterName, 'manual_sale', 'Manual sale', 1, amount, note);
+        checkAndUnlockAchievements(characterName);
+        var availableAfter = getCharacterBalance(characterName);
+        Promise.resolve({
+          ok: true,
+          student_name: characterName,
+          amount: amount,
+          total_cost: amount,
+          available_before: availableAfter + amount,
+          available_after: availableAfter,
+        }).then(successFn).catch(failureFn);
+      },
       submitAvatarUpload: function (payload) {
         var name = String((payload && payload.character_name) || '').trim();
         var dataUrl = String((payload && payload.image_data) || '').trim();
