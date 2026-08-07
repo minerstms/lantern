@@ -41,16 +41,20 @@ if (/\/api\/economy\/balance/.test(walletJs) && /cache: 'no-store'/.test(walletJ
 if (/AVATAR_UPLOAD_COST:\s*25|AVATAR_UPLOAD_COST = 25/.test(walletJs)) ok('lantern-wallet.js: avatar cost constant');
 else bad('lantern-wallet.js missing avatar cost');
 
-if (/LanternWallet\.fetchBalance/.test(profileJs) && /LanternWallet\.fetchBalance/.test(storeJs)) {
-  ok('profile + store reuse LanternWallet.fetchBalance');
-} else bad('profile/store do not both use LanternWallet.fetchBalance');
+if (/fetchMyBalance/.test(walletJs) && /\/api\/economy\/balance'/.test(walletJs)) {
+  ok('lantern-wallet.js: session-scoped self balance fetch');
+} else bad('lantern-wallet.js missing session-scoped fetch');
+
+if (/fetchMyBalance/.test(storeJs) || /callGetBalance\(\)/.test(storeJs)) {
+  ok('profile + store reuse session-scoped wallet helper');
+} else bad('store/profile do not use session wallet helper');
 
 if (!/locker\.wallet\.balance/.test(profileJs)) ok('profile-app: no stale locker.wallet.balance shortcut');
 else bad('profile-app still uses stale locker.wallet.balance cache');
 
-if (/refreshAvatarCropAffordability/.test(profileJs) && /Checking balance/.test(profileJs)) {
-  ok('profile-app: crop modal refreshes balance with loading state');
-} else bad('profile-app missing crop modal balance refresh');
+if (/refreshAvatarCropAffordability\(\)/.test(profileJs) && /callGetBalance\(\)/.test(profileJs)) {
+  ok('profile-app: crop modal refreshes session wallet with loading state');
+} else bad('profile-app missing crop modal session wallet refresh');
 
 if (/avatarCropAvailable == null/.test(profileJs) && /avatarCropSubmitting/.test(profileJs)) {
   ok('profile-app: blocks submit while loading or in flight');

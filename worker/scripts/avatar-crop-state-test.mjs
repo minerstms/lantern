@@ -44,13 +44,9 @@ if (/avatarCropImageLoadToken/.test(profileJs) && /loadToken !== avatarCropImage
   ok('profile-app: stale FileReader callbacks ignored');
 } else bad('profile-app missing load token guard');
 
-if (/refreshAvatarCropAffordability\(String\(adopted\.name\)/.test(profileJs) || /refreshAvatarCropAffordability\(adopted\.name\)/.test(profileJs)) {
-  ok('profile-app: wallet refresh uses getAdopted character name');
-} else bad('profile-app wallet refresh missing adopted character');
-
-if (!/refreshAvatarCropAffordability\(adopted && adopted\.name\)/.test(profileJs)) {
-  ok('profile-app: no undefined adopted reference in crop open');
-} else bad('profile-app still uses bare adopted in file handler');
+if (/refreshAvatarCropAffordability\(\)/.test(profileJs) || /callGetBalance\(\)/.test(profileJs)) {
+  ok('profile-app: wallet refresh uses session scope not client adopted.name');
+} else bad('profile-app wallet refresh missing session scope');
 
 if (/avatarCropPreviewUrl/.test(profileJs)) ok('profile-app: stable preview URL state');
 else bad('profile-app missing preview URL state');

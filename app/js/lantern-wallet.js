@@ -1,6 +1,6 @@
 /**
  * Shared authoritative wallet balance — GET /api/economy/balance.
- * Used by Store, Profile, and Avatar purchase flows.
+ * Self wallet uses session-scoped GET /api/economy/balance (no client identity param).
  */
 (function (global) {
   'use strict';
@@ -19,20 +19,71 @@
     return String(raw).replace(/\/$/, '');
   }
 
-  function adoptedCharacterName() {
-    if (global.LanternLockerMe && typeof global.LanternLockerMe.adoptedFromLocker === 'function') {
-      var locker = global.LanternLockerMe.getLockerMe ? global.LanternLockerMe.getLockerMe() : null;
-      var adopted = global.LanternLockerMe.adoptedFromLocker(locker);
-      if (adopted && adopted.name) return String(adopted.name).trim();
+  function parseBalanceResponse(res, fallbackName) {
+    if (res && res.ok) {
+      return {
+        ok: true,
+        student_name: (res.character_name || fallbackName || '').trim(),
+        available: Number(res.balance) || 0,
+        earned: res.earned,
+        spent: res.spent,
+      };
     }
-    return '';
+    return {
+      ok: false,
+      error: (res && res.error) || 'Failed',
+      available: null,
+      earned: null,
+      spent: null,
+    };
+  }
+
+  function fetchMyBalance() {
+    var base = economyApiBase();
+    if (base) {
+      return global
+        .fetch(base + '/api/economy/balance', {
+          credentials: 'include',
+          cache: 'no-store',
+        })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (res) {
+          return parseBalanceResponse(res, '');
+        })
+        .catch(function () {
+          return { ok: false, error: 'Network error', available: null, earned: null, spent: null };
+        });
+    }
+    var createRun =
+      typeof global.LANTERN_API !== 'undefined' && global.LANTERN_API.createRun ? global.LANTERN_API.createRun() : null;
+    if (!createRun) {
+      return Promise.resolve({ ok: false, error: 'API not loaded', available: null, earned: null, spent: null });
+    }
+    var lockerName = '';
+    if (global.LanternLockerMe && typeof global.LanternLockerMe.economyKeyFromLocker === 'function') {
+      var locker = global.LanternLockerMe.getLockerMe ? global.LanternLockerMe.getLockerMe() : null;
+      lockerName = global.LanternLockerMe.economyKeyFromLocker(locker);
+    }
+    return new Promise(function (resolve) {
+      createRun
+        .withSuccessHandler(function (res) {
+          resolve(res || { ok: false, available: null });
+        })
+        .withFailureHandler(function () {
+          resolve({ ok: false, available: null });
+        })
+        .storeGetBalance({ student_name: lockerName });
+    });
   }
 
   function fetchAuthoritativeBalance(characterName) {
-    var name = String(characterName || adoptedCharacterName() || '').trim();
-    if (!name) {
-      return Promise.resolve({ ok: false, error: 'no_character', available: null, earned: null, spent: null });
+    var explicit = characterName != null && String(characterName).trim() !== '';
+    if (!explicit) {
+      return fetchMyBalance();
     }
+    var name = String(characterName).trim();
     var base = economyApiBase();
     if (base) {
       return global
@@ -44,22 +95,7 @@
           return r.json();
         })
         .then(function (res) {
-          if (res && res.ok) {
-            return {
-              ok: true,
-              student_name: name,
-              available: Number(res.balance) || 0,
-              earned: res.earned,
-              spent: res.spent,
-            };
-          }
-          return {
-            ok: false,
-            error: (res && res.error) || 'Failed',
-            available: null,
-            earned: null,
-            spent: null,
-          };
+          return parseBalanceResponse(res, name);
         })
         .catch(function () {
           return { ok: false, error: 'Network error', available: null, earned: null, spent: null };
@@ -89,13 +125,14 @@
         Object.assign({ force: true, silent: true, allowHidden: true }, opts)
       );
     }
-    return fetchAuthoritativeBalance();
+    return fetchMyBalance();
   }
 
   global.LanternWallet = {
     AVATAR_UPLOAD_COST: AVATAR_UPLOAD_COST,
     economyApiBase: economyApiBase,
     fetchBalance: fetchAuthoritativeBalance,
+    fetchMyBalance: fetchMyBalance,
     refreshAllVisible: refreshAllVisibleWalletDisplays,
   };
 })(typeof window !== 'undefined' ? window : self);

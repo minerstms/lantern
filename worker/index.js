@@ -9,6 +9,7 @@ import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
+import { resolveEconomyBalanceRead } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import {
   awardAchievementsForEconomyTransact,
@@ -2106,8 +2107,17 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
 
   if (request.method === 'GET' && path === '/api/economy/balance') {
-    const characterName = (url.searchParams.get('character_name') || '').trim();
-    if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+    const requestedCharacterName = (url.searchParams.get('character_name') || '').trim();
+    const pilotAccount = await getPilotAccountFromRequest(request, env);
+    const readAuth = resolveEconomyBalanceRead(
+      pilotAccount,
+      requestedCharacterName,
+      pilotEconomyCharacterName
+    );
+    if (!readAuth.ok) {
+      return jsonResponse({ ok: false, error: readAuth.error }, readAuth.code || 403, cors);
+    }
+    const characterName = readAuth.characterName;
     const row = await db.prepare('SELECT balance, updated_at FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
     const balance = row ? (Number(row.balance) || 0) : 0;
     const sums = await db.prepare(

@@ -110,7 +110,7 @@
       if (role === 'teacher' || role === 'admin') {
         return { character_id: acct.username, name: acct.username, display_name: displayName, username: acct.username, role: role, teacher_id: id.teacher_id || null, avatar: '🌟' };
       }
-      var walletKey = String(id.economy_character_name || id.student_character_name || acct.username || '').trim();
+      var walletKey = String(id.economy_key || id.economy_character_name || id.student_character_name || acct.username || '').trim();
       if (!walletKey) return null;
       return { character_id: walletKey, name: walletKey, display_name: displayName, student_character_name: id.student_character_name || '', username: acct.username || '', role: role, avatar: '🌟' };
     }
@@ -203,14 +203,20 @@
       return String(raw).replace(/\/$/, '');
     })();
     function callGetBalance(name){
+      if (window.LanternWallet && typeof window.LanternWallet.fetchMyBalance === 'function' && (name == null || String(name).trim() === '')) {
+        return window.LanternWallet.fetchMyBalance();
+      }
       if (window.LanternWallet && typeof window.LanternWallet.fetchBalance === 'function') {
         return window.LanternWallet.fetchBalance(name);
       }
       if (economyApiBase != null) {
-        return fetch(economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name), { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
-          if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent };
-          return { ok: false, available: null };
-        }).catch(function(){ return { ok: false, available: null }; });
+        var balanceUrl = (name == null || String(name).trim() === '')
+          ? economyApiBase + '/api/economy/balance'
+          : economyApiBase + '/api/economy/balance?character_name=' + encodeURIComponent(name);
+        return fetch(balanceUrl, { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
+          if (res && res.ok) return { ok: true, available: res.balance, earned: res.earned, spent: res.spent, student_name: res.character_name || name };
+          return { ok: false, error: (res && res.error) || 'Failed', available: null };
+        }).catch(function(){ return { ok: false, error: 'Network error', available: null }; });
       }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false, available: null });
@@ -1101,10 +1107,10 @@
       var adopted = getAdopted();
       if (!adopted || !String(adopted.name || '').trim()) return;
       if (!el('balanceEl')) return;
-      callGetBalance(String(adopted.name).trim()).then(function(res){
+      callGetBalance().then(function(res){
         safeProfileStep('balanceVisibility', function(){
-          var n = res && (res.available != null) ? res.available : 0;
-          var nv = Number(n) || 0;
+          if (!res || !res.ok || res.available == null) return;
+          var nv = Number(res.available) || 0;
           var vm = typeof window !== 'undefined' ? window.LANTERN_STUDENT_PROFILE_VIEW : null;
           var be = el('balanceEl');
           var oldN = NaN;
@@ -1411,9 +1417,9 @@
         });
       }).catch(function(){ currentProfile = {}; });
 
-      callGetBalance(adopted.name).then(function(res){
+      callGetBalance().then(function(res){
         safeProfileStep('balance', function(){
-          var n = res && (res.available != null) ? res.available : 0;
+          if (!res || !res.ok || res.available == null) return;
           var be = el('balanceEl');
           var oldN = NaN;
           if (be && be.textContent) {
@@ -1421,7 +1427,7 @@
             if (Number.isFinite(parsed)) oldN = parsed;
           }
           if (!Number.isFinite(oldN)) oldN = Number(studentProfileVM.nuggets) || 0;
-          studentProfileVM.nuggets = Number(n) || 0;
+          studentProfileVM.nuggets = Number(res.available) || 0;
           if (be) {
             pulseNuggetDisplayIfGain(be, oldN, studentProfileVM.nuggets);
             be.textContent = String(studentProfileVM.nuggets);
@@ -1721,7 +1727,7 @@
       if (!opts.ok || opts.available == null) {
         avatarCropBalanceLoaded = false;
         avatarCropAvailable = null;
-        if (statusEl) statusEl.textContent = opts.error || 'Could not load wallet balance.';
+        if (statusEl) statusEl.textContent = opts.error || 'Could not check balance. Try again.';
         syncAvatarCropSubmitState();
         return;
       }
@@ -1737,9 +1743,9 @@
       syncAvatarCropSubmitState();
     }
 
-    function refreshAvatarCropAffordability(characterName){
+    function refreshAvatarCropAffordability(){
       updateAvatarCropAffordability({ loading: true });
-      return callGetBalance(characterName).then(function(res){
+      return callGetBalance().then(function(res){
         updateAvatarCropAffordability({
           ok: !!(res && res.ok),
           available: res && res.available,
@@ -1749,13 +1755,13 @@
       });
     }
 
-    function refreshWalletAfterAvatarPurchase(characterName){
+    function refreshWalletAfterAvatarPurchase(){
       if (window.LanternLockerMe && typeof window.LanternLockerMe.invalidateLockerMe === 'function') {
         window.LanternLockerMe.invalidateLockerMe();
       }
       var refresh = window.LanternWallet && window.LanternWallet.refreshAllVisible
         ? window.LanternWallet.refreshAllVisible({ force: true })
-        : callGetBalance(characterName);
+        : callGetBalance();
       return Promise.resolve(refresh).then(function(res){
         refreshProfileBalanceDisplay(res);
         return res;
@@ -2017,7 +2023,7 @@
                 if (r && r.ok){
                   toast('Purchased! Equip it above.');
                   callGetCosmeticOwnership(characterName).then(function(o){
-                    callGetBalance(characterName).then(function(bRes){
+                    callGetBalance().then(function(bRes){
                       var nextOwnership = o || { owned: [], equipped: {} };
                       var nextBalance = Number((bRes && bRes.available) || 0);
                       buildCosmeticEquip(nextOwnership.owned || [], nextOwnership.equipped || {}, cosmetics);
@@ -2126,7 +2132,7 @@
           callGetPosts(adopted.name),
           callGetCosmeticOwnership(adopted.name),
           callGetAvatarStatus(adopted.name),
-          callGetBalance(adopted.name)
+          callGetBalance()
         ];
         if (window.LANTERN_REACTIONS && window.LANTERN_REACTIONS.getPraisePreferences) {
           promises.push(window.LANTERN_REACTIONS.getPraisePreferences(adopted.name));
@@ -2214,7 +2220,7 @@
           overlayEl.classList.add('show');
           avatarCropOpenGuard = true;
           setTimeout(function(){ avatarCropOpenGuard = false; }, 400);
-          refreshAvatarCropAffordability(String(adopted.name).trim());
+          refreshAvatarCropAffordability();
 
           var reader = new FileReader();
           reader.onload = function(ev){
@@ -2384,12 +2390,12 @@
             if (!res || !res.ok){
               syncAvatarCropSubmitState();
               if (errorEl) errorEl.textContent = (res && res.error) || 'Failed to submit avatar.';
-              refreshAvatarCropAffordability(adopted.name);
+              refreshAvatarCropAffordability();
               return;
             }
             toast('Avatar submitted for approval. -' + AVATAR_UPLOAD_COST + ' nuggets');
             closeAvatarCropOverlay();
-            refreshWalletAfterAvatarPurchase(adopted.name).then(function(){
+            refreshWalletAfterAvatarPurchase().then(function(){
               showProfile();
             });
           });
