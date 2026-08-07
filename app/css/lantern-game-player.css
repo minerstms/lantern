@@ -1,0 +1,233 @@
+/* Shared fullscreen Game Player (Prompt #61) */
+
+.lanternGamePlayerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: #070b12;
+  display: flex;
+  flex-direction: column;
+  padding:
+    env(safe-area-inset-top, 0)
+    env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0)
+    env(safe-area-inset-left, 0);
+  box-sizing: border-box;
+}
+
+.lanternGamePlayerOverlay[hidden] {
+  display: none !important;
+}
+
+.lanternGamePlayer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: #eaf0ff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.lanternGamePlayerTopbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 27, 51, 0.95);
+}
+
+.lanternGamePlayerTitle {
+  margin: 0;
+  font-size: clamp(20px, 4vw, 28px);
+  font-weight: 900;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lanternGamePlayerExit {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.9rem;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #eaf0ff;
+  font-weight: 800;
+  font-size: clamp(18px, 3.5vw, 22px);
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 44px;
+}
+
+.lanternGamePlayerExit:focus-visible {
+  outline: 2px solid #5aa7ff;
+  outline-offset: 2px;
+}
+
+.lanternGamePlayerStage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.lanternGamePlayerSurfaceHost {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+body.lantern-game-player-scroll-lock {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+body.lantern-game-player-active .lanternHelpPanel,
+body.lantern-game-player-active .lanternHelpToggleWrap {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Mounted game surfaces inside player */
+.lanternGamePlayerStage .lanternGamePlayerMounted {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.lanternGamePlayerStage .gameArea {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 720px);
+  max-width: 100%;
+  min-height: min(60vh, 520px);
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.lanternGamePlayerStage .gameArea .tapZone {
+  width: 100%;
+  max-width: 100%;
+  min-height: clamp(140px, 35vh, 280px);
+  font-size: clamp(24px, 5vw, 32px);
+}
+
+.lanternGamePlayerStage .gameArea .big {
+  font-size: clamp(28px, 6vw, 40px);
+}
+
+.lanternGamePlayerStage .memGrid {
+  width: min(100%, 640px);
+  max-width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: clamp(8px, 2vw, 14px);
+}
+
+.lanternGamePlayerStage .memCard {
+  min-height: clamp(72px, 14vw, 96px);
+  font-size: clamp(28px, 6vw, 40px);
+}
+
+.lanternGamePlayerStage .cultureGameOverlay,
+.lanternGamePlayerStage .nuggetHuntOverlay {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  max-width: min(100%, 720px);
+  min-height: min(70vh, 640px);
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.lanternGamePlayerStage .cultureGameOverlay .overlayTop {
+  justify-content: flex-end;
+  padding: 0 0 0.75rem;
+  border-bottom: none;
+}
+
+.lanternGamePlayerStage .cultureGameOverlay .overlayTitle,
+.lanternGamePlayerStage .cultureGameOverlay .overlayBackBtn {
+  display: none;
+}
+
+.lanternGamePlayerStage .cultureGameOverlay .gameBody {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.lanternGamePlayerStage .cultureGameOverlay .choiceBtn {
+  font-size: clamp(20px, 4vw, 24px);
+  padding: clamp(14px, 3vw, 18px) clamp(16px, 4vw, 24px);
+}
+
+.lanternGamePlayerStage .cultureGameOverlay .triviaQuestion {
+  font-size: clamp(22px, 4.5vw, 26px);
+}
+
+.lanternGamePlayerStage .nuggetHuntOverlay .overlayBtn.exit {
+  display: none;
+}
+
+.lanternGamePlayerStage .nuggetHuntOverlay .boardWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+}
+
+.lanternGamePlayerStage .nuggetHuntOverlay .iconGrid {
+  width: 100%;
+  justify-content: center;
+}
+
+.lanternGamePlayerStage .nuggetHuntOverlay .iconCell {
+  width: clamp(40px, 10vw, 52px);
+  height: clamp(40px, 10vw, 52px);
+  font-size: clamp(22px, 5vw, 30px);
+}
+
+@media (max-width: 480px) {
+  .lanternGamePlayerStage {
+    padding: 0.65rem;
+  }
+
+  .lanternGamePlayerTopbar {
+    padding: 0.5rem 0.65rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lanternGamePlayerStage .nuggetHuntOverlay .iconCell:hover {
+    transform: none;
+  }
+}
