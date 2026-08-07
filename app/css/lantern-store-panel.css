@@ -521,6 +521,22 @@
       font-size: var(--fsLeaderboard);
     }
     .placeholderRow{ color: var(--muted); font-size: var(--fsLeaderboard); text-align: center; padding: 18px; }
+    .storeWalletRefreshStatus{ font-size: 20px; font-weight: 800; color: var(--muted); align-self: center; }
+    .nuggetHistoryCard .cardHd .h,
+    .nuggetHistoryCard .cardBd{ font-size: var(--fsLeaderboard); }
+    .nuggetHistoryList{ display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; overflow-x: hidden; }
+    .nuggetHistoryRow{ border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 12px 14px; background: rgba(255,255,255,.04); }
+    .nuggetHistoryRowMeta{ display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+    .nuggetHistoryDate{ font-weight: 900; font-size: 22px; }
+    .nuggetHistoryTime{ color: var(--muted); font-weight: 800; font-size: 18px; }
+    .nuggetHistoryRowMain{ display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .nuggetHistoryLabel{ font-weight: 800; font-size: 22px; flex: 1; min-width: 0; }
+    .nuggetHistoryDelta{ font-weight: 1000; font-size: 24px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .nuggetHistoryDelta.is-positive{ color: var(--good); }
+    .nuggetHistoryDelta.is-negative{ color: var(--warn); }
+    .nuggetHistoryStatus{ color: var(--muted); font-size: 22px; font-weight: 800; margin: 0; text-align: center; padding: 18px 8px; }
+    .nuggetHistoryStatus--error{ color: var(--warn); }
+    .nuggetHistoryActions{ margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
     th{
       text-align:left;
       color: var(--muted);

@@ -724,6 +724,41 @@ export async function handleLockerRoutes(request, url, path, env, cors, deps) {
     );
   }
 
+  if (request.method === 'GET' && path === '/api/locker/me/wallet/transactions') {
+    const rejectedParam = lockerRejectIdentityParams(url);
+    if (rejectedParam) {
+      return jsonResponse({ ok: false, error: 'identity_params_not_allowed', param: rejectedParam }, 400, cors);
+    }
+    const session = await requireLockerSession(request, env, deps);
+    if (session.error) return jsonResponse(session.error, session.status, cors);
+    if (!session.economyKey) {
+      return jsonResponse({ ok: false, error: 'account_link_missing' }, 400, cors);
+    }
+    const offsetRaw = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limitRaw = parseInt(url.searchParams.get('limit') || '25', 10);
+    const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
+    const limit = Number.isFinite(limitRaw) ? Math.min(50, Math.max(1, limitRaw)) : 25;
+    const recent = await db
+      .prepare(
+        'SELECT id, character_name, delta, kind, source, note, created_at, meta_json FROM lantern_transactions WHERE character_name = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+      )
+      .bind(session.economyKey, limit + 1, offset)
+      .all();
+    const rawRows = recent.results || [];
+    const hasMore = rawRows.length > limit;
+    const transactions = rawRows.slice(0, limit).map((r) => ({
+      id: r.id,
+      character_name: r.character_name,
+      delta: r.delta,
+      kind: r.kind || '',
+      source: r.source || '',
+      note: r.note || '',
+      created_at: r.created_at,
+      meta: parseTxMeta(r.meta_json),
+    }));
+    return jsonResponse({ ok: true, transactions, has_more: hasMore, offset, limit }, 200, cors);
+  }
+
   if (request.method === 'POST' && path === '/api/locker/achievements/unlock') {
     return jsonResponse(
       {

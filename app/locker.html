@@ -252,6 +252,7 @@
         </div>
         <div class="actionRow" style="margin-top:12px;">
           <button type="button" class="btn primary" id="refreshStoreWalletBtn">Refresh balance</button>
+          <span id="storeWalletRefreshStatus" class="storeWalletRefreshStatus" aria-live="polite"></span>
         </div>
       </div>
     </div>
@@ -275,35 +276,20 @@
     </div>
 
     <div class="grid2">
-      <div class="card leaderboardCard">
+      <div class="card nuggetHistoryCard" id="storeNuggetHistoryCard" data-help="nugget_history">
         <div class="cardHd">
           <div>
-            <div class="h">Leaderboard &amp; Ledgers</div>
-            <div class="subTitle" style="margin-top:2px; font-size:18px;">Tap a row for ledger detail · scroll chips for a quick scan</div>
+            <div class="h">Nugget History</div>
+            <div class="subTitle" style="margin-top:2px; font-size:18px;">Your earned and spent Nuggets over time.</div>
           </div>
-          <div class="pill" id="lbCount">0</div>
         </div>
         <div class="cardBd">
-          <div class="lockerSection" style="margin-bottom:12px;">
-            <div id="storeLbRailTrack" data-lantern-rail-host="true" data-scroller-aria-label="Leaderboard quick chips"></div>
+          <div id="storeNuggetHistoryList" class="nuggetHistoryList" aria-live="polite">
+            <p class="nuggetHistoryStatus">Loading…</p>
           </div>
-          <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
-            <label for="lbSearch" style="color:var(--muted); font-weight:800; font-size:20px;">Search</label>
-            <input id="lbSearch" type="text" placeholder="Search leaderboard…" autocomplete="off" style="flex:1; height:44px; border-radius:12px; border:1px solid var(--line); background:#0a1428; color:#fff; padding:0 10px; font-size:20px;">
-          </div>
-          <div class="scrollArea" style="max-height: 380px; overflow:auto; border-radius:16px;">
-            <table>
-              <thead>
-                <tr>
-                  <th id="lbColRank" style="width:44px; cursor:pointer;">#</th>
-                  <th id="lbColStudent" style="cursor:pointer;">Character</th>
-                  <th id="lbColAvail" class="num" style="cursor:pointer;">Available</th>
-                  <th id="lbColEarned" class="num" style="cursor:pointer;">Earned</th>
-                  <th id="lbColSpent" class="num" style="cursor:pointer;">Spent</th>
-                </tr>
-              </thead>
-              <tbody id="lbBody"><tr id="lbPlaceholder"><td colspan="5" class="placeholderRow">Loading…</td></tr></tbody>
-            </table>
+          <div class="nuggetHistoryActions">
+            <button type="button" class="btn" id="storeNuggetHistoryLoadMore" hidden>Load more</button>
+            <button type="button" class="btn" id="storeNuggetHistoryRetry" hidden>Try again</button>
           </div>
         </div>
       </div>
@@ -531,6 +517,11 @@
       pItems.hidden = tab !== 'items';
       pStore.hidden = tab !== 'store';
       if (tab === 'items') initItemsTab();
+      if (tab === 'store') {
+        try {
+          document.dispatchEvent(new CustomEvent('lantern-store-tab-activated'));
+        } catch (e) {}
+      }
       syncLockerTabsPlacement();
     }
 

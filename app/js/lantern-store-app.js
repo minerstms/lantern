@@ -8,7 +8,138 @@
 
     let cosmetics = [];
     let students = [];
-    let leaderboard = [];
+    var storeBootstrapped = false;
+    var lastWalletRefreshAt = 0;
+    var lastWalletRefreshPromise = null;
+    var WALLET_REFRESH_DEDUPE_MS = 4000;
+    var historyRows = [];
+    var historyOffset = 0;
+    var historyHasMore = false;
+    var historyLoading = false;
+    var historyError = null;
+    var HISTORY_PAGE_SIZE = 25;
+
+    function isStoreTabActive(){
+      var panel = el('lockerPanelStore');
+      return !!(panel && !panel.hidden);
+    }
+
+    function formatHistoryDate(iso){
+      if (!iso) return { date: '—', time: '' };
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return { date: String(iso), time: '' };
+        return {
+          date: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+          time: d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+        };
+      } catch (e) {
+        return { date: String(iso), time: '' };
+      }
+    }
+
+    function formatTransactionLabel(tx){
+      var kind = String(tx && tx.kind || '').toLowerCase();
+      var source = String(tx && tx.source || '').toUpperCase();
+      var note = String(tx && tx.note || '').trim();
+      if (source === 'TEACHER_MANUAL_SALE') return note || 'Manual sale';
+      if (kind === 'store_redeem' && source === 'TEACHER_MANUAL_SALE') return note || 'Manual sale';
+      if (kind === 'cosmetic') return note || 'Store purchase';
+      if (kind === 'store_redeem') return note || 'Store purchase';
+      if (kind === 'daily_hunt') return 'Daily nugget hunt';
+      if (source === 'MISSION' || kind === 'mission') return note || 'Mission reward';
+      if (source.indexOf('MTSS') >= 0 || source.indexOf('NUGGET') >= 0) return note || 'TMS Nuggets award';
+      if (note) return note;
+      if (kind) return kind.replace(/_/g, ' ');
+      if (source) return source.replace(/_/g, ' ');
+      return 'Nugget activity';
+    }
+
+    function formatDelta(delta){
+      var n = Math.floor(Number(delta) || 0);
+      if (n > 0) return '+' + n;
+      return String(n);
+    }
+
+    function renderNuggetHistoryList(){
+      var list = el('storeNuggetHistoryList');
+      var loadMoreBtn = el('storeNuggetHistoryLoadMore');
+      var retryBtn = el('storeNuggetHistoryRetry');
+      if (!list) return;
+      if (historyLoading && !historyRows.length) {
+        list.innerHTML = '<p class="nuggetHistoryStatus">Loading…</p>';
+        if (loadMoreBtn) loadMoreBtn.hidden = true;
+        if (retryBtn) retryBtn.hidden = true;
+        return;
+      }
+      if (historyError && !historyRows.length) {
+        list.innerHTML = '<p class="nuggetHistoryStatus nuggetHistoryStatus--error">' + escapeHtml(historyError) + '</p>';
+        if (loadMoreBtn) loadMoreBtn.hidden = true;
+        if (retryBtn) retryBtn.hidden = false;
+        return;
+      }
+      if (!historyRows.length) {
+        list.innerHTML = '<p class="nuggetHistoryStatus">No Nugget activity yet.</p>';
+        if (loadMoreBtn) loadMoreBtn.hidden = true;
+        if (retryBtn) retryBtn.hidden = true;
+        return;
+      }
+      var html = '';
+      historyRows.forEach(function(tx){
+        var when = formatHistoryDate(tx.created_at || tx.timestamp);
+        var label = formatTransactionLabel(tx);
+        var delta = formatDelta(tx.delta != null ? tx.delta : tx.nugget_delta);
+        var deltaClass = Number(tx.delta != null ? tx.delta : tx.nugget_delta) >= 0 ? 'is-positive' : 'is-negative';
+        html += '<div class="nuggetHistoryRow">';
+        html += '<div class="nuggetHistoryRowMeta"><span class="nuggetHistoryDate">' + escapeHtml(when.date) + '</span>';
+        if (when.time) html += '<span class="nuggetHistoryTime">' + escapeHtml(when.time) + '</span>';
+        html += '</div>';
+        html += '<div class="nuggetHistoryRowMain"><span class="nuggetHistoryLabel">' + escapeHtml(label) + '</span>';
+        html += '<span class="nuggetHistoryDelta ' + deltaClass + '">' + escapeHtml(delta) + '</span></div>';
+        html += '</div>';
+      });
+      list.innerHTML = html;
+      if (loadMoreBtn) loadMoreBtn.hidden = !historyHasMore;
+      if (retryBtn) retryBtn.hidden = true;
+    }
+
+    function callLockerWalletTransactions(offset, limit){
+      var base = economyApiBase;
+      if (!base) return Promise.resolve({ ok: false, error: 'API not configured' });
+      var qs = '?offset=' + encodeURIComponent(String(offset || 0)) + '&limit=' + encodeURIComponent(String(limit || HISTORY_PAGE_SIZE));
+      return fetch(base + '/api/locker/me/wallet/transactions' + qs, { credentials: 'include', cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .catch(function(){ return { ok: false, error: 'Network error' }; });
+    }
+
+    function loadNuggetHistory(opts){
+      opts = opts || {};
+      if (!isStoreTabActive()) return Promise.resolve(null);
+      if (historyLoading) return Promise.resolve(null);
+      if (opts.reset) {
+        historyRows = [];
+        historyOffset = 0;
+        historyHasMore = false;
+        historyError = null;
+      }
+      historyLoading = true;
+      renderNuggetHistoryList();
+      return callLockerWalletTransactions(historyOffset, HISTORY_PAGE_SIZE).then(function(res){
+        historyLoading = false;
+        if (!res || !res.ok) {
+          historyError = (res && res.error) ? String(res.error) : 'Could not load history';
+          renderNuggetHistoryList();
+          return null;
+        }
+        historyError = null;
+        var batch = res.transactions || [];
+        historyRows = historyRows.concat(batch);
+        historyOffset = historyRows.length;
+        historyHasMore = !!res.has_more;
+        renderNuggetHistoryList();
+        return res;
+      });
+    }
 
     function tryPlayCash(){
       if (window.MTSS_SFX && typeof window.MTSS_SFX.playChaChing === 'function') {
@@ -46,145 +177,19 @@
       return a && a.name ? String(a.name).trim() : '';
     }
 
-    let lbSortKey = 'earned';
-    let lbSortDir = 'desc';
-
-    function getLeaderboardFilteredAndSorted(){
-      var term = (el('lbSearch') && el('lbSearch').value) ? String(el('lbSearch').value).trim().toLowerCase() : '';
-      var rows = (leaderboard || []).slice();
-      if (term) {
-        rows = rows.filter(function(r){
-          var name = String(r.student_name || r.character_name || '').toLowerCase();
-          var avail = String(r.available ?? '').toLowerCase();
-          var earned = String(r.earned ?? '').toLowerCase();
-          var spent = String(r.spent ?? '').toLowerCase();
-          return name.includes(term) || avail.includes(term) || earned.includes(term) || spent.includes(term);
-        });
-      }
-      var key = lbSortKey;
-      var dir = lbSortDir === 'asc' ? 1 : -1;
-      rows.sort(function(a, b){
-        var va, vb;
-        if (key === 'student_name' || key === 'character_name') {
-          va = String(a.student_name || a.character_name || '').toLowerCase();
-          vb = String(b.student_name || b.character_name || '').toLowerCase();
-        } else if (key === 'available' || key === 'earned' || key === 'spent') {
-          va = Number(a[key] || 0);
-          vb = Number(b[key] || 0);
-        } else {
-          va = Number(a.available || 0);
-          vb = Number(b.available || 0);
-        }
-        if (va < vb) return -1 * dir;
-        if (va > vb) return 1 * dir;
-        var na = String(a.student_name || a.character_name || '').toLowerCase();
-        var nb = String(b.student_name || b.character_name || '').toLowerCase();
-        if (na < nb) return -1;
-        if (na > nb) return 1;
-        return 0;
-      });
-      return rows;
-    }
-
-    function formatTimestamp(ts){
-      if (!ts) return '';
-      try {
-        var d = new Date(ts);
-        if (isNaN(d.getTime())) return ts;
-        var y = d.getFullYear();
-        var m = String(d.getMonth() + 1).padStart(2, '0');
-        var day = String(d.getDate()).padStart(2, '0');
-        var dateStr = y + '-' + m + '-' + day;
-        var timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-        return { dateStr: dateStr, timeStr: timeStr };
-      } catch (e) {
-        return { dateStr: ts, timeStr: '' };
-      }
-    }
-
-    function showStudentLedgerModal(name){
-      callStudentHistory(name).then(function(data){
-        if (!data.ok){
-          showModal('History Error', '<div style="color:#ffcc66;font-weight:900;">' + (data.error || 'Unknown error') + '</div>');
-          return;
-        }
-        var history = data.history || [];
-        if (!history.length){
-          showModal(name, '<div style="font-size:22px;">No nugget history yet.</div>');
-          return;
-        }
-        var totals = data.totals || {};
-        var html = '<div style="text-align:left;font-size:22px;">';
-        html += '<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.25);font-weight:900;">Earned: ' + (totals.earned ?? 0) + ' • Spent: ' + (totals.spent ?? 0) + ' • Available: ' + (totals.available ?? 0) + '</div>';
-        history.forEach(function(h){
-          var tsParts = formatTimestamp(h.timestamp || '');
-          var kind = String(h.kind || '').toUpperCase();
-          var source = String(h.source || '').toUpperCase();
-          var delta = Number(h.nugget_delta || 0);
-          var deltaText = (delta>0?'+':'') + String(delta);
-          var kindLabel = (source === 'REDEEM' || kind === 'REDEEM') ? '<span style="color:#ffcc66;font-weight:900;">REDEEM</span>' : (kind === 'POSITIVE' ? '<span style="color:#38d07c;font-weight:900;">POSITIVE</span>' : '<span style="font-weight:900;">'+kind+'</span>');
-          html += '<div style="margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:8px;">';
-          if (tsParts && tsParts.dateStr) html += '<div><b>' + tsParts.dateStr + '</b> <span style="color:#b9c6ea;font-weight:800;margin-left:6px;">' + (tsParts.timeStr || '') + '</span></div>';
-          html += '<div>' + kindLabel + ' • <span style="font-weight:900;">' + deltaText + '</span></div>';
-          html += '</div>';
-        });
-        html += '</div>';
-        showModal(name + ' — Nugget History', html);
-      });
-    }
-
-    function renderLeaderboard(){
-      var body = el('lbBody');
-      if (!body) return;
-      body.innerHTML = "";
-      var rows = getLeaderboardFilteredAndSorted();
-      var lbCount = el('lbCount');
-      if (lbCount) lbCount.textContent = String(rows.length);
-
-      var rail = el('storeLbRailTrack');
-      if (rail){
-        if (!window.LanternCards || !window.LanternCards.specLeaderboardChipRailCard || !window.LanternCards.createStudentCard){
-          if (window.LanternCanonicalFailClosed) window.LanternCanonicalFailClosed('LanternCards.specLeaderboardChipRailCard + createStudentCard required for store leaderboard rail');
-          rail.innerHTML = '';
-        } else {
-          rail.innerHTML = '';
-          rows.slice(0, 12).forEach(function(r, idx){
-            var name = r.student_name || r.character_name || '';
-            var chipEl = window.LanternCards.createStudentCard(window.LanternCards.specLeaderboardChipRailCard(idx + 1, name, 'Avail ' + String(r.available ?? '—'), idx));
-            if (chipEl) rail.appendChild(chipEl);
-          });
-          rail.querySelectorAll('[data-lb-row]').forEach(function(chip){
-            function openRow(){
-              var i = parseInt(chip.getAttribute('data-lb-row'), 10);
-              var r = rows[i];
-              if (!r) return;
-              var nm = r.student_name || r.character_name || '';
-              showStudentLedgerModal(nm);
-            }
-            chip.addEventListener('click', openRow);
-            chip.addEventListener('keydown', function(e){
-              if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openRow(); }
-            });
-          });
-        }
-      }
-
-      rows.forEach(function(r, idx){
-        var tr = document.createElement('tr');
-        var name = r.student_name || r.character_name || '';
-        tr.innerHTML = '<td>' + (idx + 1) + '</td><td>' + escapeHtml(name) + '</td><td class="num">' + (r.available ?? '') + '</td><td class="num">' + (r.earned ?? '') + '</td><td class="num">' + (r.spent ?? '') + '</td>';
-        tr.style.cursor = 'pointer';
-        tr.addEventListener('click', function(){ showStudentLedgerModal(name); });
-        body.appendChild(tr);
-      });
-    }
-
     function escapeHtml(s){
       return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; });
     }
 
-    function setBalanceLoading(show){
-      if (show){
+    function walletHasKnownValues(){
+      var a = el('avail');
+      return !!(a && a.textContent && a.textContent !== '—');
+    }
+
+    function setWalletRefreshing(show){
+      var status = el('storeWalletRefreshStatus');
+      if (status) status.textContent = show ? 'Refreshing…' : '';
+      if (show && !walletHasKnownValues()) {
         var e = el('earned');
         var s = el('spent');
         var a = el('avail');
@@ -263,14 +268,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
-    }
-
-    function callStudentHistory(characterName){
-      var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
-      return new Promise(function(resolve){
-        run.withSuccessHandler(function(res){ resolve(res); }).withFailureHandler(function(err){ resolve({ok:false, error: String(err && err.message || err)}); }).storeStudentHistory({ student_name: characterName });
-      });
     }
 
     function ownedIdsFromLockerMe() {
@@ -424,24 +421,53 @@
       });
     }
 
-    async function refreshBalance(opts){
+    async function refreshStoreWallet(opts){
       opts = opts || {};
-      var characterName = getCharacterForStore();
-      if (!characterName){
-        setBalanceUI({ earned: '—', spent: '—', available: '—' });
-        return null;
+      if (!isStoreTabActive() && !opts.allowHidden) return null;
+      var now = Date.now();
+      if (!opts.force && now - lastWalletRefreshAt < WALLET_REFRESH_DEDUPE_MS && lastWalletRefreshPromise) {
+        return lastWalletRefreshPromise;
       }
-      setBalanceLoading(true);
-      var res = await callGetBalance(characterName);
-      if (!res.ok){
-        setBalanceUI({ earned: '—', spent: '—', available: '—' });
-        if (!opts.silent) {
-          showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+      lastWalletRefreshAt = now;
+      lastWalletRefreshPromise = (async function(){
+        var characterName = getCharacterForStore();
+        if (!characterName){
+          setWalletRefreshing(false);
+          setBalanceUI({ earned: '—', spent: '—', available: '—' });
+          return null;
         }
-        return null;
+        setWalletRefreshing(true);
+        var res = await callGetBalance(characterName);
+        setWalletRefreshing(false);
+        if (!res.ok){
+          if (!walletHasKnownValues()) {
+            setBalanceUI({ earned: '—', spent: '—', available: '—' });
+          }
+          if (!opts.silent) {
+            showModal('Balance Error', '<div style="color:#ffcc66;font-weight:900;">' + (res.error || 'Unknown error') + '</div>');
+          }
+          return null;
+        }
+        setBalanceUI(res);
+        return res;
+      })();
+      return lastWalletRefreshPromise;
+    }
+
+    function refreshBalance(opts){
+      return refreshStoreWallet(opts);
+    }
+
+    async function handleStoreActivated(){
+      if (!isStoreTabActive()) return;
+      var adopted = loadAdoptedOrRedirect();
+      if (!adopted) return;
+      if (!storeBootstrapped) {
+        await fullBootstrap();
       }
-      setBalanceUI(res);
-      return res;
+      await refreshStoreWallet({ force: true, silent: true });
+      await loadNuggetHistory({ reset: true });
+      refreshDailyHunt(adopted.name);
     }
 
     var CATEGORY_LABELS = {
@@ -570,12 +596,13 @@
                 if (r && r.ok){
                   tryPlayCash();
                   showModal('Purchased!', '<div style="font-weight:900;font-size:28px;">' + escapeHtml(c.name || c.id) + ' purchased.</div><div style="color:#b9c6ea;margin-top:8px;">Equip in Locker → Items or Edit Profile.</div>');
-                  refreshBalance().then(function(br){
+                  refreshStoreWallet({ force: true, silent: true }).then(function(br){
                     var av = (br && br.ok && br.available != null) ? br.available : (r.available_after != null ? r.available_after : 0);
                     callGetCosmeticOwnership(characterName).then(function(o){
                       renderCosmetics(characterName, av, o);
                       renderFeaturedRail();
                     });
+                    loadNuggetHistory({ reset: true });
                   });
                 } else {
                   showModal('Purchase failed', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml(r.error || 'Unknown error') + '</div>');
@@ -670,15 +697,13 @@
 
       students = (res.students || []).map(function(s){ return (s && s.student_name != null) ? String(s.student_name).trim() : (typeof s === 'string' ? s.trim() : ''); }).filter(Boolean);
       cosmetics = res.cosmetics || [];
-      leaderboard = (res.store_leaderboard || []);
+      storeBootstrapped = true;
 
       renderFuturePlaceholders();
 
-      renderLeaderboard();
-
       var charName = getCharacterForStore();
       if (charName) {
-        var balRes = await refreshBalance();
+        var balRes = await refreshStoreWallet({ force: true, silent: true, allowHidden: true });
         if (balRes && balRes.ok) {
           var ownRes = await callGetCosmeticOwnership(charName);
           renderCosmetics(charName, balRes.available, ownRes);
@@ -697,38 +722,28 @@
         showModal('No character', '<div style="font-size:22px;">Adopt a character in Locker → Overview first.</div>');
         return;
       }
-      refreshBalance().then(function(balRes){
+      refreshStoreWallet({ force: true }).then(function(balRes){
         if (balRes && charName) {
           callGetCosmeticOwnership(charName).then(function(o){
             renderCosmetics(charName, balRes.available, o);
           });
         }
+        loadNuggetHistory({ reset: true });
       });
     });
 
-    (function initLeaderboardControls(){
-      var search = el('lbSearch');
-      if (search) search.addEventListener('input', renderLeaderboard);
-      function toggleSort(newKey){
-        if (lbSortKey === newKey) {
-          lbSortDir = (lbSortDir === 'asc' ? 'desc' : 'asc');
-        } else {
-          lbSortKey = newKey;
-          lbSortDir = (newKey === 'student_name' || newKey === 'character_name' ? 'asc' : 'desc');
-        }
-        renderLeaderboard();
-      }
-      var colStudent = el('lbColStudent');
-      var colAvail = el('lbColAvail');
-      var colEarned = el('lbColEarned');
-      var colSpent = el('lbColSpent');
-      var colRank = el('lbColRank');
-      if (colStudent) colStudent.addEventListener('click', function(){ toggleSort('student_name'); });
-      if (colAvail) colAvail.addEventListener('click', function(){ toggleSort('available'); });
-      if (colEarned) colEarned.addEventListener('click', function(){ toggleSort('earned'); });
-      if (colSpent) colSpent.addEventListener('click', function(){ toggleSort('spent'); });
-      if (colRank) colRank.addEventListener('click', function(){ toggleSort('available'); });
-    })();
+    var historyLoadMoreBtn = el('storeNuggetHistoryLoadMore');
+    if (historyLoadMoreBtn) historyLoadMoreBtn.addEventListener('click', function(){
+      loadNuggetHistory({ reset: false });
+    });
+    var historyRetryBtn = el('storeNuggetHistoryRetry');
+    if (historyRetryBtn) historyRetryBtn.addEventListener('click', function(){
+      loadNuggetHistory({ reset: true });
+    });
+
+    document.addEventListener('lantern-store-tab-activated', function(){
+      handleStoreActivated();
+    });
 
     (function(){
       var nuggetEl = el('storeDailyHuntNuggetEl');
@@ -743,7 +758,9 @@
               showModal('Hidden nugget found!', '<div style="font-size:28px;font-weight:900;color:#38d07c;">+' + (res.nuggets || 1) + ' nugget' + ((res.nuggets || 1) !== 1 ? 's' : '') + label + '</div>');
               nuggetEl.style.display = 'none';
               refreshDailyHunt(adopted.name);
-              refreshBalance();
+              refreshStoreWallet({ force: true, silent: true }).then(function(){
+                loadNuggetHistory({ reset: true });
+              });
             }
           });
         });
@@ -755,14 +772,15 @@
       if (window._lanternStoreWalletVisibilityWired) return;
       window._lanternStoreWalletVisibilityWired = true;
       function runStoreWalletRefreshFromReturnEvents(){
-        var charName = getCharacterForStore();
-        if (!charName) return;
-        refreshBalance({ silent: true }).then(function(balRes){
+        if (!isStoreTabActive()) return;
+        refreshStoreWallet({ silent: true }).then(function(balRes){
+          var charName = getCharacterForStore();
           if (balRes && charName) {
             callGetCosmeticOwnership(charName).then(function(o){
               renderCosmetics(charName, balRes.available, o);
             });
           }
+          loadNuggetHistory({ reset: true });
         });
       }
       document.addEventListener('visibilitychange', function(){
@@ -779,8 +797,16 @@
       var adopted = loadAdoptedOrRedirect();
       if (!adopted) return;
       await fullBootstrap();
-      refreshBalance();
-      refreshDailyHunt(adopted.name);
+      if (isStoreTabActive()) {
+        await handleStoreActivated();
+      }
     }
+
+    window.LanternStoreWallet = {
+      refresh: refreshStoreWallet,
+      isStoreTabActive: isStoreTabActive,
+      handleStoreActivated: handleStoreActivated,
+    };
+
     document.addEventListener('lantern-class-access-resolved', function(e){ if (e.detail && e.detail.tokenValid && typeof init === 'function') init(); });
 })();

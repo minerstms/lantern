@@ -35,7 +35,8 @@
     pin_post: 'Pin a post to keep it at the top of your creations in Locker → Overview. Only you see your pinned posts there.',
     reactions: 'Like, favorite, or fire a post to show you enjoyed it. These are positive reactions only.',
     redeem_nuggets: 'Teachers record manual sales in Teacher → Rewards Panel (Manual sale). Students spend nuggets in Locker → Store on cosmetics and unlocks.',
-    store_wallet: 'Your nugget totals (Available, Earned, Spent) for the character you adopted in Locker Overview. Refresh balance updates the numbers.',
+    store_wallet: 'Your nugget totals (Available, Earned, Spent) for your signed-in account. The wallet refreshes when you open Store and when you tap Refresh balance.',
+    nugget_history: 'Your personal Nugget activity — awards, purchases, and other wallet changes. Only you can see this history.',
     teacher_manual_sale: 'Pick a student, enter a Nugget amount, optionally add a sale note, and tap Record Sale. This deducts nuggets from that student’s wallet through the same ledger as store redemptions.',
     cosmetics: 'Buy cosmetics like frames, backgrounds, and badges in Locker → Store. Equip them in Edit Profile on Locker → Overview.',
     display_page: 'The Display page shows approved work on a big screen, like in a hallway. It rotates through teacher picks, news, and achievements.',
@@ -85,6 +86,28 @@
     return wrap;
   }
 
+  function positionHelpPanel() {
+    var panel = document.getElementById('lanternHelpPanel');
+    if (!panel) return;
+    var header = document.getElementById('lanternHeader');
+    var gap = 10;
+    var bottomMargin = 16;
+    var rightInset = 12;
+    try {
+      var cs = window.getComputedStyle(document.documentElement);
+      var pad = cs.getPropertyValue('--lantern-pad-x');
+      if (pad && String(pad).trim()) rightInset = parseFloat(pad) || rightInset;
+    } catch (e) {}
+    var top = gap;
+    if (header) {
+      var rect = header.getBoundingClientRect();
+      if (rect && rect.bottom > 0) top = Math.ceil(rect.bottom) + gap;
+    }
+    panel.style.top = top + 'px';
+    panel.style.right = rightInset + 'px';
+    panel.style.maxHeight = Math.max(120, window.innerHeight - top - bottomMargin) + 'px';
+  }
+
   function init() {
     if (typeof document === 'undefined' || !document.body) return;
     var style = document.createElement('style');
@@ -94,7 +117,7 @@
       '.lanternHelpToggle{ padding: 6px 10px; font-size: 18px; font-weight: 700; border: none; border-radius: 0; background: transparent; color: rgba(234,240,255,.9); cursor: pointer; transition: color .2s ease; }',
       '.lanternHelpToggle:hover{ color: #9dd4f0; }',
       '.lanternHelpToggle.on{ color: #9dd4f0; }',
-      '.lanternHelpPanel{ position: fixed; top: 60px; right: 12px; width: 280px; max-width: calc(100vw - 24px); max-height: calc(100vh - 80px); overflow: auto; z-index: 9997; border: 2px solid rgba(90,167,255,.4); border-radius: 14px; background: linear-gradient(180deg, rgba(15,27,51,.98), rgba(10,18,36,.98)); box-shadow: 0 12px 32px rgba(0,0,0,.5); display: none; }',
+      '.lanternHelpPanel{ position: fixed; top: 120px; right: 12px; width: 280px; max-width: calc(100vw - 24px); max-height: calc(100vh - 140px); overflow-y: auto; overflow-x: hidden; z-index: 9999; border: 2px solid rgba(90,167,255,.4); border-radius: 14px; background: linear-gradient(180deg, rgba(15,27,51,.98), rgba(10,18,36,.98)); box-shadow: 0 12px 32px rgba(0,0,0,.5); display: none; }',
       '.lanternHelpPanel.visible{ display: block; }',
       '.lanternHelpPanelHd{ padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: space-between; }',
       '.lanternHelpTitle{ font-weight: 900; font-size: 22px; color: #eaf0ff; }',
@@ -125,6 +148,7 @@
         toggleBtn.classList.toggle('on', on);
       }
       if (panel) panel.classList.toggle('visible', on);
+      if (on) positionHelpPanel();
       if (!on && helpText) {
         helpText.innerHTML = '';
         helpText.textContent = 'Turn on Help Mode and hover over things to learn what they do.';
@@ -138,6 +162,7 @@
         helpText.textContent = getHelpText(key);
       }
       if (panel) panel.classList.add('visible');
+      positionHelpPanel();
     }
 
     function showRouteHelpFromEl(routeEl) {
@@ -149,6 +174,7 @@
       var ex = LRH.getLanternRouteExplanation(ctx);
       helpText.innerHTML = LRH.formatHelpHtml(ex);
       if (panel) panel.classList.add('visible');
+      positionHelpPanel();
     }
 
     function hideHelp() {
@@ -170,6 +196,9 @@
         updateUI();
       });
     }
+
+    window.addEventListener('resize', positionHelpPanel);
+    window.addEventListener('scroll', positionHelpPanel, true);
 
     document.addEventListener('mouseover', function (e) {
       if (!isHelpModeOn()) return;
@@ -227,5 +256,6 @@
     isOn: isHelpModeOn,
     setOn: setHelpMode,
     getText: getHelpText,
+    positionPanel: positionHelpPanel,
   };
 })(typeof window !== 'undefined' ? window : self);
