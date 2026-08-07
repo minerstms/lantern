@@ -23,7 +23,8 @@
   --lantern-studio-center-width: 640px;
   --lantern-studio-center-half: 320px;
   --lantern-studio-col-gap: 20px;
-  --lantern-studio-desktop-break: 1200px;
+  /* Touch/coarse stacked Studio below this width; fine-pointer desktop ignores width for three-pane canvas. */
+  --lantern-studio-touch-stack-max: 1199px;
   /* Identity row (Explore rail, feed posts, news, missions, detail overlay): avatar + first name — one contract. */
   --lantern-card-identity-avatar-size: 32px;
   --lantern-card-identity-gap: 12px;

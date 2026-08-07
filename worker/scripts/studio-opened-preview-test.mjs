@@ -35,6 +35,18 @@ if (/\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw - var\(--lantern-studio-c
   ok('CENTER page-centered via 50vw minus half-width');
 } else bad('CENTER page centering');
 
+if (/@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw - var\(--lantern-studio-center-half\)\)/.test(contributeHtml)) {
+  ok('desktop three-pane uses fine-pointer query not width breakpoint');
+} else bad('fine-pointer desktop canvas');
+
+if (/@media \(\(hover: none\) or \(pointer: coarse\)\) and \(max-width: 1199px\)/.test(contributeHtml)) {
+  ok('touch/coarse narrow stack query');
+} else bad('touch stack query');
+
+if (!/@media \(max-width: 1199px\)\{[\s\S]*\.studioColCenter\{ order: -1/.test(contributeHtml)) {
+  ok('width-only 1199px stack removed for desktop zoom');
+} else bad('premature width-only stack still present');
+
 if (/\.studioColRight[\s\S]*overflow-x:\s*hidden/.test(contributeHtml)) ok('RIGHT column hides horizontal overflow');
 else bad('RIGHT overflow-x hidden');
 
