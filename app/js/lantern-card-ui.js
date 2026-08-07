@@ -1008,6 +1008,23 @@
     };
   }
 
+  function wrapStudioPreviewForScale(modal) {
+    var SPS = global.LANTERN_STUDIO_OPENED_PREVIEW_SCALE;
+    if (SPS && typeof SPS.wrapModal === 'function') return SPS.wrapModal(modal);
+    var scaleHost = global.document.createElement('div');
+    scaleHost.className = 'studioOpenedPreviewScaleHost';
+    var stage = global.document.createElement('div');
+    stage.className = 'studioOpenedPreviewScaleStage';
+    if (modal) stage.appendChild(modal);
+    scaleHost.appendChild(stage);
+    return scaleHost;
+  }
+
+  function scheduleStudioPreviewScale(container) {
+    var SPS = global.LANTERN_STUDIO_OPENED_PREVIEW_SCALE;
+    if (SPS && typeof SPS.scheduleAttach === 'function') SPS.scheduleAttach(container);
+  }
+
   /**
    * Shared production detail renderer — Explore/Locker overlay + Studio RIGHT preview.
    */
@@ -1017,9 +1034,14 @@
     var isStudio = opts.mode === 'studio-preview';
     container.innerHTML = '';
     var modal = buildProductionDetailModalShell({ studioPreview: isStudio });
-    container.appendChild(modal);
+    if (isStudio) {
+      container.appendChild(wrapStudioPreviewForScale(modal));
+    } else {
+      container.appendChild(modal);
+    }
     if (isStudio) wireStudioPreviewClose(modal);
     fillFeedItemDetailModal(modal, item, opts);
+    if (isStudio) scheduleStudioPreviewScale(container);
     return modal;
   }
 
@@ -1029,7 +1051,7 @@
     poll = poll || {};
     container.innerHTML = '';
     var modal = buildProductionDetailModalShell({ studioPreview: true });
-    container.appendChild(modal);
+    container.appendChild(wrapStudioPreviewForScale(modal));
     wireStudioPreviewClose(modal);
     var v = modal.querySelector('.lanternCardDetailVisual');
     var t = modal.querySelector('.lanternCardDetailTitle');
@@ -1054,6 +1076,7 @@
     }
     if (a) a.innerHTML = '';
     if (r) r.innerHTML = '';
+    scheduleStudioPreviewScale(container);
   }
 
   function mountStudioNewsOpenedInto(container, n, opts) {

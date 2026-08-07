@@ -711,23 +711,6 @@
       z-index: 2;
       overflow: visible;
     }
-    .studioStreamGridCardFit--draft::before{
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: calc(var(--studio-grid-card-w, 96px) * var(--studio-grid-draft-focus-scale, 1.25) + 14px);
-      height: calc(var(--studio-grid-card-h, 54px) * var(--studio-grid-draft-focus-scale, 1.25) + 10px);
-      transform: translate(-50%, -50%);
-      border-radius: 12px;
-      background: radial-gradient(ellipse at center, rgba(90,167,255,.42) 0%, rgba(90,167,255,.14) 52%, transparent 72%);
-      box-shadow:
-        0 0 20px rgba(90,167,255,.55),
-        0 0 36px rgba(90,167,255,.28),
-        0 0 52px rgba(56,208,124,.12);
-      pointer-events: none;
-      z-index: 0;
-    }
     .studioStreamGridCardScale{
       transform-origin: top left;
       flex-shrink: 0;
@@ -737,11 +720,11 @@
     .studioStreamGridCell--draft .studioScrollerCardActive,
     .studioStreamGridCell--draft .studioScrollerCardActive.exploreCard{
       box-shadow:
-        0 0 0 2px rgba(130,200,255,.92),
-        0 0 0 4px rgba(90,167,255,.28),
-        0 0 22px rgba(90,167,255,.72),
-        0 0 40px rgba(90,167,255,.38),
-        inset 0 0 14px rgba(90,167,255,.12);
+        0 0 0 2px rgba(130,200,255,.95),
+        0 0 0 3px rgba(90,167,255,.32),
+        0 0 10px rgba(90,167,255,.62),
+        0 0 18px rgba(90,167,255,.34),
+        inset 0 0 8px rgba(90,167,255,.1);
     }
     @media (hover: hover) and (pointer: fine){
       .studioColLeft .studioSidePanelHd{
@@ -1310,6 +1293,7 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-studio-stream-grid.js"></script>
+  <script src="js/lantern-studio-opened-preview-scale.js"></script>
   <script src="js/lantern-reactions.js"></script>
   <script src="js/lantern-final-reactions.js"></script>
   <script src="js/lantern-card-ui.js"></script>

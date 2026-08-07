@@ -13,6 +13,7 @@ const cardUiJs = fs.readFileSync(path.join(root, 'app/js/lantern-card-ui.js'), '
 const finalRxJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.js'), 'utf8');
 const contributeHtml = fs.readFileSync(path.join(root, 'app/contribute.html'), 'utf8');
 const streamGridJs = fs.readFileSync(path.join(root, 'app/js/lantern-studio-stream-grid.js'), 'utf8');
+const previewScaleJs = fs.readFileSync(path.join(root, 'app/js/lantern-studio-opened-preview-scale.js'), 'utf8');
 
 let pass = 0;
 let fail = 0;
@@ -37,8 +38,8 @@ else bad('LEFT max-600 still present');
 if (!/--lantern-studio-left-col-width:\s*clamp\(/.test(cardsCss)) ok('obsolete LEFT clamp removed');
 else bad('LEFT clamp still present');
 
-if (/--lantern-studio-modal-content-min:\s*280px/.test(cardsCss)) ok('RIGHT modal content minimum token');
-else bad('RIGHT modal min token');
+if (/--lantern-studio-preview-min-scale:\s*0\.58/.test(cardsCss)) ok('RIGHT preview minimum scale token');
+else bad('RIGHT preview min scale token');
 
 if (/--lantern-studio-grid-card-max:\s*200px/.test(cardsCss)) ok('LEFT grid card maximum token');
 else bad('LEFT grid max token');
@@ -165,13 +166,40 @@ if (contributeHtml.includes('renderStudioLeftDraft') && contributeHtml.includes(
 if (contributeHtml.includes('lantern-feed-api.js')) ok('contribute loads feed API for context cards');
 else bad('contribute missing feed API script');
 
-if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*aspect-ratio:\s*16 \/ 9/.test(cardsCss)) {
-  ok('Studio preview media preserves 16:9 aspect ratio');
-} else bad('Studio preview aspect-ratio fix');
+if (contributeHtml.includes('lantern-studio-opened-preview-scale.js')) ok('RIGHT uniform scale script loaded');
+else bad('RIGHT scale script missing');
 
-if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*min-width:\s*var\(--lantern-studio-modal-content-min/.test(cardsCss)) {
-  ok('Studio preview modal minimum useful width');
-} else bad('Studio preview modal min width');
+if (
+  cardUiJs.includes('wrapStudioPreviewForScale') &&
+  cardUiJs.includes('scheduleStudioPreviewScale') &&
+  cardUiJs.includes('studioOpenedPreviewScaleHost')
+) {
+  ok('Studio preview wraps canonical modal in scale stage');
+} else bad('Studio scale wrapper missing');
+
+if (/#studioOpenedPreviewInner \.studioOpenedPreviewScaleStage[\s\S]*transform-origin:\s*top left/.test(cardsCss)) {
+  ok('RIGHT scale stage uses top-left origin for measured wrapper');
+} else bad('RIGHT scale stage origin');
+
+if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*width:\s*var\(--lantern-opened-content-max-width/.test(cardsCss)) {
+  ok('RIGHT canonical modal stage uses production width token');
+} else bad('RIGHT canonical width');
+
+if (!/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*aspect-ratio:\s*16 \/ 9/.test(cardsCss)) {
+  ok('obsolete independent studio media reflow removed');
+} else bad('fluid studio media overrides still present');
+
+if (!/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*min-width:\s*var\(--lantern-studio-modal-content-min/.test(cardsCss)) {
+  ok('obsolete fluid modal min-width removed');
+} else bad('fluid modal min-width still present');
+
+if (previewScaleJs.includes('computeScale') && previewScaleJs.includes('MIN_SCALE = 0.58')) {
+  ok('uniform scale helper with minimum floor');
+} else bad('scale helper');
+
+if (previewScaleJs.includes('scaleHost.style.height') && previewScaleJs.includes('ResizeObserver')) {
+  ok('scaled height reservation + ResizeObserver');
+} else bad('scaled wrapper geometry');
 
 if (!/studioOpenedHero|studioOpenedPreviewShell/.test(cardUiJs)) ok('no duplicate Studio modal HTML builder');
 else bad('duplicate Studio modal template');
@@ -199,25 +227,42 @@ const sandbox = {
         tagName: String(tag || '').toUpperCase(),
         className: '',
         innerHTML: '',
+        style: { setProperty() {} },
+        clientWidth: 400,
+        offsetHeight: 480,
+        scrollHeight: 480,
         classList: { _s: new Set(), add(c) { this._s.add(c); el.className = [...this._s].join(' '); } },
         setAttribute() {},
         appendChild(child) { el.children = el.children || []; el.children.push(child); return child; },
-        querySelector(sel) {
-          if (sel === '.lanternCardDetailClose') return { addEventListener() {} };
-          if (sel === '.lanternCardDetailVisual') return visual;
-          if (sel === '.lanternCardDetailTitle') return title;
-          if (sel === '.lanternCardDetailIdentityWrap') return idw;
-          if (sel === '.lanternCardDetailMeta') return meta;
-          if (sel === '.lanternCardDetailBody') return body;
-          if (sel === '.lanternCardDetailActions') return actions;
-          if (sel === '.lanternCardDetailReactions') return reactions;
-          if (sel === '#lanternCardDetailAdminModeration') return adm;
-          if (sel === '.lanternFinalRxHost') return null;
-          return null;
-        },
         querySelectorAll() { return []; },
         addEventListener() {},
         children: [],
+      };
+      function walkQuery(node, sel) {
+        if (!node) return null;
+        if (sel.charAt(0) === '.' && node.className && node.className.split(/\s+/).includes(sel.slice(1))) return node;
+        for (var i = 0; i < (node.children || []).length; i++) {
+          var hit = walkQuery(node.children[i], sel);
+          if (hit) return hit;
+        }
+        return null;
+      }
+      el.querySelector = function (sel) {
+        if (sel === '.lanternCardDetailClose') return { addEventListener() {} };
+        if (sel === '.lanternCardDetailVisual') return visual;
+        if (sel === '.lanternCardDetailTitle') return title;
+        if (sel === '.lanternCardDetailIdentityWrap') return idw;
+        if (sel === '.lanternCardDetailMeta') return meta;
+        if (sel === '.lanternCardDetailBody') return body;
+        if (sel === '.lanternCardDetailActions') return actions;
+        if (sel === '.lanternCardDetailReactions') return reactions;
+        if (sel === '#lanternCardDetailAdminModeration') return adm;
+        if (sel === '.lanternFinalRxHost') return null;
+        return walkQuery(el, sel);
+      };
+      el.querySelectorAll = function (sel) {
+        var one = el.querySelector(sel);
+        return one ? [one] : [];
       };
       return el;
     },
@@ -237,9 +282,15 @@ const sandbox = {
     },
   },
   location: { href: '' },
+  getComputedStyle() {
+    return { getPropertyValue(name) { return name === '--lantern-opened-content-max-width' ? '520px' : ''; } };
+  },
+  requestAnimationFrame(fn) { if (typeof fn === 'function') fn(); },
+  setTimeout(fn) { if (typeof fn === 'function') fn(); },
 };
 sandbox.window = sandbox;
 vm.createContext(sandbox);
+vm.runInContext(previewScaleJs, sandbox);
 vm.runInContext(fs.readFileSync(path.join(root, 'app/js/lantern-card-ui.js'), 'utf8'), sandbox);
 
 const LUI = sandbox.LanternCardUI;
@@ -257,8 +308,11 @@ if (LUI && LUI.renderFeedItemDetailInto) {
     thumbnailUrl: 'https://example.com/a.jpg',
   }, { mode: 'studio-preview' });
   const html = container.children && container.children[0] ? container.children[0].className : '';
-  if (/lanternCardDetailModal--studioPreview/.test(html)) ok('sandbox renders studio preview modal class');
-  else bad('sandbox studio class', html);
+  if (/studioOpenedPreviewScaleHost/.test(html)) ok('sandbox wraps studio preview in scale host');
+  else bad('sandbox scale host', html);
+  const modalNode = container.querySelector && container.querySelector('.lanternCardDetailModal--studioPreview');
+  if (modalNode) ok('sandbox renders studio preview modal class');
+  else bad('sandbox studio class');
   if (sandbox._lastRxOpts && sandbox._lastRxOpts.mode === 'preview') ok('sandbox preview skips reaction API');
   else bad('sandbox reaction opts');
 } else bad('LanternCardUI sandbox load');
@@ -338,6 +392,24 @@ if (/\.studioStreamGridCell--draft[\s\S]*z-index:\s*2/.test(contributeHtml)) {
 if (/--studio-grid-draft-focus-scale/.test(contributeHtml + streamGridJs)) {
   ok('draft focus scale CSS variable wired');
 } else bad('draft focus variable');
+
+if (!/\.studioStreamGridCardFit--draft::before/.test(contributeHtml)) {
+  ok('oversized radial draft pseudo-element removed');
+} else bad('radial draft pseudo still present');
+
+if (/\.studioStreamGridCell--draft \.studioScrollerCardActive[\s\S]*box-shadow:/.test(contributeHtml)) {
+  ok('tight card-local draft glow via box-shadow');
+} else bad('card-local glow');
+
+const SPS = sandbox.LANTERN_STUDIO_OPENED_PREVIEW_SCALE;
+if (SPS && typeof SPS.computeScale === 'function') {
+  if (SPS.computeScale(520, 520) === 1) ok('RIGHT scale max is 1 at canonical width');
+  else bad('scale max', String(SPS.computeScale(520, 520)));
+  if (Math.abs(SPS.computeScale(364, 520) - 364 / 520) < 0.001) ok('RIGHT uniform scale shrinks proportionally');
+  else bad('proportional scale', String(SPS.computeScale(364, 520)));
+  if (SPS.computeScale(100, 520) === SPS.MIN_SCALE) ok('RIGHT scale floor stops below minimum');
+  else bad('scale floor', String(SPS.computeScale(100, 520)));
+} else bad('LANTERN_STUDIO_OPENED_PREVIEW_SCALE export');
 
 console.log('\n--- studio-opened-preview-test: ' + pass + ' passed, ' + fail + ' failed ---');
 process.exit(fail ? 1 : 0);
