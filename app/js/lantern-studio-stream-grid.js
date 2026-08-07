@@ -1,10 +1,16 @@
 /**
- * Contribute Studio LEFT — 3×3 mini feed grid (8 context cards + center live draft).
+ * Contribute Studio LEFT — 3×3 mini feed viewport centered on live draft (slot 5).
+ * Scene maintains useful card size; viewport clips perimeter when constrained.
  */
 (function (global) {
   'use strict';
 
   var CENTER_INDEX = 4;
+  var CANONICAL_W = 280;
+  var CANONICAL_H = 157.5;
+  var GRID_GAP = 6;
+  var MIN_CARD_W = 96;
+  var MAX_CARD_W = 128;
 
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -63,6 +69,33 @@
     return loadPromise;
   }
 
+  /**
+   * Compute displayed card size. Never shrink below MIN_CARD_W — viewport clips instead.
+   */
+  function computeLayout(viewportW, viewportH) {
+    viewportW = Math.max(0, viewportW || 0);
+    viewportH = Math.max(0, viewportH || 0);
+    var fitW = viewportW > 0 ? (viewportW - 2 * GRID_GAP) / 3 : MAX_CARD_W;
+    var cardW = Math.min(MAX_CARD_W, fitW);
+    if (cardW < MIN_CARD_W) cardW = MIN_CARD_W;
+    var cardH = cardW * (CANONICAL_H / CANONICAL_W);
+    var sceneW = 3 * cardW + 2 * GRID_GAP;
+    var sceneH = 3 * cardH + 2 * GRID_GAP;
+    var scale = cardW / CANONICAL_W;
+    var viewportMinH = viewportH > 0 ? Math.min(sceneH, viewportH) : sceneH;
+    return {
+      cardW: cardW,
+      cardH: cardH,
+      sceneW: sceneW,
+      sceneH: sceneH,
+      scale: scale,
+      gap: GRID_GAP,
+      viewportMinH: viewportMinH,
+      clipsHorizontally: sceneW > viewportW + 0.5,
+      clipsVertically: sceneH > viewportH + 0.5 && viewportH > 0
+    };
+  }
+
   function inertifyCard(node) {
     if (!node) return null;
     var list = [];
@@ -107,11 +140,17 @@
     return inertifyCard(node);
   }
 
-  function wrapScaledCard(cardEl, isDraft) {
+  function wrapScaledCard(cardEl, isDraft, layout) {
+    layout = layout || computeLayout(0, 0);
     var fit = global.document.createElement('div');
     fit.className = 'studioStreamGridCardFit' + (isDraft ? ' studioStreamGridCardFit--draft' : '');
+    fit.style.width = layout.cardW + 'px';
+    fit.style.height = layout.cardH + 'px';
     var scale = global.document.createElement('div');
     scale.className = 'studioStreamGridCardScale';
+    scale.style.width = CANONICAL_W + 'px';
+    scale.style.height = CANONICAL_H + 'px';
+    scale.style.transform = 'scale(' + layout.scale + ')';
     if (cardEl) scale.appendChild(cardEl);
     fit.appendChild(scale);
     return fit;
@@ -125,62 +164,126 @@
     if (card && card.classList) card.classList.add('studioScrollerCardActive');
   }
 
+  function applyLayout(host, layout) {
+    if (!host || !layout) return;
+    host._studioGridLayout = layout;
+    var viewport = host.querySelector('.studioStreamGridViewport');
+    var scene = host.querySelector('.studioStreamGridScene');
+    if (!viewport || !scene) return;
+
+    scene.style.width = layout.sceneW + 'px';
+    scene.style.height = layout.sceneH + 'px';
+    scene.style.gridTemplateColumns = 'repeat(3, ' + layout.cardW + 'px)';
+    scene.style.gridTemplateRows = 'repeat(3, ' + layout.cardH + 'px)';
+    scene.style.gap = layout.gap + 'px';
+
+    viewport.style.minHeight = layout.sceneH + 'px';
+
+    host.style.setProperty('--studio-grid-card-w', layout.cardW + 'px');
+    host.style.setProperty('--studio-grid-card-h', layout.cardH + 'px');
+    host.style.setProperty('--studio-grid-scale', String(layout.scale));
+
+    host.querySelectorAll('.studioStreamGridCardFit').forEach(function (fit) {
+      fit.style.width = layout.cardW + 'px';
+      fit.style.height = layout.cardH + 'px';
+    });
+    host.querySelectorAll('.studioStreamGridCardScale').forEach(function (sc) {
+      sc.style.transform = 'scale(' + layout.scale + ')';
+    });
+  }
+
+  function measureAndLayout(host) {
+    if (!host) return null;
+    var viewport = host.querySelector('.studioStreamGridViewport');
+    if (!viewport) return null;
+    var rect = viewport.getBoundingClientRect();
+    var layout = computeLayout(rect.width, rect.height);
+    applyLayout(host, layout);
+    return layout;
+  }
+
+  function ensureResizeObserver(host) {
+    if (!host || host._studioGridRO || typeof global.ResizeObserver !== 'function') return;
+    host._studioGridRO = new global.ResizeObserver(function () {
+      measureAndLayout(host);
+    });
+    host._studioGridRO.observe(host);
+    var viewport = host.querySelector('.studioStreamGridViewport');
+    if (viewport) host._studioGridRO.observe(viewport);
+  }
+
   function ensureGridShell(host) {
-    var existing = host.querySelector('.studioStreamGrid');
+    var existing = host.querySelector('.studioStreamGridScene');
     if (existing) return existing;
     host.innerHTML = '';
     host.classList.add('studioStreamGridHost');
     host.removeAttribute('data-lantern-rail-host');
     host.removeAttribute('data-scroller-aria-label');
-    var grid = global.document.createElement('div');
-    grid.className = 'studioStreamGrid';
-    grid.setAttribute('aria-label', 'Stream preview grid');
+
+    var viewport = global.document.createElement('div');
+    viewport.className = 'studioStreamGridViewport';
+
+    var scene = global.document.createElement('div');
+    scene.className = 'studioStreamGridScene';
+    scene.setAttribute('aria-label', 'Stream preview grid');
+
     for (var i = 0; i < 9; i++) {
       var cell = global.document.createElement('div');
       cell.className = 'studioStreamGridCell';
       cell.setAttribute('data-grid-slot', String(i));
       if (i === CENTER_INDEX) cell.classList.add('studioStreamGridCell--draft');
-      grid.appendChild(cell);
+      scene.appendChild(cell);
     }
-    host.appendChild(grid);
-    return grid;
+    viewport.appendChild(scene);
+    host.appendChild(viewport);
+    ensureResizeObserver(host);
+    return scene;
   }
 
   /**
    * Mount or refresh the 3×3 stream grid. Context cards built once; center draft updates live.
-   * @param {HTMLElement} host
-   * @param {HTMLElement|null} draftCardEl — canonical card node from LanternCards
-   * @param {{ esc?: function }} opts
    */
   function mount(host, draftCardEl, opts) {
     opts = opts || {};
     if (!host) return;
     loadContextItems().then(function (ctx) {
-      var grid = ensureGridShell(host);
-      var cells = grid.querySelectorAll('.studioStreamGridCell');
+      var scene = ensureGridShell(host);
+      var cells = scene.querySelectorAll('.studioStreamGridCell');
+      var layout = host._studioGridLayout || computeLayout(host.clientWidth || 280, 0);
+
       if (!host._studioGridContextBuilt) {
         var ctxIdx = 0;
         for (var i = 0; i < 9; i++) {
           if (i === CENTER_INDEX) continue;
           var card = buildContextCard(ctx[ctxIdx++], opts.esc || esc);
           cells[i].innerHTML = '';
-          if (card) cells[i].appendChild(wrapScaledCard(card, false));
+          if (card) cells[i].appendChild(wrapScaledCard(card, false, layout));
         }
         host._studioGridContextBuilt = true;
       }
+
       var draftCell = cells[CENTER_INDEX];
-      if (!draftCell) return;
-      draftCell.innerHTML = '';
-      if (draftCardEl) {
-        markDraftActive(draftCardEl);
-        draftCell.appendChild(wrapScaledCard(draftCardEl, true));
+      if (draftCell) {
+        draftCell.innerHTML = '';
+        if (draftCardEl) {
+          markDraftActive(draftCardEl);
+          draftCell.appendChild(wrapScaledCard(draftCardEl, true, layout));
+        }
       }
+
+      measureAndLayout(host);
     });
   }
 
   global.LANTERN_STUDIO_STREAM_GRID = {
     mount: mount,
     CENTER_INDEX: CENTER_INDEX,
+    CANONICAL_CARD_WIDTH: CANONICAL_W,
+    CANONICAL_CARD_HEIGHT: CANONICAL_H,
+    MIN_CARD_DISPLAY_WIDTH: MIN_CARD_W,
+    MAX_CARD_DISPLAY_WIDTH: MAX_CARD_W,
+    GRID_GAP: GRID_GAP,
+    computeLayout: computeLayout,
     getFallbackContextItems: getFallbackContextItems
   };
 })(typeof window !== 'undefined' ? window : self);

@@ -661,25 +661,32 @@
       color: rgba(185,198,234,.88);
       line-height: 1.35;
     }
-    /* LEFT stream grid — 3×3 canonical cards scaled to fill pane; center draft glow emphasis */
+    /* LEFT stream grid — viewport clips a centered 3×3 scene; draft at slot 5 is focal anchor */
     .studioStreamGridHost{
       width: 100%;
       max-width: 100%;
-      overflow-x: hidden;
-      overflow-y: visible;
+      overflow: hidden;
     }
-    .studioStreamGrid{
-      --studio-grid-scale: calc((100% - 6px) / 3 / var(--lantern-card-width));
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3px;
+    .studioStreamGridViewport{
       width: 100%;
       max-width: 100%;
-      overflow-x: hidden;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    .studioStreamGridScene{
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, var(--studio-grid-card-w, 96px));
+      grid-template-rows: repeat(3, var(--studio-grid-card-h, 54px));
+      gap: 6px;
       box-sizing: border-box;
     }
     .studioStreamGridCell{
       min-width: 0;
+      min-height: 0;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -690,18 +697,17 @@
       z-index: 1;
     }
     .studioStreamGridCardFit{
-      width: 100%;
-      height: calc(var(--lantern-card-width) * var(--studio-grid-scale) * 9 / 16);
       position: relative;
-      overflow: visible;
+      overflow: hidden;
+      flex-shrink: 0;
     }
     .studioStreamGridCardFit--draft::before{
       content: '';
       position: absolute;
       top: 50%;
       left: 50%;
-      width: calc(var(--lantern-card-width) * var(--studio-grid-scale) + 14px);
-      height: calc(var(--lantern-card-width) * var(--studio-grid-scale) * 9 / 16 + 10px);
+      width: calc(var(--studio-grid-card-w, 96px) + 14px);
+      height: calc(var(--studio-grid-card-h, 54px) + 10px);
       transform: translate(-50%, -50%);
       border-radius: 12px;
       background: radial-gradient(ellipse at center, rgba(90,167,255,.42) 0%, rgba(90,167,255,.14) 52%, transparent 72%);
@@ -713,12 +719,9 @@
       z-index: 0;
     }
     .studioStreamGridCardScale{
-      position: absolute;
-      top: 0;
-      left: 50%;
-      width: var(--lantern-card-width);
-      transform: translateX(-50%) scale(var(--studio-grid-scale));
-      transform-origin: top center;
+      transform-origin: top left;
+      flex-shrink: 0;
+      position: relative;
       z-index: 1;
     }
     .studioStreamGridCell--draft .studioScrollerCardActive,

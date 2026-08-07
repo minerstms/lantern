@@ -79,9 +79,28 @@ if (!/id="studioRailScroller"|studioRailScroller/.test(contributeHtml)) {
   ok('obsolete LEFT stream rail scroller removed');
 } else bad('LEFT rail scroller still present');
 
-if (/\.studioStreamGrid[\s\S]*grid-template-columns:\s*repeat\(3,\s*1fr\)/.test(contributeHtml)) {
-  ok('3x3 stream grid CSS');
-} else bad('3x3 grid CSS');
+if (/\.studioStreamGridScene[\s\S]*display:\s*grid/.test(contributeHtml)) {
+  ok('3x3 stream grid scene CSS');
+} else bad('3x3 grid scene CSS');
+
+if (/\.studioStreamGridViewport[\s\S]*overflow:\s*hidden/.test(contributeHtml)) {
+  ok('viewport overflow hidden for perimeter clip');
+} else bad('viewport clip');
+
+if (!/calc\(\(100%\s*-\s*6px\)\s*\/\s*3\s*\/\s*var\(--lantern-card-width\)/.test(contributeHtml + streamGridJs)) {
+  ok('no fragile CSS length/length scale expression');
+} else bad('fragile scale calc still present');
+
+if (!/Mini feed|Your draft/i.test(contributeHtml)) ok('no explanatory subtitle or Your Draft label');
+else bad('subtitle or draft label still present');
+
+if (
+  streamGridJs.includes('studioStreamGridViewport') &&
+  streamGridJs.includes('studioStreamGridScene') &&
+  streamGridJs.includes('ResizeObserver')
+) {
+  ok('viewport + scene + ResizeObserver architecture');
+} else bad('viewport architecture');
 
 if (
   streamGridJs.includes('CENTER_INDEX = 4') &&
@@ -195,6 +214,26 @@ if (LUI && LUI.renderFeedItemDetailInto) {
   if (sandbox._lastRxOpts && sandbox._lastRxOpts.mode === 'preview') ok('sandbox preview skips reaction API');
   else bad('sandbox reaction opts');
 } else bad('LanternCardUI sandbox load');
+
+vm.runInContext(streamGridJs, sandbox);
+const SG = sandbox.LANTERN_STUDIO_STREAM_GRID;
+if (SG && typeof SG.computeLayout === 'function') {
+  const normal = SG.computeLayout(284, 400);
+  if (normal.cardW >= SG.MIN_CARD_DISPLAY_WIDTH && normal.cardW <= SG.MAX_CARD_DISPLAY_WIDTH) {
+    ok('normal layout card width in useful range');
+  } else bad('normal card width', String(normal.cardW));
+  const expectedH = normal.cardW * (SG.CANONICAL_CARD_HEIGHT / SG.CANONICAL_CARD_WIDTH);
+  if (Math.abs(normal.cardH - expectedH) < 0.01) ok('wrapper reserves correct 16:9 height');
+  else bad('16:9 height', normal.cardH + ' vs ' + expectedH);
+  if (normal.sceneW === 3 * normal.cardW + 2 * SG.GRID_GAP) ok('scene width deterministic');
+  else bad('scene width');
+  const tight = SG.computeLayout(120, 200);
+  if (tight.cardW === SG.MIN_CARD_DISPLAY_WIDTH && tight.clipsHorizontally) {
+    ok('below minimum width clips instead of shrinking');
+  } else bad('clip floor', JSON.stringify(tight));
+  if (SG.CENTER_INDEX === 4) ok('center draft is grid slot 5');
+  else bad('center slot');
+} else bad('computeLayout export');
 
 console.log('\n--- studio-opened-preview-test: ' + pass + ' passed, ' + fail + ' failed ---');
 process.exit(fail ? 1 : 0);
