@@ -378,17 +378,6 @@
     })();
     function isMissionWritingIntegrityBypassActive(){ return missionVerifyModeActive; }
 
-    var economyApiBase = (function () {
-      if (typeof window === 'undefined') return null;
-      var raw =
-        typeof window.LANTERN_ECONOMY_API !== 'undefined' &&
-        window.LANTERN_ECONOMY_API !== null &&
-        String(window.LANTERN_ECONOMY_API).trim() !== ''
-          ? window.LANTERN_ECONOMY_API
-          : window.LANTERN_AVATAR_API;
-      if (typeof raw === 'undefined' || raw === null) return null;
-      return String(raw).replace(/\/$/, '');
-    })();
     var missionsApiBase = (function () {
       if (typeof window === 'undefined') return null;
       var raw =
@@ -398,16 +387,6 @@
       if (typeof raw === 'undefined' || raw === null) return null;
       return String(raw).replace(/\/$/, '');
     })();
-    function callEconomyTransact(characterName, delta, kind, source, note, meta){
-      if (economyApiBase == null) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
-      return fetch(economyApiBase + '/api/economy/transact', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
-      }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
-    }
-
     function getAdopted(){
       try {
         var auth = window.LanternAuth || window.LanternPilotAuth;
@@ -495,19 +474,18 @@
         run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).resubmitMissionSubmission({ id: id, submission_content: submissionContent });
       });
     }
+    /**
+     * Daily Check-In / Hidden Nugget completion tracking (local-only, no wallet effect).
+     * Prompt #68 RED STOP: the previous economyApiBase branch here posted an
+     * arbitrary client-chosen delta+kind straight to /api/economy/transact, which the
+     * Worker only validates for identity (own wallet), not amount or once-per-day/once-ever
+     * cadence — any authenticated student could replay that call for unlimited nuggets.
+     * That branch is removed. Until a server-authoritative claim endpoint exists (one that
+     * enforces the fixed reward amount and cadence in D1, mirroring the missions approval
+     * reward pattern), this only records local completion state and must not claim a
+     * Nugget credit that never reached the authoritative wallet.
+     */
     function callClaimDailyCheckIn(name){
-      if (economyApiBase) {
-        var run = createRun ? createRun() : null;
-        if (!run) return Promise.resolve({ ok: false });
-        return new Promise(function(resolve){
-          run.withSuccessHandler(function(r){
-            if (!r || !r.ok) { resolve(r); return; }
-            callEconomyTransact(name, r.nuggets || 3, 'daily_checkin', 'MISSION', 'Daily Check-In', {}).then(function(tRes){
-              if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed' });
-            });
-          }).withFailureHandler(function(){ resolve({ ok: false }); }).claimDailyCheckIn({ character_name: name, economy_backend_charged: true });
-        });
-      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
       return new Promise(function(resolve){
@@ -515,18 +493,6 @@
       });
     }
     function callCompleteHiddenNugget(name){
-      if (economyApiBase) {
-        var run = createRun ? createRun() : null;
-        if (!run) return Promise.resolve({ ok: false });
-        return new Promise(function(resolve){
-          run.withSuccessHandler(function(r){
-            if (!r || !r.ok) { resolve(r); return; }
-            callEconomyTransact(name, r.nuggets || 5, 'hidden_nugget', 'MISSION', 'Hidden Nugget', {}).then(function(tRes){
-              if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed' });
-            });
-          }).withFailureHandler(function(){ resolve({ ok: false }); }).completeHiddenNugget({ character_name: name, economy_backend_charged: true });
-        });
-      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
       return new Promise(function(resolve){
@@ -1112,8 +1078,11 @@
         typeBadge: '⚡ Quick',
         icon: '✅',
         title: 'Daily Check-In',
-        description: dailyClaimed ? 'Come back tomorrow for another +3 nuggets.' : 'Claim +3 nuggets once per day.',
-        reward: 3,
+        /* Prompt #68: no server-authoritative claim path exists yet for this reward (see
+           callClaimDailyCheckIn above), so the card must not promise a Nugget amount that
+           never reaches the authoritative wallet. reward stays null until that path exists. */
+        description: dailyClaimed ? 'Come back tomorrow for another check-in.' : 'Check in once per day.',
+        reward: null,
         status: dailyClaimed ? 'completed' : 'available',
         statusLabel: dailyClaimed ? '✅ Completed today' : 'Claim →',
         created_at: today,
@@ -1127,7 +1096,7 @@
           if (!a || !a.name) { toast('Sign in to claim your daily check-in.'); return; }
           callClaimDailyCheckIn(a.name).then(function(res){
             if (res && res.ok){
-              toast('+3 nuggets! Daily check-in complete.');
+              toast('Daily check-in recorded.');
               loadMissions();
             } else if (res && res.already){
               toast('Already claimed today');
@@ -1146,13 +1115,16 @@
         typeBadge: '⚡ Quick',
         icon: '🔍',
         title: 'Hidden Nugget',
-        description: hiddenDone ? 'You found the hidden nugget. +5 nuggets earned.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
-        reward: 5,
+        /* Prompt #68: same rule as Daily Check-In — no daily_checkin/hidden_nugget
+           transaction has ever been written to lantern_transactions (verified read-only
+           against production D1), so this card must not claim a Nugget amount was earned. */
+        description: hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
+        reward: null,
         status: hiddenDone ? 'completed' : 'available',
         statusLabel: hiddenDone ? '✅ Completed' : 'How it works →',
         created_at: '',
         onActivate: function(){
-          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found the hidden nugget. +5 nuggets earned.' : 'Find the daily hidden nugget on Lantern pages and tap it.');
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.');
         },
       });
 
@@ -1253,6 +1225,11 @@
       if (badge) {
         var avail = buildUnifiedMissionItems(missions, teacherMissions, submissions).filter(function(i){ return i.status === 'available'; }).length;
         badge.textContent = avail > 0 ? String(avail) : '';
+      }
+      /* Single authoritative wallet refresh alongside every mission-library reload (no loading placeholder pass),
+         so the Missions badge always reflects the same LanternWallet.fetchMyBalance() source used elsewhere. */
+      if (!loading && window.LanternMissionsPage && typeof window.LanternMissionsPage.refreshWalletDisplay === 'function') {
+        window.LanternMissionsPage.refreshWalletDisplay();
       }
     }
 
@@ -1452,9 +1429,6 @@
         toast(FERPA_STUDENT_SUBMIT_MESSAGE);
         closeMissionDetailModal();
         loadMissions();
-        if (window.LanternMissionsPage && typeof window.LanternMissionsPage.refreshWalletDisplay === 'function') {
-          window.LanternMissionsPage.refreshWalletDisplay();
-        }
       });
     }
 

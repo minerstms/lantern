@@ -178,27 +178,41 @@
       });
       var node = LC.createStudentCard(spec);
       if (!node) return;
-      if (item.url) {
-        var outer = node.querySelector('.exploreCardOuterWrap');
-        if (outer && outer.tagName === 'A') {
-          outer.href = item.url;
-        }
-      } else {
-        node.addEventListener('click', function (e) {
-          if (e.target.closest('.exploreCardReportBtn')) return;
-          e.preventDefault();
-          if (typeof item.onActivate === 'function') item.onActivate();
-        });
-        node.addEventListener('keydown', function (e) {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          if (e.target !== node && !node.contains(e.target)) return;
-          e.preventDefault();
-          if (typeof item.onActivate === 'function') item.onActivate();
-        });
-      }
+      // Card faces from specGameHubRailCard never produce an .exploreCardOuterWrap <a>
+      // wrapper (no navHref is passed), so every card — url-based or onActivate-based —
+      // must get its dispatch wired directly on the returned node. A prior version only
+      // wired onActivate items and silently left url items with no handler (dead clicks).
+      node.addEventListener('click', function (e) {
+        if (e.target.closest('.exploreCardReportBtn')) return;
+        e.preventDefault();
+        activateMissionItem(item);
+      });
+      node.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target !== node && !node.contains(e.target)) return;
+        e.preventDefault();
+        activateMissionItem(item);
+      });
       grid.appendChild(node);
     });
     LC.enhanceReportControlsIn(grid);
+  }
+
+  function activateMissionItem(item) {
+    try {
+      if (item && typeof item.onActivate === 'function') {
+        item.onActivate();
+        return;
+      }
+      if (item && item.url) {
+        global.location.href = item.url;
+        return;
+      }
+      toast("Couldn't open this mission. Try again.");
+    } catch (e) {
+      if (global.console && global.console.error) global.console.error('[LanternMissionsPage] mission action failed', e);
+      toast("Couldn't open this mission. Try again.");
+    }
   }
 
   function wireControls() {

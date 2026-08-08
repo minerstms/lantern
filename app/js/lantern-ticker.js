@@ -134,9 +134,15 @@
       });
       (heroCandidates || []).forEach(function (s) {
         var b = toB(s, 'slide');
+        /* Community-highlight slides (e.g. nugget_milestone) must always name the student they
+           describe — a bare "25 Nuggets" line is indistinguishable from the viewer's own wallet
+           balance shown elsewhere on the same page. This ticker is a school-wide celebration feed,
+           never the authenticated viewer's balance; LanternWallet.fetchMyBalance() is the only
+           authoritative wallet source. */
+        var attributed = b.subtitle ? esc(b.subtitle) + ' — ' + esc(b.title) : esc(b.title);
         items.push({
           icon: b.icon,
-          text: '<span class="lanternTickerText">' + esc(b.title) + '</span>',
+          text: '<span class="lanternTickerText">' + attributed + '</span>',
           avatarUrl: b.avatarUrl || '',
           avatarEmoji: b.avatarEmoji || ''
         });
