@@ -297,8 +297,11 @@ function mockEvent() {
 
   /* ---------- 6. Every available quick-mission card built by the real page has a real action ---------- */
   const buildFnMatch = missionsHtml.match(/function buildUnifiedMissionItems\([\s\S]*?return items;\s*\}/);
+  let builtItems = null;
+  let sandbox2 = null;
   if (buildFnMatch) {
-    const sandbox2 = { todayStr: () => '2026-08-08', console };
+    sandbox2 = { todayStr: () => '2026-08-08', console };
+    sandbox2.window = sandbox2;
     vm.createContext(sandbox2);
     try {
       vm.runInContext(buildFnMatch[0], sandbox2);
@@ -307,6 +310,7 @@ function mockEvent() {
         [{ id: 'm1', title: 'Teacher Mission', description: 'Do a thing', reward_amount: 5, submission_type: 'text' }],
         []
       );
+      builtItems = items;
       const dead = items.filter((i) => i.status === 'available' && typeof i.onActivate !== 'function' && !i.url);
       if (dead.length === 0) ok('no dead available cards: every available item has onActivate or url');
       else bad('dead available cards found', dead.map((i) => i.title));
@@ -314,6 +318,38 @@ function mockEvent() {
       bad('buildUnifiedMissionItems mock run', e.message);
     }
   } else bad('buildUnifiedMissionItems not found');
+
+  /* ---------- 6b. Prompt #69 RED STOP proof: Thank-You/Grade Reflection no longer route into the
+     legacy localStorage-only thanks.html/grades.html destinations (no cross-device teacher visibility,
+     no real reward path, and — until fixed — an auth-bootstrap redirect to /login). They must instead
+     resolve to a truthful in-place onActivate action, never a url navigation. ---------- */
+  if (builtItems) {
+    const thankYou = builtItems.find((i) => i.id === 'quick_thank_you');
+    const gradeRefl = builtItems.find((i) => i.id === 'quick_grade_reflection');
+    if (thankYou && typeof thankYou.onActivate === 'function' && !thankYou.url) {
+      ok('Thank-You Letter no longer navigates to the legacy thanks.html destination');
+    } else bad('Thank-You Letter still has a url (would hit the legacy/broken destination)', thankYou);
+    if (gradeRefl && typeof gradeRefl.onActivate === 'function' && !gradeRefl.url) {
+      ok('Grade Reflection no longer navigates to the legacy grades.html destination');
+    } else bad('Grade Reflection still has a url (would hit the legacy/broken destination)', gradeRefl);
+  }
+
+  /* ---------- 6c. Hidden Nugget keeps working (control case) after all other fixes ---------- */
+  if (builtItems && sandbox2) {
+    const hidden = builtItems.find((i) => i.id === 'quick_hidden_nugget');
+    const cardUiCalls = [];
+    sandbox2.window.LanternCardUI = { openTextDetail: (...args) => cardUiCalls.push(args) };
+    let threw = null;
+    if (hidden && typeof hidden.onActivate === 'function') {
+      try {
+        hidden.onActivate();
+      } catch (e) {
+        threw = e;
+      }
+    }
+    if (!threw && cardUiCalls.length === 1) ok('Hidden Nugget onActivate still opens its detail surface (control case unaffected)');
+    else bad('Hidden Nugget onActivate regressed', threw ? String(threw) : hidden);
+  }
 
   /* ---------- 7. Ticker: community slides must attribute a name, never a bare ambiguous "N Nuggets" ---------- */
   const sandbox3 = {
@@ -341,6 +377,141 @@ function mockEvent() {
   if (/Lucas/.test(text) && /25 Nuggets/.test(text)) {
     ok('ticker nugget_milestone slide names the student — cannot be mistaken for the viewer\'s own wallet balance');
   } else bad('ticker nugget_milestone slide still renders an unattributed bare figure', text);
+
+  /* ---------- 8. Static guard: missions.html's main inline <script> is a plain (function(){})()
+     IIFE with no `global` parameter (unlike lantern-missions-page.js's (function(global){})(window)
+     module pattern). Any bare `global.` reference inside it is guaranteed to throw
+     "ReferenceError: global is not defined" in a real browser — this is the exact Prompt #69
+     production bug (openMissionDetailModal's global.scrollY / closeMissionDetailModal's
+     global.scrollTo silently broke every teacher-mission modal open). ---------- */
+  const scriptBlocks = missionsHtml
+    .split(/<script(?:\s[^>]*)?>/)
+    .slice(1)
+    .map((s) => s.split('</script>')[0]);
+  const mainScript = scriptBlocks.find((s) => s.includes('function openMissionSubmitModal'));
+  if (mainScript) {
+    const bareGlobalRefs = mainScript.match(/\bglobal\.\w+/g) || [];
+    if (bareGlobalRefs.length === 0) {
+      ok('missions.html main script: no bare global.* references (only window/document are real browser globals here)');
+    } else {
+      bad('missions.html main script still contains bare global.* references that will throw in a browser', bareGlobalRefs);
+    }
+  } else {
+    bad('could not locate missions.html main inline script containing openMissionSubmitModal');
+  }
+
+  /* ---------- 9. Dynamic proof: actually execute the real openMissionSubmitModal /
+     openMissionDetailModal extracted from missions.html against a DOM stub, for one mission of
+     each currently supported submission_type. This is what actually caught the Prompt #69 bug —
+     the vm.createContext sandbox below deliberately does NOT define a bare `global` identifier,
+     so any regression of that exact class fails loudly here instead of only in production. ---------- */
+  if (mainScript) {
+    function makeStubEl(id) {
+      const listeners = {};
+      const stub = {
+        id: id || '',
+        _listeners: listeners,
+        value: '',
+        textContent: '',
+        hidden: false,
+        disabled: false,
+        src: '',
+        href: '',
+        style: {},
+        dataset: {},
+        classList: {
+          _set: new Set(),
+          add(c) { this._set.add(c); },
+          remove(c) { this._set.delete(c); },
+          toggle(c, v) { if (v === false) this._set.delete(c); else this._set.add(c); },
+          contains(c) { return this._set.has(c); },
+        },
+        addEventListener(type, fn) {
+          listeners[type] = listeners[type] || [];
+          listeners[type].push(fn);
+        },
+        removeEventListener() {},
+        setAttribute() {},
+        getAttribute() { return null; },
+        querySelector() { return null; },
+        querySelectorAll() { return []; },
+        appendChild() {},
+        closest() { return null; },
+        contains() { return false; },
+        focus() {},
+        scrollIntoView() {},
+      };
+      return stub;
+    }
+    function buildModalSandbox() {
+      const elements = {};
+      const getEl = (id) => {
+        if (!elements[id]) elements[id] = makeStubEl(id);
+        return elements[id];
+      };
+      const toasts = [];
+      const sandbox = {
+        console,
+        fetch: () => Promise.resolve({ json: () => Promise.resolve({}) }),
+        document: {
+          activeElement: makeStubEl('activeElement'),
+          body: makeStubEl('body'),
+          documentElement: Object.assign(makeStubEl('documentElement'), { scrollTop: 0 }),
+          getElementById: getEl,
+          createElement: () => makeStubEl('created'),
+          addEventListener() {},
+        },
+        location: { href: '', pathname: '/missions.html', search: '', hash: '' },
+        getComputedStyle: () => ({ visibility: 'hidden' }),
+        Promise,
+        JSON,
+        setTimeout,
+        clearTimeout,
+      };
+      sandbox.window = sandbox;
+      sandbox.window.scrollY = 0;
+      sandbox.window.scrollTo = () => {};
+      sandbox.window.LanternCards = {
+        specOpenedMissionDraft: () => ({}),
+        createStudentCard: () => makeStubEl('preview'),
+        enhanceReportControlsIn: () => {},
+      };
+      sandbox.window.LanternMissionsPage = null;
+      sandbox._elements = elements;
+      sandbox._toasts = toasts;
+      return sandbox;
+    }
+
+    const submissionTypeFixtures = [
+      { id: 'tm-text', submission_type: 'text', title: 'Read a book', allows_text: true },
+      { id: 'tm-image', submission_type: 'image_url', title: 'Photo mission', allows_image: true },
+      { id: 'tm-poll', submission_type: 'poll', title: 'Create a poll' },
+      { id: 'tm-bug', submission_type: 'bug_report', title: 'Report a bug' },
+    ];
+    submissionTypeFixtures.forEach((fixture) => {
+      const sandbox = buildModalSandbox();
+      vm.createContext(sandbox);
+      try {
+        vm.runInContext(mainScript, sandbox);
+      } catch (e) {
+        bad('missions.html main script failed to load in DOM-stub sandbox for ' + fixture.submission_type, String(e));
+        return;
+      }
+      let threw = null;
+      try {
+        sandbox.openMissionSubmitModal(fixture, null, '');
+      } catch (e) {
+        threw = e;
+      }
+      const overlay = sandbox._elements['missionDetailOverlay'];
+      const isOpen = overlay && overlay.classList.contains('is-open') && overlay.hidden === false;
+      if (!threw && isOpen) {
+        ok('openMissionSubmitModal(' + fixture.submission_type + ') opens the real mission detail modal with no exception');
+      } else {
+        bad('openMissionSubmitModal(' + fixture.submission_type + ') did not open the modal', threw ? String(threw) : 'overlay not open');
+      }
+    });
+  }
 
   console.log('\nMission card dispatch tests:', pass, 'passed,', fail, 'failed');
   process.exit(fail ? 1 : 0);

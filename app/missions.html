@@ -1002,7 +1002,7 @@
       }
       document.body.classList.remove('mission-detail-open');
       document.body.style.top = '';
-      if (!opts.skipScrollRestore) global.scrollTo(0, missionDetailScrollY);
+      if (!opts.skipScrollRestore) window.scrollTo(0, missionDetailScrollY);
       destroyMissionUnifiedField();
       currentMissionForSubmit = null;
       currentResubmitId = null;
@@ -1015,7 +1015,7 @@
     function openMissionDetailModal(){
       var overlay = el('missionDetailOverlay');
       if (!overlay) return;
-      missionDetailScrollY = global.scrollY || document.documentElement.scrollTop || 0;
+      missionDetailScrollY = window.scrollY || document.documentElement.scrollTop || 0;
       document.body.classList.add('mission-detail-open');
       document.body.style.top = '-' + missionDetailScrollY + 'px';
       overlay.hidden = false;
@@ -1039,6 +1039,18 @@
 
       function pushQuick(o){ items.push(o); }
 
+      /* Prompt #69 RED STOP — QUICK MISSION DESTINATION IS LEGACY-ONLY:
+         thanks.html/grades.html and their backing functions (submitThanks, getThanksForCharacter,
+         submitGradeReflection, getGradeReflectionsForCharacter, etc. in lantern-api.js) are 100%
+         localStorage-only with zero D1/Worker persistence. teacher.html's review UI for these
+         (renderGradeReflections, thanks review) reads the SAME localStorage key, so it can only
+         ever see a submission if the teacher happens to review from the exact same browser/device
+         the student submitted from — never true for real students/teachers on separate devices.
+         Routing an authenticated student into that destination is truthful about auth (once fixed)
+         but false about outcome: nothing a real teacher will ever see, no real Nugget can ever
+         result. Until these are migrated to a D1-backed submission + review path (a new data model,
+         out of this prompt's auth/dispatch-only scope), these cards give a truthful in-place
+         explanation instead of navigating into that dead end. */
       pushQuick({
         id: 'quick_thank_you',
         kind: 'quick',
@@ -1046,13 +1058,15 @@
         typeBadge: '✍ Reflection',
         icon: '💌',
         title: 'Thank-You Letter',
-        description: 'Thank school staff and earn nuggets.',
+        description: 'This mission is being rebuilt for real classrooms and is not available yet.',
         reward: null,
         status: 'available',
-        statusLabel: 'Start →',
-        url: 'thanks.html',
+        statusLabel: 'Learn more →',
         created_at: '',
         featured: true,
+        onActivate: function(){
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Thank-You Letter', 'Not available yet', 'This mission is being rebuilt so a real teacher can see and review your letter. Check back soon.');
+        },
       });
 
       pushQuick({
@@ -1062,13 +1076,15 @@
         typeBadge: '✍ Reflection',
         icon: '📊',
         title: 'Grade Reflection',
-        description: 'Reflect on your grades and earn nuggets.',
+        description: 'This mission is being rebuilt for real classrooms and is not available yet.',
         reward: null,
         status: 'available',
-        statusLabel: 'Start →',
-        url: 'grades.html',
+        statusLabel: 'Learn more →',
         created_at: '',
         featured: false,
+        onActivate: function(){
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Grade Reflection', 'Not available yet', 'This mission is being rebuilt so a real teacher can see and review your reflection. Check back soon.');
+        },
       });
 
       pushQuick({
