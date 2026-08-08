@@ -2757,7 +2757,7 @@
       getActiveTeacherMissionsForCharacter: function (payload) {
         var name = String((payload && payload.character_name) || '').trim();
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/active?character_name=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, missions: [] }; }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/active', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, missions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
         var list = getActiveTeacherMissionsForCharacter(name);
@@ -2766,7 +2766,7 @@
       getTeacherMissionsForTeacher: function (payload) {
         var tid = String((payload && payload.teacher_id) || 'teacher').trim();
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(tid)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, missions: [] }; }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(tid), { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, missions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
         var list = getTeacherMissionsForTeacher(tid);
@@ -2792,7 +2792,7 @@
             allows_link: !!(payload && payload.allows_link),
             min_characters: (payload && payload.min_characters) !== undefined && payload.min_characters !== null ? Math.max(0, Math.floor(Number(payload.min_characters)) || 200) : 200,
           };
-          fetch(apiBase + '/api/missions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var result = createTeacherMission({
@@ -2820,7 +2820,7 @@
         var id = String((payload && payload.id) || '').trim();
         var updates = payload && payload.updates ? payload.updates : {};
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/' + encodeURIComponent(id), { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var result = updateTeacherMission(id, updates);
@@ -2832,7 +2832,7 @@
         var submissionType = String((payload && payload.submission_type) || 'text').trim();
         var submissionContent = String((payload && payload.submission_content) || '').trim();
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType, submission_content: submissionContent }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submit', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mission_id: missionId, submission_type: submissionType, submission_content: submissionContent }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var result = submitMissionCompletion(missionId, characterName, submissionType, submissionContent);
@@ -2841,7 +2841,7 @@
       getMissionSubmissionsForTeacher: function (payload) {
         var tid = String((payload && payload.teacher_id) || 'teacher').trim();
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(tid)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, submissions: [] }; }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(tid), { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, submissions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
         var list = getMissionSubmissionsForTeacher(tid);
@@ -2850,7 +2850,7 @@
       getMissionSubmissionsForCharacter: function (payload) {
         var name = String((payload && payload.character_name) || '').trim();
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, submissions: [] }; }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submissions/character', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: false, submissions: [] }; }).then(successFn).catch(failureFn);
           return;
         }
         var list = getMissionSubmissionsForCharacter(name);
@@ -2864,9 +2864,7 @@
       approveMissionSubmission: function (payload) {
         var id = String((payload && payload.id) || '').trim();
         if (apiBase != null) {
-          var body = { id: id, accepted_by: (payload && payload.accepted_by) || 'Teacher', economy_backend_charged: !!(payload && payload.economy_backend_charged) };
-          if ((payload && payload.teacher_id) !== undefined) body.teacher_id = String(payload.teacher_id).trim();
-          fetch(apiBase + '/api/missions/submissions/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submissions/approve', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var economyBackendCharged = !!(payload && payload.economy_backend_charged);
@@ -2876,9 +2874,7 @@
       rejectMissionSubmission: function (payload) {
         var id = String((payload && payload.id) || '').trim();
         if (apiBase != null) {
-          var body = { id: id };
-          if ((payload && payload.teacher_id) !== undefined) body.teacher_id = String(payload.teacher_id).trim();
-          fetch(apiBase + '/api/missions/submissions/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submissions/reject', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var result = rejectMissionSubmission(id);
@@ -2889,9 +2885,7 @@
         var reason = String((payload && payload.reason) || '').trim();
         var by = String((payload && payload.returned_by) || 'Teacher').trim();
         if (apiBase != null) {
-          var body = { id: id, reason: reason, returned_by: by };
-          if ((payload && payload.teacher_id) !== undefined) body.teacher_id = String(payload.teacher_id).trim();
-          fetch(apiBase + '/api/missions/submissions/return', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submissions/return', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, reason: reason }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var result = returnMissionSubmissionForImprovements(id, reason, by);
@@ -2901,7 +2895,7 @@
         var id = String((payload && payload.id) || '').trim();
         var content = String((payload && payload.submission_content) || '').trim();
         if (apiBase != null) {
-          fetch(apiBase + '/api/missions/submissions/resubmit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, submission_content: content }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/missions/submissions/resubmit', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, submission_content: content }) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
         var result = resubmitMissionSubmission(id, content);

@@ -131,10 +131,10 @@
     if (!apiBase || !characterNameForApi) return Promise.resolve([]);
 
     var urlPoll = apiBase + '/api/polls/contributions?character_name=' + encodeURIComponent(characterNameForApi);
-    var urlMiss = apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(characterNameForApi);
+    var urlMiss = apiBase + '/api/missions/submissions/character';
     var urlNews = apiBase + '/api/news/mine?author_name=' + encodeURIComponent(newsAuthorMine);
 
-    var pPoll = fetch(urlPoll)
+    var pPoll = fetch(urlPoll, { credentials: 'include' })
       .then(function (r) {
         return r.json();
       })
@@ -144,7 +144,7 @@
       .catch(function () {
         return [];
       });
-    var pMiss = fetch(urlMiss)
+    var pMiss = fetch(urlMiss, { credentials: 'include' })
       .then(function (r) {
         return r.json();
       })

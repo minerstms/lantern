@@ -2528,8 +2528,8 @@
     }
 
     function callGetActiveMissions(characterName){
-      if (missionsApiBase != null && characterName) {
-        return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName))
+      if (missionsApiBase != null) {
+        return fetch(missionsApiBase + '/api/missions/active', { credentials: 'include' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
           .catch(function(){ return { ok: false, missions: [] }; });
@@ -2538,11 +2538,12 @@
     }
 
     function callSubmitMissionCompletion(missionId, characterName, submissionType, submissionContent){
-      if (missionsApiBase != null && missionId && characterName) {
+      if (missionsApiBase != null && missionId) {
         return fetch(missionsApiBase + '/api/missions/submit', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
+          body: JSON.stringify({ mission_id: missionId, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
         }).then(function(r){
           return r.text().then(function(text){
             var data = {};

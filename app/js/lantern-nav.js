@@ -85,11 +85,11 @@
     if (apiBase === null || !characterNameForApi) return Promise.resolve(0);
 
     var urlPoll = apiBase + '/api/polls/contributions?character_name=' + encodeURIComponent(characterNameForApi);
-    var urlMiss = apiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(characterNameForApi);
+    var urlMiss = apiBase + '/api/missions/submissions/character';
     var urlNews = apiBase + '/api/news/mine?author_name=' + encodeURIComponent(newsAuthorMine);
 
-    var pPoll = fetch(urlPoll).then(function (r) { return r.json(); }).then(function (res) { return (res && res.contributions) || []; }).catch(function () { return []; });
-    var pMiss = fetch(urlMiss).then(function (r) { return r.json(); }).then(function (res) { return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function () { return []; });
+    var pPoll = fetch(urlPoll, { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return (res && res.contributions) || []; }).catch(function () { return []; });
+    var pMiss = fetch(urlMiss, { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function () { return []; });
     var pNews = fetch(urlNews).then(function (r) { return r.json(); }).then(function (res) { return (res && res.ok && res.news) ? res.news : []; }).catch(function () { return []; });
 
     return Promise.all([pPoll, pMiss, pNews]).then(function (arr) {

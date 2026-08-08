@@ -1679,11 +1679,11 @@
     })();
     function callGetMissionSubmissionsForTeacher(){
       if (avatarApiBase === null) return Promise.resolve({ ok: false, submissions: [] });
-      return fetch(avatarApiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId)).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, submissions: [] }; });
+      return fetch(avatarApiBase + '/api/missions/submissions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId), { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, submissions: [] }; });
     }
     function callGetTeacherMissionsFromWorker(){
       if (avatarApiBase === null) return Promise.resolve({ ok: false, missions: [] });
-      return fetch(avatarApiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId)).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok && Array.isArray(res.missions) ? res : { ok: false, missions: [] }; }).catch(function(){ return { ok: false, missions: [] }; });
+      return fetch(avatarApiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok && Array.isArray(res.missions) ? res : { ok: false, missions: [] }; }).catch(function(){ return { ok: false, missions: [] }; });
     }
     function callEconomyTransact(characterName, delta, kind, source, note){
       if (economyApiBase == null) return Promise.resolve({ ok: false });
@@ -1963,6 +1963,7 @@
       if (avatarApiBase && id) {
         return fetch(avatarApiBase + '/api/missions/' + encodeURIComponent(id), {
           method: 'PATCH',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updates || {})
         }).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok ? res : { ok: false, error: res && res.error || 'Failed' }; }).catch(function(){ return { ok: false, error: 'Network error' }; });
@@ -1974,22 +1975,18 @@
       });
     }
     function callApproveMissionSubmission(id){
+      if (avatarApiBase && id) {
+        return fetch(avatarApiBase + '/api/missions/submissions/approve', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
-      var payload = { id: id, accepted_by: 'Teacher', teacher_id: approvalStaffId };
-      if (economyApiBase) {
-        payload.economy_backend_charged = true;
-        return new Promise(function(resolve){
-          run.withSuccessHandler(function(r){
-            if (!r || !r.ok || !r.nuggets) { resolve(r); return; }
-            callEconomyTransact(r.character_name || '', r.nuggets, 'teacher_mission', 'APPROVAL', 'Teacher mission approved').then(function(tRes){
-              if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed to credit' });
-            });
-          }).withFailureHandler(function(){ resolve({ ok: false }); }).approveMissionSubmission(payload);
-        });
-      }
       return new Promise(function(resolve){
-        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).approveMissionSubmission(payload);
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).approveMissionSubmission({ id: id, accepted_by: 'Teacher' });
       });
     }
     function callRejectMissionSubmission(id){

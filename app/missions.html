@@ -440,8 +440,8 @@
       });
     }
     function callGetActiveTeacherMissionsForCharacter(characterName){
-      if (missionsApiBase != null && characterName) {
-        return fetch(missionsApiBase + '/api/missions/active?character_name=' + encodeURIComponent(characterName), { credentials: 'include' })
+      if (missionsApiBase != null) {
+        return fetch(missionsApiBase + '/api/missions/active', { credentials: 'include' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
           .catch(function(){ return { ok: false, missions: [] }; });
@@ -453,8 +453,8 @@
       });
     }
     function callGetMissionSubmissionsForCharacter(name){
-      if (missionsApiBase != null && name) {
-        return fetch(missionsApiBase + '/api/missions/submissions/character?character_name=' + encodeURIComponent(name), { credentials: 'include' })
+      if (missionsApiBase != null) {
+        return fetch(missionsApiBase + '/api/missions/submissions/character', { credentials: 'include' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.submissions)) ? { ok: true, submissions: res.submissions } : { ok: false, submissions: [] }; })
           .catch(function(){ return { ok: false, submissions: [] }; });
@@ -466,12 +466,12 @@
       });
     }
     function callSubmitMissionCompletion(missionId, characterName, submissionType, submissionContent){
-      if (missionsApiBase != null && missionId && characterName) {
+      if (missionsApiBase != null && missionId) {
         return fetch(missionsApiBase + '/api/missions/submit', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mission_id: missionId, character_name: characterName, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
+          body: JSON.stringify({ mission_id: missionId, submission_type: submissionType || 'text', submission_content: submissionContent || '' })
         }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
       }
       var run = createRun ? createRun() : null;
