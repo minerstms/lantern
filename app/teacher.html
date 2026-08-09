@@ -2188,13 +2188,18 @@
       if (avatarApiBase === null) return Promise.resolve({ ok: false, missions: [] });
       return fetch(avatarApiBase + '/api/missions/teacher?teacher_id=' + encodeURIComponent(approvalStaffId), { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok && Array.isArray(res.missions) ? res : { ok: false, missions: [] }; }).catch(function(){ return { ok: false, missions: [] }; });
     }
-    function callEconomyTransact(characterName, delta, kind, source, note){
+    function callEconomyTransact(characterName, delta, kind, source, note, idempotencyKey){
       if (economyApiBase == null) return Promise.resolve({ ok: false });
+      // Prompt #96: a stable idempotencyKey (e.g. the approved submission/thanks/reflection id)
+      // lets the server (buildLanternEconomyReference) derive a deterministic TMS reference, so a
+      // retried/duplicate approval call can never double-credit Nuggets. Without one, the server
+      // falls back to a random per-request id -- no real protection.
+      var meta = idempotencyKey ? { idempotency_key: String(idempotencyKey) } : {};
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} })
+        body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
     }
     function callGetPendingAvatars(){
@@ -2258,7 +2263,7 @@
               if (!r || !r.ok) { resolve(r); return; }
               var name = r.character_name || '';
               if (!name) { resolve(r); return; }
-              callEconomyTransact(name, r.nuggets || nuggets, 'approval', 'APPROVAL', spotlight ? 'Spotlight!' : '').then(function(tRes){
+              callEconomyTransact(name, r.nuggets || nuggets, 'approval', 'APPROVAL', spotlight ? 'Spotlight!' : '', 'approval_' + submissionId).then(function(tRes){
                 if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed to credit' });
               });
             })
@@ -2336,7 +2341,7 @@
         return new Promise(function(resolve){
           run.withSuccessHandler(function(r){
             if (!r || !r.ok || !r.nuggets) { resolve(r); return; }
-            callEconomyTransact(r.character_name || '', r.nuggets, 'thank_you', 'APPROVAL', 'Thank-you letter accepted').then(function(tRes){
+            callEconomyTransact(r.character_name || '', r.nuggets, 'thank_you', 'APPROVAL', 'Thank-you letter accepted', 'thank_you_' + id).then(function(tRes){
               if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed to credit' });
             });
           }).withFailureHandler(function(){ resolve({ ok: false }); }).approveThanks({ id: id, accepted_by: 'Teacher', economy_backend_charged: true });
@@ -2431,7 +2436,7 @@
         return new Promise(function(resolve){
           run.withSuccessHandler(function(r){
             if (!r || !r.ok || !r.nuggets) { resolve(r); return; }
-            callEconomyTransact(r.character_name || '', r.nuggets, 'grade_reflection', 'APPROVAL', 'Grade reflection accepted').then(function(tRes){
+            callEconomyTransact(r.character_name || '', r.nuggets, 'grade_reflection', 'APPROVAL', 'Grade reflection accepted', 'grade_reflection_' + id).then(function(tRes){
               if (tRes && tRes.ok) resolve(r); else resolve({ ok: false, error: tRes && tRes.error || 'Failed to credit' });
             });
           }).withFailureHandler(function(){ resolve({ ok: false }); }).approveGradeReflection({ id: id, accepted_by: 'Teacher', economy_backend_charged: true });
