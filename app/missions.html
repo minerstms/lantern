@@ -1226,6 +1226,9 @@
           reward: m.reward_amount != null ? Number(m.reward_amount) : null,
           status: status,
           statusLabel: statusLabel,
+          // Real persisted audience field (Prompt #81) — canonical card footer's primary
+          // metadata token; not previously threaded through to card rendering.
+          audience: m.audience || '',
           featured: !!m.featured,
           created_at: m.created_at || '',
           imageUrl: mmForCard.image_url || '',

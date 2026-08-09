@@ -78,7 +78,10 @@ async function main() {
   assert(!!findCard(MISSION_A.title), 'Active grid shows the never-started mission (A)');
   const cardB = findCard(MISSION_B.title);
   assert(!!cardB, 'Active grid shows the pending mission (B) — it did NOT disappear after being submitted');
-  assert(cardB && cardB.stateBadge === 'STARTED' && /Waiting for teacher/.test(cardB.meta), 'Pending mission (B) card carries a STARTED badge + "Waiting for teacher" text: badge=' + JSON.stringify(cardB && cardB.stateBadge) + ' meta=' + JSON.stringify(cardB && cardB.meta));
+  // Prompt #81 — status lives ONLY in the URHC state badge now; the footer metadata row must
+  // never restate it (no "Waiting for teacher"/"Waiting for…" prose duplicating the badge).
+  assert(cardB && cardB.stateBadge === 'STARTED', 'Pending mission (B) card carries a STARTED badge: badge=' + JSON.stringify(cardB && cardB.stateBadge));
+  assert(cardB && !/waiting|start →|in progress/i.test(cardB.meta), 'Pending mission (B) footer does not repeat status/CTA prose already shown by the STARTED badge: meta=' + JSON.stringify(cardB && cardB.meta));
   const cardC = findCard(MISSION_C.title);
   assert(!!cardC, 'Active grid shows the returned mission (C)');
   assert(cardC && cardC.stateBadge === 'NEEDS CHANGES', 'Returned mission (C) card carries a NEEDS CHANGES badge: ' + JSON.stringify(cardC && cardC.stateBadge));

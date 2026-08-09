@@ -1003,7 +1003,10 @@
     return compactFaceSpec({
       type: 'game_hub',
       title: o.title || '',
-      author: o.hubIdentityLabel || 'Games',
+      // Prompt #81: '' (explicitly no identity label) must stay empty, not fall back to the
+      // legacy 'Games' hub-identity default — only a genuinely omitted (null/undefined)
+      // hubIdentityLabel still gets that default, so existing Games-hub callers are unaffected.
+      author: o.hubIdentityLabel != null ? String(o.hubIdentityLabel) : 'Games',
       dateMeta: metaMerged,
       thumbnailUrl: o.imageUrl || o.thumbnailUrl || '',
       image_url: o.imageUrl || '',
