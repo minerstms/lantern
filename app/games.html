@@ -247,14 +247,63 @@
     .nuggetHuntOverlay.open{ display: flex; }
     .nuggetHuntOverlay .overlayTop{
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      gap: 10px;
       width: 100%;
       max-width: var(--lantern-page-max-width, 980px);
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-      gap: 10px;
+      margin-bottom: 14px;
     }
+    .nuggetHuntOverlay .overlayHeaderRow{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .nuggetHuntOverlay .overlayControlsRow{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    /* Target preview — the must-have fix: a large, unmistakable icon of the current target. */
+    .nuggetHuntOverlay .targetPreview{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(180deg, rgba(255,204,102,.16), rgba(255,204,102,.05));
+      border: 2px solid rgba(255,204,102,.4);
+      border-radius: 16px;
+      padding: 8px 18px 8px 14px;
+    }
+    .nuggetHuntOverlay .targetPreviewLabel{
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+    .nuggetHuntOverlay .targetPreviewChip{
+      width: 56px;
+      height: 56px;
+      flex: 0 0 auto;
+      border-radius: 14px;
+      background: rgba(255,255,255,.08);
+      border: 2px solid rgba(255,204,102,.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .nuggetHuntOverlay .targetPreviewChip.flash{ animation: targetChipFlash .35s ease; }
+    @keyframes targetChipFlash{
+      0%{ transform: scale(1); }
+      40%{ transform: scale(1.28); box-shadow: 0 0 0 10px rgba(255,204,102,0); }
+      100%{ transform: scale(1); }
+    }
+    .nuggetHuntOverlay .targetPreviewIcon{ font-size: 34px; line-height: 1; }
+    .nuggetHuntOverlay .targetPreviewCaption{ font-size: 24px; font-weight: 900; color: var(--warn); }
     .nuggetHuntOverlay .difficultyRow{
       display: flex;
       gap: 8px;
@@ -269,23 +318,48 @@
       background: rgba(255,255,255,.06);
       color: var(--muted);
       cursor: pointer;
+      transition: transform .08s ease, border-color .12s ease, background .12s ease;
     }
+    .nuggetHuntOverlay .difficultyBtn:hover{ transform: translateY(-1px); }
     .nuggetHuntOverlay .difficultyBtn.active{
       border-color: var(--accent);
       color: var(--ink);
       background: rgba(90,167,255,.15);
     }
-    .nuggetHuntOverlay .targetText{
-      font-size: 26px;
+    .nuggetHuntOverlay .huntStatsRow{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nuggetHuntOverlay .streakBadge{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255,138,61,.15);
+      border: 2px solid rgba(255,138,61,.4);
+      color: #ffb066;
       font-weight: 900;
-      color: var(--warn);
-      flex: 1;
-      min-width: 200px;
+      font-size: 20px;
+    }
+    .nuggetHuntOverlay .streakBadge[hidden]{ display: none; }
+    .nuggetHuntOverlay .streakBadge.tier2{ background: rgba(255,204,102,.22); border-color: rgba(255,204,102,.55); color: var(--warn); }
+    .nuggetHuntOverlay .streakBadge.tier3{ background: rgba(255,77,163,.22); border-color: rgba(255,77,163,.6); color: #ff8ad1; animation: streakGlow 1s ease-in-out infinite; }
+    @keyframes streakGlow{
+      0%,100%{ transform: scale(1); }
+      50%{ transform: scale(1.1); }
     }
     .nuggetHuntOverlay .overlayTimer{
       font-size: 28px;
       font-weight: 900;
       color: var(--muted);
+      transition: color .15s ease;
+    }
+    .nuggetHuntOverlay .overlayTimer.urgent{ color: var(--bad); animation: timerUrgent .8s ease-in-out infinite; }
+    @keyframes timerUrgent{
+      0%,100%{ opacity: 1; }
+      50%{ opacity: .5; }
     }
     .nuggetHuntOverlay .overlayBtns{
       display: flex;
@@ -300,7 +374,10 @@
       border: 0;
       cursor: pointer;
       user-select: none;
+      transition: transform .08s ease, filter .1s ease;
     }
+    .nuggetHuntOverlay .overlayBtn:hover{ filter: brightness(1.12); }
+    .nuggetHuntOverlay .overlayBtn:active{ transform: scale(0.96); }
     .nuggetHuntOverlay .overlayBtn.exit{
       background: rgba(255,77,109,.25);
       color: var(--bad);
@@ -321,7 +398,10 @@
       border-radius: var(--r);
       background: rgba(0,0,0,.25);
       padding: 12px;
+      transition: opacity .2s ease, border-color .2s ease;
     }
+    .nuggetHuntOverlay .boardWrap.fading{ opacity: 0; }
+    .nuggetHuntOverlay .boardWrap.urgent{ border-color: rgba(255,77,109,.55); }
     .nuggetHuntOverlay .iconGrid{
       display: grid;
       gap: 8px;
@@ -339,15 +419,23 @@
       user-select: none;
       border-radius: 10px;
       border: 2px solid transparent;
-      transition: transform .08s ease, border-color .1s ease;
+      background: rgba(255,255,255,.03);
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+      transition: transform .08s ease, border-color .1s ease, background .1s ease;
     }
-    .nuggetHuntOverlay .iconCell:hover{ transform: scale(1.08); border-color: var(--accent); }
+    .nuggetHuntOverlay .iconCell:hover{ transform: scale(1.1); border-color: var(--accent); background: rgba(90,167,255,.12); }
     .nuggetHuntOverlay .iconCell:active{ transform: scale(0.96); }
     .nuggetHuntOverlay .iconCell.wrong{ border-color: var(--bad); background: rgba(255,77,109,.2); animation: wrongShake 0.3s ease; }
+    .nuggetHuntOverlay .iconCell.correct{ border-color: var(--good); background: rgba(56,208,124,.4); animation: correctPop .35s ease; }
     @keyframes wrongShake{
       0%,100%{ transform: translateX(0); }
       25%{ transform: translateX(-6px); }
       75%{ transform: translateX(6px); }
+    }
+    @keyframes correctPop{
+      0%{ transform: scale(1); }
+      45%{ transform: scale(1.4); }
+      100%{ transform: scale(1); }
     }
     .nuggetHuntOverlay .resultBanner{
       position: absolute;
@@ -366,6 +454,14 @@
     .nuggetHuntOverlay .resultBanner.show{ display: block; }
     .nuggetHuntOverlay .resultBanner.win{ background: rgba(56,208,124,.25); border: 3px solid var(--good); color: var(--good); }
     .nuggetHuntOverlay .resultBanner.lose{ background: rgba(255,77,109,.2); border: 3px solid var(--bad); color: var(--bad); }
+    .nuggetHuntOverlay .resultBanner.quick{ padding: 14px 22px; font-size: 24px; }
+    .nuggetHuntOverlay .resultBanner.milestone{ animation: milestonePop .4s ease; }
+    .nuggetHuntOverlay .resultBanner .bannerStreak{ display: block; font-size: 18px; margin-top: 8px; font-weight: 800; opacity: .9; }
+    @keyframes milestonePop{
+      0%{ transform: translate(-50%, -50%) scale(0.85); }
+      55%{ transform: translate(-50%, -50%) scale(1.12); }
+      100%{ transform: translate(-50%, -50%) scale(1); }
+    }
 
     /* Off-DOM play triggers — game scripts keep getElementById; cards proxy .click() here */
     .gamesPlayTriggersHost{
@@ -612,16 +708,31 @@
     <!-- Nugget Hunt fullscreen overlay -->
     <div class="nuggetHuntOverlay lanternOverlayBelowNav" id="nuggetHuntOverlay">
       <div class="overlayTop">
-        <div class="targetText" id="nuggetHuntTargetText">Find the Golden Nugget</div>
-        <div class="difficultyRow" id="nuggetHuntDifficultyRow">
-          <button type="button" class="difficultyBtn" data-diff="easy">Easy</button>
-          <button type="button" class="difficultyBtn active" data-diff="medium">Medium</button>
-          <button type="button" class="difficultyBtn" data-diff="hard">Hard</button>
+        <div class="overlayHeaderRow">
+          <div class="targetPreview" id="nuggetHuntTargetPreview">
+            <span class="targetPreviewLabel">Find this:</span>
+            <div class="targetPreviewChip" id="nuggetHuntTargetChip">
+              <span class="targetPreviewIcon" id="nuggetHuntTargetIcon" aria-hidden="true">🪙</span>
+            </div>
+            <span class="targetPreviewCaption" id="nuggetHuntTargetCaption">Golden Nugget</span>
+          </div>
+          <div class="overlayBtns">
+            <button type="button" class="overlayBtn exit" id="nuggetHuntExitBtn">Exit</button>
+            <button type="button" class="overlayBtn replay" id="nuggetHuntReplayBtn" style="display:none;">Replay</button>
+          </div>
         </div>
-        <div class="overlayTimer" id="nuggetHuntTimer">0:00</div>
-        <div class="overlayBtns">
-          <button type="button" class="overlayBtn exit" id="nuggetHuntExitBtn">Exit</button>
-          <button type="button" class="overlayBtn replay" id="nuggetHuntReplayBtn" style="display:none;">Replay</button>
+        <div class="overlayControlsRow">
+          <div class="difficultyRow" id="nuggetHuntDifficultyRow">
+            <button type="button" class="difficultyBtn" data-diff="easy">Easy</button>
+            <button type="button" class="difficultyBtn active" data-diff="medium">Medium</button>
+            <button type="button" class="difficultyBtn" data-diff="hard">Hard</button>
+          </div>
+          <div class="huntStatsRow">
+            <div class="streakBadge" id="nuggetHuntStreakBadge" hidden>
+              <span aria-hidden="true">🔥</span><span id="nuggetHuntStreakCount">0</span>
+            </div>
+            <div class="overlayTimer" id="nuggetHuntTimer">0:00</div>
+          </div>
         </div>
       </div>
       <div class="boardWrap" id="nuggetHuntBoardWrap">
@@ -1106,20 +1217,26 @@
       });
     })();
 
-    // ---- Nugget Hunt: full-screen overlay game ----
+    // ---- Nugget Hunt: full-screen overlay game (Prompt #89 polish pass) ----
     (function(){
       var DECOYS = ['🪙','💡','⭐','🌟','✨','🎯','🚀','🎨','📚','🔥','👤','🕯️','🔦'];
       var TARGETS = [
-        { icon: '🪙', label: 'Find the Golden Nugget' },
-        { icon: '💡', label: 'Find the Glowing Lantern' },
-        { icon: '🌟', label: 'Find the Rare Star' }
+        { icon: '🪙', label: 'Golden Nugget' },
+        { icon: '💡', label: 'Glowing Lantern' },
+        { icon: '🌟', label: 'Rare Star' }
       ];
       var SIZES = { easy: 60, medium: 120, hard: 210 };
       var REWARDS = { easy: 1, medium: 2, hard: 3 };
       var TIME_LIMITS = { easy: 40, medium: 30, hard: 20 };
+      var URGENT_SEC = 10;
+      var STREAK_MILESTONES = [3, 5, 10];
+      var NEXT_ROUND_DELAY_MS = 260;
+      var QUICK_BANNER_MS = 700;
 
       var overlay = el('nuggetHuntOverlay');
-      var targetText = el('nuggetHuntTargetText');
+      var targetIconEl = el('nuggetHuntTargetIcon');
+      var targetCaptionEl = el('nuggetHuntTargetCaption');
+      var targetChip = el('nuggetHuntTargetChip');
       var timerEl = el('nuggetHuntTimer');
       var exitBtn = el('nuggetHuntExitBtn');
       var replayBtn = el('nuggetHuntReplayBtn');
@@ -1127,12 +1244,61 @@
       var iconGrid = el('nuggetHuntIconGrid');
       var resultBanner = el('nuggetHuntResultBanner');
       var difficultyRow = el('nuggetHuntDifficultyRow');
+      var streakBadge = el('nuggetHuntStreakBadge');
+      var streakCountEl = el('nuggetHuntStreakCount');
 
       var gameTimer = null;
-      var targetIndex = -1;
+      var quickBannerTimer = null;
+      var nextRoundTimer = null;
       var difficulty = 'medium';
       var gameOver = false;
+      var roundLocked = false;
       var remainingSec = 0;
+      var streak = 0;
+      var firstFindRecorded = false;
+      var lastReward = 0;
+
+      // Tiny, self-contained WebAudio blips — no external asset, no shared sound module touched.
+      // Nugget Hunt only; other games are unaffected.
+      var audioCtx = null;
+      function getAudioCtx(){
+        if (audioCtx) return audioCtx;
+        var Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        try { audioCtx = new Ctor(); } catch (e) { audioCtx = null; }
+        return audioCtx;
+      }
+      function playTone(freqs, opts){
+        var ctx = getAudioCtx();
+        if (!ctx) return;
+        opts = opts || {};
+        var dur = opts.dur || 0.11;
+        var gap = opts.gap != null ? opts.gap : dur * 0.85;
+        var vol = opts.vol != null ? opts.vol : 0.08;
+        var type = opts.type || 'sine';
+        try {
+          if (ctx.state === 'suspended' && typeof ctx.resume === 'function') ctx.resume();
+          freqs.forEach(function(freq, i){
+            var t0 = ctx.currentTime + i * gap;
+            var osc = ctx.createOscillator();
+            var gainNode = ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, t0);
+            gainNode.gain.setValueAtTime(0, t0);
+            gainNode.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + dur + 0.02);
+          });
+        } catch (e) {}
+      }
+      function sfxFind(){ playTone([660, 880], { dur: 0.1, gap: 0.08, vol: 0.07 }); }
+      function sfxWrong(){ playTone([170], { dur: 0.12, vol: 0.05, type: 'triangle' }); }
+      function sfxMilestone(){ playTone([523, 659, 784, 1046], { dur: 0.13, gap: 0.09, vol: 0.08 }); }
+      function sfxRunComplete(){ playTone([523, 659, 784], { dur: 0.16, gap: 0.12, vol: 0.07 }); }
+      function sfxTimeUp(){ playTone([392, 294], { dur: 0.18, gap: 0.15, vol: 0.06, type: 'triangle' }); }
 
       if (difficultyRow){
         difficultyRow.querySelectorAll('.difficultyBtn').forEach(function(btn){
@@ -1146,6 +1312,8 @@
 
       function clearNuggetHuntTimers(){
         if (gameTimer) { clearInterval(gameTimer); gameTimer = null; }
+        if (nextRoundTimer) { clearTimeout(nextRoundTimer); nextRoundTimer = null; }
+        if (quickBannerTimer) { clearTimeout(quickBannerTimer); quickBannerTimer = null; }
       }
 
       function updateNuggetHuntTimerDisplay(){
@@ -1153,34 +1321,93 @@
         var m = Math.floor(s / 60);
         var sec = s % 60;
         timerEl.textContent = m + ':' + (sec < 10 ? '0' : '') + sec;
+        var urgent = s > 0 && s <= URGENT_SEC;
+        timerEl.classList.toggle('urgent', urgent);
+        if (boardWrap) boardWrap.classList.toggle('urgent', urgent);
+      }
+
+      function updateStreakBadge(){
+        if (!streakBadge) return;
+        if (streak <= 0) { streakBadge.hidden = true; return; }
+        streakBadge.hidden = false;
+        if (streakCountEl) streakCountEl.textContent = String(streak);
+        streakBadge.classList.remove('tier2', 'tier3');
+        if (streak >= 10) streakBadge.classList.add('tier3');
+        else if (streak >= 5) streakBadge.classList.add('tier2');
       }
 
       function closeNuggetHuntOverlay(){
         clearNuggetHuntTimers();
         gameOver = false;
-        resultBanner.classList.remove('show', 'win', 'lose');
-        resultBanner.textContent = '';
+        roundLocked = false;
+        streak = 0;
+        firstFindRecorded = false;
+        lastReward = 0;
+        updateStreakBadge();
+        if (boardWrap) boardWrap.classList.remove('urgent', 'fading');
+        resultBanner.classList.remove('show', 'win', 'lose', 'quick', 'milestone');
+        resultBanner.innerHTML = '';
         replayBtn.style.display = 'none';
         iconGrid.innerHTML = '';
         refreshBalance();
       }
 
-      function showNuggetHuntResult(won, nuggets){
+      /** Final banner — only shown when the run truly ends (time expires). */
+      function showNuggetHuntResult(won, nuggets, finalStreak){
         gameOver = true;
         clearNuggetHuntTimers();
-        resultBanner.textContent = won ? ('Found it! +' + nuggets + ' nugget' + (nuggets !== 1 ? 's' : '')) : 'Time\'s up!';
-        resultBanner.className = 'resultBanner show ' + (won ? 'win' : 'lose');
+        var streakLine = finalStreak > 0 ? ('<span class="bannerStreak">🔥 Best streak this run: ' + finalStreak + '</span>') : '';
+        if (won){
+          resultBanner.innerHTML = 'Nice hunting! +' + nuggets + ' nugget' + (nuggets !== 1 ? 's' : '') + streakLine;
+          resultBanner.className = 'resultBanner show win';
+          sfxRunComplete();
+        } else {
+          resultBanner.innerHTML = 'Time\'s up! Try again.' + streakLine;
+          resultBanner.className = 'resultBanner show lose';
+          sfxTimeUp();
+        }
         replayBtn.style.display = 'block';
         setTimeout(function(){
           resultBanner.classList.remove('show');
         }, RESULT_DELAY_MS);
       }
 
+      /** Brief, non-blocking celebration shown while the next target is already loading underneath. */
+      function celebrateAndContinue(){
+        var milestone = STREAK_MILESTONES.indexOf(streak) !== -1;
+        if (milestone){
+          resultBanner.innerHTML = '🔥 Streak ' + streak + '!';
+          resultBanner.className = 'resultBanner show win quick milestone';
+          sfxMilestone();
+        } else if (!firstFindRecorded){
+          resultBanner.innerHTML = 'Found it! +' + lastReward + ' nugget' + (lastReward !== 1 ? 's' : '');
+          resultBanner.className = 'resultBanner show win quick';
+          sfxFind();
+        } else {
+          resultBanner.innerHTML = 'Nice!';
+          resultBanner.className = 'resultBanner show win quick';
+          sfxFind();
+        }
+        clearTimeout(quickBannerTimer);
+        quickBannerTimer = setTimeout(function(){
+          resultBanner.classList.remove('show', 'milestone');
+        }, QUICK_BANNER_MS);
+      }
+
+      function flashTargetChip(){
+        if (!targetChip) return;
+        targetChip.classList.remove('flash');
+        void targetChip.offsetWidth;
+        targetChip.classList.add('flash');
+      }
+
       function buildNuggetHuntBoard(){
         iconGrid.innerHTML = '';
         var n = SIZES[difficulty] || SIZES.medium;
         var targetDef = TARGETS[Math.floor(Math.random() * TARGETS.length)];
-        targetText.textContent = targetDef.label;
+        if (targetIconEl) targetIconEl.textContent = targetDef.icon;
+        if (targetCaptionEl) targetCaptionEl.textContent = targetDef.label;
+        flashTargetChip();
         var decoyList = DECOYS.filter(function(d){ return d !== targetDef.icon; });
         if (decoyList.length === 0) decoyList = ['⭐','🌟','✨'];
         var cells = [];
@@ -1192,7 +1419,6 @@
           var j = Math.floor(Math.random() * (i + 1));
           var t = cells[i]; cells[i] = cells[j]; cells[j] = t;
         }
-        targetIndex = cells.findIndex(function(c){ return c.isTarget; });
         cells.forEach(function(cell, idx){
           var div = document.createElement('div');
           div.className = 'iconCell';
@@ -1200,26 +1426,47 @@
           div.dataset.idx = String(idx);
           div.dataset.target = cell.isTarget ? '1' : '0';
           div.onclick = function(){
-            if (gameOver) return;
+            if (gameOver || roundLocked) return;
             if (this.dataset.target === '1'){
-              var reward = REWARDS[difficulty] || 1;
-              var adopted = loadAdopted();
-              var timeLimit = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
-              var completionTimeSec = Math.max(0, timeLimit - remainingSec);
-              if (adopted){
-                awardGameWinWithEconomy(adopted.name, 'Nugget Hunt', reward, function(){
-                  showNuggetHuntResult(true, reward);
-                  refreshBalance();
-                }, function(){});
-                if (run && run.recordGameResult) {
-                  run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
+              this.classList.add('correct');
+              roundLocked = true;
+              streak++;
+              updateStreakBadge();
+              // Exactly one economy award + one leaderboard submission per paid play — identical
+              // contract to before. Continuing to hunt after this is a no-extra-cost bonus phase
+              // for feel/practice only; it never awards more Nuggets or posts more scores.
+              if (!firstFindRecorded){
+                firstFindRecorded = true;
+                var reward = REWARDS[difficulty] || 1;
+                lastReward = reward;
+                var adopted = loadAdopted();
+                var timeLimit = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
+                var completionTimeSec = Math.max(0, timeLimit - remainingSec);
+                if (adopted){
+                  awardGameWinWithEconomy(adopted.name, 'Nugget Hunt', reward, function(){
+                    refreshBalance();
+                  }, function(){});
+                  if (run && run.recordGameResult) {
+                    run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
+                  }
+                  postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){});
                 }
-                postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){});
+              }
+              celebrateAndContinue();
+              if (remainingSec > 0){
+                boardWrap.classList.add('fading');
+                nextRoundTimer = setTimeout(function(){
+                  if (gameOver) return;
+                  buildNuggetHuntBoard();
+                  boardWrap.classList.remove('fading');
+                  roundLocked = false;
+                }, NEXT_ROUND_DELAY_MS);
               } else {
-                showNuggetHuntResult(true, reward);
+                showNuggetHuntResult(firstFindRecorded, lastReward, streak);
               }
             } else {
               this.classList.add('wrong');
+              sfxWrong();
               var self = this;
               setTimeout(function(){ self.classList.remove('wrong'); }, 400);
             }
@@ -1232,9 +1479,15 @@
 
       function startNuggetHuntGame(){
         gameOver = false;
+        roundLocked = false;
+        streak = 0;
+        firstFindRecorded = false;
+        lastReward = 0;
+        updateStreakBadge();
         replayBtn.style.display = 'none';
-        resultBanner.classList.remove('show', 'win', 'lose');
-        resultBanner.textContent = '';
+        resultBanner.classList.remove('show', 'win', 'lose', 'quick', 'milestone');
+        resultBanner.innerHTML = '';
+        if (boardWrap) boardWrap.classList.remove('urgent', 'fading');
         clearNuggetHuntTimers();
         buildNuggetHuntBoard();
         remainingSec = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
@@ -1244,7 +1497,7 @@
           remainingSec--;
           updateNuggetHuntTimerDisplay();
           if (remainingSec <= 0){
-            showNuggetHuntResult(false, 0);
+            showNuggetHuntResult(firstFindRecorded, lastReward, streak);
           }
         }, 1000);
       }
