@@ -13,6 +13,10 @@
     filtersOpen: false,
     items: [],
     loading: true,
+    // Prompt #82 — true only when the teacher-mission fetch itself failed (network/auth/parse
+    // error), never when it genuinely succeeded with zero eligible missions. Drives a visible,
+    // non-destructive warning so a backend failure never looks identical to "load complete".
+    teacherFetchFailed: false,
   };
 
   function el(id) {
@@ -184,10 +188,21 @@
     return 'No completed missions yet.';
   }
 
+  // Prompt #82 — surfaces a real backend failure instead of letting the page look fully
+  // loaded (built-in Quick missions render unconditionally and can never signal this on
+  // their own). Hidden whenever the fetch genuinely succeeded, including a true zero-result.
+  function renderTeacherFetchWarning() {
+    var warn = el('missionsLibraryWarning');
+    if (!warn) return;
+    var show = !state.loading && !!state.teacherFetchFailed;
+    warn.hidden = !show;
+  }
+
   function renderGrid() {
     var grid = el('missionsLibraryGrid');
     var countEl = el('missionsLibraryCount');
     var LC = cardsApi();
+    renderTeacherFetchWarning();
     if (!grid) return;
     if (!LC || !LC.specGameHubRailCard || !LC.createStudentCard) {
       grid.innerHTML = '<p class="missionsLibraryEmpty">Mission cards unavailable.</p>';
@@ -343,9 +358,10 @@
     });
   }
 
-  function setItems(items, loading) {
+  function setItems(items, loading, teacherFetchFailed) {
     state.items = Array.isArray(items) ? items : [];
     state.loading = !!loading;
+    state.teacherFetchFailed = !!teacherFetchFailed;
     renderGrid();
   }
 

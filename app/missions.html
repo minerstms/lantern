@@ -221,6 +221,7 @@
     </div>
 
     <p id="missionsLibraryCount" class="missionsLibraryCount" aria-live="polite"></p>
+    <p id="missionsLibraryWarning" class="missionsLibraryWarning" role="alert" hidden>Some missions couldn't be loaded. Try refreshing.</p>
     <div id="missionsLibraryGrid" class="feedGrid" role="list" aria-label="Mission library"></div>
 
     </div>
@@ -1265,9 +1266,9 @@
       return items;
     }
 
-    function refreshMissionLibrary(missions, teacherMissions, submissions, loading){
+    function refreshMissionLibrary(missions, teacherMissions, submissions, loading, teacherFetchFailed){
       if (window.LanternMissionsPage && typeof window.LanternMissionsPage.setItems === 'function') {
-        window.LanternMissionsPage.setItems(buildUnifiedMissionItems(missions, teacherMissions, submissions), loading);
+        window.LanternMissionsPage.setItems(buildUnifiedMissionItems(missions, teacherMissions, submissions), loading, !!teacherFetchFailed);
       }
       var badge = document.getElementById('lanternNavMissionsBadge');
       if (badge) {
@@ -1502,30 +1503,60 @@
       });
     }
 
+    /* Prompt #82 — a single transient failure (network blip, brief 5xx, cold-start timeout)
+       must not silently erase every teacher mission from the Active grid with zero visible
+       sign anything went wrong. One short-delay retry absorbs a one-off hiccup; if it still
+       fails, loadMissions() reports teacherFetchFailed=true so the page can show a visible,
+       non-destructive warning instead of rendering as if the load fully succeeded. */
+    function callGetActiveTeacherMissionsForCharacterWithRetry(characterName, retriesLeft){
+      return callGetActiveTeacherMissionsForCharacter(characterName).then(function(res){
+        if ((!res || !res.ok) && retriesLeft > 0) {
+          return new Promise(function(resolve){ setTimeout(resolve, 600); }).then(function(){
+            return callGetActiveTeacherMissionsForCharacterWithRetry(characterName, retriesLeft - 1);
+          });
+        }
+        return res;
+      });
+    }
+
     function loadMissions(){
       var adopted = getAdopted();
       if (!adopted || !adopted.name){
-        refreshMissionLibrary({}, [], [], false);
+        refreshMissionLibrary({}, [], [], false, false);
         return;
       }
-      refreshMissionLibrary({}, [], [], true);
+      refreshMissionLibrary({}, [], [], true, false);
       var characterNameForApi = getCharacterNameForApi() || adopted.name;
       var quickData = {};
       var teacherData = [];
       var subsData = [];
+      var teacherFetchFailed = false;
       var pending = 3;
       function done(){
         pending--;
-        if (pending <= 0) refreshMissionLibrary(quickData, filterStaleMissions(teacherData), subsData, false);
+        if (pending <= 0) refreshMissionLibrary(quickData, filterStaleMissions(teacherData), subsData, false, teacherFetchFailed);
       }
       callGetMissions(adopted.name).then(function(res){
         quickData = (res && res.missions) || {};
         done();
       });
-      callGetActiveTeacherMissionsForCharacter(characterNameForApi).then(function(res){
-        teacherData = (res && res.ok && res.missions) ? res.missions : [];
+      callGetActiveTeacherMissionsForCharacterWithRetry(characterNameForApi, 1).then(function(res){
+        if (res && res.ok && Array.isArray(res.missions)) {
+          teacherData = res.missions;
+          teacherFetchFailed = false;
+        } else {
+          // Genuine failure (auth lapsed mid-session, network error, bad response) — NOT the
+          // same as "this student legitimately has zero eligible teacher missions" (that case
+          // also returns ok:true with an empty array and must never trip this warning).
+          teacherData = [];
+          teacherFetchFailed = true;
+        }
         done();
-      }).catch(function(){ done(); });
+      }).catch(function(){
+        teacherData = [];
+        teacherFetchFailed = true;
+        done();
+      });
       callGetMissionSubmissionsForCharacter(characterNameForApi).then(function(sres){
         subsData = (sres && sres.submissions) || [];
         done();

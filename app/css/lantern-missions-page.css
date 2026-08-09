@@ -139,6 +139,20 @@
   font-weight: 700;
 }
 
+/* Prompt #82 — visible, non-destructive warning when the teacher-mission fetch itself
+   failed (never shown for a genuine zero-result success). Quick missions stay usable
+   underneath; this only tells the student/teacher that something didn't load. */
+.missionsLibraryWarning {
+  margin: 0 0 0.75rem;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(230, 168, 48, 0.14);
+  border: 1px solid rgba(230, 168, 48, 0.45);
+  color: #e6a830;
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .missionsLibraryEmpty {
   grid-column: 1 / -1;
   padding: 1.5rem 0;
