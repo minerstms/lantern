@@ -568,7 +568,12 @@
         allowVideo: allowsVideo,
         allowLink: allowsLink,
         helpKey: 'mission_image',
-        libraryButton: allowsImage ? { label: 'Pick picture from library', onClick: function () { openLibraryPicker('image'); } } : null,
+        // "Pick picture from library" removed for mission photo submissions (Report #74: all 21
+        // static library/* R2 keys are unpopulated/404 — offering them let students pick a
+        // guaranteed-broken image). Choose a file -> crop -> /api/news/upload-image is the only
+        // proven-working photo path and remains the sole option here. openLibraryPicker() itself
+        // stays (still used by the poll-image "Library" button below, missionSubmitPollLibraryBtn).
+        libraryButton: null,
         onPasteUrl: function (u) {
           u = String(u || '').trim().slice(0, 2000);
           var imgLike = /\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(u) || /\/api\/(media\/image|news\/image)\?/i.test(u);

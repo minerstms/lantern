@@ -48,8 +48,12 @@ async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   const consoleErrors = [];
+  const mediaLibraryRequests = [];
   page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
   page.on('pageerror', (err) => consoleErrors.push(String(err)));
+  // Prompt #75: prove the mission photo workflow never even requests the (broken) picture
+  // library backend, not just that its button is hidden.
+  page.on('request', (req) => { if (req.url().indexOf('/api/media/library') !== -1) mediaLibraryRequests.push(req.url()); });
 
   await page.addInitScript(() => {
     window.LANTERN_AVATAR_API = '';
@@ -104,6 +108,23 @@ async function main() {
 
   await page.waitForSelector('#missionDetailOverlay.is-open', { timeout: 5000 });
   assert(true, 'Mission Detail modal opened');
+
+  // --- Prompt #75: broken picture library removed from the mission photo control ---
+  const photoControlState = await page.evaluate(() => {
+    const mount = document.getElementById('missionUnifiedMediaMount');
+    const chooseBtn = mount ? mount.querySelector('.lanternUnifiedMediaChoose') : null;
+    const secondary = mount ? mount.querySelector('.lanternUnifiedMediaSecondary') : null;
+    const allButtonsText = mount ? Array.from(mount.querySelectorAll('button')).map((b) => b.textContent) : [];
+    return {
+      hasChooseFile: !!chooseBtn,
+      chooseFileVisible: !!(chooseBtn && getComputedStyle(chooseBtn).display !== 'none'),
+      secondaryVisible: !!(secondary && getComputedStyle(secondary).display !== 'none'),
+      hasLibraryButtonText: allButtonsText.some((t) => /pick.*library/i.test(t || '')),
+    };
+  });
+  assert(photoControlState.hasChooseFile && photoControlState.chooseFileVisible, 'Mission photo control offers "Choose a file"');
+  assert(!photoControlState.secondaryVisible, 'Mission photo control secondary row (where the library button lived) is hidden');
+  assert(!photoControlState.hasLibraryButtonText, 'Mission photo control has NO "Pick picture from library" (or similar) button anywhere');
 
   // page.fill() sets the whole string atomically, which the app's paste/burst anti-cheat guard
   // (handleMissionContentInput — delta >= 10 chars reverts the field) correctly rejects as a
@@ -194,6 +215,8 @@ async function main() {
   assert(afterCancel.missionOpen, 'Cancel Crop: Mission modal remains open');
   assert(afterCancel.text === 'cancel test text', 'Cancel Crop: previously typed text is preserved');
   assert(!afterCancel.imageUrl, 'Cancel Crop: no fake image attached');
+
+  assert(mediaLibraryRequests.length === 0, 'The entire mission photo workflow (choose file, crop, use image, cancel) never requested /api/media/library — got: ' + JSON.stringify(mediaLibraryRequests));
 
   fs.unlinkSync(testImgPath);
   await browser.close();

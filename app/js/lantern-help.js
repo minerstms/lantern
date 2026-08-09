@@ -45,7 +45,7 @@
     back_to_profile: 'Go back to Locker.',
     news_image: 'One media spot per article: click the box, then paste a picture, short video, or link, drag a file, or choose a file. It is not for typing — your story goes in the body above.',
     unified_media: 'This box is for photo, video, or link only. Click in it first, then paste, drag, or choose a file. Typing letters here won’t work on purpose.',
-    mission_image: 'Add what the mission asks for in this one box: photo, video, or link. Click inside, then paste, drag, or choose. Use Pick from library for approved pictures.',
+    mission_image: 'Add what the mission asks for in this one box: photo, video, or link. Click inside, then paste, drag, or choose a file from your device.',
     submission_celebration: 'After you submit news as a student, you get a short fireworks celebration, then an optional typing game. Nuggets in your school wallet usually come when a teacher approves your article.',
     school_survival: 'Mini Games: handbook and local picture activities. Tap answers to learn why; scores are not saved to your account.',
     approvals_queue: 'Items waiting for your review: news articles and avatar uploads. Use Approve, Reject, or Return. Approving can grant nuggets (see Rewards Panel). Only approved items appear to students.',
