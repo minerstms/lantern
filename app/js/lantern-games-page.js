@@ -458,6 +458,7 @@
       var spec = LC.specGameHubRailCard({
         title: g.name,
         icon: g.icon,
+        imageUrl: g.image || '',
         metaOne: metaOne,
         rewardText: g.featured ? 'Featured' : '',
         typeBadge: typeBadge,
