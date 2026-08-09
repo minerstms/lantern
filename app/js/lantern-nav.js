@@ -98,6 +98,14 @@
   }
 
   var lastAttentionCount = -1;
+  /* Prompt #85 — pilotSessionShellGate() below already makes its own definitive /api/auth/me
+     call on every page. Once that call has established the visitor is not authenticated, the
+     periodic/visibility-triggered bell refresh has nothing to show and would just be firing
+     mission/poll/news requests that are certain to fail on an expired session. This flag is set
+     from that same established check (no new auth call added) and only skips the recurring
+     refresh — the very first refreshNeedsAttentionBellFromApi() call at init() still runs as
+     before, since the shell gate has not resolved yet at that point. */
+  var navKnownUnauthenticated = false;
 
   function applyBellCount(count) {
     var bell = document.getElementById('lanternExploreBell');
@@ -329,6 +337,10 @@
   }
 
   function refreshNeedsAttentionBellFromApi() {
+    if (navKnownUnauthenticated) {
+      applyBellCount(0);
+      return Promise.resolve(0);
+    }
     return fetchProfileNeedsAttentionCount().then(applyBellCount).catch(function () { applyBellCount(0); });
   }
 
@@ -380,7 +392,11 @@
       if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return;
       var api = String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
       fetch(api + '/api/auth/me', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(data){
-        if (!data || !data.ok || !data.authenticated) return;
+        if (!data || !data.ok || !data.authenticated) {
+          navKnownUnauthenticated = true;
+          applyBellCount(0);
+          return;
+        }
         showAuthenticatedLogoutControls();
         if (data.must_change_password) {
           var path = (typeof location !== 'undefined' && location.pathname) ? String(location.pathname) : '';

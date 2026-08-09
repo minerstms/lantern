@@ -1519,6 +1519,33 @@
       });
     }
 
+    /* Prompt #85 — a mission-fetch failure can mean two very different things: (a) a real,
+       transient glitch while the session is still valid (network blip, brief 5xx) — show the
+       existing "some missions couldn't be loaded" warning as before — or (b) the session has
+       actually expired/gone invalid since the page booted. Rendering (b) as if it were (a) is
+       misleading: it looks like a mission bug, not an auth problem. Before treating any mission
+       fetch failure as (a), get one definitive answer from the same canonical /api/auth/me the
+       page's own boot guard uses. If it says unauthenticated, skip the misleading partial render
+       entirely and send the user through the existing login/session-expired redirect instead.
+       Cached so a simultaneous teacher+submissions failure only re-checks auth once. */
+    var missionsAuthRecheck = null;
+    function verifyStillAuthenticatedOrRedirect(){
+      if (missionsAuthRecheck) return missionsAuthRecheck;
+      var auth = window.LanternAuth || window.LanternPilotAuth;
+      if (!auth || typeof auth.fetchMe !== 'function') return Promise.resolve(true);
+      missionsAuthRecheck = auth.fetchMe().then(function(data){
+        if (!data || !data.ok || !data.authenticated) {
+          var loginUrl = typeof auth.loginUrlWithReturn === 'function'
+            ? auth.loginUrlWithReturn()
+            : '/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash);
+          location.replace(loginUrl);
+          return false;
+        }
+        return true;
+      });
+      return missionsAuthRecheck;
+    }
+
     function loadMissions(){
       var adopted = getAdopted();
       if (!adopted || !adopted.name){
@@ -1544,22 +1571,36 @@
         if (res && res.ok && Array.isArray(res.missions)) {
           teacherData = res.missions;
           teacherFetchFailed = false;
-        } else {
-          // Genuine failure (auth lapsed mid-session, network error, bad response) — NOT the
-          // same as "this student legitimately has zero eligible teacher missions" (that case
-          // also returns ok:true with an empty array and must never trip this warning).
+          done();
+          return;
+        }
+        // Genuine failure (network error, bad response) vs. an expired/invalid session both land
+        // here — confirm which one before deciding how (or whether) to render.
+        verifyStillAuthenticatedOrRedirect().then(function(stillAuthenticated){
+          if (!stillAuthenticated) return; // redirecting to login — do not render the mission grid
           teacherData = [];
           teacherFetchFailed = true;
-        }
-        done();
+          done();
+        });
       }).catch(function(){
-        teacherData = [];
-        teacherFetchFailed = true;
-        done();
+        verifyStillAuthenticatedOrRedirect().then(function(stillAuthenticated){
+          if (!stillAuthenticated) return;
+          teacherData = [];
+          teacherFetchFailed = true;
+          done();
+        });
       });
       callGetMissionSubmissionsForCharacter(characterNameForApi).then(function(sres){
-        subsData = (sres && sres.submissions) || [];
-        done();
+        if (sres && sres.ok && Array.isArray(sres.submissions)) {
+          subsData = sres.submissions;
+          done();
+          return;
+        }
+        verifyStillAuthenticatedOrRedirect().then(function(stillAuthenticated){
+          if (!stillAuthenticated) return;
+          subsData = [];
+          done();
+        });
       });
     }
 
