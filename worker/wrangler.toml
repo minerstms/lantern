@@ -10,6 +10,11 @@
 name = "lantern-api"
 main = "index.js"
 compatibility_date = "2024-01-01"
+# global_fetch_strictly_public (Prompt #94): required so this Worker's outbound fetch() to
+# mtss-behavior-log.mrradle.workers.dev (TMS Nuggets, same workers.dev zone) goes over the public
+# internet instead of Cloudflare's internal same-zone routing -- otherwise it fails with error 1042
+# ("Worker tried to fetch from another Worker on the same zone"). Nuggets' worker already sets this.
+compatibility_flags = ["global_fetch_strictly_public"]
 
 [[d1_databases]]
 binding = "DB"
