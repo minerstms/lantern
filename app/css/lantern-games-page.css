@@ -153,6 +153,28 @@
   }
 }
 
+/* Prompt #88 — game artwork + leaderboard render as one paired stack per carousel slide.
+   Pairing is structural: both children are built from the same data bundle inside the same
+   .gamesLbSlide, so the carousel (which only ever transforms whole slides) can never separate
+   a game's artwork from its own leaderboard.
+   The canonical card keeps its contract-locked fixed width (--lantern-card-width) untouched —
+   no page may resize .exploreCard.lanternCanonicalCard (see lantern-cards.css header + runtime
+   SHELL_WIDTH_DRIFT enforcement in lantern-canonical-enforce.js). Its plain (non-canonical)
+   leaderboard sibling is constrained to the same width instead, so the pair reads as one unit.
+   Plain block stacking (not flex) is used deliberately — a flex column parent was observed to
+   break the canonical card's aspect-ratio sizing (a Chromium flex/aspect-ratio interaction),
+   which is exactly the kind of drift the canonical-card contract must never risk. */
+.leaderboardGameStack .exploreCard.lanternCanonicalCard {
+  margin: 0 auto;
+}
+
+.leaderboardGameStack .gamesLbCard {
+  width: 100%;
+  max-width: var(--lantern-card-width, 280px);
+  margin: 0.5rem auto 0;
+  box-sizing: border-box;
+}
+
 .gamesLbCard {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
   border: 2px solid rgba(255, 255, 255, 0.12);

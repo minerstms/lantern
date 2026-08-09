@@ -238,11 +238,69 @@
       .replace(/"/g, '&quot;');
   }
 
+  /** Same type-badge logic as the Games library grid — single source, no duplicate table. */
+  function typeBadgeForGame(g) {
+    var badge =
+      g.type === 'trivia'
+        ? '❓ Trivia'
+        : g.type === 'arcade'
+          ? '🕹 Arcade'
+          : g.type === 'memory'
+            ? '🧠 Memory'
+            : '🎮 Game';
+    if (g.featured) badge = '⭐ Featured';
+    return badge;
+  }
+
+  /** Canonical game-hub card spec — shared by the Games library grid and the leaderboard-paired card (Prompt #88). */
+  function buildGameHubCardSpec(g, opts) {
+    opts = opts || {};
+    var LC = cardsApi();
+    var cat = catalog();
+    if (!LC || !cat) return null;
+    var metaOne = cat.playCostCardMeta(g.play_cost);
+    if (g.status !== 'playable') metaOne = 'Coming soon';
+    return LC.specGameHubRailCard({
+      title: g.name,
+      icon: g.icon,
+      imageUrl: g.image || '',
+      metaOne: metaOne,
+      rewardText: opts.compact ? '' : g.featured ? 'Featured' : '',
+      typeBadge: typeBadgeForGame(g),
+      reportId: (opts.reportPrefix || 'game_') + g.id,
+      extraClass: opts.extraClass || 'exploreCard--gamesLibrary',
+      dataAttrs: {
+        gamesProxyPlay: g.playBtnId,
+        gameName: g.name,
+        gameId: g.id,
+        routeSurface: opts.routeSurface || 'games_library',
+        routeDetail: g.id,
+      },
+      role: g.status === 'playable' ? 'button' : 'group',
+      tabIndex: g.status === 'playable' ? 0 : -1,
+      ariaLabel: g.status === 'playable' ? cat.playActionLabel(g.play_cost) + ' — ' + g.name : g.name + ' — coming soon',
+    });
+  }
+
+  /** Compact canonical game card used as the leaderboard's artwork/identity header (Prompt #88). */
+  function buildLeaderboardGameCard(g) {
+    var LC = cardsApi();
+    if (!LC || !LC.createStudentCard || !g) return null;
+    var spec = buildGameHubCardSpec(g, {
+      compact: true,
+      extraClass: 'exploreCard--gamesLbPaired',
+      reportPrefix: 'game_lb_',
+      routeSurface: 'games_leaderboard',
+    });
+    return spec ? LC.createStudentCard(spec) : null;
+  }
+
   function renderCarousel() {
     var track = el('gamesLeaderboardTrack');
     var dots = el('gamesLeaderboardDots');
     if (!track) return;
     var cat = catalog();
+    var LC = cardsApi();
     if (!cat) return;
     var games = cat.leaderboardGames();
     track.innerHTML = '';
@@ -250,9 +308,18 @@
       var wrap = document.createElement('div');
       wrap.className = 'gamesLbSlide';
       wrap.setAttribute('data-slide-index', String(idx));
-      wrap.innerHTML = renderLeaderboardCardHtml(bundle.game, bundle);
+      var stack = document.createElement('div');
+      stack.className = 'leaderboardGameStack';
+      var cardNode = buildLeaderboardGameCard(bundle.game);
+      if (cardNode) stack.appendChild(cardNode);
+      var lbHost = document.createElement('div');
+      lbHost.innerHTML = renderLeaderboardCardHtml(bundle.game, bundle);
+      var lbCard = lbHost.firstElementChild;
+      if (lbCard) stack.appendChild(lbCard);
+      wrap.appendChild(stack);
       track.appendChild(wrap);
     });
+    if (LC && typeof LC.enhanceReportControlsIn === 'function') LC.enhanceReportControlsIn(track);
     if (dots) {
       dots.innerHTML = '';
       games.forEach(function (_g, i) {
@@ -444,38 +511,8 @@
     if (countEl) countEl.textContent = games.length + ' game' + (games.length === 1 ? '' : 's');
     grid.innerHTML = '';
     games.forEach(function (g) {
-      var typeBadge =
-        g.type === 'trivia'
-          ? '❓ Trivia'
-          : g.type === 'arcade'
-            ? '🕹 Arcade'
-            : g.type === 'memory'
-              ? '🧠 Memory'
-              : '🎮 Game';
-      if (g.featured) typeBadge = '⭐ Featured';
-      var metaOne = cat.playCostCardMeta(g.play_cost);
-      if (g.status !== 'playable') metaOne = 'Coming soon';
-      var spec = LC.specGameHubRailCard({
-        title: g.name,
-        icon: g.icon,
-        imageUrl: g.image || '',
-        metaOne: metaOne,
-        rewardText: g.featured ? 'Featured' : '',
-        typeBadge: typeBadge,
-        reportId: 'game_' + g.id,
-        extraClass: 'exploreCard--gamesLibrary',
-        dataAttrs: {
-          gamesProxyPlay: g.playBtnId,
-          gameName: g.name,
-          gameId: g.id,
-          routeSurface: 'games_library',
-          routeDetail: g.id,
-        },
-        role: g.status === 'playable' ? 'button' : 'group',
-        tabIndex: g.status === 'playable' ? 0 : -1,
-        ariaLabel: g.status === 'playable' ? cat.playActionLabel(g.play_cost) + ' — ' + g.name : g.name + ' — coming soon',
-      });
-      var node = LC.createStudentCard(spec);
+      var spec = buildGameHubCardSpec(g, {});
+      var node = spec ? LC.createStudentCard(spec) : null;
       if (node) grid.appendChild(node);
     });
     LC.enhanceReportControlsIn(grid);
@@ -524,6 +561,10 @@
     var root = el('gamesLeaderboardCarousel');
     if (!root || root._wired) return;
     root._wired = true;
+    // Prompt #88 — the artwork card above each leaderboard is the same clickable game-hub
+    // card used in the library grid below; reuse the existing proxy-play wiring verbatim
+    // instead of inventing a second click handler for the same action.
+    wireLibraryProxyClicks(root);
     root.addEventListener('mouseenter', function () {
       pauseAuto('hover');
     });
