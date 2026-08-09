@@ -85,33 +85,37 @@
 
     /* Main column: lantern-header.css .wrap.lanternContent (max-width + gutters + header offset) */
 
-    .titleRow{
+    /* Prompt #78 — compact Teacher identity header: one row (icon + "Teacher" + "TMS
+       Lantern" + signed-in-as hint), no giant centered hero, no page-specific Sign out
+       (global Lantern nav already provides logout) and no Hallway TV button (moved to
+       the sidebar as a workspace-adjacent destination). */
+    .teacherIdentityRow{
       display:flex;
-      flex-direction:column;
+      align-items:baseline;
+      justify-content:flex-start;
+      gap:10px;
+      flex-wrap:wrap;
+      margin:0;
+    }
+    .teacherIdentityTitle{
+      display:inline-flex;
       align-items:center;
-      justify-content:center;
-      gap:2px;
-      margin: 0 0 8px;
-      text-align:center;
-    }
-    .teacherPageShell .appTitle{
-      font-size: 36px;
-    }
-    .appTitle{
-      font-weight: 1000;
-      letter-spacing:.4px;
-      font-size: 40px;
-      line-height:1.05;
-      opacity:.98;
-    }
-    .teacherSessionHint{ display: none; font-size: 20px; font-weight: 800; color: var(--muted); margin: 4px 0 14px; line-height: 1.35; }
-    .teacherSessionHint.is-visible{ display: block; }
-    .subTitle{
-      color: var(--muted);
-      font-weight: 900;
-      font-size: var(--fsSmall);
+      gap:8px;
+      font-weight:1000;
       letter-spacing:.2px;
+      font-size:30px;
+      line-height:1.15;
+      white-space:nowrap;
     }
+    .teacherIdentitySub{
+      color: var(--muted);
+      font-weight:900;
+      font-size:22px;
+      letter-spacing:.2px;
+      line-height:1.3;
+    }
+    .teacherSessionHint{ display: none; font-size: 22px; font-weight: 800; color: var(--muted); margin: 0; line-height: 1.3; }
+    .teacherSessionHint.is-visible{ display: inline; }
 
     .pill{
       display:inline-flex;
@@ -749,23 +753,7 @@
     }
 
     .teacherPageShell{
-      margin-bottom: 12px;
-    }
-    .teacherActionRow{
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      margin: 6px 0 10px;
-    }
-    #teacherLogoutMsg{
-      color: var(--bad);
-      font-size: 20px;
-      font-weight: 800;
-      margin: 8px auto 0;
-      text-align: center;
-      max-width: 720px;
+      margin-bottom: 10px;
     }
     .teacherJumpNav{
       display: flex;
@@ -860,11 +848,18 @@
     .teacherUtilitiesDetails[open] > summary::after{ content: ' ▲'; }
     .teacherUtilitiesInner{
       padding: 0 8px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: start;
+      gap: 14px;
     }
     .teacherUtilitiesInner > .card{ margin-top: 0; }
+    /* Prompt #78 — Other Tools is a toolbox of independent utilities; on wide desktop
+       screens let them flow into a 2-column grid instead of one narrow stacked column
+       leaving most of the workspace blank. */
+    @media (min-width: 1100px){
+      .teacherUtilitiesInner{ grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+    }
     .teacherApprovalHistoryDetails{
       margin-top: 10px;
       padding-top: 8px;
@@ -952,6 +947,7 @@
       line-height: 1.2;
       cursor: pointer;
       font-family: inherit;
+      text-decoration: none;
     }
     .teacherSidebarItem:hover{ background: rgba(255,255,255,.07); color: var(--ink); }
     .teacherSidebarItem.is-active{
@@ -959,6 +955,9 @@
       border-color: rgba(90,167,255,.5);
       color: var(--ink);
     }
+    /* Hallway TV opens a real link (new tab) rather than switching workspaces; a top
+       divider sets it apart from the workspace list above it. */
+    .teacherSidebarItem--divider{ margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
     .teacherSidebarIcon{ font-size: 22px; width: 26px; flex-shrink: 0; text-align: center; }
     .teacherSidebarLabel{ flex: 1; min-width: 0; }
     .teacherSidebarBadge{
@@ -1029,6 +1028,10 @@
     #teacher-approvals .approvalsTwoCol .approvalsCol.is-active{ display: flex; flex-direction: column; }
     /* Section 23 — no nested scroll: let the pending list grow naturally inside the single main scroll. */
     #teacher-approvals .approvalsTwoCol .approvalsColBody{ max-height: none; overflow: visible; }
+    /* Prompt #78 — compact empty state: don't force a 100px-tall empty bordered box when the
+       queue has nothing pending; let the "No … waiting" placeholder hug its own text. */
+    #teacher-approvals .approvalsColBody{ min-height: 0; }
+    #teacher-approvals .approvalsColBody .placeholderRow{ padding: 22px 14px; border-radius: 16px; border: 1px dashed var(--line); background: rgba(0,0,0,.10); }
 
     /* Review Queue — collapsible filters (Filters button + always-visible Sort) */
     .approvalsToolbar{ display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -1054,6 +1057,57 @@
       margin-top: 4px;
     }
     #teacher-approvals .approvalsBatchBar.has-selection .approvalsBulkActiveGroup{ display: flex; }
+
+    /* Prompt #78 — shared Teacher form component classes: Create Mission (and similar
+       Teacher forms) use these instead of one-off inline styles per field, so every
+       input/select/textarea/checkbox/section shares one consistent look. */
+    .teacherFormCard{ max-width: 800px; }
+    .teacherFieldGroup{
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: .06em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin: 22px 0 12px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+    .teacherFieldGroup:first-child{ margin-top: 0; padding-top: 0; border-top: none; }
+    .teacherFieldRow{ display: grid; grid-template-columns: 1fr; gap: 4px 18px; }
+    .teacherField{ margin-bottom: 14px; min-width: 0; }
+    .teacherField:last-child{ margin-bottom: 0; }
+    .teacherField > label{ margin-bottom: 6px; }
+    .teacherInput, .teacherSelect, .teacherTextarea{
+      display: block;
+      width: 100%;
+      height: 48px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--ink);
+      font-size: 22px;
+      font-family: inherit;
+    }
+    .teacherTextarea{ height: auto; min-height: 84px; padding: 12px; resize: vertical; line-height: 1.35; }
+    .teacherInput--sm{ max-width: 140px; }
+    .teacherFieldHint{ font-size: 20px; color: var(--muted); line-height: 1.35; margin: 6px 0 0; }
+    .teacherCheckboxField{ display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; cursor: pointer; }
+    .teacherCheckboxField:last-child{ margin-bottom: 0; }
+    .teacherCheckboxField input[type="checkbox"]{ width: 24px; height: 24px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--accent); }
+    .teacherCheckboxField .teacherCheckboxLabel{ font-weight: 800; color: var(--ink); font-size: 22px; line-height: 1.3; }
+    .teacherCheckboxHint{ font-size: 20px; color: var(--muted); line-height: 1.35; margin: 3px 0 0 34px; }
+    .teacherActions{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+    @media (min-width: 640px){
+      .teacherFieldRow--2{ grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+    /* Prompt #78 — a whole .card can collapse (e.g. My Missions → Recognition, a
+       secondary supporting tool) by making the card itself a <details>/<summary> pair;
+       the summary reuses .cardHd's layout so it looks identical whether open or closed. */
+    .teacherCollapsibleCard > summary{ list-style: none; cursor: pointer; user-select: none; }
+    .teacherCollapsibleCard > summary::-webkit-details-marker{ display: none; }
+    .teacherCollapsibleCard > summary::before{ content: '▸'; color: var(--muted); font-weight: 900; margin-right: 4px; }
+    .teacherCollapsibleCard[open] > summary::before{ content: '▾'; }
 
     @media (max-width: 900px){
       .teacherAppShell{ display: block; }
@@ -1168,25 +1222,18 @@
       <span class="verifyAvatarWrap" id="teacherVerifyAvatarWrap" style="display:none;"><img id="teacherVerifyAvatarImg" class="verifyAvatarPreview" alt=""><span class="verifyAvatarFallback" id="teacherVerifyAvatarFallback"></span></span>
     </div>
     <div id="teacherPageTop" class="teacherPageShell">
-    <div class="titleRow">
-      <div class="appTitle">
-        <span style="display:inline-flex;align-items:center;gap:10px;">
-          <svg width="44" height="44" viewBox="0 0 64 64" aria-hidden="true">
-            <path d="M8 40 18 12 42 8 58 24 54 46 38 60 18 56 4 46Z" fill="#f2c230" stroke="#6f5200" stroke-width="3" stroke-linejoin="miter"/>
-            <path d="M22 22 36 16 48 24 42 32 26 30Z" fill="#ffe07a" opacity="0.9"/>
-            <path d="M20 24 H44 V30 H36 V48 H28 V30 H20 Z" fill="#0f3b86"/>
-          </svg>
-          <span>Teacher Approval</span>
-        </span>
-      </div>
-      <div class="subTitle">TMS Lantern</div>
+    <div class="teacherIdentityRow">
+      <span class="teacherIdentityTitle">
+        <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M8 40 18 12 42 8 58 24 54 46 38 60 18 56 4 46Z" fill="#f2c230" stroke="#6f5200" stroke-width="3" stroke-linejoin="miter"/>
+          <path d="M22 22 36 16 48 24 42 32 26 30Z" fill="#ffe07a" opacity="0.9"/>
+          <path d="M20 24 H44 V30 H36 V48 H28 V30 H20 Z" fill="#0f3b86"/>
+        </svg>
+        <span>Teacher</span>
+      </span>
+      <span class="teacherIdentitySub">TMS Lantern</span>
       <p id="teacherSessionHint" class="teacherSessionHint" aria-live="polite"></p>
     </div>
-    <div class="teacherActionRow">
-      <a href="display.html" target="_blank" rel="noopener" class="btn good" style="font-size:22px; padding:8px 16px; text-decoration:none;">Hallway TV</a>
-      <button type="button" class="btn" id="teacherLogoutBtn" style="font-size:22px; padding:8px 16px;">Sign out</button>
-    </div>
-    <p id="teacherLogoutMsg" role="status" aria-live="polite" style="display:none;"></p>
     </div>
 
     <div class="teacherAppShell" id="teacherAppShell">
@@ -1201,6 +1248,7 @@
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="economy"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets &amp; Sales</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="other"><span class="teacherSidebarIcon" aria-hidden="true">🧰</span><span class="teacherSidebarLabel">Other Tools</span></button>
+          <a href="display.html" target="_blank" rel="noopener" class="teacherSidebarItem teacherSidebarItem--divider"><span class="teacherSidebarIcon" aria-hidden="true">📺</span><span class="teacherSidebarLabel">Hallway TV</span></a>
         </nav>
       </aside>
 
@@ -1450,85 +1498,94 @@
 
     <section id="teacher-create-mission" class="teacherMissionsSection" data-workspace="create" aria-labelledby="teacherCreateMissionHeading">
     <h2 id="teacherCreateMissionHeading" class="visuallyHidden">Create Mission</h2>
-    <div class="card" style="max-width:720px;">
-      <div class="cardHd">
-        <div class="h">Create Mission</div>
-      </div>
+    <div class="card teacherFormCard">
       <div class="cardBd">
         <p class="note note-tight">Students submit here; you review in <strong>Review Queue</strong>.</p>
 
-        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:14px 0 8px;text-transform:uppercase;">Mission</div>
-        <label for="missionTitle">Title</label>
-        <input type="text" id="missionTitle" placeholder="Mission title" style="width:100%;max-width:400px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;" />
-        <label for="missionDesc">Instructions</label>
-        <textarea id="missionDesc" placeholder="What should students do?" style="width:100%;min-height:80px;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;resize:vertical;"></textarea>
+        <div class="teacherFieldGroup">Mission</div>
+        <div class="teacherField">
+          <label for="missionTitle">Title</label>
+          <input type="text" id="missionTitle" class="teacherInput" placeholder="Mission title" />
+        </div>
+        <div class="teacherField">
+          <label for="missionDesc">Instructions</label>
+          <textarea id="missionDesc" class="teacherTextarea" placeholder="What should students do?"></textarea>
+        </div>
 
-        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Submission</div>
-        <label for="missionType">Submission type / template</label>
-        <select id="missionType" style="width:100%;max-width:280px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;">
-          <option value="text">Text Reflection</option>
-          <option value="image_url">Photo Submission</option>
-          <option value="video">Video Submission</option>
-          <option value="mixed">Mixed Media</option>
-          <option value="poll">Poll</option>
-          <option value="bug_report">Bug Report</option>
-          <option value="link">Link</option>
-          <option value="confirmation">Confirmation</option>
-        </select>
-        <details class="teacherMissionMediaHint">
-          <summary>Photo / image missions</summary>
-          <p class="note" style="margin-top:8px;margin-bottom:0;font-size:20px;">Students can upload or pick from the approved library when submitting.</p>
-        </details>
-        <div class="missionRequirementsSection" style="margin-bottom:10px;padding:10px 0;">
-          <div class="missionRequirementsLabel" style="font-weight:900;font-size:22px;margin-bottom:8px;">Submission requirements</div>
-          <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;">
-            <input type="checkbox" id="missionAllowsText" style="width:24px;height:24px;" checked />
-            <span style="font-weight:800;color:var(--muted);font-size:22px;">Written response</span>
+        <div class="teacherFieldGroup">Submission</div>
+        <div class="teacherField">
+          <label for="missionType">Submission type / template</label>
+          <select id="missionType" class="teacherSelect">
+            <option value="text">Text Reflection</option>
+            <option value="image_url">Photo Submission</option>
+            <option value="video">Video Submission</option>
+            <option value="mixed">Mixed Media</option>
+            <option value="poll">Poll</option>
+            <option value="bug_report">Bug Report</option>
+            <option value="link">Link</option>
+            <option value="confirmation">Confirmation</option>
+          </select>
+          <details class="teacherMissionMediaHint">
+            <summary>Photo / image missions</summary>
+            <p class="teacherFieldHint">Students can upload or pick from the approved library when submitting.</p>
+          </details>
+        </div>
+        <div class="teacherField">
+          <div class="missionRequirementsLabel" style="font-weight:900;font-size:22px;margin-bottom:10px;">Submission requirements</div>
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionAllowsText" checked />
+            <span class="teacherCheckboxLabel">Written response</span>
           </label>
-          <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:8px;">
-            <label for="missionMinChars" style="margin:0 0 4px 0;">Minimum characters</label>
-            <input type="number" id="missionMinChars" min="0" max="10000" value="200" style="width:120px;height:44px;padding:0 10px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;" />
+          <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:12px;max-width:160px;">
+            <label for="missionMinChars">Minimum characters</label>
+            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="200" />
           </div>
-          <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;">
-            <input type="checkbox" id="missionAllowsImage" style="width:24px;height:24px;" />
-            <span style="font-weight:800;color:var(--muted);font-size:22px;">Image upload</span>
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionAllowsImage" />
+            <span class="teacherCheckboxLabel">Image upload</span>
           </label>
-          <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;">
-            <input type="checkbox" id="missionAllowsVideo" style="width:24px;height:24px;" />
-            <span style="font-weight:800;color:var(--muted);font-size:22px;">Video upload</span>
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionAllowsVideo" />
+            <span class="teacherCheckboxLabel">Video upload</span>
           </label>
-          <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;">
-            <input type="checkbox" id="missionAllowsLink" style="width:24px;height:24px;" />
-            <span style="font-weight:800;color:var(--muted);font-size:22px;">Link/file</span>
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionAllowsLink" />
+            <span class="teacherCheckboxLabel">Link/file</span>
           </label>
         </div>
 
-        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Audience</div>
-        <label for="missionAudience">Audience</label>
-        <select id="missionAudience" style="width:100%;max-width:280px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;">
-          <option value="my_students">My Students</option>
-          <option value="school_mission" selected>School Mission</option>
-          <option value="selected_students">Selected Students</option>
-        </select>
-        <div id="missionSelectedStudentsWrap" style="display:none;margin-bottom:12px;">
-          <label class="missionSelectedStudentsLabel">Select students</label>
-          <div id="missionSelectedStudentsList" class="missionSelectedStudentsList"></div>
+        <div class="teacherFieldGroup">Audience &amp; reward</div>
+        <div class="teacherFieldRow teacherFieldRow--2">
+          <div class="teacherField">
+            <label for="missionAudience">Audience</label>
+            <select id="missionAudience" class="teacherSelect">
+              <option value="my_students">My Students</option>
+              <option value="school_mission" selected>School Mission</option>
+              <option value="selected_students">Selected Students</option>
+            </select>
+            <div id="missionSelectedStudentsWrap" style="display:none;margin-top:10px;">
+              <label class="missionSelectedStudentsLabel">Select students</label>
+              <div id="missionSelectedStudentsList" class="missionSelectedStudentsList"></div>
+            </div>
+          </div>
+          <div class="teacherField">
+            <label for="missionReward">Reward (nuggets)</label>
+            <input type="number" id="missionReward" class="teacherInput teacherInput--sm" min="1" max="99" value="1" />
+          </div>
         </div>
 
-        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Reward</div>
-        <label for="missionReward">Reward (nuggets)</label>
-        <input type="number" id="missionReward" min="1" max="99" value="1" style="width:100px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;" />
+        <div class="teacherFieldGroup">Advanced / other</div>
+        <div class="teacherField">
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionFeatured" />
+            <span class="teacherCheckboxLabel">Feature this mission</span>
+          </label>
+          <p class="teacherCheckboxHint">Shows this mission prominently to students — it's sorted to the top of their Active Missions list.</p>
+        </div>
 
-        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Other</div>
-        <label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;">
-          <input type="checkbox" id="missionSiteEligible" style="width:24px;height:24px;" />
-          <span style="font-weight:800;color:var(--muted);font-size:22px;">Highlight-worthy / site-eligible</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;">
-          <input type="checkbox" id="missionFeatured" style="width:24px;height:24px;" />
-          <span style="font-weight:800;color:var(--muted);font-size:22px;">Pin as featured mission</span>
-        </label>
-        <button class="btn good" id="createMissionBtn" type="button">Create Mission</button>
+        <div class="teacherActions">
+          <button class="btn good" id="createMissionBtn" type="button">Create Mission</button>
+        </div>
         <p id="createMissionStatus" class="createMissionStatus" role="status" aria-live="polite" style="display:none;"></p>
       </div>
     </div>
@@ -1536,26 +1593,6 @@
 
     <section id="teacher-missions" class="teacherMissionsSection" data-workspace="missions" aria-labelledby="teacherMissionsHeading">
     <h2 id="teacherMissionsHeading" class="visuallyHidden">My Missions</h2>
-    <div class="card" style="border-color: rgba(56,208,124,.3); background: linear-gradient(180deg, rgba(56,208,124,.06), rgba(56,208,124,.02));">
-      <div class="cardHd">
-        <div class="h">Recognition</div>
-        <div class="pill good" id="recognitionCount">0</div>
-      </div>
-      <div class="cardBd">
-        <p class="note note-tight">Positive shout-out — shows immediately (no queue).</p>
-        <label for="recCharacterName">Character</label>
-        <select id="recCharacterName" style="width:100%;max-width:320px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;">
-          <option value="">— Select character —</option>
-        </select>
-        <label for="recMessage">Message (max 250 characters)</label>
-        <textarea id="recMessage" placeholder="Short positive message…" maxlength="250" style="width:100%;min-height:80px;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;resize:vertical;"></textarea>
-        <label for="recCategory">Category (optional)</label>
-        <input type="text" id="recCategory" placeholder="e.g. Kindness, Effort" autocomplete="off" style="width:100%;max-width:240px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;" />
-        <button class="btn good" id="addRecognitionBtn" type="button">Add Recognition</button>
-        <div id="recognitionListEl" class="scrollArea" style="max-height: 240px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:10px;"></div>
-      </div>
-    </div>
-
     <div class="card">
       <div class="cardHd">
         <div class="h">Your Missions</div>
@@ -1588,6 +1625,36 @@
         <div id="curatePostsEl" class="scrollArea" style="max-height: 320px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12);"></div>
       </div>
     </div>
+
+    <!-- Prompt #78 — Recognition is a secondary supporting tool here (mission list is
+         the primary function of this workspace), so it's a collapsed-by-default card. -->
+    <details class="card teacherCollapsibleCard" style="border-color: rgba(56,208,124,.3); background: linear-gradient(180deg, rgba(56,208,124,.06), rgba(56,208,124,.02));">
+      <summary class="cardHd">
+        <div class="h">Recognition</div>
+        <div class="pill good" id="recognitionCount">0</div>
+      </summary>
+      <div class="cardBd">
+        <p class="note note-tight">Positive shout-out — shows immediately (no queue).</p>
+        <div class="teacherField">
+          <label for="recCharacterName">Character</label>
+          <select id="recCharacterName" class="teacherSelect" style="max-width:320px;">
+            <option value="">— Select character —</option>
+          </select>
+        </div>
+        <div class="teacherField">
+          <label for="recMessage">Message (max 250 characters)</label>
+          <textarea id="recMessage" class="teacherTextarea" placeholder="Short positive message…" maxlength="250"></textarea>
+        </div>
+        <div class="teacherField">
+          <label for="recCategory">Category (optional)</label>
+          <input type="text" id="recCategory" class="teacherInput" placeholder="e.g. Kindness, Effort" autocomplete="off" style="max-width:240px;" />
+        </div>
+        <div class="teacherActions">
+          <button class="btn good" id="addRecognitionBtn" type="button">Add Recognition</button>
+        </div>
+        <div id="recognitionListEl" class="scrollArea" style="max-height: 240px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:14px;"></div>
+      </div>
+    </details>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
@@ -4338,7 +4405,6 @@
       if (typeRaw === 'video') type = 'link';
       if (typeRaw === 'mixed') type = 'text';
       var audience = (el('missionAudience') && el('missionAudience').value || 'school_mission').trim();
-      var siteEligible = !!(el('missionSiteEligible') && el('missionSiteEligible').checked);
       var featured = !!(el('missionFeatured') && el('missionFeatured').checked);
       if (!title){ toast('Title required'); return; }
       var targetCharacterNames;
@@ -4372,7 +4438,8 @@
         var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
         var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
-        var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, site_eligible: siteEligible, featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        // Prompt #78 — site_eligible archived (no reader anywhere); see docs/archive/TEACHER_CREATE_MISSION_OPTION_AUDIT.md.
+        var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
         var res = await callCreateTeacherMission(opts);
         if (!res || !res.ok){
@@ -4601,41 +4668,6 @@
     if (searchInput) searchInput.addEventListener('input', function(){ renderCuratePosts(); });
 
     refresh();
-  </script>
-  <script>
-  (function(){
-    var btn = document.getElementById('teacherLogoutBtn');
-    if (!btn) return;
-    var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
-    var msg = document.getElementById('teacherLogoutMsg');
-    function showLogoutErr(text) {
-      if (!msg) return;
-      if (!text) { msg.style.display = 'none'; msg.textContent = ''; return; }
-      msg.style.display = 'block';
-      msg.textContent = text;
-    }
-    btn.addEventListener('click', function(){
-      showLogoutErr('');
-      fetch(api + '/api/auth/logout', { method: 'POST', credentials: 'include' })
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          if (window.LanternAuth && typeof window.LanternAuth.clearClientIdentityCaches === 'function') {
-            window.LanternAuth.clearClientIdentityCaches();
-          }
-          if (window.LanternAuth && typeof window.LanternAuth.loginUrlWithReturn === 'function') {
-            location.href = window.LanternAuth.loginUrlWithReturn();
-          } else {
-            try {
-              sessionStorage.setItem('lantern_return_to', '/teacher.html');
-            } catch (e) {}
-            location.href = '/login.html?return=%2Fteacher.html';
-          }
-        })
-        .catch(function () {
-          showLogoutErr('Could not sign out. Check your connection and try again.');
-        });
-    });
-  })();
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>
 </body>
