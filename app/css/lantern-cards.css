@@ -170,6 +170,15 @@
   color: #fff;
   text-shadow: none;
 }
+/* Missions library cards only (Prompt #80): the mission-status chip ("STARTED",
+   "NEEDS CHANGES") moves to the upper-right corner of the card image, mirroring the
+   type badge ("Teacher", etc.) which stays upper-left — same badge layer/components,
+   just redistributed within it. Scoped to .exploreCard--missionsLibrary so no other
+   card type (feed, games, explore) is affected. */
+.exploreCard--missionsLibrary .lanternCanonicalCardBadgeLayer {
+  right: 8px;
+  justify-content: space-between;
+}
 .exploreCard.lanternCanonicalCard > .exploreCardReportBtn {
   position: absolute;
   right: 6px;
