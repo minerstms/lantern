@@ -1,0 +1,12 @@
+# Prompt #71: prevent browsers/proxies from serving a stale build of the app shell or
+# scripts after a deploy. HTML and JS drive auth/session gating and API contracts —
+# a cached pre-deploy copy can silently reintroduce fixed bugs (e.g. an old
+# avatarApiBase truthiness check, or a stale click handler) until the user hard-reloads.
+# Assets are not fingerprinted in this build, so we always revalidate instead of
+# relying on cache-busting filenames.
+
+/*.html
+  Cache-Control: no-cache
+
+/js/*.js
+  Cache-Control: no-cache

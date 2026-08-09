@@ -1695,7 +1695,7 @@
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
     }
     function callGetPendingAvatars(){
-      if (avatarApiBase) {
+      if (avatarApiBase !== null) {
         return fetch(avatarApiBase + '/api/avatar/pending').then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok && res.pending) return { ok: true, avatars: res.pending };
           return { ok: false, avatars: [] };
@@ -1711,7 +1711,7 @@
       });
     }
     function callApproveAvatarSubmission(id){
-      if (avatarApiBase) {
+      if (avatarApiBase !== null) {
         return fetch(avatarApiBase + '/api/avatar/approve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1728,7 +1728,7 @@
       });
     }
     function callRejectAvatarSubmission(id, reason){
-      if (avatarApiBase) {
+      if (avatarApiBase !== null) {
         return fetch(avatarApiBase + '/api/avatar/reject', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3054,7 +3054,7 @@
             var res = await callCuratePost(p.id, action, praise);
             btn.disabled = false;
             if (!res.ok){ toast(res.error || 'Failed'); return; }
-            if (action === 'teacher_pick' && avatarApiBase && res.curation && res.curation.teacher_pick && !isToggled){
+            if (action === 'teacher_pick' && avatarApiBase !== null && res.curation && res.curation.teacher_pick && !isToggled){
               var pickMsg = 'Teacher Pick: ' + String(p.title || 'Creation').trim().slice(0, 200);
               var teacherLabel = (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? String(approvalStaffId) : 'Teacher';
               fetch(avatarApiBase + '/api/recognition/create', {
@@ -3185,7 +3185,7 @@
       if (!useApprovalsApi) {
         approvalHistory = [];
       }
-      if (avatarApiBase) {
+      if (avatarApiBase !== null) {
         var recRes = await callGetRecognitionList(50);
         recognitionList = (recRes && recRes.recognition) || [];
       } else {
@@ -3918,21 +3918,26 @@
       }
       var btn = el('createMissionBtn');
       btn.disabled = true;
-      var allowsText = !!(el('missionAllowsText') && el('missionAllowsText').checked);
-      var allowsImage = !!(el('missionAllowsImage') && el('missionAllowsImage').checked);
-      var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
-      var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
-      var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
-      var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, site_eligible: siteEligible, featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
-      if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
-      var res = await callCreateTeacherMission(opts);
-      btn.disabled = false;
-      if (!res.ok){ toast(res.error || 'Failed'); return; }
-      toast('Mission created');
-      el('missionTitle').value = '';
-      el('missionDesc').value = '';
-      if (el('missionFeatured')) el('missionFeatured').checked = false;
-      await refresh();
+      try {
+        var allowsText = !!(el('missionAllowsText') && el('missionAllowsText').checked);
+        var allowsImage = !!(el('missionAllowsImage') && el('missionAllowsImage').checked);
+        var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
+        var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
+        var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
+        var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, site_eligible: siteEligible, featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
+        var res = await callCreateTeacherMission(opts);
+        if (!res || !res.ok){ toast((res && res.error) || 'Couldn\u2019t save mission: unknown error'); return; }
+        toast('Mission created');
+        el('missionTitle').value = '';
+        el('missionDesc').value = '';
+        if (el('missionFeatured')) el('missionFeatured').checked = false;
+        await refresh();
+      } catch (e) {
+        toast('Couldn\u2019t save mission: ' + String((e && e.message) || e || 'unexpected error'));
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     if (el('addRecognitionBtn')) {
