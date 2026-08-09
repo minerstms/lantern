@@ -2150,8 +2150,8 @@
       if (!it) return '';
       try {
         if (entry.type === 'mission') {
-          if (it.image_url && String(it.image_url).trim()) return String(it.image_url).trim();
-          if (it.submission_type === 'image_url' && it.submission_content && /^https?:\/\//i.test(String(it.submission_content).trim())) return String(it.submission_content).trim().slice(0, 2000);
+          var mmThumb = window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia ? window.LanternMedia.normalizeMissionItemForMedia(it) : {};
+          if (mmThumb.image_url) return mmThumb.image_url;
           return '';
         }
         if (entry.type === 'news' || (entry.type === 'approval_item' && it.item_type === 'news')) {
@@ -2488,7 +2488,9 @@
       var avatarName = '';
       if (entry.type === 'mission') {
         title = (entry.item.mission_title || '') + ' — ' + (entry.item.character_name || '');
-        meta = 'Created by: ' + (entry.item.created_by_teacher_name || 'Teacher') + ((entry.item.submission_content || '').length ? ' · ' + (entry.item.submission_content || '').slice(0, 80) + ((entry.item.submission_content || '').length > 80 ? '…' : '') : '');
+        var mmRowText = window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia ? window.LanternMedia.normalizeMissionItemForMedia(entry.item) : {};
+        var rowPreviewText = mmRowText.text !== undefined ? mmRowText.text : (entry.item.submission_content || '');
+        meta = 'Created by: ' + (entry.item.created_by_teacher_name || 'Teacher') + (rowPreviewText.length ? ' · ' + rowPreviewText.slice(0, 80) + (rowPreviewText.length > 80 ? '…' : '') : '');
         avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
         avatarName = entry.item.character_name || '';
       } else if (entry.type === 'avatar' || (entry.type === 'approval_item' && entry.item.item_type === 'avatar')) {
@@ -2610,7 +2612,7 @@
           else if (linkUrl) oneMissionMedia = '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Link</p><div style="padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener noreferrer" style="word-break:break-all;color:var(--accent);">' + esc(linkUrl) + '</a></div>';
         }
         if (oneMissionMedia) html += oneMissionMedia;
-        var captionText = (item.submission_type === 'text' && item.submission_content) ? String(item.submission_content).trim() : (item.caption && String(item.caption).trim()) || '';
+        var captionText = missionMedia.text !== undefined ? missionMedia.text : ((item.submission_type === 'text' && item.submission_content) ? String(item.submission_content).trim() : (item.caption && String(item.caption).trim()) || '');
         if (captionText) html += '<p style="margin:14px 0 0;font-size:22px;color:var(--muted);">' + esc(captionText.slice(0, 500)) + (captionText.length > 500 ? '…' : '') + '</p>';
         html += '</div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (+' + (item.mission_reward || 1) + ')</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';

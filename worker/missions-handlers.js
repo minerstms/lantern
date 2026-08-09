@@ -14,6 +14,7 @@ import {
   parseTargetCharacterNames,
   requireMissionSession,
   requireMissionTeacher,
+  extractMissionSubmissionMedia,
   resolveStudentMissionIdentity,
   resolveSubmissionHistoryIdentity,
   reviewerLabelFromAccount,
@@ -519,10 +520,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const list = (subRows.results || []).map((s) => {
       const m = byMission[s.mission_id] || {};
       const content = s.submission_content || '';
-      const isVideo = (s.submission_type || '') === 'video';
-      const isImage = (s.submission_type || '') === 'image_url';
-      let image_url = null;
-      if (isImage && content) image_url = String(content).trim().slice(0, 2000);
+      const media = extractMissionSubmissionMedia(s.submission_type, content);
       return {
         id: s.id,
         mission_id: s.mission_id,
@@ -535,8 +533,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         mission_reward: m.reward_amount != null ? m.reward_amount : 1,
         created_by_teacher_id: m.teacher_id || '',
         created_by_teacher_name: m.teacher_name || 'Teacher',
-        image_url: image_url || undefined,
-        video_url: isVideo && content ? content.trim().slice(0, 2000) : undefined,
+        caption: media.caption || undefined,
+        image_url: media.image_url || undefined,
+        video_url: media.video_url || undefined,
       };
     });
     return jsonResponse({ ok: true, submissions: list }, 200, cors);
@@ -569,21 +568,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     const list = (subRows.results || []).map((s) => {
       const m = byMission[s.mission_id] || {};
-      let caption = '';
-      let image_url = null;
-      if (s.submission_type === 'image_url' && s.submission_content) {
-        image_url = String(s.submission_content).trim().slice(0, 1000);
-      } else if (s.submission_type === 'text' && s.submission_content) {
-        try {
-          const parsed = typeof s.submission_content === 'string' ? JSON.parse(s.submission_content) : s.submission_content;
-          caption = (parsed.text || parsed.content || parsed.body || '').trim().slice(0, 200) || '';
-          if (parsed.image_url || parsed.image) image_url = String(parsed.image_url || parsed.image || '').trim().slice(0, 1000);
-        } catch (_) {
-          caption = String(s.submission_content).trim().slice(0, 200);
-        }
-      }
-      const isVideo = (s.submission_type || '') === 'video';
-      const video_url = isVideo && s.submission_content ? String(s.submission_content).trim().slice(0, 2000) : undefined;
+      const media = extractMissionSubmissionMedia(s.submission_type, s.submission_content);
       return {
         id: s.id,
         mission_id: s.mission_id,
@@ -597,9 +582,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         mission_title: m.title || '',
         mission_reward: m.reward_amount != null ? m.reward_amount : 1,
         created_by_teacher_name: m.teacher_name || 'Teacher',
-        caption,
-        image_url: image_url || undefined,
-        video_url: video_url || undefined,
+        caption: media.caption || '',
+        image_url: media.image_url || undefined,
+        video_url: media.video_url || undefined,
       };
     });
     return jsonResponse({ ok: true, submissions: list }, 200, cors);

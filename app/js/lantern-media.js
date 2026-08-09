@@ -106,19 +106,47 @@
   }
 
   /**
+   * A mission of submission_type "text" may carry a JSON envelope { text, image_url }
+   * instead of a plain string, when the student attached a photo alongside their text
+   * response (mission allows_image = true). This mirrors the existing poll/bug_report
+   * JSON-in-content convention already used elsewhere in submission_content.
+   * @param {string} raw - trimmed submission_content string
+   * @returns {{isEnvelope:boolean, text:string, image_url:string}}
+   */
+  function parseTextEnvelope(raw) {
+    var s = String(raw || '').trim();
+    if (s.length < 2 || s.charCodeAt(0) !== 123 /* '{' */) return { isEnvelope: false, text: '', image_url: '' };
+    try {
+      var parsed = JSON.parse(s);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+        (typeof parsed.text === 'string' || typeof parsed.image_url === 'string' || typeof parsed.image === 'string' || typeof parsed.body === 'string' || typeof parsed.caption === 'string')) {
+        return {
+          isEnvelope: true,
+          text: String(parsed.text || parsed.body || parsed.caption || parsed.note || '').trim(),
+          image_url: String(parsed.image_url || parsed.image || '').trim()
+        };
+      }
+    } catch (_) {}
+    return { isEnvelope: false, text: '', image_url: '' };
+  }
+
+  /**
    * Normalize a mission submission item to the shape expected by renderMedia (image_url, video_url, link_url).
-   * Precedence: image_url (from API or submission_content when submission_type === 'image_url'),
-   * then video_url (from API or submission_content when submission_type === 'video'),
-   * then link_url (submission_content when submission_type === 'link').
+   * Precedence: image_url (from API, or from a text-type JSON envelope, or submission_content when
+   * submission_type === 'image_url'), then video_url (from API or submission_content when
+   * submission_type === 'video'), then link_url (submission_content when submission_type === 'link').
    * @param {Object} item - { submission_type?, submission_content?, image_url?, video_url? }
-   * @returns {Object} - { image_url?, video_url?, link_url? } for renderMedia
+   * @returns {Object} - { image_url?, video_url?, link_url?, text? } for renderMedia (text set only when content is a parsed envelope)
    */
   function normalizeMissionItemForMedia(item) {
     if (!item) return {};
-    var imageUrl = (item.image_url && String(item.image_url).trim()) || (item.submission_type === 'image_url' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '';
+    var envelope = item.submission_type === 'text' ? parseTextEnvelope(item.submission_content) : { isEnvelope: false, text: '', image_url: '' };
+    var imageUrl = (item.image_url && String(item.image_url).trim()) || (envelope.isEnvelope ? envelope.image_url : '') || (item.submission_type === 'image_url' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '';
     var videoUrl = (item.video_url && String(item.video_url).trim()) || (item.submission_type === 'video' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '';
     var linkUrl = (item.submission_type === 'link' && item.submission_content && LINK_REGEX.test(String(item.submission_content).trim())) ? String(item.submission_content).trim().slice(0, LINK_MAX_LEN) : '';
-    return { image_url: imageUrl || undefined, video_url: videoUrl || undefined, link_url: linkUrl || undefined };
+    var out = { image_url: imageUrl || undefined, video_url: videoUrl || undefined, link_url: linkUrl || undefined };
+    if (envelope.isEnvelope) out.text = envelope.text;
+    return out;
   }
 
   /**
@@ -150,6 +178,7 @@
     renderMediaPreview: renderMediaPreview,
     normalizeMediaPayload: normalizeMediaPayload,
     normalizeMissionItemForMedia: normalizeMissionItemForMedia,
+    parseTextEnvelope: parseTextEnvelope,
     isValidLinkUrl: isValidLinkUrl
   };
 })(typeof window !== 'undefined' ? window : this);

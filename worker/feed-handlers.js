@@ -2,6 +2,7 @@
  * Lantern ONE FEED — Worker handlers
  * ONE normalized public feed API + student/teacher moderation workflow.
  */
+import { extractMissionSubmissionMedia } from './missions-auth.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -79,6 +80,10 @@ function normalizeFeedItemRow(row, origin, source) {
   if (row.image_r2_key) {
     thumbnailUrl = newsImageUrl(origin, row.image_r2_key);
     imageUrl = row.full_image_r2_key ? newsImageUrl(origin, row.full_image_r2_key) : thumbnailUrl;
+  } else if (row.direct_image_url) {
+    /* Already a complete URL (e.g. mission submission photo) — not an R2 key to resolve. */
+    thumbnailUrl = row.direct_image_url;
+    imageUrl = row.direct_image_url;
   } else if (row.video_r2_key) {
     thumbnailUrl = null;
   }
@@ -143,20 +148,22 @@ function normalizeNewsRow(row, origin) {
 }
 
 function normalizeMissionRow(row, origin) {
-  let content = {};
-  try {
-    content = row.submission_content ? JSON.parse(row.submission_content) : {};
-  } catch (_) {}
+  // Use the same media/caption extraction as the teacher and approved-submissions APIs so a
+  // student's photo (plain image_url type, or a text-type { text, image_url } envelope) survives
+  // into the public Explore feed instead of being silently dropped.
+  const media = extractMissionSubmissionMedia(row.submission_type, row.submission_content);
+  const bodyText = media.caption || (row.submission_type === 'video' || row.submission_type === 'image_url' ? '' : String(row.submission_content || '').trim().slice(0, 500));
   const adapted = {
     id: `mission:${row.id}`,
     type: 'mission',
-    title: content.title || content.headline || 'Mission submission',
-    body: content.body || content.text || content.note || JSON.stringify(content).slice(0, 500),
-    summary: content.summary || (content.body ? String(content.body).slice(0, 280) : 'Mission completed'),
+    title: 'Mission submission',
+    body: bodyText,
+    summary: bodyText ? bodyText.slice(0, 280) : (media.image_url ? 'Photo submission' : 'Mission completed'),
     author_id: null,
     author_display_name: row.character_name,
     author_role: 'student',
-    image_r2_key: content.image_r2_key || content.imageR2Key || null,
+    direct_image_url: media.image_url || null,
+    video_r2_key: null,
     tags: '[]',
     status: 'approved',
     slideshow_eligible: 0,
@@ -166,7 +173,7 @@ function normalizeMissionRow(row, origin) {
     submitted_at: row.created_at,
     approved_at: row.reviewed_at || row.created_at,
     approved_by: row.reviewed_by || null,
-    extra_json: JSON.stringify({ missionId: row.mission_id, submissionType: row.submission_type }),
+    extra_json: JSON.stringify({ missionId: row.mission_id, submissionType: row.submission_type, videoUrl: media.video_url || null }),
   };
   return normalizeFeedItemRow(adapted, origin, 'mission');
 }

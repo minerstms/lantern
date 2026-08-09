@@ -170,6 +170,60 @@ export function normalizeSubmissionType(raw, missionDefault) {
   return ALLOWED_SUBMISSION_TYPES.includes(st) ? st : 'text';
 }
 
+/**
+ * A "text" submission may carry a JSON envelope { text, image_url } instead of a plain
+ * string, when the student attached a photo alongside their text response (mission
+ * allows_image = true). Mirrors the existing poll/bug_report JSON-in-content convention.
+ */
+function parseTextEnvelope(raw) {
+  const s = String(raw || '').trim();
+  if (s.length < 2 || s.charCodeAt(0) !== 123 /* '{' */) return { isEnvelope: false, text: '', image_url: '' };
+  try {
+    const parsed = JSON.parse(s);
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      (typeof parsed.text === 'string' || typeof parsed.image_url === 'string')
+    ) {
+      return {
+        isEnvelope: true,
+        text: String(parsed.text || '').trim(),
+        image_url: String(parsed.image_url || '').trim(),
+      };
+    }
+  } catch (_) {}
+  return { isEnvelope: false, text: '', image_url: '' };
+}
+
+/**
+ * Extract display media/caption fields for a stored mission submission row, regardless of
+ * whether submission_type is 'text' (plain, or a JSON { text, image_url } envelope),
+ * 'image_url', or 'video'. Used by both the teacher pending queue and the approved-submissions
+ * API so student media/text survives read paths identically. Read-only; does not mutate content.
+ */
+export function extractMissionSubmissionMedia(submissionType, submissionContent) {
+  const st = String(submissionType || '').trim();
+  const raw = submissionContent != null ? String(submissionContent) : '';
+  let caption = '';
+  let imageUrl = null;
+  let videoUrl = null;
+  if (st === 'image_url' && raw) {
+    imageUrl = raw.trim().slice(0, 2000);
+  } else if (st === 'video' && raw) {
+    videoUrl = raw.trim().slice(0, 2000);
+  } else if (st === 'text' && raw) {
+    const envelope = parseTextEnvelope(raw);
+    if (envelope.isEnvelope) {
+      caption = envelope.text.slice(0, 200);
+      if (envelope.image_url) imageUrl = envelope.image_url.slice(0, 1000);
+    } else {
+      caption = raw.trim().slice(0, 200);
+    }
+  }
+  return { caption, image_url: imageUrl, video_url: videoUrl };
+}
+
 export function validateMissionSubmissionPayload(mission, submissionType, content) {
   const st = normalizeSubmissionType(submissionType, mission.submission_type);
   const text = String(content || '').trim();
@@ -214,6 +268,23 @@ export function validateMissionSubmissionPayload(mission, submissionType, conten
 
   let valid = false;
   if (st === 'text' && allowsText) {
+    const envelope = allowsImage ? parseTextEnvelope(text) : { isEnvelope: false, text: '', image_url: '' };
+    if (envelope.isEnvelope) {
+      const innerText = envelope.text;
+      const innerImage = envelope.image_url;
+      if (minChars > 0 && innerText.length > 0 && innerText.length < minChars) {
+        return { ok: false, error: `Minimum ${minChars} characters required` };
+      }
+      const hasText = innerText.length > 0;
+      const hasImage = allowsImage && innerImage.length > 0;
+      if (!hasText && !hasImage) {
+        return { ok: false, error: 'Invalid submission for mission requirements' };
+      }
+      const outContent = hasImage
+        ? JSON.stringify({ text: innerText.slice(0, 1800), image_url: innerImage.slice(0, 500) })
+        : innerText;
+      return { ok: true, submissionType: st, content: outContent };
+    }
     if (minChars > 0 && text.length < minChars) {
       return { ok: false, error: `Minimum ${minChars} characters required` };
     }

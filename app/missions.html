@@ -1429,7 +1429,13 @@
       }
       var type = 'text';
       var content = '';
-      if (allowsText && textVal){ type = 'text'; content = textVal; }
+      if (validText && validImage){
+        // Student wrote text AND attached a photo — preserve both using the existing
+        // JSON-in-content envelope convention (same shape teacher review / Explore already parse).
+        type = 'text';
+        content = JSON.stringify({ text: textVal.slice(0, 1800), image_url: imageVal.slice(0, 500) });
+      }
+      else if (allowsText && textVal){ type = 'text'; content = textVal; }
       else if (allowsImage && imageVal){ type = 'image_url'; content = imageVal; }
       else if (allowsVideo && missionVideoUploadedUrl){ type = 'video'; content = missionVideoUploadedUrl; }
       else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }
