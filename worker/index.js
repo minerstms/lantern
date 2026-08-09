@@ -132,6 +132,7 @@ export default {
         path.startsWith('/api/auth') ||
         path.startsWith('/api/admin') ||
         path.startsWith('/api/class-access') ||
+        path.startsWith('/api/tms-nuggets') ||
         path.startsWith('/api/economy') ||
         path.startsWith('/api/integrations') ||
         path.startsWith('/api/approvals') ||
@@ -294,6 +295,18 @@ export default {
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, classAccessCors);
+      }
+    }
+    // Prompt #95: Teacher -> Nuggets workspace, backed by the real TMS Nugget Ledger via the
+    // narrow server-to-server bridge (never a direct browser->Nuggets call, never a copy of the
+    // TMS balance into Lantern D1).
+    if (path.startsWith('/api/tms-nuggets')) {
+      const tmsNuggetsCors = corsForPilot(request);
+      try {
+        return await handleTmsNuggetsRoutes(request, url, path, env, tmsNuggetsCors);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, tmsNuggetsCors);
       }
     }
     if (path.startsWith('/api/beta-reports')) {
@@ -999,6 +1012,107 @@ async function redeemTmsLanternHandoff(env, code) {
     return { ok: false, error: (data && data.error) || 'invalid_or_expired_code' };
   }
   return { ok: true, tms_staff_id: String(data.tms_staff_id) };
+}
+
+/**
+ * Prompt #95 -- Lantern Teacher -> Nuggets workspace. Reverse lookup of the SAME tms_identity_links
+ * table used by the SSO exchange (Prompt #94), keyed the other direction: given the currently
+ * authenticated Lantern account's username, find the authoritative tms_staff_id Nuggets expects.
+ * An account with no row here simply cannot use the Nuggets bridge (fail closed) -- never guessed
+ * from display name.
+ */
+async function getTmsStaffIdForLanternAccount(db, username) {
+  const row = await db
+    .prepare('SELECT tms_staff_id FROM tms_identity_links WHERE lantern_username = ?')
+    .bind(String(username || '').trim())
+    .first();
+  return row && row.tms_staff_id ? String(row.tms_staff_id) : '';
+}
+
+/**
+ * Prompt #95 -- narrow server-to-server call into Nuggets' Lantern bridge (student search /
+ * ledger / redeem). Same TMS_LANTERN_BRIDGE_SECRET + base URL as redeemTmsLanternHandoff above.
+ * `tmsStaffId` here is ALWAYS the server-resolved value from getTmsStaffIdForLanternAccount --
+ * never a client-supplied id -- so Nuggets can independently re-authorize the real acting staff
+ * member. Returns Nuggets' JSON body verbatim (Nuggets already shapes { ok, error, code, ... }
+ * consistently) plus an internal `_httpStatus` the caller uses for the outer Response status.
+ */
+async function callTmsNuggetsBridge(env, subPath, tmsStaffId, payload) {
+  const secret = (env.TMS_LANTERN_BRIDGE_SECRET || '').trim();
+  if (!secret) return { ok: false, error: 'bridge_not_configured', _httpStatus: 503 };
+  const base = getTmsNuggetsApiBaseUrl(env);
+  let resp;
+  try {
+    resp = await fetch(base + '/api/lantern-bridge/' + subPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ ...payload, tms_staff_id: tmsStaffId }),
+    });
+  } catch (_) {
+    return { ok: false, error: 'bridge_request_failed', _httpStatus: 502 };
+  }
+  let data;
+  try {
+    data = await resp.json();
+  } catch (_) {
+    return { ok: false, error: 'bridge_bad_response', _httpStatus: 502 };
+  }
+  if (!data || typeof data !== 'object') return { ok: false, error: 'bridge_bad_response', _httpStatus: 502 };
+  return { ...data, _httpStatus: resp.status };
+}
+
+/**
+ * Prompt #95 -- Teacher -> Nuggets workspace: real TMS student search / balance+ledger / redeem.
+ * Lantern never stores or duplicates a TMS balance; every call here is a live pass-through.
+ * Authorization is layered exactly as designed:
+ *  1. requireStaffPilotSession -- Lantern's OWN session must be an active teacher/admin account
+ *     (the same canonical guard Prompt #92 approvals/class-access already use).
+ *  2. getTmsStaffIdForLanternAccount -- the acting TMS identity comes ONLY from the server-side
+ *     tms_identity_links mapping for THIS session's account.username, never from the browser.
+ *  3. Nuggets' own /api/lantern-bridge/* independently re-loads that staff row and re-enforces
+ *     TEACHER capability -- Lantern's request is authenticated as "from Lantern", not as
+ *     "this teacher is authorized" (Nuggets decides that for itself).
+ */
+async function handleTmsNuggetsRoutes(request, url, path, env, cors) {
+  const db = env.DB;
+  if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+  if (request.method !== 'POST') return jsonResponse({ ok: false, error: 'Method not allowed' }, 405, cors);
+
+  const guard = await requireStaffPilotSession(request, env, cors);
+  if (guard.response) return guard.response;
+  const account = guard.account;
+
+  const tmsStaffId = await getTmsStaffIdForLanternAccount(db, account.username);
+  if (!tmsStaffId) {
+    return jsonResponse({ ok: false, error: 'tms_identity_not_linked' }, 403, cors);
+  }
+
+  let body = {};
+  try {
+    const text = await request.text();
+    if (text) body = JSON.parse(text);
+  } catch (_) {
+    return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+  }
+
+  let result;
+  if (path === '/api/tms-nuggets/students/search') {
+    result = await callTmsNuggetsBridge(env, 'students/search', tmsStaffId, { query: body.query, limit: body.limit });
+  } else if (path === '/api/tms-nuggets/ledger') {
+    result = await callTmsNuggetsBridge(env, 'ledger', tmsStaffId, { student_name: body.student_name });
+  } else if (path === '/api/tms-nuggets/redeem') {
+    result = await callTmsNuggetsBridge(env, 'redeem', tmsStaffId, {
+      student_name: body.student_name,
+      amount: body.amount,
+      note: body.note,
+    });
+  } else {
+    return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+  }
+
+  const status = Number.isInteger(result._httpStatus) ? result._httpStatus : result.ok ? 200 : 400;
+  delete result._httpStatus;
+  return jsonResponse(result, status, cors);
 }
 
 /** Fixed, non-interpolated messages only -- `reason` is always one of our own error codes, never raw user input. */

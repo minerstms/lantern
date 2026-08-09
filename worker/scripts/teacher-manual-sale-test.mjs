@@ -1,6 +1,14 @@
 /**
- * Teacher manual sale tests — Prompt #52
- * Static checks: catalog grid retired, manual sale UI + economy transact path.
+ * Teacher manual sale / TMS Nugget Ledger tests — Prompt #52, superseded by Prompt #95.
+ *
+ * Prompt #95 replaced the old Lantern-only "Manual sale" implementation (which searched a
+ * client-side, localStorage-only demo character list and deducted from a separate Lantern wallet)
+ * with the real TMS Nugget Ledger, reached through the /api/tms-nuggets/* bridge. The panel/button
+ * DOM ids are intentionally UNCHANGED (teacherRewardManualSalePanel, teacherRewardRecordSaleBtn,
+ * teacherRewardStudentInput, teacherRewardAvail/Earned/Spent, teacherRewardSaleAmount) so the
+ * existing teacher-workspace-shell-test.mjs e2e assertions keep working -- only what backs them
+ * changed. Static checks below: catalog grid stays retired, and the panel is now wired to the real
+ * bridge rather than the old client-only demo-character economy path.
  */
 import fs from 'fs';
 import path from 'path';
@@ -36,8 +44,8 @@ else bad('teacher.html missing manual sale panel');
 if (/teacherRewardSaleAmount/.test(teacherHtml)) ok('teacher.html: sale amount input');
 else bad('teacher.html missing sale amount input');
 
-if (/Record Sale/.test(teacherHtml)) ok('teacher.html: Record Sale button');
-else bad('teacher.html missing Record Sale button');
+if (/Redeem Nugget/.test(teacherHtml)) ok('teacher.html: Redeem Nugget button (Prompt #95 -- was "Record Sale")');
+else bad('teacher.html missing Redeem Nugget button');
 
 if (/teacherRewardAvail/.test(teacherHtml) && /teacherRewardEarned/.test(teacherHtml) && /teacherRewardSpent/.test(teacherHtml)) {
   ok('teacher.html: Available / Earned / Spent stats remain');
@@ -46,19 +54,18 @@ if (/teacherRewardAvail/.test(teacherHtml) && /teacherRewardEarned/.test(teacher
 if (/teacherRewardStudentInput/.test(teacherHtml)) ok('teacher.html: student selector remains');
 else bad('teacher.html missing student selector');
 
-if (/callManualSale/.test(rewardJs)) ok('reward JS: callManualSale helper');
-else bad('reward JS missing callManualSale');
+if (!/callManualSale|TEACHER_MANUAL_SALE|\/api\/economy\/transact|LANTERN_DATA\.ensureCharacters/.test(rewardJs)) {
+  ok('reward JS: old Lantern-only manual sale / demo-character economy path fully retired (Prompt #95)');
+} else bad('reward JS still references the retired Lantern-only manual sale path');
 
-if (/TEACHER_MANUAL_SALE/.test(rewardJs)) ok('reward JS: manual sale source tag');
-else bad('reward JS missing TEACHER_MANUAL_SALE source');
-
-if (/\/api\/economy\/transact/.test(rewardJs)) ok('reward JS: uses economy transact endpoint');
-else bad('reward JS missing economy transact');
+if (/'\/api\/tms-nuggets\/'/.test(rewardJs) && /postTmsNuggets\('redeem'/.test(rewardJs) && /postTmsNuggets\('ledger'/.test(rewardJs) && /postTmsNuggets\('students\/search'/.test(rewardJs)) {
+  ok('reward JS: wired to the real TMS Nugget Ledger bridge (search/ledger/redeem)');
+} else bad('reward JS missing TMS Nugget Ledger bridge calls');
 
 if (/parseSaleAmount/.test(rewardJs)) ok('reward JS: amount validation helper');
 else bad('reward JS missing parseSaleAmount');
 
-if (/showSaleConfirm/.test(rewardJs)) ok('reward JS: confirmation before sale');
+if (/showRedeemConfirm/.test(rewardJs)) ok('reward JS: confirmation before redemption');
 else bad('reward JS missing confirmation');
 
 if (!/selectedItemId|renderCatalogCards|callRedeem/.test(rewardJs)) ok('reward JS: catalog selection removed');

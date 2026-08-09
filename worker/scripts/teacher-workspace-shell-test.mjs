@@ -16,7 +16,8 @@
  *  - Create Mission workspace: existing handler still wired (Creating…/Created ✓ flow) and the
  *    reward field defaults to 1 Nugget.
  *  - Moderation and Nuggets workspaces are reachable and retain their existing controls
- *    (manual sale amount also defaults to 1).
+ *    (Nugget Ledger redeem amount also defaults to 1; Prompt #95 swapped the underlying data
+ *    source to the real TMS Nugget Ledger bridge without changing these DOM ids).
  *  - Mobile drawer: sidebar is off-canvas by default at phone width, opens via the menu button,
  *    and closes after choosing a workspace.
  *  - No horizontal page overflow at 1920/1366/1024/390 widths.
@@ -103,6 +104,11 @@ async function main() {
   await page.route('**/api/recognition/list**', okJson({ ok: true, recognition: [] }));
   await page.route('**/api/economy/balance**', okJson({ ok: true, earned: 10, spent: 2, available: 8 }));
   await page.route('**/api/store/bootstrap**', okJson({ ok: true, students: ['shellpilot', 'otherstudent'] }));
+  // Prompt #95: Nuggets workspace now searches/reads/redeems through the real TMS Nugget Ledger
+  // bridge instead of the old client-only demo-character economy path.
+  await page.route('**/api/tms-nuggets/students/search**', okJson({ ok: true, students: [{ student_name: 'Real TMS Student', student_id: 'sid-1' }] }));
+  await page.route('**/api/tms-nuggets/ledger**', okJson({ ok: true, student_name: 'Real TMS Student', student_id: 'sid-1', earned: 10, spent: 2, available: 8, recent_history: [] }));
+  await page.route('**/api/tms-nuggets/redeem**', okJson({ ok: true, student_name: 'Real TMS Student', student_id: 'sid-1', redeemed_amount: 1, earned: 10, spent: 3, available: 7, recent_history: [] }));
 
   await page.goto(base + '/teacher.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
@@ -261,14 +267,15 @@ async function main() {
   assert(!approvalsVisibleDuringModeration, 'Review Queue is not shown while Moderation workspace is active (isolated from everyday review work)');
 
   // ---------------------------------------------------------------------------
-  // Nuggets workspace (formerly "Nuggets & Sales") — retained, manual sale amount defaults to 1
+  // Nuggets workspace (formerly "Nuggets & Sales") — retained; Prompt #95 replaced the backing
+  // data source with the real TMS Nugget Ledger bridge, redeem amount still defaults to 1
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'economy'; });
   await page.waitForFunction(() => document.getElementById('teacher-rewards').classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#teacherRewardManualSalePanel').isVisible(), 'Nuggets workspace shows the existing manual sale panel');
+  assert(await page.locator('#teacherRewardManualSalePanel').isVisible(), 'Nuggets workspace shows the TMS Nugget Ledger panel');
   const saleAmountDefault = await page.locator('#teacherRewardSaleAmount').inputValue();
-  assert(saleAmountDefault === '1', 'Manual sale amount defaults to 1 Nugget: ' + saleAmountDefault);
-  assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Record Sale button is retained and reachable');
+  assert(saleAmountDefault === '1', 'Redeem amount defaults to 1 Nugget: ' + saleAmountDefault);
+  assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Redeem Nugget button is retained and reachable');
 
   // ---------------------------------------------------------------------------
   // My Missions workspace — retained

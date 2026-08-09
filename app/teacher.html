@@ -668,6 +668,29 @@
       flex: 1;
       min-width: 0;
     }
+    .studentDropdownEmpty{
+      padding: 12px 14px;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+    .teacherRewardHistoryList{ margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+    .teacherRewardHistoryRow{
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 20px;
+    }
+    .teacherRewardHistoryLabel{ font-weight: 900; }
+    .teacherRewardHistoryDetail{ color: var(--muted); font-weight: 700; flex: 1; min-width: 120px; }
+    .teacherRewardHistoryAmount{ font-weight: 1000; font-size: 22px; }
+    .teacherRewardHistoryAmount.earned{ color: var(--good); }
+    .teacherRewardHistoryAmount.redeemed{ color: var(--warn); }
     @keyframes teacherRewardSpin{ to{ transform: rotate(360deg); } }
     .teacherRewardSpinner{
       display: inline-block;
@@ -1292,15 +1315,15 @@
         <div class="h">Rewards Panel</div>
       </div>
       <div class="cardBd">
-        <p class="note note-tight"><strong>Grant nuggets</strong> here (with Approvals and mission rewards). <strong>Students spend</strong> in Locker → Store only.</p>
+        <p class="note note-tight">This is the real <strong>TMS Nugget Ledger</strong> — the same balance TMS Nuggets tracks. <strong>Redeem</strong> below deducts Nuggets immediately. Nuggets are <strong>granted</strong> separately via Approvals and mission rewards; Lantern cosmetics are a different, separate balance spent only in Locker → Store.</p>
 
         <div class="teacherRewardDivider" id="teacherRewardManualSalePanel" data-help="teacher_manual_sale">
-          <div class="h">Manual sale</div>
-          <p class="note note-tight">Pick a student, enter a Nugget amount, and record the sale. Deducts from that student’s wallet like a store redemption.</p>
+          <div class="h">Redeem a TMS Nugget</div>
+          <p class="note note-tight">Search a real TMS student, confirm their current balance, then redeem Nuggets from their actual TMS Nugget Ledger.</p>
 
-          <label for="teacherRewardStudentInput">Student / character</label>
+          <label for="teacherRewardStudentInput">TMS student</label>
           <div class="studentCombo">
-            <input type="text" id="teacherRewardStudentInput" placeholder="Search or select a character…" autocomplete="off" />
+            <input type="text" id="teacherRewardStudentInput" placeholder="Search a TMS student…" autocomplete="off" />
             <div id="teacherRewardStudentDropdown" class="studentDropdown" role="listbox" aria-hidden="true"></div>
           </div>
           <div id="teacherRewardSelectedPill" class="selectedStudentPill" style="display:none;margin-top:8px;"><span class="pill accent">Selected: <span id="teacherRewardSelectedNameEl"></span></span></div>
@@ -1308,22 +1331,27 @@
           <div class="teacherRewardStats" style="margin-top:12px;">
             <div class="teacherRewardStat good"><span class="k">Available:</span> <span class="v" id="teacherRewardAvail">—</span></div>
             <div class="teacherRewardStat"><span class="k">Earned:</span> <span class="v" id="teacherRewardEarned">—</span></div>
-            <div class="teacherRewardStat"><span class="k">Spent:</span> <span class="v" id="teacherRewardSpent">—</span></div>
+            <div class="teacherRewardStat"><span class="k">Redeemed:</span> <span class="v" id="teacherRewardSpent">—</span></div>
           </div>
 
           <div style="margin-top:14px;">
-            <label for="teacherRewardSaleAmount">Nuggets to spend</label>
+            <label for="teacherRewardSaleAmount">Nuggets to redeem</label>
             <input type="number" id="teacherRewardSaleAmount" inputmode="numeric" min="1" step="1" value="1" placeholder="Enter amount…" />
           </div>
 
           <div style="margin-top:10px;">
-            <label for="teacherRewardNote">Sale note (optional)</label>
+            <label for="teacherRewardNote">Reason / note (optional)</label>
             <textarea id="teacherRewardNote" placeholder="Snack, prize, school store item…"></textarea>
           </div>
 
           <div class="teacherRewardActionRow">
             <button type="button" class="btn primary" id="teacherRewardRefreshBtn">Refresh balance</button>
-            <button type="button" class="btn good" id="teacherRewardRecordSaleBtn">Record Sale</button>
+            <button type="button" class="btn good" id="teacherRewardRecordSaleBtn">Redeem Nugget</button>
+          </div>
+
+          <div style="margin-top:18px;">
+            <div class="h" style="font-size:24px;">Recent activity</div>
+            <div id="teacherRewardHistoryList" class="teacherRewardHistoryList"></div>
           </div>
         </div>
       </div>
