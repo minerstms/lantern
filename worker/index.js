@@ -940,6 +940,96 @@ function pilotEconomyCharacterName(row) {
   return String(row.username || '').trim();
 }
 
+/**
+ * Prompt #94 -- TMS Nuggets -> Lantern staff SSO. Same set as app/teacher.html WORKSPACES
+ * (Prompt #91); kept as a literal allowlist here rather than importing the frontend file, since
+ * this is a strict server-side authorization boundary against open redirect, not UI state.
+ */
+const TMS_EXCHANGE_ALLOWED_WORKSPACES = ['overview', 'review', 'create', 'missions', 'moderation', 'economy', 'other'];
+
+/**
+ * Server-controlled return-target validation for the TMS exchange redirect. Always returns a
+ * same-origin relative path starting with "/teacher.html" -- never trusts the caller's `return`
+ * value directly. Any input that is not exactly "teacher.html" or "teacher.html#<known-workspace>"
+ * (with or without a leading slash) falls back to the Teacher default (Nuggets). No open redirect.
+ */
+function sanitizeTmsExchangeReturnTarget(raw) {
+  const DEFAULT_TARGET = '/teacher.html';
+  const s = String(raw || '').trim();
+  if (!s || s === 'teacher.html' || s === '/teacher.html') return DEFAULT_TARGET;
+  const prefixes = ['teacher.html#', '/teacher.html#'];
+  const matchedPrefix = prefixes.find(p => s.indexOf(p) === 0);
+  if (!matchedPrefix) return DEFAULT_TARGET;
+  const workspace = s.slice(matchedPrefix.length).trim();
+  if (!workspace || TMS_EXCHANGE_ALLOWED_WORKSPACES.indexOf(workspace) === -1) return DEFAULT_TARGET;
+  return DEFAULT_TARGET + '#' + workspace;
+}
+
+function getTmsNuggetsApiBaseUrl(env) {
+  return (env.TMS_NUGGETS_API_BASE_URL || 'https://mtss-behavior-log.mrradle.workers.dev').trim().replace(/\/$/, '');
+}
+
+/**
+ * Server-to-server redemption of a Nuggets-issued Lantern staff handoff code. Authenticates
+ * Lantern TO Nuggets via TMS_LANTERN_BRIDGE_SECRET (Bearer) -- mirrors the existing convention
+ * Nuggets already uses for its OWN outbound calls into Lantern (LANTERN_MTSS_INTEGRATION_SECRET /
+ * LANTERN_API_KEY). Never throws for an ordinary decline; only for genuinely unexpected failures.
+ */
+async function redeemTmsLanternHandoff(env, code) {
+  const secret = (env.TMS_LANTERN_BRIDGE_SECRET || '').trim();
+  if (!secret) return { ok: false, error: 'bridge_not_configured' };
+  const base = getTmsNuggetsApiBaseUrl(env);
+  let resp;
+  try {
+    resp = await fetch(base + '/api/auth/lantern-handoff/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ code: String(code || ''), audience: 'lantern' }),
+    });
+  } catch (_) {
+    return { ok: false, error: 'redeem_request_failed' };
+  }
+  let data;
+  try {
+    data = await resp.json();
+  } catch (_) {
+    return { ok: false, error: 'redeem_bad_response' };
+  }
+  if (!resp.ok || !data || !data.ok || !data.tms_staff_id) {
+    return { ok: false, error: (data && data.error) || 'invalid_or_expired_code' };
+  }
+  return { ok: true, tms_staff_id: String(data.tms_staff_id) };
+}
+
+/** Fixed, non-interpolated messages only -- `reason` is always one of our own error codes, never raw user input. */
+function tmsExchangeFailurePage(reason, cors) {
+  const MESSAGES = {
+    missing_code: 'This Lantern sign-in link is missing its code. Please try again from TMS Nuggets.',
+    session_not_configured: 'Lantern sign-in is not available right now. Please try again later.',
+    bridge_not_configured: 'Lantern sign-in is not available right now. Please try again later.',
+    redeem_request_failed: 'Could not reach TMS Nuggets to verify your sign-in. Please try again.',
+    redeem_bad_response: 'Could not verify your sign-in with TMS Nuggets. Please try again.',
+    unauthorized: 'This Lantern sign-in link could not be verified. Please try again from TMS Nuggets.',
+    invalid_or_expired_code: 'This Lantern sign-in link has expired or was already used. Please try again from TMS Nuggets.',
+    lantern_account_not_linked: 'Your TMS Nuggets staff account is not yet linked to a Lantern account. Ask a Lantern admin to link it.',
+    lantern_account_disabled: 'This Lantern account is disabled. Ask a Lantern admin for help.',
+    lantern_account_not_staff: 'This Lantern account is not a teacher/admin account.',
+    must_change_password: 'Please sign in to Lantern directly once to set your password, then try again.',
+  };
+  const message = MESSAGES[reason] || 'Sign-in failed. Please try again from TMS Nuggets.';
+  const html =
+    '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Lantern sign-in</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:2rem auto;' +
+    'padding:1rem;font-size:18px;line-height:1.5;color:#1f2937;} a{color:#1e40af;font-weight:600;}</style></head>' +
+    '<body><h1>Lantern sign-in</h1><p>' +
+    message +
+    '</p><p><a href="https://tmsnuggets.pages.dev/index.html">Return to TMS Nuggets</a></p></body></html>';
+  return new Response(html, {
+    status: 401,
+    headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
+}
+
 async function handleAuthRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -1083,6 +1173,64 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       .bind(hash, salt, u)
       .run();
     return jsonResponse({ ok: true }, 200, cors);
+  }
+
+  // Prompt #94: TMS Nuggets -> Lantern staff SSO exchange. Top-level browser GET navigation
+  // (redirected here from TMS Nuggets with a one-time handoff code), not a fetch/XHR call --
+  // CORS is not relevant to this route. Lantern independently re-derives role/access from its
+  // OWN account row; a role/capability claim from Nuggets is never trusted for authorization.
+  if (request.method === 'GET' && path === '/api/auth/tms-exchange') {
+    const safeReturn = sanitizeTmsExchangeReturnTarget(url.searchParams.get('return'));
+    const code = String(url.searchParams.get('code') || '').trim();
+    if (!code) return tmsExchangeFailurePage('missing_code', cors);
+    const secret = env.PILOT_SESSION_SECRET;
+    if (!secret || String(secret).trim() === '') return tmsExchangeFailurePage('session_not_configured', cors);
+
+    const redeemed = await redeemTmsLanternHandoff(env, code);
+    if (!redeemed.ok) return tmsExchangeFailurePage(redeemed.error, cors);
+
+    const link = await db
+      .prepare(`SELECT lantern_username FROM tms_identity_links WHERE tms_staff_id = ?`)
+      .bind(redeemed.tms_staff_id)
+      .first();
+    if (!link || !link.lantern_username) return tmsExchangeFailurePage('lantern_account_not_linked', cors);
+
+    const row = await db
+      .prepare(
+        `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password
+         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      )
+      .bind(link.lantern_username)
+      .first();
+    if (!row) return tmsExchangeFailurePage('lantern_account_not_linked', cors);
+
+    const isActive = row.is_active != null ? Number(row.is_active) : 1;
+    if (isActive === 0) return tmsExchangeFailurePage('lantern_account_disabled', cors);
+    // Lantern's OWN role is authoritative -- Nuggets never asserts Lantern access. A Lantern
+    // student account can never become Teacher through this handoff, no matter what Nuggets says.
+    if (!isTeacherLike(row.role)) return tmsExchangeFailurePage('lantern_account_not_staff', cors);
+    if (pilotAccountRequiresChangePassword(row)) return tmsExchangeFailurePage('must_change_password', cors);
+
+    const now = Math.floor(Date.now() / 1000);
+    const jwtPayload = {
+      sub: row.username,
+      role: row.role,
+      scn: pilotEconomyCharacterName(row) || null,
+      tid: row.teacher_id || null,
+      iat: now,
+      exp: now + PILOT_JWT_TTL_SEC,
+    };
+    const token = await signPilotJwt(jwtPayload, secret);
+    const secure = url.protocol === 'https:';
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...cors,
+        Location: safeReturn,
+        'Set-Cookie': pilotSetCookieHeader(token, secure, PILOT_JWT_TTL_SEC),
+        'Cache-Control': 'no-store',
+      },
+    });
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
@@ -1272,6 +1420,84 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const updated = await fetchAdminUserRow(db, targetUser);
     return jsonResponse({ ok: true, user: updated || { username: targetUser } }, 200, cors);
+  }
+
+  // Prompt #94: explicit TMS Nuggets staff identity link, admin-created ONLY -- never populated
+  // by display-name matching or any automated guess (see worker/migrations/048_tms_identity_links.sql).
+  // An account with no row here simply cannot use TMS -> Lantern SSO (fails closed).
+  if (request.method === 'GET' && path === '/api/admin/tms-identity-links') {
+    const rows = await db
+      .prepare(
+        `SELECT l.tms_staff_id, l.lantern_username, l.created_at, l.created_by,
+                a.display_name, a.role, a.is_active
+         FROM tms_identity_links l
+         LEFT JOIN lantern_pilot_accounts a ON a.username = l.lantern_username
+         ORDER BY l.tms_staff_id`
+      )
+      .all();
+    return jsonResponse({ ok: true, links: rows.results || [] }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/tms-identity-links') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const tmsStaffId = String(body.tms_staff_id || '').trim();
+    const lanternUsername = String(body.lantern_username || '').trim();
+    if (!tmsStaffId || tmsStaffId.length > 128) {
+      return jsonResponse({ ok: false, error: 'invalid_tms_staff_id' }, 400, cors);
+    }
+    if (!lanternUsername) {
+      return jsonResponse({ ok: false, error: 'invalid_lantern_username' }, 400, cors);
+    }
+    const target = await db
+      .prepare(`SELECT username, role, is_active FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`)
+      .bind(lanternUsername)
+      .first();
+    if (!target) {
+      return jsonResponse({ ok: false, error: 'lantern_account_not_found' }, 404, cors);
+    }
+    // SSO into Teacher is staff-only; never link a student account here (Prompt #94 scope).
+    if (!isTeacherLike(target.role)) {
+      return jsonResponse({ ok: false, error: 'lantern_account_not_staff' }, 400, cors);
+    }
+    const adminUsername = String(account.username || '').trim() || 'admin';
+    try {
+      await db
+        .prepare(
+          `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, created_at, created_by) VALUES (?, ?, datetime('now'), ?)`
+        )
+        .bind(tmsStaffId, target.username, adminUsername)
+        .run();
+    } catch (e) {
+      const msg = e && e.message ? String(e.message) : '';
+      if (/UNIQUE constraint failed/i.test(msg)) {
+        return jsonResponse({ ok: false, error: 'link_already_exists' }, 409, cors);
+      }
+      throw e;
+    }
+    return jsonResponse({ ok: true, tms_staff_id: tmsStaffId, lantern_username: target.username }, 200, cors);
+  }
+
+  if (request.method === 'DELETE' && path === '/api/admin/tms-identity-links') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      body = {};
+    }
+    const tmsStaffId = String(body.tms_staff_id || url.searchParams.get('tms_staff_id') || '').trim();
+    if (!tmsStaffId) {
+      return jsonResponse({ ok: false, error: 'missing_tms_staff_id' }, 400, cors);
+    }
+    const del = await db.prepare(`DELETE FROM tms_identity_links WHERE tms_staff_id = ?`).bind(tmsStaffId).run();
+    const changed = typeof del.meta?.changes === 'number' ? del.meta.changes : 0;
+    return jsonResponse({ ok: true, deleted: changed > 0 }, 200, cors);
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

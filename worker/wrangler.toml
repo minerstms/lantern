@@ -29,6 +29,12 @@ bucket_name = "lantern-media"
 # Pilot login (Step 2): HS256 JWT cookie signing. Run: npx wrangler secret put PILOT_SESSION_SECRET
 # One-time password bootstrap: npx wrangler secret put PILOT_BOOTSTRAP_SECRET — set PILOT_BOOTSTRAP_ENABLED = "true" only while running POST /api/pilot/bootstrap-passwords, then set back to "false" and redeploy.
 # First-run setup (apps/lantern-app/setup.html): add secret SETUP_MASTER_TOKEN in Cloudflare dashboard (same value entered once in the setup form). Rotate after setup completes.
+# TMS Nuggets staff SSO handoff (Prompt #94): GET /api/auth/tms-exchange calls OUT to Nuggets'
+# POST /api/auth/lantern-handoff/redeem as a service, authenticated with a shared secret (same
+# value must also be set as TMS_LANTERN_BRIDGE_SECRET in the mtss-behavior-log Worker):
+#   npx wrangler secret put TMS_LANTERN_BRIDGE_SECRET
+# Optional [vars] override for the Nuggets Worker base URL (defaults to the known production URL):
+# TMS_NUGGETS_API_BASE_URL = "https://mtss-behavior-log.mrradle.workers.dev"
 [vars]
 ENABLE_EARLY_ENCOURAGER_REWARD = "false"
 ENABLE_REACTION_BREAKDOWN = "false"
