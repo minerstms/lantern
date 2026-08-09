@@ -9,6 +9,7 @@ import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { handleMissionsRoutes } from './missions-handlers.js';
+import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './missions-auth.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
@@ -888,6 +889,29 @@ async function requireAdminPilotSession(request, env, cors) {
   return { account };
 }
 
+/**
+ * Session must be an active teacher/admin account (Prompt #92 — approvals + class-access
+ * staff actions). Mirrors requireAdminPilotSession above, but for the broader teacher-or-admin
+ * population already established by isTeacherLike (same helper missions/feed routes use).
+ * Shared by both hardened areas so there is exactly one teacher/admin session guard, not two
+ * parallel ones. Returns { account } or { response }.
+ */
+async function requireStaffPilotSession(request, env, cors) {
+  const account = await getPilotAccountFromRequest(request, env);
+  if (!account) {
+    return { response: jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors) };
+  }
+  if (pilotAccountRequiresChangePassword(account)) {
+    return {
+      response: jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors),
+    };
+  }
+  if (!isTeacherLike(account.role)) {
+    return { response: jsonResponse({ ok: false, error: 'forbidden' }, 403, cors) };
+  }
+  return { account };
+}
+
 function adminAuditLabel(account) {
   if (!account) return 'admin';
   const dn = account.display_name != null ? String(account.display_name).trim() : '';
@@ -1573,14 +1597,6 @@ function normalizeBoardCode(s) {
   return s.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-/** Allowed teacher_id values for class-access session start/end. Reuses verify config only (teacherA, teacherB, mr_radle). */
-function isAllowedTeacherId(teacherId) {
-  const id = (teacherId || '').trim();
-  if (!id) return false;
-  const list = (VERIFY_CONFIG.teachers || []).map(t => (t.teacher_id || '').trim()).filter(Boolean);
-  return list.includes(id);
-}
-
 /** Monday–Thursday 8:00 AM–4:00 PM in America/Denver (Colorado). DST-aware via Intl. */
 function isLockHours(env) {
   const now = new Date();
@@ -1636,11 +1652,14 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/class-access/session/start') {
+    // Prompt #92 — authorization now requires an authenticated Lantern teacher/admin session;
+    // the acting teacherId is server-derived from that session, never from client body.teacher_id.
+    const classAccessAuth = await requireStaffPilotSession(request, env, cors);
+    if (classAccessAuth.response) return classAccessAuth.response;
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const teacherId = (body.teacher_id || 'teacher').trim();
-    if (!isAllowedTeacherId(teacherId)) return jsonResponse({ ok: false, error: 'Not authorized to start class access' }, 403, cors);
+    const teacherId = sessionTeacherId(classAccessAuth.account);
     const now = new Date().toISOString();
     const existing = await db.prepare(
       'SELECT id, access_code, starts_at, expires_at FROM class_access_sessions WHERE teacher_id = ? AND is_active = 1 AND (revoked_at IS NULL OR revoked_at = \'\') AND expires_at > ? ORDER BY created_at DESC LIMIT 1'
@@ -1679,11 +1698,10 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/class-access/session/end') {
-    const text = await request.text();
-    let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const teacherId = (body.teacher_id || 'teacher').trim();
-    if (!isAllowedTeacherId(teacherId)) return jsonResponse({ ok: false, error: 'Not authorized to end class access' }, 403, cors);
+    // Prompt #92 — see session/start above: session-derived teacherId, no client-supplied identity.
+    const classAccessAuth = await requireStaffPilotSession(request, env, cors);
+    if (classAccessAuth.response) return classAccessAuth.response;
+    const teacherId = sessionTeacherId(classAccessAuth.account);
     const now = new Date().toISOString();
     const rows = await db.prepare(
       'SELECT id FROM class_access_sessions WHERE teacher_id = ? AND is_active = 1 AND (revoked_at IS NULL OR revoked_at = \'\') AND expires_at > ?'
@@ -1697,8 +1715,10 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'GET' && path === '/api/class-access/session/status') {
-    const teacherId = (url.searchParams.get('teacher_id') || 'teacher').trim();
-    if (!isAllowedTeacherId(teacherId)) return jsonResponse({ ok: true, active: false }, 200, cors);
+    // Prompt #92 — see session/start above: session-derived teacherId, no client-supplied identity.
+    const classAccessAuth = await requireStaffPilotSession(request, env, cors);
+    if (classAccessAuth.response) return classAccessAuth.response;
+    const teacherId = sessionTeacherId(classAccessAuth.account);
     const now = new Date().toISOString();
     const row = await db.prepare(
       'SELECT id, access_code, starts_at, expires_at, is_active FROM class_access_sessions WHERE teacher_id = ? AND is_active = 1 AND (revoked_at IS NULL OR revoked_at = \'\') AND expires_at > ? ORDER BY created_at DESC LIMIT 1'
@@ -2556,8 +2576,16 @@ async function handleApprovalsRoutes(request, url, path, env) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, approvalsCors);
 
+  // Prompt #92 — every /api/approvals/* action is a staff (teacher/admin) operation; require an
+  // authenticated Lantern session up front, same as missions/admin routes already do elsewhere.
+  // Below, the acting staff identity for filtering and audit fields comes from this session
+  // account, never from client-supplied staff_id/staff_name/reviewed_by_* request fields.
+  const auth = await requireStaffPilotSession(request, env, approvalsCors);
+  if (auth.response) return auth.response;
+  const account = auth.account;
+
   if (request.method === 'GET' && path === '/api/approvals/pending') {
-    const staffId = (url.searchParams.get('staff_id') || '').trim();
+    const staffId = sessionTeacherId(account);
     const filter = (url.searchParams.get('filter') || 'mine,unassigned').trim().toLowerCase();
     const typeFilter = (url.searchParams.get('type') || '').trim().toLowerCase();
     let rows;
@@ -2713,8 +2741,11 @@ async function handleApprovalsRoutes(request, url, path, env) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
-    const staffName = (body.reviewed_by_staff_name || body.staff_name || 'Teacher').trim();
-    const staffId = (body.reviewed_by_staff_id || body.staff_id || '').trim();
+    // Prompt #92 — acting staff identity is always server-derived from the authenticated
+    // session account; client-supplied reviewed_by_staff_name/staff_name/staff_id fields are
+    // no longer trusted (they cannot be used to impersonate another staff member).
+    const staffName = reviewerLabelFromAccount(account);
+    const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
@@ -2791,8 +2822,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
     const id = (body.id || body.approval_id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
     const decisionNote = (body.decision_note || body.reason || '').trim();
-    const staffName = (body.reviewed_by_staff_name || body.staff_name || 'Teacher').trim();
-    const staffId = (body.reviewed_by_staff_id || body.staff_id || '').trim();
+    // Prompt #92 — server-derived staff identity (see approve above); client fields ignored.
+    const staffName = reviewerLabelFromAccount(account);
+    const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
@@ -2820,8 +2852,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
-    const staffName = (body.reviewed_by_staff_name || body.staff_name || 'Teacher').trim();
-    const staffId = (body.reviewed_by_staff_id || body.staff_id || '').trim();
+    // Prompt #92 — server-derived staff identity (see approve above); client fields ignored.
+    const staffName = reviewerLabelFromAccount(account);
+    const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
@@ -2853,9 +2886,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors); }
     const id = (body.id || body.approval_id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, approvalsCors);
-    const staffId = (body.staff_id || '').trim();
-    const staffName = (body.staff_name || 'Teacher').trim();
-    if (!staffId && !staffName) return jsonResponse({ ok: false, error: 'staff_id or staff_name required' }, 400, approvalsCors);
+    // Prompt #92 — server-derived staff identity (see approve above); client fields ignored.
+    const staffId = sessionTeacherId(account);
+    const staffName = reviewerLabelFromAccount(account);
     const approval = await db.prepare('SELECT id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);

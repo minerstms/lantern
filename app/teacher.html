@@ -4302,7 +4302,7 @@
       var statusRes = null;
       var verifyRes = null;
       try {
-        statusRes = await fetch(avatarApiBase + '/api/class-access/session/status?teacher_id=' + encodeURIComponent(approvalStaffId)).then(function(r){ return r.json(); }).catch(function(){ return null; });
+        statusRes = await fetch(avatarApiBase + '/api/class-access/session/status?teacher_id=' + encodeURIComponent(approvalStaffId), { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
       } catch (_) { statusRes = null; }
       try {
         verifyRes = await fetch(avatarApiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return null; });
@@ -4525,7 +4525,7 @@
         var res = null;
         var status = 0;
         try {
-          var raw = await fetch(avatarApiBase + '/api/class-access/session/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacher_id: approvalStaffId, duration_minutes: 60 }) });
+          var raw = await fetch(avatarApiBase + '/api/class-access/session/start', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacher_id: approvalStaffId, duration_minutes: 60 }) });
           status = raw.status;
           res = await raw.json().catch(function(){ return { ok: false, error: 'Invalid response' }; });
         } catch (e) {
@@ -4556,7 +4556,7 @@
         btn.textContent = 'Ending…';
         var res = null;
         try {
-          var raw = await fetch(avatarApiBase + '/api/class-access/session/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacher_id: approvalStaffId }) });
+          var raw = await fetch(avatarApiBase + '/api/class-access/session/end', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacher_id: approvalStaffId }) });
           res = await raw.json().catch(function(){ return { ok: false, error: 'Invalid response' }; });
           if (!res || !res.ok){ toast((res && res.error) ? String(res.error).trim() : (raw.status === 403 ? 'Not authorized to end class access.' : 'Failed to end class access.')); btn.disabled = false; btn.textContent = origText; return; }
         } catch (e) {

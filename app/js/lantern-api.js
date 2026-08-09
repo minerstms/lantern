@@ -2981,7 +2981,7 @@
           var typeFilter = (payload && payload.type) || '';
           var q = '?filter=' + encodeURIComponent(filter) + '&type=' + encodeURIComponent(typeFilter);
           if (staffId) q += '&staff_id=' + encodeURIComponent(staffId);
-          fetch(apiBase + '/api/approvals/pending' + q).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: true, pending: [] }; }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/approvals/pending' + q, { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: true, pending: [] }; }).then(successFn).catch(failureFn);
           return;
         }
         Promise.resolve({ ok: true, pending: [] }).then(successFn).catch(failureFn);
@@ -2989,7 +2989,7 @@
       getApprovalHistory: function (payload) {
         if (apiBase != null) {
           var limit = (payload && payload.limit) != null ? Math.max(1, Math.min(100, parseInt(payload.limit, 10))) : 50;
-          fetch(apiBase + '/api/approvals/history?limit=' + limit).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: true, history: [] }; }).then(successFn).catch(failureFn);
+          fetch(apiBase + '/api/approvals/history?limit=' + limit, { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return res && res.ok ? res : { ok: true, history: [] }; }).then(successFn).catch(failureFn);
           return;
         }
         Promise.resolve({ ok: true, history: [] }).then(successFn).catch(failureFn);
@@ -3022,7 +3022,7 @@
       },
       approveApprovalItem: function (payload) {
         if (apiBase != null) {
-          fetch(apiBase + '/api/approvals/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
+          fetch(apiBase + '/api/approvals/approve', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
@@ -3030,7 +3030,7 @@
       },
       returnApprovalItem: function (payload) {
         if (apiBase != null) {
-          fetch(apiBase + '/api/approvals/return', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
+          fetch(apiBase + '/api/approvals/return', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
@@ -3038,7 +3038,7 @@
       },
       rejectApprovalItem: function (payload) {
         if (apiBase != null) {
-          fetch(apiBase + '/api/approvals/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
+          fetch(apiBase + '/api/approvals/reject', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
@@ -3046,7 +3046,7 @@
       },
       takeApprovalItem: function (payload) {
         if (apiBase != null) {
-          fetch(apiBase + '/api/approvals/take', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
+          fetch(apiBase + '/api/approvals/take', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) })
             .then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
         }
