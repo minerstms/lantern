@@ -13,6 +13,7 @@ import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './mis
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
+import { tmsEconomyBalance, tmsEconomyTransact } from './tms-economy-bridge.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -2472,6 +2473,36 @@ function economyTransactAllowed(env, request, characterName, pilotAccount) {
 }
 
 /** Lantern economy */
+/**
+ * Prompt #96 -- deterministic idempotency reference for a generic (non-cosmetic, non-mission)
+ * economy transact call. Prefers a caller-supplied `meta.idempotency_key`/`body.idempotency_key`
+ * (stable across retries of the SAME action); falls back to kind-specific stable identifiers
+ * already present in the payload (poll_id, run_id); as a last resort falls back to the
+ * newly-generated txId, which carries the exact same "no worse than the pre-#96 behavior"
+ * idempotency guarantee the legacy random-tx-id path already had (i.e. none) rather than
+ * inventing a false guarantee.
+ */
+function buildLanternEconomyReference(kind, meta, body, txId) {
+  const explicit = String((meta && meta.idempotency_key) || body.idempotency_key || '').trim();
+  if (explicit) return `lantern:${kind}:${explicit}`;
+  if (kind === 'poll_vote' && meta && meta.poll_id) return `lantern:poll_vote:${String(meta.poll_id).trim()}`;
+  if ((kind === 'game_play' || kind === 'game_win') && meta && meta.run_id) return `lantern:${kind}:${String(meta.run_id).trim()}`;
+  return `lantern:${kind}:${txId}`;
+}
+
+function mapTmsHistoryToTransactions(characterName, recentHistory) {
+  return (recentHistory || []).map((h, idx) => ({
+    id: 'tms-' + idx + '-' + String(h.timestamp || ''),
+    character_name: characterName,
+    delta: h.type === 'redeemed' ? -Math.abs(Number(h.amount) || 0) : Math.abs(Number(h.amount) || 0),
+    kind: h.type === 'redeemed' ? 'tms_redeem' : 'tms_earn',
+    source: 'TMS_NUGGETS',
+    note: h.note || h.teacher_name || '',
+    created_at: h.timestamp,
+    meta: {},
+  }));
+}
+
 async function handleEconomyRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -2488,6 +2519,26 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: readAuth.error }, readAuth.code || 403, cors);
     }
     const characterName = readAuth.characterName;
+
+    // Prompt #96: TMS Nuggets is the one authoritative ledger for every real student. Try it
+    // first; only fall back to the legacy Lantern-only wallet when TMS genuinely does not
+    // recognize this id as a real student (demo/persona characters, local dev/test fixtures) or
+    // on a best-effort-degrade basis if the bridge itself is unreachable -- a transient read
+    // failure should not take down the whole Locker/Store balance display.
+    const tms = await tmsEconomyBalance(env, characterName);
+    if (tms.ok) {
+      return jsonResponse({
+        ok: true,
+        character_name: characterName,
+        balance: tms.available,
+        earned: tms.earned,
+        spent: tms.spent,
+        available: tms.available,
+        recent_transactions: mapTmsHistoryToTransactions(characterName, tms.recentHistory),
+        economy_authority: 'tms_nuggets',
+      }, 200, cors);
+    }
+
     const row = await db.prepare('SELECT balance, updated_at FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
     const balance = row ? (Number(row.balance) || 0) : 0;
     const sums = await db.prepare(
@@ -2516,6 +2567,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       spent,
       available: balance,
       recent_transactions: recent_transactions,
+      economy_authority: 'lantern_legacy',
     }, 200, cors);
   }
 
@@ -2565,7 +2617,9 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
           );
         }
       }
-      const purchase = await executeCosmeticPurchase(db, characterName, cosmeticId, { idempotencyKey });
+      // Prompt #96 Atomic Purchase Rule: TMS Nuggets spends first (authoritative, idempotent by
+      // idempotencyKey); the cosmetic is only granted after that succeeds. See economy-cosmetic.js.
+      const purchase = await executeCosmeticPurchase(db, characterName, cosmeticId, { idempotencyKey, env });
       if (!purchase.ok) {
         return jsonResponse(purchase, 400, cors);
       }
@@ -2584,13 +2638,47 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       ).bind(characterName, displayName, now).run();
     }
 
+    const txId = 'tx-' + crypto.randomUUID();
+
+    // Prompt #96: TMS Nuggets is authoritative for every real student's balance. Try the TMS
+    // grant/spend first, keyed by a stable reference so a retry can never double-apply. Only fall
+    // back to the legacy Lantern-only wallet when TMS genuinely does not recognize this id as a
+    // real student (demo/persona characters, local dev/test fixtures) -- a real validation failure
+    // (e.g. insufficient balance) or a transient bridge error must NOT silently fall back to a
+    // second ledger; it must be returned to the caller as-is.
+    const reference = buildLanternEconomyReference(kind, meta, body, txId);
+    const tms = await tmsEconomyTransact(env, characterName, delta, kind, source || 'LANTERN', note, reference);
+    if (tms.ok) {
+      try {
+        await db.prepare(
+          'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(txId, characterName, delta, kind, source, note, now, JSON.stringify({ ...meta, tms_reference: reference, tms_backed: true })).run();
+        await awardAchievementsForEconomyTransact(db, characterName, kind, txId, note);
+        if (delta > 0) {
+          await awardAchievementsAfterPositiveCredit(db, characterName, txId, delta);
+        }
+      } catch (_) {}
+      return jsonResponse({
+        ok: true,
+        id: txId,
+        character_name: characterName,
+        delta,
+        balance_after: tms.available,
+        idempotent: !!tms.idempotent,
+        economy_authority: 'tms_nuggets',
+      }, 200, cors);
+    }
+    if (!tms.notFound) {
+      const status = tms.code === 'insufficient_balance' ? 400 : (tms.httpStatus && tms.httpStatus >= 400 ? tms.httpStatus : 502);
+      return jsonResponse({ ok: false, error: tms.error || 'tms_transact_failed', code: tms.code }, status, cors);
+    }
+
     const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
     const currentBalance = walletRow ? (Number(walletRow.balance) || 0) : 0;
     if (delta < 0 && currentBalance + delta < 0) {
       return jsonResponse({ ok: false, error: 'insufficient', need: -delta, available: currentBalance }, 400, cors);
     }
 
-    const txId = 'tx-' + crypto.randomUUID();
     await db.prepare(
       'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(txId, characterName, delta, kind, source, note, now, JSON.stringify(meta)).run();
@@ -2611,6 +2699,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       character_name: characterName,
       delta,
       balance_after: currentBalance + delta,
+      economy_authority: 'lantern_legacy',
     }, 200, cors);
   }
 
@@ -3539,9 +3628,21 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
     const pollId = (body.poll_id || '').trim();
-    const characterName = (body.character_name || '').trim();
     const choiceIndex = Math.floor(Number(body.choice_index));
-    if (!pollId || !characterName) return jsonResponse({ ok: false, error: 'Missing poll_id or character_name' }, 400, cors);
+    if (!pollId) return jsonResponse({ ok: false, error: 'Missing poll_id' }, 400, cors);
+
+    // Prompt #96: character_name -- and therefore who receives the +1 Nugget participation
+    // reward -- must come from the authenticated session, never straight from the request body.
+    // Reuses the same session-derived identity resolution as the game_play economy transact path
+    // (student: session-derived only, ignores any client-supplied name; teacher/admin: may vote on
+    // behalf of an explicit character for testing/demo, matching existing economy conventions).
+    const pilotAccount = await getPilotAccountFromRequest(request, env);
+    const identityAuth = resolveEconomyGamePlayTransact(pilotAccount, body.character_name, pilotEconomyCharacterName);
+    if (!identityAuth.ok) {
+      return jsonResponse({ ok: false, error: identityAuth.error }, identityAuth.code || 403, cors);
+    }
+    const characterName = identityAuth.characterName;
+
     const poll = await db.prepare('SELECT id, choices_json FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
     if (!poll) return jsonResponse({ ok: false, error: 'Poll not found' }, 404, cors);
     let choices = [];
@@ -3555,18 +3656,38 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     let voterNuggets = 0;
     const rewardRow = await db.prepare('SELECT id FROM lantern_poll_voter_rewards WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first();
     if (!rewardRow) {
-      const rewardId = 'pvr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-      await db.prepare('INSERT INTO lantern_poll_voter_rewards (id, poll_id, character_name, created_at) VALUES (?, ?, ?, ?)').bind(rewardId, pollId, characterName, now).run();
-      voterNuggets = 1;
+      const now2 = new Date().toISOString();
       const txId = 'tx-' + crypto.randomUUID();
-      await db.prepare(
-        'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).bind(txId, characterName, 1, 'poll_vote', 'POLL', 'Poll participation', now, JSON.stringify({ poll_id: pollId })).run();
-      const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
-      const currentBalance = walletRow ? (Number(walletRow.balance) || 0) : 0;
-      await db.prepare(
-        'INSERT INTO lantern_wallets (character_name, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET balance = balance + ?, updated_at = ?'
-      ).bind(characterName, currentBalance + 1, now, 1, now).run();
+      // Prompt #96: TMS Nuggets is authoritative -- grant here first, idempotent by poll_id (a
+      // retried/duplicate vote request can never double-pay this reward), and only fall back to
+      // the legacy Lantern-only wallet for accounts that are not real TMS students (demo/persona
+      // characters, local dev/test fixtures). A genuine TMS error (not "not a TMS student") is left
+      // unretried here -- the poll_voter_rewards dedupe row below is only written once the reward
+      // has actually landed somewhere, so it is not silently marked "paid" when it was not.
+      const reference = 'lantern:poll_vote:' + pollId;
+      const tms = await tmsEconomyTransact(env, characterName, 1, 'poll_vote', 'POLL', 'Poll participation', reference);
+      if (tms.ok) {
+        voterNuggets = 1;
+        try {
+          await db.prepare(
+            'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(txId, characterName, 1, 'poll_vote', 'POLL', 'Poll participation', now2, JSON.stringify({ poll_id: pollId, tms_reference: reference, tms_backed: true })).run();
+        } catch (_) {}
+      } else if (tms.notFound) {
+        voterNuggets = 1;
+        await db.prepare(
+          'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(txId, characterName, 1, 'poll_vote', 'POLL', 'Poll participation', now2, JSON.stringify({ poll_id: pollId })).run();
+        const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
+        const currentBalance = walletRow ? (Number(walletRow.balance) || 0) : 0;
+        await db.prepare(
+          'INSERT INTO lantern_wallets (character_name, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET balance = balance + ?, updated_at = ?'
+        ).bind(characterName, currentBalance + 1, now2, 1, now2).run();
+      }
+      if (voterNuggets > 0) {
+        const rewardId = 'pvr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+        await db.prepare('INSERT INTO lantern_poll_voter_rewards (id, poll_id, character_name, created_at) VALUES (?, ?, ?, ?)').bind(rewardId, pollId, characterName, now2).run();
+      }
     }
     const voteRows = await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ?').bind(pollId).all();
     const counts = {};

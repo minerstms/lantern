@@ -82,7 +82,17 @@
     });
   }
 
-  function transactGamePlay(gameName, cost) {
+  // Prompt #96: stable per-attempt idempotency reference so a duplicate/retried spend (double
+  // click, page reload racing an in-flight request, etc.) can never charge the same play twice
+  // through the TMS bridge.
+  function generateRunId() {
+    if (typeof global.crypto !== 'undefined' && global.crypto && typeof global.crypto.randomUUID === 'function') {
+      return global.crypto.randomUUID();
+    }
+    return 'run_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  }
+
+  function transactGamePlay(gameName, cost, runId) {
     var w = walletApi();
     if (w && typeof w.canUseHttpEconomy === 'function' && w.canUseHttpEconomy() && typeof w.postEconomyTransact === 'function') {
       return w.postEconomyTransact({
@@ -90,7 +100,7 @@
         kind: 'game_play',
         source: 'GAME',
         note: gameName || 'Game',
-        meta: { game_name: gameName || '' },
+        meta: { game_name: gameName || '', run_id: runId || '' },
       });
     }
     return Promise.resolve({ ok: false, error: 'economy_unavailable' });
@@ -118,6 +128,7 @@
       return Promise.resolve({ ok: false, error: 'in_flight' });
     }
     var cost = playCostForGame(gameName);
+    var runId = generateRunId();
     spendInFlight = true;
     setPlayStarting(true);
 
@@ -138,7 +149,7 @@
         toast('Not enough Nuggets. You have ' + wallet.available + ' available.');
         return finish(false, 'insufficient');
       }
-      return transactGamePlay(gameName, cost).then(function (tRes) {
+      return transactGamePlay(gameName, cost, runId).then(function (tRes) {
         if (tRes && tRes.ok) {
           return completeFirstGameLocal(loadAdopted()).then(function () {
             refreshWalletDisplays();

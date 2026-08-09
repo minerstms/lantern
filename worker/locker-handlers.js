@@ -16,6 +16,7 @@ import { syncDerivedAchievements } from './locker-achievements.js';
 import { fetchLockerProgress } from './locker-progress.js';
 import { buildLockerPersonalFeed } from './locker-personal-feed.js';
 import { normalizeBioFromDb, sanitizeBioInput, resolveProfileBio } from './locker-bio.js';
+import { tmsEconomyBalance } from './tms-economy-bridge.js';
 
 const LOCKER_FORBIDDEN_QUERY_PARAMS = [
   'character_name',
@@ -161,9 +162,33 @@ async function fetchCosmeticSpendRows(db, characterName) {
   }));
 }
 
-async function fetchWalletBundle(db, characterName) {
+function mapTmsHistoryToWalletTransactions(characterName, recentHistory) {
+  return (recentHistory || []).map((h, idx) => ({
+    id: 'tms-' + idx + '-' + String(h.timestamp || ''),
+    character_name: characterName,
+    delta: h.type === 'redeemed' ? -Math.abs(Number(h.amount) || 0) : Math.abs(Number(h.amount) || 0),
+    kind: h.type === 'redeemed' ? 'tms_redeem' : 'tms_earn',
+    source: 'TMS_NUGGETS',
+    note: h.note || h.teacher_name || '',
+    created_at: h.timestamp,
+    meta: {},
+  }));
+}
+
+// Prompt #96: the wallet balance/history shown in the Locker is the same one authoritative TMS
+// Nuggets ledger the Teacher Nuggets panel and Store/Locker balance already use -- not a second,
+// Lantern-only copy. Falls back to the legacy local wallet/transactions only for accounts that do
+// not resolve to a real TMS student (demo/persona characters, local dev/test fixtures).
+async function fetchWalletBundle(db, characterName, env) {
   if (!characterName) {
     return lockerCategory(false, 'account_link_missing', [], { balance: 0, transactions: [] });
+  }
+  if (env) {
+    const tms = await tmsEconomyBalance(env, characterName);
+    if (tms && tms.ok) {
+      const transactions = mapTmsHistoryToWalletTransactions(characterName, tms.recentHistory);
+      return lockerCategory(true, null, transactions, { balance: Number(tms.available) || 0, transactions });
+    }
   }
   const row = await db
     .prepare('SELECT balance, updated_at FROM lantern_wallets WHERE character_name = ?')
@@ -496,7 +521,7 @@ export async function buildLockerMeResponse(account, env, origin) {
     fetchAvatarProfile(db, origin, avatarKey),
     db.prepare('SELECT bio FROM lantern_pilot_accounts WHERE username = ?').bind(username).first(),
     economyKey
-      ? fetchWalletBundle(db, economyKey)
+      ? fetchWalletBundle(db, economyKey, env)
       : lockerCategory(false, role === 'student' ? 'account_link_missing' : 'not_applicable_for_role', [], {
           balance: 0,
           transactions: [],
@@ -592,7 +617,7 @@ export async function buildLockerMeResponse(account, env, origin) {
           []
         );
 
-  const progress = await fetchLockerProgress(db, economyKey, submissionKey);
+  const progress = await fetchLockerProgress(db, economyKey, submissionKey, env);
 
   return {
     ok: true,

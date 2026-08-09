@@ -733,6 +733,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       recipientCharacterName: row.character_name,
       rewardAmount: reward,
       reviewerLabel: reviewer,
+      env,
     });
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.error, accepted_without_reward: !!result.accepted_without_reward }, result.code || 500, cors);

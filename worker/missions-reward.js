@@ -1,9 +1,21 @@
+import { tmsEconomyTransact } from './tms-economy-bridge.js';
+
 /**
  * Server-authoritative mission approval rewards — exactly-once (Prompt #66).
+ * Prompt #96: TMS Nuggets is the one authoritative Nugget ledger. When `env` is supplied and this
+ * student resolves to a real TMS student, the reward is granted there first (idempotent by
+ * `lantern:mission_reward:<submission_id>`); the local lantern_transactions row becomes a mirror
+ * record (still written, so achievements/history keep working) rather than the source of truth.
+ * Falls back to the legacy Lantern-only wallet unchanged for ids that are not real TMS students
+ * (demo/persona characters, local dev/test fixtures) -- same exactly-once guarantee either way.
  */
 
 export function missionRewardTxId(submissionId) {
   return `tx_mission_${String(submissionId || '').trim()}`;
+}
+
+export function missionRewardReference(submissionId) {
+  return `lantern:mission_reward:${String(submissionId || '').trim()}`;
 }
 
 export async function findMissionRewardTx(db, submissionId) {
@@ -16,14 +28,36 @@ export async function findMissionRewardTx(db, submissionId) {
 }
 
 /**
- * Credit mission approval Nuggets. Idempotent via deterministic transaction id.
+ * Credit mission approval Nuggets. Idempotent via deterministic transaction id (legacy path) and
+ * via the TMS bridge reference (TMS-backed path) -- either way, exactly once per submissionId.
+ * `env`/`tmsEconomyTransact` are optional so existing local/test callers keep working unchanged.
  */
-export async function creditMissionApprovalReward(db, characterName, submissionId, rewardAmount, note) {
+export async function creditMissionApprovalReward(db, characterName, submissionId, rewardAmount, note, opts) {
   const key = String(characterName || '').trim();
   const sid = String(submissionId || '').trim();
   const reward = Math.max(1, Math.min(99, Math.floor(Number(rewardAmount)) || 1));
   if (!key || !sid) {
     return { ok: false, error: 'missing_identity' };
+  }
+
+  const env = opts && opts.env;
+  if (env) {
+    const tms = await tmsEconomyTransact(env, key, reward, 'lantern_mission_reward', 'APPROVAL', note || 'Teacher mission approved', missionRewardReference(sid));
+    if (tms.ok) {
+      return {
+        ok: true,
+        idempotent: !!tms.idempotent,
+        id: missionRewardTxId(sid),
+        character_name: key,
+        delta: tms.delta,
+        balance_after: tms.available,
+        economy_authority: 'tms_nuggets',
+      };
+    }
+    if (!tms.notFound) {
+      return { ok: false, error: tms.error || 'reward_credit_failed' };
+    }
+    // tms.notFound === true -> not a real TMS student; fall through to the legacy wallet path.
   }
 
   const txId = missionRewardTxId(sid);
@@ -79,6 +113,7 @@ export async function creditMissionApprovalReward(db, characterName, submissionI
     character_name: key,
     delta: reward,
     balance_after: currentBalance + reward,
+    economy_authority: 'lantern_legacy',
   };
 }
 
@@ -93,7 +128,9 @@ export async function approveMissionWithReward(db, opts) {
     rewardAmount,
     reviewerLabel,
     revertOnRewardFailure,
+    env,
   } = opts;
+  const creditOpts = { env };
   const id = String(submissionId || '').trim();
   const now = new Date().toISOString();
   const reviewer = String(reviewerLabel || 'Teacher').trim();
@@ -113,7 +150,8 @@ export async function approveMissionWithReward(db, opts) {
       row.character_name || recipientCharacterName,
       id,
       rewardAmount,
-      'Teacher mission approved'
+      'Teacher mission approved',
+      creditOpts
     );
     if (!reward.ok) {
       return { ok: false, code: 500, error: reward.error || 'reward_failed', accepted_without_reward: true };
@@ -147,7 +185,8 @@ export async function approveMissionWithReward(db, opts) {
         again.character_name || recipientCharacterName,
         id,
         rewardAmount,
-        'Teacher mission approved'
+        'Teacher mission approved',
+        creditOpts
       );
       if (!reward.ok) {
         return { ok: false, code: 500, error: reward.error || 'reward_failed', accepted_without_reward: true };
@@ -168,7 +207,8 @@ export async function approveMissionWithReward(db, opts) {
     recipientCharacterName || row.character_name,
     id,
     rewardAmount,
-    'Teacher mission approved'
+    'Teacher mission approved',
+    creditOpts
   );
 
   if (!credit.ok && revertOnRewardFailure !== false) {

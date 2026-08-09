@@ -5,6 +5,7 @@
 import { getCosmeticById, isPurchasableCosmetic, serverCosmeticPrice } from './cosmetic-catalog.js';
 import { awardAchievementsForCosmeticPurchase } from './locker-achievements.js';
 import { fetchCosmeticOwnershipRow } from './locker-storage.js';
+import { tmsEconomyTransact } from './tms-economy-bridge.js';
 
 function uniqueStrings(list) {
   const out = [];
@@ -36,11 +37,25 @@ async function findIdempotentCosmeticTx(db, characterName, idempotencyKey) {
 
 /**
  * Atomic cosmetic purchase. Ignores client-supplied price; uses catalog cost.
+ *
+ * Prompt #96 Atomic Purchase Rule: TMS Nuggets is the one authoritative Nugget ledger, so a
+ * cosmetic purchase must never grant the item before the currency has actually been deducted
+ * there. Sequence for a real TMS student (options.env + options.tmsEconomyTransact provided):
+ *   1. ownership check (unchanged, cheap, blocks re-purchase of an already-owned item)
+ *   2. TMS spend FIRST, keyed by the idempotency key (retry-safe: TMS applies the delta at most
+ *      once per key; a repeated call with the same key is a no-op, never a double charge)
+ *   3. ONLY if the TMS spend succeeds (or was already applied idempotently) -> grant local
+ *      ownership + write the local mirror transaction record
+ * If the TMS spend fails (insufficient balance, or any other real error) the cosmetic is NEVER
+ * granted. If this character_name is not a real TMS student (demo/persona/dev fixture),
+ * tmsEconomyTransact resolves `notFound: true` and this falls back to the legacy Lantern-only
+ * wallet path unchanged (no real currency involved either way for those accounts).
  */
 export async function executeCosmeticPurchase(db, characterName, cosmeticId, options) {
   const key = String(characterName || '').trim();
   const cid = String(cosmeticId || '').trim();
   const idempotencyKey = options && options.idempotencyKey ? String(options.idempotencyKey).trim() : '';
+  const env = options && options.env;
   if (!key || !cid || !db) return { ok: false, error: 'missing_fields' };
   if (!getCosmeticById(cid)) return { ok: false, error: 'unknown_cosmetic' };
   if (!isPurchasableCosmetic(cid)) return { ok: false, error: 'not_purchasable' };
@@ -67,25 +82,60 @@ export async function executeCosmeticPurchase(db, characterName, cosmeticId, opt
     return { ok: false, error: 'already_owned', cosmetic_id: cid };
   }
 
-  const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(key).first();
-  const currentBalance = walletRow ? Number(walletRow.balance) || 0 : 0;
-  if (currentBalance < cost) {
-    return { ok: false, error: 'insufficient', need: cost, available: currentBalance };
-  }
-
   const item = getCosmeticById(cid);
   const now = new Date().toISOString();
   const txId = 'tx-' + crypto.randomUUID();
   const delta = -cost;
+  const note = (item.name || cid) + ' purchase';
+
+  let tmsResult = null;
+  if (env) {
+    const reference = 'lantern:store_purchase:' + (idempotencyKey || txId);
+    tmsResult = await tmsEconomyTransact(env, key, delta, 'cosmetic', '', note, reference);
+    if (tmsResult.ok) {
+      // Fall through to grant the item -- currency already moved on the authoritative ledger.
+    } else if (!tmsResult.notFound) {
+      const insufficient = tmsResult.code === 'insufficient_balance' || tmsResult.error === 'insufficient_balance';
+      if (insufficient) {
+        return { ok: false, error: 'insufficient', need: cost, available: null, cosmetic_id: cid };
+      }
+      return { ok: false, error: tmsResult.error || 'purchase_failed', cosmetic_id: cid };
+    }
+    // tmsResult.notFound === true -> not a real TMS student; fall through to the legacy wallet
+    // path below exactly as before Prompt #96 (demo/dev fixtures only -- no real currency).
+  }
+
+  let balanceAfter;
+  if (tmsResult && tmsResult.ok) {
+    balanceAfter = tmsResult.available;
+  } else {
+    const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(key).first();
+    const currentBalance = walletRow ? Number(walletRow.balance) || 0 : 0;
+    if (currentBalance < cost) {
+      return { ok: false, error: 'insufficient', need: cost, available: currentBalance };
+    }
+    balanceAfter = currentBalance + delta;
+  }
+
   const meta = {
     cosmetic_id: cid,
     item_name: item.name || cid,
     idempotency_key: idempotencyKey || null,
     server_price: cost,
+    tms_backed: !!(tmsResult && tmsResult.ok),
   };
-  const note = (item.name || cid) + ' purchase';
   const owned = uniqueStrings([...(ownership.owned || []), cid]);
   const equippedJson = JSON.stringify(ownership.equipped && typeof ownership.equipped === 'object' ? ownership.equipped : {});
+
+  const walletStatements = tmsResult && tmsResult.ok
+    ? []
+    : [
+        db
+          .prepare(
+            'INSERT INTO lantern_wallets (character_name, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET balance = balance + ?, updated_at = ?'
+          )
+          .bind(key, balanceAfter, now, delta, now),
+      ];
 
   try {
     await db.batch([
@@ -94,11 +144,7 @@ export async function executeCosmeticPurchase(db, characterName, cosmeticId, opt
           'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         )
         .bind(txId, key, delta, 'cosmetic', '', note, now, JSON.stringify(meta)),
-      db
-        .prepare(
-          'INSERT INTO lantern_wallets (character_name, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET balance = balance + ?, updated_at = ?'
-        )
-        .bind(key, currentBalance + delta, now, delta, now),
+      ...walletStatements,
       db
         .prepare(
           'INSERT INTO lantern_cosmetic_ownership (character_name, owned_json, equipped_json, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET owned_json = excluded.owned_json, updated_at = excluded.updated_at'
@@ -118,8 +164,9 @@ export async function executeCosmeticPurchase(db, characterName, cosmeticId, opt
     id: txId,
     character_name: key,
     delta,
-    balance_after: currentBalance + delta,
+    balance_after: balanceAfter,
     cosmetic_id: cid,
     server_price: cost,
+    economy_authority: tmsResult && tmsResult.ok ? 'tms_nuggets' : 'lantern_legacy',
   };
 }

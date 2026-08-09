@@ -849,15 +849,15 @@
       toast('Couldn\'t start game. Try again.');
     }
 
-    function callEconomyTransact(characterName, delta, kind, source, note){
+    function callEconomyTransact(characterName, delta, kind, source, note, runId){
       if (window.LanternWallet && typeof window.LanternWallet.postEconomyTransact === 'function' && window.LanternWallet.canUseHttpEconomy()) {
-        return window.LanternWallet.postEconomyTransact({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: {} });
+        return window.LanternWallet.postEconomyTransact({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: runId ? { run_id: runId } : {} });
       }
       return Promise.resolve({ ok: false });
     }
-    function awardGameWinWithEconomy(characterName, gameName, nuggets, onSuccess, onFailure){
+    function awardGameWinWithEconomy(characterName, gameName, nuggets, onSuccess, onFailure, runId){
       if (window.LanternWallet && window.LanternWallet.canUseHttpEconomy && window.LanternWallet.canUseHttpEconomy()) {
-        callEconomyTransact(characterName, nuggets, 'game_win', 'GAME', (gameName || 'Game') + ' win').then(function(tRes){
+        callEconomyTransact(characterName, nuggets, 'game_win', 'GAME', (gameName || 'Game') + ' win', runId).then(function(tRes){
           if (!tRes || !tRes.ok) { if (onFailure) onFailure(); return; }
           if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onSuccess) onSuccess(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets, economy_backend_charged: true });
           else if (onSuccess) onSuccess();
@@ -1257,6 +1257,15 @@
       var streak = 0;
       var firstFindRecorded = false;
       var lastReward = 0;
+      var huntRunId = null;
+
+      // Prompt #96: stable per-round idempotency reference for the win reward transact call, so a
+      // duplicate/retried award (double-click, page reload racing an in-flight request, etc.) can
+      // never post the same Nugget Hunt win twice through the TMS bridge.
+      function generateRunId(){
+        if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+        return 'run_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      }
 
       // Tiny, self-contained WebAudio blips — no external asset, no shared sound module touched.
       // Nugget Hunt only; other games are unaffected.
@@ -1445,7 +1454,7 @@
                 if (adopted){
                   awardGameWinWithEconomy(adopted.name, 'Nugget Hunt', reward, function(){
                     refreshBalance();
-                  }, function(){});
+                  }, function(){}, huntRunId);
                   if (run && run.recordGameResult) {
                     run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
                   }
@@ -1483,6 +1492,7 @@
         streak = 0;
         firstFindRecorded = false;
         lastReward = 0;
+        huntRunId = generateRunId();
         updateStreakBadge();
         replayBtn.style.display = 'none';
         resultBanner.classList.remove('show', 'win', 'lose', 'quick', 'milestone');

@@ -1301,6 +1301,7 @@
           btn.disabled = true;
           global.fetch(apiBase + '/api/polls/vote', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ poll_id: pollId, character_name: characterName, choice_index: idx })
           })
