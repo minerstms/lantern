@@ -7,15 +7,15 @@
  * teacher-mission-pipeline-test.mjs / missions-identity-auth-test.mjs / teacher-manual-sale-test.mjs:
  *
  *  - Sidebar exists with the 7 expected workspace items; only ONE workspace is visible at a time.
- *  - Default workspace on a plain /teacher.html load is Overview.
+ *  - Default workspace on a plain /teacher.html load is Nuggets (Prompt #91).
  *  - Sidebar clicks + hash routing (#review, #create, ...) both switch workspaces; unknown hash
- *    falls back to Overview; browser back/forward works.
+ *    falls back to Nuggets (Prompt #91); browser back/forward works.
  *  - Review Queue: My Classroom / Schoolwide secondary tabs show one queue at a time; Filters
  *    panel is collapsed by default and toggles open; bulk action bar is compact/inactive until
  *    something is selected, then shows Approve/Reject + count.
  *  - Create Mission workspace: existing handler still wired (Creating…/Created ✓ flow) and the
  *    reward field defaults to 1 Nugget.
- *  - Moderation and Nuggets & Sales workspaces are reachable and retain their existing controls
+ *  - Moderation and Nuggets workspaces are reachable and retain their existing controls
  *    (manual sale amount also defaults to 1).
  *  - Mobile drawer: sidebar is off-canvas by default at phone width, opens via the menu button,
  *    and closes after choosing a workspace.
@@ -32,6 +32,13 @@
  *  - "Highlight-worthy / site-eligible" has been archived (removed) from Create Mission;
  *    "Pin as featured mission" is retained but relabeled "Feature this mission" with helper text.
  *  - Review Queue empty state is a compact placeholder, not a large blank bordered box.
+ *
+ * Prompt #91 (Nuggets first + default workspace) additions:
+ *  - Sidebar order starts with Nuggets, then Overview/Review Queue/Create Mission/My
+ *    Missions/Moderation/Hallway TV/Other Tools.
+ *  - A plain /teacher.html load (no hash) opens Nuggets by default, not Overview.
+ *  - Explicit deep links (#overview, #review, #create, ...) still open their requested
+ *    workspace — Nuggets is the default, not a mandatory intermediate screen.
  *
  * Usage: node worker/scripts/teacher-workspace-shell-test.mjs [baseUrl]
  * Requires a static file server for app/ at baseUrl (default http://127.0.0.1:8765).
@@ -105,17 +112,22 @@ async function main() {
   // Sidebar + default workspace
   // ---------------------------------------------------------------------------
   const sidebarItems = await page.locator('.teacherSidebarItem').allTextContents();
-  const expectedLabels = ['Overview', 'Review Queue', 'Create Mission', 'My Missions', 'Moderation', 'Nuggets', 'Other Tools'];
+  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'Create Mission', 'My Missions', 'Moderation', 'Other Tools'];
   assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all 7 expected workspace items: ' + JSON.stringify(sidebarItems));
+  assert(sidebarItems[0].indexOf('Nuggets') !== -1, 'Nuggets is the first sidebar item: ' + JSON.stringify(sidebarItems));
 
   function activeWorkspaceIds() {
     return page.evaluate(() => Array.from(document.querySelectorAll('#teacherMain > [data-workspace].is-active-workspace')).map((el) => el.getAttribute('data-workspace')));
   }
 
-  assert((await activeWorkspaceIds()).join(',') === 'overview', 'Default workspace on a plain /teacher.html load is Overview');
-  const overviewVisibleCount = await page.locator('#teacherMain > [data-workspace].is-active-workspace').count();
-  assert(overviewVisibleCount === 1, 'Exactly one workspace pane is visible at a time (Overview)');
+  assert((await activeWorkspaceIds()).join(',') === 'economy', 'Default workspace on a plain /teacher.html load is Nuggets');
+  const defaultWorkspaceVisibleCount = await page.locator('#teacherMain > [data-workspace].is-active-workspace').count();
+  assert(defaultWorkspaceVisibleCount === 1, 'Exactly one workspace pane is visible at a time (Nuggets)');
 
+  // Overview-specific stat elements live in the Overview pane, which is no longer the default
+  // (Prompt #91); switch to it explicitly to check its content, same as any other workspace below.
+  await page.evaluate(() => { location.hash = 'overview'; });
+  await page.waitForFunction(() => document.getElementById('teacherWorkspace-overview').classList.contains('is-active-workspace'), { timeout: 5000 });
   const pendingCountText = await page.locator('#teacherOverviewPendingCount').innerText();
   assert(pendingCountText === '2', 'Overview Pending Review count reflects real queue data (1 classroom + 1 schoolwide): ' + pendingCountText);
   const activeMissionsText = await page.locator('#teacherOverviewActiveMissionsCount').innerText();
@@ -153,7 +165,7 @@ async function main() {
 
   await page.goto(base + '/teacher.html#not-a-real-workspace', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
-  assert((await activeWorkspaceIds()).join(',') === 'overview', 'An unknown hash falls back to the Overview workspace');
+  assert((await activeWorkspaceIds()).join(',') === 'economy', 'An unknown hash falls back to the Nuggets workspace');
 
   await page.evaluate(() => { location.hash = 'review'; });
   await page.waitForFunction(() => location.hash === '#review', { timeout: 5000 });
@@ -249,11 +261,11 @@ async function main() {
   assert(!approvalsVisibleDuringModeration, 'Review Queue is not shown while Moderation workspace is active (isolated from everyday review work)');
 
   // ---------------------------------------------------------------------------
-  // Nuggets & Sales workspace — retained, manual sale amount defaults to 1
+  // Nuggets workspace (formerly "Nuggets & Sales") — retained, manual sale amount defaults to 1
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'economy'; });
   await page.waitForFunction(() => document.getElementById('teacher-rewards').classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#teacherRewardManualSalePanel').isVisible(), 'Nuggets & Sales workspace shows the existing manual sale panel');
+  assert(await page.locator('#teacherRewardManualSalePanel').isVisible(), 'Nuggets workspace shows the existing manual sale panel');
   const saleAmountDefault = await page.locator('#teacherRewardSaleAmount').inputValue();
   assert(saleAmountDefault === '1', 'Manual sale amount defaults to 1 Nugget: ' + saleAmountDefault);
   assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Record Sale button is retained and reachable');

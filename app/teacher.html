@@ -1241,12 +1241,12 @@
       <div class="teacherSidebarScrim" id="teacherSidebarScrim"></div>
       <aside class="teacherSidebar" id="teacherSidebar" aria-label="Teacher workspaces">
         <nav class="teacherSidebarNav">
+          <button type="button" class="teacherSidebarItem" data-workspace-link="economy"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Queue</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="create"><span class="teacherSidebarIcon" aria-hidden="true">➕</span><span class="teacherSidebarLabel">Create Mission</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">My Missions</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="economy"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets &amp; Sales</span></button>
           <a href="display.html" target="_blank" rel="noopener" class="teacherSidebarItem teacherSidebarItem--divider"><span class="teacherSidebarIcon" aria-hidden="true">📺</span><span class="teacherSidebarLabel">Hallway TV</span></a>
           <button type="button" class="teacherSidebarItem" data-workspace-link="other"><span class="teacherSidebarIcon" aria-hidden="true">🧰</span><span class="teacherSidebarLabel">Other Tools</span></button>
         </nav>
@@ -1758,19 +1758,24 @@
    */
   (function(){
     var WORKSPACES = ['overview', 'review', 'create', 'missions', 'moderation', 'economy', 'other'];
+    // Prompt #91 — Nuggets (formerly "Nuggets & Sales") is the first sidebar item and the
+    // default Teacher workspace; DEFAULT_WORKSPACE is only the hash fallback used when no
+    // explicit/valid workspace is requested (see workspaceFromHash below), so deep links to
+    // any other workspace are unaffected.
+    var DEFAULT_WORKSPACE = 'economy';
     var TITLES = {
       overview: 'Overview',
       review: 'Review Queue',
       create: 'Create Mission',
       missions: 'My Missions',
       moderation: 'Moderation',
-      economy: 'Nuggets & Sales',
+      economy: 'Nuggets',
       other: 'Other Tools',
     };
 
     function workspaceFromHash(){
       var h = String(location.hash || '').replace(/^#/, '').trim().toLowerCase();
-      return WORKSPACES.indexOf(h) !== -1 ? h : 'overview';
+      return WORKSPACES.indexOf(h) !== -1 ? h : DEFAULT_WORKSPACE;
     }
 
     function closeMobileDrawer(){
@@ -1783,7 +1788,7 @@
     }
 
     function activateWorkspace(name){
-      if (WORKSPACES.indexOf(name) === -1) name = 'overview';
+      if (WORKSPACES.indexOf(name) === -1) name = DEFAULT_WORKSPACE;
       var main = document.getElementById('teacherMain');
       if (main) {
         Array.prototype.forEach.call(main.children, function(el){
