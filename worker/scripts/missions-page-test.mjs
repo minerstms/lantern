@@ -43,12 +43,14 @@ if (missionsHtml.includes('id="missionsLibraryGrid"') && missionsHtml.includes('
   ok('one unified mission library grid');
 } else bad('unified grid missing');
 
-if (missionsHtml.includes('id="missionsStatusTabs"') && missionsHtml.includes('data-mission-status="available"')) {
-  ok('status tabs: Available default markup');
-} else bad('status tabs missing');
+// Prompt #73 Defect 2: Available/In Progress/Completed tabs collapsed into Active/Completed so a
+// submitted mission never appears to "disappear" from the default view.
+if (missionsHtml.includes('id="missionsStatusTabs"') && missionsHtml.includes('data-mission-status="active"') && !missionsHtml.includes('data-mission-status="in_progress"')) {
+  ok('status tabs: Active default markup, no separate In Progress tab');
+} else bad('status tabs missing/outdated');
 
-if (missionsPageJs.includes("status: 'available'") && missionsPageJs.includes('in_progress') && missionsPageJs.includes('completed')) {
-  ok('missions page module supports three status views');
+if (missionsPageJs.includes("status: 'active'") && missionsPageJs.includes('isActiveStatus') && missionsPageJs.includes('completed')) {
+  ok('missions page module supports Active (available+in_progress+returned) + Completed views');
 } else bad('status view logic missing');
 
 if (/id="missionsFiltersPanel"[^>]*\shidden/.test(missionsHtml)) {
@@ -119,8 +121,8 @@ if (missionsPageJs.includes('LanternNav.onHeaderSearch')) {
   ok('mission-scoped header search wired');
 } else bad('header search');
 
-if (helpJs.includes('Available, In Progress, and Completed')) {
-  ok('help copy matches unified library');
+if (helpJs.includes('Active shows everything you can still work on') && !helpJs.includes('In Progress')) {
+  ok('help copy matches Active/Completed unified library (Prompt #73 Defect 2)');
 } else bad('help copy outdated');
 
 // Mock workflow: buildUnifiedMissionItems status mapping
@@ -150,19 +152,32 @@ if (buildFnMatch) {
           reward_amount: 3,
           submission_type: 'image_url',
         },
+        {
+          id: 'm3',
+          title: 'Returned Mission',
+          description: 'Needs a redo',
+          reward_amount: 2,
+          submission_type: 'text',
+        },
       ],
-      [{ mission_id: 'm1', status: 'pending' }, { mission_id: 'm2', status: 'accepted' }]
+      [{ mission_id: 'm1', status: 'pending' }, { mission_id: 'm2', status: 'accepted' }, { mission_id: 'm3', status: 'returned' }]
     );
     const avail = items.filter((i) => i.status === 'available').length;
     const prog = items.filter((i) => i.status === 'in_progress').length;
     const done = items.filter((i) => i.status === 'completed').length;
-    if (avail >= 4 && prog === 1 && done >= 1) {
-      ok('status derivation: pending → in_progress, accepted → completed');
+    if (avail >= 4 && prog === 2 && done >= 1) {
+      ok('status derivation: pending/returned → in_progress, accepted → completed');
     } else bad('status derivation counts', { avail, prog, done, total: items.length });
+    // Prompt #73 Defect 2: pending/in_progress missions carry a STARTED stateBadge (with a
+    // "Waiting for teacher" statusLabel) and stay in the Active bucket rather than a separate tab.
     const pendingItem = items.find((i) => i.id === 'm1');
-    if (pendingItem && pendingItem.statusLabel.includes('review')) {
-      ok('student-friendly in-progress label');
-    } else bad('in-progress label');
+    if (pendingItem && pendingItem.stateBadge === 'STARTED' && /waiting for teacher/i.test(pendingItem.statusLabel)) {
+      ok('pending mission carries a STARTED badge + "Waiting for teacher" label (stays visible in Active)');
+    } else bad('pending mission STARTED badge/label', pendingItem);
+    const returnedItem = items.find((i) => i.id === 'm3');
+    if (returnedItem && returnedItem.status === 'in_progress' && returnedItem.stateBadge === 'NEEDS CHANGES') {
+      ok('returned mission carries a NEEDS CHANGES badge and stays in the Active bucket (status in_progress)');
+    } else bad('returned mission NEEDS CHANGES badge', returnedItem);
     const dupIds = items.map((i) => i.id);
     if (new Set(dupIds).size === dupIds.length) {
       ok('no duplicate mission IDs in unified list');

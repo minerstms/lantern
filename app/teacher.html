@@ -223,6 +223,25 @@
     .note.note-tight{ margin-bottom: 8px; }
     .note.note-tight:last-child{ margin-bottom: 0; }
 
+    .createMissionStatus{
+      margin: 10px 0 0;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 22px;
+      line-height: 1.3;
+    }
+    .createMissionStatus.is-success{
+      background: rgba(56,208,124,.16);
+      border: 1px solid rgba(56,208,124,.5);
+      color: #7CFAB0;
+    }
+    .createMissionStatus.is-error{
+      background: rgba(255,90,90,.14);
+      border: 1px solid rgba(255,90,90,.5);
+      color: #FF9B9B;
+    }
+
     .btn{
       height: var(--btnH);
       padding: 0 14px;
@@ -375,6 +394,19 @@
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(0,0,0,.2);
       display: block;
+    }
+    /* Sensible fallback icon only on actual <img> load error — never a broken-image glyph or raw URL text. */
+    .approvalQueueMidFallback{
+      width: 68px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.25);
+      font-size: 28px;
+      color: var(--muted);
     }
     /* Phase B2 — queue filters + sort (scoped) */
     #teacher-approvals .approvalsQueueControls{
@@ -1245,6 +1277,7 @@
           <span style="font-weight:800;color:var(--muted);font-size:22px;">Pin as featured mission</span>
         </label>
         <button class="btn good" id="createMissionBtn" type="button">Create Mission</button>
+        <p id="createMissionStatus" class="createMissionStatus" role="status" aria-live="polite" style="display:none;"></p>
       </div>
     </div>
 
@@ -2489,7 +2522,9 @@
       if (entry.type === 'mission') {
         title = (entry.item.mission_title || '') + ' — ' + (entry.item.character_name || '');
         var mmRowText = window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia ? window.LanternMedia.normalizeMissionItemForMedia(entry.item) : {};
-        var rowPreviewText = mmRowText.text !== undefined ? mmRowText.text : (entry.item.submission_content || '');
+        // .text is always a string when LanternMedia is present (never the raw media URL) —
+        // the defensive fallback below only ever surfaces genuine plain text, never a URL.
+        var rowPreviewText = mmRowText.text !== undefined ? mmRowText.text : (entry.item.submission_type === 'text' && entry.item.submission_content ? String(entry.item.submission_content).trim() : (entry.item.caption || ''));
         meta = 'Created by: ' + (entry.item.created_by_teacher_name || 'Teacher') + (rowPreviewText.length ? ' · ' + rowPreviewText.slice(0, 80) + (rowPreviewText.length > 80 ? '…' : '') : '');
         avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
         avatarName = entry.item.character_name || '';
@@ -2535,7 +2570,7 @@
       var kindKey = approvalKindKey(entry).replace(/_/g, '-');
       var catLabel = getApprovalCategoryLabel(entry);
       var thumb = getApprovalRowThumbUrl(entry);
-      var thumbHtml = thumb ? '<div class="approvalQueueMid" aria-hidden="true"><img src="' + esc(thumb) + '" alt="" loading="lazy" decoding="async" /></div>' : '';
+      var thumbHtml = thumb ? '<div class="approvalQueueMid" aria-hidden="true"><img src="' + esc(thumb) + '" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'approvalQueueMidFallback\',textContent:\'\\ud83d\\uddbc\\ufe0f\'}));" /></div>' : '';
       var catBlock = catLabel ? '<span class="approvalCategoryPill">' + esc(catLabel) + '</span>' : '';
       var selKey = getApprovalEntrySelectionKey(entry);
       var selHtml = '';
@@ -3919,7 +3954,23 @@
         if (targetCharacterNames.length === 0){ toast('Select at least one student'); return; }
       }
       var btn = el('createMissionBtn');
+      var statusEl = el('createMissionStatus');
+      var restoreLabel = 'Create Mission';
+      function showInlineStatus(kind, msg){
+        if (!statusEl) return;
+        statusEl.textContent = msg;
+        statusEl.className = 'createMissionStatus ' + (kind === 'success' ? 'is-success' : 'is-error');
+        statusEl.style.display = 'block';
+      }
+      function hideInlineStatus(){
+        if (!statusEl) return;
+        statusEl.style.display = 'none';
+        statusEl.textContent = '';
+        statusEl.className = 'createMissionStatus';
+      }
       btn.disabled = true;
+      btn.textContent = 'Creating\u2026';
+      hideInlineStatus();
       try {
         var allowsText = !!(el('missionAllowsText') && el('missionAllowsText').checked);
         var allowsImage = !!(el('missionAllowsImage') && el('missionAllowsImage').checked);
@@ -3929,16 +3980,32 @@
         var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, site_eligible: siteEligible, featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
         var res = await callCreateTeacherMission(opts);
-        if (!res || !res.ok){ toast((res && res.error) || 'Couldn\u2019t save mission: unknown error'); return; }
+        if (!res || !res.ok){
+          var errMsg = (res && res.error) || 'unknown error';
+          toast('Couldn\u2019t save mission: ' + errMsg);
+          showInlineStatus('error', 'Couldn\u2019t save mission: ' + errMsg);
+          btn.disabled = false;
+          btn.textContent = restoreLabel;
+          return;
+        }
+        // Only reset/refresh AFTER confirmed response.ok + application success — never on failure.
+        btn.textContent = 'Created \u2713';
+        showInlineStatus('success', 'Mission created.');
         toast('Mission created');
         el('missionTitle').value = '';
         el('missionDesc').value = '';
         if (el('missionFeatured')) el('missionFeatured').checked = false;
         await refresh();
+        setTimeout(function(){
+          if (btn.textContent === 'Created \u2713') btn.textContent = restoreLabel;
+          btn.disabled = false;
+        }, 1600);
       } catch (e) {
-        toast('Couldn\u2019t save mission: ' + String((e && e.message) || e || 'unexpected error'));
-      } finally {
+        var exMsg = String((e && e.message) || e || 'unexpected error');
+        toast('Couldn\u2019t save mission: ' + exMsg);
+        showInlineStatus('error', 'Couldn\u2019t save mission: ' + exMsg);
         btn.disabled = false;
+        btn.textContent = restoreLabel;
       }
     });
 

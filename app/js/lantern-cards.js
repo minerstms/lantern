@@ -985,6 +985,7 @@
       dateMeta: metaMerged,
       fallbackType: 'create',
       typeBadge: o.typeBadge != null ? String(o.typeBadge) : '🎮 Game',
+      stateBadge: o.stateBadge ? String(o.stateBadge) : '',
     }, {
       classNames: ('gamesHubPlayCard ' + mergeShellExtras({ classNames: o.extraClass || '' })).replace(/\s+/g, ' ').trim(),
       lanternCardType: 'game_hub',

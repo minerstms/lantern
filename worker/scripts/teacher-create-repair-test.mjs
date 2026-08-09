@@ -64,20 +64,33 @@ if (!clickBlockMatch) {
   bad('could not locate createMissionBtn click handler block in app/teacher.html — aborting dynamic tests');
 } else {
   const clickBlock = clickBlockMatch[0];
-  if (/btn\.disabled = true;\s*try \{/.test(clickBlock) && /\} finally \{\s*btn\.disabled = false;\s*\}/.test(clickBlock)) {
-    ok('Save Mission click handler wraps its body in try/finally so the button is ALWAYS re-enabled, even on an unexpected exception (no more permanently-stuck "does nothing" button)');
+  // Prompt #73 Defect 1: the handler now has an explicit `catch` that always re-enables/relabels
+  // the button (functionally a try/finally for btn.disabled, but written as try/catch since the
+  // success path already re-enables the button itself via the delayed "Created ✓" restore).
+  if (/btn\.disabled = true;/.test(clickBlock) && /catch \(e\) \{[\s\S]*?btn\.disabled = false;[\s\S]*?btn\.textContent = restoreLabel;/.test(clickBlock)) {
+    ok('Save Mission click handler always re-enables + relabels the button in its catch block, even on an unexpected exception (no more permanently-stuck "does nothing" button)');
   } else {
-    bad('Save Mission click handler is missing a try/finally around btn.disabled reset — a thrown exception can permanently disable Save with no visible error');
+    bad('Save Mission click handler is missing exception-safe btn.disabled/textContent reset — a thrown exception can permanently disable Save with no visible error');
   }
-  if (/\} catch \(e\) \{\s*toast\(/.test(clickBlock)) {
+  if (/\} catch \(e\) \{[\s\S]*?toast\(/.test(clickBlock)) {
     ok('Save Mission click handler has a catch block that shows a visible toast for any unexpected exception (no silent failure)');
   } else {
     bad('Save Mission click handler does not visibly report unexpected exceptions');
   }
-  if (/if \(!res \|\| !res\.ok\)\{ toast\(/.test(clickBlock)) {
+  if (/if \(!res \|\| !res\.ok\)\{/.test(clickBlock) && /toast\('Couldn/.test(clickBlock)) {
     ok('Save Mission only shows success after res.ok — failures (including a falsy/undefined response) surface a visible toast');
   } else {
     bad('create click handler missing error-visibility guard for falsy/undefined response');
+  }
+  if (/statusEl\.className = 'createMissionStatus ' \+ \(kind === 'success'/.test(clickBlock) && /showInlineStatus\('success', 'Mission created\.'\)/.test(clickBlock)) {
+    ok('Save Mission click handler shows an inline (non-toast) "Mission created." success status beside the controls');
+  } else {
+    bad('create click handler missing inline success status (Prompt #73 Defect 1 requires a non-toast confirmation)');
+  }
+  if (/btn\.textContent = 'Creating\\u2026'/.test(clickBlock) && /btn\.textContent = 'Created \\u2713'/.test(clickBlock)) {
+    ok('Save Mission button visibly transitions Creating\u2026 \u2192 Created \u2713 (Prompt #73 Defect 1 convincing success state)');
+  } else {
+    bad('create click handler missing Creating\u2026/Created \u2713 button state transition');
   }
 }
 

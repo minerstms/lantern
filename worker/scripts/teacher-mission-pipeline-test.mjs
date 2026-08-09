@@ -322,14 +322,17 @@ function runFrontendStaticChecks() {
     ok('teacher.html: create request does not inject a client-side "teacher" placeholder owner (server derives the real owner)');
   } else bad('client-side owner placeholder re-introduced', createBlock && createBlock[0]);
 
-  const clickBlock = teacherHtml.match(/createMissionBtn'\)\.addEventListener\('click'[\s\S]{0,3500}/);
-  if (clickBlock && /if \(!res \|\| !res\.ok\)\{ toast\(/.test(clickBlock[0])) {
+  const clickBlock = teacherHtml.match(/createMissionBtn'\)\.addEventListener\('click'[\s\S]{0,4500}/);
+  if (clickBlock && /if \(!res \|\| !res\.ok\)\{/.test(clickBlock[0]) && /toast\('Couldn/.test(clickBlock[0])) {
     ok('teacher.html: Save Mission only shows success after res.ok — failures surface a visible toast (false-success guard)');
   } else bad('create click handler missing error-visibility guard', clickBlock && clickBlock[0]);
 
-  if (clickBlock && /btn\.disabled = true;\s*try \{/.test(clickBlock[0]) && /\} finally \{\s*btn\.disabled = false;\s*\}/.test(clickBlock[0])) {
-    ok('teacher.html: Save Mission click handler is wrapped in try/finally — the button can never get permanently stuck disabled on an unexpected exception (Prompt #71)');
-  } else bad('create click handler missing try/finally button-reenable guard (Prompt #71 regression)', clickBlock && clickBlock[0]);
+  // Prompt #73 Defect 1: rewritten as try/catch (not try/finally) because the success path itself
+  // re-enables the button after a delayed "Created ✓" state; the catch block still guarantees the
+  // button is never permanently stuck disabled on an unexpected exception (Prompt #71 contract kept).
+  if (clickBlock && /btn\.disabled = true;/.test(clickBlock[0]) && /catch \(e\) \{[\s\S]*?btn\.disabled = false;/.test(clickBlock[0])) {
+    ok('teacher.html: Save Mission click handler always re-enables the button in its catch block — can never get permanently stuck disabled on an unexpected exception (Prompt #71)');
+  } else bad('create click handler missing exception-safe button-reenable guard (Prompt #71 regression)', clickBlock && clickBlock[0]);
 
   const approveBlock = teacherHtml.match(/function callApproveMissionSubmission\(id\)\{[\s\S]{0,500}/);
   if (approveBlock && /avatarApiBase !== null && id/.test(approveBlock[0]) && /submissions\/approve/.test(approveBlock[0]) && /credentials: 'include'/.test(approveBlock[0])) {

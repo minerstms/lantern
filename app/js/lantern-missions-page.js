@@ -5,7 +5,7 @@
   'use strict';
 
   var state = {
-    status: 'available',
+    status: 'active',
     typeFilter: 'all',
     rewardFilter: 'any',
     sort: 'recommended',
@@ -63,8 +63,20 @@
     return bits.join(' · ');
   }
 
+  // Active tab = never-submitted (available) + pending/in-progress + returned; internal
+  // per-item status values are unchanged, only the tab bucketing groups them together
+  // so a submitted mission never appears to "disappear" from the main grid.
+  function isActiveStatus(itemStatus) {
+    return itemStatus === 'available' || itemStatus === 'in_progress';
+  }
+
+  function matchesTab(item) {
+    if (state.status === 'active') return isActiveStatus(item.status);
+    return item.status === state.status;
+  }
+
   function matchesFilters(item) {
-    if (item.status !== state.status) return false;
+    if (!matchesTab(item)) return false;
     if (state.typeFilter !== 'all' && item.typeFilter !== state.typeFilter) return false;
     if (state.rewardFilter === 'has_reward' && !(Number(item.reward) > 0)) return false;
     var q = String(state.search || '')
@@ -109,13 +121,19 @@
     }).length;
   }
 
+  // Active count = available + pending/in_progress + returned (returned items also carry
+  // status 'in_progress' internally). Completed count = completed/accepted per current semantics.
+  function countActive() {
+    return state.items.filter(function (i) {
+      return isActiveStatus(i.status);
+    }).length;
+  }
+
   function updateStatusTabLabels() {
-    var avail = countByStatus('available');
-    var prog = countByStatus('in_progress');
+    var active = countActive();
     var done = countByStatus('completed');
     var map = {
-      available: 'Available' + (state.loading ? '' : ' ' + avail),
-      in_progress: 'In Progress' + (state.loading ? '' : ' ' + prog),
+      active: 'Active' + (state.loading ? '' : ' ' + active),
       completed: 'Completed' + (state.loading ? '' : ' ' + done),
     };
     var bar = el('missionsStatusTabs');
@@ -130,8 +148,7 @@
 
   function emptyMessage() {
     if (state.loading) return 'Loading missions…';
-    if (state.status === 'available') return 'No missions available right now.';
-    if (state.status === 'in_progress') return 'Nothing in progress.';
+    if (state.status === 'active') return 'No active missions right now.';
     return 'No completed missions yet.';
   }
 
@@ -164,6 +181,7 @@
         metaOne: metaOne,
         rewardText: rewardMeta(item.reward),
         typeBadge: typeBadgeFor(item),
+        stateBadge: item.stateBadge || '',
         reportId: 'mission_' + (item.id || ''),
         extraClass: 'exploreCard--missionsLibrary missionsHubCard',
         dataAttrs: {

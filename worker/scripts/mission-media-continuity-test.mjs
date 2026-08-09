@@ -204,8 +204,10 @@ if (LanternMedia && typeof LanternMedia.normalizeMissionItemForMedia === 'functi
 
   const plainItem = { submission_type: 'text', submission_content: 'hi there' };
   const plainOut = LanternMedia.normalizeMissionItemForMedia(plainItem);
-  if (plainOut.image_url === undefined && plainOut.text === undefined) {
-    ok('lantern-media.js normalizeMissionItemForMedia: plain text submission unaffected (no fabricated media, caller falls back to raw content)');
+  // Prompt #73 Defect 4: .text is now ALWAYS a defined string (never undefined) so callers never
+  // fall back to displaying raw submission_content (which could be a media URL) as visible text.
+  if (plainOut.image_url === undefined && plainOut.text === 'hi there') {
+    ok('lantern-media.js normalizeMissionItemForMedia: plain text submission returns its real text via .text (no fabricated media, no raw-content fallback needed)');
   } else bad('normalizeMissionItemForMedia plain-text handling regressed', plainOut);
 
   const imageItem = { submission_type: 'image_url', submission_content: IMG_URL };

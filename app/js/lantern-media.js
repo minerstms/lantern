@@ -8,10 +8,32 @@
 (function (global) {
   var LINK_MAX_LEN = 2000;
   var LINK_REGEX = /^https?:\/\//i;
+  /* The Pages app proxies every /api/* path to this Worker (app/functions/api/[[path]].js) so
+     lantern_pilot auth is first-party on the Pages host. Media URLs are sometimes stored/returned
+     as this absolute Worker URL (an internal representation); rendering them same-origin avoids
+     depending on the Worker's own hostname and matches how every other API call is already made. */
+  var LANTERN_WORKER_MEDIA_RE = /^https?:\/\/lantern-api\.mrradle\.workers\.dev(\/api\/[^\s]*)$/i;
+  /* No quote characters after encodeURIComponent — safe to inline in a double-quoted onerror attribute. */
+  var TEACHER_IMG_FALLBACK_SVG = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140"><rect width="200" height="140" fill="#1a2436"/><text x="100" y="82" text-anchor="middle" font-size="48" fill="#5a6b8c" font-family="system-ui,sans-serif">\uD83D\uDDBC</text></svg>');
 
   function isValidLinkUrl(url) {
     var s = String(url || '').trim();
     return s && LINK_REGEX.test(s) ? s.slice(0, LINK_MAX_LEN) : '';
+  }
+
+  /**
+   * Rewrite an absolute lantern-api Worker URL to the same-origin Pages proxy path
+   * (/api/...). Ordinary external https URLs and already-relative paths pass through
+   * unchanged — this never weakens or broadens media authorization, it only changes
+   * which host an already-authorized/public media URL is requested from.
+   * @param {string} url
+   * @returns {string}
+   */
+  function toSameOriginMediaUrl(url) {
+    var s = String(url || '').trim();
+    if (!s) return s;
+    var m = s.match(LANTERN_WORKER_MEDIA_RE);
+    return m ? m[1] : s;
   }
 
   /**
@@ -23,9 +45,9 @@
   function renderMedia(item, opts) {
     var esc = opts && typeof opts.esc === 'function' ? opts.esc : function (s) { return String(s || '').replace(/[&<>"']/g, function (c) { return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'; }); };
     var variant = (opts && opts.variant) || 'newsList';
-    var imageUrl = (item && item.image_url && String(item.image_url).trim()) || (item && item.preview_url && String(item.preview_url).trim()) || '';
-    var fullImageUrl = (item && item.full_image_url && String(item.full_image_url).trim()) || imageUrl;
-    var videoUrl = (item && item.video_url && String(item.video_url).trim()) || '';
+    var imageUrl = toSameOriginMediaUrl((item && item.image_url && String(item.image_url).trim()) || (item && item.preview_url && String(item.preview_url).trim()) || '');
+    var fullImageUrl = toSameOriginMediaUrl((item && item.full_image_url && String(item.full_image_url).trim()) || imageUrl);
+    var videoUrl = toSameOriginMediaUrl((item && item.video_url && String(item.video_url).trim()) || '');
     var linkUrl = isValidLinkUrl(item && item.link_url);
     var photoCredit = (item && item.photo_credit && String(item.photo_credit).trim()) || '';
 
@@ -81,7 +103,11 @@
     }
 
     if (variant === 'teacher') {
-      var imageHtml = (fullImageUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Image</p><img class="reviewLargeImg" src="' + esc(fullImageUrl) + '" alt="">' : '';
+      // Sensible fallback glyph only on actual <img> load error — never a browser broken-image
+      // icon and never raw media URL text; the data URI has no quote characters so it is safe
+      // to inline inside this attribute without any HTML-entity nesting tricks.
+      var imgErrTeacher = ' onerror="this.onerror=null;this.src=\'' + TEACHER_IMG_FALLBACK_SVG + '\';this.style.opacity=\'.55\';this.title=\'Photo unavailable\';"';
+      var imageHtml = (fullImageUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Image</p><img class="reviewLargeImg" src="' + esc(fullImageUrl) + '" alt=""' + imgErrTeacher + '>' : '';
       var videoHtml = (videoUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Video</p><video class="reviewVideo" controls preload="metadata" muted src="' + esc(videoUrl) + '"></video>' : '';
       var linkHtml = (linkUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Link</p><div style="padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener noreferrer" style="word-break:break-all;color:var(--accent);">' + esc(linkUrl) + '</a></div>' : '';
       return { imageHtml: imageHtml, videoHtml: videoHtml, linkHtml: linkHtml };
@@ -141,11 +167,15 @@
   function normalizeMissionItemForMedia(item) {
     if (!item) return {};
     var envelope = item.submission_type === 'text' ? parseTextEnvelope(item.submission_content) : { isEnvelope: false, text: '', image_url: '' };
-    var imageUrl = (item.image_url && String(item.image_url).trim()) || (envelope.isEnvelope ? envelope.image_url : '') || (item.submission_type === 'image_url' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '';
-    var videoUrl = (item.video_url && String(item.video_url).trim()) || (item.submission_type === 'video' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '';
+    var imageUrl = toSameOriginMediaUrl((item.image_url && String(item.image_url).trim()) || (envelope.isEnvelope ? envelope.image_url : '') || (item.submission_type === 'image_url' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '');
+    var videoUrl = toSameOriginMediaUrl((item.video_url && String(item.video_url).trim()) || (item.submission_type === 'video' && item.submission_content ? String(item.submission_content).trim().slice(0, 2000) : '') || '');
     var linkUrl = (item.submission_type === 'link' && item.submission_content && LINK_REGEX.test(String(item.submission_content).trim())) ? String(item.submission_content).trim().slice(0, LINK_MAX_LEN) : '';
     var out = { image_url: imageUrl || undefined, video_url: videoUrl || undefined, link_url: linkUrl || undefined };
+    // .text is always a string (never undefined) — media URLs/raw JSON must never leak into
+    // caller code paths that fall back to "text is undefined => show raw submission_content".
     if (envelope.isEnvelope) out.text = envelope.text;
+    else if (item.submission_type === 'text' && item.submission_content) out.text = String(item.submission_content).trim();
+    else out.text = '';
     return out;
   }
 
@@ -179,6 +209,7 @@
     normalizeMediaPayload: normalizeMediaPayload,
     normalizeMissionItemForMedia: normalizeMissionItemForMedia,
     parseTextEnvelope: parseTextEnvelope,
-    isValidLinkUrl: isValidLinkUrl
+    isValidLinkUrl: isValidLinkUrl,
+    toSameOriginMediaUrl: toSameOriginMediaUrl
   };
 })(typeof window !== 'undefined' ? window : this);

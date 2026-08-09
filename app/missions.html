@@ -132,7 +132,9 @@
     .missionLinkPreviewCard{ margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); font-size: 20px; }
     .missionLinkPreviewCard a{ font-weight: 800; word-break: break-all; }
     .missionLinkPreviewCard .missionLinkDomain{ font-size: 18px; color: var(--muted); margin-top: 4px; }
-    .missionCropperModal{ position: fixed; inset: 0; z-index: 10001; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    /* Must render above .missionDetailOverlay (z-index 10100 in lantern-missions-page.css) — the
+       Mission Detail modal stays mounted underneath while the cropper is the top interaction layer. */
+    .missionCropperModal{ position: fixed; inset: 0; z-index: 10120; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 20px; }
     .missionCropperModal .missionCropperBox{ background: var(--panel); border-radius: var(--r); padding: 20px; max-width: 100%; width: 100%; max-width: 520px; border: 1px solid var(--line); }
     .missionCropperModal .missionCropperTitle{ font-weight: 900; font-size: 26px; margin-bottom: 14px; }
     .missionCropperModal .missionCropperImgWrap{ max-height: 60vh; margin: 0 auto 14px; background: #000; border-radius: 10px; overflow: hidden; }
@@ -190,8 +192,7 @@
 
     <div class="missionsStatusBar">
       <div id="missionsStatusTabs" class="missionsStatusTabs" role="tablist" aria-label="Mission status">
-        <button type="button" role="tab" data-mission-status="available" class="is-active" aria-selected="true">Available</button>
-        <button type="button" role="tab" data-mission-status="in_progress" aria-selected="false">In Progress</button>
+        <button type="button" role="tab" data-mission-status="active" class="is-active" aria-selected="true">Active</button>
         <button type="button" role="tab" data-mission-status="completed" aria-selected="false">Completed</button>
       </div>
       <button type="button" id="missionsFiltersToggle" class="missionsFiltersToggle" aria-expanded="false" aria-controls="missionsFiltersPanel">Filters ▸</button>
@@ -1183,6 +1184,7 @@
         var st = sub ? (sub.status || 'pending') : null;
         var status = 'available';
         var statusLabel = 'Start →';
+        var stateBadge = '';
         if (st === 'accepted') {
           status = 'completed';
           statusLabel = '✅ Completed';
@@ -1191,10 +1193,12 @@
           statusLabel = 'Not accepted';
         } else if (st === 'pending') {
           status = 'in_progress';
-          statusLabel = 'Awaiting teacher review';
+          statusLabel = 'Waiting for teacher';
+          stateBadge = 'STARTED';
         } else if (st === 'returned') {
           status = 'in_progress';
-          statusLabel = 'Returned — revise & resubmit';
+          statusLabel = 'Revise & resubmit';
+          stateBadge = 'NEEDS CHANGES';
         }
         var tf = 'teacher';
         var badge = '🧠 Teacher';
@@ -1206,6 +1210,7 @@
           kind: 'teacher',
           typeFilter: tf,
           typeBadge: badge,
+          stateBadge: stateBadge,
           icon: '🧠',
           title: m.title || 'Mission',
           description: (m.description || '').trim(),
@@ -1222,6 +1227,20 @@
                 var cap = (m.description || '').trim();
                 if (sub && sub.status === 'returned' && sub.returned_reason) cap += '\n\nTeacher feedback:\n' + sub.returned_reason;
                 window.LanternCardUI.openTextDetail(m.title || 'Mission', statusLabel, cap || 'Mission complete.');
+              }
+              return;
+            }
+            if (st === 'pending') {
+              // Pending submissions stay clickable but open a read-only view of what was
+              // submitted — the mission is still "STARTED", not lost, and the server already
+              // rejects a second submission while pending (409 submission_pending).
+              if (window.LanternCardUI) {
+                var capPending = '';
+                var mmPending = (sub && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
+                if (mmPending.text) capPending = mmPending.text;
+                else if (sub && sub.submission_type === 'text' && sub.submission_content) capPending = String(sub.submission_content).trim();
+                else if (mmPending.image_url) capPending = 'Photo submitted.';
+                window.LanternCardUI.openTextDetail(m.title || 'Mission', 'Waiting for teacher', (capPending ? 'Your submission:\n' + capPending : 'Submitted — waiting for teacher review.'));
               }
               return;
             }
@@ -1293,8 +1312,14 @@
         currentMissionMinChars = 0;
         currentMissionRequiresImage = false;
       } else {
-        if (contentEl) contentEl.value = allowsText ? pf : '';
-        if (imageUrlEl) imageUrlEl.value = m.submission_type === 'image_url' ? pf : '';
+        // A returned text+image combo submission is stored as a JSON envelope
+        // ({text, image_url}) — decode it so resubmit prefills the textarea with the
+        // student's actual words, not raw JSON, and restores the photo preview too.
+        var pfEnvelope = (m.submission_type === 'text' && pf && window.LanternMedia && window.LanternMedia.parseTextEnvelope)
+          ? window.LanternMedia.parseTextEnvelope(pf)
+          : { isEnvelope: false, text: '', image_url: '' };
+        if (contentEl) contentEl.value = allowsText ? (pfEnvelope.isEnvelope ? pfEnvelope.text : pf) : '';
+        if (imageUrlEl) imageUrlEl.value = pfEnvelope.isEnvelope ? pfEnvelope.image_url : (m.submission_type === 'image_url' ? pf : '');
         var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
         var enforceMin = allowsText && minChars > 0;
         currentMissionMinChars = enforceMin ? minChars : 0;
@@ -1310,6 +1335,7 @@
         if (progressWrap) progressWrap.style.display = currentMissionMinChars > 0 ? 'block' : 'none';
       }
       if (anyMed) mountMissionUnifiedField(allowsImage, allowsVideo, allowsLink);
+      if (imageUrlEl && imageUrlEl.value) updateMissionImagePreview();
       var previewWrap = el('missionSubmitPreviewWrap');
       if (previewWrap) previewWrap.style.display = 'block';
       updateMissionSubmitPreview();
