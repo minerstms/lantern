@@ -908,6 +908,197 @@
     .teacherClassAccessSimDetails > summary::-webkit-details-marker{ display: none; }
     .teacherClassAccessSimDetails > summary::after{ content: ' ▼'; font-size: 16px; opacity: .75; margin-left: 6px; }
     .teacherClassAccessSimDetails[open] > summary::after{ content: ' ▲'; }
+
+    /* ===== Prompt #77 — Teacher workspace shell (sidebar + one active workspace) ===== */
+    /* Teacher only: break out of the shared narrow centered column (lantern-header.css .wrap.lanternContent
+       max-width) — this rule is scoped to .teacherShellWrap so no other page is affected. */
+    .wrap.lanternContent.teacherShellWrap{ max-width: none; }
+    .teacherAppShell{
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: var(--lantern-space-lg, 20px);
+      align-items: start;
+      max-width: 1680px;
+      margin: 0 auto;
+    }
+    .teacherMobileMenuBtn{ display: none; }
+    .teacherSidebarScrim{ display: none; }
+    .teacherSidebar{
+      position: sticky;
+      top: calc(var(--lantern-header-h-ticker) + var(--lantern-space-below-header) - 4px);
+      align-self: start;
+      max-height: calc(100vh - var(--lantern-header-h-ticker) - var(--lantern-space-below-header) - 8px);
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      padding: 10px;
+      box-shadow: var(--shadow);
+    }
+    .teacherSidebarNav{ display: flex; flex-direction: column; gap: 4px; }
+    .teacherSidebarItem{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 22px;
+      line-height: 1.2;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .teacherSidebarItem:hover{ background: rgba(255,255,255,.07); color: var(--ink); }
+    .teacherSidebarItem.is-active{
+      background: rgba(90,167,255,.20);
+      border-color: rgba(90,167,255,.5);
+      color: var(--ink);
+    }
+    .teacherSidebarIcon{ font-size: 22px; width: 26px; flex-shrink: 0; text-align: center; }
+    .teacherSidebarLabel{ flex: 1; min-width: 0; }
+    .teacherSidebarBadge{
+      flex-shrink: 0;
+      font-size: 16px;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255,77,109,.25);
+      border: 1px solid rgba(255,77,109,.5);
+      color: #fff;
+    }
+    .teacherMain{ min-width: 0; }
+    .teacherWorkspaceHd{ margin-bottom: 12px; }
+    .teacherWorkspaceTitle{ font-weight: 1000; font-size: 30px; letter-spacing: .2px; }
+    #teacherMain > [data-workspace]{ display: none; }
+    #teacherMain > [data-workspace].is-active-workspace{ display: block; }
+
+    .teacherOverviewGrid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .teacherOverviewCard{
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      padding: 16px 18px;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--ink);
+    }
+    .teacherOverviewCard:hover{ border-color: rgba(90,167,255,.45); }
+    .teacherOverviewCardLabel{ font-weight: 800; font-size: 22px; color: var(--muted); }
+    .teacherOverviewCardValue{ font-weight: 1000; font-size: 44px; line-height: 1.15; margin: 4px 0; }
+    .teacherOverviewCardHint{ font-size: 20px; color: var(--muted); }
+    .teacherOverviewQuickActions .teacherOverviewQuickActionsLabel{ font-weight: 900; font-size: 24px; margin-bottom: 10px; }
+    .teacherOverviewQuickActionsRow{ display: flex; flex-wrap: wrap; gap: 10px; }
+    .teacherOverviewNote{ margin-top: 20px; }
+
+    /* Review Queue — Classroom / Schoolwide secondary tabs (one queue visible at a time) */
+    .teacherReviewTabs{ display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .teacherReviewTab{
+      flex: 1 1 160px;
+      text-align: center;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 22px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .teacherReviewTab.is-active{
+      background: rgba(90,167,255,.2);
+      border-color: rgba(90,167,255,.5);
+      color: var(--ink);
+    }
+    .teacherReviewTab .approvalsColCount{ font-weight: 800; color: inherit; opacity: .85; }
+    #teacher-approvals .approvalsTwoCol{ display: block; }
+    #teacher-approvals .approvalsTwoCol .approvalsCol{ display: none; width: 100%; min-width: 0; }
+    #teacher-approvals .approvalsTwoCol .approvalsCol.is-active{ display: flex; flex-direction: column; }
+    /* Section 23 — no nested scroll: let the pending list grow naturally inside the single main scroll. */
+    #teacher-approvals .approvalsTwoCol .approvalsColBody{ max-height: none; overflow: visible; }
+
+    /* Review Queue — collapsible filters (Filters button + always-visible Sort) */
+    .approvalsToolbar{ display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 10px; }
+    .approvalsToolbar .approvalsFilterLabel{ padding-top: 0; }
+    #approvalsFiltersToggleBtn.is-active{ border-color: rgba(90,167,255,.55); background: rgba(90,167,255,.18); }
+    .approvalsFiltersPanel{
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(0,0,0,.12);
+    }
+    .approvalsFiltersPanel[hidden]{ display: none; }
+
+    /* Review Queue — bulk actions become a compact contextual bar only once something is selected */
+    #teacher-approvals .approvalsBatchBar{ justify-content: space-between; }
+    #teacher-approvals .approvalsBulkUtilityGroup{ display: flex; gap: 8px; flex-wrap: wrap; }
+    #teacher-approvals .approvalsBulkActiveGroup{ display: none; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+    #teacher-approvals .approvalsBatchBar.has-selection{
+      border-radius: 12px;
+      background: rgba(90,167,255,.1);
+      padding: 8px 10px;
+      margin-top: 4px;
+    }
+    #teacher-approvals .approvalsBatchBar.has-selection .approvalsBulkActiveGroup{ display: flex; }
+
+    @media (max-width: 900px){
+      .teacherAppShell{ display: block; }
+      .teacherMobileMenuBtn{
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 56px;
+        padding: 0 18px;
+        margin-bottom: 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.07);
+        color: var(--ink);
+        font-weight: 900;
+        font-size: 22px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .teacherSidebar{
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(80vw, 300px);
+        max-height: none;
+        z-index: 5000;
+        border-radius: 0 var(--r) var(--r) 0;
+        transform: translateX(-105%);
+        transition: transform .22s ease;
+        padding-top: calc(var(--lantern-header-h-ticker) + 14px);
+      }
+      .teacherSidebar.is-open{ transform: translateX(0); }
+      .teacherSidebarScrim{
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 4999;
+        background: rgba(0,0,0,.55);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s ease;
+      }
+      .teacherSidebarScrim.is-open{ opacity: 1; pointer-events: auto; }
+    }
   </style>
 </head>
 
@@ -968,7 +1159,7 @@
     <div id="lanternTicker"></div>
     <div id="lanternAppBarRoot"></div>
   </div>
-  <div class="wrap lanternContent">
+  <div class="wrap lanternContent teacherShellWrap">
     <div id="teacherVerifyBanner" class="verifyModeBanner" role="status" aria-live="polite">
       <span class="verifyModeLabel">VERIFY MODE</span>
       <span class="verifyModeSource">Source: <span id="teacherVerifySource">—</span></span>
@@ -996,18 +1187,59 @@
       <button type="button" class="btn" id="teacherLogoutBtn" style="font-size:22px; padding:8px 16px;">Sign out</button>
     </div>
     <p id="teacherLogoutMsg" role="status" aria-live="polite" style="display:none;"></p>
-    <nav class="teacherJumpNav" aria-label="Jump to teacher section">
-      <span class="teacherJumpNav-label">Jump to</span>
-      <a href="#teacher-rewards">Rewards</a>
-      <a href="#teacher-approvals">Approvals</a>
-      <a href="#teacher-moderation">Moderation</a>
-      <a href="#teacher-missions">Missions</a>
-      <a href="#teacher-utilities">Utilities</a>
-      <a href="#teacherPageTop">Top</a>
-    </nav>
     </div>
 
-    <div class="card" id="teacher-rewards" style="border-color: rgba(56,208,124,.35); background: linear-gradient(180deg, rgba(56,208,124,.08), rgba(56,208,124,.02));" data-help="rewards_panel">
+    <div class="teacherAppShell" id="teacherAppShell">
+      <button type="button" class="teacherMobileMenuBtn" id="teacherMobileMenuBtn" aria-expanded="false" aria-controls="teacherSidebar">☰ Workspaces</button>
+      <div class="teacherSidebarScrim" id="teacherSidebarScrim"></div>
+      <aside class="teacherSidebar" id="teacherSidebar" aria-label="Teacher workspaces">
+        <nav class="teacherSidebarNav">
+          <button type="button" class="teacherSidebarItem" data-workspace-link="overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Queue</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="create"><span class="teacherSidebarIcon" aria-hidden="true">➕</span><span class="teacherSidebarLabel">Create Mission</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">My Missions</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="economy"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets &amp; Sales</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="other"><span class="teacherSidebarIcon" aria-hidden="true">🧰</span><span class="teacherSidebarLabel">Other Tools</span></button>
+        </nav>
+      </aside>
+
+      <main class="teacherMain" id="teacherMain">
+        <div class="teacherWorkspaceHd">
+          <div class="teacherWorkspaceTitle" id="teacherWorkspaceTitle">Overview</div>
+        </div>
+
+        <div class="teacherWorkspacePane" data-workspace="overview" id="teacherWorkspace-overview">
+          <div class="teacherOverviewGrid">
+            <button type="button" class="teacherOverviewCard" data-workspace-link="review">
+              <div class="teacherOverviewCardLabel">Pending Review</div>
+              <div class="teacherOverviewCardValue" id="teacherOverviewPendingCount">0</div>
+              <div class="teacherOverviewCardHint">My Classroom + Schoolwide</div>
+            </button>
+            <button type="button" class="teacherOverviewCard" data-workspace-link="missions">
+              <div class="teacherOverviewCardLabel">Active Missions</div>
+              <div class="teacherOverviewCardValue" id="teacherOverviewActiveMissionsCount">0</div>
+              <div class="teacherOverviewCardHint">Currently live for students</div>
+            </button>
+            <button type="button" class="teacherOverviewCard" data-workspace-link="review">
+              <div class="teacherOverviewCardLabel">Reviewed Recently</div>
+              <div class="teacherOverviewCardValue" id="teacherOverviewReviewedCount">0</div>
+              <div class="teacherOverviewCardHint">Most recent history</div>
+            </button>
+          </div>
+          <div class="teacherOverviewQuickActions">
+            <div class="teacherOverviewQuickActionsLabel">Quick actions</div>
+            <div class="teacherOverviewQuickActionsRow">
+              <button type="button" class="btn primary" data-workspace-link="review">Review submissions</button>
+              <button type="button" class="btn good" data-workspace-link="create">Create mission</button>
+              <button type="button" class="btn" data-workspace-link="missions">My missions</button>
+              <button type="button" class="btn" data-workspace-link="economy">Record Nugget sale</button>
+            </div>
+          </div>
+          <p class="note teacherOverviewNote">Use the sidebar any time to jump straight to a workspace. Everything below still uses the same Review, Create, and Moderation tools as before — just organized one workspace at a time.</p>
+        </div>
+
+    <div class="card" id="teacher-rewards" data-workspace="economy" style="border-color: rgba(56,208,124,.35); background: linear-gradient(180deg, rgba(56,208,124,.08), rgba(56,208,124,.02));" data-help="rewards_panel">
       <div class="cardHd">
         <div class="h">Rewards Panel</div>
       </div>
@@ -1033,7 +1265,7 @@
 
           <div style="margin-top:14px;">
             <label for="teacherRewardSaleAmount">Nuggets to spend</label>
-            <input type="number" id="teacherRewardSaleAmount" inputmode="numeric" min="1" step="1" placeholder="Enter amount…" />
+            <input type="number" id="teacherRewardSaleAmount" inputmode="numeric" min="1" step="1" value="1" placeholder="Enter amount…" />
           </div>
 
           <div style="margin-top:10px;">
@@ -1050,61 +1282,72 @@
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </div>
 
-    <div class="card" id="teacher-approvals" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
+    <div class="card" id="teacher-approvals" data-workspace="review" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
       <div class="cardHd">
-        <div class="h">Approvals</div>
+        <div class="h">Review Queue</div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <span class="pill accent" id="pendingApprovalsBadge">0</span>
           <button class="btn" id="refreshBtn">Refresh</button>
         </div>
       </div>
       <div class="cardBd">
-        <p class="note note-tight"><strong>My Classroom</strong> first, then <strong>Schoolwide</strong>. Open <strong>Review</strong> before approving.</p>
+        <p class="note note-tight">Open <strong>Review</strong> before approving.</p>
         <p class="note" id="approvalsIdentityStrip" style="margin-bottom:10px;display:none;font-weight:800;color:var(--warn);"></p>
+        <div class="teacherReviewTabs" role="tablist" aria-label="Review queue">
+          <button type="button" class="teacherReviewTab is-active" id="reviewTabClassroom" data-review-tab="classroom" role="tab" aria-selected="true">My Classroom <span class="approvalsColCount" id="myClassroomCount">(0)</span></button>
+          <button type="button" class="teacherReviewTab" id="reviewTabSchoolwide" data-review-tab="schoolwide" role="tab" aria-selected="false">Schoolwide <span class="approvalsColCount" id="schoolwideQueueCount">(0)</span></button>
+        </div>
         <div id="approvalsQueueControls" class="approvalsQueueControls" aria-label="Pending queue filters">
-          <div class="approvalsFilterRow approvalsFilterRow--chips">
-            <span class="approvalsFilterLabel">Type</span>
-            <div class="approvalsKindChips" id="approvalsKindChips" role="group" aria-label="Filter by content type">
-              <button type="button" class="approvalsKindChip" data-kind-filter="all">All</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="news">News</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="post">Post</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="mission">Mission</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="avatar">Avatar</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="poll">Poll</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="thanks">Thanks</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="grade-reflection">Reflection</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="submission">Submission</button>
-              <button type="button" class="approvalsKindChip" data-kind-filter="display">Display</button>
-            </div>
-          </div>
-          <div class="approvalsFilterRow approvalsFilterRow--selects">
-            <label class="approvalsFilterLabel" for="approvalsSortOrder">Order</label>
+          <div class="approvalsToolbar">
+            <button type="button" class="btn small" id="approvalsFiltersToggleBtn" aria-expanded="false" aria-controls="approvalsFiltersPanel">Filters</button>
+            <label class="approvalsFilterLabel" for="approvalsSortOrder">Sort</label>
             <select id="approvalsSortOrder" class="approvalsQueueSelect">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
             </select>
-            <label class="approvalsFilterLabel" for="approvalsCategoryFilter">Category</label>
-            <select id="approvalsCategoryFilter" class="approvalsQueueSelect">
-              <option value="">All categories</option>
-            </select>
-            <button type="button" class="btn small" id="approvalsFilterReset">Reset filters</button>
+          </div>
+          <div class="approvalsFiltersPanel" id="approvalsFiltersPanel" hidden>
+            <div class="approvalsFilterRow approvalsFilterRow--chips">
+              <span class="approvalsFilterLabel">Type</span>
+              <div class="approvalsKindChips" id="approvalsKindChips" role="group" aria-label="Filter by content type">
+                <button type="button" class="approvalsKindChip" data-kind-filter="all">All</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="news">News</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="post">Post</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="mission">Mission</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="avatar">Avatar</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="poll">Poll</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="thanks">Thanks</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="grade-reflection">Reflection</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="submission">Submission</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="display">Display</button>
+              </div>
+            </div>
+            <div class="approvalsFilterRow approvalsFilterRow--selects">
+              <label class="approvalsFilterLabel" for="approvalsCategoryFilter">Category</label>
+              <select id="approvalsCategoryFilter" class="approvalsQueueSelect">
+                <option value="">All categories</option>
+              </select>
+              <button type="button" class="btn small" id="approvalsFilterReset">Reset filters</button>
+            </div>
           </div>
           <p class="approvalsFilterSummary" id="approvalsFilterSummary" aria-live="polite"></p>
           <div class="approvalsBatchBar" id="approvalsBatchBar">
-            <button type="button" class="btn small" id="approvalsSelectVisibleBtn">Select visible</button>
-            <button type="button" class="btn small" id="approvalsClearSelectionBtn">Clear selection</button>
-            <button type="button" class="btn good small" id="approvalsBulkApproveBtn" disabled>Approve selected</button>
-            <button type="button" class="btn bad small" id="approvalsBulkRejectBtn" disabled>Reject selected</button>
-            <span class="approvalsBatchCount" id="approvalsBatchCount">0 selected</span>
+            <div class="approvalsBulkUtilityGroup">
+              <button type="button" class="btn small" id="approvalsSelectVisibleBtn">Select visible</button>
+              <button type="button" class="btn small" id="approvalsClearSelectionBtn">Clear selection</button>
+            </div>
+            <div class="approvalsBulkActiveGroup">
+              <span class="approvalsBatchCount" id="approvalsBatchCount">0 selected</span>
+              <button type="button" class="btn good small" id="approvalsBulkApproveBtn" disabled>Approve selected</button>
+              <button type="button" class="btn bad small" id="approvalsBulkRejectBtn" disabled>Reject selected</button>
+            </div>
           </div>
         </div>
-        <div class="approvalsTwoCol">
-          <div class="approvalsCol">
-            <div class="approvalsColHd">My Classroom <span class="approvalsColCount" id="myClassroomCount">(0)</span></div>
+        <div class="approvalsTwoCol" id="approvalsTwoCol">
+          <div class="approvalsCol is-active" data-review-panel="classroom">
             <div id="myClassroomBody" class="approvalsColBody"></div>
           </div>
-          <div class="approvalsCol">
-            <div class="approvalsColHd">Schoolwide Queue <span class="approvalsColCount" id="schoolwideQueueCount">(0)</span></div>
+          <div class="approvalsCol" data-review-panel="schoolwide">
             <div id="schoolwideQueueBody" class="approvalsColBody"></div>
           </div>
         </div>
@@ -1113,7 +1356,6 @@
           <div id="approvalHistoryEl" class="scrollArea" style="max-height: 260px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:8px;"></div>
         </details>
       </div>
-      <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </div>
 
     <div id="reviewOverlay" class="reviewOverlay" role="dialog" aria-modal="true" aria-labelledby="reviewPanelTitle">
@@ -1170,7 +1412,7 @@
       </div>
     </div>
 
-    <div class="card" id="teacher-moderation" data-help="moderation">
+    <div class="card" id="teacher-moderation" data-workspace="moderation" data-help="moderation">
       <div class="cardHd">
         <div class="h">Moderation</div>
         <button class="btn small" id="moderationRefreshBtn" type="button">Refresh</button>
@@ -1206,20 +1448,22 @@
       </div>
     </div>
 
-    <section id="teacher-missions" class="teacherMissionsSection" aria-labelledby="teacherMissionsHeading">
-    <h2 id="teacherMissionsHeading" class="visuallyHidden">Missions</h2>
-    <div class="card">
+    <section id="teacher-create-mission" class="teacherMissionsSection" data-workspace="create" aria-labelledby="teacherCreateMissionHeading">
+    <h2 id="teacherCreateMissionHeading" class="visuallyHidden">Create Mission</h2>
+    <div class="card" style="max-width:720px;">
       <div class="cardHd">
         <div class="h">Create Mission</div>
       </div>
       <div class="cardBd">
-        <p class="note note-tight">Students submit here; you review in <strong>Approvals</strong>.</p>
+        <p class="note note-tight">Students submit here; you review in <strong>Review Queue</strong>.</p>
+
+        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:14px 0 8px;text-transform:uppercase;">Mission</div>
         <label for="missionTitle">Title</label>
         <input type="text" id="missionTitle" placeholder="Mission title" style="width:100%;max-width:400px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;" />
-        <label for="missionDesc">Description</label>
+        <label for="missionDesc">Instructions</label>
         <textarea id="missionDesc" placeholder="What should students do?" style="width:100%;min-height:80px;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;resize:vertical;"></textarea>
-        <label for="missionReward">Reward (nuggets)</label>
-        <input type="number" id="missionReward" min="1" max="99" value="3" style="width:100px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;" />
+
+        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Submission</div>
         <label for="missionType">Submission type / template</label>
         <select id="missionType" style="width:100%;max-width:280px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;">
           <option value="text">Text Reflection</option>
@@ -1235,17 +1479,7 @@
           <summary>Photo / image missions</summary>
           <p class="note" style="margin-top:8px;margin-bottom:0;font-size:20px;">Students can upload or pick from the approved library when submitting.</p>
         </details>
-        <label for="missionAudience">Audience</label>
-        <select id="missionAudience" style="width:100%;max-width:280px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;">
-          <option value="my_students">My Students</option>
-          <option value="school_mission" selected>School Mission</option>
-          <option value="selected_students">Selected Students</option>
-        </select>
-        <div id="missionSelectedStudentsWrap" style="display:none;margin-bottom:12px;">
-          <label class="missionSelectedStudentsLabel">Select students</label>
-          <div id="missionSelectedStudentsList" class="missionSelectedStudentsList"></div>
-        </div>
-        <div class="missionRequirementsSection" style="margin-bottom:10px;padding:10px 0;border-top:1px solid var(--line);">
+        <div class="missionRequirementsSection" style="margin-bottom:10px;padding:10px 0;">
           <div class="missionRequirementsLabel" style="font-weight:900;font-size:22px;margin-bottom:8px;">Submission requirements</div>
           <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;">
             <input type="checkbox" id="missionAllowsText" style="width:24px;height:24px;" checked />
@@ -1268,6 +1502,24 @@
             <span style="font-weight:800;color:var(--muted);font-size:22px;">Link/file</span>
           </label>
         </div>
+
+        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Audience</div>
+        <label for="missionAudience">Audience</label>
+        <select id="missionAudience" style="width:100%;max-width:280px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;">
+          <option value="my_students">My Students</option>
+          <option value="school_mission" selected>School Mission</option>
+          <option value="selected_students">Selected Students</option>
+        </select>
+        <div id="missionSelectedStudentsWrap" style="display:none;margin-bottom:12px;">
+          <label class="missionSelectedStudentsLabel">Select students</label>
+          <div id="missionSelectedStudentsList" class="missionSelectedStudentsList"></div>
+        </div>
+
+        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Reward</div>
+        <label for="missionReward">Reward (nuggets)</label>
+        <input type="number" id="missionReward" min="1" max="99" value="1" style="width:100px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:10px;" />
+
+        <div class="missionFormGroupLabel" style="font-weight:900;font-size:20px;letter-spacing:.06em;color:var(--accent);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);text-transform:uppercase;">Other</div>
         <label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;">
           <input type="checkbox" id="missionSiteEligible" style="width:24px;height:24px;" />
           <span style="font-weight:800;color:var(--muted);font-size:22px;">Highlight-worthy / site-eligible</span>
@@ -1280,7 +1532,10 @@
         <p id="createMissionStatus" class="createMissionStatus" role="status" aria-live="polite" style="display:none;"></p>
       </div>
     </div>
+    </section>
 
+    <section id="teacher-missions" class="teacherMissionsSection" data-workspace="missions" aria-labelledby="teacherMissionsHeading">
+    <h2 id="teacherMissionsHeading" class="visuallyHidden">My Missions</h2>
     <div class="card" style="border-color: rgba(56,208,124,.3); background: linear-gradient(180deg, rgba(56,208,124,.06), rgba(56,208,124,.02));">
       <div class="cardHd">
         <div class="h">Recognition</div>
@@ -1336,7 +1591,7 @@
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
-    <details id="teacher-utilities" class="teacherUtilitiesDetails">
+    <details id="teacher-utilities" class="teacherUtilitiesDetails" data-workspace="other">
       <summary>Utilities (sim / class access / reference)</summary>
       <div class="teacherUtilitiesInner">
         <div class="card" id="teacherPersonaCard">
@@ -1424,7 +1679,122 @@
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </details>
+      </main>
+    </div>
   </div>
+
+  <script>
+  /**
+   * Prompt #77 — Teacher workspace shell: sidebar routing, mobile drawer, Review Queue
+   * Classroom/Schoolwide tabs, and collapsible filters. Pure presentation/navigation —
+   * does not call any API and does not touch mission/approval/moderation/economy logic.
+   */
+  (function(){
+    var WORKSPACES = ['overview', 'review', 'create', 'missions', 'moderation', 'economy', 'other'];
+    var TITLES = {
+      overview: 'Overview',
+      review: 'Review Queue',
+      create: 'Create Mission',
+      missions: 'My Missions',
+      moderation: 'Moderation',
+      economy: 'Nuggets & Sales',
+      other: 'Other Tools',
+    };
+
+    function workspaceFromHash(){
+      var h = String(location.hash || '').replace(/^#/, '').trim().toLowerCase();
+      return WORKSPACES.indexOf(h) !== -1 ? h : 'overview';
+    }
+
+    function closeMobileDrawer(){
+      var sidebar = document.getElementById('teacherSidebar');
+      var scrim = document.getElementById('teacherSidebarScrim');
+      var menuBtn = document.getElementById('teacherMobileMenuBtn');
+      if (sidebar) sidebar.classList.remove('is-open');
+      if (scrim) scrim.classList.remove('is-open');
+      if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function activateWorkspace(name){
+      if (WORKSPACES.indexOf(name) === -1) name = 'overview';
+      var main = document.getElementById('teacherMain');
+      if (main) {
+        Array.prototype.forEach.call(main.children, function(el){
+          if (!el.hasAttribute || !el.hasAttribute('data-workspace')) return;
+          var isActive = el.getAttribute('data-workspace') === name;
+          el.classList.toggle('is-active-workspace', isActive);
+          // Other Tools (#teacher-utilities) is a native <details> — force it open when the
+          // sidebar/hash brings the teacher here so the workspace never lands "collapsed".
+          if (isActive && el.tagName === 'DETAILS' && !el.open) el.open = true;
+        });
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('.teacherSidebarItem'), function(btn){
+        var isActive = btn.getAttribute('data-workspace-link') === name;
+        btn.classList.toggle('is-active', isActive);
+        if (isActive) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
+      });
+      var titleEl = document.getElementById('teacherWorkspaceTitle');
+      if (titleEl) titleEl.textContent = TITLES[name] || 'Overview';
+      closeMobileDrawer();
+    }
+
+    // Sidebar items, Overview summary cards, and Overview quick-action buttons all share
+    // one [data-workspace-link] contract so clicking any of them opens that workspace.
+    document.addEventListener('click', function(ev){
+      var link = ev.target.closest && ev.target.closest('[data-workspace-link]');
+      if (!link) return;
+      var name = link.getAttribute('data-workspace-link');
+      if (!name) return;
+      ev.preventDefault();
+      if (('#' + name) === location.hash) activateWorkspace(name);
+      else location.hash = name;
+    });
+
+    window.addEventListener('hashchange', function(){ activateWorkspace(workspaceFromHash()); });
+
+    var menuBtn = document.getElementById('teacherMobileMenuBtn');
+    var scrim = document.getElementById('teacherSidebarScrim');
+    var sidebar = document.getElementById('teacherSidebar');
+    if (menuBtn && sidebar) {
+      menuBtn.addEventListener('click', function(){
+        var isOpen = sidebar.classList.toggle('is-open');
+        if (scrim) scrim.classList.toggle('is-open', isOpen);
+        menuBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    }
+    if (scrim) scrim.addEventListener('click', closeMobileDrawer);
+
+    // Review Queue — My Classroom / Schoolwide secondary tabs (one queue visible at a time).
+    function setReviewTab(tab){
+      Array.prototype.forEach.call(document.querySelectorAll('.teacherReviewTab'), function(btn){
+        var active = btn.getAttribute('data-review-tab') === tab;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('#approvalsTwoCol .approvalsCol'), function(panel){
+        panel.classList.toggle('is-active', panel.getAttribute('data-review-panel') === tab);
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.teacherReviewTab'), function(btn){
+      btn.addEventListener('click', function(){ setReviewTab(btn.getAttribute('data-review-tab')); });
+    });
+
+    // Review Queue — collapsible Filters panel (Type/Category/Reset); Sort stays always visible.
+    var filtersToggleBtn = document.getElementById('approvalsFiltersToggleBtn');
+    var filtersPanel = document.getElementById('approvalsFiltersPanel');
+    if (filtersToggleBtn && filtersPanel) {
+      filtersToggleBtn.addEventListener('click', function(){
+        var willOpen = filtersPanel.hasAttribute('hidden');
+        if (willOpen) filtersPanel.removeAttribute('hidden');
+        else filtersPanel.setAttribute('hidden', '');
+        filtersToggleBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        filtersToggleBtn.classList.toggle('is-active', willOpen);
+      });
+    }
+
+    activateWorkspace(workspaceFromHash());
+  })();
+  </script>
 
   <div class="teacherRewardOverlay" id="teacherRewardOverlay" style="display:none;">
     <div class="teacherRewardModal">
@@ -2102,6 +2472,27 @@
       return Math.floor((wc - 30) / 50) + 1;
     }
 
+    /**
+     * Prompt #77 — Overview workspace summary. Reads only already-fetched real data
+     * (no new endpoints, no fabricated numbers): pending queue counts from
+     * buildClassroomItems/buildSchoolwideItems (same source as pendingApprovalsBadge),
+     * active missions from teacherMissions, and recently-reviewed count from approvalHistory.
+     */
+    function renderOverviewSummary(){
+      var pendingCount = (buildClassroomItems().length) + (buildSchoolwideItems().length);
+      var pendingEl = el('teacherOverviewPendingCount');
+      if (pendingEl) pendingEl.textContent = String(pendingCount);
+      var activeEl = el('teacherOverviewActiveMissionsCount');
+      if (activeEl) activeEl.textContent = String((teacherMissions || []).filter(function(m){ return !!m.active; }).length);
+      var reviewedEl = el('teacherOverviewReviewedCount');
+      if (reviewedEl) reviewedEl.textContent = String((approvalHistory || []).length);
+      var badgeEl = el('teacherSidebarReviewBadge');
+      if (badgeEl) {
+        if (pendingCount > 0) { badgeEl.textContent = String(pendingCount); badgeEl.hidden = false; }
+        else { badgeEl.hidden = true; }
+      }
+    }
+
     function renderApprovalHistory(){
       var container = el('approvalHistoryEl');
       if (!container || !useApprovalsApi) return;
@@ -2348,6 +2739,9 @@
       var bulkRj = el('approvalsBulkRejectBtn');
       if (bulkAp) bulkAp.disabled = n === 0;
       if (bulkRj) bulkRj.disabled = n === 0;
+      // Prompt #77 — Approve/Reject/count only take up visible space once something is selected.
+      var barEl = el('approvalsBatchBar');
+      if (barEl) barEl.classList.toggle('has-selection', n > 0);
     }
     function getVisiblePendingEntries(){
       return applyPendingFiltersAndSort(buildClassroomItems()).concat(applyPendingFiltersAndSort(buildSchoolwideItems()));
@@ -3259,6 +3653,7 @@
       renderNewsSubmissions();
       renderTotals();
       if (avatarApiBase !== null) loadModerationData();
+      renderOverviewSummary();
     }
 
     var moderationFetchCred = { credentials: 'include' };
@@ -3937,7 +4332,7 @@
     el('createMissionBtn').addEventListener('click', async function(){
       var title = (el('missionTitle') && el('missionTitle').value || '').trim();
       var desc = (el('missionDesc') && el('missionDesc').value || '').trim();
-      var reward = parseInt(el('missionReward') && el('missionReward').value || 3, 10) || 3;
+      var reward = parseInt(el('missionReward') && el('missionReward').value || 1, 10) || 1;
       var typeRaw = (el('missionType') && el('missionType').value || 'text').trim();
       var type = typeRaw;
       if (typeRaw === 'video') type = 'link';

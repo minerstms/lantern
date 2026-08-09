@@ -104,6 +104,13 @@ async function main() {
 
   await page.goto(base + '/teacher.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
+  // Prompt #77 — Teacher is now a sidebar + one-active-workspace shell; the pending queue lives
+  // in the Review Queue workspace and is not visible from the default Overview workspace.
+  await page.evaluate(() => { location.hash = 'review'; });
+  await page.waitForFunction(() => {
+    const el = document.getElementById('teacher-approvals');
+    return el && el.classList.contains('is-active-workspace');
+  }, { timeout: 5000 });
   await page.waitForSelector('#myClassroomBody .teacherApprovalPendingRow', { timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow').length >= 2, { timeout: 15000 });
 
@@ -190,6 +197,12 @@ async function main() {
   // ---------------------------------------------------------------------------
   // Section 23 — REAL BROWSER TEST: CREATE FEEDBACK (Defect 1)
   // ---------------------------------------------------------------------------
+  // Prompt #77 — Create Mission is its own workspace now; switch to it before touching the form.
+  await page.evaluate(() => { location.hash = 'create'; });
+  await page.waitForFunction(() => {
+    const el = document.getElementById('teacher-create-mission');
+    return el && el.classList.contains('is-active-workspace');
+  }, { timeout: 5000 });
   await page.fill('#missionTitle', 'New Test Mission');
   await page.fill('#missionDesc', 'Test description');
   await page.evaluate(() => document.getElementById('createMissionBtn').click());

@@ -220,8 +220,10 @@
   }
 
   function clearSaleForm(){
+    // Prompt #77 — manual sale amount defaults to 1 Nugget for each new sale action
+    // (teacher can still change it); this does not touch any already-recorded transaction.
     var amountEl = el('teacherRewardSaleAmount');
-    if (amountEl) amountEl.value = '';
+    if (amountEl) amountEl.value = '1';
     if (el('teacherRewardNote')) el('teacherRewardNote').value = '';
   }
 
