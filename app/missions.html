@@ -422,7 +422,7 @@
     }
     function callGetActiveTeacherMissionsForCharacter(characterName){
       if (missionsApiBase != null) {
-        return fetch(missionsApiBase + '/api/missions/active', { credentials: 'include' })
+        return fetch(missionsApiBase + '/api/missions/active', { credentials: 'include', cache: 'no-store' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.missions)) ? { ok: true, missions: res.missions } : { ok: false, missions: [] }; })
           .catch(function(){ return { ok: false, missions: [] }; });
@@ -435,7 +435,7 @@
     }
     function callGetMissionSubmissionsForCharacter(name){
       if (missionsApiBase != null) {
-        return fetch(missionsApiBase + '/api/missions/submissions/character', { credentials: 'include' })
+        return fetch(missionsApiBase + '/api/missions/submissions/character', { credentials: 'include', cache: 'no-store' })
           .then(function(r){ return r.json(); })
           .then(function(res){ return (res && res.ok && Array.isArray(res.submissions)) ? { ok: true, submissions: res.submissions } : { ok: false, submissions: [] }; })
           .catch(function(){ return { ok: false, submissions: [] }; });
