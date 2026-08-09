@@ -273,6 +273,55 @@ async function runFeedTests() {
 await runFeedTests();
 
 // ---------------------------------------------------------------------------
+// 6. Prompt #76 — official Mission cover fallback, exercised through the SAME
+//    Explore card pipeline real cards use (feed item -> normalizeFeedItemToFaceModel
+//    -> resolveCardFaceImageUrlWithFallbacks), driven by real collectApprovedFeed()
+//    output so this proves the actual production data shape, not a hand-built stub.
+// ---------------------------------------------------------------------------
+const lanternCardsSrc = fs.readFileSync(path.join(root, 'app/js/lantern-cards.js'), 'utf8');
+const cardsSandbox = { console, document: undefined, window: undefined, LANTERN_AVATAR_API: undefined, LanternMedia: undefined };
+cardsSandbox.global = cardsSandbox;
+vm.createContext(cardsSandbox);
+vm.runInContext(lanternCardsSrc, cardsSandbox);
+const LC = cardsSandbox.LanternCards;
+
+if (LC && LC.normalizeFeedItemToFaceModel && LC.resolveCardFaceImageUrlWithFallbacks) {
+  const origin = 'https://lantern-42i.pages.dev';
+
+  // Test E: approved TEXT-ONLY mission submission -> Explore card falls back to the
+  // official Mission cover (never the broken topic-library/default_creation.png chain).
+  const rowTextOnly2 = { id: 'msub_cover_e', mission_id: 'tm_e', character_name: '20889', submission_type: 'text', submission_content: 'no photo here', status: 'accepted', created_at: '2026-08-09T02:00:00.000Z', reviewed_at: '2026-08-09T02:05:00.000Z', reviewed_by: 'Rick Radle' };
+  const feedE = await collectApprovedFeed(makeFeedDb([rowTextOnly2]), origin, { limit: 10 });
+  const itemE = feedE.find((it) => it.id === 'mission:msub_cover_e');
+  const modelE = itemE && LC.normalizeFeedItemToFaceModel(itemE);
+  const resolvedE = modelE && LC.resolveCardFaceImageUrlWithFallbacks(modelE);
+  if (itemE && !itemE.imageUrl && resolvedE === 'assets/mission-card.png') {
+    ok('Test E — Explore: approved TEXT-ONLY mission submission resolves to the official Mission cover (assets/mission-card.png), not the broken library/default chain');
+  } else bad('Test E failed — approved text-only mission did not resolve to the Mission cover', { itemE, resolvedE });
+
+  // Test F: approved mission WITH a real student photo -> Explore card shows the real
+  // photo, the Mission cover must NOT override it (real media always wins).
+  const rowWithPhoto = { id: 'msub_cover_f', mission_id: 'tm_f', character_name: '20889', submission_type: 'image_url', submission_content: IMG_URL, status: 'accepted', created_at: '2026-08-09T02:10:00.000Z', reviewed_at: '2026-08-09T02:15:00.000Z', reviewed_by: 'Rick Radle' };
+  const feedF = await collectApprovedFeed(makeFeedDb([rowWithPhoto]), origin, { limit: 10 });
+  const itemF = feedF.find((it) => it.id === 'mission:msub_cover_f');
+  const modelF = itemF && LC.normalizeFeedItemToFaceModel(itemF);
+  const resolvedF = modelF && LC.resolveCardFaceImageUrlWithFallbacks(modelF);
+  if (itemF && itemF.imageUrl === IMG_URL && resolvedF === IMG_URL) {
+    ok('Test F — Explore: approved mission WITH a real student photo resolves to that REAL photo, NOT the Mission cover fallback (real media always wins)');
+  } else bad('Test F failed — real mission photo did not win over the fallback', { itemF, resolvedF });
+
+  // Test G: non-Mission Explore item types (News/Post/etc.) are completely unaffected —
+  // they still resolve through their OWN existing fallback (never the Mission cover).
+  const newsModel = LC.normalizeFeedItemToFaceModel({ id: 'news:1', type: 'news', title: 'A news item', authorDisplayName: 'Teacher' });
+  const resolvedNews = LC.resolveCardFaceImageUrlWithFallbacks(newsModel);
+  if (resolvedNews !== 'assets/mission-card.png') {
+    ok('Test G — News/non-Mission Explore items are unaffected: fallback resolution never returns the Mission cover for type="news"');
+  } else bad('Test G failed — a non-Mission item incorrectly resolved to the Mission cover', { newsModel, resolvedNews });
+} else {
+  bad('LanternCards.normalizeFeedItemToFaceModel/resolveCardFaceImageUrlWithFallbacks not available', {});
+}
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log('\n---');

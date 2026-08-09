@@ -182,6 +182,10 @@
         rewardText: rewardMeta(item.reward),
         typeBadge: typeBadgeFor(item),
         stateBadge: item.stateBadge || '',
+        // Real submission photo (if any) always wins; otherwise the canonical Mission cover
+        // (Prompt #76) fills the 16:9 media area instead of a generic gradient placeholder.
+        imageUrl: item.imageUrl || '',
+        fallbackType: 'mission',
         reportId: 'mission_' + (item.id || ''),
         extraClass: 'exploreCard--missionsLibrary missionsHubCard',
         dataAttrs: {

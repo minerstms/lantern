@@ -62,6 +62,33 @@ const FEED = {
       authorDisplayName: 'Sam',
       createdAt: '2025-12-01T12:00:00Z',
     },
+    /* Prompt #76 — official Mission fallback cover. A text-only approved Mission submission
+       (no real image at all) must resolve to the official Mission cover, never the generic
+       "School" gradient placeholder or the broken topic-library chain. */
+    {
+      id: 'm1',
+      type: 'mission',
+      typeLabel: 'Mission',
+      title: 'Approved text-only mission submission',
+      body: 'I finished my reflection.',
+      authorDisplayName: 'Text Only Student',
+      approvedAt: '2026-02-01T12:00:00Z',
+    },
+    /* A Mission WITH a real submitted photo must show that real photo — the official cover
+       must never override real student-submitted media. Uses a data: URI (like t1 above) so
+       the image actually loads in-browser rather than 404ing against a real network host —
+       an unreachable URL would correctly trigger the graceful onerror->cover fallback (Section
+       6 of Prompt #76), which is NOT what this case is testing. */
+    {
+      id: 'm2',
+      type: 'mission',
+      typeLabel: 'Mission',
+      title: 'Approved mission submission with a real photo',
+      authorDisplayName: 'Photo Student',
+      approvedAt: '2026-02-02T12:00:00Z',
+      imageUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfz0AEYBxVSF+FAAhKGAZKgFrEAAAAAElFTkSuQmCC',
+      thumbnailUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfz0AEYBxVSF+FAAhKGAZKgFrEAAAAAElFTkSuQmCC',
+    },
   ],
 };
 
@@ -162,6 +189,27 @@ try {
   const linkItem = results.find((r) => r.path.includes('explore'))?.dims?.[2];
   if (linkItem && String(linkItem.imgSrc).includes('project/page-not-image')) {
     console.error('Generic link URL must not load as card image');
+    process.exit(1);
+  }
+
+  // Prompt #76 — Explore: text-only mission -> official Mission cover; mission with a real
+  // photo -> that real photo (never the cover). Card index 5 = m1 (text-only), 6 = m2 (photo).
+  const exploreHtmlDims = results.find((r) => r.path === '/explore.html')?.dims || [];
+  const missionTextOnlyCard = exploreHtmlDims[5];
+  const missionPhotoCard = exploreHtmlDims[6];
+  if (!missionTextOnlyCard || !/assets\/mission-card\.png$/.test(String(missionTextOnlyCard.imgSrc))) {
+    console.error('Prompt #76: approved text-only mission did not resolve to the official Mission cover, got', missionTextOnlyCard && missionTextOnlyCard.imgSrc);
+    process.exit(1);
+  }
+  if (!missionPhotoCard || missionPhotoCard.imgSrc !== 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfz0AEYBxVSF+FAAhKGAZKgFrEAAAAAElFTkSuQmCC') {
+    console.error('Prompt #76: approved mission WITH a real photo did not keep that real photo, got', missionPhotoCard && missionPhotoCard.imgSrc);
+    process.exit(1);
+  }
+  // Prompt #76 — non-Mission item types (News/Link/Photo/Shout-out, indices 0-4) must be
+  // completely unaffected: none of them should ever resolve to the Mission cover.
+  const nonMissionDims = exploreHtmlDims.slice(0, 5);
+  if (nonMissionDims.some((d) => /mission-card\.png/.test(String(d.imgSrc)))) {
+    console.error('Prompt #76: a non-Mission Explore item incorrectly resolved to the Mission cover', nonMissionDims);
     process.exit(1);
   }
 

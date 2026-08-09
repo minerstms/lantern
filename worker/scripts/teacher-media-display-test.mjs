@@ -40,6 +40,22 @@ const FIXTURE_SUBMISSION = {
   created_at: '2026-08-08T12:00:00.000Z',
 };
 
+// Prompt #76, Test H — a plain TEXT-ONLY submission with NO image at all. The official Mission
+// cover (assets/mission-card.png) is presentation artwork for public Mission cards ONLY — Teacher
+// Review must never disguise a missing photo by showing it here as if the student submitted one.
+const FIXTURE_NO_PHOTO_SUBMISSION = {
+  id: 'msub_teacher_no_photo_test',
+  mission_id: 'tmission_no_photo_test',
+  mission_title: 'No Photo Mission',
+  mission_reward: 3,
+  character_name: 'otherpilot',
+  submission_type: 'text',
+  submission_content: 'just a written reflection, no photo attached',
+  status: 'pending',
+  created_by_teacher_name: 'Teacher',
+  created_at: '2026-08-08T13:00:00.000Z',
+};
+
 async function main() {
   const results = [];
   function assert(cond, label) {
@@ -60,7 +76,7 @@ async function main() {
     teacher_id: 'teacher1', must_change_password: false,
   }));
   await page.route('**/api/missions/teacher**', okJson({ ok: true, missions: [{ id: 'tmission_media_test', title: 'Photo Reflection Mission', reward_amount: 5, teacher_id: 'teacher1', teacher_name: 'Ms. Carter' }] }));
-  await page.route('**/api/missions/submissions/teacher**', okJson({ ok: true, submissions: [FIXTURE_SUBMISSION] }));
+  await page.route('**/api/missions/submissions/teacher**', okJson({ ok: true, submissions: [FIXTURE_SUBMISSION, FIXTURE_NO_PHOTO_SUBMISSION] }));
   await page.route('**/api/missions/submissions/approved**', okJson({ ok: true, submissions: [] }));
   await page.route('**/api/avatar/pending**', okJson({ ok: true, pending: [] }));
   await page.route('**/api/news/approved**', okJson({ ok: true, news: [] }));
@@ -89,11 +105,14 @@ async function main() {
   await page.goto(base + '/teacher.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
   await page.waitForSelector('#myClassroomBody .teacherApprovalPendingRow', { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow').length >= 2, { timeout: 15000 });
 
   // ---------------------------------------------------------------------------
   // Section 24 — TEACHER MEDIA TEST: pending row (list) assertions
   // ---------------------------------------------------------------------------
-  const row = page.locator('#myClassroomBody .teacherApprovalPendingRow').first();
+  // Located by content, not position — row ORDER between the two fixture submissions is not
+  // this test's concern and must not make these assertions flaky.
+  const row = page.locator('#myClassroomBody .teacherApprovalPendingRow').filter({ hasText: 'testpilot' }).first();
   assert(await row.count() === 1, 'Teacher pending queue row rendered for the text+image mission submission');
 
   const rowText = (await row.locator('.approvalQueueTitle, .approvalQueueMeta').allInnerTexts()).join(' ');
@@ -113,7 +132,11 @@ async function main() {
   // ---------------------------------------------------------------------------
   // Section 24 — TEACHER MEDIA TEST: Review modal assertions
   // ---------------------------------------------------------------------------
-  await page.evaluate(() => document.querySelector('#myClassroomBody .teacherApprovalPendingRow .approvalRowReviewBtn').click());
+  await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow'));
+    const r = rows.find((x) => x.textContent.indexOf('testpilot') !== -1 && x.textContent.indexOf('otherpilot') === -1);
+    r.querySelector('.approvalRowReviewBtn').click();
+  });
   await page.waitForSelector('#reviewOverlay.is-open', { timeout: 5000 });
   assert(true, 'Review modal (openReviewModal) opened for the mission submission');
 
@@ -134,6 +157,33 @@ async function main() {
   // The sticky app header overlaps this button's real click point at some viewport sizes;
   // dispatch a real DOM click (still exercises the exact onclick handler) rather than fighting
   // Playwright's pointer-interception guard for an incidental teardown step.
+  await page.evaluate(() => document.getElementById('reviewPanelClose').click());
+  await page.waitForFunction(() => !document.getElementById('reviewOverlay').classList.contains('is-open'), { timeout: 5000 });
+
+  // ---------------------------------------------------------------------------
+  // Prompt #76, Test H — Teacher Review safety: a text-only submission with NO photo at all
+  // must NEVER show the official Mission cover (assets/mission-card.png) as though it were the
+  // student's submitted evidence. No image anywhere in the DOM should ever reference it.
+  // ---------------------------------------------------------------------------
+  const noPhotoRow = page.locator('#myClassroomBody .teacherApprovalPendingRow').filter({ hasText: 'otherpilot' }).first();
+  assert(await noPhotoRow.count() === 1, 'Teacher pending queue also shows the no-photo text-only submission row');
+  const noPhotoRowImgCount = await noPhotoRow.locator('.approvalQueueMid img').count();
+  assert(noPhotoRowImgCount === 0, 'Teacher list: a text-only submission with NO real photo renders NO <img> in the row at all (no fabricated Mission cover standing in for a submitted photo)');
+  const anyMissionCoverInList = await page.evaluate(() => Array.from(document.querySelectorAll('#myClassroomBody img')).some((img) => /mission-card\.png/.test(img.getAttribute('src') || '')));
+  assert(!anyMissionCoverInList, 'Teacher list: the official Mission cover asset never appears anywhere in the pending queue list');
+
+  await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow'));
+    const row = rows.find((r) => r.textContent.indexOf('otherpilot') !== -1);
+    row.querySelector('.approvalRowReviewBtn').click();
+  });
+  await page.waitForSelector('#reviewOverlay.is-open', { timeout: 5000 });
+  const noPhotoModalImgCount = await page.locator('#reviewPanelBd img').count();
+  assert(noPhotoModalImgCount === 0, 'Review modal: opening the no-photo submission shows NO <img> at all (not the Mission cover, not any other image standing in for a missing student photo)');
+  const noPhotoModalText = await page.locator('#reviewPanelBd').innerText();
+  assert(noPhotoModalText.indexOf('just a written reflection, no photo attached') !== -1, 'Review modal: the no-photo submission still shows its real written text');
+  const anyMissionCoverInModal = await page.evaluate(() => Array.from(document.querySelectorAll('#reviewPanelBd img')).some((img) => /mission-card\.png/.test(img.getAttribute('src') || '')));
+  assert(!anyMissionCoverInModal, 'Review modal: the official Mission cover asset never appears in the review modal either');
   await page.evaluate(() => document.getElementById('reviewPanelClose').click());
   await page.waitForFunction(() => !document.getElementById('reviewOverlay').classList.contains('is-open'), { timeout: 5000 });
 

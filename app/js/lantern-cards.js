@@ -63,6 +63,8 @@
   function resolveCardFaceImageUrlWithFallbacks(p) {
     var primary = resolveCardFaceImageUrl(p);
     if (primary) return primary;
+    var type = String((p && (p.fallbackType || p.type)) || '').toLowerCase();
+    if (type === 'mission') return MISSION_FALLBACK_COVER_URL;
     var topicUrl = getTopicLibraryImageUrl(p);
     if (topicUrl) return topicUrl;
     return getDefaultImageUrl(p.fallbackType || p.type || 'creation');
@@ -85,7 +87,11 @@
     model = model || {};
     shellOpts = shellOpts || {};
     var fbType = model.fallbackType || model.type || 'creation';
-    var typeSvg = svgTypeFallbackDataUri(fbType);
+    // Mission cards: if a REAL image URL was set but fails to actually load at runtime (e.g. a
+    // stale/broken reference), gracefully recover to the official Mission cover art rather than
+    // a generic gradient placeholder — presentation only, never asserted as the real photo, and
+    // never used by Teacher Review (which has its own separate, truthful media handling).
+    var typeSvg = fbType === 'mission' ? MISSION_FALLBACK_COVER_URL : svgTypeFallbackDataUri(fbType);
     var uniSvg = svgUniversalLanternDataUri();
     var faceUrl = resolveCardFaceImageUrl(model);
     var remoteUrl = faceUrl || resolveCardFaceImageUrlWithFallbacks(model);
@@ -303,6 +309,15 @@
     }
   }
 
+  /**
+   * Prompt #76 — official Mission card cover art (approved, static asset; never regenerate/edit).
+   * ONE canonical constant so the path is never scattered across missions.html/teacher.html/Explore.
+   * REAL MEDIA ALWAYS WINS: this is consulted only by the fallback tier, after resolveCardFaceImageUrl
+   * (real image/thumbnail) has already been checked and came back empty. Relative path (no leading
+   * slash) matches the existing app/assets/icons/*.png convention used across the app.
+   */
+  var MISSION_FALLBACK_COVER_URL = 'assets/mission-card.png';
+
   function getDefaultImageKey(type) {
     var t = (type || '').toLowerCase();
     if (t === 'poll') return 'default/default_poll.png';
@@ -427,9 +442,11 @@
   function getCardImageUrl(p) {
     var resolved = resolveCardFaceImageUrl(p);
     if (resolved) return resolved;
+    var type = String((p && (p.fallbackType || p.type || p.mission_type)) || '').toLowerCase();
+    if (type === 'mission') return MISSION_FALLBACK_COVER_URL;
     var topicUrl = getTopicLibraryImageUrl(p);
     if (topicUrl) return topicUrl;
-    return getDefaultImageUrl(p.type || p.mission_type || 'creation');
+    return getDefaultImageUrl(p.fallbackType || p.type || p.mission_type || 'creation');
   }
 
   function svgSpecForContentType(type) {
@@ -978,12 +995,19 @@
     o = o || {};
     var metaBits = [o.metaOne || '', o.rewardText || ''].filter(Boolean);
     var metaMerged = truncateMeta(metaBits.join(' · '), 40) || '';
+    // imageUrl/fallbackType are optional so existing callers (Games hub) keep their exact prior
+    // behavior (no image passed -> 'create' fallback chain). Missions passes a real submission
+    // image when one exists and fallbackType:'mission' so the official cover art (Prompt #76)
+    // is used only when there is truly no real photo — real media still always wins via
+    // resolveCardFaceImageUrl, checked before any fallback in buildCanonicalCardFaceHtml.
     return compactFaceSpec({
       type: 'game_hub',
       title: o.title || '',
       author: o.hubIdentityLabel || 'Games',
       dateMeta: metaMerged,
-      fallbackType: 'create',
+      thumbnailUrl: o.imageUrl || o.thumbnailUrl || '',
+      image_url: o.imageUrl || '',
+      fallbackType: o.fallbackType || 'create',
       typeBadge: o.typeBadge != null ? String(o.typeBadge) : '🎮 Game',
       stateBadge: o.stateBadge ? String(o.stateBadge) : '',
     }, {
@@ -1205,6 +1229,7 @@
     createCanonicalCardFace: createCanonicalCardFace,
     getCardImageUrl: getCardImageUrl,
     getDefaultImageUrl: getDefaultImageUrl,
+    MISSION_FALLBACK_COVER_URL: MISSION_FALLBACK_COVER_URL,
     getDefaultAvatarImageUrl: getDefaultAvatarImageUrl,
     buildExploreAuthorAvatarHtml: buildExploreAuthorAvatarHtml,
     accountKeyFromCardModel: accountKeyFromCardModel,

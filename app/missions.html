@@ -1210,6 +1210,10 @@
         var stype = String(m.submission_type || '').trim();
         if (stype === 'poll') { tf = 'create'; badge = '🎨 Create'; }
         else if (stype === 'bug_report') { tf = 'create'; badge = '📸 Photo'; }
+        // Real card image (if the student's submission actually has a photo) — the Missions
+        // grid card (Prompt #76) shows this in place of the official Mission cover fallback.
+        // Never any other synthetic/library image here: real media or nothing.
+        var mmForCard = (sub && typeof window !== 'undefined' && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
         items.push({
           id: m.id,
           kind: 'teacher',
@@ -1224,6 +1228,7 @@
           statusLabel: statusLabel,
           featured: !!m.featured,
           created_at: m.created_at || '',
+          imageUrl: mmForCard.image_url || '',
           raw: m,
           submission: sub,
           onActivate: function(){

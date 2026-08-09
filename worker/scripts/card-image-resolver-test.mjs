@@ -82,21 +82,52 @@ const CASES = [
     withFallbacks: true,
     apiBase: 'http://127.0.0.1:8765',
   },
+  {
+    name: '11 Prompt #76: mission with NO real image (fallbackType) -> official Mission cover, exact match',
+    input: { fallbackType: 'mission' },
+    expected: 'assets/mission-card.png',
+    withFallbacks: true,
+    exactExpected: true,
+  },
+  {
+    name: '12 Prompt #76: mission with NO real image (type only, no fallbackType) -> official Mission cover',
+    input: { type: 'mission' },
+    expected: 'assets/mission-card.png',
+    withFallbacks: true,
+    exactExpected: true,
+  },
+  {
+    name: '13 Prompt #76: mission WITH a real submitted photo -> real photo wins, NOT the cover',
+    input: { fallbackType: 'mission', imageUrl: 'https://cdn/real-student-photo.jpg' },
+    expected: 'https://cdn/real-student-photo.jpg',
+    withFallbacks: true,
+    exactExpected: true,
+  },
+  {
+    name: '14 Prompt #76: mission cover never resolves through the broken topic-library/default chain (no API base set)',
+    input: { fallbackType: 'mission' },
+    expected: 'assets/mission-card.png',
+    withFallbacks: true,
+    exactExpected: true,
+    apiBase: '',
+  },
 ];
 
 const results = [];
 let failed = 0;
 
 for (const c of CASES) {
-  if (c.apiBase) sandbox.LANTERN_AVATAR_API = c.apiBase;
+  if (c.apiBase !== undefined) sandbox.LANTERN_AVATAR_API = c.apiBase;
   const actual = c.withFallbacks
     ? LC.resolveCardFaceImageUrlWithFallbacks(c.input)
     : resolve(c.input);
-  const pass = c.withFallbacks && c.expected.includes('/api/media/image')
-    ? typeof actual === 'string' && actual.includes(c.expected)
-    : c.withFallbacks
-      ? typeof actual === 'string' && actual.length > 0
-      : actual === c.expected;
+  const pass = c.withFallbacks && c.exactExpected
+    ? actual === c.expected
+    : c.withFallbacks && c.expected.includes('/api/media/image')
+      ? typeof actual === 'string' && actual.includes(c.expected)
+      : c.withFallbacks
+        ? typeof actual === 'string' && actual.length > 0
+        : actual === c.expected;
   if (!pass) failed++;
   results.push({
     case: c.name,
