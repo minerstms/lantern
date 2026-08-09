@@ -19,11 +19,18 @@ export function isStudentRole(role) {
   return normalizeRole(role) === 'student';
 }
 
-/** Session teacher id for mission ownership checks. */
+/**
+ * Session teacher id for mission ownership checks.
+ * Admin accounts have no roster teacher_id but still get a stable identity
+ * (their own account key) so admin-created missions have a real owner
+ * instead of an orphaned placeholder. Admin's broader "see everything"
+ * scope for listing/reading is handled separately in the route handlers —
+ * this function only supplies a default *identity*, it does not grant scope.
+ */
 export function sessionTeacherId(account) {
   if (!account) return '';
   const role = normalizeRole(account.role);
-  if (role === 'teacher') {
+  if (role === 'teacher' || role === 'admin') {
     return String(account.teacher_id || account.username || '').trim();
   }
   return '';

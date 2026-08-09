@@ -200,19 +200,27 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
   if (request.method === 'GET' && path === '/api/missions/teacher') {
     const auth = await requireMissionTeacher(deps, request, env, cors);
     if (auth.response) return auth.response;
-    let teacherId = sessionTeacherId(auth.account);
-    if (isAdminRole(auth.account.role)) {
-      teacherId = (url.searchParams.get('teacher_id') || teacherId || '').trim();
-    }
-    if (!teacherId) {
+    const isAdmin = isAdminRole(auth.account.role);
+    // Admin broader scope: with no explicit ?teacher_id=, admin sees every
+    // teacher's missions (matches teacherOwnsMission() already granting
+    // admin full authority over all missions). A non-admin teacher is always
+    // scoped to their own session-derived teacher id.
+    let teacherId = isAdmin ? (url.searchParams.get('teacher_id') || '').trim() : sessionTeacherId(auth.account);
+    if (!isAdmin && !teacherId) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
-    const rows = await db
-      .prepare(
-        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
-      )
-      .bind(teacherId)
-      .all();
+    const rows = teacherId
+      ? await db
+          .prepare(
+            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
+          )
+          .bind(teacherId)
+          .all()
+      : await db
+          .prepare(
+            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
+          )
+          .all();
     const list = (rows.results || []).map((r) => missionRowToJson(r));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
@@ -232,8 +240,11 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     let teacherId = sessionTeacherId(auth.account);
     let teacherName = reviewerLabelFromAccount(auth.account);
     if (isAdminRole(auth.account.role)) {
-      teacherId = (body.created_by_teacher_id || body.teacher_id || teacherId || 'teacher').trim();
-      teacherName = (body.created_by_teacher_name || body.teacher_name || teacherName || 'Teacher').trim();
+      // Admin may explicitly author on behalf of a specific teacher_id; otherwise
+      // the mission is owned by the admin's own session identity (never an
+      // orphaned 'teacher' placeholder that no account can ever list as "mine").
+      teacherId = (body.created_by_teacher_id || body.teacher_id || teacherId || 'admin').trim();
+      teacherName = (body.created_by_teacher_name || body.teacher_name || teacherName || 'Admin').trim();
     }
     if (!teacherId) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
@@ -470,17 +481,21 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
   if (request.method === 'GET' && path === '/api/missions/submissions/teacher') {
     const auth = await requireMissionTeacher(deps, request, env, cors);
     if (auth.response) return auth.response;
-    let teacherId = sessionTeacherId(auth.account);
-    if (isAdminRole(auth.account.role)) {
-      teacherId = (url.searchParams.get('teacher_id') || teacherId || '').trim();
-    }
-    if (!teacherId) {
+    const isAdmin = isAdminRole(auth.account.role);
+    // Admin broader scope: with no explicit ?teacher_id=, admin's pending
+    // queue spans every teacher's missions (matches teacherOwnsMission()
+    // already granting admin authority to approve/reject/return any
+    // submission — this makes those submissions actually visible first).
+    let teacherId = isAdmin ? (url.searchParams.get('teacher_id') || '').trim() : sessionTeacherId(auth.account);
+    if (!isAdmin && !teacherId) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
-    const missionRows = await db
-      .prepare('SELECT id, title, reward_amount, teacher_id, teacher_name FROM lantern_missions WHERE teacher_id = ?')
-      .bind(teacherId)
-      .all();
+    const missionRows = teacherId
+      ? await db
+          .prepare('SELECT id, title, reward_amount, teacher_id, teacher_name FROM lantern_missions WHERE teacher_id = ?')
+          .bind(teacherId)
+          .all()
+      : await db.prepare('SELECT id, title, reward_amount, teacher_id, teacher_name FROM lantern_missions').all();
     const missionIds = (missionRows.results || []).map((m) => m.id);
     if (missionIds.length === 0) return jsonResponse({ ok: true, submissions: [] }, 200, cors);
     const placeholders = missionIds.map(() => '?').join(',');

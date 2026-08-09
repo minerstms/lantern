@@ -1953,14 +1953,27 @@
       });
     }
     function callCreateTeacherMission(opts){
+      if (avatarApiBase !== null) {
+        return fetch(avatarApiBase + '/api/missions', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(opts || {})
+        }).then(function(r){ return r.json().catch(function(){ return null; }).then(function(res){ return { httpOk: r.ok, res: res }; }); })
+          .then(function(x){
+            var res = x.res;
+            return (x.httpOk && res && res.ok) ? res : { ok: false, error: (res && res.error) || 'Mission could not be saved' };
+          })
+          .catch(function(){ return { ok: false, error: 'Network error — mission could not be saved' }; });
+      }
       var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false });
+      if (!run) return Promise.resolve({ ok: false, error: 'Mission could not be saved' });
       return new Promise(function(resolve){
-        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).createTeacherMission(opts);
+        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false, error: 'Mission could not be saved' }); }).createTeacherMission(opts);
       });
     }
     function callUpdateTeacherMission(id, updates){
-      if (avatarApiBase && id) {
+      if (avatarApiBase !== null && id) {
         return fetch(avatarApiBase + '/api/missions/' + encodeURIComponent(id), {
           method: 'PATCH',
           credentials: 'include',
@@ -1975,7 +1988,7 @@
       });
     }
     function callApproveMissionSubmission(id){
-      if (avatarApiBase && id) {
+      if (avatarApiBase !== null && id) {
         return fetch(avatarApiBase + '/api/missions/submissions/approve', {
           method: 'POST',
           credentials: 'include',
@@ -1990,6 +2003,14 @@
       });
     }
     function callRejectMissionSubmission(id){
+      if (avatarApiBase !== null && id) {
+        return fetch(avatarApiBase + '/api/missions/submissions/reject', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
       return new Promise(function(resolve){
@@ -1997,6 +2018,14 @@
       });
     }
     function callReturnMissionSubmissionForImprovements(id, reason){
+      if (avatarApiBase !== null && id) {
+        return fetch(avatarApiBase + '/api/missions/submissions/return', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id, reason: reason || '' })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+      }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
       return new Promise(function(resolve){
@@ -3140,7 +3169,7 @@
       gradeReflections = res.gradeReflections || [];
       teacherMissions = res.teacherMissions || [];
       missionSubmissions = res.missionSubmissions || [];
-      if (avatarApiBase) {
+      if (avatarApiBase !== null) {
         var missionsRes = await callGetTeacherMissionsFromWorker();
         if (missionsRes && missionsRes.ok && Array.isArray(missionsRes.missions)) teacherMissions = missionsRes.missions;
         var subRes = await callGetMissionSubmissionsForTeacher();
