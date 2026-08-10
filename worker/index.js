@@ -17,6 +17,18 @@ import { tmsEconomyBalance, tmsEconomyTransact } from './tms-economy-bridge.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled } from './school-schedule.js';
 import {
+  ACCESS_DEVICE_COOKIE_NAME,
+  ACCESS_REQUEST_PENDING_TTL_SEC,
+  ACCESS_REQUEST_ALLOWED_GRANT_MINUTES,
+  ACCESS_REQUEST_RATE_LIMIT_WINDOW_SEC,
+  ACCESS_REQUEST_RATE_LIMIT_MAX_PER_WINDOW,
+  generateRequestPhrase,
+  generateDeviceSecret,
+  hashOpaqueSecret,
+  buildAccessDeviceCookieHeader,
+  derivedRequestStatus,
+} from './access-requests.js';
+import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
   awardAchievementsForNewsApproved,
@@ -2145,6 +2157,35 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     const schedule = evaluateSchoolSchedule(new Date());
     const scheduleEnforcementEnabled = isSchoolScheduleEnforcementEnabled(env);
 
+    // Phase #31 (individual student access-request + teacher-approval) — additive, informational
+    // only. Reports whether THIS browser (identified solely by its lantern_access_device cookie,
+    // never by anything client-supplied) currently holds an active, non-revoked, non-expired
+    // individual grant. Never changes accessState/tokenValid below — enforcement stays off until
+    // a later phase deliberately wires this into the actual lock decision.
+    let individualGrant = { qualifyingAccess: false, reason: 'no_device_cookie', expiresAt: null };
+    try {
+      const deviceSecretForGrant = getCookieValue(request.headers.get('Cookie') || '', ACCESS_DEVICE_COOKIE_NAME);
+      if (deviceSecretForGrant) {
+        const deviceHashForGrant = await hashOpaqueSecret(deviceSecretForGrant);
+        const grantRow = await db.prepare(
+          'SELECT status, grant_expires_at, revoked_at FROM lantern_access_requests WHERE device_secret_hash = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(deviceHashForGrant).first();
+        const nowIsoForGrant = new Date().toISOString();
+        if (!grantRow) {
+          individualGrant = { qualifyingAccess: false, reason: 'no_matching_request', expiresAt: null };
+        } else {
+          const derived = derivedRequestStatus(grantRow, nowIsoForGrant);
+          individualGrant = {
+            qualifyingAccess: derived === 'approved',
+            reason: derived === 'approved' ? 'active_individual_grant' : derived,
+            expiresAt: derived === 'approved' ? grantRow.grant_expires_at : null,
+          };
+        }
+      }
+    } catch (_) {
+      individualGrant = { qualifyingAccess: false, reason: 'lookup_error', expiresAt: null };
+    }
+
     const verifyState = await getVerifyState();
     const sim = verifyState.class_access_simulation || {};
     const mode = sim.mode === 'simulation' ? 'simulation' : 'live';
@@ -2175,6 +2216,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         message: 'Demo Mode: ' + (simCondition.replace(/_/g, ' ') || 'Simulated'),
         schedule,
         scheduleEnforcementEnabled,
+        individualGrant,
       }, 200, cors);
     }
 
@@ -2188,6 +2230,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         tokenValid: true,
         schedule,
         scheduleEnforcementEnabled,
+        individualGrant,
       }, 200, cors);
     }
 
@@ -2207,6 +2250,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             tokenValid: true,
             schedule,
             scheduleEnforcementEnabled,
+            individualGrant,
           },
           200,
           cors
@@ -2219,6 +2263,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         tokenValid: false,
         schedule,
         scheduleEnforcementEnabled,
+        individualGrant,
       }, 200, cors);
     }
 
@@ -2236,6 +2281,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             tokenValid: true,
             schedule,
             scheduleEnforcementEnabled,
+            individualGrant,
           },
           200,
           cors
@@ -2249,6 +2295,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         tokenValid: false,
         schedule,
         scheduleEnforcementEnabled,
+        individualGrant,
       }, 200, cors);
     }
     return jsonResponse({
@@ -2259,7 +2306,241 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       expires_at: tokenRow.expires_at,
       schedule,
       scheduleEnforcementEnabled,
+      individualGrant,
     }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/request') {
+    // Phase #31 — student "Request Access" creation. request_phrase (e.g. GREEN-FALCON-49) is a
+    // DISPLAY/LOOKUP IDENTIFIER ONLY for the teacher; it is never accepted as proof of anything.
+    // The real security boundary is the high-entropy device secret minted below and returned
+    // ONLY as an HttpOnly cookie (never in the JSON body, never in a URL/query string).
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+
+    const nowDate = new Date();
+    const nowIso = nowDate.toISOString();
+    const rawCookie = request.headers.get('Cookie') || '';
+    const existingSecret = getCookieValue(rawCookie, ACCESS_DEVICE_COOKIE_NAME);
+    const secure = url.protocol === 'https:';
+
+    // Idempotent retry: a browser that already has a live (pending, not expired) request gets
+    // that same request back instead of creating a duplicate — this alone prevents the common
+    // "double click" / "reopen the page" spam case without needing any extra bookkeeping.
+    if (existingSecret) {
+      const existingHash = await hashOpaqueSecret(existingSecret);
+      const existingRow = await db.prepare(
+        'SELECT id, request_phrase, status, request_expires_at, grant_expires_at, revoked_at FROM lantern_access_requests WHERE device_secret_hash = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(existingHash).first();
+      if (existingRow && derivedRequestStatus(existingRow, nowIso) === 'pending') {
+        return jsonResponse({
+          ok: true,
+          existing: true,
+          requestId: existingRow.id,
+          requestPhrase: existingRow.request_phrase,
+          requestExpiresAt: existingRow.request_expires_at,
+        }, 200, cors);
+      }
+    }
+
+    // Identity: prefer the authenticated Lantern pilot student session (verified); otherwise
+    // require the student to enter/confirm a display name (explicitly unverified — never trusted
+    // as an identity by itself, matching the "no client-supplied student_id alone" requirement).
+    let studentUsername = null;
+    let studentCharacterName = null;
+    let proposedName = null;
+    const account = await getPilotAccountFromRequest(request, env);
+    if (account && String(account.role || '').trim().toLowerCase() === 'student' && !pilotAccountRequiresChangePassword(account)) {
+      studentUsername = account.username;
+      studentCharacterName = account.student_character_name || account.display_name || account.username;
+    } else {
+      proposedName = String(body.proposed_name || body.proposedName || '').trim().slice(0, 60);
+      if (!proposedName) return jsonResponse({ ok: false, error: 'Missing proposed_name' }, 400, cors);
+    }
+
+    // Rate limit: coarse cap on distinct requests per hashed requester IP within a short window.
+    // The IP hash is used ONLY for this anti-spam throttle, never to authorize or qualify access.
+    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
+    const ipHash = ip ? await hashOpaqueSecret(ip) : null;
+    if (ipHash) {
+      const windowStart = new Date(nowDate.getTime() - ACCESS_REQUEST_RATE_LIMIT_WINDOW_SEC * 1000).toISOString();
+      const recent = await db.prepare(
+        'SELECT COUNT(*) AS c FROM lantern_access_requests WHERE requester_ip_hash = ? AND requested_at > ?'
+      ).bind(ipHash, windowStart).first();
+      if (recent && Number(recent.c) >= ACCESS_REQUEST_RATE_LIMIT_MAX_PER_WINDOW) {
+        return jsonResponse({ ok: false, error: 'too_many_requests' }, 429, cors);
+      }
+    }
+
+    // Generate a unique memorable phrase, retrying on collision against other currently-pending,
+    // not-yet-expired requests (a phrase from a decided/expired request is safe to reuse).
+    let phrase = '';
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const candidate = generateRequestPhrase();
+      const clash = await db.prepare(
+        "SELECT id FROM lantern_access_requests WHERE request_phrase = ? AND status = 'pending' AND request_expires_at > ?"
+      ).bind(candidate, nowIso).first();
+      if (!clash) { phrase = candidate; break; }
+    }
+    if (!phrase) return jsonResponse({ ok: false, error: 'Could not generate a unique request phrase, please try again' }, 503, cors);
+
+    const deviceSecret = generateDeviceSecret();
+    const deviceHash = await hashOpaqueSecret(deviceSecret);
+    const id = 'accreq_' + crypto.randomUUID().replace(/-/g, '');
+    const requestExpiresAt = new Date(nowDate.getTime() + ACCESS_REQUEST_PENDING_TTL_SEC * 1000).toISOString();
+
+    await db.prepare(
+      'INSERT INTO lantern_access_requests (id, request_phrase, student_username, student_character_name, proposed_name, device_secret_hash, requester_ip_hash, status, requested_at, request_expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?)'
+    ).bind(id, phrase, studentUsername, studentCharacterName, proposedName, deviceHash, ipHash, nowIso, requestExpiresAt, nowIso).run();
+
+    return new Response(JSON.stringify({
+      ok: true,
+      requestId: id,
+      requestPhrase: phrase,
+      requestExpiresAt,
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        ...cors,
+        'Set-Cookie': buildAccessDeviceCookieHeader(deviceSecret, secure),
+      },
+    });
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/request/status') {
+    // Phase #31 — student polling. Looked up SOLELY by the requesting browser's HttpOnly device
+    // cookie, never by any client-supplied id/phrase. If the cookie is missing or doesn't match
+    // any request, respond with a generic 'pending' rather than a 404/'not_found' so a browser
+    // that merely knows another student's phrase (but not their device secret) learns nothing.
+    const nowIso = new Date().toISOString();
+    const secret = getCookieValue(request.headers.get('Cookie') || '', ACCESS_DEVICE_COOKIE_NAME);
+    if (!secret) return jsonResponse({ ok: true, status: 'pending' }, 200, cors);
+    const hash = await hashOpaqueSecret(secret);
+    const row = await db.prepare(
+      'SELECT id, request_phrase, status, request_expires_at, grant_expires_at, revoked_at FROM lantern_access_requests WHERE device_secret_hash = ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(hash).first();
+    if (!row) return jsonResponse({ ok: true, status: 'pending' }, 200, cors);
+    const derived = derivedRequestStatus(row, nowIso);
+    return jsonResponse({
+      ok: true,
+      status: derived,
+      requestPhrase: row.request_phrase,
+      grantExpiresAt: derived === 'approved' ? row.grant_expires_at : null,
+    }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/requests/pending') {
+    // Phase #31 — teacher dashboard. Staff-only (Prompt #92 pattern): session-derived identity,
+    // never client-supplied. Never selects/returns device_secret_hash.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const rows = await db.prepare(
+      "SELECT id, request_phrase, student_username, student_character_name, proposed_name, requested_at, request_expires_at FROM lantern_access_requests WHERE status = 'pending' AND request_expires_at > ? ORDER BY requested_at ASC"
+    ).bind(nowIso).all();
+    const list = (rows.results || []).map((r) => ({
+      id: r.id,
+      requestPhrase: r.request_phrase,
+      displayName: r.student_character_name || r.proposed_name || r.student_username || 'Student',
+      verified: !!r.student_username,
+      requestedAt: r.requested_at,
+      requestExpiresAt: r.request_expires_at,
+    }));
+    return jsonResponse({ ok: true, requests: list }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/requests/approve') {
+    // Phase #31 — teacher approval. Duration is restricted to exactly 15 or 30 minutes (the only
+    // two classroom actions in scope for this phase). Authorization for the resulting grant is
+    // always evaluated against current server time — no cleanup job ever needs to run.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    const durationMinutes = parseInt(body.duration_minutes, 10);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!ACCESS_REQUEST_ALLOWED_GRANT_MINUTES.includes(durationMinutes)) {
+      return jsonResponse({ ok: false, error: 'duration_minutes must be 15 or 30' }, 400, cors);
+    }
+    const nowDate = new Date();
+    const nowIso = nowDate.toISOString();
+    const row = await db.prepare('SELECT id, status, request_expires_at FROM lantern_access_requests WHERE id = ?').bind(id).first();
+    if (!row) return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
+    if (row.status !== 'pending' || row.request_expires_at <= nowIso) {
+      return jsonResponse({ ok: false, error: 'request_not_pending_or_expired' }, 400, cors);
+    }
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    const grantExpiresAt = new Date(nowDate.getTime() + durationMinutes * 60 * 1000).toISOString();
+    const result = await db.prepare(
+      "UPDATE lantern_access_requests SET status = 'approved', decided_at = ?, decided_by_staff_id = ?, decided_by_staff_name = ?, grant_expires_at = ? WHERE id = ? AND status = 'pending' AND request_expires_at > ?"
+    ).bind(nowIso, staffId || null, staffName, grantExpiresAt, id, nowIso).run();
+    if (!result || !result.meta || !result.meta.changes) {
+      return jsonResponse({ ok: false, error: 'request_not_pending_or_expired' }, 400, cors);
+    }
+    return jsonResponse({ ok: true, id, status: 'approved', grantExpiresAt, durationMinutes }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/requests/deny') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    const nowIso = new Date().toISOString();
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    const result = await db.prepare(
+      "UPDATE lantern_access_requests SET status = 'denied', decided_at = ?, decided_by_staff_id = ?, decided_by_staff_name = ? WHERE id = ? AND status = 'pending'"
+    ).bind(nowIso, staffId || null, staffName, id).run();
+    if (!result || !result.meta || !result.meta.changes) {
+      return jsonResponse({ ok: false, error: 'request_not_pending' }, 400, cors);
+    }
+    return jsonResponse({ ok: true, id, status: 'denied' }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/requests/active') {
+    // Phase #31 — teacher dashboard active-grants view. Never selects/returns device_secret_hash.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const rows = await db.prepare(
+      "SELECT id, student_username, student_character_name, proposed_name, decided_at, decided_by_staff_name, grant_expires_at FROM lantern_access_requests WHERE status = 'approved' AND (revoked_at IS NULL OR revoked_at = '') AND grant_expires_at > ? ORDER BY grant_expires_at ASC"
+    ).bind(nowIso).all();
+    const list = (rows.results || []).map((r) => ({
+      id: r.id,
+      displayName: r.student_character_name || r.proposed_name || r.student_username || 'Student',
+      grantedAt: r.decided_at,
+      grantedBy: r.decided_by_staff_name,
+      grantExpiresAt: r.grant_expires_at,
+    }));
+    return jsonResponse({ ok: true, grants: list }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/requests/revoke') {
+    // Phase #31 — teacher revoke. Takes effect immediately: the UPDATE below is the only thing
+    // any qualification check ever reads, and it is guarded by current server time, not a job.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    const nowIso = new Date().toISOString();
+    const result = await db.prepare(
+      "UPDATE lantern_access_requests SET revoked_at = ? WHERE id = ? AND status = 'approved' AND (revoked_at IS NULL OR revoked_at = '')"
+    ).bind(nowIso, id).run();
+    if (!result || !result.meta || !result.meta.changes) {
+      return jsonResponse({ ok: false, error: 'grant_not_active' }, 400, cors);
+    }
+    return jsonResponse({ ok: true, id, status: 'revoked' }, 200, cors);
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

@@ -95,6 +95,8 @@
    * @param {string} apiBase
    * @param {function(string)} onSuccess - Receives token
    */
+  var ACCESS_REQUEST_POLL_MS = 5000;
+
   function renderGate(container, apiBase, onSuccess) {
     var el = typeof container === 'string' ? (document.getElementById(container) || document.querySelector(container)) : container;
     if (!el || apiBase === null || typeof onSuccess !== 'function') return;
@@ -105,6 +107,22 @@
       '<input type="text" id="classAccessCodeInput" placeholder="Enter class code" class="classAccessCodeInput" style="width:100%;padding:14px 18px;border-radius:14px;border:2px solid var(--line);background:rgba(255,255,255,.08);color:var(--ink);font-size:24px;margin-bottom:14px;text-align:center;" />' +
       '<p id="classAccessGateError" class="classAccessGateError" style="display:none;color:var(--bad);font-weight:800;font-size:22px;margin-bottom:12px;"></p>' +
       '<button type="button" id="classAccessJoinBtn" class="btn good" style="padding:14px 24px;font-size:24px;font-weight:800;">Join Class</button>' +
+      '<p style="color:var(--muted);font-size:22px;margin:18px 0 10px;">— or —</p>' +
+      '<div id="classAccessRequestIdle">' +
+      '<p style="color:var(--muted);font-size:22px;margin-bottom:14px;">Lantern is locked during school hours.</p>' +
+      '<button type="button" id="classAccessRequestBtn" class="btn" style="padding:14px 24px;font-size:24px;font-weight:800;">Request Access</button>' +
+      '</div>' +
+      '<div id="classAccessRequestNamePanel" style="display:none;">' +
+      '<input type="text" id="classAccessRequestNameInput" placeholder="Enter your name" class="classAccessCodeInput" style="width:100%;padding:14px 18px;border-radius:14px;border:2px solid var(--line);background:rgba(255,255,255,.08);color:var(--ink);font-size:24px;margin-bottom:14px;text-align:center;" />' +
+      '<button type="button" id="classAccessRequestSendBtn" class="btn" style="padding:14px 24px;font-size:24px;font-weight:800;">Send Request</button>' +
+      '</div>' +
+      '<div id="classAccessRequestWaitingPanel" style="display:none;">' +
+      '<p style="font-size:22px;margin-bottom:6px;">Access requested</p>' +
+      '<p style="color:var(--muted);font-size:22px;margin-bottom:10px;">Tell your teacher:</p>' +
+      '<p id="classAccessRequestPhrase" style="font-weight:1000;font-size:30px;letter-spacing:1px;margin-bottom:14px;"></p>' +
+      '<p id="classAccessRequestWaitingMsg" style="color:var(--muted);font-size:22px;">Waiting for approval…</p>' +
+      '</div>' +
+      '<p id="classAccessRequestError" style="display:none;color:var(--bad);font-weight:800;font-size:22px;margin-top:12px;"></p>' +
       '</div>';
     var input = el.querySelector('#classAccessCodeInput');
     var errEl = el.querySelector('#classAccessGateError');
@@ -144,6 +162,116 @@
     }
     if (btn) btn.addEventListener('click', doJoin);
     if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doJoin(); });
+
+    // --- Request Access (Phase #31: individual student request -> teacher approval) ---
+    var idlePanel = el.querySelector('#classAccessRequestIdle');
+    var namePanel = el.querySelector('#classAccessRequestNamePanel');
+    var waitingPanel = el.querySelector('#classAccessRequestWaitingPanel');
+    var reqErrEl = el.querySelector('#classAccessRequestError');
+    var reqBtn = el.querySelector('#classAccessRequestBtn');
+    var nameInput = el.querySelector('#classAccessRequestNameInput');
+    var sendBtn = el.querySelector('#classAccessRequestSendBtn');
+    var phraseEl = el.querySelector('#classAccessRequestPhrase');
+    var waitingMsgEl = el.querySelector('#classAccessRequestWaitingMsg');
+    var pollTimer = null;
+    var requestInProgress = false;
+
+    function showPanel(which) {
+      if (idlePanel) idlePanel.style.display = which === 'idle' ? 'block' : 'none';
+      if (namePanel) namePanel.style.display = which === 'name' ? 'block' : 'none';
+      if (waitingPanel) waitingPanel.style.display = which === 'waiting' ? 'block' : 'none';
+    }
+
+    function showRequestError(message) {
+      if (reqErrEl) { reqErrEl.textContent = message; reqErrEl.style.display = 'block'; }
+    }
+
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    function startPolling() {
+      stopPolling();
+      pollTimer = setInterval(pollStatus, ACCESS_REQUEST_POLL_MS);
+    }
+
+    function pollStatus() {
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      fetch(apiBase + '/api/class-access/request/status', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var status = res && res.status;
+          if (status === 'approved') {
+            stopPolling();
+            if (waitingMsgEl) waitingMsgEl.textContent = 'Approved! Loading…';
+            onSuccess();
+          } else if (status === 'denied' || status === 'expired' || status === 'revoked') {
+            stopPolling();
+            showPanel('idle');
+            showRequestError(
+              status === 'denied' ? 'Your teacher denied this request. You can request again.' :
+              status === 'revoked' ? 'Your access was ended. You can request again.' :
+              'That request expired. You can request again.'
+            );
+          }
+        })
+        .catch(function () {});
+    }
+
+    function sendRequest(proposedName) {
+      if (requestInProgress) return;
+      requestInProgress = true;
+      if (reqErrEl) reqErrEl.style.display = 'none';
+      var payload = {};
+      if (proposedName) payload.proposed_name = proposedName;
+      fetch(apiBase + '/api/class-access/request', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) { return r.json().then(function (body) { return { status: r.status, body: body }; }); })
+        .then(function (result) {
+          requestInProgress = false;
+          var res = result.body;
+          if (res && res.ok && res.requestPhrase) {
+            if (phraseEl) phraseEl.textContent = res.requestPhrase;
+            if (waitingMsgEl) waitingMsgEl.textContent = 'Waiting for approval…';
+            showPanel('waiting');
+            startPolling();
+            return;
+          }
+          if (res && res.error === 'Missing proposed_name') {
+            showPanel('name');
+            return;
+          }
+          if (result.status === 429) {
+            showPanel('idle');
+            showRequestError('Too many requests right now. Please wait a bit and try again.');
+            return;
+          }
+          showPanel('idle');
+          showRequestError((res && res.error) || 'Something went wrong. Try again.');
+        })
+        .catch(function () {
+          requestInProgress = false;
+          showPanel('idle');
+          showRequestError('Something went wrong. Try again.');
+        });
+    }
+
+    if (reqBtn) reqBtn.addEventListener('click', function () { sendRequest(null); });
+    if (sendBtn) {
+      sendBtn.addEventListener('click', function () {
+        var name = (nameInput && nameInput.value || '').trim();
+        if (!name) {
+          showRequestError('Please enter your name.');
+          return;
+        }
+        sendRequest(name);
+      });
+    }
+    if (nameInput) nameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { if (sendBtn) sendBtn.click(); } });
   }
 
   /**

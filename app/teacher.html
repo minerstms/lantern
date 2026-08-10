@@ -1805,6 +1805,20 @@
               </div>
               </div>
             </details>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="h" style="font-size:22px;">Pending Access Requests</div>
+                <span class="pill" id="accessRequestsPendingCountPill">0</span>
+              </div>
+              <p class="note note-tight">A student pressed Request Access and told you their identifier. Match it below.</p>
+              <div id="accessRequestsPendingList"></div>
+              <p class="note" id="accessRequestsPendingEmpty" style="display:none;">No pending requests right now.</p>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+              <div class="h" style="font-size:22px;margin-bottom:8px;">Active Individual Grants</div>
+              <div id="accessRequestsActiveList"></div>
+              <p class="note" id="accessRequestsActiveEmpty" style="display:none;">No active individual grants right now.</p>
+            </div>
           </div>
         </div>
 
@@ -4518,7 +4532,127 @@
         if (lastKnownClassAccessSession) applySessionToClassAccessUI(lastKnownClassAccessSession);
         else setInactiveClassAccessUI();
       }
+      refreshAccessRequestsUI();
     }
+
+    /**
+     * Phase #31 — individual student "Request Access" -> teacher approval. Renders the Pending
+     * Access Requests / Active Individual Grants lists inside the Class Access card using the
+     * same curatePostRow / btn good|bad small row pattern as renderAvatarSubmissions above.
+     * School-schedule enforcement stays off in production; this is purely the teacher-facing
+     * approve/deny/revoke workflow feeding the (currently informational-only) individual grant.
+     */
+    async function refreshAccessRequestsUI(){
+      var pendingList = el('accessRequestsPendingList');
+      var pendingEmpty = el('accessRequestsPendingEmpty');
+      var pendingCountPill = el('accessRequestsPendingCountPill');
+      var activeList = el('accessRequestsActiveList');
+      var activeEmpty = el('accessRequestsActiveEmpty');
+      if (!pendingList && !activeList) return;
+      if (avatarApiBase === null) return;
+
+      function callAccessAction(pathSuffix, body){
+        return fetch(avatarApiBase + '/api/class-access/requests/' + pathSuffix, {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}),
+        }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+      }
+
+      var pendRes = await fetch(avatarApiBase + '/api/class-access/requests/pending', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+      var activeRes = await fetch(avatarApiBase + '/api/class-access/requests/active', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+
+      var pendingItems = (pendRes && pendRes.ok && pendRes.requests) || [];
+      if (pendingCountPill) pendingCountPill.textContent = String(pendingItems.length);
+      if (pendingList) {
+        pendingList.innerHTML = '';
+        if (pendingEmpty) pendingEmpty.style.display = pendingItems.length ? 'none' : 'block';
+        pendingItems.forEach(function(r){
+          var row = document.createElement('div');
+          row.className = 'curatePostRow';
+          var ageMin = 0;
+          try { ageMin = Math.max(0, Math.round((Date.now() - new Date(r.requestedAt).getTime()) / 60000)); } catch(e) {}
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(r.displayName || 'Student') +
+            (r.verified ? '' : ' <span style="color:var(--muted);font-weight:600;">(unverified)</span>') + '</div>' +
+            '<div class="curatePostTitle" style="font-weight:1000;font-size:24px;letter-spacing:.03em;margin-top:4px;">' + esc(r.requestPhrase || '') + '</div>' +
+            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">' + ageMin + ' min ago</div></div><div class="curatePostActions"></div>';
+          var actions = row.querySelector('.curatePostActions');
+          var approve15 = document.createElement('button');
+          approve15.className = 'btn good small';
+          approve15.textContent = 'Approve 15 min';
+          approve15.addEventListener('click', async function(){
+            approve15.disabled = true;
+            var res = await callAccessAction('approve', { id: r.id, duration_minutes: 15 });
+            if (!res || !res.ok) { toast((res && res.error) || 'Failed'); approve15.disabled = false; return; }
+            toast('Approved for 15 minutes');
+            await refreshAccessRequestsUI();
+          });
+          var approve30 = document.createElement('button');
+          approve30.className = 'btn good small';
+          approve30.textContent = 'Approve 30 min';
+          approve30.addEventListener('click', async function(){
+            approve30.disabled = true;
+            var res = await callAccessAction('approve', { id: r.id, duration_minutes: 30 });
+            if (!res || !res.ok) { toast((res && res.error) || 'Failed'); approve30.disabled = false; return; }
+            toast('Approved for 30 minutes');
+            await refreshAccessRequestsUI();
+          });
+          var denyBtn = document.createElement('button');
+          denyBtn.className = 'btn bad small';
+          denyBtn.textContent = 'Deny';
+          denyBtn.addEventListener('click', async function(){
+            denyBtn.disabled = true;
+            var res = await callAccessAction('deny', { id: r.id });
+            if (!res || !res.ok) { toast((res && res.error) || 'Failed'); denyBtn.disabled = false; return; }
+            toast('Denied');
+            await refreshAccessRequestsUI();
+          });
+          actions.appendChild(approve15);
+          actions.appendChild(approve30);
+          actions.appendChild(denyBtn);
+          pendingList.appendChild(row);
+        });
+      }
+
+      var activeItems = (activeRes && activeRes.ok && activeRes.grants) || [];
+      if (activeList) {
+        activeList.innerHTML = '';
+        if (activeEmpty) activeEmpty.style.display = activeItems.length ? 'none' : 'block';
+        activeItems.forEach(function(g){
+          var row = document.createElement('div');
+          row.className = 'curatePostRow';
+          var remainMin = 0;
+          try { remainMin = Math.max(0, Math.round((new Date(g.grantExpiresAt).getTime() - Date.now()) / 60000)); } catch(e) {}
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(g.displayName || 'Student') + '</div>' +
+            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">Expires in ' + remainMin + ' min' + (g.grantedBy ? ' · Granted by ' + esc(g.grantedBy) : '') + '</div></div><div class="curatePostActions"></div>';
+          var actions = row.querySelector('.curatePostActions');
+          var revokeBtn = document.createElement('button');
+          revokeBtn.className = 'btn bad small';
+          revokeBtn.textContent = 'Revoke';
+          revokeBtn.addEventListener('click', async function(){
+            revokeBtn.disabled = true;
+            var res = await callAccessAction('revoke', { id: g.id });
+            if (!res || !res.ok) { toast((res && res.error) || 'Failed'); revokeBtn.disabled = false; return; }
+            toast('Revoked');
+            await refreshAccessRequestsUI();
+          });
+          actions.appendChild(revokeBtn);
+          activeList.appendChild(row);
+        });
+      }
+    }
+
+    (function(){
+      var accessRequestsPollTimer = null;
+      function startAccessRequestsPolling(){
+        if (accessRequestsPollTimer) clearInterval(accessRequestsPollTimer);
+        accessRequestsPollTimer = setInterval(function(){
+          if (document.visibilityState === 'visible') refreshAccessRequestsUI();
+        }, 8000);
+      }
+      startAccessRequestsPolling();
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible') refreshAccessRequestsUI();
+      });
+    })();
 
     async function renderAvatarSubmissions(){
       var container = el('avatarSubmissionsEl');
