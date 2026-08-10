@@ -146,7 +146,11 @@ async function main() {
   assert(await page.locator('#lanternAppBarRoot').count() === 1, 'Global Lantern nav mount point is still present and unaffected');
   assert(await page.locator('.teacherActionRow').count() === 0, 'Old centered header action row (Hallway TV + Sign out buttons) no longer exists');
   const headerBox = await page.locator('#teacherPageTop').boundingBox();
-  assert(!!headerBox && headerBox.height < 70, 'Teacher identity header is compact (< 70px tall): ' + (headerBox && headerBox.height));
+  // Report #98: #teacherPageTop now also contains the unified staff PRIMARY nav (Behavior |
+  // Teacher) above the identity row, so the old Prompt #78 "< 70px" compact-hero threshold no
+  // longer fits a legitimate, deliberate addition -- raised to still forbid a return to the old
+  // giant centered hero block while comfortably fitting nav row + identity row.
+  assert(!!headerBox && headerBox.height < 160, 'Teacher identity header (+ primary nav) is compact, not a giant hero (< 160px tall): ' + (headerBox && headerBox.height));
   const hallwayTvLink = page.locator('a.teacherSidebarItem[href="display.html"]');
   assert(await hallwayTvLink.count() === 1, 'Hallway TV is available as a sidebar destination/link');
   assert(((await hallwayTvLink.innerText()) || '').indexOf('Hallway TV') !== -1, 'Hallway TV sidebar item is labeled correctly');

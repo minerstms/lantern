@@ -89,6 +89,43 @@
        Lantern" + signed-in-as hint), no giant centered hero, no page-specific Sign out
        (global Lantern nav already provides logout) and no Hallway TV button (moved to
        the sidebar as a workspace-adjacent destination). */
+    /* Report #98: unified staff PRIMARY nav (Behavior | Teacher) so TMS Nuggets and Lantern read as
+       one staff system. Compatible geometry/spacing with TMS Nuggets' .topRow/.topRowBtn (two fixed
+       pill buttons, active tab = deep blue gradient + white ring) without sharing CSS/source. */
+    .teacherPrimaryNav{
+      display:flex;
+      gap:10px;
+      margin:0 0 14px;
+      max-width:460px;
+    }
+    .teacherPrimaryNavBtn{
+      flex:1 1 0;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height:52px;
+      padding:0 14px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:var(--panel2);
+      color:var(--ink);
+      font-size:24px;
+      font-weight:900;
+      letter-spacing:.2px;
+      text-decoration:none;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .teacherPrimaryNavBtn.is-active{
+      background:linear-gradient(180deg, var(--blue2), var(--blue1));
+      box-shadow:0 0 0 2px rgba(255,255,255,.28), 0 10px 24px rgba(0,0,0,.35);
+      cursor:default;
+    }
+    @media (max-width: 480px){
+      .teacherPrimaryNav{ gap:8px; max-width:none; }
+      .teacherPrimaryNavBtn{ height:46px; font-size:20px; padding:0 8px; }
+    }
+
     .teacherIdentityRow{
       display:flex;
       align-items:baseline;
@@ -1245,6 +1282,14 @@
       <span class="verifyAvatarWrap" id="teacherVerifyAvatarWrap" style="display:none;"><img id="teacherVerifyAvatarImg" class="verifyAvatarPreview" alt=""><span class="verifyAvatarFallback" id="teacherVerifyAvatarFallback"></span></span>
     </div>
     <div id="teacherPageTop" class="teacherPageShell">
+    <!-- Report #98: unified staff PRIMARY nav. Behavior is a plain link to the real live TMS
+         Nuggets Behavior page -- no reverse SSO protocol; TMS's own existing device-auth session
+         determines whether it opens immediately or asks the staff member to authenticate there.
+         Teacher is marked active/non-navigating since this IS the Lantern Teacher workspace. -->
+    <nav class="teacherPrimaryNav" aria-label="Primary">
+      <a class="teacherPrimaryNavBtn" id="teacherPrimaryNavBehavior" href="https://tmsnuggets.pages.dev/index.html">Behavior</a>
+      <a class="teacherPrimaryNavBtn is-active" id="teacherPrimaryNavTeacher" href="teacher.html" aria-current="page">Teacher</a>
+    </nav>
     <div class="teacherIdentityRow">
       <span class="teacherIdentityTitle">
         <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
