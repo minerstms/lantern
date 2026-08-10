@@ -170,14 +170,15 @@
   color: #fff;
   text-shadow: none;
 }
-/* Missions library cards only (Prompt #80): the mission-status chip ("STARTED",
-   "NEEDS CHANGES") moves to the upper-right corner of the card image, mirroring the
-   type badge ("Teacher", etc.) which stays upper-left — same badge layer/components,
-   just redistributed within it. Scoped to .exploreCard--missionsLibrary so no other
-   card type (feed, games, explore) is affected. */
+/* Missions library cards (Prompt #80/#121): type/category chips are gone from artwork.
+   Progress/state chips (STARTED / COMPLETED / NEEDS CHANGES) stay upper-right only. */
 .exploreCard--missionsLibrary .lanternCanonicalCardBadgeLayer {
   right: 8px;
-  justify-content: space-between;
+  left: auto;
+  justify-content: flex-end;
+}
+.exploreCard--missionsLibrary .lanternCanonicalCardTypeBadge {
+  display: none !important;
 }
 /* Games library grid only (Prompt #114): artwork unobstructed except one bottom-center cost line
    from .lanternCanonicalCardMeta ("1 Nugget = 1 Play"). Title remains in the DOM for the canonical

@@ -109,13 +109,17 @@ if (missionsPageJs.includes('specGameHubRailCard') && missionsPageJs.includes('c
   ok('reuses shared Lantern card primitives');
 } else bad('card primitives');
 
-if (missionsPageJs.includes('typeBadgeFor') && missionsPageJs.includes('⚡ Quick')) {
-  ok('Quick mission as badge metadata');
-} else bad('type badges');
+if (/typeBadge:\s*''/.test(missionsPageJs) && /Prompt #121/.test(missionsPageJs) && !/typeBadgeFor\(/.test(missionsPageJs)) {
+  ok('Prompt #121: mission cards clear typeBadge (no Quick/Teacher/Create overlays)');
+} else bad('type badges still wired into mission card faces');
 
-if (missionsPageJs.includes('rewardMeta') && !missionsPageJs.includes('reward: 5')) {
-  ok('reward display derived from item data, not hardcoded in module');
+if (missionsPageJs.includes('rewardMeta') && /Nugget/.test(missionsPageJs) && !missionsPageJs.includes('reward: 5')) {
+  ok('reward display derived from item data with Nugget label');
 } else bad('hardcoded rewards in page module');
+
+if (missionsPageJs.includes('stateBadgeFor') && /COMPLETED/.test(missionsPageJs)) {
+  ok('stateBadgeFor preserves STARTED/COMPLETED-style progress chips');
+} else bad('state badge helper missing');
 
 if (missionsPageJs.includes('LanternNav.onHeaderSearch')) {
   ok('mission-scoped header search wired');

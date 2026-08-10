@@ -71,6 +71,18 @@ else bad('logout auth gating');
 if (/showAuthenticatedLogoutControls/.test(navJs)) ok('authenticated logout visibility helper');
 else bad('logout visibility');
 
+if (/applySignedInHeaderIdentity/.test(navJs) && /studentFriendlyDisplayNameFromAdopted/.test(navJs) && /lanternAppBarContextGlow/.test(navJs)) {
+  ok('Prompt #121: shared header hydrates signed-in display_name into #lanternAppBarContext');
+} else bad('shared header identity hydration missing');
+
+if (/page-marquee-only/.test(navJs) && /Prompt #116/.test(navJs)) {
+  ok('Display page-marquee-only still skips mounting the app bar (no signed-in name row)');
+} else bad('Display marquee-only exception missing');
+
+if (/global\.LanternNav\s*=\s*global\.LANTERN_NAV/.test(navJs) && /onHeaderSearch:\s*onHeaderSearch/.test(navJs)) {
+  ok('LanternNav alias exports onHeaderSearch for Missions/Games');
+} else bad('LanternNav.onHeaderSearch export');
+
 const sandbox = {
   location: { replace: function () {} },
   localStorage: { removeItem() {} },

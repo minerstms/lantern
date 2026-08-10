@@ -44,59 +44,29 @@
       .replace(/"/g, '&quot;');
   }
 
-  function typeBadgeFor(item) {
-    if (item.typeBadge) return item.typeBadge;
-    if (item.kind === 'quick') return '⚡ Quick';
-    return '🧠 Teacher';
-  }
-
+  // Prompt #121 — Mission artwork overlays are title (LLHC) + reward footer only.
+  // Type/category chips (Quick / Reflection / Teacher / Create / audience labels) are not
+  // painted on the card face. Progress/state chips (STARTED / COMPLETED / NEEDS CHANGES) stay.
+  //
+  // Reward display stays honest to item.reward. Prompt #121 also wants every card to read
+  // "+1 Nugget", but production teacher missions still award reward_amount values other than 1
+  // (verified SELECT-only). Faking +1 while awards differ is forbidden; normalizing awards
+  // requires an authorized follow-up (Worker clamp and/or D1 update), not this UI patch.
   function rewardMeta(reward) {
     if (reward == null || reward === '' || Number(reward) <= 0) return '';
-    return '🟡 +' + Number(reward);
+    var n = Number(reward);
+    return '🟡 +' + n + (n === 1 ? ' Nugget' : ' Nuggets');
   }
 
-  // Prompt #81 — real persisted teacher-mission `audience` values (enforced/coerced to this
-  // enum server-side; see lantern-api.js) mapped to plain-language labels. Any other/future
-  // value is humanized rather than dropped, so a new enum value never disappears silently.
-  var AUDIENCE_LABELS = {
-    school_mission: 'Schoolwide',
-    my_students: 'Classroom',
-    selected_students: 'Selected students',
-  };
-
-  function humanizeAudienceValue(raw) {
-    return String(raw || '')
-      .trim()
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, function (c) { return c.toUpperCase(); });
-  }
-
-  // ONE canonical primary footer token. Prefers an item-supplied categoryLabel (only ever set
-  // when a card genuinely has one meaningful category); otherwise maps a teacher mission's real
-  // `audience` field. Returns '' when there is nothing meaningful — never fabricated, and never
-  // used to restate the type badge or status badge, which already own that information.
-  function primaryMetaToken(item) {
-    var explicit = String(item.categoryLabel || '').trim();
-    if (explicit) return explicit;
-    var aud = String(item.audience || '').trim();
-    if (!aud) return '';
-    return AUDIENCE_LABELS[aud] || humanizeAudienceValue(aud);
-  }
-
-  // Canonical footer contract (Prompt #81): "Primary token • Reward token", each token shown
-  // fully or not at all. Deliberately excludes status/CTA prose ("Waiting for teacher",
-  // "Start →", …) — status lives solely in the URHC state badge (Prompt #80) and the card's own
-  // click action, never repeated here. If both tokens together would overflow the fixed-width
-  // card, the lower-priority primary token is dropped whole so the row never becomes a
-  // meaningless CSS-ellipsis fragment (e.g. "Ga…"); the reward token is never partially cut.
-  var META_ROW_CHAR_BUDGET = 26;
   function buildFooterMeta(item) {
-    var reward = rewardMeta(item.reward);
-    var primary = primaryMetaToken(item);
-    if (primary && reward && (primary.length + reward.length + 3) > META_ROW_CHAR_BUDGET) {
-      primary = '';
-    }
-    return { primary: primary, reward: reward };
+    return { primary: '', reward: rewardMeta(item.reward) };
+  }
+
+  function stateBadgeFor(item) {
+    var explicit = String(item.stateBadge || '').trim();
+    if (explicit) return explicit;
+    if (item.status === 'completed') return 'COMPLETED';
+    return '';
   }
 
   // Active tab = never-submitted (available) + pending/in-progress + returned; internal
@@ -119,7 +89,7 @@
       .trim()
       .toLowerCase();
     if (q) {
-      var hay = (item.title + ' ' + item.description + ' ' + item.typeBadge).toLowerCase();
+      var hay = (item.title + ' ' + item.description + ' ' + (item.typeFilter || '')).toLowerCase();
       if (hay.indexOf(q) < 0) return false;
     }
     return true;
@@ -222,18 +192,17 @@
     }
     filtered.forEach(function (item) {
       var footer = buildFooterMeta(item);
-      var ariaBits = [item.title, item.stateBadge, footer.primary, footer.reward].filter(Boolean);
+      var stateBadge = stateBadgeFor(item);
+      var ariaBits = [item.title, stateBadge, footer.reward].filter(Boolean);
       var spec = LC.specGameHubRailCard({
         title: item.title,
         icon: item.icon || '✨',
-        // Canonical footer contract (Prompt #81): primary token in the identity slot, reward
-        // token in the merged meta slot — the shared card face's own "•" separator combines
-        // them ("Schoolwide • 🟡 +3") only when both are present; empty slots render nothing.
-        hubIdentityLabel: footer.primary,
+        // Prompt #121: no category/identity token on the mission face — reward only in LLHC meta.
+        hubIdentityLabel: '',
         metaOne: '',
         rewardText: footer.reward,
-        typeBadge: typeBadgeFor(item),
-        stateBadge: item.stateBadge || '',
+        typeBadge: '',
+        stateBadge: stateBadge,
         // Real submission photo (if any) always wins; otherwise the canonical Mission cover
         // (Prompt #76) fills the 16:9 media area instead of a generic gradient placeholder.
         imageUrl: item.imageUrl || '',

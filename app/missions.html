@@ -1115,6 +1115,7 @@
         description: dailyClaimed ? 'Come back tomorrow for another check-in.' : 'Check in once per day.',
         reward: null,
         status: dailyClaimed ? 'completed' : 'available',
+        stateBadge: dailyClaimed ? 'COMPLETED' : '',
         statusLabel: dailyClaimed ? '✅ Completed today' : 'Claim →',
         created_at: today,
         featured: true,
@@ -1152,6 +1153,7 @@
         description: hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
         reward: null,
         status: hiddenDone ? 'completed' : 'available',
+        stateBadge: hiddenDone ? 'COMPLETED' : '',
         statusLabel: hiddenDone ? '✅ Completed' : 'How it works →',
         created_at: '',
         onActivate: function(){
@@ -1172,6 +1174,7 @@
           description: 'You played a game and earned +1 nugget.',
           reward: 1,
           status: 'completed',
+          stateBadge: 'COMPLETED',
           statusLabel: '✅ Completed',
           created_at: '',
           onActivate: function(){
@@ -1204,9 +1207,11 @@
         if (st === 'accepted') {
           status = 'completed';
           statusLabel = '✅ Completed';
+          stateBadge = 'COMPLETED';
         } else if (st === 'rejected') {
           status = 'completed';
           statusLabel = 'Not accepted';
+          stateBadge = 'COMPLETED';
         } else if (st === 'pending') {
           status = 'in_progress';
           statusLabel = 'Waiting for teacher';

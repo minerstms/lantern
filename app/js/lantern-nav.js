@@ -263,6 +263,47 @@
     });
   }
 
+  function escHeaderText(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /**
+   * Prompt #121 — ONE shared signed-in name in #lanternAppBarContext for every full-header page.
+   * Same identity source Explore/Locker already rely on: /api/auth/me → LANTERN_PILOT_ME →
+   * LanternAuth.studentFriendlyDisplayNameFromAdopted (display_name first). No hard-coded names.
+   * Display (page-marquee-only) never mounts this bar, so it stays marquee-only.
+   */
+  function resolveSignedInDisplayName(me) {
+    var auth = global.LanternAuth || global.LanternPilotAuth;
+    if (me && auth && typeof auth.applyStudentStorageFromSession === 'function') {
+      auth.applyStudentStorageFromSession(me);
+    }
+    if (auth && typeof auth.adoptedFromPilotMe === 'function' && typeof auth.studentFriendlyDisplayNameFromAdopted === 'function') {
+      var adopted = auth.adoptedFromPilotMe();
+      var fromAdopted = auth.studentFriendlyDisplayNameFromAdopted(adopted);
+      if (fromAdopted) return fromAdopted;
+    }
+    if (!me || typeof me !== 'object') return '';
+    var dn = me.display_name != null ? String(me.display_name).trim() : '';
+    if (dn) return dn;
+    var un = me.username != null ? String(me.username).trim() : '';
+    return un;
+  }
+
+  function applySignedInHeaderIdentity(me) {
+    var ctx = document.getElementById('lanternAppBarContext');
+    if (!ctx) return;
+    var label = resolveSignedInDisplayName(me);
+    if (!label) return;
+    ctx.innerHTML = '<span class="lanternAppBarContextGlow">' + escHeaderText(label) + '</span>';
+    ctx.classList.remove('lanternAppBarContext--empty');
+    ctx.setAttribute('aria-label', 'Signed in as ' + label);
+  }
+
   function wireInteractiveChrome() {
     var avatarBtn = document.getElementById('lanternExploreAvatarBtn');
     var avatarDropdown = document.getElementById('lanternExploreAvatarDropdown');
@@ -390,6 +431,10 @@
     wireLogoutButton(document.getElementById('lanternNavLogoutBtn'), close);
     applyBellCount(0);
     refreshNeedsAttentionBellFromApi();
+    try {
+      var cachedMe = global.LANTERN_PILOT_ME && global.LANTERN_PILOT_ME.ok ? global.LANTERN_PILOT_ME : null;
+      if (cachedMe && cachedMe.authenticated !== false) applySignedInHeaderIdentity(cachedMe);
+    } catch (eCache) {}
     (function pilotSessionShellGate(){
       if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return;
       var api = String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
@@ -400,6 +445,7 @@
           return;
         }
         showAuthenticatedLogoutControls();
+        applySignedInHeaderIdentity(data);
         if (data.must_change_password) {
           var path = (typeof location !== 'undefined' && location.pathname) ? String(location.pathname) : '';
           if (/change-password/i.test(path)) return;
@@ -434,8 +480,39 @@
     init();
   }
 
+  var headerSearchListeners = [];
+
+  function onHeaderSearch(fn) {
+    if (typeof fn !== 'function') return;
+    headerSearchListeners.push(fn);
+    var searchInput = document.getElementById('lanternExploreSearch');
+    if (!searchInput || searchInput._lanternHeaderSearchWired) return;
+    searchInput._lanternHeaderSearchWired = true;
+    var timer;
+    function emit() {
+      var q = searchInput.value;
+      headerSearchListeners.forEach(function (listener) {
+        try { listener(q); } catch (e) {}
+      });
+    }
+    searchInput.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(emit, 300);
+    });
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(timer);
+        emit();
+      }
+    });
+  }
+
   global.LANTERN_NAV = {
     getCurrentPage: getCurrentPage,
-    refreshNeedsAttentionBell: refreshNeedsAttentionBellFromApi
+    refreshNeedsAttentionBell: refreshNeedsAttentionBellFromApi,
+    onHeaderSearch: onHeaderSearch,
+    applySignedInHeaderIdentity: applySignedInHeaderIdentity
   };
+  global.LanternNav = global.LANTERN_NAV;
 })(typeof window !== 'undefined' ? window : self);
