@@ -1157,6 +1157,17 @@ async function callTmsRosterBridge(env, subPath, payload) {
 
 const ADMIN_TMS_STUDENT_ID_MAX_LEN = 256;
 
+/** Prompt #134 — map Admin grade UI values to TMS grade-6|7|8 slug. Empty → null. */
+function normalizeAdminTmsGradeSlug(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  if (!s) return null;
+  if (/^(grade[-_\s]*)?[678](st|nd|rd|th)?(\s*grade)?$/i.test(s) || /^grade-[678]$/.test(s)) {
+    const m = s.match(/([678])/);
+    return m ? 'grade-' + m[1] : null;
+  }
+  return null;
+}
+
 function splitRosterDisplayName(fullName) {
   const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return { first_name: '', last_name: '' };
@@ -2071,10 +2082,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (studentId && studentId.length > ADMIN_TMS_STUDENT_ID_MAX_LEN) {
       return jsonResponse({ ok: false, error: 'student_id_too_long', max: ADMIN_TMS_STUDENT_ID_MAX_LEN }, 400, cors);
     }
+    const gradeRaw = body.grade_slug != null ? body.grade_slug : body.grade;
+    const gradeSlug = normalizeAdminTmsGradeSlug(gradeRaw) || 'grade-6';
 
     const bridge = await callTmsRosterBridge(env, 'roster/create', {
       student_name: studentName,
       student_id: studentId,
+      grade: gradeSlug.replace(/^grade-/, ''),
+      grade_slug: gradeSlug,
     });
     if (!bridge.ok) {
       const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
@@ -2089,8 +2104,54 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         ok: true,
         student_name: bridge.student_name || studentName,
         student_id: bridge.student_id != null ? String(bridge.student_id) : studentId,
+        grade: bridge.grade != null ? String(bridge.grade) : gradeSlug.replace(/^grade-/, ''),
+        grade_slug: bridge.grade_slug || gradeSlug,
         lantern_account: 'Missing',
         locker: 'Not Ready',
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/tms-roster/set-grade') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const studentName = String(body.student_name || '').trim();
+    const studentId = String(body.student_id ?? '').trim() || '';
+    const gradeRaw = body.grade_slug != null ? body.grade_slug : body.grade;
+    const gradeSlug = normalizeAdminTmsGradeSlug(gradeRaw);
+    if (!studentName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
+    if (!gradeSlug) {
+      return jsonResponse({ ok: false, error: 'invalid_grade', message: 'grade must be 6, 7, or 8' }, 400, cors);
+    }
+
+    const bridge = await callTmsRosterBridge(env, 'roster/set-grade', {
+      student_name: studentName,
+      student_id: studentId,
+      grade: gradeSlug.replace(/^grade-/, ''),
+      grade_slug: gradeSlug,
+    });
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null, message: bridge.message || null },
+        status,
+        cors
+      );
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        student_name: bridge.student_name || studentName,
+        student_id: bridge.student_id != null ? String(bridge.student_id) : studentId,
+        grade: bridge.grade != null ? String(bridge.grade) : gradeSlug.replace(/^grade-/, ''),
+        grade_slug: bridge.grade_slug || gradeSlug,
       },
       200,
       cors

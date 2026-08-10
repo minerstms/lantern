@@ -188,6 +188,13 @@
           <option value="problems">Problems</option>
           <option value="inactive">Archived / Inactive</option>
         </select>
+        <label for="studentsRosterGradeFilter" class="visuallyHidden">Grade</label>
+        <select id="studentsRosterGradeFilter" aria-label="Filter by grade">
+          <option value="all">All Grades</option>
+          <option value="6">6th</option>
+          <option value="7">7th</option>
+          <option value="8">8th</option>
+        </select>
         <button type="button" class="btn" id="studentsRosterRefreshBtn">Refresh</button>
         <button type="button" class="btn good" id="studentsAddOpenBtn">+ Add Student</button>
       </div>
@@ -199,6 +206,12 @@
         <input id="studentsAddFirst" type="text" maxlength="64" autocomplete="off" required />
         <label for="studentsAddLast">Last Name</label>
         <input id="studentsAddLast" type="text" maxlength="64" autocomplete="off" />
+        <label for="studentsAddGrade">Grade</label>
+        <select id="studentsAddGrade" aria-label="Grade">
+          <option value="6" selected>6th Grade</option>
+          <option value="7">7th Grade</option>
+          <option value="8">8th Grade</option>
+        </select>
         <div class="acctPanelActions">
           <button type="button" class="btn good" id="studentsAddSaveBtn">Create student</button>
           <button type="button" class="btn" id="studentsAddCancelBtn">Cancel</button>
@@ -1865,8 +1878,10 @@
 
     function filteredStudentsRoster() {
       var filterEl = document.getElementById('studentsRosterFilter');
+      var gradeEl = document.getElementById('studentsRosterGradeFilter');
       var searchEl = document.getElementById('studentsRosterSearch');
       var filter = filterEl ? String(filterEl.value || 'all') : 'all';
+      var gradeFilter = gradeEl ? String(gradeEl.value || 'all') : 'all';
       var q = searchEl ? String(searchEl.value || '').trim().toLowerCase() : '';
       return lastStudentsRoster.filter(function(s) {
         if (filter === 'missing_id' && s.student_id) return false;
@@ -1876,10 +1891,34 @@
         if (filter === 'problems' && s.lantern_account !== 'Broken' && s.lantern_account !== 'Ambiguous' && s.lantern_account !== 'Linked Archived' && s.locker !== 'Error') return false;
         if (filter === 'inactive' && Number(s.is_active) === 1) return false;
         if (filter !== 'inactive' && Number(s.is_active) !== 1 && !studentsRosterIncludeInactive) return false;
+        if (gradeFilter !== 'all') {
+          var g = String(s.grade || '').replace(/^grade-/, '').trim();
+          if (g !== gradeFilter) return false;
+        }
         if (!q) return true;
-        var hay = [s.student_id, s.first_name, s.last_name, s.student_name].join(' ').toLowerCase();
+        var hay = [s.student_id, s.first_name, s.last_name, s.student_name, s.grade].join(' ').toLowerCase();
         return hay.indexOf(q) !== -1;
       });
+    }
+
+    function formatStudentGradeLabel(grade) {
+      var g = String(grade || '').replace(/^grade-/, '').trim();
+      if (g === '6') return '6';
+      if (g === '7') return '7';
+      if (g === '8') return '8';
+      return g || '—';
+    }
+
+    function studentGradeSelectHtml(selected) {
+      var g = String(selected || '').replace(/^grade-/, '').trim();
+      if (g !== '6' && g !== '7' && g !== '8') g = '6';
+      return (
+        '<select class="studentsGradeSelect" aria-label="Grade">' +
+          '<option value="6"' + (g === '6' ? ' selected' : '') + '>6th Grade</option>' +
+          '<option value="7"' + (g === '7' ? ' selected' : '') + '>7th Grade</option>' +
+          '<option value="8"' + (g === '8' ? ' selected' : '') + '>8th Grade</option>' +
+        '</select>'
+      );
     }
 
     function closeStudentsEditPanels() {
@@ -1947,7 +1986,7 @@
           '<summary class="lanternMgmtRecordHd">' +
             '<span class="lanternMgmtRecordCol">' + sidLabel + '</span>' +
             '<span class="lanternMgmtRecordCol">' + nameLabel + '</span>' +
-            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(s.grade || '—') + '</span>' +
+            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(formatStudentGradeLabel(s.grade)) + '</span>' +
             '<span class="lanternMgmtRecordCol ' + studentsStatusClass('lantern', s.lantern_account) + '">' + escapeRosterHtml(s.lantern_account) + '</span>' +
             '<span class="lanternMgmtRecordCol ' + studentsStatusClass('locker', s.locker) + '">' + escapeRosterHtml(s.locker) + '</span>' +
             '<span class="lanternMgmtRecordChev" aria-hidden="true"></span>' +
@@ -1958,11 +1997,43 @@
               (s.lantern_username ? ' · Login: ' + escapeRosterHtml(s.lantern_username) : '') +
               ' · Must change password: ' + mcpLabel +
             '</p>' +
+            '<div class="studentsGradeEditRow" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;">' +
+              '<label style="margin:0;font-size:20px;">Grade</label>' +
+              studentGradeSelectHtml(s.grade) +
+              '<button type="button" class="btn good studentsSaveGradeBtn">Save Grade</button>' +
+            '</div>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
         var actions = rec.querySelector('.lanternMgmtRecordActions');
         var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
+        var gradeSelect = rec.querySelector('.studentsGradeSelect');
+        var saveGradeBtn = rec.querySelector('.studentsSaveGradeBtn');
+        if (saveGradeBtn) {
+          saveGradeBtn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            var nextGrade = gradeSelect ? String(gradeSelect.value || '6') : '6';
+            saveGradeBtn.disabled = true;
+            postAdminJson('/api/admin/tms-roster/set-grade', {
+              student_name: s.student_name,
+              student_id: s.student_id || '',
+              grade: nextGrade
+            }).then(function(res) {
+              if (res && res.blocked) return;
+              if (res && res.okHttp && res.body && res.body.ok) {
+                showStudentsRosterMsg('Updated grade for ' + (s.student_name || '') + ' → ' + (res.body.grade || nextGrade) + '.', 'ok');
+                loadStudentsRoster();
+                return;
+              }
+              showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Grade update failed', 'err');
+            }).catch(function() {
+              showStudentsRosterMsg('Network error while updating grade.', 'err');
+            }).finally(function() {
+              saveGradeBtn.disabled = false;
+            });
+          });
+        }
 
         var bEdit = document.createElement('button');
         bEdit.type = 'button';
@@ -2146,6 +2217,8 @@
       var first = String((document.getElementById('studentsAddFirst') || {}).value || '').trim();
       var last = String((document.getElementById('studentsAddLast') || {}).value || '').trim();
       var sid = String((document.getElementById('studentsAddId') || {}).value || '').trim();
+      var gradeEl = document.getElementById('studentsAddGrade');
+      var grade = gradeEl ? String(gradeEl.value || '6').trim() : '6';
       if (!first) {
         showStudentsRosterMsg('First name is required.', 'err');
         return;
@@ -2155,15 +2228,17 @@
       postAdminJson('/api/admin/tms-roster/create', {
         first_name: first,
         last_name: last,
-        student_id: sid
+        student_id: sid,
+        grade: grade
       }).then(function(res) {
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
-          showStudentsRosterMsg('Created TMS student ' + (res.body.student_name || first) + '. Lantern Missing / Locker Not Ready.', 'ok');
+          showStudentsRosterMsg('Created TMS student ' + (res.body.student_name || first) + ' (Grade ' + (res.body.grade || grade) + '). Lantern Missing / Locker Not Ready.', 'ok');
           closeStudentsEditPanels();
           document.getElementById('studentsAddFirst').value = '';
           document.getElementById('studentsAddLast').value = '';
           document.getElementById('studentsAddId').value = '';
+          if (gradeEl) gradeEl.value = '6';
           loadStudentsRoster();
           return;
         }
@@ -2185,6 +2260,10 @@
         else renderStudentsRosterTable();
       });
     }
+    var studentsRosterGradeFilter = document.getElementById('studentsRosterGradeFilter');
+    if (studentsRosterGradeFilter) {
+      studentsRosterGradeFilter.addEventListener('change', renderStudentsRosterTable);
+    }
     var studentsRosterRefreshBtn = document.getElementById('studentsRosterRefreshBtn');
     if (studentsRosterRefreshBtn) studentsRosterRefreshBtn.addEventListener('click', function() {
       showStudentsRosterMsg('', '');
@@ -2194,6 +2273,8 @@
     if (studentsAddOpenBtn) {
       studentsAddOpenBtn.addEventListener('click', function() {
         closeStudentsEditPanels();
+        var gradeEl = document.getElementById('studentsAddGrade');
+        if (gradeEl) gradeEl.value = '6';
         var panel = document.getElementById('studentsAddPanel');
         if (!panel) return;
         panel.hidden = false;

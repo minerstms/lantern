@@ -97,6 +97,14 @@ if (/id="studentsAddOpenBtn"/.test(html) && /Create student/.test(html)) {
   ok('Add Student action exposed in Students panel');
 } else bad('Add Student action missing');
 
+if (/id="studentsAddGrade"/.test(html) && /option value="6" selected/.test(html) && /studentsSaveGradeBtn/.test(html)) {
+  ok('Add Student defaults Grade to 6th; expanded Save Grade action present');
+} else bad('Grade UI missing or default not 6th');
+
+if (/\/api\/admin\/tms-roster\/set-grade/.test(html) && /studentsRosterGradeFilter/.test(html)) {
+  ok('set-grade API + grade filter wired in Admin Students');
+} else bad('set-grade / grade filter wiring missing');
+
 if (/isStaffRole|filteredStaffList|Archive Lantern Login/.test(html)) {
   ok('Staff-only filter + student archive actions present');
 } else bad('Staff filter / student archive wiring missing');

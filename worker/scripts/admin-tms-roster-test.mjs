@@ -232,8 +232,23 @@ async function run() {
         ok: true,
         student_name: body.student_name,
         student_id: body.student_id || '',
+        grade: body.grade || String(body.grade_slug || 'grade-6').replace(/^grade-/, '') || '6',
+        grade_slug: body.grade_slug || ('grade-' + (body.grade || '6')),
         is_active: 1,
       }),
+      'roster/set-grade': async (body) => {
+        const g = String(body.grade || body.grade_slug || '').replace(/^grade-/, '');
+        if (!['6', '7', '8'].includes(g)) {
+          return { ok: false, error: 'grade must be 6, 7, or 8', code: 'invalid_grade', _httpStatus: 400 };
+        }
+        return {
+          ok: true,
+          student_name: body.student_name,
+          student_id: body.student_id || '',
+          grade: g,
+          grade_slug: 'grade-' + g,
+        };
+      },
     },
   };
   const env = makeEnv(state);
@@ -377,12 +392,49 @@ async function run() {
         env
       );
       const body = await res.json();
-      if (res.status === 200 && body.ok && body.student_name === 'New Student' && body.lantern_account === 'Missing') {
-        ok('Add Student creates TMS row without Lantern account');
+      if (res.status === 200 && body.ok && body.student_name === 'New Student' && body.lantern_account === 'Missing' && String(body.grade) === '6') {
+        ok('Add Student creates TMS row without Lantern account (defaults grade 6)');
       } else bad('create student', JSON.stringify(body));
       const createCall = state.bridgeCalls.find((c) => c.url.includes('roster/create'));
       if (createCall && createCall.auth === 'Bearer ' + TEST_BRIDGE_SECRET) ok('create uses existing bridge secret');
       else bad('create bridge auth', JSON.stringify(createCall));
+      if (createCall && createCall.body && String(createCall.body.grade) === '6') ok('create bridge payload defaults grade 6');
+      else bad('create grade payload', JSON.stringify(createCall && createCall.body));
+    }
+
+    // Explicit grade 7 on create
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/create', {
+          first_name: 'Seventh',
+          last_name: 'Kid',
+          student_id: '22001',
+          grade: '7',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (res.status === 200 && body.ok && String(body.grade) === '7') ok('explicit create grade 7 honored');
+      else bad('create grade 7', JSON.stringify(body));
+    }
+
+    // set-grade
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/set-grade', {
+          student_name: 'Lucas Radle',
+          student_id: '20889',
+          grade: '6',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (res.status === 200 && body.ok && String(body.grade) === '6' && body.student_id === '20889') {
+        ok('admin can change existing student grade');
+      } else bad('set-grade', JSON.stringify(body));
+      if (state.accounts['20889'].mtss_student_id === '20889' && state.accounts['20889'].password_hash === 'HASH_SHOULD_NEVER_APPEAR') {
+        ok('set-grade did not touch Lantern link or password');
+      } else bad('set-grade mutated lantern account');
     }
 
     // Teacher cannot write
@@ -393,6 +445,18 @@ async function run() {
       );
       if (res.status === 403) ok('teacher cannot create via admin roster');
       else bad('teacher create forbidden', res.status);
+    }
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/set-grade', {
+          student_name: 'Lucas Radle',
+          student_id: '20889',
+          grade: '7',
+        }, teacherCookie),
+        env
+      );
+      if (res.status === 403) ok('non-admin cannot change grade');
+      else bad('teacher set-grade forbidden', res.status);
     }
   });
 
