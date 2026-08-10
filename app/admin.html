@@ -154,6 +154,45 @@
     </form>
   </div>
 
+  <div class="card" id="tmsStaffLinksCard">
+    <div class="cardHd">TMS Staff Links</div>
+    <p class="acctPanelHint">Explicit SSO mappings from a TMS Nuggets staff ID to a Lantern staff account. Never guessed from names — choose both sides. Unlink removes only the mapping.</p>
+    <div id="tmsLinksMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+    <p class="pendingMeta" style="margin-bottom:8px;">Current mappings</p>
+    <div id="tmsLinksTableWrap">
+      <table id="tmsLinksTable">
+        <thead>
+          <tr>
+            <th>TMS Staff ID</th>
+            <th>Lantern Account</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tmsLinksBody"></tbody>
+      </table>
+      <p id="tmsLinksEmpty" class="pendingMeta" style="display:none;">No TMS ↔ Lantern staff links yet.</p>
+      <p id="tmsLinksLoading" class="pendingMeta">Loading…</p>
+    </div>
+
+    <h3 style="margin-top:20px;font-size:24px;">Add link</h3>
+    <p class="acctPanelHint">Enter the exact TMS Staff ID (teacher_id in Nuggets, e.g. Radle). Pick an active Lantern teacher or admin account. Students and suspended accounts cannot be linked.</p>
+    <label for="tmsLinkStaffId">TMS Staff ID</label>
+    <input id="tmsLinkStaffId" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Radle" aria-describedby="tmsLinkStaffHint" />
+    <p id="tmsLinkStaffHint" class="pendingMeta" style="margin-top:4px;">Must match the TMS staff identity exactly. Display-name similarity never creates a link.</p>
+    <label for="tmsLinkLanternUser">Lantern Staff Account</label>
+    <input id="tmsLinkLanternFilter" type="search" autocomplete="off" placeholder="Filter by username or name…" aria-label="Filter Lantern staff accounts" style="margin-bottom:8px;" />
+    <select id="tmsLinkLanternUser" aria-describedby="tmsLinkLanternHint">
+      <option value="">— Select Lantern staff —</option>
+    </select>
+    <p id="tmsLinkLanternHint" class="pendingMeta" style="margin-top:4px;">Shows username · display name · role (active staff only).</p>
+    <div class="acctPanelActions" style="margin-top:14px;">
+      <button type="button" class="btn good" id="tmsLinkCreateBtn">Link Accounts</button>
+      <button type="button" class="btn" id="tmsLinkRefreshBtn">Refresh</button>
+    </div>
+  </div>
+
   <div class="card" id="walletAdjustmentCard">
     <div class="cardHd">Wallet Adjustment</div>
     <p class="acctPanelHint">Edge-case nugget corrections only. Each change is logged in the economy ledger. Use a clear reason — it is stored with the transaction.</p>
@@ -304,6 +343,227 @@
           }
           return { okHttp: r.ok, status: r.status, body: j };
         });
+      });
+    }
+
+    function deleteAdminJson(path, body) {
+      return fetch(api + path, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      }).then(function(r){
+        return r.json().then(function(j){
+          if (window.LanternAuth && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (window.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, status: r.status, body: j };
+        });
+      });
+    }
+
+    function showTmsLinksMsg(text, kind) {
+      var el = document.getElementById('tmsLinksMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = 'usersMsg';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function isActiveStaffUser(u) {
+      if (!u) return false;
+      var role = String(u.role || '').trim().toLowerCase();
+      if (role !== 'teacher' && role !== 'admin') return false;
+      if (u.is_active === 0 || u.is_active === '0') return false;
+      return true;
+    }
+
+    function staffOptionLabel(u) {
+      var dn = u.display_name != null ? String(u.display_name).trim() : '';
+      var role = String(u.role || '').trim();
+      return String(u.username || '') + (dn ? ' · ' + dn : '') + (role ? ' · ' + role : '');
+    }
+
+    function populateTmsLanternSelect(filterText) {
+      var sel = document.getElementById('tmsLinkLanternUser');
+      if (!sel) return;
+      var prev = sel.value;
+      var q = String(filterText || '').trim().toLowerCase();
+      var staff = (lastUsersList || []).filter(isActiveStaffUser);
+      if (q) {
+        staff = staff.filter(function(u){
+          var hay = (String(u.username || '') + ' ' + String(u.display_name || '') + ' ' + String(u.role || '')).toLowerCase();
+          return hay.indexOf(q) !== -1;
+        });
+      }
+      sel.innerHTML = '';
+      var opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = staff.length ? '— Select Lantern staff —' : '— No matching active staff —';
+      sel.appendChild(opt0);
+      staff.forEach(function(u){
+        var opt = document.createElement('option');
+        opt.value = String(u.username || '');
+        opt.textContent = staffOptionLabel(u);
+        sel.appendChild(opt);
+      });
+      if (prev && Array.prototype.some.call(sel.options, function(o){ return o.value === prev; })) {
+        sel.value = prev;
+      }
+    }
+
+    function tmsLinkErrorMessage(body, status) {
+      var err = body && body.error ? String(body.error) : '';
+      if (err === 'link_already_exists') return 'That TMS Staff ID or Lantern account is already linked (1:1 mapping).';
+      if (err === 'lantern_account_not_staff') return 'Only teacher or admin Lantern accounts can be linked.';
+      if (err === 'lantern_account_inactive') return 'That Lantern account is inactive and cannot be linked.';
+      if (err === 'lantern_account_not_found') return 'Lantern account not found.';
+      if (err === 'invalid_tms_staff_id') return 'Enter a valid TMS Staff ID.';
+      if (err === 'invalid_lantern_username') return 'Select a Lantern staff account.';
+      if (err === 'missing_tms_staff_id') return 'Missing TMS Staff ID.';
+      if (err === 'forbidden') return 'Admin access required.';
+      if (status === 409) return 'Duplicate or conflicting link.';
+      return err || 'Request failed.';
+    }
+
+    function loadTmsIdentityLinks() {
+      var tb = document.getElementById('tmsLinksBody');
+      var emptyEl = document.getElementById('tmsLinksEmpty');
+      var loadingEl = document.getElementById('tmsLinksLoading');
+      var table = document.getElementById('tmsLinksTable');
+      if (!tb) return;
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (table) table.style.display = 'none';
+      tb.innerHTML = '';
+      fetch(api + '/api/admin/tms-identity-links', { credentials: 'include' })
+        .then(function(r){
+          return r.json().then(function(j){ return { status: r.status, body: j }; });
+        })
+        .then(function(w){
+          if (loadingEl) loadingEl.style.display = 'none';
+          if (window.LanternAuth && w.status === 403 && w.body && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (window.LanternAuth.redirectIfPasswordChangeRequired({ status: w.status }, w.body)) return;
+          }
+          if (!w.body || !w.body.ok || !Array.isArray(w.body.links)) {
+            showTmsLinksMsg(tmsLinkErrorMessage(w.body, w.status) || 'Could not load TMS staff links.', 'err');
+            if (emptyEl) emptyEl.style.display = 'block';
+            return;
+          }
+          var links = w.body.links;
+          if (links.length === 0) {
+            if (emptyEl) emptyEl.style.display = 'block';
+            if (table) table.style.display = 'none';
+            return;
+          }
+          if (emptyEl) emptyEl.style.display = 'none';
+          if (table) table.style.display = 'table';
+          links.forEach(function(link){
+            var tr = document.createElement('tr');
+            var tmsId = String(link.tms_staff_id || '');
+            var uname = String(link.lantern_username || '');
+            var dn = link.display_name != null ? String(link.display_name).trim() : '';
+            var role = link.role != null ? String(link.role) : '—';
+            var active = (link.is_active === 0 || link.is_active === '0') ? 'No' : (link.is_active == null ? '—' : 'Yes');
+            var acctLabel = uname + (dn ? ' · ' + dn : '');
+            tr.innerHTML =
+              '<td>' + esc(tmsId) + '</td>' +
+              '<td>' + esc(acctLabel) + '</td>' +
+              '<td>' + esc(role) + '</td>' +
+              '<td>' + esc(active) + '</td>' +
+              '<td class="acctActions"></td>';
+            var cell = tr.querySelector('.acctActions');
+            var unlinkBtn = document.createElement('button');
+            unlinkBtn.type = 'button';
+            unlinkBtn.className = 'btn bad';
+            unlinkBtn.textContent = 'Unlink';
+            unlinkBtn.addEventListener('click', function(){
+              if (!window.confirm('Unlink TMS staff "' + tmsId + '" from Lantern account "' + uname + '"?\n\nThis removes only the SSO mapping. Accounts and data stay intact. Future SSO for this staff fails until relinked.')) {
+                return;
+              }
+              unlinkBtn.disabled = true;
+              deleteAdminJson('/api/admin/tms-identity-links', { tms_staff_id: tmsId }).then(function(res){
+                if (res && res.blocked) return;
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showTmsLinksMsg('Unlinked ' + tmsId + '. SSO mapping removed only — accounts and data unchanged.', 'ok');
+                  loadTmsIdentityLinks();
+                } else {
+                  showTmsLinksMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
+                }
+              }).catch(function(){
+                showTmsLinksMsg('Network error while unlinking.', 'err');
+              }).finally(function(){
+                unlinkBtn.disabled = false;
+              });
+            });
+            cell.appendChild(unlinkBtn);
+            tb.appendChild(tr);
+          });
+        })
+        .catch(function(){
+          if (loadingEl) loadingEl.style.display = 'none';
+          showTmsLinksMsg('Could not load TMS staff links (network).', 'err');
+          if (emptyEl) emptyEl.style.display = 'block';
+        });
+    }
+
+    function createTmsIdentityLink() {
+      var tmsId = (document.getElementById('tmsLinkStaffId') && document.getElementById('tmsLinkStaffId').value || '').trim();
+      var lanternUser = (document.getElementById('tmsLinkLanternUser') && document.getElementById('tmsLinkLanternUser').value || '').trim();
+      if (!tmsId) {
+        showTmsLinksMsg('Enter the exact TMS Staff ID.', 'err');
+        return;
+      }
+      if (!lanternUser) {
+        showTmsLinksMsg('Select a Lantern staff account.', 'err');
+        return;
+      }
+      var btn = document.getElementById('tmsLinkCreateBtn');
+      if (btn) btn.disabled = true;
+      showTmsLinksMsg('', '');
+      postAdminJson('/api/admin/tms-identity-links', {
+        tms_staff_id: tmsId,
+        lantern_username: lanternUser,
+      }).then(function(res){
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          showTmsLinksMsg('Linked ' + tmsId + ' → ' + (res.body.lantern_username || lanternUser) + '.', 'ok');
+          var idInput = document.getElementById('tmsLinkStaffId');
+          if (idInput) idInput.value = '';
+          var filter = document.getElementById('tmsLinkLanternFilter');
+          if (filter) filter.value = '';
+          populateTmsLanternSelect('');
+          loadTmsIdentityLinks();
+          return;
+        }
+        showTmsLinksMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
+      }).catch(function(){
+        showTmsLinksMsg('Network error while creating link.', 'err');
+      }).finally(function(){
+        if (btn) btn.disabled = false;
+      });
+    }
+
+    var tmsLinkCreateBtn = document.getElementById('tmsLinkCreateBtn');
+    if (tmsLinkCreateBtn) tmsLinkCreateBtn.addEventListener('click', createTmsIdentityLink);
+    var tmsLinkRefreshBtn = document.getElementById('tmsLinkRefreshBtn');
+    if (tmsLinkRefreshBtn) {
+      tmsLinkRefreshBtn.addEventListener('click', function(){
+        showTmsLinksMsg('', '');
+        loadUsers();
+        loadTmsIdentityLinks();
+      });
+    }
+    var tmsLinkLanternFilter = document.getElementById('tmsLinkLanternFilter');
+    if (tmsLinkLanternFilter) {
+      tmsLinkLanternFilter.addEventListener('input', function(){
+        populateTmsLanternSelect(tmsLinkLanternFilter.value);
       });
     }
 
@@ -642,10 +902,12 @@
         if (!res || !res.ok || !res.users) {
           lastUsersList = [];
           populateWalletStudentSelect();
+          populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
           return;
         }
         lastUsersList = res.users.slice();
         populateWalletStudentSelect();
+        populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
         res.users.forEach(function(u){
           var tr = document.createElement('tr');
           var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
@@ -1013,6 +1275,7 @@
     }
 
     loadUsers();
+    loadTmsIdentityLinks();
     loadFeedModeration();
     loadPending();
     setInterval(loadPending, 60000);

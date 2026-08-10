@@ -1581,6 +1581,13 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!isTeacherLike(target.role)) {
       return jsonResponse({ ok: false, error: 'lantern_account_not_staff' }, 400, cors);
     }
+    // Inactive / suspended Lantern accounts cannot be linked (Prompt #101). SSO exchange already
+    // fails closed for disabled accounts; refuse the mapping itself so admins cannot create a
+    // dormant link that looks valid in the admin UI.
+    const targetActive = target.is_active != null ? Number(target.is_active) : 1;
+    if (targetActive === 0) {
+      return jsonResponse({ ok: false, error: 'lantern_account_inactive' }, 400, cors);
+    }
     const adminUsername = String(account.username || '').trim() || 'admin';
     try {
       await db
