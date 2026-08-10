@@ -384,10 +384,10 @@
       .studioColCenter{
         position: relative;
         z-index: 1;
-        width: var(--lantern-studio-center-width);
-        min-width: var(--lantern-studio-center-width);
-        max-width: var(--lantern-studio-center-width);
-        margin-left: calc(50vw + var(--lantern-studio-center-right-half) - var(--lantern-studio-center-width));
+        width: var(--lantern-studio-center-render-width, var(--lantern-studio-center-width));
+        min-width: var(--lantern-studio-center-render-width, var(--lantern-studio-center-width));
+        max-width: var(--lantern-studio-center-render-width, var(--lantern-studio-center-width));
+        margin-left: calc(50vw + var(--lantern-studio-center-right-half) - var(--lantern-studio-center-render-width, var(--lantern-studio-center-width)));
         margin-right: 0;
         display: flex;
         flex-direction: column;
@@ -539,6 +539,21 @@
     @media (hover: hover) and (pointer: fine) and (min-width: 1280px){
       :root{
         --lantern-studio-center-width: 760px;
+        /*
+         * Prompt #110: .studioColCenter's own box (below) reads this wider token instead of
+         * --lantern-studio-center-width directly. .studioColLeft's `right` and .studioColRight's
+         * `left` (above) still read the unwidened --lantern-studio-center-width, so Feed's and
+         * "When opened"'s rendered positions are untouched — only Create's own width/left-edge
+         * grow. (Center's right edge is unaffected by width either way: margin-left + width always
+         * cancels to 50vw + center-right-half, so growing Create only moves its LEFT edge left.)
+         * Root cause of the dead gap: .studioColCenter/.studioColRight anchor from the LEFT edge of
+         * .containerStudio3Panel, so the page's horizontal inset (#contributeWriteWrap's
+         * --lantern-pad-x padding + .studioShell's own 10px padding, on both sides) cancels out
+         * between them. .studioColLeft anchors via `right`, measured from the containing block's
+         * RIGHT edge — the same inset again, uncancelled — leaving a 2x-inset dead gap between Feed
+         * and Create that this override closes by widening Create (not Feed) by that same 2x-inset.
+         */
+        --lantern-studio-center-render-width: calc(var(--lantern-studio-center-width) + 2 * (var(--lantern-pad-x, 12px) + 10px));
       }
     }
     .studioCenterCard{

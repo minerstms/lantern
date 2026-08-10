@@ -64,21 +64,35 @@ if (!/width:\s*var\(--lantern-studio-left-col-width\)/.test(contributeHtml)) {
   ok('no explicit LEFT column width in layout');
 } else bad('explicit LEFT width still in layout');
 
+/*
+ * Prompt #110: CENTER's own box reads --lantern-studio-center-render-width (falls back to
+ * --lantern-studio-center-width below 1280px) so widening Create at >=1280px doesn't also widen
+ * .studioColLeft's `right` calc (which still reads --lantern-studio-center-width directly, keeping
+ * Feed's rendered position byte-for-byte unchanged). Right edge is still right-lock minus width.
+ */
 if (
-  /\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-width\)\)/.test(
+  /\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-render-width, var\(--lantern-studio-center-width\)\)\)/.test(
     contributeHtml
   )
 ) {
-  ok('CENTER left edge = right-lock minus width (leftward expand)');
+  ok('CENTER left edge = right-lock minus render-width (leftward expand, gap-corrected)');
 } else bad('CENTER leftward geometry');
 
 if (
-  /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-width\)\)/.test(
+  /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-render-width, var\(--lantern-studio-center-width\)\)\)/.test(
     contributeHtml
   )
 ) {
   ok('desktop three-pane uses fine-pointer query not width breakpoint');
 } else bad('fine-pointer desktop canvas');
+
+if (
+  /--lantern-studio-center-render-width:\s*calc\(var\(--lantern-studio-center-width\) \+ 2 \* \(var\(--lantern-pad-x, 12px\) \+ 10px\)\)/.test(
+    contributeHtml
+  )
+) {
+  ok('CENTER render-width closes canvas-inset dead gap (Feed pane untouched)');
+} else bad('CENTER render-width gap-correction token');
 
 if (
   /@media \(hover: hover\) and \(pointer: fine\) and \(min-width: 1280px\)[\s\S]*--lantern-studio-center-width:\s*760px/.test(
