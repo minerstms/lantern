@@ -244,9 +244,13 @@
     <div id="editUserPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" hidden data-admin-floating-editor="1">
       <p class="acctPanelHd">Edit staff account</p>
       <p id="editUserDisplay" class="acctPanelHint"></p>
+      <p id="editUserStaffId" class="acctPanelHint"></p>
+      <p id="editUserNeedsName" class="acctPanelHint" style="display:none;">Needs Name Setup — enter First and Last Name, then Save.</p>
       <input type="hidden" id="editUserUsername" value="" />
       <label for="editUserFirstName">First Name</label>
       <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
+      <label for="editUserLastName">Last Name</label>
+      <input id="editUserLastName" type="text" maxlength="64" autocomplete="off" required />
       <label for="editUserRole">Role</label>
       <select id="editUserRole"><option value="teacher">teacher</option><option value="admin">admin</option></select>
       <label for="editUserActive">Account status</label>
@@ -292,8 +296,8 @@
       <button type="button" class="btn good" id="staffAddOpenBtn">+ Add Staff</button>
     </div>
     <div class="teacherCollapsibleListScroll">
-      <div class="lanternMgmtRecordListHd" aria-hidden="true">
-        <span>Name</span><span>Username</span><span>Role</span><span>Status</span><span></span>
+      <div class="lanternMgmtRecordListHd lanternMgmtRecordListHd--staff" aria-hidden="true">
+        <span>Staff ID</span><span>Name</span><span>Username</span><span>Role</span><span>Status</span><span></span>
       </div>
       <div id="usersBody" class="lanternMgmtRecordList" role="list"></div>
       <p id="staffRosterEmpty" class="pendingMeta" style="display:none;">No staff accounts match this filter.</p>
@@ -302,21 +306,32 @@
     <div id="staffAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden>
       <p class="acctPanelHd">Add Staff</p>
       <form id="addUserForm">
+        <label for="nu_first">First Name</label>
+        <input id="nu_first" type="text" required maxlength="64" autocomplete="off" />
+        <label for="nu_last">Last Name</label>
+        <input id="nu_last" type="text" required maxlength="64" autocomplete="off" />
         <label for="nu_username">Login username</label>
         <input id="nu_username" type="text" required autocomplete="off" />
-        <label for="nu_display">First Name</label>
-        <input id="nu_display" type="text" required maxlength="64" autocomplete="off" />
         <label>Role
           <select id="nu_role"><option value="teacher">teacher</option><option value="admin">admin</option></select>
         </label>
-        <label>Temporary password (8+ chars) <input id="nu_password" type="password" autocomplete="new-password" required /></label>
+        <p class="acctPanelHint">Staff ID is assigned automatically. A one-time temporary password is generated on create (shown once).</p>
         <label>Teacher ID (optional) <input id="nu_teacher_id" type="text" placeholder="e.g. teacher1" /></label>
         <input id="nu_scn" type="hidden" value="" />
+        <input id="nu_display" type="hidden" value="" />
+        <input id="nu_password" type="hidden" value="" />
         <div class="acctPanelActions" style="margin-top:14px;">
           <button type="submit" class="btn good">Create staff account</button>
           <button type="button" class="btn" id="staffAddCancelBtn">Cancel</button>
         </div>
       </form>
+      <div id="staffTempPwOnce" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+        <p class="acctPanelHd">Temporary password (shown once)</p>
+        <p id="staffTempPwOnceText" class="acctPanelHint"></p>
+        <div class="acctPanelActions">
+          <button type="button" class="btn" id="staffTempPwOnceDismiss">Dismiss</button>
+        </div>
+      </div>
     </div>
     </div>
   </details>
@@ -489,16 +504,42 @@
       if (scn) return scn;
       return String(u.username || '').trim();
     }
-    function formatFirstName(u) {
-      var dn = u.display_name != null ? String(u.display_name).trim() : '';
+    function formatStaffIdLabel(staffId) {
+      if (staffId == null || staffId === '') return '—';
+      var n = Number(staffId);
+      if (!isFinite(n) || n <= 0) return '—';
+      var s = String(Math.floor(n));
+      while (s.length < 4) s = '0' + s;
+      return 'Staff #' + s;
+    }
+    function staffNeedsNameSetup(u) {
+      if (!u || !isStaffRole(u.role)) return false;
+      var first = u.first_name != null ? String(u.first_name).trim() : '';
+      var last = u.last_name != null ? String(u.last_name).trim() : '';
+      return !first || !last;
+    }
+    function formatStaffDisplayName(u) {
+      var first = u && u.first_name != null ? String(u.first_name).trim() : '';
+      var last = u && u.last_name != null ? String(u.last_name).trim() : '';
+      if (first && last) return (first + ' ' + last).trim();
+      var dn = u && u.display_name != null ? String(u.display_name).trim() : '';
       return dn || '—';
     }
-    function validateFirstNameClient(value) {
+    function formatFirstName(u) {
+      return formatStaffDisplayName(u);
+    }
+    function validateNamePartClient(value, label) {
       var v = String(value || '').trim();
-      if (!v) return 'First Name is required.';
-      if (v.length > 64) return 'First Name must be 64 characters or fewer.';
-      if (/[\x00-\x1F\x7F]/.test(v)) return 'First Name contains invalid characters.';
+      if (!v) return (label || 'Name') + ' is required.';
+      if (v.length > 64) return (label || 'Name') + ' must be 64 characters or fewer.';
+      if (/[\x00-\x1F\x7F]/.test(v)) return (label || 'Name') + ' contains invalid characters.';
       return '';
+    }
+    function validateFirstNameClient(value) {
+      return validateNamePartClient(value, 'First Name');
+    }
+    function validateLastNameClient(value) {
+      return validateNamePartClient(value, 'Last Name');
     }
     function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c; }); }
 
@@ -1059,14 +1100,23 @@
       closeStudentsEditPanels();
       var user = u.username != null ? String(u.username) : '';
       var disp = document.getElementById('editUserDisplay');
+      var staffIdEl = document.getElementById('editUserStaffId');
+      var needsEl = document.getElementById('editUserNeedsName');
       var hid = document.getElementById('editUserUsername');
       var roleSel = document.getElementById('editUserRole');
       var actSel = document.getElementById('editUserActive');
       var fnInput = document.getElementById('editUserFirstName');
+      var lnInput = document.getElementById('editUserLastName');
       var mcpSel = document.getElementById('editUserMustChangePw');
-      if (disp) disp.textContent = 'Login username: ' + user;
+      if (disp) disp.textContent = 'Login username: ' + user + ' (unchanged)';
+      if (staffIdEl) staffIdEl.textContent = formatStaffIdLabel(u.staff_id) + ' — permanent, not editable';
+      var needs = staffNeedsNameSetup(u);
+      if (needsEl) {
+        needsEl.style.display = needs ? 'block' : 'none';
+      }
       if (hid) hid.value = user;
-      if (fnInput) fnInput.value = u.display_name != null ? String(u.display_name).trim() : '';
+      if (fnInput) fnInput.value = u.first_name != null ? String(u.first_name).trim() : '';
+      if (lnInput) lnInput.value = u.last_name != null ? String(u.last_name).trim() : '';
       if (roleSel) {
         var rv = String(u.role || 'teacher').trim().toLowerCase();
         if (rv !== 'admin' && rv !== 'teacher') rv = 'teacher';
@@ -1100,6 +1150,7 @@
     document.getElementById('editUserSave').addEventListener('click', function(){
       var username = (document.getElementById('editUserUsername').value || '').trim();
       var firstName = (document.getElementById('editUserFirstName').value || '').trim();
+      var lastName = (document.getElementById('editUserLastName').value || '').trim();
       var role = (document.getElementById('editUserRole').value || 'teacher').trim();
       var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
       var mustChange = parseInt(document.getElementById('editUserMustChangePw').value, 10) ? true : false;
@@ -1113,11 +1164,23 @@
         showUsersMsg(fnErr, 'err');
         return;
       }
+      var lnErr = validateLastNameClient(lastName);
+      if (lnErr) {
+        showUsersMsg(lnErr, 'err');
+        return;
+      }
       var saveBtn = document.getElementById('editUserSave');
       var cancelBtn = document.getElementById('editUserCancel');
       if (saveBtn) saveBtn.disabled = true;
       if (cancelBtn) cancelBtn.disabled = true;
-      var payload = { username: username, display_name: firstName, role: role, is_active: act, must_change_password: mustChange ? 1 : 0 };
+      var payload = {
+        username: username,
+        first_name: firstName,
+        last_name: lastName,
+        role: role,
+        is_active: act,
+        must_change_password: mustChange ? 1 : 0
+      };
       postAdminJson('/api/admin/users/update', payload).then(function(x){
         if (x && x.blocked) return;
         if (x && x.okHttp && x.body && x.body.ok) {
@@ -1184,7 +1247,7 @@
         if (filter === 'teacher' && String(u.role).toLowerCase() !== 'teacher') return false;
         if (filter === 'admin' && String(u.role).toLowerCase() !== 'admin') return false;
         if (!q) return true;
-        var hay = [u.username, u.display_name, formatFirstName(u)].join(' ').toLowerCase();
+        var hay = [u.username, u.display_name, u.first_name, u.last_name, formatStaffDisplayName(u), formatStaffIdLabel(u.staff_id)].join(' ').toLowerCase();
         return hay.indexOf(q) !== -1;
       });
     }
@@ -1247,25 +1310,30 @@
       if (empty) empty.style.display = rows.length ? 'none' : 'block';
       rows.forEach(function(u){
         var rec = document.createElement('details');
-        rec.className = 'lanternMgmtRecord';
+        rec.className = 'lanternMgmtRecord lanternMgmtRecord--staff';
         rec.setAttribute('data-record-key', String(u.username || ''));
         rec.setAttribute('role', 'listitem');
         var active = !(u.is_active === 0 || u.is_active === '0');
-        var activeLabel = active ? 'Active' : 'Archived';
+        var needsName = staffNeedsNameSetup(u);
+        var activeLabel = !active ? 'Archived' : (needsName ? 'Needs Name Setup' : 'Active');
         var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
         var mcpLabel = mcp ? 'Yes' : 'No';
         var roleLabel = String(u.role || '');
         if (roleLabel) roleLabel = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
         rec.innerHTML =
           '<summary class="lanternMgmtRecordHd">' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--name">' + esc(formatFirstName(u)) + '</span>' +
+            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--staffId">' + esc(formatStaffIdLabel(u.staff_id)) + '</span>' +
+            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--name">' + esc(formatStaffDisplayName(u)) + '</span>' +
             '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--user">' + esc(u.username) + '</span>' +
             '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--role">' + esc(roleLabel || u.role) + '</span>' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--status">' + esc(activeLabel) + '</span>' +
+            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--status' + (needsName && active ? ' lanternMgmtRecordCol--muted' : '') + '">' + esc(activeLabel) + '</span>' +
             '<span class="lanternMgmtRecordChev" aria-hidden="true"></span>' +
           '</summary>' +
           '<div class="lanternMgmtRecordBd">' +
-            '<p class="lanternMgmtRecordMeta">Must change password: ' + esc(mcpLabel) + '</p>' +
+            '<p class="lanternMgmtRecordMeta">Must change password: ' + esc(mcpLabel) +
+              (needsName ? ' · Needs Name Setup' : '') +
+              (u.display_name && needsName ? ' · Current display: ' + esc(String(u.display_name)) : '') +
+            '</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
@@ -1342,10 +1410,16 @@
 
     document.getElementById('addUserForm').addEventListener('submit', function(e){
       e.preventDefault();
-      var firstName = document.getElementById('nu_display').value.trim();
+      var firstName = document.getElementById('nu_first').value.trim();
+      var lastName = document.getElementById('nu_last').value.trim();
       var fnErr = validateFirstNameClient(firstName);
       if (fnErr) {
         showUsersMsg(fnErr, 'err');
+        return;
+      }
+      var lnErr = validateLastNameClient(lastName);
+      if (lnErr) {
+        showUsersMsg(lnErr, 'err');
         return;
       }
       var role = document.getElementById('nu_role').value;
@@ -1355,25 +1429,46 @@
       }
       var body = {
         username: document.getElementById('nu_username').value.trim(),
-        display_name: firstName,
-        role: role,
-        password: document.getElementById('nu_password').value,
+        first_name: firstName,
+        last_name: lastName,
+        role: role
       };
       var tid = document.getElementById('nu_teacher_id').value.trim();
       if (tid) body.teacher_id = tid;
       postAdminJson('/api/admin/users', body).then(function(res){
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
-          showUsersMsg('Staff account created for ' + body.username + '.', 'ok');
+          var sid = res.body.user && res.body.user.staff_id != null ? formatStaffIdLabel(res.body.user.staff_id) : '';
+          showUsersMsg('Staff account created for ' + body.username + (sid ? ' (' + sid + ')' : '') + '.', 'ok');
           loadUsers();
           document.getElementById('addUserForm').reset();
-          var addPanel = document.getElementById('staffAddPanel');
-          if (addPanel) { addPanel.style.display = 'none'; addPanel.setAttribute('aria-hidden', 'true'); }
+          var once = document.getElementById('staffTempPwOnce');
+          var onceText = document.getElementById('staffTempPwOnceText');
+          if (res.body.temporary_password && once && onceText) {
+            onceText.textContent = 'Username: ' + body.username + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
+            once.style.display = 'block';
+            once.setAttribute('aria-hidden', 'false');
+          }
         } else {
           showUsersMsg((res && res.body && res.body.error) || 'Failed', 'err');
         }
       });
     });
+
+    var staffTempPwOnceDismiss = document.getElementById('staffTempPwOnceDismiss');
+    if (staffTempPwOnceDismiss) {
+      staffTempPwOnceDismiss.addEventListener('click', function(){
+        var once = document.getElementById('staffTempPwOnce');
+        var onceText = document.getElementById('staffTempPwOnceText');
+        if (onceText) onceText.textContent = '';
+        if (once) {
+          once.style.display = 'none';
+          once.setAttribute('aria-hidden', 'true');
+        }
+        var addPanel = document.getElementById('staffAddPanel');
+        if (addPanel) { addPanel.style.display = 'none'; addPanel.setAttribute('aria-hidden', 'true'); addPanel.hidden = true; }
+      });
+    }
 
     var staffRosterSearch = document.getElementById('staffRosterSearch');
     if (staffRosterSearch) staffRosterSearch.addEventListener('input', renderStaffTable);

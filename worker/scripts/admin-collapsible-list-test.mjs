@@ -66,7 +66,7 @@ if (/teacherCollapsibleListScroll[\s\S]{0,200}id="usersBody"|id="usersBody"[\s\S
   ok('Staff table sits inside teacherCollapsibleListScroll');
 } else bad('Staff table not wrapped in scroll container');
 
-if (/id="editUserPanel"/.test(html) && /id="tempPwPanel"/.test(html) && /id="addUserForm"/.test(html)) {
+if (/id="editUserPanel"/.test(html) && /id="tempPwPanel"/.test(html) && /id="addUserForm"/.test(html) && /id="nu_first"/.test(html) && /id="nu_last"/.test(html)) {
   ok('Edit / Set temp password / Add staff markup preserved');
 } else bad('Account action panels or add-staff form missing');
 

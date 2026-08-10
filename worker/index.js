@@ -4,7 +4,16 @@
  * Routes: /api/avatar, /api/economy, /api/news, /api/approvals, /api/recognition, /api/reactions, /api/feed, /api/trivia
  * No MTSS / case / private student data.
  */
-import { fetchAdminUserRow, validateDisplayName } from './admin-account-utils.js';
+import {
+  allocateStaffId,
+  composeStaffDisplayName,
+  ensureStaffIdsAllocated,
+  fetchAdminUserRow,
+  generateStaffTempPassword,
+  isStaffAccountRole,
+  validateDisplayName,
+  validateStaffNamePart,
+} from './admin-account-utils.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed-handlers.js';
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
@@ -1573,9 +1582,15 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'GET' && path === '/api/admin/users') {
+    // Prompt #136 — ensure any teacher/admin missing a Staff ID gets one (never reuses).
+    try {
+      await ensureStaffIdsAllocated(db);
+    } catch (_) {
+      /* list still proceeds; create path also allocates */
+    }
     const rows = await db
       .prepare(
-        `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
+        `SELECT username, display_name, first_name, last_name, staff_id, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
     return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
@@ -1589,22 +1604,65 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     } catch (_) {
       return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
-    const u = String(body.username || '').trim();
-    const password = String(body.password || '');
-    const dnCheck = validateDisplayName(body.display_name, { required: true });
-    if (!dnCheck.ok) {
-      return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
+    // Client must never choose Staff ID.
+    if (body.staff_id !== undefined && body.staff_id !== null && String(body.staff_id).trim() !== '') {
+      return jsonResponse({ ok: false, error: 'staff_id_not_assignable' }, 400, cors);
     }
-    const displayName = dnCheck.value;
+    const u = String(body.username || '').trim();
     const role = String(body.role || 'student').trim();
-    if (!u || !password || password.length < 8) {
-      return jsonResponse({ ok: false, error: 'username_and_password_required' }, 400, cors);
+    if (!u) {
+      return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
     if (!['student', 'teacher', 'admin'].includes(role)) {
       return jsonResponse({ ok: false, error: 'invalid_role' }, 400, cors);
     }
+
+    let displayName;
+    let firstName = null;
+    let lastName = null;
+    let staffId = null;
+    let passwordPlain = String(body.password || '');
+    let generatedTempPassword = null;
+
+    if (isStaffAccountRole(role)) {
+      const fnCheck = validateStaffNamePart(body.first_name, 'first_name', { required: true });
+      if (!fnCheck.ok) {
+        return jsonResponse({ ok: false, error: fnCheck.error, max: fnCheck.max }, 400, cors);
+      }
+      const lnCheck = validateStaffNamePart(body.last_name, 'last_name', { required: true });
+      if (!lnCheck.ok) {
+        return jsonResponse({ ok: false, error: lnCheck.error, max: lnCheck.max }, 400, cors);
+      }
+      firstName = fnCheck.value;
+      lastName = lnCheck.value;
+      displayName = composeStaffDisplayName(firstName, lastName);
+      const dnCheck = validateDisplayName(displayName, { required: true });
+      if (!dnCheck.ok) {
+        return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
+      }
+      displayName = dnCheck.value;
+      try {
+        staffId = await allocateStaffId(db);
+      } catch (_) {
+        return jsonResponse({ ok: false, error: 'staff_id_allocation_failed' }, 500, cors);
+      }
+      if (!passwordPlain || passwordPlain.length < 8) {
+        generatedTempPassword = generateStaffTempPassword();
+        passwordPlain = generatedTempPassword;
+      }
+    } else {
+      const dnCheck = validateDisplayName(body.display_name, { required: true });
+      if (!dnCheck.ok) {
+        return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
+      }
+      displayName = dnCheck.value;
+      if (!passwordPlain || passwordPlain.length < 8) {
+        return jsonResponse({ ok: false, error: 'username_and_password_required' }, 400, cors);
+      }
+    }
+
     const salt = pilotRandomSaltHex();
-    const hash = await pilotHashPassword(password, salt);
+    const hash = await pilotHashPassword(passwordPlain, salt);
     const scn = body.student_character_name != null ? String(body.student_character_name).trim() : null;
     const tid = body.teacher_id != null ? String(body.teacher_id).trim() : null;
     const mtssId =
@@ -1614,14 +1672,24 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const adminUsername = String(account.username || '').trim() || 'admin';
     const ins = await db
       .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), ?)`
+        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, staff_id, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), ?)`
       )
-      .bind(u, displayName, role, hash, salt, scn || null, tid || null, mtssId, adminUsername)
+      .bind(u, displayName, firstName, lastName, staffId, role, hash, salt, scn || null, tid || null, mtssId, adminUsername)
       .run();
     if (!ins.success) {
       return jsonResponse({ ok: false, error: 'insert_failed' }, 500, cors);
     }
-    return jsonResponse({ ok: true, username: u }, 200, cors);
+    const created = await fetchAdminUserRow(db, u);
+    const payload = {
+      ok: true,
+      username: u,
+      user: created || { username: u, staff_id: staffId, display_name: displayName, first_name: firstName, last_name: lastName },
+    };
+    if (generatedTempPassword) {
+      payload.temporary_password = generatedTempPassword;
+      payload.must_change_password = true;
+    }
+    return jsonResponse(payload, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/admin/users/reset-password') {
@@ -1669,8 +1737,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!u) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
+    // Staff ID is immutable — reject any client attempt to set/change it.
+    if (body.staff_id !== undefined) {
+      return jsonResponse({ ok: false, error: 'staff_id_immutable' }, 400, cors);
+    }
     const existing = await db
-      .prepare(`SELECT username FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`)
+      .prepare(
+        `SELECT username, role, staff_id, first_name, last_name, display_name FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      )
       .bind(u)
       .first();
     if (!existing) {
@@ -1704,7 +1778,37 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .bind(body.must_change_password ? 1 : 0, targetUser)
         .run();
     }
-    if (body.display_name != null) {
+
+    const wantsFirst = body.first_name !== undefined;
+    const wantsLast = body.last_name !== undefined;
+    if (wantsFirst || wantsLast) {
+      const fnCheck = validateStaffNamePart(
+        wantsFirst ? body.first_name : existing.first_name,
+        'first_name',
+        { required: true }
+      );
+      if (!fnCheck.ok) {
+        return jsonResponse({ ok: false, error: fnCheck.error, max: fnCheck.max }, 400, cors);
+      }
+      const lnCheck = validateStaffNamePart(wantsLast ? body.last_name : existing.last_name, 'last_name', {
+        required: true,
+      });
+      if (!lnCheck.ok) {
+        return jsonResponse({ ok: false, error: lnCheck.error, max: lnCheck.max }, 400, cors);
+      }
+      const composed = composeStaffDisplayName(fnCheck.value, lnCheck.value);
+      const dnCheck = validateDisplayName(composed, { required: true });
+      if (!dnCheck.ok) {
+        return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
+      }
+      await db
+        .prepare(
+          `UPDATE lantern_pilot_accounts SET first_name = ?, last_name = ?, display_name = ?, updated_at = datetime('now') WHERE username = ?`
+        )
+        .bind(fnCheck.value, lnCheck.value, dnCheck.value, targetUser)
+        .run();
+    } else if (body.display_name != null) {
+      // Compatibility: allow display_name-only updates (students / legacy callers).
       const dnCheck = validateDisplayName(body.display_name, { required: true });
       if (!dnCheck.ok) {
         return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
@@ -1714,12 +1818,36 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .bind(dnCheck.value, targetUser)
         .run();
     }
+
     if (body.role != null) {
       const role = String(body.role).trim();
       if (!['student', 'teacher', 'admin'].includes(role)) {
         return jsonResponse({ ok: false, error: 'invalid_role' }, 400, cors);
       }
       await db.prepare(`UPDATE lantern_pilot_accounts SET role = ?, updated_at = datetime('now') WHERE username = ?`).bind(role, targetUser).run();
+      // Promote student → staff: allocate Staff ID if missing. Demote → clear staff_id on row (alloc row keeps ID reserved).
+      if (isStaffAccountRole(role)) {
+        const cur = await db
+          .prepare(`SELECT staff_id FROM lantern_pilot_accounts WHERE username = ?`)
+          .bind(targetUser)
+          .first();
+        if (!cur || cur.staff_id == null) {
+          try {
+            const sid = await allocateStaffId(db);
+            await db
+              .prepare(`UPDATE lantern_pilot_accounts SET staff_id = ?, updated_at = datetime('now') WHERE username = ? AND staff_id IS NULL`)
+              .bind(sid, targetUser)
+              .run();
+          } catch (_) {
+            return jsonResponse({ ok: false, error: 'staff_id_allocation_failed' }, 500, cors);
+          }
+        }
+      } else if (String(existing.role || '').trim().toLowerCase() !== 'student') {
+        await db
+          .prepare(`UPDATE lantern_pilot_accounts SET staff_id = NULL, first_name = NULL, last_name = NULL, updated_at = datetime('now') WHERE username = ?`)
+          .bind(targetUser)
+          .run();
+      }
     }
     if (body.student_character_name !== undefined) {
       const scn = body.student_character_name == null ? null : String(body.student_character_name).trim();
