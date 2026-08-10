@@ -7,8 +7,8 @@
  *
  *  - Lantern Teacher page shows a primary nav with exactly Behavior + Teacher.
  *  - Teacher is marked active (aria-current="page", .is-active) on the Lantern Teacher page.
- *  - Behavior is a plain link to the real live TMS Nuggets Behavior page
- *    (https://tmsnuggets.pages.dev/index.html) -- no reverse SSO call.
+ *  - Behavior launches TMS via Lantern staff-verify authorize handoff
+ *    (/api/auth/tms-device-authorize?return=…tmsnuggets…/index.html).
  *  - The primary nav does not appear on a student-facing surface (explore.html), and a student
  *    session hitting /teacher.html directly is still redirected to /explore.html (Prompt #78/#85
  *    behavior unchanged by this prompt).
@@ -77,7 +77,10 @@ async function main() {
     assert(!(await behaviorBtn.evaluate((el) => el.classList.contains('is-active'))), 'Behavior is NOT marked active on the Lantern Teacher page');
 
     const behaviorHref = await behaviorBtn.getAttribute('href');
-    assert(behaviorHref === 'https://tmsnuggets.pages.dev/index.html', 'Behavior links directly to the real live TMS Nuggets Behavior page: ' + behaviorHref);
+    assert(
+      behaviorHref === '/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html',
+      'Behavior launches TMS via Lantern staff-verify authorize: ' + behaviorHref
+    );
     assert((await behaviorBtn.getAttribute('target')) !== '_blank' || true, 'Behavior link attribute checked (same-tab navigation is acceptable)');
 
     // Responsive: visible + no overflow/clipping at a range of widths, and does not overlap the

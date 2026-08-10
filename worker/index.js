@@ -1059,6 +1059,36 @@ function getTmsNuggetsApiBaseUrl(env) {
 }
 
 /**
+ * Prompt #139 — allow only known TMS Nuggets Behavior origins for device-authorize return.
+ */
+function sanitizeTmsDeviceAuthorizeReturn(raw) {
+  const DEFAULT_TARGET = 'https://tmsnuggets.pages.dev/index.html';
+  const s = String(raw || '').trim();
+  if (!s) return DEFAULT_TARGET;
+  let u;
+  try {
+    u = new URL(s);
+  } catch (_) {
+    return DEFAULT_TARGET;
+  }
+  const host = String(u.hostname || '').toLowerCase();
+  const local = host === 'localhost' || host === '127.0.0.1';
+  if (host !== 'tmsnuggets.pages.dev' && !local) return DEFAULT_TARGET;
+  if (u.protocol !== 'https:' && !(local && (u.protocol === 'http:' || u.protocol === 'https:'))) {
+    return DEFAULT_TARGET;
+  }
+  const path = u.pathname === '/' || u.pathname === '' ? '/index.html' : u.pathname;
+  if (path !== '/index.html') return DEFAULT_TARGET;
+  return u.origin + path;
+}
+
+function appendLanternStaffCodeToReturn(returnUrl, code) {
+  const base = String(returnUrl || '').trim();
+  const sep = base.indexOf('?') >= 0 ? '&' : '?';
+  return base + sep + 'lantern_staff_code=' + encodeURIComponent(String(code || ''));
+}
+
+/**
  * Server-to-server redemption of a Nuggets-issued Lantern staff handoff code. Authenticates
  * Lantern TO Nuggets via TMS_LANTERN_BRIDGE_SECRET (Bearer) -- mirrors the existing convention
  * Nuggets already uses for its OWN outbound calls into Lantern (LANTERN_MTSS_INTEGRATION_SECRET /
@@ -1088,6 +1118,70 @@ async function redeemTmsLanternHandoff(env, code) {
     return { ok: false, error: (data && data.error) || 'invalid_or_expired_code' };
   }
   return { ok: true, tms_staff_id: String(data.tms_staff_id) };
+}
+
+/**
+ * Prompt #139 — ask TMS to mint a tms_device audience handoff for linked staff device verify.
+ */
+async function mintTmsDeviceStaffHandoff(env, tmsStaffId, lanternUsername) {
+  const secret = (env.TMS_LANTERN_BRIDGE_SECRET || '').trim();
+  if (!secret) return { ok: false, error: 'bridge_not_configured' };
+  const base = getTmsNuggetsApiBaseUrl(env);
+  let resp;
+  try {
+    resp = await fetch(base + '/api/auth/lantern-staff-verify/mint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({
+        tms_staff_id: String(tmsStaffId || ''),
+        lantern_username: String(lanternUsername || ''),
+      }),
+    });
+  } catch (_) {
+    return { ok: false, error: 'mint_request_failed' };
+  }
+  let data;
+  try {
+    data = await resp.json();
+  } catch (_) {
+    return { ok: false, error: 'mint_bad_response' };
+  }
+  if (!resp.ok || !data || !data.ok || !data.code) {
+    return { ok: false, error: (data && data.error) || 'mint_failed' };
+  }
+  return {
+    ok: true,
+    code: String(data.code),
+    tms_staff_id: data.tms_staff_id != null ? String(data.tms_staff_id) : String(tmsStaffId || ''),
+    teacher_name: data.teacher_name != null ? String(data.teacher_name) : '',
+    expires_at: data.expires_at || null,
+    ttl_seconds: data.ttl_seconds || null,
+  };
+}
+
+function tmsDeviceAuthorizeFailurePage(errorCode, cors) {
+  const messages = {
+    not_authenticated: 'Sign in to Lantern to verify for TMS Nuggets.',
+    must_change_password: 'You must change your Lantern password before verifying for TMS.',
+    lantern_account_not_staff: 'Staff access required. Student accounts cannot verify for TMS staff.',
+    lantern_account_not_linked:
+      'Your Lantern account is not linked to a TMS staff record. Contact Admin.',
+    lantern_account_disabled: 'Staff account is inactive.',
+    bridge_not_configured: 'Staff verification is temporarily unavailable. Contact Admin.',
+    mint_failed: 'Could not start TMS verification. Try again.',
+    mint_request_failed: 'Could not reach TMS verification. Try again.',
+    staff_not_found: 'Linked TMS staff record was not found. Contact Admin.',
+  };
+  const msg = messages[errorCode] || 'Cannot verify staff identity; contact Admin.';
+  const html =
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>TMS verification</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
+    '<h1 style="font-size:28px;">Could not verify for TMS</h1><p style="font-size:20px;">' +
+    msg +
+    '</p><p style="font-size:18px;"><a href="/login.html">Sign in to Lantern</a> · <a href="https://tmsnuggets.pages.dev/index.html">Return to TMS Nuggets</a></p></body></html>';
+  return new Response(html, {
+    status: 401,
+    headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
 }
 
 /**
@@ -1563,6 +1657,54 @@ async function handleAuthRoutes(request, url, path, env, cors) {
         'Set-Cookie': pilotSetCookieHeader(token, secure, PILOT_JWT_TTL_SEC),
         'Cache-Control': 'no-store',
       },
+    });
+  }
+
+  // Prompt #139 — Lantern first-party authorize for TMS device enrollment (linked staff only).
+  // Uses existing Lantern session; mints TMS tms_device handoff via bridge; redirects to TMS
+  // with a short-lived one-time code (never password / bridge secret / cookie in the URL body
+  // beyond the opaque code).
+  if (request.method === 'GET' && path === '/api/auth/tms-device-authorize') {
+    const safeReturn = sanitizeTmsDeviceAuthorizeReturn(url.searchParams.get('return'));
+    const authorizeSelf =
+      url.pathname +
+      '?return=' +
+      encodeURIComponent(url.searchParams.get('return') || safeReturn);
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) {
+      const loginLoc = '/login.html?return=' + encodeURIComponent(authorizeSelf);
+      return new Response(null, {
+        status: 302,
+        headers: { ...cors, Location: loginLoc, 'Cache-Control': 'no-store' },
+      });
+    }
+    if (pilotAccountRequiresChangePassword(account)) {
+      const cpLoc =
+        '/change-password.html?return=' + encodeURIComponent(authorizeSelf);
+      return new Response(null, {
+        status: 302,
+        headers: { ...cors, Location: cpLoc, 'Cache-Control': 'no-store' },
+      });
+    }
+    const isActive = account.is_active != null ? Number(account.is_active) : 1;
+    if (isActive === 0) return tmsDeviceAuthorizeFailurePage('lantern_account_disabled', cors);
+    if (!isTeacherLike(account.role)) return tmsDeviceAuthorizeFailurePage('lantern_account_not_staff', cors);
+
+    const tmsStaffId = await getTmsStaffIdForLanternAccount(db, account.username);
+    if (!tmsStaffId) return tmsDeviceAuthorizeFailurePage('lantern_account_not_linked', cors);
+
+    const minted = await mintTmsDeviceStaffHandoff(env, tmsStaffId, account.username);
+    if (!minted.ok) {
+      if (minted.error === 'bridge_not_configured') return tmsDeviceAuthorizeFailurePage('bridge_not_configured', cors);
+      if (minted.error === 'staff_not_found') return tmsDeviceAuthorizeFailurePage('staff_not_found', cors);
+      if (minted.error === 'mint_request_failed') return tmsDeviceAuthorizeFailurePage('mint_request_failed', cors);
+      return tmsDeviceAuthorizeFailurePage('mint_failed', cors);
+    }
+
+    const dest = appendLanternStaffCodeToReturn(safeReturn, minted.code);
+    return new Response(null, {
+      status: 302,
+      headers: { ...cors, Location: dest, 'Cache-Control': 'no-store' },
     });
   }
 

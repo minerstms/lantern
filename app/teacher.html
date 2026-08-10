@@ -1391,12 +1391,10 @@
       <span class="verifyAvatarWrap" id="teacherVerifyAvatarWrap" style="display:none;"><img id="teacherVerifyAvatarImg" class="verifyAvatarPreview" alt=""><span class="verifyAvatarFallback" id="teacherVerifyAvatarFallback"></span></span>
     </div>
     <div id="teacherPageTop" class="teacherPageShell">
-    <!-- Report #98: unified staff PRIMARY nav. Behavior is a plain link to the real live TMS
-         Nuggets Behavior page -- no reverse SSO protocol; TMS's own existing device-auth session
-         determines whether it opens immediately or asks the staff member to authenticate there.
-         Teacher is marked active/non-navigating since this IS the Lantern Teacher workspace. -->
+    <!-- Prompt #139: Behavior launches TMS via Lantern staff-verify authorize when signed in.
+         Device approval on TMS remains required for new/unapproved devices. -->
     <nav class="teacherPrimaryNav" aria-label="Primary">
-      <a class="teacherPrimaryNavBtn" id="teacherPrimaryNavBehavior" href="https://tmsnuggets.pages.dev/index.html">Behavior</a>
+      <a class="teacherPrimaryNavBtn" id="teacherPrimaryNavBehavior" href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html">Behavior</a>
       <a class="teacherPrimaryNavBtn is-active" id="teacherPrimaryNavTeacher" href="teacher.html" aria-current="page">Teacher</a>
     </nav>
     <div class="teacherIdentityRow">
