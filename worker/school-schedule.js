@@ -216,3 +216,52 @@ export function evaluateSchoolSchedule(now) {
 export function isSchoolScheduleEnforcementEnabled(env) {
   return String((env && env.SCHOOL_SCHEDULE_ENFORCEMENT_ENABLED) || '').trim().toLowerCase() === 'true';
 }
+
+/**
+ * Convert a wall-clock `localDate` ("YYYY-MM-DD") + `hhmm` ("HH:MM") in America/Denver into the
+ * equivalent absolute instant (UTC Date), DST-aware. Iterative correction (converges in 1-2
+ * passes since the DST offset only ever takes one of two values): treat the wall-clock numbers as
+ * a UTC guess, see what local time that guess actually resolves to in Denver, and shift by the
+ * difference until they agree.
+ */
+function denverWallClockToInstant(localDate, hhmm) {
+  const [y, m, d] = String(localDate).split('-').map((n) => parseInt(n, 10));
+  const [hh, mm] = String(hhmm).split(':').map((n) => parseInt(n, 10));
+  const wantMinutes = hh * 60 + mm;
+  let guess = new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh, mm, 0));
+  for (let i = 0; i < 4; i++) {
+    const parts = localPartsInTimeZone(guess, SCHOOL_SCHEDULE_TIMEZONE);
+    const gotMinutes = parts.hour * 60 + parts.minute;
+    const dayDiff = parts.localDate === localDate ? 0 : (parts.localDate < localDate ? 1 : -1);
+    const diffMinutes = dayDiff * 24 * 60 + (wantMinutes - gotMinutes);
+    if (diffMinutes === 0) break;
+    guess = new Date(guess.getTime() + diffMinutes * 60000);
+  }
+  return guess;
+}
+
+/**
+ * "Until School Close" instant for a device-group unlock (Phase #32) — reuses the canonical
+ * schedule so there is exactly one definition of "school close" (16:00 regular / 12:00 early
+ * release), never a second hardcoded time. Deterministic / testable via the same `now` parameter
+ * as evaluateSchoolSchedule.
+ *
+ * @param {Date|number} [now]
+ * @returns {{ ok: true, expiresAt: string, lockEnd: string, scheduleType: string } | { ok: false, reason: string }}
+ */
+export function resolveUntilSchoolCloseInstant(now) {
+  const date = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
+  const schedule = evaluateSchoolSchedule(date);
+  if (!schedule.schoolDay || !schedule.lockEnd) {
+    // Weekend / no-school / friday-off / summer -- there is no "school close" today to unlock
+    // until. Honestly reported so the caller can disable/hide the option and explain why, rather
+    // than fabricating a time.
+    return { ok: false, reason: schedule.reason || 'no_school_today' };
+  }
+  const closeInstant = denverWallClockToInstant(schedule.localDate, schedule.lockEnd);
+  if (closeInstant.getTime() <= date.getTime()) {
+    // Already past school close today -- never create a nonsensical already-expired unlock.
+    return { ok: false, reason: 'already_past_school_close' };
+  }
+  return { ok: true, expiresAt: closeInstant.toISOString(), lockEnd: schedule.lockEnd, scheduleType: schedule.scheduleType };
+}

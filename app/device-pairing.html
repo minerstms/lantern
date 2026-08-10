@@ -1,0 +1,250 @@
+<!-- ===== TMS Lantern — Classroom Device Pairing (Phase #32) =====
+     Run this ONCE on a classroom computer/browser to enroll it. This page has no student login
+     and never displays a shared/reusable password: a teacher must physically/verbally verify the
+     pairing phrase shown below and approve it from the Teacher page before this browser receives
+     any credential. This is BROWSER enrollment, not hardware attestation -- clearing this
+     browser's storage will require re-enrollment. -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <title>Classroom Device Pairing — TMS Lantern</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --bad:#ff4d6d;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+    }
+    *{box-sizing:border-box}
+    html,body{ margin: 0; padding: 0; min-height: 100%; width: 100%; }
+    body{
+      background:
+        radial-gradient(1400px 700px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
+        linear-gradient(180deg, #070b12, #05070b);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      font-size: 22px;
+      min-height: 100vh;
+    }
+    .pairPageTitle{ font-weight: 1000; font-size: 30px; color: var(--muted); letter-spacing: .08em; margin-bottom: 24px; }
+    .pairCard{ max-width: 520px; width: 100%; }
+    .pairHint{ font-size: 22px; color: var(--muted); margin-bottom: 24px; line-height: 1.4; }
+    .pairPhrase{ font-weight: 1000; font-size: clamp(32px, 7vw, 52px); letter-spacing: .1em; color: var(--ink); margin-bottom: 18px; word-break: break-word; }
+    .pairWaitingMsg{ font-size: 24px; color: var(--muted); margin-bottom: 8px; }
+    .pairBtn{ display:inline-block; padding: 16px 28px; font-size: 24px; font-weight: 800; border-radius: 14px; border: 2px solid var(--accent); background: rgba(90,167,255,.15); color: var(--ink); cursor: pointer; }
+    .pairBtn:disabled{ opacity: .6; cursor: default; }
+    .pairBtn.secondary{ border-color: var(--line); background: rgba(255,255,255,.06); font-size: 20px; padding: 12px 20px; }
+    .pairStatusGood{ color: var(--good); font-weight: 800; }
+    .pairStatusBad{ color: var(--bad); font-weight: 800; }
+    .pairErrorMsg{ color: var(--warn); font-size: 22px; margin-top: 14px; }
+    .pairEnrolledLabel{ font-weight: 1000; font-size: 40px; margin-bottom: 10px; }
+    .pairDetailRow{ font-size: 22px; color: var(--muted); margin-bottom: 6px; }
+    .linkBack{ margin-top: 32px; font-size: 20px; }
+    .linkBack a{ color: var(--accent); font-weight: 800; text-decoration: none; }
+    .linkBack a:hover{ text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="pairCard" id="contentEl">
+    <p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>
+    <p class="pairHint">Loading…</p>
+  </div>
+  <p class="linkBack"><a href="/teacher.html">Teacher page</a></p>
+
+  <script>
+    (function(){
+      var STORAGE_KEY = 'lantern_device_token';
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+      var contentEl = document.getElementById('contentEl');
+      var pollTimer = null;
+      var POLL_MS = 4000;
+
+      function getStoredToken(){
+        try { return (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY)) || ''; } catch(e) { return ''; }
+      }
+      function setStoredToken(token){
+        try {
+          if (typeof localStorage === 'undefined') return;
+          if (token) localStorage.setItem(STORAGE_KEY, token);
+          else localStorage.removeItem(STORAGE_KEY);
+        } catch(e) {}
+      }
+
+      function escapeHtml(s){
+        if (typeof s !== 'string') return '';
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      function setContent(html){ if (contentEl) contentEl.innerHTML = html; }
+
+      function stopPolling(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+      function showApiUnavailable(){
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairHint pairStatusBad">Lantern API is not configured on this page.</p>'
+        );
+      }
+
+      function showAlreadyEnrolledState(deviceState){
+        var groupAccess = deviceState && deviceState.deviceGroupAccess;
+        var lines = [];
+        if (groupAccess && groupAccess.groupName) {
+          lines.push('<p class="pairDetailRow">Group: <strong>' + escapeHtml(groupAccess.groupName) + '</strong></p>');
+          lines.push('<p class="pairDetailRow">' + (groupAccess.qualifyingAccess ? '<span class="pairStatusGood">Group currently unlocked</span>' : 'Group currently locked') + '</p>');
+        } else {
+          lines.push('<p class="pairDetailRow">Not yet assigned to a device group.</p>');
+        }
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairEnrolledLabel pairStatusGood">This browser is enrolled</p>' +
+          lines.join('') +
+          '<p class="pairHint" style="margin-top:18px;">Nothing else to do here. Ask your teacher to manage groups/unlocks from the Teacher page.</p>' +
+          '<button type="button" class="pairBtn secondary" id="reenrollBtn">Enroll a different device credential</button>'
+        );
+        var reenrollBtn = document.getElementById('reenrollBtn');
+        if (reenrollBtn) reenrollBtn.addEventListener('click', function(){
+          setStoredToken('');
+          showIdleState();
+        });
+      }
+
+      function showRevokedState(){
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairEnrolledLabel pairStatusBad">This device was revoked</p>' +
+          '<p class="pairHint">A teacher revoked this browser\'s enrollment. Ask your teacher to re-enroll this computer.</p>' +
+          '<button type="button" class="pairBtn" id="startPairingBtn">Request New Enrollment</button>'
+        );
+        var btn = document.getElementById('startPairingBtn');
+        if (btn) btn.addEventListener('click', function(){ setStoredToken(''); requestPairing(); });
+      }
+
+      function showIdleState(){
+        stopPolling();
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairHint">Run this once on a classroom computer to enroll it. A teacher will verify the identifier shown next and approve it from the Teacher page — this browser never receives a shareable password.</p>' +
+          '<button type="button" class="pairBtn" id="startPairingBtn">Request Device Enrollment</button>' +
+          '<p class="pairErrorMsg" id="pairErrorMsg" style="display:none;"></p>'
+        );
+        var btn = document.getElementById('startPairingBtn');
+        if (btn) btn.addEventListener('click', requestPairing);
+      }
+
+      function showError(message){
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairHint pairStatusBad">' + escapeHtml(message || 'Something went wrong.') + '</p>' +
+          '<button type="button" class="pairBtn" id="retryBtn">Try Again</button>'
+        );
+        var btn = document.getElementById('retryBtn');
+        if (btn) btn.addEventListener('click', showIdleState);
+      }
+
+      function showWaitingState(phrase){
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairHint">Tell your teacher this identifier so they can approve it:</p>' +
+          '<p class="pairPhrase">' + escapeHtml(phrase) + '</p>' +
+          '<p class="pairWaitingMsg" id="waitingMsg">Waiting for teacher approval…</p>'
+        );
+      }
+
+      function showEnrolledSuccess(label){
+        stopPolling();
+        setContent(
+          '<p class="pairPageTitle">CLASSROOM DEVICE PAIRING</p>' +
+          '<p class="pairEnrolledLabel pairStatusGood">Enrolled' + (label ? ': ' + escapeHtml(label) : '') + '</p>' +
+          '<p class="pairHint">This browser now has its own device credential, stored locally. You may close this page or leave it open — nothing further is needed here.</p>'
+        );
+      }
+
+      function requestPairing(){
+        if (apiBase === null) { showApiUnavailable(); return; }
+        var btn = document.getElementById('startPairingBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Requesting…'; }
+        fetch(apiBase + '/api/class-access/device/pairing/request', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        })
+          .then(function(r){ return r.json().then(function(b){ return { status: r.status, body: b }; }); })
+          .then(function(result){
+            var res = result.body;
+            if (res && res.ok && res.pairingPhrase) {
+              showWaitingState(res.pairingPhrase);
+              startPolling();
+              return;
+            }
+            if (result.status === 429) { showError('Too many pairing requests right now. Please wait a bit and try again.'); return; }
+            showError((res && res.error) || 'Could not start device pairing.');
+          })
+          .catch(function(){ showError('Could not reach the Lantern API.'); });
+      }
+
+      function pollStatus(){
+        if (document.visibilityState && document.visibilityState !== 'visible') return;
+        fetch(apiBase + '/api/class-access/device/pairing/status', { credentials: 'include' })
+          .then(function(r){ return r.json(); })
+          .then(function(res){
+            if (!res) return;
+            if (res.status === 'approved' && res.deviceToken) {
+              stopPolling();
+              setStoredToken(res.deviceToken);
+              showEnrolledSuccess(res.deviceLabel);
+              return;
+            }
+            if (res.status === 'denied' || res.status === 'expired') {
+              stopPolling();
+              showError(res.status === 'denied' ? 'Your teacher denied this pairing request. You can request again.' : 'That pairing request expired. You can request again.');
+            }
+            // 'pending' (or 'approved' with delivered:true from an unrelated prior activation on
+            // this same browser) -- keep waiting/no-op.
+          })
+          .catch(function(){});
+      }
+
+      function startPolling(){
+        stopPolling();
+        pollTimer = setInterval(pollStatus, POLL_MS);
+      }
+
+      function init(){
+        if (apiBase === null) { showApiUnavailable(); return; }
+        var storedToken = getStoredToken();
+        if (!storedToken) { showIdleState(); return; }
+        fetch(apiBase + '/api/class-access/state', { credentials: 'include', headers: { 'X-Device-Token': storedToken } })
+          .then(function(r){ return r.json(); })
+          .then(function(state){
+            var access = state && state.deviceGroupAccess;
+            if (access && access.reason === 'device_revoked') { showRevokedState(); return; }
+            if (access && access.reason === 'unknown_device') { setStoredToken(''); showIdleState(); return; }
+            showAlreadyEnrolledState(state);
+          })
+          .catch(function(){ showAlreadyEnrolledState(null); });
+      }
+
+      init();
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible' && pollTimer) pollStatus();
+      });
+    })();
+  </script>
+</body>
+</html>

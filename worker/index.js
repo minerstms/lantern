@@ -15,7 +15,7 @@ import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './eco
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact } from './tms-economy-bridge.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
-import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled } from './school-schedule.js';
+import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
   ACCESS_REQUEST_PENDING_TTL_SEC,
@@ -28,6 +28,20 @@ import {
   buildAccessDeviceCookieHeader,
   derivedRequestStatus,
 } from './access-requests.js';
+import {
+  DEVICE_PAIRING_COOKIE_NAME,
+  DEVICE_TOKEN_HEADER,
+  DEVICE_PAIRING_PENDING_TTL_SEC,
+  DEVICE_PAIRING_RATE_LIMIT_WINDOW_SEC,
+  DEVICE_PAIRING_RATE_LIMIT_MAX_PER_WINDOW,
+  GROUP_UNLOCK_ALLOWED_MINUTES,
+  generatePairingPhrase,
+  generateOpaqueSecret,
+  buildPairingCookieHeader,
+  derivedPairingStatus,
+  isDeviceActive,
+  isGroupUnlockActive,
+} from './device-enrollment.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -2186,6 +2200,53 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       individualGrant = { qualifyingAccess: false, reason: 'lookup_error', expiresAt: null };
     }
 
+    // Phase #32 (enrolled classroom devices + device-group unlock) — additive, informational
+    // only, same non-gating guarantee as individualGrant above. Identifies THIS browser solely by
+    // the X-Device-Token header (never anything client-supplied like IP/hostname/label/user
+    // agent), then checks that device's group for an active, unexpired, non-revoked unlock.
+    let deviceGroupAccess = { qualifyingAccess: false, reason: 'no_device_token', groupId: null, groupName: null, expiresAt: null };
+    try {
+      const deviceToken = request.headers.get(DEVICE_TOKEN_HEADER) || '';
+      if (deviceToken) {
+        const deviceHash = await hashOpaqueSecret(deviceToken);
+        const deviceRow = await db.prepare(
+          'SELECT id, group_id, revoked_at FROM lantern_access_devices WHERE device_token_hash = ?'
+        ).bind(deviceHash).first();
+        const nowIsoForDevice = new Date().toISOString();
+        if (!deviceRow) {
+          deviceGroupAccess = { qualifyingAccess: false, reason: 'unknown_device', groupId: null, groupName: null, expiresAt: null };
+        } else if (!isDeviceActive(deviceRow)) {
+          deviceGroupAccess = { qualifyingAccess: false, reason: 'device_revoked', groupId: null, groupName: null, expiresAt: null };
+        } else if (!deviceRow.group_id) {
+          deviceGroupAccess = { qualifyingAccess: false, reason: 'device_ungrouped', groupId: null, groupName: null, expiresAt: null };
+        } else {
+          const groupRow = await db.prepare('SELECT id, name FROM lantern_access_device_groups WHERE id = ?').bind(deviceRow.group_id).first();
+          const unlockRow = await db.prepare(
+            'SELECT expires_at, is_active, revoked_at FROM lantern_access_group_unlocks WHERE group_id = ? ORDER BY created_at DESC LIMIT 1'
+          ).bind(deviceRow.group_id).first();
+          const active = isGroupUnlockActive(unlockRow, nowIsoForDevice);
+          deviceGroupAccess = {
+            qualifyingAccess: active,
+            reason: active ? 'active_group_unlock' : 'group_not_unlocked',
+            groupId: deviceRow.group_id,
+            groupName: (groupRow && groupRow.name) || null,
+            expiresAt: active ? unlockRow.expires_at : null,
+          };
+          // Diagnostic-only last-seen bookkeeping (never authorization); throttled to at most once
+          // per minute per device so a short poll loop doesn't write on every single request.
+          const ipForDevice = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
+          const ipHashForDevice = ipForDevice ? await hashOpaqueSecret(ipForDevice) : null;
+          await db.prepare(
+            'UPDATE lantern_access_devices SET last_seen_at = ?, last_seen_ip_hash = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)'
+          ).bind(nowIsoForDevice, ipHashForDevice, deviceRow.id, new Date(Date.now() - 60000).toISOString()).run();
+        }
+      }
+    } catch (_) {
+      deviceGroupAccess = { qualifyingAccess: false, reason: 'lookup_error', groupId: null, groupName: null, expiresAt: null };
+    }
+
+    const qualifyingAccess = !!(individualGrant.qualifyingAccess || deviceGroupAccess.qualifyingAccess);
+
     const verifyState = await getVerifyState();
     const sim = verifyState.class_access_simulation || {};
     const mode = sim.mode === 'simulation' ? 'simulation' : 'live';
@@ -2217,6 +2278,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         schedule,
         scheduleEnforcementEnabled,
         individualGrant,
+        deviceGroupAccess,
+        qualifyingAccess,
       }, 200, cors);
     }
 
@@ -2231,6 +2294,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         schedule,
         scheduleEnforcementEnabled,
         individualGrant,
+        deviceGroupAccess,
+        qualifyingAccess,
       }, 200, cors);
     }
 
@@ -2251,6 +2316,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             schedule,
             scheduleEnforcementEnabled,
             individualGrant,
+            deviceGroupAccess,
+            qualifyingAccess,
           },
           200,
           cors
@@ -2264,6 +2331,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         schedule,
         scheduleEnforcementEnabled,
         individualGrant,
+        deviceGroupAccess,
+        qualifyingAccess,
       }, 200, cors);
     }
 
@@ -2282,6 +2351,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             schedule,
             scheduleEnforcementEnabled,
             individualGrant,
+            deviceGroupAccess,
+            qualifyingAccess,
           },
           200,
           cors
@@ -2296,6 +2367,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         schedule,
         scheduleEnforcementEnabled,
         individualGrant,
+        deviceGroupAccess,
+        qualifyingAccess,
       }, 200, cors);
     }
     return jsonResponse({
@@ -2307,6 +2380,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       schedule,
       scheduleEnforcementEnabled,
       individualGrant,
+      deviceGroupAccess,
+      qualifyingAccess,
     }, 200, cors);
   }
 
@@ -2541,6 +2616,399 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'grant_not_active' }, 400, cors);
     }
     return jsonResponse({ ok: true, id, status: 'revoked' }, 200, cors);
+  }
+
+  // ================= Phase #32 — enrolled classroom devices + device-group unlock =================
+
+  if (request.method === 'POST' && path === '/api/class-access/device/pairing/request') {
+    // Phase #32 — classroom browser "enroll this computer" request. pairing_phrase (e.g.
+    // CRIMSON-CEDAR-49) is a DISPLAY/LOOKUP IDENTIFIER ONLY for the teacher to recognize which
+    // pending pairing belongs to which physical browser; it is never accepted as proof of
+    // anything. The real security boundary is the opaque pairing secret minted below and returned
+    // ONLY as an HttpOnly cookie (never in the JSON body, never in a URL/query string).
+    const nowDate = new Date();
+    const nowIso = nowDate.toISOString();
+    const rawCookie = request.headers.get('Cookie') || '';
+    const existingSecret = getCookieValue(rawCookie, DEVICE_PAIRING_COOKIE_NAME);
+    const secure = url.protocol === 'https:';
+
+    if (existingSecret) {
+      const existingHash = await hashOpaqueSecret(existingSecret);
+      const existingRow = await db.prepare(
+        'SELECT id, pairing_phrase, status, request_expires_at FROM lantern_access_device_pairings WHERE pairing_secret_hash = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(existingHash).first();
+      if (existingRow && derivedPairingStatus(existingRow, nowIso) === 'pending') {
+        return jsonResponse({
+          ok: true,
+          existing: true,
+          pairingId: existingRow.id,
+          pairingPhrase: existingRow.pairing_phrase,
+          requestExpiresAt: existingRow.request_expires_at,
+        }, 200, cors);
+      }
+    }
+
+    // Rate limit: coarse cap on distinct pairing requests per hashed requester IP within a short
+    // window. The IP hash is used ONLY for this anti-spam throttle, never to authorize a device.
+    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
+    const ipHash = ip ? await hashOpaqueSecret(ip) : null;
+    if (ipHash) {
+      const windowStart = new Date(nowDate.getTime() - DEVICE_PAIRING_RATE_LIMIT_WINDOW_SEC * 1000).toISOString();
+      const recent = await db.prepare(
+        'SELECT COUNT(*) AS c FROM lantern_access_device_pairings WHERE requester_ip_hash = ? AND requested_at > ?'
+      ).bind(ipHash, windowStart).first();
+      if (recent && Number(recent.c) >= DEVICE_PAIRING_RATE_LIMIT_MAX_PER_WINDOW) {
+        return jsonResponse({ ok: false, error: 'too_many_requests' }, 429, cors);
+      }
+    }
+
+    let phrase = '';
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const candidate = generatePairingPhrase();
+      const clash = await db.prepare(
+        "SELECT id FROM lantern_access_device_pairings WHERE pairing_phrase = ? AND status = 'pending' AND request_expires_at > ?"
+      ).bind(candidate, nowIso).first();
+      if (!clash) { phrase = candidate; break; }
+    }
+    if (!phrase) return jsonResponse({ ok: false, error: 'Could not generate a unique pairing phrase, please try again' }, 503, cors);
+
+    const pairingSecret = generateOpaqueSecret();
+    const pairingHash = await hashOpaqueSecret(pairingSecret);
+    const id = 'devpair_' + crypto.randomUUID().replace(/-/g, '');
+    const requestExpiresAt = new Date(nowDate.getTime() + DEVICE_PAIRING_PENDING_TTL_SEC * 1000).toISOString();
+
+    await db.prepare(
+      "INSERT INTO lantern_access_device_pairings (id, pairing_phrase, pairing_secret_hash, requester_ip_hash, status, requested_at, request_expires_at, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)"
+    ).bind(id, phrase, pairingHash, ipHash, nowIso, requestExpiresAt, nowIso).run();
+
+    return new Response(JSON.stringify({
+      ok: true,
+      pairingId: id,
+      pairingPhrase: phrase,
+      requestExpiresAt,
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        ...cors,
+        'Set-Cookie': buildPairingCookieHeader(pairingSecret, secure),
+      },
+    });
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/device/pairing/status') {
+    // Phase #32 — classroom browser polling. Looked up SOLELY by the requesting browser's
+    // HttpOnly pairing cookie, never by any client-supplied id/phrase. A browser that merely knows
+    // another classroom computer's phrase (but not its pairing secret) learns nothing here and
+    // never receives a device credential — see the cross-browser tests in
+    // worker/scripts/device-enrollment-test.mjs.
+    //
+    // The real device credential is delivered here at MOST ONCE (credential_delivered_at guards
+    // it), matched only by this cookie. It is never re-sent once delivered, and never shown to
+    // staff on any teacher-facing endpoint.
+    const nowIso = new Date().toISOString();
+    const secret = getCookieValue(request.headers.get('Cookie') || '', DEVICE_PAIRING_COOKIE_NAME);
+    if (!secret) return jsonResponse({ ok: true, status: 'pending' }, 200, cors);
+    const hash = await hashOpaqueSecret(secret);
+    const row = await db.prepare(
+      'SELECT id, pairing_phrase, status, request_expires_at, device_id, credential_delivered_at FROM lantern_access_device_pairings WHERE pairing_secret_hash = ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(hash).first();
+    if (!row) return jsonResponse({ ok: true, status: 'pending' }, 200, cors);
+    const derived = derivedPairingStatus(row, nowIso);
+    if (derived !== 'approved') {
+      return jsonResponse({ ok: true, status: derived, pairingPhrase: row.pairing_phrase }, 200, cors);
+    }
+    if (row.credential_delivered_at) {
+      return jsonResponse({ ok: true, status: 'approved', delivered: true }, 200, cors);
+    }
+    // One-time credential pickup: mint a fresh device credential the FIRST time the original
+    // browser observes 'approved', bind it into lantern_access_devices, and mark delivered.
+    const deviceRow = row.device_id ? await db.prepare('SELECT id, label, group_id FROM lantern_access_devices WHERE id = ?').bind(row.device_id).first() : null;
+    if (!deviceRow) return jsonResponse({ ok: false, error: 'device_not_found' }, 500, cors);
+    const deviceCredential = generateOpaqueSecret();
+    const credentialHash = await hashOpaqueSecret(deviceCredential);
+    await db.prepare('UPDATE lantern_access_devices SET device_token_hash = ? WHERE id = ?').bind(credentialHash, deviceRow.id).run();
+    await db.prepare('UPDATE lantern_access_device_pairings SET credential_delivered_at = ? WHERE id = ?').bind(nowIso, row.id).run();
+    return jsonResponse({
+      ok: true,
+      status: 'approved',
+      delivered: true,
+      deviceToken: deviceCredential,
+      deviceLabel: deviceRow.label,
+    }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/device/pairings/pending') {
+    // Phase #32 — teacher dashboard. Staff-only. Never selects/returns pairing_secret_hash or any
+    // device credential.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const rows = await db.prepare(
+      "SELECT id, pairing_phrase, requested_at, request_expires_at FROM lantern_access_device_pairings WHERE status = 'pending' AND request_expires_at > ? ORDER BY requested_at ASC"
+    ).bind(nowIso).all();
+    const list = (rows.results || []).map((r) => ({
+      id: r.id,
+      pairingPhrase: r.pairing_phrase,
+      requestedAt: r.requested_at,
+      requestExpiresAt: r.request_expires_at,
+    }));
+    return jsonResponse({ ok: true, pairings: list }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/pairings/approve') {
+    // Phase #32 — teacher approval. Assigns the human-readable label (and, optionally, a device
+    // group) and creates the lantern_access_devices row, but does NOT mint or expose the device
+    // credential here — that only happens once, to the ORIGINAL requesting browser, via
+    // /device/pairing/status above. Staff never see the credential.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    const label = String(body.label || '').trim().slice(0, 60);
+    const groupId = body.group_id ? String(body.group_id).trim() : null;
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!label) return jsonResponse({ ok: false, error: 'Missing label' }, 400, cors);
+    if (groupId) {
+      const groupRow = await db.prepare('SELECT id FROM lantern_access_device_groups WHERE id = ?').bind(groupId).first();
+      if (!groupRow) return jsonResponse({ ok: false, error: 'group_not_found' }, 404, cors);
+    }
+    const nowIso = new Date().toISOString();
+    const row = await db.prepare('SELECT id, status, request_expires_at FROM lantern_access_device_pairings WHERE id = ?').bind(id).first();
+    if (!row) return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
+    if (row.status !== 'pending' || row.request_expires_at <= nowIso) {
+      return jsonResponse({ ok: false, error: 'pairing_not_pending_or_expired' }, 400, cors);
+    }
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    // Placeholder hash -- overwritten with the real credential's hash the first time the
+    // original browser picks it up via /device/pairing/status (never here, never by staff).
+    const placeholderHash = await hashOpaqueSecret('unclaimed:' + id + ':' + crypto.randomUUID());
+    const deviceId = 'accdev_' + crypto.randomUUID().replace(/-/g, '');
+    await db.prepare(
+      'INSERT INTO lantern_access_devices (id, device_token_hash, group_id, label, enrolled_by_staff_id, enrolled_by_staff_name, enrolled_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(deviceId, placeholderHash, groupId, label, staffId || null, staffName, nowIso, nowIso).run();
+    const result = await db.prepare(
+      "UPDATE lantern_access_device_pairings SET status = 'approved', decided_at = ?, decided_by_staff_id = ?, decided_by_staff_name = ?, device_id = ? WHERE id = ? AND status = 'pending' AND request_expires_at > ?"
+    ).bind(nowIso, staffId || null, staffName, deviceId, id, nowIso).run();
+    if (!result || !result.meta || !result.meta.changes) {
+      // Roll back the just-created device row -- the pairing was decided/expired concurrently.
+      await db.prepare('DELETE FROM lantern_access_devices WHERE id = ?').bind(deviceId).run();
+      return jsonResponse({ ok: false, error: 'pairing_not_pending_or_expired' }, 400, cors);
+    }
+    return jsonResponse({ ok: true, id, status: 'approved', deviceId, label, groupId }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/pairings/deny') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    const nowIso = new Date().toISOString();
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    const result = await db.prepare(
+      "UPDATE lantern_access_device_pairings SET status = 'denied', decided_at = ?, decided_by_staff_id = ?, decided_by_staff_name = ? WHERE id = ? AND status = 'pending'"
+    ).bind(nowIso, staffId || null, staffName, id).run();
+    if (!result || !result.meta || !result.meta.changes) {
+      return jsonResponse({ ok: false, error: 'pairing_not_pending' }, 400, cors);
+    }
+    return jsonResponse({ ok: true, id, status: 'denied' }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/device/groups') {
+    // Phase #32 — teacher dashboard. Group name, enrolled-device count, current unlock
+    // status/expiration. No group ever has, needs, or exposes a shared password.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const groupRows = await db.prepare('SELECT id, name, created_at FROM lantern_access_device_groups ORDER BY name ASC').all();
+    const groups = groupRows.results || [];
+    const list = [];
+    for (const g of groups) {
+      const countRow = await db.prepare(
+        "SELECT COUNT(*) AS c FROM lantern_access_devices WHERE group_id = ? AND (revoked_at IS NULL OR revoked_at = '')"
+      ).bind(g.id).first();
+      const unlockRow = await db.prepare(
+        'SELECT expires_at, is_active, revoked_at, started_by_staff_name FROM lantern_access_group_unlocks WHERE group_id = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(g.id).first();
+      const active = isGroupUnlockActive(unlockRow, nowIso);
+      list.push({
+        id: g.id,
+        name: g.name,
+        deviceCount: countRow ? Number(countRow.c) : 0,
+        unlockActive: active,
+        unlockExpiresAt: active ? unlockRow.expires_at : null,
+        unlockedBy: active ? unlockRow.started_by_staff_name : null,
+      });
+    }
+    return jsonResponse({ ok: true, groups: list }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/groups') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const name = String(body.name || '').trim().slice(0, 80);
+    if (!name) return jsonResponse({ ok: false, error: 'Missing name' }, 400, cors);
+    const nowIso = new Date().toISOString();
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    const id = 'accgrp_' + crypto.randomUUID().replace(/-/g, '');
+    await db.prepare(
+      'INSERT INTO lantern_access_device_groups (id, name, created_by_staff_id, created_by_staff_name, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(id, name, staffId || null, staffName, nowIso).run();
+    return jsonResponse({ ok: true, id, name }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/groups/rename') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    const name = String(body.name || '').trim().slice(0, 80);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!name) return jsonResponse({ ok: false, error: 'Missing name' }, 400, cors);
+    const result = await db.prepare('UPDATE lantern_access_device_groups SET name = ? WHERE id = ?').bind(name, id).run();
+    if (!result || !result.meta || !result.meta.changes) return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
+    return jsonResponse({ ok: true, id, name }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/device/devices') {
+    // Phase #32 — teacher dashboard. Device label, last seen, active/revoked, non-authoritative
+    // diagnostic metadata only. Never selects/returns device_token_hash.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const rows = await db.prepare(
+      'SELECT d.id, d.label, d.group_id, g.name AS group_name, d.enrolled_at, d.enrolled_by_staff_name, d.last_seen_at, d.revoked_at FROM lantern_access_devices d LEFT JOIN lantern_access_device_groups g ON g.id = d.group_id ORDER BY d.enrolled_at DESC'
+    ).all();
+    const list = (rows.results || []).map((r) => ({
+      id: r.id,
+      label: r.label,
+      groupId: r.group_id,
+      groupName: r.group_name,
+      enrolledAt: r.enrolled_at,
+      enrolledBy: r.enrolled_by_staff_name,
+      lastSeenAt: r.last_seen_at,
+      revoked: !!r.revoked_at,
+      revokedAt: r.revoked_at,
+    }));
+    return jsonResponse({ ok: true, devices: list }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/devices/assign') {
+    // Phase #32 — assign/reassign an enrolled device to a group (or ungroup with group_id: null).
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const deviceId = String(body.device_id || '').trim();
+    const groupId = body.group_id ? String(body.group_id).trim() : null;
+    if (!deviceId) return jsonResponse({ ok: false, error: 'Missing device_id' }, 400, cors);
+    if (groupId) {
+      const groupRow = await db.prepare('SELECT id FROM lantern_access_device_groups WHERE id = ?').bind(groupId).first();
+      if (!groupRow) return jsonResponse({ ok: false, error: 'group_not_found' }, 404, cors);
+    }
+    const result = await db.prepare('UPDATE lantern_access_devices SET group_id = ? WHERE id = ?').bind(groupId, deviceId).run();
+    if (!result || !result.meta || !result.meta.changes) return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
+    return jsonResponse({ ok: true, deviceId, groupId }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/devices/revoke') {
+    // Phase #32 — immediate, permanent revocation of this credential. Takes effect immediately:
+    // the UPDATE below is the only thing any qualification check ever reads. A revoked device
+    // cannot silently restore itself; the teacher may explicitly re-enroll (a fresh pairing) later.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const deviceId = String(body.device_id || '').trim();
+    if (!deviceId) return jsonResponse({ ok: false, error: 'Missing device_id' }, 400, cors);
+    const nowIso = new Date().toISOString();
+    const result = await db.prepare(
+      "UPDATE lantern_access_devices SET revoked_at = ? WHERE id = ? AND (revoked_at IS NULL OR revoked_at = '')"
+    ).bind(nowIso, deviceId).run();
+    if (!result || !result.meta || !result.meta.changes) return jsonResponse({ ok: false, error: 'already_revoked_or_not_found' }, 400, cors);
+    return jsonResponse({ ok: true, deviceId, revoked: true }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/groups/unlock') {
+    // Phase #32 — teacher group unlock. Exactly one active unlock per group at a time: starting a
+    // new one immediately supersedes (revokes) any prior active unlock for that group, so
+    // "Unlock 60" after an accidental "Unlock 15" behaves as the teacher expects. No shared
+    // classroom password is ever created or displayed -- this only sets an expiry a valid enrolled
+    // device in this group is checked against.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const groupId = String(body.group_id || '').trim();
+    if (!groupId) return jsonResponse({ ok: false, error: 'Missing group_id' }, 400, cors);
+    const groupRow = await db.prepare('SELECT id FROM lantern_access_device_groups WHERE id = ?').bind(groupId).first();
+    if (!groupRow) return jsonResponse({ ok: false, error: 'group_not_found' }, 404, cors);
+
+    const nowDate = new Date();
+    const nowIso = nowDate.toISOString();
+    let expiresAt;
+    let untilSchoolClose = false;
+    if (body.until_school_close) {
+      const resolved = resolveUntilSchoolCloseInstant(nowDate);
+      if (!resolved.ok) {
+        return jsonResponse({ ok: false, error: 'until_school_close_unavailable', reason: resolved.reason }, 400, cors);
+      }
+      expiresAt = resolved.expiresAt;
+      untilSchoolClose = true;
+    } else {
+      const durationMinutes = parseInt(body.duration_minutes, 10);
+      if (!GROUP_UNLOCK_ALLOWED_MINUTES.includes(durationMinutes)) {
+        return jsonResponse({ ok: false, error: 'duration_minutes must be 15, 30, or 60' }, 400, cors);
+      }
+      expiresAt = new Date(nowDate.getTime() + durationMinutes * 60 * 1000).toISOString();
+    }
+
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+
+    await db.prepare(
+      "UPDATE lantern_access_group_unlocks SET is_active = 0, revoked_at = ? WHERE group_id = ? AND is_active = 1 AND (revoked_at IS NULL OR revoked_at = '')"
+    ).bind(nowIso, groupId).run();
+
+    const id = 'accunlock_' + crypto.randomUUID().replace(/-/g, '');
+    await db.prepare(
+      'INSERT INTO lantern_access_group_unlocks (id, group_id, started_by_staff_id, started_by_staff_name, starts_at, expires_at, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
+    ).bind(id, groupId, staffId || null, staffName, nowIso, expiresAt, nowIso).run();
+
+    return jsonResponse({ ok: true, groupId, unlockId: id, expiresAt, untilSchoolClose }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/device/groups/lock') {
+    // Phase #32 — "Lock Now". Ends the active unlock immediately and server-side: the UPDATE
+    // below is the only thing any qualification check ever reads, so there is no delayed cleanup
+    // job to wait on.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const groupId = String(body.group_id || '').trim();
+    if (!groupId) return jsonResponse({ ok: false, error: 'Missing group_id' }, 400, cors);
+    const nowIso = new Date().toISOString();
+    const result = await db.prepare(
+      "UPDATE lantern_access_group_unlocks SET is_active = 0, revoked_at = ? WHERE group_id = ? AND is_active = 1 AND (revoked_at IS NULL OR revoked_at = '')"
+    ).bind(nowIso, groupId).run();
+    return jsonResponse({ ok: true, groupId, locked: true, hadActiveUnlock: !!(result && result.meta && result.meta.changes) }, 200, cors);
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

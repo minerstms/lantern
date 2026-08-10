@@ -1833,6 +1833,47 @@
           </div>
         </div>
 
+        <div class="card" style="border-color: rgba(120,200,150,.35); background: linear-gradient(180deg, rgba(120,200,150,.08), rgba(120,200,150,.03));">
+          <div class="cardHd">
+            <div class="h">Classroom Devices</div>
+            <span class="pill" id="deviceGroupsCountPill">0 groups</span>
+          </div>
+          <div class="cardBd">
+            <p class="note note-tight">Enroll classroom computers once, group them (e.g. "TMS STEM Lab"), then unlock the whole group temporarily. No shared password is ever created or displayed to students.</p>
+
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="h" style="font-size:22px;">Pending Device Pairings</div>
+                <span class="pill" id="devicePairingsPendingCountPill">0</span>
+              </div>
+              <p class="note note-tight">A classroom computer requested enrollment and is displaying an identifier. Match it below, verbally confirm in the room, then assign a label and a group.</p>
+              <div id="devicePairingsPendingList"></div>
+              <p class="note" id="devicePairingsPendingEmpty" style="display:none;">No pending device pairings right now.</p>
+            </div>
+
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="h" style="font-size:22px;">Device Groups</div>
+                <button type="button" class="btn small" id="deviceGroupCreateToggleBtn">+ New Group</button>
+              </div>
+              <div id="deviceGroupCreatePanel" style="display:none;margin-bottom:10px;gap:8px;">
+                <input type="text" id="deviceGroupCreateInput" placeholder="e.g. TMS STEM Lab" style="flex:1;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
+                <button type="button" class="btn good small" id="deviceGroupCreateConfirmBtn">Create</button>
+              </div>
+              <div id="deviceGroupsList"></div>
+              <p class="note" id="deviceGroupsEmpty" style="display:none;">No device groups yet. Create one (e.g. "TMS STEM Lab") to get started.</p>
+            </div>
+
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+              <div class="h" style="font-size:22px;margin-bottom:8px;">Enrolled Devices</div>
+              <div id="deviceEnrolledList"></div>
+              <p class="note" id="deviceEnrolledEmpty" style="display:none;">No enrolled devices yet.</p>
+            </div>
+
+            <p class="note" style="margin-top:14px;"><a href="device-pairing.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Device Pairing Page</a> — run this once on each classroom computer to enroll it.</p>
+          </div>
+        </div>
+
         <div class="card">
           <div class="cardHd">
             <div class="h">Student Totals</div>
@@ -4662,6 +4703,241 @@
       startAccessRequestsPolling();
       document.addEventListener('visibilitychange', function(){
         if (document.visibilityState === 'visible') refreshAccessRequestsUI();
+      });
+    })();
+
+    /**
+     * Phase #32 — enrolled classroom computers + device-group unlock. Renders Pending Device
+     * Pairings / Device Groups / Enrolled Devices inside the Classroom Devices card, using the
+     * same curatePostRow / btn small pattern as the Phase #31 access-requests UI above. No
+     * enrolled browser ever receives a human-shareable group password -- unlocking a group only
+     * ever sets a server-side expiry that valid enrolled devices in that group are checked
+     * against. School-schedule enforcement stays off in production; this remains informational.
+     */
+    var deviceGroupsCache = [];
+
+    function deviceGroupOptionsHtml(selectedId){
+      var html = '<option value="">Ungrouped</option>';
+      deviceGroupsCache.forEach(function(g){
+        html += '<option value="' + esc(g.id) + '"' + (String(selectedId || '') === String(g.id) ? ' selected' : '') + '>' + esc(g.name) + '</option>';
+      });
+      return html;
+    }
+
+    async function refreshDeviceEnrollmentUI(){
+      var pendingList = el('devicePairingsPendingList');
+      var groupsList = el('deviceGroupsList');
+      var devicesList = el('deviceEnrolledList');
+      if (!pendingList && !groupsList && !devicesList) return;
+      if (avatarApiBase === null) return;
+
+      function callDeviceApi(pathSuffix, method, body){
+        var opts = { method: method || 'GET', credentials: 'include' };
+        if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+        return fetch(avatarApiBase + '/api/class-access/device/' + pathSuffix, opts)
+          .then(function(r){ return r.json().then(function(b){ return { status: r.status, body: b }; }); })
+          .catch(function(){ return { status: 0, body: null }; });
+      }
+
+      var pendRes = await callDeviceApi('pairings/pending', 'GET');
+      var groupsRes = await callDeviceApi('groups', 'GET');
+      var devicesRes = await callDeviceApi('devices', 'GET');
+
+      var groups = (groupsRes.body && groupsRes.body.ok && groupsRes.body.groups) || [];
+      deviceGroupsCache = groups;
+      var pendingCountPill = el('devicePairingsPendingCountPill');
+      var groupsCountPill = el('deviceGroupsCountPill');
+      if (groupsCountPill) groupsCountPill.textContent = groups.length + (groups.length === 1 ? ' group' : ' groups');
+
+      // -- Pending pairings --
+      var pendingItems = (pendRes.body && pendRes.body.ok && pendRes.body.pairings) || [];
+      if (pendingCountPill) pendingCountPill.textContent = String(pendingItems.length);
+      if (pendingList) {
+        pendingList.innerHTML = '';
+        var pendingEmpty = el('devicePairingsPendingEmpty');
+        if (pendingEmpty) pendingEmpty.style.display = pendingItems.length ? 'none' : 'block';
+        pendingItems.forEach(function(p){
+          var row = document.createElement('div');
+          row.className = 'curatePostRow';
+          var ageMin = 0;
+          try { ageMin = Math.max(0, Math.round((Date.now() - new Date(p.requestedAt).getTime()) / 60000)); } catch(e) {}
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostTitle" style="font-weight:1000;font-size:24px;letter-spacing:.03em;">' + esc(p.pairingPhrase || '') + '</div>' +
+            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">' + ageMin + ' min ago</div>' +
+            '<div class="devicePairingApproveForm" style="display:none;margin-top:10px;flex-wrap:wrap;gap:8px;align-items:center;">' +
+            '<input type="text" class="devicePairingLabelInput" placeholder="Label, e.g. STEM-01" style="padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:20px;width:180px;" />' +
+            '<select class="devicePairingGroupSelect" style="padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:20px;">' + deviceGroupOptionsHtml() + '</select>' +
+            '<button type="button" class="btn good small devicePairingConfirmBtn">Confirm</button>' +
+            '</div></div><div class="curatePostActions"></div>';
+          var formWrap = row.querySelector('.devicePairingApproveForm');
+          var actions = row.querySelector('.curatePostActions');
+          var approveBtn = document.createElement('button');
+          approveBtn.className = 'btn good small';
+          approveBtn.textContent = 'Approve';
+          approveBtn.addEventListener('click', function(){
+            formWrap.style.display = formWrap.style.display === 'none' ? 'flex' : 'none';
+          });
+          var denyBtn = document.createElement('button');
+          denyBtn.className = 'btn bad small';
+          denyBtn.textContent = 'Deny';
+          denyBtn.addEventListener('click', async function(){
+            denyBtn.disabled = true;
+            var res = await callDeviceApi('pairings/deny', 'POST', { id: p.id });
+            if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); denyBtn.disabled = false; return; }
+            toast('Pairing denied');
+            await refreshDeviceEnrollmentUI();
+          });
+          actions.appendChild(approveBtn);
+          actions.appendChild(denyBtn);
+          var confirmBtn = row.querySelector('.devicePairingConfirmBtn');
+          confirmBtn.addEventListener('click', async function(){
+            var labelInput = row.querySelector('.devicePairingLabelInput');
+            var groupSelect = row.querySelector('.devicePairingGroupSelect');
+            var label = (labelInput && labelInput.value || '').trim();
+            if (!label) { toast('Enter a device label first'); return; }
+            confirmBtn.disabled = true;
+            var res = await callDeviceApi('pairings/approve', 'POST', { id: p.id, label: label, group_id: (groupSelect && groupSelect.value) || null });
+            if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); confirmBtn.disabled = false; return; }
+            toast('Device enrolled as ' + label);
+            await refreshDeviceEnrollmentUI();
+          });
+          pendingList.appendChild(row);
+        });
+      }
+
+      // -- Device groups --
+      if (groupsList) {
+        groupsList.innerHTML = '';
+        var groupsEmpty = el('deviceGroupsEmpty');
+        if (groupsEmpty) groupsEmpty.style.display = groups.length ? 'none' : 'block';
+        groups.forEach(function(g){
+          var row = document.createElement('div');
+          row.className = 'curatePostRow';
+          var statusText = 'Locked';
+          if (g.unlockActive) {
+            var remainMin = 0;
+            try { remainMin = Math.max(0, Math.round((new Date(g.unlockExpiresAt).getTime() - Date.now()) / 60000)); } catch(e) {}
+            statusText = 'Unlocked · ' + remainMin + ' min left' + (g.unlockedBy ? ' · by ' + g.unlockedBy : '');
+          }
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(g.name) + '</div>' +
+            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">' + g.deviceCount + (g.deviceCount === 1 ? ' device' : ' devices') + ' · ' + esc(statusText) + '</div></div><div class="curatePostActions" style="flex-wrap:wrap;gap:6px;"></div>';
+          var actions = row.querySelector('.curatePostActions');
+          function unlockBtn(label, body){
+            var b = document.createElement('button');
+            b.className = 'btn small';
+            b.textContent = label;
+            b.addEventListener('click', async function(){
+              b.disabled = true;
+              var res = await callDeviceApi('groups/unlock', 'POST', Object.assign({ group_id: g.id }, body));
+              if (!res.body || !res.body.ok) { toast((res.body && (res.body.reason || res.body.error)) || 'Failed'); b.disabled = false; return; }
+              toast(g.name + ' unlocked');
+              await refreshDeviceEnrollmentUI();
+            });
+            return b;
+          }
+          actions.appendChild(unlockBtn('Unlock 15 min', { duration_minutes: 15 }));
+          actions.appendChild(unlockBtn('Unlock 30 min', { duration_minutes: 30 }));
+          actions.appendChild(unlockBtn('Unlock 60 min', { duration_minutes: 60 }));
+          actions.appendChild(unlockBtn('Until School Close', { until_school_close: true }));
+          if (g.unlockActive) {
+            var lockBtn = document.createElement('button');
+            lockBtn.className = 'btn bad small';
+            lockBtn.textContent = 'Lock Now';
+            lockBtn.addEventListener('click', async function(){
+              lockBtn.disabled = true;
+              var res = await callDeviceApi('groups/lock', 'POST', { group_id: g.id });
+              if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); lockBtn.disabled = false; return; }
+              toast(g.name + ' locked');
+              await refreshDeviceEnrollmentUI();
+            });
+            actions.appendChild(lockBtn);
+          }
+          groupsList.appendChild(row);
+        });
+      }
+
+      // -- Enrolled devices --
+      var deviceItems = (devicesRes.body && devicesRes.body.ok && devicesRes.body.devices) || [];
+      if (devicesList) {
+        devicesList.innerHTML = '';
+        var devicesEmpty = el('deviceEnrolledEmpty');
+        if (devicesEmpty) devicesEmpty.style.display = deviceItems.length ? 'none' : 'block';
+        deviceItems.forEach(function(d){
+          var row = document.createElement('div');
+          row.className = 'curatePostRow';
+          var lastSeenText = 'Never seen';
+          if (d.lastSeenAt) {
+            try { lastSeenText = 'Last seen ' + Math.max(0, Math.round((Date.now() - new Date(d.lastSeenAt).getTime()) / 60000)) + ' min ago'; } catch(e) {}
+          }
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(d.label || 'Device') +
+            (d.revoked ? ' <span style="color:var(--bad);font-weight:800;">(revoked)</span>' : '') + '</div>' +
+            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">' + esc(lastSeenText) + '</div></div><div class="curatePostActions" style="flex-wrap:wrap;gap:6px;align-items:center;"></div>';
+          var actions = row.querySelector('.curatePostActions');
+          var groupSelect = document.createElement('select');
+          groupSelect.style.cssText = 'padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:20px;';
+          groupSelect.innerHTML = deviceGroupOptionsHtml(d.groupId);
+          groupSelect.disabled = !!d.revoked;
+          groupSelect.addEventListener('change', async function(){
+            var res = await callDeviceApi('devices/assign', 'POST', { device_id: d.id, group_id: groupSelect.value || null });
+            if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); await refreshDeviceEnrollmentUI(); return; }
+            toast('Reassigned ' + (d.label || 'device'));
+            await refreshDeviceEnrollmentUI();
+          });
+          actions.appendChild(groupSelect);
+          if (!d.revoked) {
+            var revokeBtn = document.createElement('button');
+            revokeBtn.className = 'btn bad small';
+            revokeBtn.textContent = 'Revoke';
+            revokeBtn.addEventListener('click', async function(){
+              revokeBtn.disabled = true;
+              var res = await callDeviceApi('devices/revoke', 'POST', { device_id: d.id });
+              if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); revokeBtn.disabled = false; return; }
+              toast('Device revoked');
+              await refreshDeviceEnrollmentUI();
+            });
+            actions.appendChild(revokeBtn);
+          }
+          devicesList.appendChild(row);
+        });
+      }
+    }
+
+    if (el('deviceGroupCreateToggleBtn')) {
+      el('deviceGroupCreateToggleBtn').addEventListener('click', function(){
+        var panel = el('deviceGroupCreatePanel');
+        if (!panel) return;
+        panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+      });
+    }
+    if (el('deviceGroupCreateConfirmBtn')) {
+      el('deviceGroupCreateConfirmBtn').addEventListener('click', async function(){
+        var input = el('deviceGroupCreateInput');
+        var name = (input && input.value || '').trim();
+        if (!name) { toast('Enter a group name first'); return; }
+        if (avatarApiBase === null) { toast('Class Access requires Lantern API'); return; }
+        var res = await fetch(avatarApiBase + '/api/class-access/device/groups', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }),
+        }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+        if (!res || !res.ok) { toast((res && res.error) || 'Failed to create group'); return; }
+        if (input) input.value = '';
+        var panel = el('deviceGroupCreatePanel');
+        if (panel) panel.style.display = 'none';
+        toast('Group "' + name + '" created');
+        await refreshDeviceEnrollmentUI();
+      });
+    }
+
+    (function(){
+      var deviceEnrollmentPollTimer = null;
+      function startDeviceEnrollmentPolling(){
+        if (deviceEnrollmentPollTimer) clearInterval(deviceEnrollmentPollTimer);
+        deviceEnrollmentPollTimer = setInterval(function(){
+          if (document.visibilityState === 'visible') refreshDeviceEnrollmentUI();
+        }, 8000);
+      }
+      refreshDeviceEnrollmentUI();
+      startDeviceEnrollmentPolling();
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible') refreshDeviceEnrollmentUI();
       });
     })();
 
