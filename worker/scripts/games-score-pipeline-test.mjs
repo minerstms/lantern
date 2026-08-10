@@ -51,10 +51,14 @@ if (gamesHtml.includes('leaderboardSubmitGuard')) {
 
 if (
   gamesHtml.includes("postLeaderboardScore('Nugget Click Rush'") &&
-  gamesHtml.match(/postLeaderboardScore\('Nugget Click Rush'[\s\S]*?scheduleCloseAfterResult/)
+  gamesHtml.match(/scorePosted = true;[\s\S]{0,600}postLeaderboardScore\('Nugget Click Rush'/)
 ) {
-  ok('Click Rush submits score before player cleanup close');
-} else bad('Click Rush submit-before-close');
+  // Prompt #99: Click Rush no longer auto-closes the Game Player after a result (it now shows a
+  // persistent "Play Again" button instead, matching the other games), so the invariant worth
+  // guarding here is "submits the score exactly once via the scorePosted guard", not "submits
+  // before some now-removed auto-close timer".
+  ok('Click Rush submits score exactly once via scorePosted guard');
+} else bad('Click Rush submit-once guard');
 
 if (gamesHtml.includes("postLeaderboardScore('Memory Match'")) {
   ok('Memory Match records leaderboard score on completion');

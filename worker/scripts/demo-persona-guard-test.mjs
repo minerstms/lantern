@@ -12,8 +12,13 @@
  *
  * Usage: node worker/scripts/demo-persona-guard-test.mjs
  */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { isKnownDemoPersonaName, filterOutDemoPersonas, KNOWN_DEMO_PERSONA_NAMES } from '../demo-persona-guard.js';
 import { collectApprovedFeed } from '../feed-handlers.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0;
 let fail = 0;
@@ -109,6 +114,33 @@ async function runIntegrationTests() {
 }
 
 await runIntegrationTests();
+
+// ---------------------------------------------------------------------------
+// C. Prompt #99 — GET /api/leaderboards (games) must also apply the same demo-persona filter.
+//    This route had never been wired to demo-persona-guard.js, so a known fake/demo persona name
+//    could still surface on a game leaderboard as though it were a real student's score. Source-
+//    level assertion (matching the style of the other worker/index.js checks in this repo) rather
+//    than a full D1-mock integration test, since the leaderboards handler is not separately
+//    exported for isolated invocation.
+// ---------------------------------------------------------------------------
+const workerIndexSrc = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
+const leaderboardsGetBlock = (() => {
+  const startIdx = workerIndexSrc.indexOf("request.method === 'GET' && path === '/api/leaderboards'");
+  if (startIdx === -1) return '';
+  return workerIndexSrc.slice(startIdx, startIdx + 4500);
+})();
+
+if (
+  leaderboardsGetBlock &&
+  leaderboardsGetBlock.includes('filterOutDemoPersonas(') &&
+  leaderboardsGetBlock.match(/filterOutDemoPersonas\([^)]*rows\.results[^)]*'character_name'/)
+) {
+  ok('GET /api/leaderboards applies filterOutDemoPersonas to character_name before responding');
+} else bad('GET /api/leaderboards should filter demo personas out of entries', leaderboardsGetBlock.slice(0, 200));
+
+if (leaderboardsGetBlock && leaderboardsGetBlock.includes('SELECT character_name, score_display,')) {
+  ok('GET /api/leaderboards selects score_display alongside the MIN()/MAX() aggregate (real per-game display string, not just the bare number)');
+} else bad('GET /api/leaderboards should select score_display for the winning row');
 
 console.log(`\ndemo-persona-guard-test: ${pass} PASS ${fail} FAIL`);
 process.exit(fail > 0 ? 1 : 0);

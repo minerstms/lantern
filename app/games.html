@@ -568,6 +568,106 @@
     .cultureGameOverlay .resultMsg.win{ color: var(--good); }
     .cultureGameOverlay .avatarMatchResultScore{ font-size: 32px; margin-top: 12px; color: var(--warn); }
 
+    /* Prompt #99 — shared, lightweight feedback polish for the seven non-Hunt games. Reuses the
+       .gameArea / .tapZone / .memCard / .cultureGameOverlay class families already defined above;
+       Nugget Hunt's own CSS (above) is untouched. */
+    .gameArea{ position: relative; }
+    .gameArea .tapZone.ready{ animation: reactionReadyPulse 1.4s ease-in-out infinite; }
+    @keyframes reactionReadyPulse{
+      0%,100%{ box-shadow: 0 0 0 0 rgba(90,167,255,.35); }
+      50%{ box-shadow: 0 0 0 10px rgba(90,167,255,0); }
+    }
+    .gameArea .tapZone.falseStart{ border-color: var(--bad); background: rgba(255,77,109,.15); animation: wrongShakeGame .3s ease; }
+    .gameArea .tapZone.tapPulse{ animation: tapPulseGame .16s ease; }
+    @keyframes tapPulseGame{
+      0%{ transform: scale(1); }
+      50%{ transform: scale(0.96); }
+      100%{ transform: scale(1); }
+    }
+    @keyframes wrongShakeGame{
+      0%,100%{ transform: translateX(0); }
+      25%{ transform: translateX(-6px); }
+      75%{ transform: translateX(6px); }
+    }
+    .gameArea .gradeText{ font-size: 20px; font-weight: 800; color: var(--muted); }
+    .gameArea .big.urgent{ color: var(--bad); animation: timerUrgentGame .8s ease-in-out infinite; }
+    @keyframes timerUrgentGame{
+      0%,100%{ opacity: 1; }
+      50%{ opacity: .5; }
+    }
+    .gameArea .comboFlash{
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--warn);
+      pointer-events: none;
+      animation: comboFlashGame .7s ease forwards;
+      white-space: nowrap;
+    }
+    @keyframes comboFlashGame{
+      0%{ opacity: 0; transform: translate(-50%, 6px) scale(.9); }
+      30%{ opacity: 1; transform: translate(-50%, -2px) scale(1.05); }
+      100%{ opacity: 0; transform: translate(-50%, -22px) scale(1); }
+    }
+    .memHud{
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .memHud .memHudVal{ color: var(--ink); }
+    .memCard{ transition: transform .18s ease, background .15s ease, border-color .15s ease; }
+    .memCard.mismatch{ animation: wrongShakeGame .3s ease; border-color: var(--bad); }
+    .memCard.matched{ animation: correctPopGame .35s ease; }
+    @keyframes correctPopGame{
+      0%{ transform: scale(1); }
+      45%{ transform: scale(1.15); }
+      100%{ transform: scale(1); }
+    }
+    .cultureGameOverlay .streakBadge{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,138,61,.15);
+      border: 2px solid rgba(255,138,61,.4);
+      color: #ffb066;
+      font-weight: 900;
+      font-size: 18px;
+      margin: 0 0 14px;
+    }
+    .cultureGameOverlay .streakBadge[hidden]{ display: none; }
+    .cultureGameOverlay .triviaProgress{ font-size: 18px; font-weight: 800; color: var(--muted); margin-bottom: 6px; }
+    .cultureGameOverlay .choiceBtn.revealCorrect{ border-color: var(--good); background: rgba(56,208,124,.2); }
+    .cultureGameOverlay .triviaExplain{
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--muted);
+      margin: -6px 0 14px;
+      line-height: 1.35;
+    }
+    .playAgainRow{ display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+
+    @media (prefers-reduced-motion: reduce){
+      .gameArea .tapZone.ready,
+      .gameArea .tapZone.falseStart,
+      .gameArea .tapZone.tapPulse,
+      .gameArea .big.urgent,
+      .gameArea .comboFlash,
+      .memCard,
+      .memCard.mismatch,
+      .memCard.matched{
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
   </style>
 </head>
 <body class="page-has-ticker">
@@ -698,11 +798,11 @@
   <div id="lanternGamePlayerSurfaceHost" class="lanternGamePlayerSurfaceHost" aria-hidden="true">
     <div id="gamesArcadeEmbeddedSurfaces" class="gamesArcadeEmbeddedSurfaces" aria-hidden="true">
       <div class="gameLocked" id="reactionLocked" style="display:none;">Need at least 1 nugget to play.</div>
-      <div class="gameArea" id="reactionArea" style="display:none;"><div class="big" id="reactionMsg">Get ready...</div><div class="tapZone" id="reactionTapZone">Tap when you see GO</div></div>
+      <div class="gameArea" id="reactionArea" style="display:none;"><div class="big" id="reactionMsg">Get ready...</div><div class="tapZone" id="reactionTapZone">Tap when you see GO</div><div class="gradeText" id="reactionGrade"></div><div class="playAgainRow" id="reactionPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="reactionPlayAgainBtn">Play Again</button></div></div>
       <div class="gameLocked" id="clickrushLocked" style="display:none;">Need at least 1 nugget to play.</div>
-      <div class="gameArea" id="clickrushArea" style="display:none;"><div class="big" id="clickrushCount">0</div><div class="big" id="clickrushTimer">10</div><div class="tapZone" id="clickrushTapZone">Tap here!</div></div>
+      <div class="gameArea" id="clickrushArea" style="display:none;"><div class="big" id="clickrushCount">0</div><div class="big" id="clickrushTimer">10</div><div class="tapZone" id="clickrushTapZone">Tap here!</div><div class="playAgainRow" id="clickrushPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="clickrushPlayAgainBtn">Play Again</button></div></div>
       <div class="gameLocked" id="memoryLocked" style="display:none;">Need at least 1 nugget to play.</div>
-      <div class="gameArea" id="memoryArea" style="display:none;"><div class="memGrid" id="memoryGrid"></div></div>
+      <div class="gameArea" id="memoryArea" style="display:none;"><div class="memHud" id="memoryHud"><span>Moves: <span class="memHudVal" id="memoryMovesVal">0</span></span><span>Pairs left: <span class="memHudVal" id="memoryPairsVal">6</span></span></div><div class="memGrid" id="memoryGrid"></div><div class="playAgainRow" id="memoryPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="memoryPlayAgainBtn">Play Again</button></div></div>
       <div class="gameLocked" id="nuggetHuntLocked" style="display:none;">Need at least 1 nugget to play.</div>
     </div>
     <!-- Nugget Hunt fullscreen overlay -->
@@ -806,6 +906,59 @@
       t.style.display = 'block';
       clearTimeout(t._tid);
       t._tid = setTimeout(function(){ t.style.display = 'none'; }, 2400);
+    }
+
+    // Prompt #99 — shared helpers reused by the seven polished games below. Nugget Hunt keeps its
+    // own separate, untouched copy of the run-id + WebAudio helpers inside its own IIFE further
+    // down; nothing here changes Nugget Hunt's behavior.
+    function generateRunId(){
+      if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+      return 'run_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    }
+    var prefersReducedMotion = (function(){
+      try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+    })();
+    var gameSfxCtx = null;
+    function getGameSfxCtx(){
+      if (gameSfxCtx) return gameSfxCtx;
+      var Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return null;
+      try { gameSfxCtx = new Ctor(); } catch (e) { gameSfxCtx = null; }
+      return gameSfxCtx;
+    }
+    function playGameTone(freqs, opts){
+      var ctx = getGameSfxCtx();
+      if (!ctx) return;
+      opts = opts || {};
+      var dur = opts.dur || 0.11;
+      var gap = opts.gap != null ? opts.gap : dur * 0.85;
+      var vol = opts.vol != null ? opts.vol : 0.08;
+      var type = opts.type || 'sine';
+      try {
+        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') ctx.resume();
+        freqs.forEach(function(freq, i){
+          var t0 = ctx.currentTime + i * gap;
+          var osc = ctx.createOscillator();
+          var gainNode = ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, t0);
+          gainNode.gain.setValueAtTime(0, t0);
+          gainNode.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          osc.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          osc.start(t0);
+          osc.stop(t0 + dur + 0.02);
+        });
+      } catch (e) {}
+    }
+    function flashCombo(container, text){
+      if (!container) return;
+      var el2 = document.createElement('div');
+      el2.className = 'comboFlash';
+      el2.textContent = text;
+      container.appendChild(el2);
+      setTimeout(function(){ if (el2.parentNode) el2.parentNode.removeChild(el2); }, prefersReducedMotion ? 0 : 700);
     }
 
     var economyApiBase = (function () {
@@ -978,13 +1131,30 @@
 
     var RESULT_DELAY_MS = 2500;
 
-    // ---- Reaction Tap: ready → playing → result → auto-reset → ready ----
+    // ---- Reaction Tap: ready → playing → result → Play Again (Prompt #99 polish pass) ----
     (function(){
       var playBtn = el('reactionPlayBtn');
       var area = el('reactionArea');
       var msg = el('reactionMsg');
       var tapZone = el('reactionTapZone');
+      var gradeEl = el('reactionGrade');
+      var playAgainRow = el('reactionPlayAgainRow');
+      var playAgainBtn = el('reactionPlayAgainBtn');
       var goInterval = null;
+
+      function sfxReactionGo(){ playGameTone([880, 1320], { dur: 0.09, gap: 0.06, vol: 0.07 }); }
+      function sfxReactionFalseStart(){ playGameTone([180], { dur: 0.16, vol: 0.05, type: 'triangle' }); }
+      function sfxReactionGrade(tier){
+        if (tier === 'lightning') playGameTone([660, 880, 1180], { dur: 0.1, gap: 0.07, vol: 0.07 });
+        else if (tier === 'great') playGameTone([600, 800], { dur: 0.1, gap: 0.08, vol: 0.07 });
+        else playGameTone([500], { dur: 0.12, vol: 0.06 });
+      }
+      function gradeForMs(ms){
+        if (ms < 220) return { tier: 'lightning', text: '⚡ Lightning fast!' };
+        if (ms < 350) return { tier: 'great', text: 'Great reflexes!' };
+        if (ms < 550) return { tier: 'ok', text: 'Nice tap!' };
+        return { tier: 'ok', text: 'Keep practicing!' };
+      }
 
       function clearReactionState(){
         if (goInterval) { clearInterval(goInterval); goInterval = null; }
@@ -1000,19 +1170,23 @@
         msg.style.color = '';
         tapZone.className = 'tapZone';
         tapZone.textContent = 'Wait for GO';
+        if (gradeEl) gradeEl.textContent = '';
+        if (playAgainRow) playAgainRow.style.display = 'none';
         area.style.display = 'none';
       }
 
+      // Prompt #99: route the false-start penalty through the same TMS-authoritative economy
+      // bridge every other charge in this file uses (callEconomyTransact + a fresh idempotency
+      // run_id), instead of the legacy local-wallet-only run.spendOnGame() call. That legacy path
+      // bypassed the TMS ledger entirely and had no idempotency key of its own.
       function applyFalseStartPenalty(){
         if (tapZone._penaltyApplied) return;
         tapZone._penaltyApplied = true;
         var adopted = loadAdopted();
-        if (!adopted || !run) return;
-        run.withSuccessHandler(function(res){
-          refreshBalance();
-        }).withFailureHandler(function(){
-          // ignore failures for penalty
-        }).spendOnGame({ character_name: adopted.name, game_name: 'Reaction Tap False Start' });
+        if (!adopted) return;
+        callEconomyTransact(adopted.name, -1, 'game_false_start', 'GAME', 'Reaction Tap False Start', generateRunId()).then(function(res){
+          if (res && res.ok) refreshBalance();
+        });
       }
 
       tapZone.addEventListener('click', function(){
@@ -1021,20 +1195,25 @@
           if (goInterval) { clearInterval(goInterval); goInterval = null; }
           tapZone._done = true;
           applyFalseStartPenalty();
+          sfxReactionFalseStart();
           msg.textContent = 'False Start';
           msg.style.color = 'var(--bad)';
           tapZone.textContent = 'False Start -1 nugget';
-          tapZone.className = 'tapZone';
-          scheduleCloseAfterResult(resetReactionGame);
+          tapZone.className = 'tapZone falseStart';
+          if (gradeEl) gradeEl.textContent = 'Wait for the zone to turn green before tapping.';
+          if (playAgainRow) playAgainRow.style.display = 'flex';
           return;
         }
         if (!tapZone._start) return;
         tapZone._done = true;
         var ms = Date.now() - tapZone._start;
+        var grade = gradeForMs(ms);
+        sfxReactionGrade(grade.tier);
         msg.textContent = ms + ' ms';
         msg.style.color = '';
         tapZone.textContent = 'Done!';
-        tapZone.className = 'tapZone';
+        tapZone.className = 'tapZone go tapPulse';
+        if (gradeEl) gradeEl.textContent = grade.text;
         var adopted = loadAdopted();
         if (adopted && run && run.recordGameResult) {
           run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Reaction Tap', meta: { score: ms, score_display: ms + ' ms' } });
@@ -1042,18 +1221,20 @@
         if (adopted) {
           postLeaderboardScore('Reaction Tap', adopted.name, ms, ms + ' ms', function(ok){
             if (ok) toast('Score recorded on leaderboard.');
-            scheduleCloseAfterResult(resetReactionGame);
+            if (playAgainRow) playAgainRow.style.display = 'flex';
           });
-        } else {
-          scheduleCloseAfterResult(resetReactionGame);
+        } else if (playAgainRow) {
+          playAgainRow.style.display = 'flex';
         }
       });
 
-      playBtn.addEventListener('click', function(){
+      function startReactionRound(){
         tryPlay('Reaction Tap', function(){
+          if (playAgainRow) playAgainRow.style.display = 'none';
+          if (gradeEl) gradeEl.textContent = '';
           msg.textContent = 'Get ready...';
           msg.style.color = '';
-          tapZone.className = 'tapZone';
+          tapZone.className = 'tapZone ready';
           tapZone.textContent = 'Wait for GO';
           tapZone._goShown = false;
           tapZone._done = false;
@@ -1066,6 +1247,7 @@
               clearInterval(goInterval);
               goInterval = null;
               tapZone._goShown = true;
+              sfxReactionGo();
               msg.textContent = 'GO!';
               tapZone.className = 'tapZone go';
               tapZone.textContent = 'TAP NOW!';
@@ -1073,7 +1255,10 @@
             }
           }, 50);
         }, { surface: area, onExit: resetReactionGame, returnFocus: playBtn });
-      });
+      }
+
+      playBtn.addEventListener('click', startReactionRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startReactionRound);
     })();
 
     // ---- Nugget Click Rush: ready → playing → result → auto-reset → ready ----
@@ -1083,7 +1268,15 @@
       var countEl = el('clickrushCount');
       var timerEl = el('clickrushTimer');
       var tapZone = el('clickrushTapZone');
+      var playAgainRow = el('clickrushPlayAgainRow');
+      var playAgainBtn = el('clickrushPlayAgainBtn');
       var tickInterval = null;
+      var MILESTONES = [10, 25, 50, 75, 100];
+      var URGENT_SEC = 3;
+
+      function sfxClickTap(){ playGameTone([740], { dur: 0.045, vol: 0.035 }); }
+      function sfxClickMilestone(){ playGameTone([700, 940], { dur: 0.08, gap: 0.06, vol: 0.06 }); }
+      function sfxClickTimeUp(){ playGameTone([520, 380], { dur: 0.16, gap: 0.13, vol: 0.06, type: 'triangle' }); }
 
       function clearClickRushState(){
         if (tickInterval) { clearInterval(tickInterval); tickInterval = null; }
@@ -1091,31 +1284,54 @@
 
       function resetClickRushGame(){
         clearClickRushState();
+        timerEl.classList.remove('urgent');
+        if (playAgainRow) playAgainRow.style.display = 'none';
         area.style.display = 'none';
       }
 
-      playBtn.addEventListener('click', function(){
+      function startClickRushRound(){
         tryPlay('Nugget Click Rush', function(){
           var count = 0;
           var remaining = 10;
           var scorePosted = false;
+          var hitMilestones = {};
           countEl.textContent = '0';
           timerEl.textContent = '10';
+          timerEl.classList.remove('urgent');
+          tapZone.className = 'tapZone';
           tapZone.textContent = 'Tap here!';
+          if (playAgainRow) playAgainRow.style.display = 'none';
           clearClickRushState();
           tapZone.onclick = function(){
             if (tickInterval === null) return;
             count++;
             countEl.textContent = String(count);
+            if (!prefersReducedMotion) {
+              tapZone.classList.remove('tapPulse');
+              void tapZone.offsetWidth;
+              tapZone.classList.add('tapPulse');
+            }
+            if (MILESTONES.indexOf(count) !== -1 && !hitMilestones[count]) {
+              hitMilestones[count] = true;
+              sfxClickMilestone();
+              flashCombo(area, count + '! 🔥');
+            } else {
+              sfxClickTap();
+            }
           };
           tickInterval = setInterval(function(){
             remaining--;
             timerEl.textContent = String(remaining);
+            timerEl.classList.toggle('urgent', remaining > 0 && remaining <= URGENT_SEC);
             if (remaining <= 0){
               clearInterval(tickInterval);
               tickInterval = null;
               tapZone.onclick = null;
-              tapZone.textContent = 'Time\'s up! ' + count + ' taps';
+              timerEl.classList.remove('urgent');
+              sfxClickTimeUp();
+              var rate = (count / 10).toFixed(1);
+              tapZone.textContent = 'Time\'s up! ' + count + ' taps (' + rate + '/sec)';
+              if (playAgainRow) playAgainRow.style.display = 'flex';
               if (scorePosted) return;
               scorePosted = true;
               var adopted = loadAdopted();
@@ -1125,36 +1341,48 @@
               if (adopted) {
                 postLeaderboardScore('Nugget Click Rush', adopted.name, count, count + ' taps', function(ok){
                   if (ok) toast('Score recorded on leaderboard.');
-                  scheduleCloseAfterResult(resetClickRushGame);
                 });
-              } else {
-                scheduleCloseAfterResult(resetClickRushGame);
               }
             }
           }, 1000);
         }, { surface: area, onExit: resetClickRushGame, returnFocus: playBtn });
-      });
+      }
+
+      playBtn.addEventListener('click', startClickRushRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startClickRushRound);
     })();
 
-    // ---- Memory Match: ready → playing → result → auto-reset → ready ----
+    // ---- Memory Match: ready → playing → result → Play Again (Prompt #99 polish pass) ----
     (function(){
       var emojis = ['🌟','⭐','✨','🎯','🚀','🎨','📚','🔥'];
+      var pairCount = 6;
       var playBtn = el('memoryPlayBtn');
       var area = el('memoryArea');
       var grid = el('memoryGrid');
+      var movesVal = el('memoryMovesVal');
+      var pairsVal = el('memoryPairsVal');
+      var playAgainRow = el('memoryPlayAgainRow');
+      var playAgainBtn = el('memoryPlayAgainBtn');
       var resetTimeout = null;
+
+      function sfxMemFlip(){ playGameTone([520], { dur: 0.06, vol: 0.04 }); }
+      function sfxMemMatch(){ playGameTone([700, 940], { dur: 0.09, gap: 0.07, vol: 0.07 }); }
+      function sfxMemMismatch(){ playGameTone([260], { dur: 0.14, vol: 0.05, type: 'triangle' }); }
+      function sfxMemComplete(){ playGameTone([523, 659, 784, 1046], { dur: 0.13, gap: 0.09, vol: 0.08 }); }
 
       function resetMemoryGame(){
         if (resetTimeout) clearTimeout(resetTimeout);
         resetTimeout = null;
         grid.innerHTML = '';
+        if (playAgainRow) playAgainRow.style.display = 'none';
         area.style.display = 'none';
       }
 
-      playBtn.addEventListener('click', function(){
+      function startMemoryRound(){
         tryPlay('Memory Match', function(){
           if (resetTimeout) clearTimeout(resetTimeout);
-          var pairs = emojis.slice(0, 6).concat(emojis.slice(0, 6));
+          if (playAgainRow) playAgainRow.style.display = 'none';
+          var pairs = emojis.slice(0, pairCount).concat(emojis.slice(0, pairCount));
           for (var i = pairs.length - 1; i > 0; i--){
             var j = Math.floor(Math.random() * (i + 1));
             var t = pairs[i]; pairs[i] = pairs[j]; pairs[j] = t;
@@ -1162,8 +1390,12 @@
           grid.innerHTML = '';
           var flipped = [];
           var matched = 0;
+          var moves = 0;
           var startedAt = Date.now();
           var scorePosted = false;
+          var locked = false;
+          if (movesVal) movesVal.textContent = '0';
+          if (pairsVal) pairsVal.textContent = String(pairCount);
           pairs.forEach(function(emoji, idx){
             var card = document.createElement('div');
             card.className = 'memCard';
@@ -1171,50 +1403,65 @@
             card.dataset.idx = idx;
             card.dataset.emoji = emoji;
             card.onclick = function(){
+              if (locked) return;
               if (card.classList.contains('matched') || card.classList.contains('flipped')) return;
               if (flipped.length >= 2) return;
               card.classList.add('flipped');
               card.textContent = emoji;
+              sfxMemFlip();
               flipped.push(card);
               if (flipped.length === 2){
+                moves++;
+                if (movesVal) movesVal.textContent = String(moves);
                 var a = flipped[0], b = flipped[1];
                 if (a.dataset.emoji === b.dataset.emoji){
                   a.classList.add('matched');
                   b.classList.add('matched');
+                  sfxMemMatch();
                   matched += 2;
                   flipped = [];
+                  if (pairsVal) pairsVal.textContent = String(pairCount - matched / 2);
                   if (matched === pairs.length){
+                    locked = true;
                     var secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+                    sfxMemComplete();
                     grid.innerHTML = '';
                     var doneEl = document.createElement('div');
                     doneEl.className = 'big';
-                    doneEl.textContent = 'All matched! ' + secs + 's';
+                    doneEl.textContent = 'All matched! ' + secs + 's · ' + moves + ' moves';
                     grid.appendChild(doneEl);
+                    if (playAgainRow) playAgainRow.style.display = 'flex';
                     var adopted = loadAdopted();
                     if (adopted && !scorePosted) {
                       scorePosted = true;
-                      postLeaderboardScore('Memory Match', adopted.name, secs, secs + 's', function(){
-                        resetTimeout = setTimeout(function(){ closeGamePlayerAfterResult(resetMemoryGame); }, RESULT_DELAY_MS);
+                      postLeaderboardScore('Memory Match', adopted.name, secs, secs + 's', function(ok){
+                        if (ok) toast('Score recorded on leaderboard.');
                       });
-                    } else {
-                      resetTimeout = setTimeout(function(){ closeGamePlayerAfterResult(resetMemoryGame); }, RESULT_DELAY_MS);
                     }
                   }
                 } else {
+                  locked = true;
+                  sfxMemMismatch();
+                  a.classList.add('mismatch');
+                  b.classList.add('mismatch');
                   setTimeout(function(){
-                    a.classList.remove('flipped');
+                    a.classList.remove('flipped', 'mismatch');
                     a.textContent = '?';
-                    b.classList.remove('flipped');
+                    b.classList.remove('flipped', 'mismatch');
                     b.textContent = '?';
                     flipped = [];
-                  }, 600);
+                    locked = false;
+                  }, prefersReducedMotion ? 500 : 650);
                 }
               }
             };
             grid.appendChild(card);
           });
         }, { surface: area, onExit: resetMemoryGame, returnFocus: playBtn });
-      });
+      }
+
+      playBtn.addEventListener('click', startMemoryRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startMemoryRound);
     })();
 
     // ---- Nugget Hunt: full-screen overlay game (Prompt #89 polish pass) ----
@@ -1582,6 +1829,11 @@
           if (window.LanternGamesPage && typeof window.LanternGamesPage.loadAllLeaderboards === 'function') {
             window.LanternGamesPage.loadAllLeaderboards();
           }
+          // Prompt #99: only dedupe *in-flight/just-completed* duplicate submissions (double-click,
+          // a re-render firing the same result handler twice, etc). Clearing the guard shortly after
+          // success — rather than leaving it permanently true for the rest of the session — lets a
+          // later genuine run that happens to score identically still post to the leaderboard.
+          setTimeout(function(){ delete leaderboardSubmitGuard[guardKey]; }, 5000);
         } else {
           delete leaderboardSubmitGuard[guardKey];
           toast('Score couldn\'t be saved. Try again.');
@@ -1611,7 +1863,22 @@
 
       function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
 
+      function sfxCultureCorrect(){ playGameTone([660, 880], { dur: 0.09, gap: 0.07, vol: 0.07 }); }
+      function sfxCultureWrong(){ playGameTone([220], { dur: 0.13, vol: 0.05, type: 'triangle' }); }
+      function sfxCultureComplete(){ playGameTone([523, 659, 784], { dur: 0.15, gap: 0.11, vol: 0.07 }); }
+      function streakBadgeHtml(streak){
+        if (!streak) return '';
+        return '<span class="streakBadge">🔥 ' + streak + '</span>';
+      }
+      function playAgainHtml(btnId){
+        return '<div class="playAgainRow"><button type="button" class="btn good" id="' + btnId + '">Play Again</button></div>';
+      }
+
       el('avatarMatchPlayBtn').addEventListener('click', function(){
+        startAvatarMatch();
+      });
+
+      function startAvatarMatch(){
         tryPlay('Avatar Match', function(){
         var adopted = loadAdopted();
         if (!adopted){ failGamePlayerStart('Choose a character in Locker (Overview) to play.'); return; }
@@ -1621,6 +1888,8 @@
         var round = 0;
         var totalScore = 0;
         var roundsTotal = 5;
+        var streak = 0;
+        var bestStreak = 0;
         function beginRoundsAfterCanonical(){
           if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && characters.length) {
             window.LanternAvatar.attachCanonicalAvatarsToItems(characters).then(function(){ startRound(); });
@@ -1678,6 +1947,7 @@
           var pick = pickOptions();
           if (!pick || round >= roundsTotal){ showAvatarMatchResult(); return; }
           round++;
+          var answered = false;
           setScore('Round ' + round + ' / ' + roundsTotal);
           var startTime = Date.now();
           var correctName = (pick.correct.display_name || pick.correct.character_name || '').trim();
@@ -1685,7 +1955,7 @@
           var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim()) ? String(canonAm.imageUrl).trim() : '';
           var fallbackLetter = avatarFallbackChar(pick.correct.display_name || pick.correct.character_name);
           var html = '<p class="avatarMatchPrompt">Who is this?</p>';
-          html += '<div class="avatarMatchScoreRow"><span class="round">Round ' + round + ' of ' + roundsTotal + '</span><span class="score">Score: ' + totalScore + '</span></div>';
+          html += '<div class="avatarMatchScoreRow"><span class="round">Round ' + round + ' of ' + roundsTotal + '</span><span class="score">Score: ' + totalScore + '</span>' + streakBadgeHtml(streak) + '</div>';
           html += '<div class="avatarMatchImgWrap">';
           if (avatarUrl) {
             html += '<img src="' + esc(avatarUrl) + '" alt="" onerror="var w=this.parentElement; if(w){ var f=w.querySelector(\'.avatarFallback\'); if(f){ f.classList.remove(\'avatarFallbackHidden\'); } this.style.display=\'none\'; }">';
@@ -1701,27 +1971,45 @@
           gameBody.innerHTML = html;
           gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
             btn.addEventListener('click', function(){
+              if (answered) return;
+              answered = true;
+              gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
               var chosen = (btn.dataset.name || '').trim();
               var isCorrect = chosen === correctName;
               var elapsed = Math.floor((Date.now() - startTime) / 1000);
               var points = isCorrect ? Math.max(10, 100 - elapsed * 5) : 0;
               totalScore += points;
               btn.classList.add(isCorrect ? 'correct' : 'wrong');
-              gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
-              setTimeout(function(){ startRound(); }, 800);
+              if (!isCorrect) {
+                // Prompt #99: reveal the actual correct name, not just mark the wrong pick red.
+                gameBody.querySelectorAll('.choiceBtn').forEach(function(b){
+                  if ((b.dataset.name || '').trim() === correctName) b.classList.add('correct');
+                });
+                streak = 0;
+                sfxCultureWrong();
+              } else {
+                streak++;
+                if (streak > bestStreak) bestStreak = streak;
+                sfxCultureCorrect();
+              }
+              setTimeout(function(){ startRound(); }, isCorrect ? 800 : 1100);
             });
           });
         }
         function showAvatarMatchResult(){
           setScore('Score: ' + totalScore);
-          gameBody.innerHTML = '<div class="resultMsg win">Match complete!</div><div class="avatarMatchResultScore">' + totalScore + ' points</div>';
+          sfxCultureComplete();
+          var streakLine = bestStreak > 1 ? ('<div class="triviaProgress">🔥 Best streak: ' + bestStreak + '</div>') : '';
+          gameBody.innerHTML = '<div class="resultMsg win">Match complete!</div><div class="avatarMatchResultScore">' + totalScore + ' points</div>' + streakLine + playAgainHtml('avatarMatchPlayAgainBtn');
           postLeaderboardScore('Avatar Match', adopted.name, totalScore, totalScore + ' pts', function(ok){
             if (ok) toast('Score recorded on leaderboard.');
           });
+          var again = el('avatarMatchPlayAgainBtn');
+          if (again) again.addEventListener('click', startAvatarMatch);
         }
         fetchThenStart();
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('avatarMatchPlayBtn') });
-      });
+      }
 
       function runTriviaGame(title, gameName, getQuestions){
         var adopted = loadAdopted();
@@ -1732,37 +2020,76 @@
         else questions = questions.slice(0, 10);
         var qIndex = 0;
         var correctCount = 0;
+        var streak = 0;
+        var bestStreak = 0;
         openOverlay(title);
         setScore('0 / ' + questions.length);
         function showQuestion(){
           if (qIndex >= questions.length){ showTriviaResult(); return; }
           var q = questions[qIndex];
+          var answered = false;
           setScore(correctCount + ' / ' + questions.length);
-          var html = '<div class="triviaQuestion">' + esc(q.question) + '</div>';
+          var html = '<div class="triviaProgress">Question ' + (qIndex + 1) + ' of ' + questions.length + streakBadgeHtml(streak) + '</div>';
+          html += '<div class="triviaQuestion">' + esc(q.question) + '</div>';
           (q.options || []).forEach(function(opt, i){
             html += '<button type="button" class="choiceBtn" data-correct="' + (i === q.correctIndex ? '1' : '0') + '">' + esc(opt) + '</button>';
           });
           gameBody.innerHTML = html;
           gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
             btn.addEventListener('click', function(){
-              var isCorrect = btn.dataset.correct === '1';
-              if (isCorrect) correctCount++;
-              btn.classList.add(isCorrect ? 'correct' : 'wrong');
+              if (answered) return;
+              answered = true;
               gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
+              var isCorrect = btn.dataset.correct === '1';
+              btn.classList.add(isCorrect ? 'correct' : 'wrong');
+              var explainHtml = '';
+              if (isCorrect) {
+                correctCount++;
+                streak++;
+                if (streak > bestStreak) bestStreak = streak;
+                sfxCultureCorrect();
+              } else {
+                // Prompt #99: reveal which option was actually correct instead of leaving the
+                // player to guess; also surface the question's `explanation` field (present on
+                // every Handbook/Local History item but previously never rendered anywhere).
+                gameBody.querySelectorAll('.choiceBtn').forEach(function(b){
+                  if (b.dataset.correct === '1') b.classList.add('correct');
+                });
+                streak = 0;
+                sfxCultureWrong();
+              }
+              if (q.explanation) {
+                var explainDiv = document.createElement('div');
+                explainDiv.className = 'triviaExplain';
+                explainDiv.textContent = q.explanation;
+                gameBody.appendChild(explainDiv);
+              }
               qIndex++;
-              setTimeout(showQuestion, 600);
+              setTimeout(showQuestion, q.explanation ? 2200 : 900);
             });
           });
         }
         function showTriviaResult(){
           var score = correctCount * 10;
           setScore('Score: ' + score);
-          gameBody.innerHTML = '<div class="resultMsg win">' + correctCount + ' correct! Score: ' + score + '</div>';
-          postLeaderboardScore(gameName, adopted.name, score, correctCount + '/10 · ' + score + ' pts', function(ok){
+          sfxCultureComplete();
+          var streakLine = bestStreak > 1 ? ('<div class="triviaProgress">🔥 Best streak: ' + bestStreak + '</div>') : '';
+          gameBody.innerHTML = '<div class="resultMsg win">' + correctCount + ' correct! Score: ' + score + '</div>' + streakLine + playAgainHtml('triviaPlayAgainBtn_' + gameName.replace(/[^a-zA-Z0-9]/g, ''));
+          postLeaderboardScore(gameName, adopted.name, score, correctCount + '/' + questions.length + ' · ' + score + ' pts', function(ok){
             if (ok) toast('Score recorded on leaderboard.');
+          });
+          var again = gameBody.querySelector('.playAgainRow button');
+          if (again) again.addEventListener('click', function(){
+            el(playBtnIdForGameName(gameName)).click();
           });
         }
         showQuestion();
+      }
+      function playBtnIdForGameName(gameName){
+        if (gameName === 'Handbook Trivia') return 'handbookTriviaPlayBtn';
+        if (gameName === 'Lantern Live Trivia') return 'lanternLiveTriviaPlayBtn';
+        if (gameName === 'Local History Trivia') return 'localHistoryTriviaPlayBtn';
+        return null;
       }
       el('handbookTriviaPlayBtn').addEventListener('click', function(){
         tryPlay('Handbook Trivia', function(){
@@ -1771,17 +2098,22 @@
           });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('handbookTriviaPlayBtn') });
       });
+      // Prompt #99: fetch the approved live-trivia question set *before* charging the Nugget play
+      // cost. Previously the charge fired first and the fetch could still come back empty (no
+      // approved questions yet), leaving a student down a Nugget with no game to show for it.
       el('lanternLiveTriviaPlayBtn').addEventListener('click', function(){
-        tryPlay('Lantern Live Trivia', function(){
-          if (!window.LANTERN_FEED) { failGamePlayerStart('Feed API not loaded.'); return; }
-          window.LANTERN_FEED.triviaLive().then(function(res){
-            if (!res || !res.ok || !(res.questions && res.questions.length)) {
-              failGamePlayerStart('No approved live trivia questions yet.');
-              return;
-            }
+        if (!window.LANTERN_FEED) { toast('Feed API not loaded.'); return; }
+        window.LANTERN_FEED.triviaLive().then(function(res){
+          if (!res || !res.ok || !(res.questions && res.questions.length)) {
+            toast('No approved live trivia questions yet.');
+            return;
+          }
+          tryPlay('Lantern Live Trivia', function(){
             runTriviaGame('Lantern Live Trivia', 'Lantern Live Trivia', function(){ return res.questions; });
-          });
-        }, { surface: overlay, onExit: closeOverlay, returnFocus: el('lanternLiveTriviaPlayBtn') });
+          }, { surface: overlay, onExit: closeOverlay, returnFocus: el('lanternLiveTriviaPlayBtn') });
+        }).catch(function(){
+          toast('No approved live trivia questions yet.');
+        });
       });
       el('localHistoryTriviaPlayBtn').addEventListener('click', function(){
         tryPlay('Local History Trivia', function(){

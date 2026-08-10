@@ -3872,39 +3872,48 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     const orderBy = lowerBetter ? 'ORDER BY score ASC' : 'ORDER BY score DESC';
     let rows;
     try {
+      // Prompt #99: also select score_display as a bare column alongside the single MIN()/MAX()
+      // aggregate. SQLite (D1's engine) guarantees bare columns in this shape are taken from the
+      // same row that produced the aggregate value, so this now returns the *actual* display
+      // string (e.g. "342 ms", "12 taps") for each player's best score instead of always falling
+      // back to the bare numeric score on the client (see lantern-games-page.js formatEntryLine).
       if (gameName) {
         if (since == null && !until) {
           rows = await db.prepare(
-            `SELECT character_name, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? GROUP BY character_name ${orderBy} LIMIT ?`
+            `SELECT character_name, score_display, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? GROUP BY character_name ${orderBy} LIMIT ?`
           ).bind(gameName, limit).all();
         } else if (until) {
           rows = await db.prepare(
-            `SELECT character_name, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? AND created_at <= ? GROUP BY character_name ${orderBy} LIMIT ?`
+            `SELECT character_name, score_display, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? AND created_at <= ? GROUP BY character_name ${orderBy} LIMIT ?`
           ).bind(gameName, since, until, limit).all();
         } else {
           rows = await db.prepare(
-            `SELECT character_name, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? GROUP BY character_name ${orderBy} LIMIT ?`
+            `SELECT character_name, score_display, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? GROUP BY character_name ${orderBy} LIMIT ?`
           ).bind(gameName, since, limit).all();
         }
       } else {
         if (since == null && !until) {
           rows = await db.prepare(
-            'SELECT character_name, MAX(score) AS score FROM lantern_leaderboard_entries GROUP BY character_name ORDER BY score DESC LIMIT ?'
+            'SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries GROUP BY character_name ORDER BY score DESC LIMIT ?'
           ).bind(limit).all();
         } else if (until) {
           rows = await db.prepare(
-            'SELECT character_name, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? AND created_at <= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
+            'SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? AND created_at <= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
           ).bind(since, until, limit).all();
         } else {
           rows = await db.prepare(
-            'SELECT character_name, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
+            'SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
           ).bind(since, limit).all();
         }
       }
     } catch (e) {
       return jsonResponse({ ok: true, period, entries: [] }, 200, cors);
     }
-    const entries = (rows.results || []).map((r, i) => ({
+    // Prompt #99: same demo-persona filter as /api/news/approved and /api/recognition/list — see
+    // worker/demo-persona-guard.js. Game leaderboards had never applied this filter, so a known
+    // fake/demo persona name could still surface as though it were a real student's score.
+    const filteredRows = filterOutDemoPersonas(rows.results || [], 'character_name');
+    const entries = filteredRows.map((r, i) => ({
       rank: i + 1,
       character_name: r.character_name || '',
       game_name: gameName || '',
