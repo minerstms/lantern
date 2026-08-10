@@ -158,8 +158,10 @@
   }
 
   /**
-   * After successful staff auth (password change satisfied): offer Remember when linked + untrusted.
-   * @returns {Promise<boolean>} true if modal shown (caller should not navigate yet)
+   * After successful staff auth (password change satisfied): send linked staff through TMS
+   * Install → Remember onboarding (Prompt #141 / #140). Does not show Lantern Remember alone
+   * so Install can resolve first on the TMS origin.
+   * @returns {Promise<boolean>} true if navigated away (caller should not navigate)
    */
   function maybeOfferRememberDevice(me, destination) {
     absorbDeviceRememberedQuery();
@@ -172,20 +174,15 @@
     return fetchTmsLinkStatus().then(function (res) {
       var body = res.body || {};
       if (!body.ok || !body.linked) {
-        // Unlinked staff: do not show remember / do not route to device-pairing for personal trust.
         return false;
       }
-      showModal({
-        destination: dest,
-        onNotNow: function () {
-          global.location.replace(dest);
-        },
-      });
+      // Linked staff: TMS-side Install (if offerable) then Remember — not /device-pairing.
+      global.location.assign(buildAuthorizeUrl('onboard', dest));
       return true;
     });
   }
 
-  /** Behavior nav: trusted hint → authorize (TMS uses existing device if present); else modal. */
+  /** Behavior nav: trusted hint → authorize; else onboard (install then remember) or session. */
   function handleBehaviorNavClick(ev) {
     if (ev) {
       ev.preventDefault();
@@ -216,13 +213,7 @@
         global.alert('Staff access required.');
         return;
       }
-      showModal({
-        destination: '/teacher.html',
-        onNotNow: function () {
-          global.location.assign(buildAuthorizeUrl('session', '/teacher.html'));
-        },
-        navigateOnNotNow: false,
-      });
+      global.location.assign(buildAuthorizeUrl('onboard', '/teacher.html'));
     });
   }
 

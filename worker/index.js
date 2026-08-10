@@ -1082,7 +1082,7 @@ function sanitizeTmsDeviceAuthorizeReturn(raw) {
   // Prompt #140 — allow only safe intent / lantern_return query params (no secrets).
   const params = new URLSearchParams();
   const intent = String(u.searchParams.get('intent') || '').trim().toLowerCase();
-  if (intent === 'remember' || intent === 'session' || intent === 'not_now') {
+  if (intent === 'remember' || intent === 'session' || intent === 'not_now' || intent === 'onboard') {
     params.set('intent', intent);
   }
   const lanternReturn = String(u.searchParams.get('lantern_return') || '').trim();

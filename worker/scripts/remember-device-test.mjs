@@ -186,15 +186,15 @@ async function testLinkedAuthorizePreservesIntent() {
     const res = await authorize(
       env,
       cookie,
-      'https://tmsnuggets.pages.dev/index.html?intent=remember&lantern_return=/teacher.html'
+      'https://tmsnuggets.pages.dev/index.html?intent=onboard&lantern_return=/teacher.html'
     );
     const loc = res.headers.get('Location') || '';
-    if (res.status !== 302 || !/intent=remember/.test(loc) || !/lantern_staff_code=/.test(loc)) {
-      return bad('authorize must preserve intent=remember and append code', loc);
+    if (res.status !== 302 || !/intent=onboard/.test(loc) || !/lantern_staff_code=/.test(loc)) {
+      return bad('authorize must preserve intent=onboard and append code', loc);
     }
     if (/password|BRIDGE_SECRET|Bearer/.test(loc)) return bad('secrets in redirect', loc);
     if (!getCall()) return bad('mint must be called', getCall());
-    ok('linked staff authorize with intent=remember → TMS redirect with code (no password)');
+    ok('linked staff authorize with intent=onboard → TMS redirect with code (Install then Remember)');
   });
 }
 
@@ -202,13 +202,14 @@ async function testFrontendSurfaces() {
   const rememberJs = fs.readFileSync(fileURLToPath(new URL('../../app/js/lantern-remember-device.js', import.meta.url)), 'utf8');
   const loginHtml = fs.readFileSync(fileURLToPath(new URL('../../app/login.html', import.meta.url)), 'utf8');
   const teacherHtml = fs.readFileSync(fileURLToPath(new URL('../../app/teacher.html', import.meta.url)), 'utf8');
-  if (!/Remember this device\?/.test(rememberJs)) return bad('modal title missing');
-  if (!/Yes, remember this device/.test(rememberJs) || !/Not now/.test(rememberJs)) return bad('modal buttons missing');
-  if (/enrollment|pairing|credential|token|Staff PW/i.test(rememberJs) && /modal/.test(rememberJs)) {
-    // Allow code comments; block teacher-facing strings in modal HTML.
+  if (!/Remember this device\?/.test(rememberJs) && !/buildAuthorizeUrl\('onboard'/.test(rememberJs)) {
+    return bad('onboarding must still reach Remember (via TMS onboard or modal)');
+  }
+  if (!/buildAuthorizeUrl\('onboard'/.test(rememberJs)) {
+    return bad('linked staff after login should authorize with intent=onboard (Install then Remember)');
   }
   if (!/lantern-remember-device\.js/.test(loginHtml)) return bad('login must load remember-device script');
-  if (!/maybeOfferRememberDevice/.test(loginHtml)) return bad('login must offer remember after auth');
+  if (!/maybeOfferRememberDevice/.test(loginHtml)) return bad('login must offer remember/onboard after auth');
   if (!/lantern-remember-device\.js/.test(teacherHtml)) return bad('teacher must load remember-device script');
   if (!/handleBehaviorNavClick/.test(teacherHtml)) return bad('Behavior nav must use remember handler');
   if (/device-pairing\.html/.test(teacherHtml) && /personal staff sign-in uses Remember this device/i.test(teacherHtml)) {
@@ -221,7 +222,7 @@ async function testFrontendSurfaces() {
   if (/TMS_LANTERN_BRIDGE_SECRET/.test(rememberJs) || /TMS_LANTERN_BRIDGE_SECRET/.test(loginHtml)) {
     return bad('bridge secret must not appear client-side');
   }
-  ok('Remember modal copy + login/teacher wiring present; bridge secret server-only');
+  ok('Remember/onboard wiring present; bridge secret server-only');
 }
 
 await testUnauthLinkStatus();
