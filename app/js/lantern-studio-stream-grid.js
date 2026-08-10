@@ -14,7 +14,7 @@
   var DRAFT_FOCUS_SCALE_MAX = 1.25;
   var DRAFT_FOCUS_SCALE_MIN = 1;
   var DRAFT_FOCUS_TAPER_START = 112;
-  /* Create RIGHT edge locked at 50vw + CENTER_RIGHT_HALF; width grows leftward on wide desktop. */
+  /* Create RIGHT edge = 50vw + CENTER_RIGHT_HALF + right-extend (#111); #110 grew width leftward only. */
   var CENTER_RIGHT_HALF = 320;
   var CENTER_WIDTH_DEFAULT = 640;
   var CENTER_WIDTH_WIDE = 760;
@@ -23,6 +23,10 @@
   var CENTER_WIDTH = CENTER_WIDTH_DEFAULT; /* legacy alias (base; wide uses resolveCenterWidth) */
   var STUDIO_COL_GAP = 20;
   var DEFAULT_PAD_X = 12;
+  /* Mirrors contribute.html --lantern-studio-center-right-extend: clamp(48px, 5vw, 140px) at ≥1280. */
+  var CENTER_RIGHT_EXTEND_MIN = 48;
+  var CENTER_RIGHT_EXTEND_MAX = 140;
+  var CENTER_RIGHT_EXTEND_VW = 0.05;
 
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -85,13 +89,23 @@
     return viewportW >= CENTER_WIDTH_WIDE_MIN ? CENTER_WIDTH_WIDE : CENTER_WIDTH_DEFAULT;
   }
 
+  /** Prompt #111 — same clamp as --lantern-studio-center-right-extend (0 below 1280). */
+  function resolveCenterRightExtend(viewportW) {
+    if (!(viewportW >= CENTER_WIDTH_WIDE_MIN)) return 0;
+    var raw = viewportW * CENTER_RIGHT_EXTEND_VW;
+    if (raw < CENTER_RIGHT_EXTEND_MIN) return CENTER_RIGHT_EXTEND_MIN;
+    if (raw > CENTER_RIGHT_EXTEND_MAX) return CENTER_RIGHT_EXTEND_MAX;
+    return raw;
+  }
+
   /**
-   * RIGHT pane width — Create right edge locked at 50vw + CENTER_RIGHT_HALF (unchanged by leftward widen).
+   * RIGHT pane width — Create right edge at 50vw + CENTER_RIGHT_HALF + right-extend (#111).
    */
   function computeSidePaneWidth(viewportW, padX) {
     padX = padX == null ? DEFAULT_PAD_X : padX;
     var containerW = viewportW - 2 * padX;
-    return Math.max(0, containerW - (viewportW * 0.5 + CENTER_RIGHT_HALF + STUDIO_COL_GAP));
+    var extend = resolveCenterRightExtend(viewportW);
+    return Math.max(0, containerW - (viewportW * 0.5 + CENTER_RIGHT_HALF + extend + STUDIO_COL_GAP));
   }
 
   /**
@@ -348,6 +362,7 @@
     computeSidePaneWidth: computeSidePaneWidth,
     computeLeftPaneWidth: computeLeftPaneWidth,
     resolveCenterWidth: resolveCenterWidth,
+    resolveCenterRightExtend: resolveCenterRightExtend,
     getFallbackContextItems: getFallbackContextItems
   };
 })(typeof window !== 'undefined' ? window : self);

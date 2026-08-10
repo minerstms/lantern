@@ -133,68 +133,82 @@
     });
   }
 
-  function buildDisplayTickerItems(recognitionList, heroCandidates, newsList) {
-    var toB = typeof global.LANTERN_BROADCAST !== 'undefined' && global.LANTERN_BROADCAST.toBroadcastItem ? global.LANTERN_BROADCAST.toBroadcastItem : null;
-    var items = [];
-    if (toB) {
-      (recognitionList || []).forEach(function (r) {
-        var b = toB(r, 'recognition');
-        items.push({
-          icon: b.icon,
-          text: '<span class="lanternTickerText">' + esc(b.title) + '</span>' + (b.text ? ' — ' + esc(b.text) : ''),
-          avatarUrl: b.avatarUrl || '',
-          avatarEmoji: b.avatarEmoji || ''
-        });
-      });
-      (heroCandidates || []).forEach(function (s) {
-        var b = toB(s, 'slide');
-        /* Community-highlight slides (e.g. nugget_milestone) must always name the student they
-           describe — a bare "25 Nuggets" line is indistinguishable from the viewer's own wallet
-           balance shown elsewhere on the same page. This ticker is a school-wide celebration feed,
-           never the authenticated viewer's balance; LanternWallet.fetchMyBalance() is the only
-           authoritative wallet source. */
-        var attributed = b.subtitle ? esc(b.subtitle) + ' — ' + esc(b.title) : esc(b.title);
-        items.push({
-          icon: b.icon,
-          text: '<span class="lanternTickerText">' + attributed + '</span>',
-          avatarUrl: b.avatarUrl || '',
-          avatarEmoji: b.avatarEmoji || ''
-        });
-      });
-      (newsList || []).forEach(function (n) {
-        var b = toB(n, 'news');
-        items.push({
-          icon: b.icon,
-          text: '<span class="lanternTickerText">' + esc(b.title) + '</span>',
-          avatarUrl: b.avatarUrl || '',
-          avatarEmoji: b.avatarEmoji || ''
-        });
-      });
-    } else {
-      (recognitionList || []).forEach(function (r) {
-        var n = String(r.character_name || '').trim() || 'Student';
-        var m = String(r.message || '').trim().slice(0, 36);
-        if ((r.message || '').length > 36) m += '…';
-        var urlFb = r._canonicalAvatar && r._canonicalAvatar.imageUrl ? String(r._canonicalAvatar.imageUrl).trim() : '';
-        var emFb = !urlFb && r._canonicalAvatar && r._canonicalAvatar.emoji ? String(r._canonicalAvatar.emoji).trim() : '';
-        items.push({ icon: '⭐', text: '<span class="lanternTickerText">' + esc(n) + '</span> — ' + esc(m), avatarUrl: urlFb, avatarEmoji: emFb });
-      });
-      (heroCandidates || []).forEach(function (s) {
-        var title = String(s.title || '').trim().slice(0, 40);
-        if ((s.title || '').length > 40) title += '…';
-        var urlFb = s.meta && s.meta._canonicalAvatar && s.meta._canonicalAvatar.imageUrl ? String(s.meta._canonicalAvatar.imageUrl).trim() : '';
-        var emFb = !urlFb && s.meta && s.meta._canonicalAvatar && s.meta._canonicalAvatar.emoji ? String(s.meta._canonicalAvatar.emoji).trim() : '';
-        items.push({ icon: '🏆', text: '<span class="lanternTickerText">' + esc(title) + '</span>', avatarUrl: urlFb, avatarEmoji: emFb });
-      });
-      (newsList || []).forEach(function (n) {
-        var t = String(n.title || '').trim().slice(0, 42);
-        if ((n.title || '').length > 42) t += '…';
-        var meta = n.meta || {};
-        var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
-        var emFb = !urlFb && meta._canonicalAvatar && meta._canonicalAvatar.emoji ? String(meta._canonicalAvatar.emoji).trim() : '';
-        items.push({ icon: '📰', text: '<span class="lanternTickerText">' + esc(t) + '</span>', avatarUrl: urlFb, avatarEmoji: emFb });
-      });
+  /**
+   * Prompt #111 — ONE marquee source: unified display slides only.
+   * Recognition + approved news are merged into `slides` once in fetchDisplayTickerState;
+   * this builder must not also consume parallel recognitionList/newsList arrays (that
+   * previously double-rendered recognition: once from the list and again from injected slides).
+   * Accepts either full slides or a pre-filtered hero list; getHeroCandidates filters either way.
+   */
+  function slideToTickerItem(s) {
+    var type = String((s && s.type) || '');
+    var titleRaw = String((s && s.title) || '').trim();
+    var subtitle = String((s && s.subtitle) || '').trim();
+    var meta = (s && s.meta) || {};
+    var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
+    var emFb = !urlFb && meta._canonicalAvatar && meta._canonicalAvatar.emoji ? String(meta._canonicalAvatar.emoji).trim() : '';
+    var icon =
+      type === 'teacher_recognition'
+        ? '⭐'
+        : type === 'teacher_pick' || type === 'featured_creation' || type === 'achievement'
+          ? '🏆'
+          : type === 'student_news'
+            ? '📰'
+            : '✨';
+
+    if (type === 'teacher_recognition') {
+      var name = titleRaw || 'Student';
+      var msg = subtitle.slice(0, 36);
+      if (subtitle.length > 36) msg += '…';
+      return {
+        icon: icon,
+        text: '<span class="lanternTickerText">' + esc(name) + '</span>' + (msg ? ' — ' + esc(msg) : ''),
+        avatarUrl: urlFb,
+        avatarEmoji: emFb
+      };
     }
+
+    var title = titleRaw.slice(0, type === 'student_news' ? 42 : 40);
+    if (titleRaw.length > (type === 'student_news' ? 42 : 40)) title += '…';
+
+    /* Community-highlight slides (e.g. nugget_milestone) must always name the student they
+       describe — a bare "25 Nuggets" line is indistinguishable from the viewer's own wallet
+       balance shown elsewhere on the same page. This ticker is a school-wide celebration feed,
+       never the authenticated viewer's balance; LanternWallet.fetchMyBalance() is the only
+       authoritative wallet source. */
+    if (type === 'nugget_milestone' || type === 'achievement' || type === 'thank_you_highlight') {
+      var attributed = subtitle ? esc(subtitle) + ' — ' + esc(title) : esc(title);
+      return {
+        icon: icon,
+        text: '<span class="lanternTickerText">' + attributed + '</span>',
+        avatarUrl: urlFb,
+        avatarEmoji: emFb
+      };
+    }
+
+    if (type === 'student_news') {
+      return {
+        icon: icon,
+        text: '<span class="lanternTickerText">' + esc(title) + '</span>',
+        avatarUrl: urlFb,
+        avatarEmoji: emFb
+      };
+    }
+
+    var line = subtitle ? esc(subtitle) + ' — ' + esc(title) : esc(title);
+    return {
+      icon: icon,
+      text: '<span class="lanternTickerText">' + line + '</span>',
+      avatarUrl: urlFb,
+      avatarEmoji: emFb
+    };
+  }
+
+  function buildDisplayTickerItems(slides) {
+    var items = [];
+    getHeroCandidates(slides || []).forEach(function (s) {
+      items.push(slideToTickerItem(s));
+    });
     if (items.length === 0) items.push(FALLBACK_TICKER_ITEM);
     return items;
   }
@@ -311,9 +325,11 @@
     });
   }
 
-  function renderUnifiedFromState(slides, recognitionList, newsList) {
-    var heroCandidates = getHeroCandidates(slides || []);
-    var items = buildDisplayTickerItems(recognitionList || [], heroCandidates, newsList || []);
+  function renderUnifiedFromState(slides) {
+    /* Prompt #111: marquee DOM is fed only from the unified slides array. recognitionList /
+       newsList remain available on the lantern-ticker-display-data event for Display's page
+       rotator — they are not a second marquee source. */
+    var items = buildDisplayTickerItems(slides || []);
     render('lanternTicker', items);
   }
 
@@ -347,15 +363,54 @@
         var recognitionList = results[1] || [];
         var newsList = results[2] || [];
         var slides = (res && res.slides) || [];
+        /* Merge recognition + news INTO slides once — the single authoritative marquee source. */
+        var seenRec = {};
+        slides.forEach(function (s) {
+          if (s && s.type === 'teacher_recognition') {
+            var rk = String(s.title || '').trim().toLowerCase() + '\n' + String(s.subtitle || '').trim().toLowerCase();
+            if (rk !== '\n') seenRec[rk] = true;
+          }
+        });
         recognitionList.forEach(function (r) {
           var msg = String(r.message || '').trim().slice(0, 250);
           if ((r.message || '').length > 250) msg += '…';
+          var title = String(r.character_name || '').trim() || 'Recognition';
+          var subtitle = msg || (r.created_by_teacher_name ? 'From ' + r.created_by_teacher_name : '');
+          var key = title.toLowerCase() + '\n' + subtitle.toLowerCase();
+          if (seenRec[key]) return;
+          seenRec[key] = true;
           slides.push({
             type: 'teacher_recognition',
-            title: String(r.character_name || '').trim() || 'Recognition',
-            subtitle: msg || (r.created_by_teacher_name ? 'From ' + r.created_by_teacher_name : ''),
+            title: title,
+            subtitle: subtitle,
             meta: { character_name: String(r.character_name || '').trim(), avatar: '⭐' },
             created_at: r.created_at || ''
+          });
+        });
+        var seenNews = {};
+        slides.forEach(function (s) {
+          if (s && s.type === 'student_news') {
+            var nk = String(s.title || '').trim().toLowerCase();
+            if (nk) seenNews[nk] = true;
+          }
+        });
+        newsList.forEach(function (n) {
+          var t = String(n.title || '').trim();
+          if (!t || seenNews[t.toLowerCase()]) return;
+          seenNews[t.toLowerCase()] = true;
+          var author = String(n.author_name || (n.meta && n.meta.character_name) || '').trim();
+          slides.push({
+            type: 'student_news',
+            title: t,
+            subtitle: author ? 'News · ' + author : 'News',
+            image: null,
+            actor_name: author,
+            meta: {
+              character_name: author,
+              avatar: (n.meta && n.meta.avatar) || '📰',
+              body_preview: String(n.body || '').slice(0, 100)
+            },
+            created_at: n.approved_at || n.created_at || ''
           });
         });
         return fetchWorkerLeaderboardForDisplay(base).then(function (weeklyEntries) {
@@ -425,7 +480,7 @@
     // (rather than fallback → re-render once the setting arrives).
     Promise.all([fetchDisplayTickerState(createRun, base), fetchTickerSpeed(base)]).then(function (results) {
       var state = results[0];
-      renderUnifiedFromState(state.slides, state.recognitionList, state.newsList);
+      renderUnifiedFromState(state.slides);
       try {
         document.dispatchEvent(
           new CustomEvent('lantern-ticker-display-data', {

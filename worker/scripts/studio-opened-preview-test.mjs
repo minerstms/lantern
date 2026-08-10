@@ -51,9 +51,11 @@ if (
 } else bad('LEFT edge anchoring');
 
 if (
-  /\.studioColRight[\s\S]*left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) \+ var\(--lantern-studio-col-gap\)\)[\s\S]*right:\s*0;/.test(contributeHtml)
+  /\.studioColRight[\s\S]*left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) \+ var\(--lantern-studio-center-right-extend, 0px\) \+ var\(--lantern-studio-col-gap\)\)[\s\S]*right:\s*0;/.test(
+    contributeHtml
+  )
 ) {
-  ok('RIGHT pane locked to Create right-edge + gap (unchanged placement)');
+  ok('RIGHT pane locked to Create right-edge + right-extend + gap');
 } else bad('RIGHT edge anchoring');
 
 if (!/width:\s*var\(--lantern-studio-right-col-width\)/.test(contributeHtml)) {
@@ -65,21 +67,21 @@ if (!/width:\s*var\(--lantern-studio-left-col-width\)/.test(contributeHtml)) {
 } else bad('explicit LEFT width still in layout');
 
 /*
- * Prompt #110: CENTER's own box reads --lantern-studio-center-render-width (falls back to
- * --lantern-studio-center-width below 1280px) so widening Create at >=1280px doesn't also widen
- * .studioColLeft's `right` calc (which still reads --lantern-studio-center-width directly, keeping
- * Feed's rendered position byte-for-byte unchanged). Right edge is still right-lock minus width.
+ * Prompt #110/#111: CENTER reads --lantern-studio-center-render-width (falls back to
+ * --lantern-studio-center-width below 1280px). margin-left adds right-extend back so Create's
+ * LEFT edge stays at the #110 position while width grows rightward. Feed (.studioColLeft `right`)
+ * still reads --lantern-studio-center-width only.
  */
 if (
-  /\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-render-width, var\(--lantern-studio-center-width\)\)\)/.test(
+  /\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-render-width, var\(--lantern-studio-center-width\)\) \+ var\(--lantern-studio-center-right-extend, 0px\)\)/.test(
     contributeHtml
   )
 ) {
-  ok('CENTER left edge = right-lock minus render-width (leftward expand, gap-corrected)');
+  ok('CENTER left edge = right-lock minus render-width plus right-extend (left fixed, grows right)');
 } else bad('CENTER leftward geometry');
 
 if (
-  /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-render-width, var\(--lantern-studio-center-width\)\)\)/.test(
+  /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-render-width, var\(--lantern-studio-center-width\)\) \+ var\(--lantern-studio-center-right-extend, 0px\)\)/.test(
     contributeHtml
   )
 ) {
@@ -87,19 +89,25 @@ if (
 } else bad('fine-pointer desktop canvas');
 
 if (
-  /--lantern-studio-center-render-width:\s*calc\(var\(--lantern-studio-center-width\) \+ 2 \* \(var\(--lantern-pad-x, 12px\) \+ 10px\)\)/.test(
+  /--lantern-studio-center-render-width:\s*calc\(var\(--lantern-studio-center-width\) \+ 2 \* \(var\(--lantern-pad-x, 12px\) \+ 10px\) \+ var\(--lantern-studio-center-right-extend\)\)/.test(
     contributeHtml
   )
 ) {
-  ok('CENTER render-width closes canvas-inset dead gap (Feed pane untouched)');
+  ok('CENTER render-width = gap-correct + right-extend (Feed pane untouched)');
 } else bad('CENTER render-width gap-correction token');
+
+if (
+  /--lantern-studio-center-right-extend:\s*clamp\(48px,\s*5vw,\s*140px\)/.test(contributeHtml)
+) {
+  ok('wide desktop Create right-extend reclaim (Prompt #111)');
+} else bad('Create right-extend token');
 
 if (
   /@media \(hover: hover\) and \(pointer: fine\) and \(min-width: 1280px\)[\s\S]*--lantern-studio-center-width:\s*760px/.test(
     contributeHtml
   )
 ) {
-  ok('wide desktop Create width 760px (leftward only)');
+  ok('wide desktop Create width 760px base (plus gap-correct + right-extend)');
 } else bad('wide desktop Create width override');
 
 if (/studioSidePanelTitle">In the feed</.test(contributeHtml) && !/studioSidePanelTitle">In the stream</.test(contributeHtml)) {
@@ -362,18 +370,25 @@ if (SG && typeof SG.computeLayout === 'function') {
   const zoomRight = rightAt(1090);
   const wideLeft = leftAt(2000);
   const normalLeft = leftAt(1366);
-  if (wideRight >= 620 && wideRight <= 660) ok('wide ~2000px RIGHT pane ~636px');
+  /* Prompt #111: right-extend reclaim shrinks RIGHT pane; LEFT unchanged from #110. */
+  const extend1366 = SG.resolveCenterRightExtend(1366);
+  const extend2000 = SG.resolveCenterRightExtend(2000);
+  if (extend1366 >= 48 && extend1366 <= 80 && extend2000 >= 90 && extend2000 <= 140) {
+    ok('right-extend clamp mirrors CSS (48–140 via 5vw)');
+  } else bad('right-extend resolve', extend1366 + ' / ' + extend2000);
+  if (wideRight >= 480 && wideRight <= 560) ok('wide ~2000px RIGHT pane after right-extend reclaim');
   else bad('wide RIGHT width', String(wideRight));
-  if (normalRight >= 300 && normalRight <= 330) ok('1366px RIGHT pane ~319px (Create right edge preserved)');
+  if (normalRight >= 240 && normalRight <= 270) ok('1366px RIGHT pane after Create right-extend');
   else bad('1366 RIGHT width', String(normalRight));
-  if (zoomRight >= 170 && zoomRight <= 195) ok('1090px RIGHT pane ~181px');
+  if (zoomRight >= 170 && zoomRight <= 195) ok('1090px RIGHT pane ~181px (no extend below 1280)');
   else bad('1090 RIGHT width', String(zoomRight));
   if (Math.abs(wideRight - normalRight) > 200) ok('wide RIGHT expands beyond 1366');
   else bad('wide RIGHT expansion', wideRight + ' vs ' + normalRight);
   if (normalLeft >= 185 && normalLeft <= 215) ok('1366 LEFT pane narrower after Create leftward widen');
   else bad('1366 LEFT width', String(normalLeft));
-  if (wideLeft < wideRight - 80) ok('wide LEFT narrower than RIGHT (asymmetric Create)');
-  else bad('wide LEFT vs RIGHT', wideLeft + ' vs ' + wideRight);
+  if (wideLeft >= 480 && wideRight >= 480 && wideRight >= wideLeft - 20) {
+    ok('wide LEFT/RIGHT both substantial after Create right-extend (asymmetric Create)');
+  } else bad('wide LEFT vs RIGHT', wideLeft + ' vs ' + wideRight);
   if (SG.resolveCenterWidth(1366) === 760 && SG.resolveCenterWidth(1279) === 640) {
     ok('Create width 760 at ≥1280, 640 below');
   } else bad('resolveCenterWidth');

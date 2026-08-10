@@ -368,11 +368,9 @@ function mockEvent() {
   sandbox3.global = sandbox3;
   vm.createContext(sandbox3);
   vm.runInContext(tickerJs, sandbox3);
-  const items = sandbox3.LanternTicker.buildDisplayTickerItems(
-    [],
-    [{ type: 'nugget_milestone', title: '25 Nuggets', subtitle: 'Lucas' }],
-    []
-  );
+  const items = sandbox3.LanternTicker.buildDisplayTickerItems([
+    { type: 'nugget_milestone', title: '25 Nuggets', subtitle: 'Lucas' },
+  ]);
   const text = items[0] && items[0].text ? items[0].text : '';
   if (/Lucas/.test(text) && /25 Nuggets/.test(text)) {
     ok('ticker nugget_milestone slide names the student — cannot be mistaken for the viewer\'s own wallet balance');

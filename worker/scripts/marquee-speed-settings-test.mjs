@@ -315,6 +315,41 @@ function testAdminHasMarqueeSpeedControl() {
   ok('Admin has a speed control (slider + numeric value) wired to the canonical settings endpoint');
 }
 
+/* ---------- Prompt #111 — exactly ONE marquee source (unified slides) ---------- */
+function testMarqueeBuildsFromUnifiedSlidesOnly() {
+  const js = fs.readFileSync(path.join(root, 'app/js/lantern-ticker.js'), 'utf8');
+  if (!/Prompt #111 — ONE marquee source/.test(js)) {
+    return bad('lantern-ticker.js missing Prompt #111 single-source contract comment');
+  }
+  if (/toB\(r, 'recognition'\)/.test(js) || /toB\(n, 'news'\)/.test(js)) {
+    return bad('ticker still builds items from parallel recognition/news arrays via LANTERN_BROADCAST');
+  }
+  if (!/function buildDisplayTickerItems\(slides\)/.test(js)) {
+    return bad('buildDisplayTickerItems should take unified slides only');
+  }
+  if (!/Merge recognition \+ news INTO slides once/.test(js)) {
+    return bad('fetchDisplayTickerState should merge recognition+news into slides once');
+  }
+  const sandbox = buildTickerSandbox(async () => ({ ok: true, px_per_second: 15 }));
+  const slides = [
+    { type: 'teacher_recognition', title: 'Ava', subtitle: 'Great work', meta: {} },
+    { type: 'student_news', title: 'Band Concert', subtitle: 'News · Sam', meta: {} },
+    { type: 'nugget_milestone', title: '25 Nuggets', subtitle: 'Lucas', meta: {} },
+  ];
+  const items = sandbox.LanternTicker.buildDisplayTickerItems(slides);
+  if (items.length !== 3) return bad('slides-only builder should emit one item per hero slide', items.length);
+  const blob = items.map((it) => it.text).join(' | ');
+  if (!/Ava/.test(blob) || !/Band Concert/.test(blob) || !/Lucas/.test(blob)) {
+    return bad('slides-only builder dropped expected content', blob);
+  }
+  /* Passing a second/third arg must not revive the old parallel-source path. */
+  const itemsIgnoreExtra = sandbox.LanternTicker.buildDisplayTickerItems(slides, [{ character_name: 'DUP' }], [{ title: 'DUP NEWS' }]);
+  if (itemsIgnoreExtra.length !== 3) {
+    return bad('extra recognition/news args must not feed a second marquee source', itemsIgnoreExtra.length);
+  }
+  ok('marquee builds from ONE unified slides source — no parallel recognition/news item builders');
+}
+
 await testDefaultWhenRowMissing();
 await testSetThenGetPersists();
 await testCorruptStoredValueFallsBackToDefault();
@@ -334,6 +369,7 @@ testReducedMotionCssPresent();
 testAllPagesShareOneTickerImplementationNoOverrides();
 testNoHardcodedLegacyDurationRemainsInSharedFiles();
 testAdminHasMarqueeSpeedControl();
+testMarqueeBuildsFromUnifiedSlidesOnly();
 
 console.log('\nmarquee-speed-settings-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);
