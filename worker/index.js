@@ -1129,6 +1129,96 @@ async function callTmsNuggetsBridge(env, subPath, tmsStaffId, payload) {
 }
 
 /**
+ * Prompt #127 — Lantern Admin → TMS roster bridge (secret-only like economy; no tms_staff_id).
+ */
+async function callTmsRosterBridge(env, subPath, payload) {
+  const secret = (env.TMS_LANTERN_BRIDGE_SECRET || '').trim();
+  if (!secret) return { ok: false, error: 'bridge_not_configured', _httpStatus: 503 };
+  const base = getTmsNuggetsApiBaseUrl(env);
+  let resp;
+  try {
+    resp = await fetch(base + '/api/lantern-bridge/' + subPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify(payload || {}),
+    });
+  } catch (_) {
+    return { ok: false, error: 'bridge_request_failed', _httpStatus: 502 };
+  }
+  let data;
+  try {
+    data = await resp.json();
+  } catch (_) {
+    return { ok: false, error: 'bridge_bad_response', _httpStatus: 502 };
+  }
+  if (!data || typeof data !== 'object') return { ok: false, error: 'bridge_bad_response', _httpStatus: 502 };
+  return { ...data, _httpStatus: resp.status };
+}
+
+const ADMIN_TMS_STUDENT_ID_MAX_LEN = 256;
+
+function splitRosterDisplayName(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { first_name: '', last_name: '' };
+  if (parts.length === 1) return { first_name: parts[0], last_name: '' };
+  return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
+}
+
+/**
+ * Prompt #127 — Lantern account status vs TMS student_id (never auto-creates accounts).
+ * Linked | Missing | Broken | Ambiguous
+ */
+function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
+  const sid = String(tmsStudentId || '').trim();
+  const accounts = Array.isArray(studentAccounts) ? studentAccounts : [];
+  if (!sid) {
+    return { lantern_account: 'Missing', lantern_username: null, locker: 'Not Ready', exact_match_linkable: false };
+  }
+
+  const byMtss = accounts.filter(
+    (a) => a.mtss_student_id && String(a.mtss_student_id).trim().toLowerCase() === sid.toLowerCase()
+  );
+  const byUsernameExact = accounts.filter(
+    (a) => String(a.username || '').trim().toLowerCase() === sid.toLowerCase()
+  );
+
+  if (byMtss.length > 1) {
+    return { lantern_account: 'Ambiguous', lantern_username: null, locker: 'Error', exact_match_linkable: false };
+  }
+  if (byMtss.length === 1) {
+    const u = String(byMtss[0].username || '').trim();
+    const active = Number(byMtss[0].is_active) === 1;
+    return {
+      lantern_account: active ? 'Linked' : 'Broken',
+      lantern_username: u || null,
+      locker: active ? 'Ready' : 'Error',
+      exact_match_linkable: false,
+    };
+  }
+
+  // No mtss_student_id link yet. Exact username==TMS ID student account → Broken (incomplete) + linkable.
+  if (byUsernameExact.length === 1 && String(byUsernameExact[0].role || '').toLowerCase() === 'student') {
+    const u = String(byUsernameExact[0].username || '').trim();
+    const hasOtherMtss =
+      byUsernameExact[0].mtss_student_id != null && String(byUsernameExact[0].mtss_student_id).trim() !== '';
+    if (hasOtherMtss) {
+      return { lantern_account: 'Broken', lantern_username: u || null, locker: 'Error', exact_match_linkable: false };
+    }
+    return {
+      lantern_account: 'Broken',
+      lantern_username: u || null,
+      locker: 'Not Ready',
+      exact_match_linkable: true,
+    };
+  }
+  if (byUsernameExact.length > 1) {
+    return { lantern_account: 'Ambiguous', lantern_username: null, locker: 'Error', exact_match_linkable: false };
+  }
+
+  return { lantern_account: 'Missing', lantern_username: null, locker: 'Not Ready', exact_match_linkable: false };
+}
+
+/**
  * Prompt #95 -- Teacher -> Nuggets workspace: real TMS student search / balance+ledger / redeem.
  * Lantern never stores or duplicates a TMS balance; every call here is a live pass-through.
  * Authorization is layered exactly as designed:
@@ -1686,6 +1776,279 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const del = await db.prepare(`DELETE FROM tms_identity_links WHERE tms_staff_id = ?`).bind(tmsStaffId).run();
     const changed = typeof del.meta?.changes === 'number' ? del.meta.changes : 0;
     return jsonResponse({ ok: true, deleted: changed > 0 }, 200, cors);
+  }
+
+  // Prompt #127 — Admin TMS student roster / account readiness (bridge to authoritative TMS students).
+  if (request.method === 'GET' && path === '/api/admin/tms-roster') {
+    const includeInactive =
+      url.searchParams.get('include_inactive') === '1' || url.searchParams.get('include_inactive') === 'true';
+    const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: includeInactive });
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null },
+        status,
+        cors
+      );
+    }
+    const tmsStudents = Array.isArray(bridge.students) ? bridge.students : [];
+    const acctRows = await db
+      .prepare(
+        `SELECT username, display_name, role, mtss_student_id, is_active FROM lantern_pilot_accounts WHERE lower(trim(role)) = 'student'`
+      )
+      .all();
+    const studentAccounts = (acctRows.results || []).map((r) => ({
+      username: String(r.username || '').trim(),
+      display_name: String(r.display_name || '').trim(),
+      role: String(r.role || '').trim().toLowerCase(),
+      mtss_student_id: r.mtss_student_id != null ? String(r.mtss_student_id).trim() : '',
+      is_active: r.is_active != null ? Number(r.is_active) : 1,
+    }));
+
+    const students = tmsStudents.map((s) => {
+      const name = String(s.student_name || '').trim();
+      const sid = String(s.student_id ?? '').trim() || '';
+      const names = splitRosterDisplayName(name);
+      const status = classifyLanternAccountStatus(sid, studentAccounts);
+      const isActive = s.is_active != null ? Number(s.is_active) === 1 : true;
+      return {
+        student_name: name,
+        first_name: names.first_name,
+        last_name: names.last_name,
+        student_id: sid,
+        grade: String(s.grade || '').trim(),
+        tms_status: isActive ? 'Active' : 'Inactive',
+        is_active: isActive ? 1 : 0,
+        lantern_account: status.lantern_account,
+        lantern_username: status.lantern_username,
+        locker: status.locker,
+        exact_match_linkable: !!status.exact_match_linkable,
+      };
+    });
+
+    const activeStudents = students.filter((s) => Number(s.is_active) === 1);
+    const scope = includeInactive ? students : activeStudents;
+    const counts = {
+      active_tms: activeStudents.length,
+      missing_id: activeStudents.filter((s) => !s.student_id).length,
+      lantern_linked: activeStudents.filter((s) => s.lantern_account === 'Linked').length,
+      lantern_missing: activeStudents.filter((s) => s.lantern_account === 'Missing').length,
+      lantern_broken: activeStudents.filter((s) => s.lantern_account === 'Broken').length,
+      lantern_ambiguous: activeStudents.filter((s) => s.lantern_account === 'Ambiguous').length,
+      locker_ready: activeStudents.filter((s) => s.locker === 'Ready').length,
+      total_shown: scope.length,
+    };
+
+    return jsonResponse({ ok: true, students: scope, counts, include_inactive: includeInactive }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/tms-roster/set-student-id') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const studentName = String(body.student_name || '').trim();
+    const previousStudentId = String(body.previous_student_id ?? '').trim();
+    const studentId = String(body.student_id ?? '').trim();
+    if (!studentName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
+    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required' }, 400, cors);
+    if (studentId.length > ADMIN_TMS_STUDENT_ID_MAX_LEN) {
+      return jsonResponse({ ok: false, error: 'student_id_too_long', max: ADMIN_TMS_STUDENT_ID_MAX_LEN }, 400, cors);
+    }
+
+    if (previousStudentId && previousStudentId !== studentId) {
+      if (body.confirm_change !== true) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'confirm_change_required',
+            previous_student_id: previousStudentId,
+            student_id: studentId,
+            message: 'Changing a non-blank Student ID requires explicit confirmation.',
+          },
+          400,
+          cors
+        );
+      }
+      // Stop if an existing Lantern student identity depends on the old ID.
+      const linkedRows = await db
+        .prepare(
+          `SELECT username, role, mtss_student_id, is_active FROM lantern_pilot_accounts
+           WHERE lower(trim(role)) = 'student'
+             AND (
+               (mtss_student_id IS NOT NULL AND lower(trim(mtss_student_id)) = lower(trim(?)))
+               OR lower(trim(username)) = lower(trim(?))
+             )`
+        )
+        .bind(previousStudentId, previousStudentId)
+        .all();
+      const linked = linkedRows.results || [];
+      if (linked.length) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'lantern_reconcile_required',
+            message:
+              'Changing this Student ID would break an existing Lantern student identity. Reconcile the Lantern account first (do not silently relink).',
+            lantern_accounts: linked.map((r) => ({
+              username: String(r.username || '').trim(),
+              mtss_student_id: r.mtss_student_id != null ? String(r.mtss_student_id).trim() : null,
+            })),
+            previous_student_id: previousStudentId,
+            student_id: studentId,
+          },
+          409,
+          cors
+        );
+      }
+    }
+
+    const bridge = await callTmsRosterBridge(env, 'roster/set-student-id', {
+      student_name: studentName,
+      previous_student_id: previousStudentId,
+      student_id: studentId,
+    });
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null },
+        status,
+        cors
+      );
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        student_name: bridge.student_name || studentName,
+        previous_student_id: previousStudentId,
+        student_id: bridge.student_id || studentId,
+        unchanged: !!bridge.unchanged,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/tms-roster/link-exact') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const studentId = String(body.student_id || body.tms_student_id || '').trim();
+    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required' }, 400, cors);
+
+    const already = await db
+      .prepare(
+        `SELECT username FROM lantern_pilot_accounts
+         WHERE mtss_student_id IS NOT NULL AND lower(trim(mtss_student_id)) = lower(trim(?))`
+      )
+      .bind(studentId)
+      .all();
+    if ((already.results || []).length > 1) {
+      return jsonResponse({ ok: false, error: 'ambiguous_mtss_student_id' }, 409, cors);
+    }
+    if ((already.results || []).length === 1) {
+      return jsonResponse(
+        {
+          ok: true,
+          already_linked: true,
+          username: String(already.results[0].username || '').trim(),
+          mtss_student_id: studentId,
+        },
+        200,
+        cors
+      );
+    }
+
+    const matches = await db
+      .prepare(
+        `SELECT username, role, mtss_student_id, is_active FROM lantern_pilot_accounts
+         WHERE lower(trim(username)) = lower(trim(?))`
+      )
+      .bind(studentId)
+      .all();
+    const rows = matches.results || [];
+    if (rows.length !== 1) {
+      return jsonResponse(
+        { ok: false, error: rows.length === 0 ? 'no_exact_username_match' : 'ambiguous_username_match' },
+        409,
+        cors
+      );
+    }
+    const row = rows[0];
+    if (String(row.role || '').trim().toLowerCase() !== 'student') {
+      return jsonResponse({ ok: false, error: 'exact_match_not_student_role' }, 409, cors);
+    }
+    const existingMtss = row.mtss_student_id != null ? String(row.mtss_student_id).trim() : '';
+    if (existingMtss && existingMtss.toLowerCase() !== studentId.toLowerCase()) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'account_has_different_mtss_student_id',
+          message: 'Lantern account already has a different mtss_student_id. Reconcile manually.',
+        },
+        409,
+        cors
+      );
+    }
+
+    const username = String(row.username || '').trim();
+    await db
+      .prepare(
+        `UPDATE lantern_pilot_accounts SET mtss_student_id = ?, updated_at = datetime('now') WHERE username = ?`
+      )
+      .bind(studentId, username)
+      .run();
+
+    return jsonResponse({ ok: true, username, mtss_student_id: studentId }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/tms-roster/create') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const first = String(body.first_name || '').trim();
+    const last = String(body.last_name || '').trim();
+    const studentName = String(body.student_name || '').trim() || [first, last].filter(Boolean).join(' ').trim();
+    const studentId = String(body.student_id ?? '').trim() || '';
+    if (!studentName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
+    if (studentId && studentId.length > ADMIN_TMS_STUDENT_ID_MAX_LEN) {
+      return jsonResponse({ ok: false, error: 'student_id_too_long', max: ADMIN_TMS_STUDENT_ID_MAX_LEN }, 400, cors);
+    }
+
+    const bridge = await callTmsRosterBridge(env, 'roster/create', {
+      student_name: studentName,
+      student_id: studentId,
+    });
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null },
+        status,
+        cors
+      );
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        student_name: bridge.student_name || studentName,
+        student_id: bridge.student_id != null ? String(bridge.student_id) : studentId,
+        lantern_account: 'Missing',
+        locker: 'Not Ready',
+      },
+      200,
+      cors
+    );
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

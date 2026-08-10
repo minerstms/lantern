@@ -36,6 +36,7 @@ if (/LanternCollapsibleList/.test(sharedJs) && /teacherCollapsibleList/.test(sha
 } else bad('shared assets incomplete');
 
 const requiredPanels = [
+  ['adminStudentsCard', 'Students'],
   ['adminAccountsCard', 'Accounts'],
   ['tmsStaffLinksCard', 'TMS Staff Links'],
   ['adminPendingApprovalsCard', 'Pending approvals'],
@@ -80,6 +81,18 @@ if (/id="marqueeSpeedCard"[\s\S]{0,120}cardHd/.test(html) &&
     !/id="marqueeSpeedCard"[^>]*teacherCollapsibleList/.test(html)) {
   ok('Marquee speed left as form card (not list panel)');
 } else bad('Marquee speed unexpectedly list-converted');
+
+if (/id="adminStudentsCard"/.test(html) && /id="adminStudentsCountPill"/.test(html)) {
+  ok('Students roster panel + count pill present');
+} else bad('Students roster panel missing');
+
+if (/\/api\/admin\/tms-roster/.test(html) && /studentsRosterFilter/.test(html) && /Link Existing Account/.test(html)) {
+  ok('Students roster API + filter + link action wired');
+} else bad('Students roster client wiring incomplete');
+
+if (/id="studentsAddOpenBtn"/.test(html) && /Create student/.test(html)) {
+  ok('Add Student action exposed in Students panel');
+} else bad('Add Student action missing');
 
 if (!/<div class="card">\s*<div class="cardHd">Accounts<\/div>/.test(html)) {
   ok('legacy permanently expanded Accounts card wrapper removed');
