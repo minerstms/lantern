@@ -161,8 +161,13 @@
     return n === 1 ? '1 Nugget' : n + ' Nuggets';
   }
 
+  /**
+   * Prompt #114 — Games library card face overlay ONLY. Exact playable copy; no emoji/icon.
+   * Does not change play_cost, ledger, or paid-start labels (see playActionLabel).
+   */
   function playCostCardMeta(cost) {
-    return '🟡 ' + playCostLabel(cost) + ' to play';
+    var n = Math.max(1, Math.floor(Number(cost) || 1));
+    return n === 1 ? '1 Nugget = 1 Play' : n + ' Nuggets = 1 Play';
   }
 
   function playActionLabel(cost) {

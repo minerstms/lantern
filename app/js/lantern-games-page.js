@@ -258,21 +258,14 @@
       .replace(/"/g, '&quot;');
   }
 
-  /** Same type-badge logic as the Games library grid — single source, no duplicate table. */
-  function typeBadgeForGame(g) {
-    var badge =
-      g.type === 'trivia'
-        ? '❓ Trivia'
-        : g.type === 'arcade'
-          ? '🕹 Arcade'
-          : g.type === 'memory'
-            ? '🧠 Memory'
-            : '🎮 Game';
-    if (g.featured) badge = '⭐ Featured';
-    return badge;
-  }
-
-  /** Canonical game-hub card spec — shared by the Games library grid and the leaderboard-paired card (Prompt #88). */
+  /**
+   * Canonical game-hub card spec — Games library grid only (Prompt #88; leaderboard carousel moved
+   * to its own purpose-built element in Prompt #99, see renderLeaderboardPairedCardHtml above).
+   * Prompt #114: library grid artwork stays unobstructed except one bottom-center cost line
+   * ("1 Nugget = 1 Play" via playCostCardMeta). No type/Featured badge, no title over art
+   * (title stays in DOM for LanternCanonicalEnforce; visually hidden by scoped CSS), no hub
+   * identity prefix. Accessible name remains ariaLabel.
+   */
   function buildGameHubCardSpec(g, opts) {
     opts = opts || {};
     var LC = cardsApi();
@@ -285,8 +278,8 @@
       icon: g.icon,
       imageUrl: g.image || '',
       metaOne: metaOne,
-      rewardText: opts.compact ? '' : g.featured ? 'Featured' : '',
-      typeBadge: typeBadgeForGame(g),
+      hubIdentityLabel: '',
+      typeBadge: '',
       reportId: (opts.reportPrefix || 'game_') + g.id,
       extraClass: opts.extraClass || 'exploreCard--gamesLibrary',
       dataAttrs: {

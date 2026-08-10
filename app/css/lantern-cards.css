@@ -179,6 +179,38 @@
   right: 8px;
   justify-content: space-between;
 }
+/* Games library grid only (Prompt #114): artwork unobstructed except one bottom-center cost line
+   from .lanternCanonicalCardMeta ("1 Nugget = 1 Play"). Title remains in the DOM for the canonical
+   card contract (LanternCanonicalEnforce) but is not painted over the art. Scoped to
+   .exploreCard--gamesLibrary — Explore / Missions / Locker / leaderboard carousel unchanged. */
+.exploreCard--gamesLibrary .lanternCanonicalCardTitle {
+  display: none;
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardOverlay {
+  max-height: 32%;
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardGradient {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.4) 42%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardCaption {
+  padding: 0 10px 8px;
+  text-align: center;
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardMeta {
+  justify-content: center;
+  margin-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardBadgeLayer {
+  display: none;
+}
 .exploreCard.lanternCanonicalCard > .exploreCardReportBtn {
   position: absolute;
   right: 6px;

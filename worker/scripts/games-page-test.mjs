@@ -177,5 +177,38 @@ if (gamesPageJs.includes('data-action="play-game"') && gamesPageJs.includes('dat
   ok('play + view-full-leaderboard actions preserved on the composite card');
 } else bad('composite card actions missing');
 
+// ---------------------------------------------------------------------------
+// Prompt #114 — Games library cards: artwork clean except bottom-center cost line
+// ---------------------------------------------------------------------------
+if (
+  gamesPageJs.includes('function buildGameHubCardSpec(') &&
+  /typeBadge:\s*''/.test(gamesPageJs) &&
+  /hubIdentityLabel:\s*''/.test(gamesPageJs) &&
+  !/function typeBadgeForGame\(/.test(gamesPageJs)
+) {
+  ok('library buildGameHubCardSpec clears type/Featured badges at render source (no typeBadgeForGame)');
+} else bad('library card still wires type/Featured badge overlays');
+
+if (catalogJs.includes("'1 Nugget = 1 Play'") && /function playCostCardMeta\(/.test(catalogJs) && !/🟡.*to play/.test(catalogJs)) {
+  ok('playCostCardMeta is exactly "1 Nugget = 1 Play" (no emoji / "to play" wording)');
+} else bad('playCostCardMeta overlay copy incorrect');
+
+const cardsCss = fs.readFileSync(path.join(root, 'app/css/lantern-cards.css'), 'utf8');
+if (
+  /\.exploreCard--gamesLibrary\s+\.lanternCanonicalCardTitle\s*\{[^}]*display:\s*none/.test(cardsCss) &&
+  /\.exploreCard--gamesLibrary\s+\.lanternCanonicalCardMeta\s*\{[^}]*justify-content:\s*center/.test(cardsCss)
+) {
+  ok('gamesLibrary CSS hides title over art and centers the cost meta line');
+} else bad('gamesLibrary clean-card CSS missing');
+
+if (
+  /playActionLabel/.test(catalogJs) &&
+  /Play for 1 Nugget/.test(catalogJs) &&
+  gamesPageJs.includes('playActionLabel') &&
+  paidStartJs.includes("kind: 'game_play'")
+) {
+  ok('economy/paid-start labels untouched (playActionLabel + game_play kind still present)');
+} else bad('economy/paid-start path appears altered');
+
 console.log('\nGames page tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);
