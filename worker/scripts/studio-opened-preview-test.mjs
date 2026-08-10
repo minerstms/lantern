@@ -45,15 +45,15 @@ if (/--lantern-studio-grid-card-max:\s*200px/.test(cardsCss)) ok('LEFT grid card
 else bad('LEFT grid max token');
 
 if (
-  /\.studioColLeft[\s\S]*left:\s*0;[\s\S]*right:\s*calc\(50vw \+ var\(--lantern-studio-center-half\) \+ var\(--lantern-studio-col-gap\)\)/.test(contributeHtml)
+  /\.studioColLeft[\s\S]*left:\s*0;[\s\S]*right:\s*calc\(50vw - var\(--lantern-studio-center-right-half\) \+ var\(--lantern-studio-center-width\) \+ var\(--lantern-studio-col-gap\)\)/.test(contributeHtml)
 ) {
-  ok('LEFT pane edge-anchored to viewport left and CENTER gap');
+  ok('LEFT pane edge-anchored; Create grows leftward into former gutter');
 } else bad('LEFT edge anchoring');
 
 if (
-  /\.studioColRight[\s\S]*left:\s*calc\(50vw \+ var\(--lantern-studio-center-half\) \+ var\(--lantern-studio-col-gap\)\)[\s\S]*right:\s*0;/.test(contributeHtml)
+  /\.studioColRight[\s\S]*left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) \+ var\(--lantern-studio-col-gap\)\)[\s\S]*right:\s*0;/.test(contributeHtml)
 ) {
-  ok('RIGHT pane edge-anchored to CENTER gap and viewport right');
+  ok('RIGHT pane locked to Create right-edge + gap (unchanged placement)');
 } else bad('RIGHT edge anchoring');
 
 if (!/width:\s*var\(--lantern-studio-right-col-width\)/.test(contributeHtml)) {
@@ -64,13 +64,33 @@ if (!/width:\s*var\(--lantern-studio-left-col-width\)/.test(contributeHtml)) {
   ok('no explicit LEFT column width in layout');
 } else bad('explicit LEFT width still in layout');
 
-if (/\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw - var\(--lantern-studio-center-half\)\)/.test(contributeHtml)) {
-  ok('CENTER page-centered via 50vw minus half-width');
-} else bad('CENTER page centering');
+if (
+  /\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-width\)\)/.test(
+    contributeHtml
+  )
+) {
+  ok('CENTER left edge = right-lock minus width (leftward expand)');
+} else bad('CENTER leftward geometry');
 
-if (/@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw - var\(--lantern-studio-center-half\)\)/.test(contributeHtml)) {
+if (
+  /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*\.studioColCenter[\s\S]*margin-left:\s*calc\(50vw \+ var\(--lantern-studio-center-right-half\) - var\(--lantern-studio-center-width\)\)/.test(
+    contributeHtml
+  )
+) {
   ok('desktop three-pane uses fine-pointer query not width breakpoint');
 } else bad('fine-pointer desktop canvas');
+
+if (
+  /@media \(hover: hover\) and \(pointer: fine\) and \(min-width: 1280px\)[\s\S]*--lantern-studio-center-width:\s*760px/.test(
+    contributeHtml
+  )
+) {
+  ok('wide desktop Create width 760px (leftward only)');
+} else bad('wide desktop Create width override');
+
+if (/studioSidePanelTitle">In the feed</.test(contributeHtml) && !/studioSidePanelTitle">In the stream</.test(contributeHtml)) {
+  ok('left pane heading In the feed');
+} else bad('left pane heading copy');
 
 if (/@media \(\(hover: none\) or \(pointer: coarse\)\) and \(max-width: 1199px\)/.test(contributeHtml)) {
   ok('touch/coarse narrow stack query');
@@ -321,24 +341,38 @@ vm.runInContext(streamGridJs, sandbox);
 const SG = sandbox.LANTERN_STUDIO_STREAM_GRID;
 if (SG && typeof SG.computeLayout === 'function') {
   const pad = 12;
-  const sideAt = (vw) => SG.computeSidePaneWidth(vw, pad);
-  const widePane = sideAt(2000);
-  const normalPane = sideAt(1366);
-  const zoomPane = sideAt(1090);
-  if (widePane >= 620 && widePane <= 660) ok('wide ~2000px side panes ~636px each');
-  else bad('wide side width', String(widePane));
-  if (normalPane >= 300 && normalPane <= 330) ok('1366px side panes ~319px each');
-  else bad('1366 side width', String(normalPane));
-  if (zoomPane >= 170 && zoomPane <= 195) ok('1090px side panes ~181px each');
-  else bad('1090 side width', String(zoomPane));
-  if (Math.abs(widePane - normalPane) > 200) ok('wide side panes expand beyond 1366');
-  else bad('wide expansion', widePane + ' vs ' + normalPane);
+  const rightAt = (vw) => SG.computeSidePaneWidth(vw, pad);
+  const leftAt = (vw) => SG.computeLeftPaneWidth(vw, pad);
+  const wideRight = rightAt(2000);
+  const normalRight = rightAt(1366);
+  const zoomRight = rightAt(1090);
+  const wideLeft = leftAt(2000);
+  const normalLeft = leftAt(1366);
+  if (wideRight >= 620 && wideRight <= 660) ok('wide ~2000px RIGHT pane ~636px');
+  else bad('wide RIGHT width', String(wideRight));
+  if (normalRight >= 300 && normalRight <= 330) ok('1366px RIGHT pane ~319px (Create right edge preserved)');
+  else bad('1366 RIGHT width', String(normalRight));
+  if (zoomRight >= 170 && zoomRight <= 195) ok('1090px RIGHT pane ~181px');
+  else bad('1090 RIGHT width', String(zoomRight));
+  if (Math.abs(wideRight - normalRight) > 200) ok('wide RIGHT expands beyond 1366');
+  else bad('wide RIGHT expansion', wideRight + ' vs ' + normalRight);
+  if (normalLeft >= 185 && normalLeft <= 215) ok('1366 LEFT pane narrower after Create leftward widen');
+  else bad('1366 LEFT width', String(normalLeft));
+  if (wideLeft < wideRight - 80) ok('wide LEFT narrower than RIGHT (asymmetric Create)');
+  else bad('wide LEFT vs RIGHT', wideLeft + ' vs ' + wideRight);
+  if (SG.resolveCenterWidth(1366) === 760 && SG.resolveCenterWidth(1279) === 640) {
+    ok('Create width 760 at ≥1280, 640 below');
+  } else bad('resolveCenterWidth');
 
-  const wideGrid = SG.computeLayout(widePane - 16, 500);
+  const wideGrid = SG.computeLayout(700, 500);
   if (wideGrid.cardW === SG.MAX_CARD_DISPLAY_WIDTH) ok('wide LEFT mini cards capped at max');
   else bad('wide card max', String(wideGrid.cardW));
-  const normalGrid = SG.computeLayout(normalPane - 16, 400);
-  if (normalGrid.cardW >= 96 && normalGrid.cardW <= 110) ok('1366 LEFT mini cards ~96-110px');
+  const asymmetricWideGrid = SG.computeLayout(wideLeft - 16, 500);
+  if (asymmetricWideGrid.cardW >= 150 && asymmetricWideGrid.cardW <= 180) {
+    ok('2000 LEFT mini cards fit narrower asymmetric pane');
+  } else bad('asymmetric wide card width', String(asymmetricWideGrid.cardW));
+  const normalGrid = SG.computeLayout(normalLeft - 16, 400);
+  if (normalGrid.cardW >= 96 && normalGrid.cardW <= 110) ok('1366 LEFT mini cards at floor ~96');
   else bad('normal card width', String(normalGrid.cardW));
 
   const expectedH = wideGrid.cardW * (SG.CANONICAL_CARD_HEIGHT / SG.CANONICAL_CARD_WIDTH);
@@ -356,8 +390,9 @@ if (SG && typeof SG.computeLayout === 'function') {
   else bad('LEFT_PANE_MAX still present');
   if (streamGridJs.includes('MAX_CARD_W = 200')) ok('LEFT grid card max constant');
   else bad('MAX_CARD_W missing');
-  if (streamGridJs.includes('computeSidePaneWidth')) ok('symmetric side pane width helper');
-  else bad('computeSidePaneWidth missing');
+  if (streamGridJs.includes('computeLeftPaneWidth') && streamGridJs.includes('CENTER_RIGHT_HALF')) {
+    ok('asymmetric left/right pane width helpers');
+  } else bad('asymmetric pane helpers missing');
 
   if (typeof SG.computeDraftFocusScale === 'function') ok('draft focus scale helper');
   else bad('computeDraftFocusScale missing');
