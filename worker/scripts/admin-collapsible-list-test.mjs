@@ -37,7 +37,7 @@ if (/LanternCollapsibleList/.test(sharedJs) && /teacherCollapsibleList/.test(sha
 
 const requiredPanels = [
   ['adminStudentsCard', 'Students'],
-  ['adminAccountsCard', 'Accounts'],
+  ['adminStaffCard', 'Staff & Admin'],
   ['tmsStaffLinksCard', 'TMS Staff Links'],
   ['adminPendingApprovalsCard', 'Pending approvals'],
   ['adminFeedLivePanel', 'Feed live'],
@@ -51,21 +51,24 @@ for (const [id, label] of requiredPanels) {
   else bad(label + ' missing teacherCollapsibleList near id', id);
 }
 
-if (/<details class="card teacherCollapsibleList" id="adminAccountsCard"/.test(html)) {
-  ok('Accounts is details.teacherCollapsibleList');
-} else bad('Accounts not converted to details.teacherCollapsibleList');
+if (!/id="adminAccountsCard"/.test(html)) ok('generic Accounts panel retired');
+else bad('generic Accounts panel still present');
 
-if (/id="adminAccountsCountPill"/.test(html)) ok('Accounts count pill present');
-else bad('Accounts count pill missing');
+if (/<details class="card teacherCollapsibleList" id="adminStaffCard"/.test(html)) {
+  ok('Staff & Admin is details.teacherCollapsibleList');
+} else bad('Staff & Admin not converted to details.teacherCollapsibleList');
+
+if (/id="adminStaffCountPill"/.test(html)) ok('Staff & Admin count pill present');
+else bad('Staff & Admin count pill missing');
 
 if (/teacherCollapsibleListScroll[\s\S]{0,80}id="usersTable"|id="usersTable"[\s\S]{0,40}<\/table>[\s\S]{0,20}<\/div>/.test(html) ||
     /class="teacherCollapsibleListScroll"[\s\S]{0,200}usersTable/.test(html)) {
-  ok('Accounts table sits inside teacherCollapsibleListScroll');
-} else bad('Accounts table not wrapped in scroll container');
+  ok('Staff table sits inside teacherCollapsibleListScroll');
+} else bad('Staff table not wrapped in scroll container');
 
 if (/id="editUserPanel"/.test(html) && /id="tempPwPanel"/.test(html) && /id="addUserForm"/.test(html)) {
-  ok('Edit / Set temp password / Add user markup preserved');
-} else bad('Account action panels or add-user form missing');
+  ok('Edit / Set temp password / Add staff markup preserved');
+} else bad('Account action panels or add-staff form missing');
 
 if (/\/api\/admin\/users\/reset-password/.test(html) && /\/api\/admin\/users/.test(html)) {
   ok('Account API endpoints untouched in Admin script');
@@ -93,6 +96,10 @@ if (/\/api\/admin\/tms-roster/.test(html) && /studentsRosterFilter/.test(html) &
 if (/id="studentsAddOpenBtn"/.test(html) && /Create student/.test(html)) {
   ok('Add Student action exposed in Students panel');
 } else bad('Add Student action missing');
+
+if (/isStaffRole|filteredStaffList|Archive Lantern Login/.test(html)) {
+  ok('Staff-only filter + student archive actions present');
+} else bad('Staff filter / student archive wiring missing');
 
 if (!/<div class="card">\s*<div class="cardHd">Accounts<\/div>/.test(html)) {
   ok('legacy permanently expanded Accounts card wrapper removed');

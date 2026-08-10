@@ -84,7 +84,7 @@ function makeEnv(state) {
         return null;
       },
       async all() {
-        if (s.includes("lower(trim(role)) = 'student'") && s.includes('SELECT username, display_name, role, mtss_student_id, is_active')) {
+        if (s.includes("lower(trim(role)) = 'student'") && s.includes('mtss_student_id') && s.includes('is_active') && !s.includes('OR lower(trim(username))')) {
           return {
             results: Object.values(state.accounts).filter((a) => String(a.role || '').toLowerCase() === 'student'),
           };
@@ -273,7 +273,7 @@ async function run() {
         ok('readiness counts derived from roster');
       } else bad('readiness counts', JSON.stringify(body.counts));
       const dumped = JSON.stringify(body);
-      if (!/HASH_SHOULD_NEVER_APPEAR|SALT_SHOULD_NEVER_APPEAR|password/.test(dumped)) {
+      if (!/HASH_SHOULD_NEVER_APPEAR|SALT_SHOULD_NEVER_APPEAR|password_hash|password_salt/.test(dumped)) {
         ok('roster response exposes no passwords/hashes');
       } else bad('roster leaked secrets', dumped.slice(0, 200));
     }

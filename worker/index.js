@@ -1165,14 +1165,21 @@ function splitRosterDisplayName(fullName) {
 }
 
 /**
- * Prompt #127 — Lantern account status vs TMS student_id (never auto-creates accounts).
- * Linked | Missing | Broken | Ambiguous
+ * Prompt #127/#130 — Lantern account status vs TMS student_id (never auto-creates accounts).
+ * Missing | Linked | Linked Archived | Broken | Ambiguous
  */
 function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
   const sid = String(tmsStudentId || '').trim();
   const accounts = Array.isArray(studentAccounts) ? studentAccounts : [];
   if (!sid) {
-    return { lantern_account: 'Missing', lantern_username: null, locker: 'Not Ready', exact_match_linkable: false };
+    return {
+      lantern_account: 'Missing',
+      lantern_username: null,
+      lantern_is_active: null,
+      must_change_password: false,
+      locker: 'Not Ready',
+      exact_match_linkable: false,
+    };
   }
 
   const byMtss = accounts.filter(
@@ -1183,39 +1190,74 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
   );
 
   if (byMtss.length > 1) {
-    return { lantern_account: 'Ambiguous', lantern_username: null, locker: 'Error', exact_match_linkable: false };
+    return {
+      lantern_account: 'Ambiguous',
+      lantern_username: null,
+      lantern_is_active: null,
+      must_change_password: false,
+      locker: 'Error',
+      exact_match_linkable: false,
+    };
   }
   if (byMtss.length === 1) {
-    const u = String(byMtss[0].username || '').trim();
-    const active = Number(byMtss[0].is_active) === 1;
+    const row = byMtss[0];
+    const u = String(row.username || '').trim();
+    const active = Number(row.is_active) === 1;
+    const mcp = !!(row.must_change_password === 1 || row.must_change_password === true || row.must_change_password === '1');
     return {
-      lantern_account: active ? 'Linked' : 'Broken',
+      lantern_account: active ? 'Linked' : 'Linked Archived',
       lantern_username: u || null,
-      locker: active ? 'Ready' : 'Error',
+      lantern_is_active: active ? 1 : 0,
+      must_change_password: mcp,
+      locker: active ? 'Ready' : 'Not Ready',
       exact_match_linkable: false,
     };
   }
 
   // No mtss_student_id link yet. Exact username==TMS ID student account → Broken (incomplete) + linkable.
   if (byUsernameExact.length === 1 && String(byUsernameExact[0].role || '').toLowerCase() === 'student') {
-    const u = String(byUsernameExact[0].username || '').trim();
-    const hasOtherMtss =
-      byUsernameExact[0].mtss_student_id != null && String(byUsernameExact[0].mtss_student_id).trim() !== '';
+    const row = byUsernameExact[0];
+    const u = String(row.username || '').trim();
+    const mcp = !!(row.must_change_password === 1 || row.must_change_password === true || row.must_change_password === '1');
+    const hasOtherMtss = row.mtss_student_id != null && String(row.mtss_student_id).trim() !== '';
     if (hasOtherMtss) {
-      return { lantern_account: 'Broken', lantern_username: u || null, locker: 'Error', exact_match_linkable: false };
+      return {
+        lantern_account: 'Broken',
+        lantern_username: u || null,
+        lantern_is_active: Number(row.is_active) === 1 ? 1 : 0,
+        must_change_password: mcp,
+        locker: 'Error',
+        exact_match_linkable: false,
+      };
     }
     return {
       lantern_account: 'Broken',
       lantern_username: u || null,
+      lantern_is_active: Number(row.is_active) === 1 ? 1 : 0,
+      must_change_password: mcp,
       locker: 'Not Ready',
-      exact_match_linkable: true,
+      exact_match_linkable: Number(row.is_active) === 1,
     };
   }
   if (byUsernameExact.length > 1) {
-    return { lantern_account: 'Ambiguous', lantern_username: null, locker: 'Error', exact_match_linkable: false };
+    return {
+      lantern_account: 'Ambiguous',
+      lantern_username: null,
+      lantern_is_active: null,
+      must_change_password: false,
+      locker: 'Error',
+      exact_match_linkable: false,
+    };
   }
 
-  return { lantern_account: 'Missing', lantern_username: null, locker: 'Not Ready', exact_match_linkable: false };
+  return {
+    lantern_account: 'Missing',
+    lantern_username: null,
+    lantern_is_active: null,
+    must_change_password: false,
+    locker: 'Not Ready',
+    exact_match_linkable: false,
+  };
 }
 
 /**
@@ -1794,7 +1836,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const tmsStudents = Array.isArray(bridge.students) ? bridge.students : [];
     const acctRows = await db
       .prepare(
-        `SELECT username, display_name, role, mtss_student_id, is_active FROM lantern_pilot_accounts WHERE lower(trim(role)) = 'student'`
+        `SELECT username, display_name, role, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(role)) = 'student'`
       )
       .all();
     const studentAccounts = (acctRows.results || []).map((r) => ({
@@ -1803,6 +1845,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       role: String(r.role || '').trim().toLowerCase(),
       mtss_student_id: r.mtss_student_id != null ? String(r.mtss_student_id).trim() : '',
       is_active: r.is_active != null ? Number(r.is_active) : 1,
+      must_change_password: r.must_change_password != null ? Number(r.must_change_password) : 0,
     }));
 
     const students = tmsStudents.map((s) => {
@@ -1821,6 +1864,8 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         is_active: isActive ? 1 : 0,
         lantern_account: status.lantern_account,
         lantern_username: status.lantern_username,
+        lantern_is_active: status.lantern_is_active,
+        must_change_password: !!status.must_change_password,
         locker: status.locker,
         exact_match_linkable: !!status.exact_match_linkable,
       };
@@ -1832,6 +1877,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       active_tms: activeStudents.length,
       missing_id: activeStudents.filter((s) => !s.student_id).length,
       lantern_linked: activeStudents.filter((s) => s.lantern_account === 'Linked').length,
+      lantern_archived: activeStudents.filter((s) => s.lantern_account === 'Linked Archived').length,
       lantern_missing: activeStudents.filter((s) => s.lantern_account === 'Missing').length,
       lantern_broken: activeStudents.filter((s) => s.lantern_account === 'Broken').length,
       lantern_ambiguous: activeStudents.filter((s) => s.lantern_account === 'Ambiguous').length,

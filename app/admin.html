@@ -229,6 +229,7 @@
               <th>TMS</th>
               <th>Lantern</th>
               <th>Locker</th>
+              <th>Must chg pw</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -240,64 +241,87 @@
     </div>
   </details>
 
-  <details class="card teacherCollapsibleList" id="adminAccountsCard">
+  <div id="editUserPanel" class="card acctInlinePanel" style="display:none;" aria-hidden="true">
+    <p class="acctPanelHd">Edit staff account</p>
+    <p id="editUserDisplay" class="acctPanelHint"></p>
+    <p class="acctPanelHint" style="color:var(--muted);">First Name changes how the account is shown. Login username stays unchanged here. Archive/Restore uses Active status (does not delete history).</p>
+    <input type="hidden" id="editUserUsername" value="" />
+    <label for="editUserFirstName">First Name</label>
+    <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
+    <label for="editUserRole">Role</label>
+    <select id="editUserRole"><option value="teacher">teacher</option><option value="admin">admin</option></select>
+    <label for="editUserActive">Account status</label>
+    <select id="editUserActive"><option value="1">Active</option><option value="0">Archived</option></select>
+    <label for="editUserMustChangePw">Must change password</label>
+    <select id="editUserMustChangePw"><option value="0">No</option><option value="1">Yes — require on next sign-in</option></select>
+    <div class="acctPanelActions">
+      <button type="button" class="btn good" id="editUserSave">Save changes</button>
+      <button type="button" class="btn" id="editUserCancel">Cancel</button>
+    </div>
+  </div>
+
+  <div id="tempPwPanel" class="card acctInlinePanel" style="display:none;" aria-hidden="true">
+    <p class="acctPanelHd">Set New Temp Password</p>
+    <p id="tempPwUserHint" class="acctPanelHint"></p>
+    <label for="tempPwInput">New password (8+ characters)</label>
+    <input id="tempPwInput" type="password" autocomplete="new-password" minlength="8" />
+    <div class="acctPanelActions">
+      <button type="button" class="btn good" id="tempPwSave">Set password</button>
+      <button type="button" class="btn" id="tempPwCancel">Cancel</button>
+    </div>
+  </div>
+
+  <details class="card teacherCollapsibleList" id="adminStaffCard">
     <summary class="cardHd teacherCollapsibleListHd">
-      <div class="teacherCollapsibleListTitle"><div class="h">Accounts</div></div>
-      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminAccountsCountPill">0</span></div>
+      <div class="teacherCollapsibleListTitle"><div class="h">Staff &amp; Admin</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminStaffCountPill">0</span></div>
     </summary>
     <div class="cardBd teacherCollapsibleListBd">
+    <p class="acctPanelHint">Teacher and admin Lantern accounts only — students are managed in Students. Login username stays human-readable and separate from any future immutable Staff ID (schema migration required before Staff # IDs can be assigned).</p>
     <div id="usersMsg"></div>
+    <div class="rosterToolbar">
+      <label for="staffRosterSearch" class="visuallyHidden">Search staff</label>
+      <input id="staffRosterSearch" type="search" autocomplete="off" placeholder="Search name or username…" />
+      <label for="staffRosterFilter" class="visuallyHidden">Filter staff</label>
+      <select id="staffRosterFilter" aria-label="Filter staff">
+        <option value="all">All</option>
+        <option value="active">Active</option>
+        <option value="archived">Archived</option>
+        <option value="teacher">Teacher</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button type="button" class="btn" id="staffRosterRefreshBtn">Refresh</button>
+      <button type="button" class="btn good" id="staffAddOpenBtn">+ Add Staff</button>
+    </div>
     <div class="teacherCollapsibleListScroll">
-    <table id="usersTable"><thead><tr><th>Login ID</th><th>First Name</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <table id="usersTable"><thead><tr><th>Name</th><th>Login Username</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    <p id="staffRosterEmpty" class="pendingMeta" style="display:none;">No staff accounts match this filter.</p>
     </div>
 
-    <div id="editUserPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
-      <p class="acctPanelHd">Edit account</p>
-      <p id="editUserDisplay" class="acctPanelHint"></p>
-      <p class="acctPanelHint" style="color:var(--muted);">First Name changes how the account is shown. Login and data identity fields remain unchanged.</p>
-      <input type="hidden" id="editUserUsername" value="" />
-      <label for="editUserFirstName">First Name</label>
-      <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
-      <label for="editUserRole">Role</label>
-      <select id="editUserRole"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>
-      <label for="editUserActive">Account status</label>
-      <select id="editUserActive"><option value="1">Active</option><option value="0">Suspended</option></select>
-      <label for="editUserMustChangePw">Must change password</label>
-      <select id="editUserMustChangePw"><option value="0">No</option><option value="1">Yes — require on next sign-in</option></select>
-      <div class="acctPanelActions">
-        <button type="button" class="btn good" id="editUserSave">Save changes</button>
-        <button type="button" class="btn" id="editUserCancel">Cancel</button>
-      </div>
+    <div id="staffAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+      <p class="acctPanelHd">Add Staff</p>
+      <p class="acctPanelHint">Creates a teacher or admin Lantern account. Does not create students (use Students panel / TMS roster).</p>
+      <form id="addUserForm">
+        <label for="nu_username">Login username</label>
+        <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">Human-readable unique login (e.g. jsmith). Not a Staff # number.</p>
+        <input id="nu_username" type="text" required autocomplete="off" aria-describedby="nu_username_hint" />
+        <label for="nu_display">First Name</label>
+        <p id="nu_display_hint" class="sub" style="margin:0 0 8px;">Required. Shown in the app header.</p>
+        <input id="nu_display" type="text" required maxlength="64" autocomplete="off" aria-describedby="nu_display_hint" />
+        <label>Role
+          <select id="nu_role"><option value="teacher">teacher</option><option value="admin">admin</option></select>
+        </label>
+        <label>Temporary password (8+ chars) <input id="nu_password" type="password" autocomplete="new-password" required /></label>
+        <label>Teacher ID (optional) <input id="nu_teacher_id" type="text" placeholder="e.g. teacher1" /></label>
+        <input id="nu_scn" type="hidden" value="" />
+        <div class="acctPanelActions" style="margin-top:14px;">
+          <button type="submit" class="btn good">Create staff account</button>
+          <button type="button" class="btn" id="staffAddCancelBtn">Cancel</button>
+        </div>
+      </form>
     </div>
 
-    <div id="tempPwPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
-      <p class="acctPanelHd">Set temporary password</p>
-      <p id="tempPwUserHint" class="acctPanelHint"></p>
-      <label for="tempPwInput">New password (8+ characters)</label>
-      <input id="tempPwInput" type="password" autocomplete="new-password" minlength="8" />
-      <div class="acctPanelActions">
-        <button type="button" class="btn good" id="tempPwSave">Set password</button>
-        <button type="button" class="btn" id="tempPwCancel">Cancel</button>
-      </div>
-    </div>
-
-    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). <strong>Set temp password</strong> sets a one-time password: that person signs in, is prompted to choose their own password, then the rest of the app unlocks. A confirmation appears above when the reset succeeds.</p>
-    <h3 style="margin-top:20px;font-size:24px;">Add user</h3>
-    <form id="addUserForm">
-      <label for="nu_username">Login username</label>
-      <p id="nu_username_hint" class="sub" style="margin:0 0 8px;">This is the <strong>Login ID</strong> they type at sign-in (for students, usually the Student ID your school uses—stored as text).</p>
-      <input id="nu_username" type="text" required autocomplete="off" aria-describedby="nu_username_hint" />
-      <label for="nu_display">First Name</label>
-      <p id="nu_display_hint" class="sub" style="margin:0 0 8px;">Required. Shown in the app header and Locker. Does not change the Login ID or data identity keys.</p>
-      <input id="nu_display" type="text" required maxlength="64" autocomplete="off" aria-describedby="nu_display_hint" />
-      <label>Role
-        <select id="nu_role"><option value="student">student</option><option value="teacher">teacher</option><option value="admin">admin</option></select>
-      </label>
-      <label>Password (8+ chars) <input id="nu_password" type="password" autocomplete="new-password" required /></label>
-      <label>Teacher ID (teachers) <input id="nu_teacher_id" type="text" placeholder="e.g. teacher1" /></label>
-      <label>Student character (students) <input id="nu_scn" type="text" placeholder="e.g. Riley" /></label>
-      <button type="submit" class="btn good" style="margin-top:14px;">Create user</button>
-    </form>
+    <p class="sub" style="margin-top:12px;">Passwords are stored hashed (PBKDF2-SHA256). <strong>Set New Temp Password</strong> forces change on next sign-in. Archive/Deactivate blocks login without deleting identity or history.</p>
     </div>
   </details>
 
@@ -1016,12 +1040,12 @@
       var actSel = document.getElementById('editUserActive');
       var fnInput = document.getElementById('editUserFirstName');
       var mcpSel = document.getElementById('editUserMustChangePw');
-      if (disp) disp.textContent = 'Login ID: ' + user;
+      if (disp) disp.textContent = 'Login username: ' + user;
       if (hid) hid.value = user;
       if (fnInput) fnInput.value = u.display_name != null ? String(u.display_name).trim() : '';
       if (roleSel) {
-        var rv = String(u.role || 'student').trim().toLowerCase();
-        if (rv !== 'admin' && rv !== 'teacher' && rv !== 'student') rv = 'student';
+        var rv = String(u.role || 'teacher').trim().toLowerCase();
+        if (rv !== 'admin' && rv !== 'teacher') rv = 'teacher';
         roleSel.value = rv;
       }
       var ia = u.is_active === 0 || u.is_active === '0' ? '0' : '1';
@@ -1048,10 +1072,14 @@
     document.getElementById('editUserSave').addEventListener('click', function(){
       var username = (document.getElementById('editUserUsername').value || '').trim();
       var firstName = (document.getElementById('editUserFirstName').value || '').trim();
-      var role = (document.getElementById('editUserRole').value || 'student').trim();
+      var role = (document.getElementById('editUserRole').value || 'teacher').trim();
       var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
       var mustChange = parseInt(document.getElementById('editUserMustChangePw').value, 10) ? true : false;
       if (!username) return;
+      if (!isStaffRole(role)) {
+        showUsersMsg('Staff & Admin only edits teacher or admin roles.', 'err');
+        return;
+      }
       var fnErr = validateFirstNameClient(firstName);
       if (fnErr) {
         showUsersMsg(fnErr, 'err');
@@ -1110,6 +1138,45 @@
       });
     });
 
+    function isStaffRole(role) {
+      var r = String(role || '').trim().toLowerCase();
+      return r === 'teacher' || r === 'admin';
+    }
+
+    function filteredStaffList() {
+      var filterEl = document.getElementById('staffRosterFilter');
+      var searchEl = document.getElementById('staffRosterSearch');
+      var filter = filterEl ? String(filterEl.value || 'all') : 'all';
+      var q = searchEl ? String(searchEl.value || '').trim().toLowerCase() : '';
+      return lastUsersList.filter(function(u) {
+        if (!isStaffRole(u.role)) return false;
+        var active = !(u.is_active === 0 || u.is_active === '0');
+        if (filter === 'active' && !active) return false;
+        if (filter === 'archived' && active) return false;
+        if (filter === 'teacher' && String(u.role).toLowerCase() !== 'teacher') return false;
+        if (filter === 'admin' && String(u.role).toLowerCase() !== 'admin') return false;
+        if (!q) return true;
+        var hay = [u.username, u.display_name, formatFirstName(u)].join(' ').toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+    }
+
+    function setAccountActive(username, active, onDone) {
+      postAdminJson('/api/admin/users/update', {
+        username: username,
+        is_active: active ? 1 : 0
+      }).then(function(res) {
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          if (typeof onDone === 'function') onDone(null, res.body);
+          return;
+        }
+        if (typeof onDone === 'function') onDone((res && res.body && res.body.error) || 'Update failed');
+      }).catch(function() {
+        if (typeof onDone === 'function') onDone('Network error');
+      });
+    }
+
     function loadUsers(){
       fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){
         return r.json().then(function(j){ return { status: r.status, body: j }; });
@@ -1119,53 +1186,104 @@
         }
         var res = w.body;
         var tb = document.getElementById('usersBody');
-        var accountsPill = document.getElementById('adminAccountsCountPill');
-        function setAccountsCount(n) {
-          if (accountsPill) accountsPill.textContent = String(n);
+        var staffPill = document.getElementById('adminStaffCountPill');
+        function setStaffCount(n) {
+          if (staffPill) staffPill.textContent = String(n);
         }
-        tb.innerHTML = '';
+        if (tb) tb.innerHTML = '';
         if (!res || !res.ok || !res.users) {
           lastUsersList = [];
-          setAccountsCount(0);
+          setStaffCount(0);
           populateWalletStudentSelect();
           populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
+          renderStaffTable();
           return;
         }
         lastUsersList = res.users.slice();
-        setAccountsCount(lastUsersList.length);
+        var staffAll = lastUsersList.filter(function(u) { return isStaffRole(u.role); });
+        setStaffCount(staffAll.length);
         populateWalletStudentSelect();
         populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
-        res.users.forEach(function(u){
-          var tr = document.createElement('tr');
-          var active = (u.is_active === 0 || u.is_active === '0') ? 'No' : 'Yes';
-          var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
-          var mcpLabel = mcp ? 'Yes' : 'No';
-          tr.innerHTML = '<td>' + esc(u.username) + '</td><td>' + esc(formatFirstName(u)) + '</td><td>' + esc(u.role) + '</td><td>' + active + '</td><td>' + mcpLabel + '</td><td class="acctActions"></td>';
-          var cell = tr.querySelector('.acctActions');
-          var bEdit = document.createElement('button');
-          bEdit.type = 'button';
-          bEdit.className = 'btn';
-          bEdit.textContent = 'Edit';
-          bEdit.addEventListener('click', function(){
-            openEditUserPanel(u);
-            try {
-              document.getElementById('editUserPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } catch (e) {}
-          });
-          var bTemp = document.createElement('button');
-          bTemp.type = 'button';
-          bTemp.className = 'btn good';
-          bTemp.textContent = 'Set temp password';
-          bTemp.addEventListener('click', function(){
-            openTempPwPanel(u.username);
-            try {
-              document.getElementById('tempPwPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } catch (e2) {}
-          });
-          cell.appendChild(bEdit);
-          cell.appendChild(bTemp);
-          tb.appendChild(tr);
+        renderStaffTable();
+      });
+    }
+
+    function renderStaffTable() {
+      var tb = document.getElementById('usersBody');
+      var empty = document.getElementById('staffRosterEmpty');
+      if (!tb) return;
+      tb.innerHTML = '';
+      var rows = filteredStaffList();
+      if (empty) empty.style.display = rows.length ? 'none' : 'block';
+      rows.forEach(function(u){
+        var tr = document.createElement('tr');
+        var active = !(u.is_active === 0 || u.is_active === '0');
+        var activeLabel = active ? 'Active' : 'Archived';
+        var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
+        var mcpLabel = mcp ? 'Yes' : 'No';
+        tr.innerHTML = '<td>' + esc(formatFirstName(u)) + '</td><td>' + esc(u.username) + '</td><td>' + esc(u.role) + '</td><td>' + activeLabel + '</td><td>' + mcpLabel + '</td><td class="acctActions"></td>';
+        var cell = tr.querySelector('.acctActions');
+        var bEdit = document.createElement('button');
+        bEdit.type = 'button';
+        bEdit.className = 'btn';
+        bEdit.textContent = 'Edit';
+        bEdit.addEventListener('click', function(){
+          openEditUserPanel(u);
+          try {
+            document.getElementById('editUserPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {}
         });
+        var bTemp = document.createElement('button');
+        bTemp.type = 'button';
+        bTemp.className = 'btn good';
+        bTemp.textContent = 'Set New Temp Password';
+        bTemp.addEventListener('click', function(){
+          openTempPwPanel(u.username);
+          try {
+            document.getElementById('tempPwPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e2) {}
+        });
+        cell.appendChild(bEdit);
+        cell.appendChild(bTemp);
+        if (active) {
+          var bArch = document.createElement('button');
+          bArch.type = 'button';
+          bArch.className = 'btn';
+          bArch.textContent = 'Archive / Deactivate';
+          bArch.addEventListener('click', function(){
+            var selfName = adminSessionMeta.username || '';
+            if (selfName && String(u.username).toLowerCase() === String(selfName).toLowerCase()) {
+              showUsersMsg('Cannot archive the signed-in Admin account from this panel.', 'err');
+              return;
+            }
+            if (!window.confirm('Archive / Deactivate "' + u.username + '"?\n\nThey cannot sign in. Identity, history, and mappings stay. Restore is available later.')) return;
+            bArch.disabled = true;
+            setAccountActive(u.username, false, function(err) {
+              bArch.disabled = false;
+              if (err) { showUsersMsg(err, 'err'); return; }
+              showUsersMsg('Archived ' + u.username + '.', 'ok');
+              loadUsers();
+            });
+          });
+          cell.appendChild(bArch);
+        } else {
+          var bRest = document.createElement('button');
+          bRest.type = 'button';
+          bRest.className = 'btn good';
+          bRest.textContent = 'Restore';
+          bRest.addEventListener('click', function(){
+            if (!window.confirm('Restore "' + u.username + '"?\n\nReactivates the same account identity.')) return;
+            bRest.disabled = true;
+            setAccountActive(u.username, true, function(err) {
+              bRest.disabled = false;
+              if (err) { showUsersMsg(err, 'err'); return; }
+              showUsersMsg('Restored ' + u.username + '.', 'ok');
+              loadUsers();
+            });
+          });
+          cell.appendChild(bRest);
+        }
+        tb.appendChild(tr);
       });
     }
 
@@ -1177,27 +1295,59 @@
         showUsersMsg(fnErr, 'err');
         return;
       }
+      var role = document.getElementById('nu_role').value;
+      if (!isStaffRole(role)) {
+        showUsersMsg('Staff & Admin only creates teacher or admin accounts.', 'err');
+        return;
+      }
       var body = {
         username: document.getElementById('nu_username').value.trim(),
         display_name: firstName,
-        role: document.getElementById('nu_role').value,
+        role: role,
         password: document.getElementById('nu_password').value,
       };
       var tid = document.getElementById('nu_teacher_id').value.trim();
-      var scn = document.getElementById('nu_scn').value.trim();
       if (tid) body.teacher_id = tid;
-      if (scn) body.student_character_name = scn;
       postAdminJson('/api/admin/users', body).then(function(res){
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
-          showUsersMsg('Account created for ' + body.username + '.', 'ok');
+          showUsersMsg('Staff account created for ' + body.username + '.', 'ok');
           loadUsers();
           document.getElementById('addUserForm').reset();
+          var addPanel = document.getElementById('staffAddPanel');
+          if (addPanel) { addPanel.style.display = 'none'; addPanel.setAttribute('aria-hidden', 'true'); }
         } else {
           showUsersMsg((res && res.body && res.body.error) || 'Failed', 'err');
         }
       });
     });
+
+    var staffRosterSearch = document.getElementById('staffRosterSearch');
+    if (staffRosterSearch) staffRosterSearch.addEventListener('input', renderStaffTable);
+    var staffRosterFilter = document.getElementById('staffRosterFilter');
+    if (staffRosterFilter) staffRosterFilter.addEventListener('change', renderStaffTable);
+    var staffRosterRefreshBtn = document.getElementById('staffRosterRefreshBtn');
+    if (staffRosterRefreshBtn) staffRosterRefreshBtn.addEventListener('click', function(){ showUsersMsg('', ''); loadUsers(); });
+    var staffAddOpenBtn = document.getElementById('staffAddOpenBtn');
+    if (staffAddOpenBtn) {
+      staffAddOpenBtn.addEventListener('click', function(){
+        closeEditUserPanel();
+        closeTempPwPanel();
+        var panel = document.getElementById('staffAddPanel');
+        if (!panel) return;
+        panel.style.display = 'block';
+        panel.setAttribute('aria-hidden', 'false');
+        var u = document.getElementById('nu_username');
+        if (u) u.focus();
+      });
+    }
+    var staffAddCancelBtn = document.getElementById('staffAddCancelBtn');
+    if (staffAddCancelBtn) {
+      staffAddCancelBtn.addEventListener('click', function(){
+        var panel = document.getElementById('staffAddPanel');
+        if (panel) { panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); }
+      });
+    }
 
     function showFeedModMsg(text, kind) {
       var el = document.getElementById('feedModMsg');
@@ -1640,7 +1790,7 @@
       var v = String(value || '');
       if (kind === 'lantern') {
         if (v === 'Linked') return 'rosterStatusLinked';
-        if (v === 'Missing') return 'rosterStatusMissing';
+        if (v === 'Missing' || v === 'Linked Archived') return 'rosterStatusMissing';
         return 'rosterStatusProblem';
       }
       if (kind === 'locker') {
@@ -1666,6 +1816,7 @@
         '<span>Active TMS: <strong>' + active + '</strong></span>' +
         '<span>Missing ID: <strong>' + (counts.missing_id || 0) + '</strong></span>' +
         '<span>Lantern Linked: <strong>' + (counts.lantern_linked || 0) + '/' + active + '</strong></span>' +
+        '<span>Lantern Archived: <strong>' + (counts.lantern_archived || 0) + '</strong></span>' +
         '<span>Lantern Missing: <strong>' + (counts.lantern_missing || 0) + '</strong></span>' +
         '<span>Locker Ready: <strong>' + (counts.locker_ready || 0) + '/' + active + '</strong></span>' +
         '<span>Problems: <strong>' + ((counts.lantern_broken || 0) + (counts.lantern_ambiguous || 0)) + '</strong></span>';
@@ -1681,7 +1832,7 @@
         if (filter === 'lantern_missing' && s.lantern_account !== 'Missing') return false;
         if (filter === 'linked' && s.lantern_account !== 'Linked') return false;
         if (filter === 'locker_ready' && s.locker !== 'Ready') return false;
-        if (filter === 'problems' && s.lantern_account !== 'Broken' && s.lantern_account !== 'Ambiguous' && s.locker !== 'Error') return false;
+        if (filter === 'problems' && s.lantern_account !== 'Broken' && s.lantern_account !== 'Ambiguous' && s.lantern_account !== 'Linked Archived' && s.locker !== 'Error') return false;
         if (filter === 'inactive' && Number(s.is_active) === 1) return false;
         if (filter !== 'inactive' && Number(s.is_active) !== 1 && !studentsRosterIncludeInactive) return false;
         if (!q) return true;
@@ -1736,14 +1887,22 @@
       rows.forEach(function(s) {
         var tr = document.createElement('tr');
         var sidLabel = s.student_id ? escapeRosterHtml(s.student_id) : '<span class="rosterStatusMissing">blank</span>';
+        var mcpLabel = s.must_change_password ? 'Yes' : '—';
         var actions = '';
-        if (s.student_id) {
-          actions += '<button type="button" class="btn studentsEditIdBtn" data-name="' + escapeRosterHtml(s.student_name) + '">Edit ID</button>';
-        } else {
+        if (!s.student_id) {
           actions += '<button type="button" class="btn good studentsEditIdBtn" data-name="' + escapeRosterHtml(s.student_name) + '">Edit ID</button>';
+        } else {
+          actions += '<button type="button" class="btn studentsEditIdBtn" data-name="' + escapeRosterHtml(s.student_name) + '">Edit ID</button>';
         }
         if (s.exact_match_linkable) {
           actions += '<button type="button" class="btn good studentsLinkExactBtn" data-id="' + escapeRosterHtml(s.student_id) + '" data-name="' + escapeRosterHtml(s.student_name) + '">Link Existing Account</button>';
+        }
+        if (s.lantern_account === 'Linked' && s.lantern_username) {
+          actions += '<button type="button" class="btn good studentsTempPwBtn" data-user="' + escapeRosterHtml(s.lantern_username) + '">Set New Temp Password</button>';
+          actions += '<button type="button" class="btn studentsArchiveBtn" data-user="' + escapeRosterHtml(s.lantern_username) + '" data-name="' + escapeRosterHtml(s.student_name) + '">Archive Lantern Login</button>';
+        }
+        if (s.lantern_account === 'Linked Archived' && s.lantern_username) {
+          actions += '<button type="button" class="btn good studentsRestoreBtn" data-user="' + escapeRosterHtml(s.lantern_username) + '" data-name="' + escapeRosterHtml(s.student_name) + '">Restore Lantern Login</button>';
         }
         tr.innerHTML =
           '<td>' + sidLabel + '</td>' +
@@ -1755,6 +1914,7 @@
             (s.lantern_username ? ' <span class="pendingMeta">(' + escapeRosterHtml(s.lantern_username) + ')</span>' : '') +
           '</td>' +
           '<td class="' + studentsStatusClass('locker', s.locker) + '">' + escapeRosterHtml(s.locker) + '</td>' +
+          '<td>' + mcpLabel + '</td>' +
           '<td>' + actions + '</td>';
         body.appendChild(tr);
       });
@@ -1784,6 +1944,48 @@
             showStudentsRosterMsg('Network error while linking account.', 'err');
           }).finally(function() {
             btn.disabled = false;
+          });
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll('.studentsTempPwBtn'), function(btn) {
+        btn.addEventListener('click', function() {
+          var user = btn.getAttribute('data-user') || '';
+          if (!user) return;
+          openTempPwPanel(user);
+          try {
+            document.getElementById('tempPwPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {}
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll('.studentsArchiveBtn'), function(btn) {
+        btn.addEventListener('click', function() {
+          var user = btn.getAttribute('data-user') || '';
+          var name = btn.getAttribute('data-name') || '';
+          if (!user) return;
+          if (!window.confirm('Archive Lantern Login for ' + name + ' (' + user + ')?\n\nBlocks Lantern sign-in only. TMS roster status and Student ID stay unchanged. History and Locker ownership remain.')) return;
+          btn.disabled = true;
+          setAccountActive(user, false, function(err) {
+            btn.disabled = false;
+            if (err) { showStudentsRosterMsg(err, 'err'); return; }
+            showStudentsRosterMsg('Archived Lantern login ' + user + '. TMS roster unchanged.', 'ok');
+            loadStudentsRoster();
+            loadUsers();
+          });
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll('.studentsRestoreBtn'), function(btn) {
+        btn.addEventListener('click', function() {
+          var user = btn.getAttribute('data-user') || '';
+          var name = btn.getAttribute('data-name') || '';
+          if (!user) return;
+          if (!window.confirm('Restore Lantern Login for ' + name + ' (' + user + ')?\n\nReactivates the same Lantern account. TMS roster is not modified.')) return;
+          btn.disabled = true;
+          setAccountActive(user, true, function(err) {
+            btn.disabled = false;
+            if (err) { showStudentsRosterMsg(err, 'err'); return; }
+            showStudentsRosterMsg('Restored Lantern login ' + user + '.', 'ok');
+            loadStudentsRoster();
+            loadUsers();
           });
         });
       });
