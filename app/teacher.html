@@ -1161,7 +1161,7 @@
     @media (min-width: 640px){
       .teacherFieldRow--2{ grid-template-columns: 1fr 1fr; align-items: start; }
     }
-    /* Prompt #78 — a whole .card can collapse (e.g. My Missions → Recognition, a
+    /* Prompt #78 — a whole .card can collapse (e.g. Missions → Create New Mission, a
        secondary supporting tool) by making the card itself a <details>/<summary> pair;
        the summary reuses .cardHd's layout so it looks identical whether open or closed. */
     .teacherCollapsibleCard > summary{ list-style: none; cursor: pointer; user-select: none; }
@@ -1732,51 +1732,14 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="cardHd">
-        <div class="h">Reviewed &amp; approved</div>
-        <div class="pill" id="curateCount">0</div>
-      </div>
-      <div class="cardBd">
-        <p class="note note-tight">Browse approved work — spotlight, feature, or praise.</p>
-        <input type="text" id="reviewedSearchInput" placeholder="Search by student or title…" style="width:100%;max-width:400px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;" />
-        <div id="curatePostsEl" class="scrollArea" style="max-height: 320px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12);"></div>
-      </div>
-    </div>
-
-    <!-- Prompt #78 — Recognition is a secondary supporting tool here (mission list is
-         the primary function of this workspace), so it's a collapsed-by-default card.
-         Prompt #103: retirement of this Spotlight/Feature/Teacher Pick/Praise + Recognition
-         composer UI is DEFERRED to #104 (see CURSOR REPLY #103 §11) — it materially overlaps
-         with the Review Queue → Approved restructuring that hasn't happened yet, so removing it
-         now would leave teachers with no way to browse/react to approved work at all. -->
-    <details class="card teacherCollapsibleCard" style="border-color: rgba(56,208,124,.3); background: linear-gradient(180deg, rgba(56,208,124,.06), rgba(56,208,124,.02));">
-      <summary class="cardHd">
-        <div class="h">Recognition</div>
-        <div class="pill good" id="recognitionCount">0</div>
-      </summary>
-      <div class="cardBd">
-        <p class="note note-tight">Positive shout-out — shows immediately (no queue).</p>
-        <div class="teacherField">
-          <label for="recCharacterName">Student</label>
-          <select id="recCharacterName" class="teacherSelect" style="max-width:320px;">
-            <option value="">— Select student —</option>
-          </select>
-        </div>
-        <div class="teacherField">
-          <label for="recMessage">Message (max 250 characters)</label>
-          <textarea id="recMessage" class="teacherTextarea" placeholder="Short positive message…" maxlength="250"></textarea>
-        </div>
-        <div class="teacherField">
-          <label for="recCategory">Category (optional)</label>
-          <input type="text" id="recCategory" class="teacherInput" placeholder="e.g. Kindness, Effort" autocomplete="off" style="max-width:240px;" />
-        </div>
-        <div class="teacherActions">
-          <button class="btn good" id="addRecognitionBtn" type="button">Add Recognition</button>
-        </div>
-        <div id="recognitionListEl" class="scrollArea" style="max-height: 240px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:14px;"></div>
-      </div>
-    </details>
+    <!-- Prompt #103 (follow-up): the legacy "Reviewed & approved" browse/curate panel and the
+         generic Recognition composer (Spotlight/Feature/Teacher Pick/Praise) were removed from
+         this workspace. Both were wired to app/js/lantern-api.js, a localStorage-only mock API
+         ("No fetch, no Worker, no production data" per its own file header) — never the real
+         D1/Worker system — so they were surfacing stale, browser-local demo/fake rows (e.g. old
+         demo persona names) that had nothing to do with real students. The backing Recognition
+         DB table/API and Hallway TV's own read of it are untouched; only this dead Teacher UI
+         wiring was removed. See CURSOR REPLY #103 (follow-up) for details. -->
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
@@ -2040,9 +2003,7 @@
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
     (function(){
-      var sel = document.getElementById('recCharacterName');
       var chars = (window.LANTERN_DATA && window.LANTERN_DATA.DEFAULT_CHARACTERS) || [];
-      if (sel && chars.length) { chars.forEach(function(c){ var o = document.createElement('option'); o.value = c.name || ''; o.textContent = (c.avatar || '') + ' ' + (c.name || ''); sel.appendChild(o); }); }
       var listEl = document.getElementById('missionSelectedStudentsList');
       if (listEl && chars.length) {
         chars.forEach(function(c){
@@ -2438,17 +2399,6 @@
       });
     }
 
-    function callCuratePost(postId, action, praise){
-      var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
-      return new Promise(function(resolve){
-        run
-          .withSuccessHandler(function(res){ resolve(res); })
-          .withFailureHandler(function(err){ resolve({ok:false, error: String(err && err.message || err)}); })
-          .curatePost({ post_id: postId, action: action, praise: praise || '' });
-      });
-    }
-
     function callApproveThanks(id){
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
@@ -2514,20 +2464,6 @@
       var run = createRun();
       return new Promise(function(resolve){
         run.withSuccessHandler(resolve).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).takeApprovalItem({ id: approvalId, staff_id: (approvalStaffId && String(approvalStaffId).trim()) ? approvalStaffId : ((typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) ? 'admin' : DEFAULT_TEACHER_ID), staff_name: (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) ? 'Admin' : 'Teacher' });
-      });
-    }
-    function callGetRecognitionList(limit){
-      if (!createRun) return Promise.resolve({ ok: true, recognition: [] });
-      var run = createRun();
-      return new Promise(function(resolve){
-        run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: true, recognition: [] }); }).getRecognitionList({ limit: limit || 50 });
-      });
-    }
-    function callCreateRecognition(payload){
-      if (!createRun) return Promise.resolve({ ok: false, error: 'API not loaded' });
-      var run = createRun();
-      return new Promise(function(resolve){
-        run.withSuccessHandler(resolve).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).createRecognition(payload);
       });
     }
     function callReturnThanksForImprovements(id, reason){
@@ -2692,14 +2628,12 @@
     }
 
     let pendingPosts = [];
-    let posts = [];
     let thanksLetters = [];
     let gradeReflections = [];
     let teacherMissions = [];
     let missionSubmissions = [];
     let newsPending = [];
     let pendingAvatars = [];
-    let recognitionList = [];
 
     function computeNuggetTier(wc) {
       if (!wc || wc < 30) return 1;
@@ -3679,73 +3613,6 @@
       });
     }
 
-    function renderCuratePosts(){
-      var container = el('curatePostsEl');
-      if (!container) return;
-      var q = (el('reviewedSearchInput') && el('reviewedSearchInput').value || '').trim().toLowerCase();
-      var list = (posts || []).filter(function(p){
-        if (!q) return true;
-        var name = String(p.character_name || '').toLowerCase();
-        var title = String(p.title || '').toLowerCase();
-        return name.indexOf(q) !== -1 || title.indexOf(q) !== -1;
-      });
-      el('curateCount').textContent = String(list.length) + (q ? ' of ' + (posts || []).length : '');
-      if (list.length === 0){
-        container.innerHTML = '<div class="placeholderRow">' + (q ? 'No approved creations match your search.' : 'No posts yet. Students create posts on their profile.') + '</div>';
-        return;
-      }
-      var TYPE_ICONS = { image: '📷', link: '🔗', video: '🎬', webapp: '📱', project: '📂' };
-      container.innerHTML = '';
-      list.forEach(function(p){
-        var c = p.curation || {};
-        var badges = [];
-        if (c.spotlighted) badges.push('⭐ Spotlight');
-        if (c.teacher_featured) badges.push('🌟 Featured');
-        if (c.teacher_pick) badges.push('🏆 Pick');
-        if (c.teacher_praise) badges.push('💬 Praise');
-        var badgesHtml = badges.length ? '<div class="curatePostBadges">' + badges.map(function(b){ return '<span class="curatePostBadge">' + esc(b) + '</span>'; }).join('') + '</div>' : '';
-        var row = document.createElement('div');
-        row.className = 'curatePostRow';
-        var pAvatar = smallAvatarHtml(resolveStudentAvatarUrl(p.character_name), p.character_name || '', p.character_name);
-        row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor" style="display:flex;align-items:center;gap:10px;">' + pAvatar + '<span>' + esc(p.character_name || '') + '</span></div><div class="curatePostTitle">' + (TYPE_ICONS[p.type] || '') + ' ' + esc(p.title || 'Untitled') + '</div>' + badgesHtml + '</div><div class="curatePostActions"></div>';
-        var actions = row.querySelector('.curatePostActions');
-        function addCurateBtn(label, action, isToggled){
-          var btn = document.createElement('button');
-          btn.className = 'btn small' + (isToggled ? ' good' : '');
-          btn.textContent = label;
-          btn.addEventListener('click', async function(){
-            var praise = action === 'praise' ? (prompt('Add praise (short comment):') || '').trim() : '';
-            btn.disabled = true;
-            var res = await callCuratePost(p.id, action, praise);
-            btn.disabled = false;
-            if (!res.ok){ toast(res.error || 'Failed'); return; }
-            if (action === 'teacher_pick' && avatarApiBase !== null && res.curation && res.curation.teacher_pick && !isToggled){
-              var pickMsg = 'Teacher Pick: ' + String(p.title || 'Creation').trim().slice(0, 200);
-              var teacherLabel = (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? String(approvalStaffId) : 'Teacher';
-              fetch(avatarApiBase + '/api/recognition/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  character_name: String(p.character_name || '').trim(),
-                  message: pickMsg,
-                  category: 'Teacher Pick',
-                  created_by_teacher_name: teacherLabel
-                })
-              }).catch(function(){});
-            }
-            toast(isToggled ? 'Removed' : 'Done');
-            await refresh();
-          });
-          actions.appendChild(btn);
-        }
-        addCurateBtn(c.spotlighted ? 'Un-Spotlight' : 'Spotlight', 'spotlight', c.spotlighted);
-        addCurateBtn(c.teacher_featured ? 'Un-Feature' : 'Feature', 'feature', c.teacher_featured);
-        addCurateBtn(c.teacher_pick ? 'Un-Pick' : 'Teacher Pick', 'teacher_pick', c.teacher_pick);
-        addCurateBtn('Praise', 'praise', !!c.teacher_praise);
-        container.appendChild(row);
-      });
-    }
-
     function renderPending(){
       var body = el('pendingBody');
       body.innerHTML = "";
@@ -3829,7 +3696,6 @@
       pending = res.pending || [];
       totalsByStudent = res.totalsByStudent || [];
       pendingPosts = res.pendingPosts || [];
-      posts = res.posts || [];
       thanksLetters = res.thanksLetters || [];
       gradeReflections = res.gradeReflections || [];
       teacherMissions = res.teacherMissions || [];
@@ -3850,18 +3716,11 @@
       if (!useApprovalsApi) {
         approvalHistory = [];
       }
-      if (avatarApiBase !== null) {
-        var recRes = await callGetRecognitionList(50);
-        recognitionList = (recRes && recRes.recognition) || [];
-      } else {
-        recognitionList = [];
-      }
       var allNames = {};
       function addName(n){ if (n && String(n).trim()) allNames[String(n).trim()] = true; }
       (approvalPending || []).forEach(function(a){ var it = a.item || {}; addName(it.character_name); addName(it.submitter); });
       (approvalHistory || []).forEach(function(it){ addName(it.submitter); });
       (missionSubmissions || []).forEach(function(s){ addName(s.character_name); });
-      (recognitionList || []).forEach(function(r){ addName(r.character_name); });
       (newsPending || []).forEach(function(n){ addName(n.author_name); addName(n.submitter); });
       (pendingAvatars || []).forEach(function(a){ addName(a.character_name); });
       (pendingPosts || []).forEach(function(p){ addName(p.character_name); });
@@ -3879,8 +3738,6 @@
       }
       renderUnifiedApprovals();
       if (useApprovalsApi) renderApprovalHistory();
-      renderRecognitionList();
-      renderCuratePosts();
       renderTeacherMissions();
       if (typeof refreshClassAccessUI === 'function') refreshClassAccessUI();
       renderMissionSubmissions();
@@ -4171,26 +4028,6 @@
       var overlay = el('moderationPreviewOverlay');
       if (overlay) overlay.classList.remove('is-open');
       moderationPreviewCurrent = null;
-    }
-
-    function renderRecognitionList(){
-      var container = el('recognitionListEl');
-      var countEl = el('recognitionCount');
-      if (!container) return;
-      if (countEl) countEl.textContent = String((recognitionList || []).length);
-      if (!recognitionList || recognitionList.length === 0) {
-        container.innerHTML = '<div class="placeholderRow">No recognition yet. Add one above.</div>';
-        return;
-      }
-      container.innerHTML = '';
-      recognitionList.forEach(function(r){
-        var row = document.createElement('div');
-        row.className = 'approvalQueueRow';
-        var cat = (r.category || '').trim() ? ' <span class="pill good" style="font-size:18px;">' + esc(r.category) + '</span>' : '';
-        var recAvatarHtml = smallAvatarHtml(resolveStudentAvatarUrl(r.character_name), r.character_name || '', r.character_name);
-        row.innerHTML = '<div class="approvalQueueLeft" style="display:flex;align-items:flex-start;gap:10px;"><div style="flex-shrink:0;">' + recAvatarHtml + '</div><div><div class="approvalQueueType">Recognition</div><div class="approvalQueueTitle">' + esc(r.character_name || '') + cat + '</div><div class="approvalQueueMeta">' + esc((r.message || '').slice(0, 250)) + ((r.message || '').length > 250 ? '…' : '') + '</div><div class="approvalQueueMeta" style="margin-top:4px;">' + esc(r.created_by_teacher_name || '') + ' · ' + esc(formatNewsDate(r.created_at) || '') + '</div></div></div>';
-        container.appendChild(row);
-      });
     }
 
     function getAuthorLabel(type){
@@ -4833,27 +4670,6 @@
       }
     });
 
-    if (el('addRecognitionBtn')) {
-      el('addRecognitionBtn').addEventListener('click', async function(){
-        if (avatarApiBase === null){ toast('Recognition requires Lantern API'); return; }
-        var characterName = (el('recCharacterName') && el('recCharacterName').value || '').trim();
-        var message = (el('recMessage') && el('recMessage').value || '').trim().slice(0, 250);
-        if (!characterName){ toast('Select a character'); return; }
-        if (!message){ toast('Message required'); return; }
-        var category = (el('recCategory') && el('recCategory').value || '').trim() || undefined;
-        var btn = el('addRecognitionBtn');
-        btn.disabled = true;
-        var res = await callCreateRecognition({ character_name: characterName, message: message, category: category, created_by_teacher_name: 'Teacher' });
-        btn.disabled = false;
-        if (!res.ok){ toast(res.error || 'Failed'); return; }
-        toast('Recognition added');
-        if (el('recCharacterName')) el('recCharacterName').value = '';
-        if (el('recMessage')) el('recMessage').value = '';
-        if (el('recCategory')) el('recCategory').value = '';
-        await refresh();
-      });
-    }
-
     el('refreshBtn').addEventListener('click', function(){ refresh(); });
     if (el('moderationRefreshBtn')) el('moderationRefreshBtn').addEventListener('click', function(){ loadModerationData(); });
     if (el('moderationPreviewCloseBtn')) el('moderationPreviewCloseBtn').addEventListener('click', closeModerationPreview);
@@ -5025,9 +4841,6 @@
         refresh();
       });
     }
-
-    var searchInput = el('reviewedSearchInput');
-    if (searchInput) searchInput.addEventListener('input', function(){ renderCuratePosts(); });
 
     refresh();
   </script>

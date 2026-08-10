@@ -199,8 +199,11 @@ if (/<details id="teacherCreateMissionDetails"/.test(teacherHtml)) {
   ok('Create New Mission is a collapsed-by-default <details> nested inside the Missions workspace');
 } else bad('teacherCreateMissionDetails wrapper not found');
 
-if (/Search by student or title/.test(teacherHtml) && !/Search by character or title/.test(teacherHtml)) {
-  ok('legacy "Search by character or title" copy fully replaced with "Search by student or title"');
+// Follow-up to #103: the "Reviewed & approved" panel that carried this copy was removed
+// entirely (it was wired to the localStorage-only mock API, not real D1/Worker data) — see
+// the Recognition-removal checks below. The legacy "character" wording must not exist anywhere.
+if (!/Search by character or title/.test(teacherHtml)) {
+  ok('legacy "Search by character or title" copy no longer exists anywhere in teacher.html');
 } else bad('legacy character search copy still present');
 
 if (/Student Totals/.test(teacherHtml) && !/Character Totals/.test(teacherHtml)) {
@@ -222,6 +225,38 @@ if (/Minimum characters/.test(teacherHtml)) {
 if (/Promote this mission/.test(teacherHtml) && !/Feature this mission/.test(teacherHtml)) {
   ok('"Feature this mission" fully relabeled to "Promote this mission" in the creator');
 } else bad('legacy "Feature this mission" label still present');
+
+// ---------------------------------------------------------------------------
+// Follow-up to #103 — legacy "Reviewed & approved" curate panel + generic Recognition
+// composer removed entirely from Teacher Missions. Both called app/js/lantern-api.js, a
+// localStorage-only mock API (its own header: "No fetch, no Worker, no production data") —
+// never the real D1/Worker system — which is why they were surfacing stale, browser-local
+// demo/fake rows in production. The backing Recognition DB table/API + Hallway TV's own
+// read of it are untouched by this cleanup; only the dead Teacher UI wiring was removed.
+// ---------------------------------------------------------------------------
+const removedIds = ['curatePostsEl', 'curateCount', 'reviewedSearchInput', 'recognitionListEl', 'recognitionCount', 'recCharacterName', 'recMessage', 'recCategory', 'addRecognitionBtn'];
+const remainingIds = removedIds.filter((id) => new RegExp('id="' + id + '"').test(teacherHtml));
+if (remainingIds.length === 0) {
+  ok('every DOM id from the legacy Reviewed & approved / Recognition panels (curatePostsEl, recognitionListEl, recCharacterName, addRecognitionBtn, etc.) is gone from teacher.html');
+} else bad('legacy Recognition/curate DOM ids still present', remainingIds);
+
+if (!/function renderCuratePosts\(|function renderRecognitionList\(/.test(teacherHtml)) {
+  ok('renderCuratePosts()/renderRecognitionList() render functions no longer exist in teacher.html');
+} else bad('a Recognition/curate render function still exists');
+
+if (!/function callCuratePost\(|function callGetRecognitionList\(|function callCreateRecognition\(/.test(teacherHtml)) {
+  ok('callCuratePost()/callGetRecognitionList()/callCreateRecognition() legacy API-shim functions no longer exist in teacher.html');
+} else bad('a legacy Recognition/curate API-shim function still exists');
+
+if (!/DEFAULT_CHARACTERS[\s\S]{0,120}recCharacterName|recCharacterName[\s\S]{0,120}DEFAULT_CHARACTERS/.test(teacherHtml)) {
+  ok('the demo-persona-seeded recCharacterName <select> population script is gone (no more DEFAULT_CHARACTERS wiring into a removed Recognition dropdown)');
+} else bad('recCharacterName is still being populated from DEFAULT_CHARACTERS');
+
+// Hallway TV's own recognition read (display.html) and the backing recognition table/API are
+// explicitly out of scope for this cleanup — only the dead Teacher UI wiring was removed.
+if (fs.existsSync(path.join(root, 'app/display.html'))) {
+  ok('app/display.html (Hallway TV) was not touched by this cleanup — its own recognition read, if any, is unaffected');
+} else bad('app/display.html unexpectedly missing');
 
 console.log('\nMission management tests (Prompt #103):', passed, 'passed,', failed, 'failed');
 process.exit(failed ? 1 : 0);

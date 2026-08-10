@@ -30,8 +30,11 @@
  *    each mission row exposes Edit/Pause-Resume/Promote-Unpromote/Archive-Restore (+Delete only
  *    when unused).
  *  - The old "Mission submissions" panel (duplicating Review Queue) is gone.
- *  - "Character Totals"/"Character" column header in Other Tools now read "Student
- *    Totals"/"Student"; Reviewed & approved search now says "Search by student or title…".
+ *  - "Character Totals"/"Character" column header in Other Tools now read "Student Totals"/"Student".
+ *  - Follow-up: the legacy "Reviewed & approved" curate panel and the generic Recognition
+ *    composer (Spotlight/Feature/Teacher Pick/Praise) are removed entirely from Missions — both
+ *    were wired to app/js/lantern-api.js, a localStorage-only mock API, and were surfacing stale
+ *    browser-local demo-persona rows in production, never real D1/Worker data.
  *
  * Prompt #78 (visual polish + legacy option audit) additions:
  *  - Teacher-page-specific Sign out button is gone (global Lantern nav already provides logout);
@@ -369,9 +372,17 @@ async function main() {
   await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 3, { timeout: 5000 });
 
   assert(await page.locator('#missionSubmissionsCount').count() === 0, 'Prompt #103 — the old duplicative "Mission submissions" panel is gone');
-  assert(await page.locator('#recognitionListEl').count() === 1, 'Recognition tool remains reachable inside Missions (Phase D removal deferred to #104 — see report)');
-  const searchPlaceholder = await page.locator('#reviewedSearchInput').getAttribute('placeholder');
-  assert(searchPlaceholder === 'Search by student or title\u2026', 'Reviewed & approved search placeholder now says "student" instead of "character": ' + searchPlaceholder);
+  // Prompt #103 (follow-up): the legacy "Reviewed & approved" curate panel and the generic
+  // Recognition composer (Spotlight/Feature/Teacher Pick/Praise) were both wired to
+  // app/js/lantern-api.js — a localStorage-only mock API ("No fetch, no Worker, no production
+  // data") — never the real D1/Worker system. They were surfacing stale, browser-local demo
+  // rows in production and have been removed entirely from the Missions workspace.
+  assert(await page.locator('#recognitionListEl').count() === 0, 'Recognition composer (Spotlight/Feature/Teacher Pick/Praise) removed entirely from Missions');
+  assert(await page.locator('#curatePostsEl').count() === 0, 'Legacy "Reviewed & approved" localStorage-curation panel removed entirely from Missions');
+  assert(await page.locator('#reviewedSearchInput').count() === 0, 'Legacy character/curation search input removed along with the panel');
+  assert(await page.locator('#recCharacterName').count() === 0, 'Recognition\u2019s demo-persona "Select student" dropdown removed along with the composer');
+  const missionSearchPlaceholder = await page.locator('#teacherMissionsSearchInput').getAttribute('placeholder');
+  assert(missionSearchPlaceholder === 'Search missions\u2026', 'My Missions title search remains in place after the Recognition/curate panel removal: ' + missionSearchPlaceholder);
 
   // ---------------------------------------------------------------------------
   // Other Tools workspace — retained (Act As Teacher / Class Access / Student Totals)
