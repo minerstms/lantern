@@ -1686,11 +1686,14 @@
   function completeFirstGame(characterName, economyBackendCharged) {
     var m = getMissionsForCharacter(characterName);
     if (m.first_game) return { ok: false, already: true };
-    if (!economyBackendCharged) addActivity(characterName, 10, 'POSITIVE', 'MISSION', 'First Game Played');
+    // Prompt #97: default built-in Nugget reward is 1 unless deliberately configured otherwise
+    // (was an un-updated legacy default of 10). This local-mock path only runs when no real
+    // backend is configured (economyBackendCharged is always true in production).
+    if (!economyBackendCharged) addActivity(characterName, 1, 'POSITIVE', 'MISSION', 'First Game Played');
     setMissionProgress(characterName, { first_game: true });
-    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'mission', object_id: 'first_game', event_type: 'mission_completed', meta: { mission: 'First Game Played', nuggets: 10 } });
+    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'mission', object_id: 'first_game', event_type: 'mission_completed', meta: { mission: 'First Game Played', nuggets: 1 } });
     checkAndUnlockAchievements(characterName);
-    return { ok: true, nuggets: 10 };
+    return { ok: true, nuggets: 1 };
   }
 
   function spendOnGame(characterName, gameName, economyBackendCharged) {

@@ -14,6 +14,7 @@ import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact } from './tms-economy-bridge.js';
+import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -2858,7 +2859,10 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const rows = await db.prepare(
       "SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at FROM lantern_news_submissions WHERE LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC"
     ).all();
-    const rawResults = rows.results || [];
+    // Prompt #97: known demo/fake personas (created while building the app) have real, approved
+    // rows in production — filter them from this production-facing response rather than deleting
+    // the historical rows. See worker/demo-persona-guard.js.
+    const rawResults = filterOutDemoPersonas(rows.results || [], 'author_name');
     console.log('[GET /api/news/approved] row count:', rawResults.length);
     const list = rawResults.map(r => ({
       id: r.id,
@@ -4035,7 +4039,8 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     (profiles.results || []).forEach(p => {
       if (p.character_name && p.current_avatar_key) avatarByChar[p.character_name] = p.current_avatar_key;
     });
-    let list = (rows.results || []).map(r => {
+    // Prompt #97: same demo-persona filter as /api/news/approved — see worker/demo-persona-guard.js.
+    let list = filterOutDemoPersonas(rows.results || [], 'character_name').map(r => {
       const key = avatarByChar[r.character_name];
       return {
         id: r.id,
@@ -4087,7 +4092,7 @@ function isReactionBreakdownEnabled(env) { return (env.ENABLE_REACTION_BREAKDOWN
 function isInclusionBoostEnabled(env) { return (env.ENABLE_INCLUSION_BOOST || '').toString().toLowerCase() === 'true'; }
 
 /** Grant one nugget for early encourager (called after reaction insert). Daily cap 3 per character. First 5 reactors per item eligible. */
-async function maybeGrantEarlyEncouragerReward(db, characterName, itemType, itemId, now) {
+export async function maybeGrantEarlyEncouragerReward(db, characterName, itemType, itemId, now, env) {
   const EARLY_CAP = 5;
   const DAILY_CAP = 3;
   const reactorOrder = await db.prepare(
@@ -4110,9 +4115,30 @@ async function maybeGrantEarlyEncouragerReward(db, characterName, itemType, item
   await db.prepare(
     'INSERT INTO lantern_early_encourager_rewards (id, character_name, item_type, item_id, rewarded_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(rewardId, characterName, itemType, itemId, now).run();
+  const txId = 'tx-' + crypto.randomUUID();
+
+  // Prompt #97: this path was found still writing directly to the legacy Lantern-only wallet,
+  // bypassing the Prompt #96 one-economy migration (dormant in production since
+  // ENABLE_EARLY_ENCOURAGER_REWARD defaults to false, but a live currency-authority gap the
+  // moment it is enabled). TMS Nuggets first, idempotent by (item_type, item_id) which matches
+  // the same one-reward-per-item dedupe grain as lantern_early_encourager_rewards above; legacy
+  // wallet only as a fallback for accounts that are not real TMS students.
+  const reference = 'lantern:early_encourager:' + itemType + ':' + itemId;
+  const tms = env ? await tmsEconomyTransact(env, characterName, 1, 'early_encourager', 'reaction', 'Early encouragement', reference) : { notFound: true };
+  if (tms.ok) {
+    try {
+      await db.prepare(
+        'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(txId, characterName, 1, 'early_encourager', 'reaction', 'Early encouragement', now, JSON.stringify({ item_type: itemType, item_id: itemId, tms_reference: reference, tms_backed: true })).run();
+    } catch (_) {}
+    return { granted: true, nuggets: 1 };
+  }
+  if (!tms.notFound) {
+    return { granted: false, error: tms.error || 'reward_failed' };
+  }
+
   const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
   const currentBalance = walletRow ? (Number(walletRow.balance) || 0) : 0;
-  const txId = 'tx-' + crypto.randomUUID();
   await db.prepare(
     'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   ).bind(txId, characterName, 1, 'early_encourager', 'reaction', 'Early encouragement', now, JSON.stringify({ item_type: itemType, item_id: itemId })).run();
@@ -4171,7 +4197,7 @@ async function handleReactionsRoutes(request, url, path, env, cors) {
     }
     let earlyReward = null;
     if (isEarlyEncouragerEnabled(env)) {
-      try { earlyReward = await maybeGrantEarlyEncouragerReward(db, characterName, itemType, itemId, now); } catch (_) { earlyReward = { granted: false }; }
+      try { earlyReward = await maybeGrantEarlyEncouragerReward(db, characterName, itemType, itemId, now, env); } catch (_) { earlyReward = { granted: false }; }
     }
     return jsonResponse({
       ok: true,

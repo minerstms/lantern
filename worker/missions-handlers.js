@@ -30,7 +30,9 @@ function missionRowToJson(r) {
     id: r.id,
     title: r.title || '',
     description: r.description || '',
-    reward_amount: Number(r.reward_amount) || 3,
+    // Prompt #97: default built-in Nugget reward is 1 unless a mission explicitly configured
+    // otherwise (this fallback only applies to legacy/null reward_amount rows).
+    reward_amount: Number(r.reward_amount) || 1,
     submission_type: r.submission_type || 'text',
     created_by_teacher_id: r.teacher_id || 'teacher',
     created_by_teacher_name: r.teacher_name || 'Teacher',
@@ -251,7 +253,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const description = (body.description || '').trim().slice(0, 1000);
-    const rewardAmount = Math.max(1, Math.min(99, Math.floor(Number(body.reward_amount) || 3)));
+    // Prompt #97: default built-in Nugget reward is 1 unless the teacher explicitly configures
+    // a different amount (was an un-updated legacy default of 3).
+    const rewardAmount = Math.max(1, Math.min(99, Math.floor(Number(body.reward_amount) || 1)));
     const submissionType = normalizeSubmissionType(body.submission_type, 'text');
     const audience = ['my_students', 'selected_students', 'school_mission'].includes((body.audience || 'school_mission').trim())
       ? (body.audience || 'school_mission').trim()

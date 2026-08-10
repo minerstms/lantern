@@ -153,6 +153,49 @@
   font-weight: 700;
 }
 
+/* Prompt #97 — explicit, blocking banner for an authenticated-but-wrong-role session (e.g. a
+   staff SSO sign-in elsewhere replaced this tab's session cookie). Deliberately more prominent
+   than .missionsLibraryWarning: this is not a "try refreshing" glitch, it is "you are signed in
+   as the wrong kind of account on a student-only page." */
+.missionsRoleMismatchBanner {
+  margin: 0 0 0.75rem;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(230, 88, 48, 0.14);
+  border: 1px solid rgba(230, 88, 48, 0.5);
+  color: #f0f4ff;
+}
+.missionsRoleMismatchMessage {
+  margin: 0 0 12px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffb199;
+}
+.missionsRoleMismatchActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.missionsRoleMismatchBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f0f4ff;
+  font-size: 20px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.missionsRoleMismatchBtn--primary {
+  background: #e65830;
+  border-color: #e65830;
+  color: #fff;
+}
+
 .missionsLibraryEmpty {
   grid-column: 1 / -1;
   padding: 1.5rem 0;

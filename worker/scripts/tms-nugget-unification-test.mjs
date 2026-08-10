@@ -24,6 +24,7 @@ import { tmsEconomyBalance, tmsEconomyTransact } from '../tms-economy-bridge.js'
 import { executeCosmeticPurchase } from '../economy-cosmetic.js';
 import { approveMissionWithReward } from '../missions-reward.js';
 import { buildLockerMeResponse } from '../locker-handlers.js';
+import { maybeGrantEarlyEncouragerReward } from '../index.js';
 
 let pass = 0;
 let fail = 0;
@@ -321,11 +322,86 @@ async function testLockerReadsUseTms() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// E. Early encourager reward (Prompt #97) — this path was found still writing directly to the
+// legacy Lantern wallet, bypassing Prompt #96's TMS-authoritative migration entirely. Dormant in
+// production today (ENABLE_EARLY_ENCOURAGER_REWARD defaults to false), but a live currency-
+// authority gap the moment that flag is enabled -- must go through TMS first, same as every
+// other earn/spend path.
+// ---------------------------------------------------------------------------
+function makeEarlyEncouragerDb(state) {
+  state.reactors = state.reactors || [];
+  state.rewards = state.rewards || [];
+  state.wallets = state.wallets || {};
+  state.transactions = state.transactions || {};
+  function prepare(sql) {
+    const s = String(sql);
+    let binds = [];
+    const api = {
+      bind(...args) { binds = args; return api; },
+      async first() {
+        if (s.includes('FROM lantern_early_encourager_rewards WHERE character_name = ? AND item_type = ? AND item_id = ?')) {
+          return state.rewards.find((r) => r.character_name === binds[0] && r.item_type === binds[1] && r.item_id === binds[2]) || null;
+        }
+        if (s.includes('FROM lantern_wallets')) return state.wallets[binds[0]] || null;
+        return null;
+      },
+      async all() {
+        if (s.includes('FROM lantern_reactions')) {
+          return { results: state.reactors.map((c) => ({ character_name: c, created_at: '2026-01-01T00:00:00.000Z' })) };
+        }
+        if (s.includes('date(rewarded_at)')) return { results: [] };
+        return { results: [] };
+      },
+      async run() {
+        if (s.includes('INSERT INTO lantern_early_encourager_rewards')) {
+          state.rewards.push({ character_name: binds[1], item_type: binds[2], item_id: binds[3] });
+        } else if (s.includes('INSERT INTO lantern_transactions')) {
+          const [, character_name, delta, kind, source, note, created_at, meta_json] = binds;
+          state.transactions[character_name] = state.transactions[character_name] || [];
+          state.transactions[character_name].push({ delta, kind, source, note, meta_json });
+        } else if (s.includes('INSERT INTO lantern_wallets')) {
+          const [character_name, balanceAfter] = binds;
+          state.wallets[character_name] = { balance: balanceAfter };
+        }
+        return { success: true };
+      },
+    };
+    return api;
+  }
+  return { prepare };
+}
+
+async function testEarlyEncouragerRewardThroughTms() {
+  await withMockedBridge((call) => ({ body: { ok: true, student_id: '20889', student_name: '20889', delta: 1, idempotent: false, earned: 6, spent: 0, available: 6 } }), async (getCalls) => {
+    const state = { reactors: ['20889'] };
+    const db = makeEarlyEncouragerDb(state);
+    const res = await maybeGrantEarlyEncouragerReward(db, '20889', 'feed', 'item1', '2026-08-09T00:00:00.000Z', BRIDGE_ENV);
+    if (res.granted && res.nuggets === 1 && state.wallets['20889'] === undefined) {
+      ok('early encourager reward: grants through TMS and never touches the legacy Lantern wallet for a real TMS student');
+    } else bad('early encourager reward TMS grant path', { res, wallets: state.wallets });
+    const call = getCalls()[0];
+    if (call && call.body.reference === 'lantern:early_encourager:feed:item1') {
+      ok('early encourager reward: uses a stable lantern:early_encourager:<item_type>:<item_id> reference');
+    } else bad('early encourager reward reference shape', call);
+  });
+
+  await withMockedBridge(() => ({ httpOk: false, status: 404, body: { ok: false, error: 'student_not_found' } }), async () => {
+    const state = { reactors: ['sam_star'], wallets: { sam_star: { balance: 2 } } };
+    const db = makeEarlyEncouragerDb(state);
+    const res = await maybeGrantEarlyEncouragerReward(db, 'sam_star', 'feed', 'item2', '2026-08-09T00:00:00.000Z', BRIDGE_ENV);
+    if (res.granted && state.wallets.sam_star.balance === 3) {
+      ok('early encourager reward: TMS-unrecognized (demo persona) character still falls back to the legacy wallet');
+    } else bad('early encourager reward demo fallback', { res, wallets: state.wallets });
+  });
+}
+
 async function main() {
   await testBridgeClient();
   await testCosmeticAtomicPurchase();
   await testMissionRewardThroughTms();
   await testLockerReadsUseTms();
+  await testEarlyEncouragerRewardThroughTms();
   console.log(`\ntms-nugget-unification-test: ${pass} PASS ${fail} FAIL`);
   process.exit(fail > 0 ? 1 : 0);
 }

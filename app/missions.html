@@ -222,6 +222,17 @@
 
     <p id="missionsLibraryCount" class="missionsLibraryCount" aria-live="polite"></p>
     <p id="missionsLibraryWarning" class="missionsLibraryWarning" role="alert" hidden>Some missions couldn't be loaded. Try refreshing.</p>
+    <!-- Prompt #97: an authenticated-but-wrong-role session (e.g. a staff SSO sign-in in another
+         tab replacing this student's session cookie) must show an explicit, unmistakable message —
+         never the generic "couldn't be loaded" warning plus the Quick missions fallback, which
+         would misrepresent a session/role problem as a harmless mission-loading glitch. -->
+    <div id="missionsRoleMismatchBanner" class="missionsRoleMismatchBanner" role="alert" hidden>
+      <p id="missionsRoleMismatchMessage" class="missionsRoleMismatchMessage">This page is for student accounts.</p>
+      <div class="missionsRoleMismatchActions">
+        <button type="button" id="missionsRoleMismatchSignInBtn" class="missionsRoleMismatchBtn missionsRoleMismatchBtn--primary">Sign in as a student</button>
+        <a id="missionsRoleMismatchTeacherLink" class="missionsRoleMismatchBtn" href="/teacher" hidden>Go to Teacher workspace</a>
+      </div>
+    </div>
     <div id="missionsLibraryGrid" class="feedGrid" role="list" aria-label="Mission library"></div>
 
     </div>
@@ -1151,6 +1162,8 @@
         },
       });
 
+      // Prompt #97: default built-in Nugget reward is 1 unless deliberately configured
+      // otherwise — this card previously displayed an un-updated legacy default of +10.
       if (firstGameDone) {
         pushQuick({
           id: 'quick_first_game',
@@ -1159,13 +1172,13 @@
           typeBadge: '⚡ Quick',
           icon: '🎮',
           title: 'First Game Played',
-          description: 'You played a game and earned +10 nuggets.',
-          reward: 10,
+          description: 'You played a game and earned +1 nugget.',
+          reward: 1,
           status: 'completed',
           statusLabel: '✅ Completed',
           created_at: '',
           onActivate: function(){
-            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +10 nuggets.');
+            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +1 nugget.');
           },
         });
       } else {
@@ -1176,8 +1189,8 @@
           typeBadge: '⚡ Quick',
           icon: '🎮',
           title: 'First Game Played',
-          description: 'Play any game once to earn +10 nuggets.',
-          reward: 10,
+          description: 'Play any game once to earn +1 nugget.',
+          reward: 1,
           status: 'available',
           statusLabel: 'Go to Games →',
           url: 'games.html',
@@ -1528,22 +1541,56 @@
        page's own boot guard uses. If it says unauthenticated, skip the misleading partial render
        entirely and send the user through the existing login/session-expired redirect instead.
        Cached so a simultaneous teacher+submissions failure only re-checks auth once. */
+    /* Prompt #97 — a mission-fetch failure with an *authenticated* session can still mean the
+       session belongs to the wrong role (e.g. a TMS→Lantern staff SSO sign-in completed in
+       another tab and overwrote this tab's lantern_pilot cookie — both roles share the same
+       cookie name/path, so the browser only ever keeps one value). That is not the same as (a)
+       a transient glitch or (b) a truly expired/absent session, and must not be rendered as
+       either — see renderMissionsRoleMismatch() below. */
     var missionsAuthRecheck = null;
-    function verifyStillAuthenticatedOrRedirect(){
+    function checkStillValidStudentSessionOrRedirect(){
       if (missionsAuthRecheck) return missionsAuthRecheck;
       var auth = window.LanternAuth || window.LanternPilotAuth;
-      if (!auth || typeof auth.fetchMe !== 'function') return Promise.resolve(true);
+      if (!auth || typeof auth.fetchMe !== 'function') return Promise.resolve({ ok: true });
       missionsAuthRecheck = auth.fetchMe().then(function(data){
         if (!data || !data.ok || !data.authenticated) {
           var loginUrl = typeof auth.loginUrlWithReturn === 'function'
             ? auth.loginUrlWithReturn()
             : '/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash);
           location.replace(loginUrl);
-          return false;
+          return { ok: false, reason: 'unauthenticated' };
         }
-        return true;
-      });
+        var role = (auth && typeof auth.normalizeRole === 'function')
+          ? auth.normalizeRole(data.role)
+          : String(data.role || '').trim().toLowerCase();
+        if (role !== 'student') {
+          return { ok: false, reason: 'role_mismatch', role: role };
+        }
+        return { ok: true };
+      }).catch(function(){ return { ok: true }; });
       return missionsAuthRecheck;
+    }
+
+    function renderMissionsRoleMismatch(role){
+      var warn = el('missionsLibraryWarning');
+      if (warn) warn.hidden = true;
+      var countEl = el('missionsLibraryCount');
+      if (countEl) countEl.textContent = '';
+      if (window.LanternMissionsPage && typeof window.LanternMissionsPage.setItems === 'function') {
+        // Deliberately empty — a role-mismatched session must never render the Quick-missions
+        // fallback grid as though this were just a partial student data load failure.
+        window.LanternMissionsPage.setItems([], false, false);
+      }
+      var banner = el('missionsRoleMismatchBanner');
+      if (!banner) return;
+      var msgEl = el('missionsRoleMismatchMessage');
+      if (msgEl) {
+        var label = role === 'admin' ? 'an admin' : (role === 'teacher' ? 'a teacher' : 'a non-student');
+        msgEl.textContent = 'This page is for student accounts. You are currently signed in with ' + label + ' account — sign in as a student to see missions.';
+      }
+      var teacherLink = el('missionsRoleMismatchTeacherLink');
+      if (teacherLink) teacherLink.hidden = !(role === 'teacher' || role === 'admin');
+      banner.hidden = false;
     }
 
     function loadMissions(){
@@ -1574,17 +1621,20 @@
           done();
           return;
         }
-        // Genuine failure (network error, bad response) vs. an expired/invalid session both land
-        // here — confirm which one before deciding how (or whether) to render.
-        verifyStillAuthenticatedOrRedirect().then(function(stillAuthenticated){
-          if (!stillAuthenticated) return; // redirecting to login — do not render the mission grid
+        // A genuine transient failure (network blip, bad response), a truly expired/absent
+        // session, and an authenticated-but-wrong-role session (Prompt #97) all land here —
+        // confirm which one before deciding how (or whether) to render.
+        checkStillValidStudentSessionOrRedirect().then(function(status){
+          if (!status.ok && status.reason === 'unauthenticated') return; // redirecting to login
+          if (!status.ok && status.reason === 'role_mismatch') { renderMissionsRoleMismatch(status.role); return; }
           teacherData = [];
           teacherFetchFailed = true;
           done();
         });
       }).catch(function(){
-        verifyStillAuthenticatedOrRedirect().then(function(stillAuthenticated){
-          if (!stillAuthenticated) return;
+        checkStillValidStudentSessionOrRedirect().then(function(status){
+          if (!status.ok && status.reason === 'unauthenticated') return;
+          if (!status.ok && status.reason === 'role_mismatch') { renderMissionsRoleMismatch(status.role); return; }
           teacherData = [];
           teacherFetchFailed = true;
           done();
@@ -1596,8 +1646,9 @@
           done();
           return;
         }
-        verifyStillAuthenticatedOrRedirect().then(function(stillAuthenticated){
-          if (!stillAuthenticated) return;
+        checkStillValidStudentSessionOrRedirect().then(function(status){
+          if (!status.ok && status.reason === 'unauthenticated') return;
+          if (!status.ok && status.reason === 'role_mismatch') { renderMissionsRoleMismatch(status.role); return; }
           subsData = [];
           done();
         });
@@ -1612,6 +1663,21 @@
       openMissionSubmitModal: openMissionSubmitModal,
     };
 
+    function wireMissionsRoleMismatchBanner(){
+      var btn = el('missionsRoleMismatchSignInBtn');
+      if (btn) {
+        btn.addEventListener('click', function(){
+          var auth = window.LanternAuth || window.LanternPilotAuth;
+          if (!auth || typeof auth.performLogout !== 'function') {
+            location.replace('/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash));
+            return;
+          }
+          btn.disabled = true;
+          auth.performLogout().catch(function(){ btn.disabled = false; });
+        });
+      }
+    }
+
     var missionsPageBooted = false;
     window.__bootMissionsPage = function bootMissionsPage(){
       if (missionsPageBooted) return;
@@ -1620,6 +1686,7 @@
       if (!me || me.authenticated !== true) return;
       missionsPageBooted = true;
       wireMissionDetailModal();
+      wireMissionsRoleMismatchBanner();
       if (window.LanternMissionsPage && typeof window.LanternMissionsPage.init === 'function') {
         window.LanternMissionsPage.init();
       }

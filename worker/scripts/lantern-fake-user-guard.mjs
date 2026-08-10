@@ -24,6 +24,11 @@ const EXCLUDE_FILES = new Set([
   'worker/scripts/lantern-fake-user-guard.mjs',
   'worker/scripts/locker-fake-guard.mjs',
   'app/build-locker.cjs',
+  // Prompt #97: this module's entire purpose is the opposite of what this guard checks for — it
+  // is the single, sanctioned exclusion list used to KEEP these known demo/fake persona names OUT
+  // of production-facing list responses (ticker, news, recognition, Explore feed). See
+  // worker/demo-persona-guard.js for the production filter this guard's names feed into.
+  'worker/demo-persona-guard.js',
 ]);
 
 const EXCLUDE_SUFFIXES = ['-test.mjs', '-guard.mjs'];

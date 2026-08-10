@@ -3,6 +3,7 @@
  * ONE normalized public feed API + student/teacher moderation workflow.
  */
 import { extractMissionSubmissionMedia } from './missions-auth.js';
+import { filterOutDemoPersonas } from './demo-persona-guard.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -207,7 +208,10 @@ export async function collectApprovedFeed(db, origin, opts) {
     fetchApprovedNews(db, origin),
     fetchApprovedMissions(db, origin, limit),
   ]);
-  return [...feedItems, ...newsItems, ...missionItems];
+  // Prompt #97: known demo/fake personas (created while building the app) have real, approved
+  // rows in production across all three sources here — filter them from this unified public
+  // Explore feed rather than deleting the historical rows. See worker/demo-persona-guard.js.
+  return filterOutDemoPersonas([...feedItems, ...newsItems, ...missionItems], 'authorDisplayName');
 }
 
 export function filterFeedItems(items, params) {
