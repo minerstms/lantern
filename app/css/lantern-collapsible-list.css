@@ -1,5 +1,5 @@
 /*
- * Prompt #119 / #122 — ONE shared collapsible LIST PANEL pattern (entire list, not per-row).
+ * Prompt #119 / #122 / #131 — ONE shared collapsible LIST PANEL pattern (entire list, not per-row).
  * Opt in: <details class="card teacherCollapsibleList"> or nested
  * <details class="teacherCollapsibleList teacherCollapsibleList--nested">.
  * Collapsed = summary row only (title + optional count/actions + chevron).
@@ -35,6 +35,16 @@
 .teacherCollapsibleList:not([open]) > summary.teacherCollapsibleListHd {
   border-bottom: none;
 }
+
+/*
+ * Prompt #131 — enforce true one-row collapsed geometry without relying solely on UA details.
+ * Hide EVERYTHING that is not the summary header while collapsed (table, filters, editors, body).
+ * Do not use max-height clipping of a still-laid-out body.
+ */
+.teacherCollapsibleList:not([open]) > *:not(summary) {
+  display: none !important;
+}
+
 .teacherCollapsibleListTitle {
   display: flex;
   align-items: center;

@@ -46,6 +46,17 @@ else bad('aria-expanded wiring missing');
 if (/max-height:\s*clamp\(280px,\s*48vh,\s*560px\)/.test(sharedCss)) ok('expanded list scroll uses responsive clamp height');
 else bad('missing clamp expanded height in shared CSS');
 
+if (/teacherCollapsibleList:not\(\[open\]\)\s*>\s*\*:not\(summary\)/.test(sharedCss)) {
+  ok('shared CSS force-hides non-summary children when collapsed');
+} else bad('missing Prompt #131 collapsed force-hide CSS');
+
+if (/lantern-collapsible-collapse/.test(sharedJs) && /data-collapsible-editor/.test(sharedJs)) {
+  ok('shared JS hides editors and emits collapse event');
+} else bad('shared collapse editor cleanup missing');
+
+if (!/<details[^>]*\sopen[\s>]/.test(html)) ok('Teacher list panels do not hard-code open in markup');
+else bad('Teacher details hard-coded open');
+
 const requiredPanels = [
   ['#teacher-approvals', 'Review Queue'],
   ['#teacherMyMissionsCard', 'My Missions'],

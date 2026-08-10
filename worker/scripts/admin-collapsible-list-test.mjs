@@ -105,5 +105,31 @@ if (!/<div class="card">\s*<div class="cardHd">Accounts<\/div>/.test(html)) {
   ok('legacy permanently expanded Accounts card wrapper removed');
 } else bad('legacy Accounts div.card still present');
 
+const sharedCssAdmin = sharedCss;
+const sharedJsAdmin = sharedJs;
+
+if (/teacherCollapsibleList:not\(\[open\]\)\s*>\s*\*:not\(summary\)/.test(sharedCssAdmin)) {
+  ok('Admin uses shared collapsed force-hide CSS');
+} else bad('Admin missing shared collapsed force-hide');
+
+if (/lantern-collapsible-collapse/.test(html) && /closeAllFloatingEditors|data-admin-floating-editor/.test(html)) {
+  ok('Admin closes floating editors when list panels collapse');
+} else bad('Admin missing collapse→editor cleanup wiring');
+
+if (!/<details[^>]*\sopen[\s>]/.test(html)) ok('Admin list panels do not hard-code open');
+else bad('Admin details hard-coded open');
+
+if (/id="adminStudentsCard"/.test(html) && /id="adminStaffCard"/.test(html)) {
+  ok('adminStudentsCard + adminStaffCard are details panels (collapsed by default without open attr)');
+} else bad('Students/Staff panel ids missing');
+
+if (!/id="adminAccountsCard"/.test(html)) ok('mixed Accounts absent after #130 retirement');
+else bad('mixed Accounts still present');
+
+if (/id="editUserPanel"[^>]*hidden|id="editUserPanel"[\s\S]{0,80}hidden/.test(html) &&
+    /id="tempPwPanel"[^>]*hidden|id="tempPwPanel"[\s\S]{0,80}hidden/.test(html)) {
+  ok('Edit/temp panels start hidden (no reserved editor space)');
+} else bad('Edit/temp panels not hidden by default');
+
 console.log('\nadmin-collapsible-list-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

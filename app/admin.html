@@ -192,7 +192,7 @@
         <button type="button" class="btn" id="studentsRosterRefreshBtn">Refresh</button>
         <button type="button" class="btn good" id="studentsAddOpenBtn">+ Add Student</button>
       </div>
-      <div id="studentsAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+      <div id="studentsAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden>
         <p class="acctPanelHd">Add TMS student</p>
         <p class="acctPanelHint">Creates a row in the authoritative TMS roster only. Does not create a Lantern account.</p>
         <label for="studentsAddId">Student ID (optional now)</label>
@@ -206,7 +206,7 @@
           <button type="button" class="btn" id="studentsAddCancelBtn">Cancel</button>
         </div>
       </div>
-      <div id="studentsEditIdPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+      <div id="studentsEditIdPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden>
         <p class="acctPanelHd" id="studentsEditIdTitle">Edit Student ID</p>
         <p id="studentsEditIdHint" class="acctPanelHint"></p>
         <input type="hidden" id="studentsEditName" value="" />
@@ -241,7 +241,7 @@
     </div>
   </details>
 
-  <div id="editUserPanel" class="card acctInlinePanel" style="display:none;" aria-hidden="true">
+  <div id="editUserPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" hidden data-admin-floating-editor="1">
     <p class="acctPanelHd">Edit staff account</p>
     <p id="editUserDisplay" class="acctPanelHint"></p>
     <p class="acctPanelHint" style="color:var(--muted);">First Name changes how the account is shown. Login username stays unchanged here. Archive/Restore uses Active status (does not delete history).</p>
@@ -260,7 +260,7 @@
     </div>
   </div>
 
-  <div id="tempPwPanel" class="card acctInlinePanel" style="display:none;" aria-hidden="true">
+  <div id="tempPwPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" hidden data-admin-floating-editor="1">
     <p class="acctPanelHd">Set New Temp Password</p>
     <p id="tempPwUserHint" class="acctPanelHint"></p>
     <label for="tempPwInput">New password (8+ characters)</label>
@@ -298,7 +298,7 @@
     <p id="staffRosterEmpty" class="pendingMeta" style="display:none;">No staff accounts match this filter.</p>
     </div>
 
-    <div id="staffAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
+    <div id="staffAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden>
       <p class="acctPanelHd">Add Staff</p>
       <p class="acctPanelHint">Creates a teacher or admin Lantern account. Does not create students (use Students panel / TMS roster).</p>
       <form id="addUserForm">
@@ -461,6 +461,15 @@
     if (typeof window.initTeacherCollapsibleLists === 'function') {
       window.initTeacherCollapsibleLists(document);
     }
+    document.addEventListener('lantern-collapsible-collapse', function () {
+      if (typeof closeAllFloatingEditors === 'function') closeAllFloatingEditors();
+      else {
+        var edit = document.getElementById('editUserPanel');
+        var temp = document.getElementById('tempPwPanel');
+        if (edit) { edit.style.display = 'none'; edit.hidden = true; edit.setAttribute('aria-hidden', 'true'); }
+        if (temp) { temp.style.display = 'none'; temp.hidden = true; temp.setAttribute('aria-hidden', 'true'); }
+      }
+    });
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
     var lastUsersList = [];
     var adminSessionMeta = { username: '', display_name: '' };
@@ -1004,6 +1013,7 @@
       if (p) {
         p.style.display = 'none';
         p.setAttribute('aria-hidden', 'true');
+        p.hidden = true;
       }
     }
     function closeTempPwPanel() {
@@ -1013,6 +1023,18 @@
       if (p) {
         p.style.display = 'none';
         p.setAttribute('aria-hidden', 'true');
+        p.hidden = true;
+      }
+    }
+    function closeAllFloatingEditors() {
+      closeEditUserPanel();
+      closeTempPwPanel();
+      closeStudentsEditPanels();
+      var staffAdd = document.getElementById('staffAddPanel');
+      if (staffAdd) {
+        staffAdd.style.display = 'none';
+        staffAdd.setAttribute('aria-hidden', 'true');
+        staffAdd.hidden = true;
       }
     }
     function openOnlyAcctPanel(which) {
@@ -1021,12 +1043,14 @@
       if (which === 'edit') {
         var el = document.getElementById('editUserPanel');
         if (el) {
+          el.hidden = false;
           el.style.display = 'block';
           el.setAttribute('aria-hidden', 'false');
         }
       } else if (which === 'temp') {
         var el2 = document.getElementById('tempPwPanel');
         if (el2) {
+          el2.hidden = false;
           el2.style.display = 'block';
           el2.setAttribute('aria-hidden', 'false');
         }
@@ -1335,6 +1359,7 @@
         closeTempPwPanel();
         var panel = document.getElementById('staffAddPanel');
         if (!panel) return;
+        panel.hidden = false;
         panel.style.display = 'block';
         panel.setAttribute('aria-hidden', 'false');
         var u = document.getElementById('nu_username');
@@ -1846,11 +1871,13 @@
       if (edit) {
         edit.style.display = 'none';
         edit.setAttribute('aria-hidden', 'true');
+        edit.hidden = true;
       }
       var add = document.getElementById('studentsAddPanel');
       if (add) {
         add.style.display = 'none';
         add.setAttribute('aria-hidden', 'true');
+        add.hidden = true;
       }
     }
 
@@ -1869,6 +1896,7 @@
           ? ('Current ID: ' + s.student_id + ' for ' + s.student_name + '. Changing a non-blank ID requires confirmation and will stop if a Lantern account already depends on it.')
           : ('Assign the real school/TMS Student ID for ' + s.student_name + '. Do not invent IDs.');
       }
+      panel.hidden = false;
       panel.style.display = 'block';
       panel.setAttribute('aria-hidden', 'false');
       var inp = document.getElementById('studentsEditIdInput');
@@ -2119,6 +2147,7 @@
         closeStudentsEditPanels();
         var panel = document.getElementById('studentsAddPanel');
         if (!panel) return;
+        panel.hidden = false;
         panel.style.display = 'block';
         panel.setAttribute('aria-hidden', 'false');
         var first = document.getElementById('studentsAddFirst');

@@ -151,6 +151,10 @@ if (/Staff ID[\s\S]{0,80}schema migration|immutable Staff ID[\s\S]{0,80}migratio
   ok('UI documents Staff ID blocked pending migration');
 } else bad('missing Staff ID migration notice');
 
+if (/data-collapsible-editor/.test(html) && /lantern-collapsible-collapse/.test(html)) {
+  ok('editors tied to collapsible collapse cleanup');
+} else bad('editor/collapse wiring missing');
+
 if (/Lucas/.test(html) === false || /Students/.test(html)) {
   // Lucas is not hard-coded in markup — OK
   ok('Students panel exists for TMS-backed Lucas (not hard-coded in Staff)');
