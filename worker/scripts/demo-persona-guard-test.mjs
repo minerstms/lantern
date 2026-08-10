@@ -61,7 +61,8 @@ if (!isKnownDemoPersonaName('Lucas Radle') && !isKnownDemoPersonaName('') && !is
 //    accepted missions) must never surface a known demo persona's row, while real student rows
 //    from all three sources are unaffected.
 // ---------------------------------------------------------------------------
-function makeFeedDb({ feedItems, newsRows, missionRows }) {
+function makeFeedDb({ feedItems, newsRows, missionRows, missionTitles }) {
+  missionTitles = missionTitles || {};
   return {
     prepare(sql) {
       const s = String(sql).replace(/\s+/g, ' ').trim();
@@ -71,6 +72,17 @@ function makeFeedDb({ feedItems, newsRows, missionRows }) {
           if (s.includes('FROM lantern_mission_submissions')) return { results: missionRows || [] };
           if (s.includes('FROM lantern_feed_items')) return { results: feedItems || [] };
           if (s.includes('FROM lantern_news_submissions')) return { results: newsRows || [] };
+          if (s.includes('FROM lantern_missions')) {
+            const ids = api._binds || [];
+            return {
+              results: ids.map((id) => ({
+                id,
+                title: Object.prototype.hasOwnProperty.call(missionTitles, id)
+                  ? missionTitles[id]
+                  : '',
+              })),
+            };
+          }
           throw new Error('Unhandled feed SQL: ' + s.slice(0, 100));
         },
       };

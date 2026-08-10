@@ -155,7 +155,10 @@
       imageUrl: item.imageUrl || item.image_url,
       url: item.url,
       fallbackType: item.type || 'news',
-      typeBadge: item.typeLabel || TYPE_BADGES[item.type] || item.type || '',
+      /* Prompt #123 — Explore /api/feed rail faces: no ULHC/URHC type/category corner badges.
+         Missions/Games pages pass their own typeBadge/stateBadge via dedicated specs. */
+      typeBadge: '',
+      stateBadge: '',
       reportType: 'feed_item',
       reportId: item.id != null ? String(item.id) : '',
     };

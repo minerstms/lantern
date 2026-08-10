@@ -154,10 +154,13 @@ function normalizeMissionRow(row, origin) {
   // into the public Explore feed instead of being silently dropped.
   const media = extractMissionSubmissionMedia(row.submission_type, row.submission_content);
   const bodyText = media.caption || (row.submission_type === 'video' || row.submission_type === 'image_url' ? '' : String(row.submission_content || '').trim().slice(0, 500));
+  // Prompt #123 — visible Explore card title is the source mission title (via mission_id join),
+  // never a hard-coded "Mission Submission" when the mission row still resolves.
+  const missionTitle = String(row.mission_title || '').trim();
   const adapted = {
     id: `mission:${row.id}`,
     type: 'mission',
-    title: 'Mission submission',
+    title: missionTitle || 'Mission Submission',
     body: bodyText,
     summary: bodyText ? bodyText.slice(0, 280) : (media.image_url ? 'Photo submission' : 'Mission completed'),
     author_id: null,
@@ -174,7 +177,12 @@ function normalizeMissionRow(row, origin) {
     submitted_at: row.created_at,
     approved_at: row.reviewed_at || row.created_at,
     approved_by: row.reviewed_by || null,
-    extra_json: JSON.stringify({ missionId: row.mission_id, submissionType: row.submission_type, videoUrl: media.video_url || null }),
+    extra_json: JSON.stringify({
+      missionId: row.mission_id,
+      missionTitle: missionTitle || null,
+      submissionType: row.submission_type,
+      videoUrl: media.video_url || null,
+    }),
   };
   return normalizeFeedItemRow(adapted, origin, 'mission');
 }
@@ -198,7 +206,26 @@ async function fetchApprovedMissions(db, origin, limit) {
   const rows = await db.prepare(
     "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC LIMIT ?"
   ).bind(lim).all();
-  return (rows.results || []).map((r) => normalizeMissionRow(r, origin));
+  const results = rows.results || [];
+  // Same authoritative join used by teacher/approved-submission APIs: mission_id → lantern_missions.title.
+  const missionIds = [...new Set(results.map((r) => r.mission_id).filter(Boolean))];
+  const byMission = {};
+  if (missionIds.length > 0) {
+    const placeholders = missionIds.map(() => '?').join(',');
+    const mRows = await db
+      .prepare('SELECT id, title FROM lantern_missions WHERE id IN (' + placeholders + ')')
+      .bind(...missionIds)
+      .all();
+    (mRows.results || []).forEach((m) => {
+      byMission[m.id] = String(m.title || '').trim();
+    });
+  }
+  return results.map((r) =>
+    normalizeMissionRow(
+      Object.assign({}, r, { mission_title: byMission[r.mission_id] || '' }),
+      origin
+    )
+  );
 }
 
 export async function collectApprovedFeed(db, origin, opts) {

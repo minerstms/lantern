@@ -159,7 +159,8 @@
       thumbnailUrl: item.thumbnailUrl,
       imageUrl: item.imageUrl,
       fallbackType: item.type,
-      typeBadge: item.typeLabel || item.type,
+      typeBadge: '',
+      stateBadge: '',
     };
     model.reportType = 'feed_item';
     model.reportId = item.id != null ? String(item.id) : '';

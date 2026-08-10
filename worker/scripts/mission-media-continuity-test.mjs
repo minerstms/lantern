@@ -224,7 +224,8 @@ if (LanternMedia && typeof LanternMedia.normalizeMissionItemForMedia === 'functi
 //    /api/feed endpoint (app/js/lantern-feed-api.js -> app/explore.html). This
 //    is the actual "photo lost in Explore" surface reported live.
 // ---------------------------------------------------------------------------
-function makeFeedDb(missionSubmissionRows) {
+function makeFeedDb(missionSubmissionRows, missionTitles) {
+  missionTitles = missionTitles || {};
   return {
     prepare(sql) {
       const s = String(sql).replace(/\s+/g, ' ').trim();
@@ -237,6 +238,17 @@ function makeFeedDb(missionSubmissionRows) {
           if (s.includes('FROM lantern_mission_submissions')) return { results: missionSubmissionRows };
           if (s.includes('FROM lantern_feed_items')) return { results: [] };
           if (s.includes('FROM lantern_news_submissions')) return { results: [] };
+          if (s.includes('FROM lantern_missions')) {
+            const ids = api._binds || [];
+            return {
+              results: ids.map((id) => ({
+                id,
+                title: Object.prototype.hasOwnProperty.call(missionTitles, id)
+                  ? missionTitles[id]
+                  : '',
+              })),
+            };
+          }
           throw new Error('Unhandled feed SQL: ' + s.slice(0, 100));
         },
       };

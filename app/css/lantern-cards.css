@@ -212,6 +212,14 @@
 .exploreCard--gamesLibrary .lanternCanonicalCardBadgeLayer {
   display: none;
 }
+/* Prompt #123 — Explore feed cards (.feedExploreCard from LANTERN_FEED_CARD): no ULHC/URHC
+   type/category/status corner badges over artwork. Missions/Games library badges unchanged. */
+.exploreCard.feedExploreCard .lanternCanonicalCardBadgeLayer,
+.exploreCard.feedExploreCard .lanternCanonicalCardTypeBadge,
+.exploreCard.feedExploreCard .lanternCanonicalCardStateBadge,
+.exploreCard.feedExploreCard .exploreCardTypeBadge {
+  display: none !important;
+}
 .exploreCard.lanternCanonicalCard > .exploreCardReportBtn {
   position: absolute;
   right: 6px;
