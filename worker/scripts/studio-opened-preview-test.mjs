@@ -114,6 +114,29 @@ if (/studioSidePanelTitle">In the feed</.test(contributeHtml) && !/studioSidePan
   ok('left pane heading In the feed');
 } else bad('left pane heading copy');
 
+/* Prompt #113 — Create Studio instructional helpers removed at source (not display:none). */
+const removedStudioHelpers = [
+  'Teacher-reviewed · track status in',
+  'Picture, video, or link',
+  'Optional · drag, paste, or choose a picture or video',
+  'Ask the school · poll art in the media row',
+  'Poll card image or link · or pick fallback art on the left',
+  'Locker profile · type & pin on the left',
+  'Profile posts: set URL in the right column',
+  'Pick a mission from the rail, then complete it',
+  'After you pick a mission, add photos, video, or links',
+  'Swipe the rail to browse open missions',
+];
+const stillPresent = removedStudioHelpers.filter((s) => contributeHtml.includes(s));
+if (stillPresent.length === 0) ok('Prompt #113 listed Create Studio helper strings removed at source');
+else bad('Prompt #113 helper strings still present', stillPresent.join(' | '));
+if (!/id="contributeMediaHint"|id="contributeMediaLabel"|id="contributeMediaTypePlaceholder"|class="cardHdMini"/.test(contributeHtml)) {
+  ok('Prompt #113 unused helper DOM wrappers removed');
+} else bad('Prompt #113 helper wrappers still in contribute.html');
+if (/id="contributeTypeSelect"|id="newsUnifiedMediaMount"|id="contributeMissionRail"|id="pollFallbackSelect"/.test(contributeHtml)) {
+  ok('Prompt #113 functional Create controls preserved');
+} else bad('Prompt #113 functional controls missing');
+
 if (/@media \(\(hover: none\) or \(pointer: coarse\)\) and \(max-width: 1199px\)/.test(contributeHtml)) {
   ok('touch/coarse narrow stack query');
 } else bad('touch stack query');

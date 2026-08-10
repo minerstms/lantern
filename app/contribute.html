@@ -59,7 +59,6 @@
     }
     .cardHd{ padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; }
     .cardHd .h{ font-weight: 900; font-size: 26px; letter-spacing: .2px; }
-    .cardHdMini{ margin: 0; font-size: 20px; font-weight: 800; color: var(--muted); line-height: 1.35; max-width: 100%; }
     .cardBd{ padding: 16px; }
     #contributeUnifiedBd.cardBd{ padding: 10px 12px 12px; }
     .wrap.lanternContent label{ display: block; font-weight: 800; color: var(--muted); font-size: 22px; margin: 0 0 6px 2px; }
@@ -1029,7 +1028,6 @@
     <div class="card studioCenterCard" id="contributeMainCard" data-help="new_post">
       <div class="cardHd">
         <div class="h">Create</div>
-        <p class="cardHdMini">Teacher-reviewed · track status in <strong>Locker</strong> (Overview) under <strong>My Articles</strong> · read published stories on <a href="explore.html" style="color:var(--accent);font-weight:800;">Lantern</a></p>
       </div>
       <div class="cardBd studioCenterScroll" id="contributeUnifiedBd">
         <div class="contributeCenterInner">
@@ -1046,18 +1044,14 @@
         </div>
 
         <div id="contributeMediaBlock" class="contributeMediaRow" data-help="unified_media">
-          <label id="contributeMediaLabel" for="newsUnifiedMediaMount">Picture, video, or link</label>
-          <p class="microLine" id="contributeMediaHint">Optional · polls: image or fallback below</p>
           <div id="contributeMediaMountWrap" class="contributeMediaDropZone">
-          <div id="newsUnifiedMediaMount"></div>
+          <div id="newsUnifiedMediaMount" aria-label="Add picture, video, or link"></div>
           </div>
-          <p id="contributeMediaTypePlaceholder" class="microLine" style="display:none;"></p>
           <video id="newsVideoPreviewEl" controls preload="metadata" style="display:none;position:absolute;width:0;height:0;pointer-events:none;opacity:0;" aria-hidden="true"></video>
         </div>
 
         <div class="contributeCenterRow2 contributeMainStudioRow" id="contributeMainStudioRow">
           <div id="missionPickerState" class="missionPickerState" style="display:none;" aria-hidden="true">
-            <p class="studioPanelMicro" style="margin-bottom:10px;">Swipe the rail to browse open missions. Tap a card to start.</p>
             <div class="sectionSubLane">Open missions</div>
             <div id="contributeMissionRail" data-lantern-rail-host="true" data-scroller-aria-label="Open missions">
               <p class="sectionPlaceholder">Loading missions…</p>
@@ -1563,19 +1557,22 @@
       var ss = el('sharedStoryBlock');
       var media = el('contributeMediaBlock');
       var mountWrap = el('contributeMediaMountWrap');
-      var mediaPh = el('contributeMediaTypePlaceholder');
       var fb = el('pollFallbackWrap');
-      var hint = el('contributeMediaHint');
       var sub = el('submitNewsBtn');
       var helpEl = el('contributeTypeHelper');
+      /* Prompt #113: listed instructional helpers removed. Keep brief post/shout-out type lines only. */
       var HELP = {
         post: 'School news · teacher review before publish.',
         shoutout: 'Recognize someone · your message appears in the stream.',
-        poll: 'Ask the school · poll art in the media row, question in the grid, answer choices below.',
-        profile_post: 'Locker profile · type & pin on the left; title, URL, and caption on the right.',
-        mission: 'Pick a mission from the rail, then complete it — browse first, respond second.'
+        poll: '',
+        profile_post: '',
+        mission: ''
       };
-      if (helpEl) helpEl.textContent = HELP[t] || '';
+      if (helpEl) {
+        var helpText = HELP[t] || '';
+        helpEl.textContent = helpText;
+        helpEl.style.display = helpText ? '' : 'none';
+      }
       if (vp) vp.style.display = t === 'post' ? 'block' : 'none';
       if (vs) vs.style.display = t === 'shoutout' ? 'block' : 'none';
       if (vpolL) vpolL.style.display = t === 'poll' ? 'block' : 'none';
@@ -1584,27 +1581,10 @@
       if (vprofR) vprofR.style.display = t === 'profile_post' ? 'block' : 'none';
       if (vmR) vmR.style.display = t === 'mission' ? 'block' : 'none';
       if (ss) ss.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
-      if (media) media.style.display = 'block';
+      /* Hide the media row when the mount is unused (mission / locker profile) so no empty helper shell remains. */
+      if (media) media.style.display = (t === 'mission' || t === 'profile_post') ? 'none' : 'block';
       if (mountWrap) mountWrap.style.display = (t === 'mission' || t === 'profile_post') ? 'none' : 'block';
-      if (mediaPh) {
-        if (t === 'profile_post') {
-          mediaPh.style.display = 'block';
-          mediaPh.textContent = 'Profile posts: set URL in the right column. Stream preview builds from that link.';
-        } else if (t === 'mission') {
-          mediaPh.style.display = 'block';
-          mediaPh.textContent = 'After you pick a mission, add photos, video, or links in the mission response area.';
-        } else {
-          mediaPh.style.display = 'none';
-          mediaPh.textContent = '';
-        }
-      }
       if (fb) fb.style.display = t === 'poll' ? 'block' : 'none';
-      if (hint) {
-        if (t === 'poll') hint.textContent = 'Poll card image or link · or pick fallback art on the left';
-        else if (t === 'mission' || t === 'profile_post') hint.textContent = '';
-        else if (t === 'post') hint.textContent = 'Optional · drag, paste, or choose a picture or video';
-        else hint.textContent = 'Optional · posts & shout-outs';
-      }
       if (sub){
         sub.style.display = t === 'mission' ? 'none' : 'inline-flex';
         sub.textContent = t === 'poll' ? 'Submit poll for approval' : (t === 'profile_post' ? 'Save profile post' : 'Submit for approval');
