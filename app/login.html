@@ -6,6 +6,7 @@
   <title>TMS Lantern — Sign in</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
+  <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); }
     * { box-sizing: border-box; }
@@ -194,6 +195,7 @@
           isSafeReturnPath(returnTo) &&
           !isLoginReturnTarget(returnTo);
 
+        var dest;
         if (isValidReturn) {
           try {
             sessionStorage.removeItem('lantern_return_to');
@@ -207,43 +209,40 @@
             typeof window.LanternAuth.isGenericExplorePath === 'function' &&
             window.LanternAuth.isGenericExplorePath(returnTo)
           ) {
-            if (rReturn === 'teacher') {
-              location.replace('/teacher.html');
-              return;
-            }
-            if (rReturn === 'admin') {
-              location.replace('/admin.html');
-              return;
-            }
+            if (rReturn === 'teacher') dest = '/teacher.html';
+            else if (rReturn === 'admin') dest = '/admin.html';
+            else dest = returnTo;
+          } else {
+            dest = returnTo;
           }
-          location.replace(returnTo);
-          return;
+        } else {
+          try {
+            sessionStorage.removeItem('lantern_return_to');
+          } catch (e) {}
+          var r =
+            window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
+              ? window.LanternAuth.normalizeRole(body && body.role)
+              : String((body && body.role) || '').trim().toLowerCase();
+          if (r === 'admin') dest = '/admin.html';
+          else if (r === 'teacher') dest = '/teacher.html';
+          else {
+            if (r === 'student' && window.LanternPilotAuth && window.LanternPilotAuth.applyStudentStorageFromLoginResponse) {
+              window.LanternPilotAuth.applyStudentStorageFromLoginResponse(body);
+            }
+            dest = '/explore.html';
+          }
         }
 
-        try {
-          sessionStorage.removeItem('lantern_return_to');
-        } catch (e) {}
-
-        var r =
-          window.LanternAuth && typeof window.LanternAuth.normalizeRole === 'function'
-            ? window.LanternAuth.normalizeRole(body && body.role)
-            : String((body && body.role) || '').trim().toLowerCase();
-        if (r === 'admin') {
-          location.replace('/admin.html');
+        if (
+          window.LanternRememberDevice &&
+          typeof window.LanternRememberDevice.maybeOfferRememberDevice === 'function'
+        ) {
+          window.LanternRememberDevice.maybeOfferRememberDevice(body, dest).then(function (shown) {
+            if (!shown) location.replace(dest);
+          });
           return;
         }
-        if (r === 'teacher') {
-          location.replace('/teacher.html');
-          return;
-        }
-        if (r === 'student') {
-          if (window.LanternPilotAuth && window.LanternPilotAuth.applyStudentStorageFromLoginResponse) {
-            window.LanternPilotAuth.applyStudentStorageFromLoginResponse(body);
-          }
-          location.replace('/explore.html');
-          return;
-        }
-        location.replace('/explore.html');
+        location.replace(dest);
       }
 
       form.addEventListener('submit', function (e) {

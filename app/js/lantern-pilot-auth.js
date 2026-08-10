@@ -69,6 +69,11 @@
    */
   function clearClientIdentityCaches() {
     try {
+      if (global.LanternRememberDevice && typeof global.LanternRememberDevice.clearOnLogout === 'function') {
+        global.LanternRememberDevice.clearOnLogout();
+      }
+    } catch (eRem) {}
+    try {
       global.localStorage.removeItem('LANTERN_ADOPTED_CHARACTER');
     } catch (e) {}
     try {

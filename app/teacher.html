@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
+  <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Teacher Approval</title>
   <link rel="prefetch" href="locker.html">
@@ -1391,12 +1392,25 @@
       <span class="verifyAvatarWrap" id="teacherVerifyAvatarWrap" style="display:none;"><img id="teacherVerifyAvatarImg" class="verifyAvatarPreview" alt=""><span class="verifyAvatarFallback" id="teacherVerifyAvatarFallback"></span></span>
     </div>
     <div id="teacherPageTop" class="teacherPageShell">
-    <!-- Prompt #139: Behavior launches TMS via Lantern staff-verify authorize when signed in.
-         Device approval on TMS remains required for new/unapproved devices. -->
+    <!-- Prompt #140: Behavior uses Remember-this-device / short-lived authorize handoff (no Staff PW,
+         no /device-pairing, no pending Admin approval for linked staff). -->
     <nav class="teacherPrimaryNav" aria-label="Primary">
-      <a class="teacherPrimaryNavBtn" id="teacherPrimaryNavBehavior" href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html">Behavior</a>
+      <a class="teacherPrimaryNavBtn" id="teacherPrimaryNavBehavior" href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember">Behavior</a>
       <a class="teacherPrimaryNavBtn is-active" id="teacherPrimaryNavTeacher" href="teacher.html" aria-current="page">Teacher</a>
     </nav>
+    <script>
+      (function () {
+        if (window.LanternRememberDevice && typeof window.LanternRememberDevice.absorbDeviceRememberedQuery === 'function') {
+          window.LanternRememberDevice.absorbDeviceRememberedQuery();
+        }
+        var btn = document.getElementById('teacherPrimaryNavBehavior');
+        if (btn && window.LanternRememberDevice && typeof window.LanternRememberDevice.handleBehaviorNavClick === 'function') {
+          btn.addEventListener('click', function (ev) {
+            window.LanternRememberDevice.handleBehaviorNavClick(ev);
+          });
+        }
+      })();
+    </script>
     <div class="teacherIdentityRow">
       <span class="teacherIdentityTitle">
         <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
@@ -1637,7 +1651,7 @@
                 </div>
               </details>
 
-              <p class="note" style="margin-top:14px;"><a href="device-pairing.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Device Pairing Page</a> — run this once on each classroom computer to enroll it.</p>
+              <p class="note" style="margin-top:14px;"><a href="device-pairing.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Classroom computer pairing</a> — for shared student classroom browsers only (class access). Personal staff sign-in uses Remember this device after login — not this page.</p>
             </div>
           </details>
         </div>

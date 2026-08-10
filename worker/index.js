@@ -1079,7 +1079,22 @@ function sanitizeTmsDeviceAuthorizeReturn(raw) {
   }
   const path = u.pathname === '/' || u.pathname === '' ? '/index.html' : u.pathname;
   if (path !== '/index.html') return DEFAULT_TARGET;
-  return u.origin + path;
+  // Prompt #140 — allow only safe intent / lantern_return query params (no secrets).
+  const params = new URLSearchParams();
+  const intent = String(u.searchParams.get('intent') || '').trim().toLowerCase();
+  if (intent === 'remember' || intent === 'session' || intent === 'not_now') {
+    params.set('intent', intent);
+  }
+  const lanternReturn = String(u.searchParams.get('lantern_return') || '').trim();
+  if (
+    lanternReturn.charAt(0) === '/' &&
+    lanternReturn.indexOf('//') !== 0 &&
+    lanternReturn.indexOf('/login') !== 0
+  ) {
+    params.set('lantern_return', lanternReturn);
+  }
+  const q = params.toString();
+  return u.origin + path + (q ? '?' + q : '');
 }
 
 function appendLanternStaffCodeToReturn(returnUrl, code) {
@@ -1706,6 +1721,35 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       status: 302,
       headers: { ...cors, Location: dest, 'Cache-Control': 'no-store' },
     });
+  }
+
+  // Prompt #140 — linked-staff check for Remember this device? (no secrets, no password material).
+  if (request.method === 'GET' && path === '/api/auth/tms-link-status') {
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) {
+      return jsonResponse({ ok: false, authenticated: false, linked: false }, 401, cors);
+    }
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', linked: false }, 403, cors);
+    }
+    const role = String(account.role || '').trim().toLowerCase();
+    if (!isTeacherLike(account.role)) {
+      return jsonResponse({ ok: true, authenticated: true, linked: false, role, staff: false }, 200, cors);
+    }
+    const tmsStaffId = await getTmsStaffIdForLanternAccount(db, account.username);
+    return jsonResponse(
+      {
+        ok: true,
+        authenticated: true,
+        staff: true,
+        role,
+        linked: !!tmsStaffId,
+        // Never expose bridge secrets; tms_staff_id is the server-resolved link id only.
+        tms_staff_id: tmsStaffId || null,
+      },
+      200,
+      cors
+    );
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
