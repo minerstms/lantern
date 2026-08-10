@@ -222,14 +222,11 @@
 
     <p id="missionsLibraryCount" class="missionsLibraryCount" aria-live="polite"></p>
     <p id="missionsLibraryWarning" class="missionsLibraryWarning" role="alert" hidden>Some missions couldn't be loaded. Try refreshing.</p>
-    <!-- Prompt #97: an authenticated-but-wrong-role session (e.g. a staff SSO sign-in in another
-         tab replacing this student's session cookie) must show an explicit, unmistakable message —
-         never the generic "couldn't be loaded" warning plus the Quick missions fallback, which
-         would misrepresent a session/role problem as a harmless mission-loading glitch. -->
+    <!-- Prompt #107: only unknown/unsupported roles hit this banner. Teacher/Admin are participants. -->
     <div id="missionsRoleMismatchBanner" class="missionsRoleMismatchBanner" role="alert" hidden>
-      <p id="missionsRoleMismatchMessage" class="missionsRoleMismatchMessage">This page is for student accounts.</p>
+      <p id="missionsRoleMismatchMessage" class="missionsRoleMismatchMessage">This page is only available to signed-in Lantern accounts.</p>
       <div class="missionsRoleMismatchActions">
-        <button type="button" id="missionsRoleMismatchSignInBtn" class="missionsRoleMismatchBtn missionsRoleMismatchBtn--primary">Sign in as a student</button>
+        <button type="button" id="missionsRoleMismatchSignInBtn" class="missionsRoleMismatchBtn missionsRoleMismatchBtn--primary">Sign in</button>
         <a id="missionsRoleMismatchTeacherLink" class="missionsRoleMismatchBtn" href="/teacher" hidden>Go to Teacher workspace</a>
       </div>
     </div>
@@ -1548,7 +1545,7 @@
        a transient glitch or (b) a truly expired/absent session, and must not be rendered as
        either — see renderMissionsRoleMismatch() below. */
     var missionsAuthRecheck = null;
-    function checkStillValidStudentSessionOrRedirect(){
+    function checkStillValidParticipantSessionOrRedirect(){
       if (missionsAuthRecheck) return missionsAuthRecheck;
       var auth = window.LanternAuth || window.LanternPilotAuth;
       if (!auth || typeof auth.fetchMe !== 'function') return Promise.resolve({ ok: true });
@@ -1563,10 +1560,11 @@
         var role = (auth && typeof auth.normalizeRole === 'function')
           ? auth.normalizeRole(data.role)
           : String(data.role || '').trim().toLowerCase();
-        if (role !== 'student') {
-          return { ok: false, reason: 'role_mismatch', role: role };
+        // Prompt #107 — student, teacher, and admin are all Lantern participants on /missions.
+        if (role === 'student' || role === 'teacher' || role === 'admin') {
+          return { ok: true, role: role };
         }
-        return { ok: true };
+        return { ok: false, reason: 'role_mismatch', role: role };
       }).catch(function(){ return { ok: true }; });
       return missionsAuthRecheck;
     }
@@ -1577,19 +1575,19 @@
       var countEl = el('missionsLibraryCount');
       if (countEl) countEl.textContent = '';
       if (window.LanternMissionsPage && typeof window.LanternMissionsPage.setItems === 'function') {
-        // Deliberately empty — a role-mismatched session must never render the Quick-missions
-        // fallback grid as though this were just a partial student data load failure.
         window.LanternMissionsPage.setItems([], false, false);
       }
       var banner = el('missionsRoleMismatchBanner');
       if (!banner) return;
       var msgEl = el('missionsRoleMismatchMessage');
       if (msgEl) {
-        var label = role === 'admin' ? 'an admin' : (role === 'teacher' ? 'a teacher' : 'a non-student');
-        msgEl.textContent = 'This page is for student accounts. You are currently signed in with ' + label + ' account — sign in as a student to see missions.';
+        // Prompt #107 — teacher/admin must never see the old "sign in as a student" wall.
+        msgEl.textContent = 'This page is only available to signed-in Lantern accounts.';
       }
       var teacherLink = el('missionsRoleMismatchTeacherLink');
-      if (teacherLink) teacherLink.hidden = !(role === 'teacher' || role === 'admin');
+      if (teacherLink) teacherLink.hidden = true;
+      var signInBtn = el('missionsRoleMismatchSignInBtn');
+      if (signInBtn) signInBtn.textContent = 'Sign in';
       banner.hidden = false;
     }
 
@@ -1624,7 +1622,7 @@
         // A genuine transient failure (network blip, bad response), a truly expired/absent
         // session, and an authenticated-but-wrong-role session (Prompt #97) all land here —
         // confirm which one before deciding how (or whether) to render.
-        checkStillValidStudentSessionOrRedirect().then(function(status){
+        checkStillValidParticipantSessionOrRedirect().then(function(status){
           if (!status.ok && status.reason === 'unauthenticated') return; // redirecting to login
           if (!status.ok && status.reason === 'role_mismatch') { renderMissionsRoleMismatch(status.role); return; }
           teacherData = [];
@@ -1632,7 +1630,7 @@
           done();
         });
       }).catch(function(){
-        checkStillValidStudentSessionOrRedirect().then(function(status){
+        checkStillValidParticipantSessionOrRedirect().then(function(status){
           if (!status.ok && status.reason === 'unauthenticated') return;
           if (!status.ok && status.reason === 'role_mismatch') { renderMissionsRoleMismatch(status.role); return; }
           teacherData = [];
@@ -1646,7 +1644,7 @@
           done();
           return;
         }
-        checkStillValidStudentSessionOrRedirect().then(function(status){
+        checkStillValidParticipantSessionOrRedirect().then(function(status){
           if (!status.ok && status.reason === 'unauthenticated') return;
           if (!status.ok && status.reason === 'role_mismatch') { renderMissionsRoleMismatch(status.role); return; }
           subsData = [];

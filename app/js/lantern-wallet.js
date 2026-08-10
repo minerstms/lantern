@@ -40,11 +40,13 @@
       return {
         ok: false,
         error: (res && res.error) || 'Failed',
+        message: (res && res.message) || null,
         available: null,
         earned: null,
         spent: null,
         economy_key: null,
         student_name: fallbackName || null,
+        needs_linking: !!(res && res.error === 'tms_identity_not_linked'),
       };
     }
     var available = finiteWalletNumber(res.available);

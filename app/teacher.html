@@ -1367,6 +1367,7 @@
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Queue</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">Missions</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="shoutout"><span class="teacherSidebarIcon" aria-hidden="true">📣</span><span class="teacherSidebarLabel">Shout-Out!</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
           <a href="display.html" target="_blank" rel="noopener" class="teacherSidebarItem teacherSidebarItem--divider"><span class="teacherSidebarIcon" aria-hidden="true">📺</span><span class="teacherSidebarLabel">Hallway TV</span></a>
           <button type="button" class="teacherSidebarItem" data-workspace-link="other"><span class="teacherSidebarIcon" aria-hidden="true">🧰</span><span class="teacherSidebarLabel">Other Tools</span></button>
@@ -1700,6 +1701,15 @@
             </div>
           </div>
           <div class="teacherField">
+            <label for="missionParticipantScope">Who can participate?</label>
+            <select id="missionParticipantScope" class="teacherSelect">
+              <option value="students" selected>Students</option>
+              <option value="staff">Staff</option>
+              <option value="everyone">Everyone</option>
+            </select>
+            <p class="teacherFieldHint">Default is Students. Staff-only and Everyone missions are how teachers/admins join as participants.</p>
+          </div>
+          <div class="teacherField">
             <label for="missionReward">Reward (nuggets)</label>
             <input type="number" id="missionReward" class="teacherInput teacherInput--sm" min="1" max="99" value="1" />
           </div>
@@ -1751,6 +1761,39 @@
          demo persona names) that had nothing to do with real students. The backing Recognition
          DB table/API and Hallway TV's own read of it are untouched; only this dead Teacher UI
          wiring was removed. See CURSOR REPLY #103 (follow-up) for details. -->
+      <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
+    </section>
+
+    <!-- Prompt #107 — standalone Shout-Out! workspace (not inside Missions). Uses Worker recognition API; no Nugget award. -->
+    <section id="teacher-shoutout" class="teacherMissionsSection" data-workspace="shoutout" aria-labelledby="teacherShoutOutHeading">
+      <h2 id="teacherShoutOutHeading" class="visuallyHidden">Shout-Out!</h2>
+      <div class="card">
+        <div class="cardHd">
+          <div class="h">Shout-Out!</div>
+          <div class="pill good" id="shoutOutCount">0</div>
+        </div>
+        <div class="cardBd">
+          <p class="note note-tight">Recognize anyone, now.</p>
+          <div class="teacherField">
+            <label for="shoutOutStudentSelect">Student</label>
+            <select id="shoutOutStudentSelect" class="teacherSelect" style="max-width:360px;">
+              <option value="">— Select student —</option>
+            </select>
+          </div>
+          <div class="teacherField">
+            <label for="shoutOutMessage">Message (max 250 characters)</label>
+            <textarea id="shoutOutMessage" class="teacherTextarea" placeholder="Short positive message…" maxlength="250"></textarea>
+          </div>
+          <div class="teacherField">
+            <label for="shoutOutCategory">Category (optional)</label>
+            <input type="text" id="shoutOutCategory" class="teacherInput" placeholder="e.g. Kindness, Effort" autocomplete="off" style="max-width:240px;" />
+          </div>
+          <div class="teacherActions">
+            <button class="btn good" id="shoutOutPostBtn" type="button">Post Shout-Out!</button>
+          </div>
+          <div id="shoutOutListEl" class="scrollArea" style="max-height: 280px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:14px;"></div>
+        </div>
+      </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
@@ -1911,7 +1954,7 @@
     // Prompt #103 — Create Mission and My Missions are now ONE workspace ("missions").
     // "create" is no longer a real workspace/pane; it is a preserved deep-link ALIAS that
     // resolves to "missions" and additionally auto-expands the Create New Mission <details>.
-    var WORKSPACES = ['overview', 'review', 'missions', 'moderation', 'economy', 'other'];
+    var WORKSPACES = ['overview', 'review', 'missions', 'shoutout', 'moderation', 'economy', 'other'];
     var WORKSPACE_ALIASES = { create: 'missions' };
     // Prompt #91 — Nuggets (formerly "Nuggets & Sales") is the first sidebar item and the
     // default Teacher workspace; DEFAULT_WORKSPACE is only the hash fallback used when no
@@ -1922,6 +1965,7 @@
       overview: 'Overview',
       review: 'Review Queue',
       missions: 'Missions',
+      shoutout: 'Shout-Out!',
       moderation: 'Moderation',
       economy: 'Nuggets',
       other: 'Other Tools',
@@ -5059,7 +5103,7 @@
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
         var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
         // Prompt #78 — site_eligible archived (no reader anywhere); see docs/archive/TEACHER_CREATE_MISSION_OPTION_AUDIT.md.
-        var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, participant_scope: (el('missionParticipantScope') && el('missionParticipantScope').value) || 'students', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
         var res = await callCreateTeacherMission(opts);
         if (!res || !res.ok){
@@ -5262,6 +5306,86 @@
         refresh();
       });
     }
+
+    // Prompt #107 — Shout-Out! workspace (Worker recognition API; Student labels; no Nugget award).
+    (function initShoutOutWorkspace(){
+      var DEMO_BLOCK = { 'alex adventure':1, 'sam star':1, 'casey cool':1, 'jordan joy':1, 'riley rise':1 };
+      var sel = el('shoutOutStudentSelect');
+      var chars = (window.LANTERN_DATA && window.LANTERN_DATA.DEFAULT_CHARACTERS) || [];
+      if (sel && chars.length) {
+        chars.forEach(function(c){
+          var name = (c.name || '').trim();
+          if (!name || DEMO_BLOCK[name.toLowerCase()]) return;
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          sel.appendChild(opt);
+        });
+      }
+      function renderShoutOutList(list){
+        var box = el('shoutOutListEl');
+        var count = el('shoutOutCount');
+        if (count) count.textContent = String((list || []).length);
+        if (!box) return;
+        box.innerHTML = '';
+        if (!list || !list.length) {
+          box.innerHTML = '<div class="placeholderRow">No shout-outs yet.</div>';
+          return;
+        }
+        list.forEach(function(r){
+          var row = document.createElement('div');
+          row.className = 'curatePostRow';
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(r.character_name || '') + (r.category ? ' · ' + esc(r.category) : '') + '</div><div class="curatePostTitle">' + esc((r.message || '').slice(0, 250)) + '</div><div class="approvalQueueMeta">' + esc(r.created_by_teacher_name || '') + '</div></div>';
+          box.appendChild(row);
+        });
+      }
+      async function refreshShoutOuts(){
+        if (avatarApiBase === null) return;
+        try {
+          var raw = await fetch(avatarApiBase + '/api/recognition/list?limit=50', { credentials: 'include' });
+          var res = await raw.json();
+          if (res && res.ok && Array.isArray(res.recognition)) renderShoutOutList(res.recognition);
+        } catch (_) {}
+      }
+      if (el('shoutOutPostBtn')) {
+        el('shoutOutPostBtn').addEventListener('click', async function(){
+          if (avatarApiBase === null){ toast('Shout-Out requires Lantern API'); return; }
+          var student = (el('shoutOutStudentSelect') && el('shoutOutStudentSelect').value || '').trim();
+          var message = (el('shoutOutMessage') && el('shoutOutMessage').value || '').trim();
+          var category = (el('shoutOutCategory') && el('shoutOutCategory').value || '').trim();
+          if (!student){ toast('Select a student'); return; }
+          if (DEMO_BLOCK[student.toLowerCase()]){ toast('That student is not available'); return; }
+          if (!message){ toast('Write a message'); return; }
+          var btn = el('shoutOutPostBtn');
+          btn.disabled = true;
+          try {
+            var raw = await fetch(avatarApiBase + '/api/recognition/create', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                character_name: student,
+                message: message,
+                category: category || undefined,
+                created_by_teacher_id: approvalStaffId,
+                created_by_teacher_name: 'Teacher'
+              })
+            });
+            var res = await raw.json().catch(function(){ return { ok: false }; });
+            if (!res || !res.ok){ toast((res && res.error) || 'Failed to post shout-out'); btn.disabled = false; return; }
+            toast('Shout-Out posted');
+            if (el('shoutOutMessage')) el('shoutOutMessage').value = '';
+            if (el('shoutOutCategory')) el('shoutOutCategory').value = '';
+            if (el('shoutOutStudentSelect')) el('shoutOutStudentSelect').value = '';
+            await refreshShoutOuts();
+          } catch (_) {
+            toast('Could not contact recognition service');
+          }
+          btn.disabled = false;
+        });
+      }
+      refreshShoutOuts();
+    })();
 
     refresh();
   </script>

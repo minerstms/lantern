@@ -138,8 +138,13 @@ async function main() {
   // Sidebar + default workspace
   // ---------------------------------------------------------------------------
   const sidebarItems = await page.locator('.teacherSidebarItem').allTextContents();
-  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'Missions', 'Moderation', 'Other Tools'];
-  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all 6 expected workspace items: ' + JSON.stringify(sidebarItems));
+  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'Missions', 'Shout-Out!', 'Moderation', 'Other Tools'];
+  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all expected workspace items including Shout-Out!: ' + JSON.stringify(sidebarItems));
+  assert(sidebarItems.some((t) => t.indexOf('Shout-Out!') !== -1), 'Shout-Out! sidebar destination is present');
+  assert(await page.locator('#teacher-shoutout').count() === 1, 'Shout-Out! workspace pane exists');
+  assert((await page.locator('#teacher-shoutout .note-tight').first().innerText()).trim() === 'Recognize anyone, now.', 'Shout-Out supporting copy is exact');
+  assert(await page.locator('#shoutOutStudentSelect option', { hasText: 'Select student' }).count() >= 1, 'Shout-Out uses Student terminology');
+  assert(await page.locator('#shoutOutPostBtn').count() === 1, 'Post Shout-Out! button exists');
   assert(sidebarItems[0].indexOf('Nuggets') !== -1, 'Nuggets is the first sidebar item: ' + JSON.stringify(sidebarItems));
   assert(!sidebarItems.some((t) => t.indexOf('Create Mission') !== -1), 'Prompt #103 — Create Mission is no longer a separate visible sidebar destination: ' + JSON.stringify(sidebarItems));
   assert((await page.locator('.teacherSidebarItem[data-workspace-link="create"]').count()) === 0, 'No sidebar item links to a standalone "create" workspace');

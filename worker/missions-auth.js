@@ -45,6 +45,8 @@ export function reviewerLabelFromAccount(account) {
 
 /**
  * Student self-service mission identity — always session-derived.
+ * Kept for callers that still need a student-only gate; participant surfaces use
+ * resolveParticipantMissionIdentity (Prompt #107).
  */
 export function resolveStudentMissionIdentity(account, pilotEconomyCharacterName) {
   if (!account) {
@@ -60,7 +62,89 @@ export function resolveStudentMissionIdentity(account, pilotEconomyCharacterName
   if (!characterName) {
     return { ok: false, code: 400, error: 'account_link_missing' };
   }
-  return { ok: true, characterName, session_scoped: true };
+  return { ok: true, characterName, participantKind: 'student', session_scoped: true };
+}
+
+/**
+ * Prompt #107 — any authenticated Lantern participant (student, teacher, admin) may use
+ * base mission surfaces. Staff submitter key is staff:<lantern_username> (stable, never a
+ * fabricated mtss_student_id / character roster row).
+ */
+export function staffMissionSubmitterKey(account) {
+  const u = account && account.username != null ? String(account.username).trim() : '';
+  return u ? ('staff:' + u) : '';
+}
+
+export function resolveParticipantMissionIdentity(account, pilotEconomyCharacterName) {
+  if (!account) {
+    return { ok: false, code: 401, error: 'not_authenticated' };
+  }
+  if (pilotAccountRequiresChangePassword(account)) {
+    return { ok: false, code: 403, error: 'must_change_password', redirect: '/change-password.html' };
+  }
+  if (isStudentRole(account.role)) {
+    const characterName = pilotEconomyCharacterName(account) || '';
+    if (!characterName) {
+      return { ok: false, code: 400, error: 'account_link_missing' };
+    }
+    return { ok: true, characterName, participantKind: 'student', session_scoped: true };
+  }
+  if (isTeacherLike(account.role)) {
+    const characterName = staffMissionSubmitterKey(account);
+    if (!characterName) {
+      return { ok: false, code: 400, error: 'account_link_missing' };
+    }
+    return {
+      ok: true,
+      characterName,
+      participantKind: 'staff',
+      displayName: reviewerLabelFromAccount(account),
+      session_scoped: true,
+    };
+  }
+  return { ok: false, code: 403, error: 'forbidden' };
+}
+
+export function normalizeParticipantScope(raw) {
+  const s = String(raw || 'students').trim().toLowerCase();
+  if (s === 'staff' || s === 'everyone' || s === 'students') return s;
+  return 'students';
+}
+
+/**
+ * Whether an active mission is visible to a participant given participant_scope + audience.
+ * Historical missions without participant_scope behave as students-only.
+ */
+export function missionVisibleToParticipant(missionRow, identity) {
+  if (!identity || !identity.ok) return false;
+  const scope = normalizeParticipantScope(missionRow && missionRow.participant_scope);
+  const kind = identity.participantKind === 'staff' ? 'staff' : 'student';
+  if (kind === 'student') {
+    if (scope === 'staff') return false;
+    return missionVisibleToStudent(missionRow, identity.characterName);
+  }
+  // Staff participants: Staff or Everyone only — never Students-only historical missions.
+  if (scope !== 'staff' && scope !== 'everyone') return false;
+  return true;
+}
+
+/**
+ * Approver must not be the same participant who submitted (self-reward deny).
+ */
+export function isSelfMissionSubmission(account, submissionCharacterName) {
+  const sub = String(submissionCharacterName || '').trim();
+  if (!account || !sub) return false;
+  const staffKey = staffMissionSubmitterKey(account);
+  if (staffKey && sub === staffKey) return true;
+  const tid = sessionTeacherId(account);
+  if (tid && sub === tid) return true;
+  const un = account.username != null ? String(account.username).trim() : '';
+  if (un && sub === un) return true;
+  if (isStudentRole(account.role)) {
+    // Students are not approvers in practice; still compare economy keys defensively.
+    return false;
+  }
+  return false;
 }
 
 function pilotAccountRequiresChangePassword(account) {
@@ -82,6 +166,7 @@ export function parseTargetCharacterNames(raw) {
 /**
  * Whether an active mission is visible to a student by audience rules.
  * my_students: no roster table exists — cannot authorize; hidden from students.
+ * (participant_scope is applied separately via missionVisibleToParticipant.)
  */
 export function missionVisibleToStudent(missionRow, studentKey) {
   const key = String(studentKey || '').trim();
@@ -109,6 +194,7 @@ export function missionVisibleToStudent(missionRow, studentKey) {
  */
 export const MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION = [
   'audience',
+  'participant_scope',
   'target_character_names',
   'allows_text',
   'allows_image',

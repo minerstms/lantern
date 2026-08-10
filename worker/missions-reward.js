@@ -1,4 +1,5 @@
-import { tmsEconomyTransact } from './tms-economy-bridge.js';
+import { tmsEconomyTransact, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
+import { parseStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
 
 /**
  * Server-authoritative mission approval rewards — exactly-once (Prompt #66).
@@ -8,6 +9,7 @@ import { tmsEconomyTransact } from './tms-economy-bridge.js';
  * record (still written, so achievements/history keep working) rather than the source of truth.
  * Falls back to the legacy Lantern-only wallet unchanged for ids that are not real TMS students
  * (demo/persona characters, local dev/test fixtures) -- same exactly-once guarantee either way.
+ * Prompt #107: staff:<username> recipients pay out to the linked TMS staff principal ledger.
  */
 
 export function missionRewardTxId(submissionId) {
@@ -42,6 +44,34 @@ export async function creditMissionApprovalReward(db, characterName, submissionI
 
   const env = opts && opts.env;
   if (env) {
+    // Prompt #107 — staff participant rewards go to TMS staff principal, never a fake student row.
+    if (parseStaffEconomyKey(key)) {
+      const staffPrincipal = await resolveStaffTmsPrincipal(db, key);
+      if (!staffPrincipal.ok) {
+        return { ok: false, error: 'tms_identity_not_linked' };
+      }
+      const staffTx = await tmsStaffEconomyTransact(
+        env,
+        staffPrincipal.tmsStaffId,
+        reward,
+        'lantern_mission_reward',
+        'APPROVAL',
+        note || 'Teacher mission approved',
+        missionRewardReference(sid)
+      );
+      if (!staffTx.ok) {
+        return { ok: false, error: staffTx.error || 'reward_credit_failed' };
+      }
+      return {
+        ok: true,
+        idempotent: !!staffTx.idempotent,
+        id: missionRewardTxId(sid),
+        character_name: key,
+        delta: staffTx.delta,
+        balance_after: staffTx.available,
+        economy_authority: 'tms_nuggets_staff',
+      };
+    }
     const tms = await tmsEconomyTransact(env, key, reward, 'lantern_mission_reward', 'APPROVAL', note || 'Teacher mission approved', missionRewardReference(sid));
     if (tms.ok) {
       return {

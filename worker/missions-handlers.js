@@ -9,14 +9,18 @@ import {
 } from './locker-achievements.js';
 import {
   isAdminRole,
+  isSelfMissionSubmission,
+  missionVisibleToParticipant,
   missionVisibleToStudent,
   missionEditLockedFieldsPresent,
   missionIsUnusedAndDeletable,
+  normalizeParticipantScope,
   normalizeSubmissionType,
   parseTargetCharacterNames,
   requireMissionSession,
   requireMissionTeacher,
   extractMissionSubmissionMedia,
+  resolveParticipantMissionIdentity,
   resolveStudentMissionIdentity,
   resolveSubmissionHistoryIdentity,
   reviewerLabelFromAccount,
@@ -39,6 +43,8 @@ function missionRowToJson(r) {
     created_by_teacher_id: r.teacher_id || 'teacher',
     created_by_teacher_name: r.teacher_name || 'Teacher',
     audience: r.audience || 'school_mission',
+    // Prompt #107: students | staff | everyone (default students for historical rows).
+    participant_scope: normalizeParticipantScope(r.participant_scope),
     target_character_names: target,
     featured: !!r.featured,
     active: r.active !== 0,
@@ -97,7 +103,7 @@ function mapCharacterSubmissionRow(s, byMission) {
 async function loadFullMission(db, missionId) {
   return db
     .prepare(
-      'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE id = ?'
+      'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE id = ?'
     )
     .bind(missionId)
     .first();
@@ -201,20 +207,18 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
   if (request.method === 'GET' && path === '/api/missions/active') {
     const auth = await requireMissionSession(deps, request, env, cors);
     if (auth.response) return auth.response;
-    const identity = resolveStudentMissionIdentity(auth.account, pilotEconomyCharacterName);
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
     }
-    const characterName = identity.characterName;
     const rows = await db
       .prepare(
-        // Prompt #103: student-facing "active" missions must require BOTH active=1 AND
-        // archived=0 — Archive is a separate, stronger unavailability than Pause.
-        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
+        // Prompt #103 + #107: active+unarchived; participant_scope filtered in JS.
+        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
       )
       .all();
     let list = (rows.results || []).map((r) => missionRowToJson(r));
-    list = list.filter((m) => missionVisibleToStudent(m, characterName));
+    list = list.filter((m) => missionVisibleToParticipant(m, identity));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -233,13 +237,13 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const rows = teacherId
       ? await db
           .prepare(
-            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
+            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
           )
           .bind(teacherId)
           .all()
       : await db
           .prepare(
-            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
+            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
           )
           .all();
     // Prompt #103: Missions workspace mission cards show a submission count ("N submissions") —
@@ -292,6 +296,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const audience = ['my_students', 'selected_students', 'school_mission'].includes((body.audience || 'school_mission').trim())
       ? (body.audience || 'school_mission').trim()
       : 'school_mission';
+    const participantScope = normalizeParticipantScope(body.participant_scope);
     const targetNames = audience === 'selected_students' && Array.isArray(body.target_character_names) ? body.target_character_names : null;
     const featured = !!body.featured;
     const active = body.active !== false;
@@ -308,7 +313,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const now = new Date().toISOString();
     await db
       .prepare(
-        'INSERT INTO lantern_missions (id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO lantern_missions (id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
       .bind(
         id,
@@ -319,6 +324,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         rewardAmount,
         submissionType,
         audience,
+        participantScope,
         targetNames ? JSON.stringify(targetNames) : null,
         featured ? 1 : 0,
         active ? 1 : 0,
@@ -340,6 +346,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       created_by_teacher_id: teacherId,
       created_by_teacher_name: teacherName,
       audience,
+      participant_scope: participantScope,
       target_character_names: targetNames || undefined,
       featured,
       active,
@@ -439,6 +446,10 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           : 'school_mission'
       );
     }
+    if (body.participant_scope !== undefined) {
+      updates.push('participant_scope = ?');
+      bindings.push(normalizeParticipantScope(body.participant_scope));
+    }
     if (body.target_character_names !== undefined) {
       updates.push('target_character_names = ?');
       bindings.push(Array.isArray(body.target_character_names) ? JSON.stringify(body.target_character_names) : null);
@@ -507,7 +518,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
   if (request.method === 'POST' && path === '/api/missions/submit') {
     const auth = await requireMissionSession(deps, request, env, cors);
     if (auth.response) return auth.response;
-    const identity = resolveStudentMissionIdentity(auth.account, pilotEconomyCharacterName);
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
     }
@@ -527,7 +538,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     // mission_id that a student already has cached client-side; Pause (active=0) already blocked
     // this, Archive must too.
     if (mission.active === 0 || !!mission.archived) return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
-    if (!missionVisibleToStudent(mission, characterName)) {
+    if (!missionVisibleToParticipant(mission, identity)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }
     const existing = await db
@@ -829,6 +840,10 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!mission || !teacherOwnsMission(auth.account, mission.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized to approve this submission' }, 403, cors);
     }
+    // Prompt #107 — staff may participate, but never self-approve / self-reward.
+    if (isSelfMissionSubmission(auth.account, row.character_name)) {
+      return jsonResponse({ ok: false, error: 'self_approval_forbidden', message: 'You cannot approve or reward your own mission submission.' }, 403, cors);
+    }
     const reward = mission ? Math.max(1, Math.min(99, Number(mission.reward_amount) || 1)) : 1;
     const reviewer = reviewerLabelFromAccount(auth.account);
     const result = await approveMissionWithReward(db, {
@@ -939,7 +954,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
   if (request.method === 'POST' && path === '/api/missions/submissions/resubmit') {
     const auth = await requireMissionSession(deps, request, env, cors);
     if (auth.response) return auth.response;
-    const identity = resolveStudentMissionIdentity(auth.account, pilotEconomyCharacterName);
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
     }

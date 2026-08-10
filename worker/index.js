@@ -13,8 +13,9 @@ import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './mis
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
-import { tmsEconomyBalance, tmsEconomyTransact } from './tms-economy-bridge.js';
-import { filterOutDemoPersonas } from './demo-persona-guard.js';
+import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
+import { parseStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
+import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -116,7 +117,7 @@ function corsForPilot(request) {
     origin.startsWith('http://127.0.0.1:');
   const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Class-Token, X-Lantern-Economy-Secret',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Class-Token, X-Lantern-Economy-Secret, X-Device-Token',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
   };
@@ -3312,6 +3313,39 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     }
     const characterName = readAuth.characterName;
 
+    // Prompt #107 — staff self wallet uses staff:<username> → tms_identity_links → TMS staff ledger.
+    // Never fabricate a student row or show a misleading 0 for unlinked staff.
+    if (parseStaffEconomyKey(characterName)) {
+      const staffPrincipal = await resolveStaffTmsPrincipal(db, characterName);
+      if (!staffPrincipal.ok) {
+        return jsonResponse({
+          ok: false,
+          error: 'tms_identity_not_linked',
+          message: 'Nugget account needs linking',
+          character_name: characterName,
+        }, 403, cors);
+      }
+      const staffBal = await tmsStaffEconomyBalance(env, staffPrincipal.tmsStaffId);
+      if (!staffBal.ok) {
+        return jsonResponse({
+          ok: false,
+          error: staffBal.error || 'staff_balance_unavailable',
+          character_name: characterName,
+        }, staffBal.httpStatus && staffBal.httpStatus >= 400 ? staffBal.httpStatus : 502, cors);
+      }
+      return jsonResponse({
+        ok: true,
+        character_name: characterName,
+        balance: staffBal.available,
+        earned: staffBal.earned,
+        spent: staffBal.spent,
+        available: staffBal.available,
+        recent_transactions: mapTmsHistoryToTransactions(characterName, staffBal.recentHistory),
+        economy_authority: 'tms_nuggets_staff',
+        tms_staff_id: staffPrincipal.tmsStaffId,
+      }, 200, cors);
+    }
+
     // Prompt #96: TMS Nuggets is the one authoritative ledger for every real student. Try it
     // first; only fall back to the legacy Lantern-only wallet when TMS genuinely does not
     // recognize this id as a real student (demo/persona characters, local dev/test fixtures) or
@@ -3439,6 +3473,34 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     // (e.g. insufficient balance) or a transient bridge error must NOT silently fall back to a
     // second ledger; it must be returned to the caller as-is.
     const reference = buildLanternEconomyReference(kind, meta, body, txId);
+
+    // Prompt #107 — staff principal spends/grants (games cost, rewards) use TMS staff ledger.
+    if (parseStaffEconomyKey(characterName)) {
+      const staffPrincipal = await resolveStaffTmsPrincipal(db, characterName);
+      if (!staffPrincipal.ok) {
+        return jsonResponse({ ok: false, error: 'tms_identity_not_linked', message: 'Nugget account needs linking' }, 403, cors);
+      }
+      const staffTx = await tmsStaffEconomyTransact(env, staffPrincipal.tmsStaffId, delta, kind, source || 'LANTERN', note, reference);
+      if (!staffTx.ok) {
+        const status = staffTx.code === 'insufficient_balance' ? 400 : (staffTx.httpStatus && staffTx.httpStatus >= 400 ? staffTx.httpStatus : 502);
+        return jsonResponse({ ok: false, error: staffTx.error || 'tms_staff_transact_failed', code: staffTx.code }, status, cors);
+      }
+      try {
+        await db.prepare(
+          'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(txId, characterName, delta, kind, source, note, now, JSON.stringify({ ...meta, tms_reference: reference, tms_backed: true, tms_staff_id: staffPrincipal.tmsStaffId })).run();
+      } catch (_) {}
+      return jsonResponse({
+        ok: true,
+        id: txId,
+        character_name: characterName,
+        delta,
+        balance_after: staffTx.available,
+        idempotent: !!staffTx.idempotent,
+        economy_authority: 'tms_nuggets_staff',
+      }, 200, cors);
+    }
+
     const tms = await tmsEconomyTransact(env, characterName, delta, kind, source || 'LANTERN', note, reference);
     if (tms.ok) {
       try {
@@ -4790,16 +4852,21 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
 
   if (request.method === 'POST' && path === '/api/recognition/create') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
     const characterName = (body.character_name || '').trim();
     const message = (body.message || '').trim().slice(0, 250);
     if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+    if (isKnownDemoPersonaName(characterName)) {
+      return jsonResponse({ ok: false, error: 'demo_persona_not_allowed' }, 400, cors);
+    }
     if (!message) return jsonResponse({ ok: false, error: 'Missing message' }, 400, cors);
     const category = (body.category || '').trim() || null;
-    const createdByTeacherId = (body.created_by_teacher_id || '').trim() || null;
-    const createdByTeacherName = (body.created_by_teacher_name || 'Teacher').trim();
+    const createdByTeacherId = sessionTeacherId(auth.account) || null;
+    const createdByTeacherName = reviewerLabelFromAccount(auth.account);
     const id = 'rec-' + crypto.randomUUID();
     const now = new Date().toISOString();
     await db.prepare(
