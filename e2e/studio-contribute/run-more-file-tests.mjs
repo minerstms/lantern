@@ -30,18 +30,13 @@ await p.addInitScript(() => {
   );
 });
 
+/* Prompt #117 — Profile post creation archived; assert fallback instead of submitting. */
 await go(p, 'profile_post');
-await p.locator('#profilePostTitle').fill(`Prof ${Date.now()}`);
-await p.locator('#profilePostCaption').fill('cap');
-await p
-  .locator('#profilePostUrl')
-  .fill(
-    'https://lantern-api.mrradle.workers.dev/api/avatar/image?key=avatars%2Fstudents%2Fzane_morrison.png'
-  );
-await p.locator('#submitNewsBtn').click();
-await p.locator('#toast').filter({ hasText: /saved/i }).waitFor({ state: 'visible', timeout: 30000 });
-const postsJson = await p.evaluate(() => localStorage.getItem('LANTERN_POSTS') || '');
-console.log('profile toast OK; localStorage posts snippet:', (postsJson || '').slice(0, 120));
+const typeVal = await p.locator('#contributeTypeSelect').inputValue();
+if (typeVal !== 'post') throw new Error('expected ?type=profile_post to fall back to post, got ' + typeVal);
+const hasOpt = await p.locator('#contributeTypeSelect option[value="profile_post"]').count();
+if (hasOpt !== 0) throw new Error('profile_post option must be absent from Create selector');
+console.log('profile_post archived OK; deep-link fell back to post');
 
 await go(p, 'mission');
 await p.locator('button[data-mission-id="perm_shoutout_someone"]').click();

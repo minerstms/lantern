@@ -137,6 +137,45 @@ if (/id="contributeTypeSelect"|id="newsUnifiedMediaMount"|id="contributeMissionR
   ok('Prompt #113 functional Create controls preserved');
 } else bad('Prompt #113 functional controls missing');
 
+/* Prompt #117 — Profile post (Locker) creation archived from Create UI (reversible; code/data preserved). */
+(function testProfilePostCreationArchived() {
+  const selMatch = contributeHtml.match(/id="contributeTypeSelect"[^>]*>[\s\S]*?<\/select>/);
+  if (!selMatch) return bad('Prompt #117: contributeTypeSelect missing');
+  if (/value=["']profile_post["']/.test(selMatch[0])) {
+    return bad('Prompt #117: profile_post must not appear in What are you submitting? selector');
+  }
+  if (/Profile post \(locker\)/i.test(selMatch[0])) {
+    return bad('Prompt #117: Profile post (locker) label still in selector');
+  }
+  if (!/Prompt #117 ARCHIVE:[\s\S]{0,80}selector/.test(contributeHtml) && !/Prompt #117 ARCHIVE:[\s\S]{0,120}Profile-post/.test(contributeHtml)) {
+    return bad('Prompt #117: missing ARCHIVE marker near Create type selector');
+  }
+  if (!/ARCHIVED_CONTRIBUTE_TYPES/.test(contributeHtml) || !/normalizeContributeType/.test(contributeHtml)) {
+    return bad('Prompt #117: missing archived-type normalize helpers');
+  }
+  if (!/tp === 'profile_post'[\s\S]{0,120}DEFAULT_CONTRIBUTE_TYPE/.test(contributeHtml)) {
+    return bad('Prompt #117: stale ?type=profile_post must fall back to DEFAULT_CONTRIBUTE_TYPE');
+  }
+  if (!/id="variantProfilePostLeft"/.test(contributeHtml) || !/id="variantProfilePostRight"/.test(contributeHtml)) {
+    return bad('Prompt #117: dormant Profile post variant markup should be preserved for restore');
+  }
+  if (!/data-lantern-archived-feature="profile_post"/.test(contributeHtml)) {
+    return bad('Prompt #117: dormant variants should be marked data-lantern-archived-feature');
+  }
+  if (!/createPost\(\{/.test(contributeHtml)) {
+    return bad('Prompt #117: dormant createPost submit path should remain in contribute.html');
+  }
+  const profileApp = fs.readFileSync(path.join(root, 'app/js/lantern-profile-app.js'), 'utf8');
+  if (/contribute\.html\?type=profile_post/.test(profileApp)) {
+    return bad('Prompt #117: lantern-profile-app.js still deep-links to profile_post Create mode');
+  }
+  const indexFull = fs.readFileSync(path.join(root, 'app/locker-sources/index.full.html'), 'utf8');
+  if (/contribute\.html\?type=profile_post/.test(indexFull) || /New profile post — Design Studio/.test(indexFull)) {
+    return bad('Prompt #117: locker-sources still expose Profile post Create entry');
+  }
+  ok('Prompt #117 Profile post creation archived from Create UI; dormant code + fallbacks preserved');
+})();
+
 if (/@media \(\(hover: none\) or \(pointer: coarse\)\) and \(max-width: 1199px\)/.test(contributeHtml)) {
   ok('touch/coarse narrow stack query');
 } else bad('touch stack query');

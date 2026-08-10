@@ -1453,9 +1453,7 @@
             <span class="contentTab" data-status="returned" id="profileNeedsAttention">Needs Attention</span>
             <span class="contentTab" data-status="approved">Approved</span>
           </div>
-          <div style="margin:14px 0;">
-            <a href="contribute.html?type=profile_post" class="btn good" style="text-decoration:none;display:inline-flex;width:100%;box-sizing:border-box;justify-content:center;min-height:52px;font-size:24px;">New profile post — Design Studio</a>
-          </div>
+          <!-- Prompt #117 ARCHIVE: removed Locker Create entry that launched archived Profile-post mode. -->
           <div style="margin:14px 0;">
             <label for="myCreationsSearchEl" class="visuallyHidden">Search my creations</label>
             <div class="lanternAppBarSearchWrap lanternAppBarSearchWrap--embedded" id="myCreationsSearchWrap">
@@ -4210,7 +4208,15 @@
           renderMyCreations(myCreationsItemsCache, submissionsStatusFilter, myCreationsSearchQuery);
         });
       }
-      if (el('newPostBtn')) el('newPostBtn').addEventListener('click', function(){ window.location.href = 'contribute.html?type=profile_post'; });
+      /* Prompt #117 ARCHIVE: Profile post creation entry retired. */
+      if (el('newPostBtn')) {
+        el('newPostBtn').style.display = 'none';
+        el('newPostBtn').setAttribute('aria-hidden', 'true');
+        el('newPostBtn').addEventListener('click', function (e) {
+          if (e && e.preventDefault) e.preventDefault();
+          window.location.href = 'contribute.html';
+        });
+      }
     }
 
     function submitForApproval(){

@@ -2462,7 +2462,15 @@
     function wirePostsUI(){
       if (postsWired) return;
       postsWired = true;
-      if (el('newPostBtn')) el('newPostBtn').addEventListener('click', function(){ window.location.href = 'contribute.html?type=profile_post'; });
+      /* Prompt #117 ARCHIVE: Profile post creation entry retired — do not deep-link to archived Create mode. */
+      if (el('newPostBtn')) {
+        el('newPostBtn').style.display = 'none';
+        el('newPostBtn').setAttribute('aria-hidden', 'true');
+        el('newPostBtn').addEventListener('click', function (e) {
+          if (e && e.preventDefault) e.preventDefault();
+          window.location.href = 'contribute.html';
+        });
+      }
       var pnat = el('profileNewsAuthorType');
       if (pnat && !pnat._lanternProfileNewsAuthorBound){
         pnat._lanternProfileNewsAuthorBound = true;

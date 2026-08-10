@@ -243,20 +243,17 @@ test('04 Poll: previews + submit (fallback art)', async ({ page }) => {
   await waitToast(page, 'Submitted');
 });
 
-test('05 Profile post: previews + submit', async ({ page }) => {
-  const u = UNIQUE();
-  await openContribute(page, 'profile_post');
-  await page.locator('#profilePostTitle').fill(`Locker highlight ${u}`);
-  await page.locator('#profilePostCaption').fill('E2E profile post caption');
-  await page
-    .locator('#profilePostUrl')
-    .fill(AVATAR_IMAGE_URL);
+test('05 Profile post creation archived from Create UI (Prompt #117)', async ({ page }) => {
+  await openContribute(page, 'post');
+  const options = await page.locator('#contributeTypeSelect option').allTextContents();
+  expect(options.join(' | ')).not.toMatch(/Profile post/i);
+  await expect(page.locator('#contributeTypeSelect option[value="profile_post"]')).toHaveCount(0);
 
-  await expect(page.locator('#studioRailTrack')).toContainText('Locker highlight', { timeout: 15000 });
-  await expect(page.locator('#studioOpenedPreviewInner')).toContainText('Locker highlight', { timeout: 15000 });
-
-  await page.locator('#submitNewsBtn').click();
-  await waitToast(page, 'saved', 60000);
+  await page.goto('/contribute.html?type=profile_post');
+  await page.waitForSelector('#contributeTypeSelect');
+  await expect(page.locator('#contributeTypeSelect')).toHaveValue('post');
+  await expect(page.locator('#variantProfilePostLeft')).toBeHidden();
+  await expect(page.locator('#variantProfilePostRight')).toBeHidden();
 });
 
 test('06 Mission — text submission', async ({ page }) => {

@@ -1033,11 +1033,11 @@
         <div class="contributeCenterInner">
         <div class="composerTopBlock">
         <label for="contributeTypeSelect">What are you submitting?</label>
+        <!-- Prompt #117 ARCHIVE: Profile-post Locker creation option removed from this selector; dormant variants/submit preserved for restore. -->
         <select id="contributeTypeSelect" style="margin-bottom:12px;">
           <option value="post">Post (school news)</option>
           <option value="shoutout">Shout-out</option>
           <option value="poll">Poll</option>
-          <option value="profile_post">Profile post (locker)</option>
           <option value="mission">Complete a mission</option>
         </select>
         <p id="contributeTypeHelper" class="studioPanelMicro" style="margin:0;"></p>
@@ -1095,7 +1095,8 @@
           <p class="studioPanelMicro" style="margin:4px 0 0 0;">Fallback · 2–5 choices below</p>
         </div>
 
-        <div id="variantProfilePostLeft" class="contributeVariant" style="display:none;">
+        <div id="variantProfilePostLeft" class="contributeVariant" style="display:none;" data-lantern-archived-feature="profile_post" aria-hidden="true">
+          <!-- Prompt #117 ARCHIVE: Profile post (Locker) left fields — kept dormant; not selectable in contributeTypeSelect. -->
           <div class="contributeFieldStack">
               <label for="profilePostType">Post type</label>
               <select id="profilePostType" style="width:100%;margin-bottom:0;font-size:22px;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:inherit;">
@@ -1159,7 +1160,8 @@
           <input type="text" id="pollQuestion" class="studioHeadlineInput" placeholder="What do you want to ask?" maxlength="500" />
         </div>
 
-        <div id="variantProfilePostRight" class="contributeVariant" style="display:none;">
+        <div id="variantProfilePostRight" class="contributeVariant" style="display:none;" data-lantern-archived-feature="profile_post" aria-hidden="true">
+          <!-- Prompt #117 ARCHIVE: Profile post (Locker) right fields — kept dormant. -->
           <label for="profilePostTitle">Title</label>
           <input type="text" id="profilePostTitle" class="studioHeadlineInput" placeholder="Post title" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
           <label for="profilePostUrl" style="margin-top:0;">URL (image, link, video, or app)</label>
@@ -1395,7 +1397,25 @@
       window.LANTERN_STUDIO_STREAM_GRID.mount(host, draftCardEl, { esc: escFn });
     }
 
-    function getContributeType(){ return (el('contributeTypeSelect') && el('contributeTypeSelect').value) || 'post'; }
+    /* Prompt #117 ARCHIVE: Profile post (Locker) creation retired from Create UI. Keep dormant
+     * renderer/submit below for restore; never surface the mode via selector/deep-link/stale state. */
+    var ARCHIVED_CONTRIBUTE_TYPES = { profile_post: true, profilepost: true };
+    var DEFAULT_CONTRIBUTE_TYPE = 'post';
+    function normalizeContributeType(raw){
+      var t = String(raw || '').trim().toLowerCase();
+      if (!t) return DEFAULT_CONTRIBUTE_TYPE;
+      if (ARCHIVED_CONTRIBUTE_TYPES[t]) return DEFAULT_CONTRIBUTE_TYPE;
+      return t;
+    }
+    function getContributeType(){
+      var sel = el('contributeTypeSelect');
+      var raw = sel ? String(sel.value || '') : '';
+      var t = normalizeContributeType(raw);
+      if (sel && ARCHIVED_CONTRIBUTE_TYPES[String(raw || '').trim().toLowerCase()]) {
+        sel.value = DEFAULT_CONTRIBUTE_TYPE;
+      }
+      return t || DEFAULT_CONTRIBUTE_TYPE;
+    }
     var SHOUT_LABELS = { kindness: 'Kindness', effort: 'Effort', teamwork: 'Teamwork', helping: 'Helping out', great_work: 'Great work' };
 
     function resetContributeFormPartial(){
@@ -1797,7 +1817,8 @@
         if (sel && tp === 'poll') sel.value = 'poll';
         if (sel && tp === 'post') sel.value = 'post';
         if (sel && tp === 'shoutout') sel.value = 'shoutout';
-        if (sel && (tp === 'profile_post' || tp === 'profilepost')) sel.value = 'profile_post';
+        /* Prompt #117 ARCHIVE: stale ?type=profile_post falls back to default Create type. */
+        if (sel && (tp === 'profile_post' || tp === 'profilepost')) sel.value = DEFAULT_CONTRIBUTE_TYPE;
         var rawN = sessionStorage.getItem('LANTERN_NEWS_ARTICLE_RESUBMIT');
         if (rawN) {
           sessionStorage.removeItem('LANTERN_NEWS_ARTICLE_RESUBMIT');
@@ -2248,6 +2269,8 @@
         return;
       }
       if (ct === 'profile_post'){
+        /* Prompt #117 ARCHIVE: unreachable while profile_post is removed from the selector and
+         * getContributeType() normalizes archived types to DEFAULT_CONTRIBUTE_TYPE. Body kept for restore. */
         var adPr = getAdopted();
         if (!adPr || !adPr.name){ toast('Adopt a character first'); return; }
         if (!createRun){ toast('Not available'); return; }
