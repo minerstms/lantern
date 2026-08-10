@@ -16,9 +16,7 @@ function ok(msg) { pass++; console.log('PASS', msg); }
 function bad(msg, d) { fail++; console.error('FAIL', msg, d || ''); }
 
 function openingTagForId(id) {
-  const re = new RegExp('<details\\b[^>]*\\bid="' + id + '"[^>]*>|<details\\b[^>]*\\bid="' + id + '"[^>]*>', 'i');
-  const m = html.match(new RegExp('<details\\b[^>]{0,200}\\bid="' + id + '"[^>]*>', 'i'))
-    || html.match(new RegExp('<details\\b[^>]*\\bid="' + id + '"[^>]*>', 'i'));
+  const m = html.match(new RegExp('<details\\b[^>]{0,200}\\bid="' + id + '"[^>]*>', 'i'));
   if (m) return m[0];
   const idx = html.indexOf('id="' + id + '"');
   if (idx < 0) return '';
