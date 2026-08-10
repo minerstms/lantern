@@ -1,9 +1,11 @@
 /*
- * Prompt #119 / #122 / #131 — ONE shared collapsible LIST PANEL pattern (entire list, not per-row).
- * Opt in: <details class="card teacherCollapsibleList"> or nested
+ * Prompt #119 / #122 / #131 / #133 — ONE shared collapsible LIST PANEL pattern
+ * (outer list) plus compact RECORD disclosures (inner rows).
+ * Opt in outer: <details class="card teacherCollapsibleList"> or nested
  * <details class="teacherCollapsibleList teacherCollapsibleList--nested">.
- * Collapsed = summary row only (title + optional count/actions + chevron).
- * Expanded = body with comfortable viewport-based height; list body scrolls internally.
+ * Opt in record: <details class="lanternMgmtRecord">.
+ * Collapsed panel = summary row only. Expanded panel = compact records;
+ * each record expands for actions/detail. Prefer one open record at a time.
  * Class name teacherCollapsibleList is the established opt-in token (Teacher + Admin).
  */
 
@@ -100,4 +102,156 @@
 }
 .teacherCollapsibleList--nested .teacherCollapsibleListHd .h {
   font-size: 22px;
+}
+
+/* ========== Prompt #133 — compact RECORD disclosures inside an expanded list panel ========== */
+
+.lanternMgmtRecordListHd {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(72px, 0.7fr) minmax(72px, 0.7fr) 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  position: sticky;
+  top: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1;
+}
+.lanternMgmtRecordListHd--students {
+  grid-template-columns: minmax(64px, 0.8fr) minmax(0, 1.4fr) minmax(48px, 0.5fr) minmax(72px, 0.8fr) minmax(72px, 0.8fr) 28px;
+}
+.lanternMgmtRecordListHd--missions {
+  grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.7fr) minmax(88px, 0.8fr) 28px;
+}
+
+.lanternMgmtRecordList {
+  display: block;
+}
+
+.lanternMgmtRecord {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+}
+.lanternMgmtRecord:last-child {
+  border-bottom: none;
+}
+
+.lanternMgmtRecord > summary.lanternMgmtRecordHd {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(72px, 0.7fr) minmax(72px, 0.7fr) 28px;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.lanternMgmtRecord > summary.lanternMgmtRecordHd::-webkit-details-marker {
+  display: none;
+}
+.lanternMgmtRecord--students > summary.lanternMgmtRecordHd {
+  grid-template-columns: minmax(64px, 0.8fr) minmax(0, 1.4fr) minmax(48px, 0.5fr) minmax(72px, 0.8fr) minmax(72px, 0.8fr) 28px;
+}
+.lanternMgmtRecord--missions > summary.lanternMgmtRecordHd {
+  grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.7fr) minmax(88px, 0.8fr) 28px;
+}
+
+.lanternMgmtRecordCol {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lanternMgmtRecordCol--muted {
+  color: var(--muted, #b9c6ea);
+  font-weight: 700;
+  font-size: 18px;
+}
+.lanternMgmtRecordChev {
+  justify-self: end;
+  color: var(--muted, #b9c6ea);
+  font-weight: 900;
+  line-height: 1;
+}
+.lanternMgmtRecordChev::before {
+  content: '▸';
+}
+.lanternMgmtRecord[open] > summary .lanternMgmtRecordChev::before {
+  content: '▾';
+}
+
+.lanternMgmtRecord > summary.lanternMgmtRecordHd:focus-visible {
+  outline: 2px solid var(--accent, #5aa7ff);
+  outline-offset: 2px;
+}
+.lanternMgmtRecord > summary.lanternMgmtRecordHd:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Prompt #133 — collapsed record = summary only (no reserved action stack). */
+.lanternMgmtRecord:not([open]) > *:not(summary) {
+  display: none !important;
+}
+
+.lanternMgmtRecordBd {
+  padding: 10px 12px 14px;
+  border-top: 1px dashed var(--line, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.14);
+}
+.lanternMgmtRecordMeta {
+  margin: 0 0 10px;
+  color: var(--muted, #b9c6ea);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.lanternMgmtRecordActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.lanternMgmtRecordActions .btn {
+  margin-top: 0;
+  margin-right: 0;
+}
+.lanternMgmtRecordEditor {
+  margin-top: 12px;
+}
+.lanternMgmtRecordEditor .acctInlinePanel,
+.lanternMgmtRecordEditor > .acctInlinePanel {
+  max-width: none;
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  .lanternMgmtRecordListHd,
+  .lanternMgmtRecordListHd--students,
+  .lanternMgmtRecordListHd--missions {
+    display: none;
+  }
+  .lanternMgmtRecord > summary.lanternMgmtRecordHd,
+  .lanternMgmtRecord--students > summary.lanternMgmtRecordHd,
+  .lanternMgmtRecord--missions > summary.lanternMgmtRecordHd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    grid-template-columns: none;
+    align-items: baseline;
+  }
+  .lanternMgmtRecordChev {
+    margin-left: auto;
+  }
+  .lanternMgmtRecordCol {
+    white-space: nowrap;
+  }
 }

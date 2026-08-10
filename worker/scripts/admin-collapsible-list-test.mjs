@@ -61,8 +61,8 @@ if (/<details class="card teacherCollapsibleList" id="adminStaffCard"/.test(html
 if (/id="adminStaffCountPill"/.test(html)) ok('Staff & Admin count pill present');
 else bad('Staff & Admin count pill missing');
 
-if (/teacherCollapsibleListScroll[\s\S]{0,80}id="usersTable"|id="usersTable"[\s\S]{0,40}<\/table>[\s\S]{0,20}<\/div>/.test(html) ||
-    /class="teacherCollapsibleListScroll"[\s\S]{0,200}usersTable/.test(html)) {
+if (/teacherCollapsibleListScroll[\s\S]{0,200}id="usersBody"|id="usersBody"[\s\S]{0,80}lanternMgmtRecordList/.test(html) ||
+    /class="teacherCollapsibleListScroll"[\s\S]{0,400}usersBody/.test(html)) {
   ok('Staff table sits inside teacherCollapsibleListScroll');
 } else bad('Staff table not wrapped in scroll container');
 
@@ -130,6 +130,31 @@ if (/id="editUserPanel"[^>]*hidden|id="editUserPanel"[\s\S]{0,80}hidden/.test(ht
     /id="tempPwPanel"[^>]*hidden|id="tempPwPanel"[\s\S]{0,80}hidden/.test(html)) {
   ok('Edit/temp panels start hidden (no reserved editor space)');
 } else bad('Edit/temp panels not hidden by default');
+
+/* Prompt #133 — compact record disclosures */
+if (/lanternMgmtRecord/.test(sharedCss) && /wireRecords/.test(sharedJs)) {
+  ok('shared compact record disclosure CSS + wireRecords API present');
+} else bad('missing shared lanternMgmtRecord / wireRecords');
+
+if (/lanternMgmtRecord:not\(\[open\]\)\s*>\s*\*:not\(summary\)/.test(sharedCss)) {
+  ok('collapsed records force-hide non-summary children');
+} else bad('missing collapsed-record force-hide CSS');
+
+if (/renderStaffTable[\s\S]{0,2500}lanternMgmtRecord/.test(html) && /renderStudentsRosterTable[\s\S]{0,2500}lanternMgmtRecord/.test(html)) {
+  ok('Staff + Students renderers emit lanternMgmtRecord disclosures');
+} else bad('Staff/Students not using lanternMgmtRecord');
+
+if (!/Teacher and admin Lantern accounts only|schema migration required before Staff/.test(html)) {
+  ok('Staff instructional / Staff ID migration prose removed from Admin UI');
+} else bad('Staff instructional prose still present');
+
+if (!/id="usersTable"/.test(html) && !/id="studentsRosterTable"/.test(html)) {
+  ok('legacy permanently-actioned staff/student tables removed');
+} else bad('legacy usersTable/studentsRosterTable still present');
+
+if (/closeOpenRecords/.test(sharedJs) && /lantern-mgmt-record-collapse/.test(sharedJs)) {
+  ok('outer panel collapse closes open records; record collapse event exists');
+} else bad('missing closeOpenRecords / record-collapse wiring');
 
 console.log('\nadmin-collapsible-list-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

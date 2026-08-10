@@ -366,10 +366,14 @@ async function main() {
   await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
   assert((await allRowTitles())[0] === 'Shell Test Gamma', '"Archived" filter shows only the archived mission');
   const archivedRowMeta = await page.locator('#teacherMissionsEl .teacherMissionRow .teacherMissionRowMeta').innerText();
-  assert(archivedRowMeta.indexOf('Archived') !== -1 && archivedRowMeta.indexOf('3 submission') !== -1, 'Archived mission row shows Archived status + submission count: ' + archivedRowMeta);
-  assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Restore")').count() === 1, 'Archived mission row shows Restore instead of Archive');
+  assert(archivedRowMeta.indexOf('Archived') !== -1, 'Archived mission compact row shows Archived status: ' + archivedRowMeta);
+  const archivedSubs = await page.locator('#teacherMissionsEl .teacherMissionRow .lanternMgmtRecordCol--muted').innerText();
+  assert(archivedSubs.indexOf('3 submission') !== -1, 'Archived mission compact row shows submission count: ' + archivedSubs);
+  await page.locator('#teacherMissionsEl .teacherMissionRow summary').click();
+  assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Restore")').count() === 1, 'Archived mission expanded actions show Restore instead of Archive');
   assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Resume")').evaluate((el) => el.disabled), 'Archived mission cannot Resume directly — must Restore first');
   assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Delete")').count() === 0, 'Archived (used) mission has no Delete action — history exists');
+  await page.locator('#teacherMissionsEl .teacherMissionRow summary').click();
 
   await page.click('.teacherMissionsFilterChip[data-mission-filter="all"]');
   await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 3, { timeout: 5000 });
@@ -378,6 +382,7 @@ async function main() {
   await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
   assert((await allRowTitles())[0] === 'Shell Test Beta', 'Title search narrows My Missions to the matching mission');
   const unusedRow = page.locator('#teacherMissionsEl .teacherMissionRow', { hasText: 'Shell Test Beta' });
+  await unusedRow.locator('summary').click();
   assert(await unusedRow.locator('button:has-text("Delete")').count() === 1, 'Unused mission (0 submissions) exposes a Delete action');
   assert(await unusedRow.locator('button:has-text("Resume")').count() === 1, 'Paused mission shows Resume (not Activate)');
   assert(await unusedRow.locator('button:has-text("Promote")').count() === 1, 'Unpromoted mission shows Promote (not Feature)');
@@ -389,10 +394,12 @@ async function main() {
   assert(await page.locator('.teacherMissionEditForm [data-edit="audience"]').count() === 1, 'Edit form exposes Audience for a mission with zero submissions (safe to change pre-first-submission)');
   await page.click('.teacherMissionEditForm .teacherMissionEditCancelBtn');
   assert(await page.locator('.teacherMissionEditForm').count() === 0, 'Cancel closes the inline edit form without saving');
+  await unusedRow.locator('summary').click();
 
   await page.fill('#teacherMissionsSearchInput', 'Alpha');
   await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
   const usedRow = page.locator('#teacherMissionsEl .teacherMissionRow', { hasText: 'Shell Test Alpha' });
+  await usedRow.locator('summary').click();
   await usedRow.locator('button:has-text("Edit")').click();
   await page.waitForSelector('.teacherMissionEditForm', { timeout: 5000 });
   assert(await page.locator('.teacherMissionEditForm [data-edit="audience"]').count() === 0, 'Edit form hides Audience once a mission has a submission (server-enforced lock)');

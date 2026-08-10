@@ -108,5 +108,22 @@ if (/id="schoolAccessStatusCard"[\s\S]{0,200}cardHd/.test(html) && !/id="schoolA
   ok('Today\'s School Status summary card not converted to list panel');
 } else ok('School Status card left as non-list (or already checked)');
 
+/* Prompt #133 — compact record disclosures */
+if (/lanternMgmtRecord/.test(sharedCss) && /wireRecords/.test(sharedJs)) {
+  ok('shared compact record disclosure assets present');
+} else bad('missing lanternMgmtRecord / wireRecords');
+
+if (/renderTeacherMissions[\s\S]{0,2500}lanternMgmtRecord/.test(html)) {
+  ok('My Missions renderer emits lanternMgmtRecord disclosures');
+} else bad('My Missions not using lanternMgmtRecord');
+
+if (/teacherApprovalPendingRow[\s\S]{0,200}approvalQueueTitle[\s\S]{0,80}white-space:\s*nowrap|Prompt #133 — Review Queue compact/.test(html)) {
+  ok('Review Queue compact one-line row CSS present');
+} else bad('Review Queue compact row CSS missing');
+
+if (/closeOpenRecords/.test(sharedJs) && /one open record|Prefer one open record|lanternMgmtRecord\[open\]/.test(sharedJs)) {
+  ok('shared list prefers one open record and closes records on outer collapse');
+} else bad('missing one-open-record / closeOpenRecords behavior');
+
 console.log('\nteacher-collapsible-list-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

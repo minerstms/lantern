@@ -147,9 +147,9 @@ if (/Archive \/ Deactivate|Archive Lantern Login/.test(html) && /Restore Lantern
 if (!/Delete account|deleteAccount|permanent delete/i.test(html)) ok('No normal Delete account UI');
 else bad('Destructive delete UI present');
 
-if (/Staff ID[\s\S]{0,80}schema migration|immutable Staff ID[\s\S]{0,80}migration/i.test(html)) {
-  ok('UI documents Staff ID blocked pending migration');
-} else bad('missing Staff ID migration notice');
+if (!/Staff ID[\s\S]{0,80}schema migration|immutable Staff ID[\s\S]{0,80}migration/i.test(html)) {
+  ok('Staff ID migration commentary not exposed in production Admin UI');
+} else bad('Staff ID migration notice still present in Admin UI');
 
 if (/data-collapsible-editor/.test(html) && /lantern-collapsible-collapse/.test(html)) {
   ok('editors tied to collapsible collapse cleanup');

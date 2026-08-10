@@ -347,7 +347,7 @@
     .approvalQueueMeta{ font-size: 20px; color: var(--muted); margin-top: 4px; }
     .approvalQueueMid{ flex: 0 0 auto; }
     .approvalQueueMid img{ width: 72px; height: 72px; object-fit: cover; border-radius: 10px; }
-    .approvalQueueRight{ display: flex; gap: 8px; flex-wrap: wrap; }
+    .approvalQueueRight{ display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
     .approvalsTwoCol{ display: flex; gap: 12px; flex-wrap: wrap; }
     .approvalsTwoCol .approvalsCol{ flex: 1; min-width: 280px; display: flex; flex-direction: column; }
     .approvalsTwoCol .approvalsColHd{ font-weight: 900; font-size: 24px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -358,12 +358,14 @@
     .approvalRowReviewBtn{ flex-shrink: 0; }
     /* Pending queue rows only (#teacher-approvals schoolwide / classroom lists via renderApprovalRow) */
     #teacher-approvals .teacherApprovalPendingRow{
-      align-items: flex-start;
-      padding: 10px 12px;
-      gap: 12px;
+      align-items: center;
+      padding: 4px 10px;
+      gap: 10px;
       border-left: 3px solid rgba(255,255,255,.1);
       border-radius: 0 10px 10px 0;
       margin-bottom: 2px;
+      flex-wrap: nowrap;
+      min-height: 44px;
     }
     #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--news{ border-left-color: rgba(90,167,255,.55); background: rgba(90,167,255,.04); }
     #teacher-approvals .teacherApprovalPendingRow.approvalQueueRow--post{ border-left-color: rgba(242,194,48,.45); background: rgba(242,194,48,.05); }
@@ -1213,26 +1215,68 @@
     }
     .teacherMissionsSearchInput{ flex: 1; min-width: 200px; max-width: 360px; height: 48px; }
     .teacherMissionRow{
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
+      /* Prompt #133 — compact record; actions live in expanded .lanternMgmtRecordBd */
     }
-    .teacherMissionRow:last-child{ border-bottom: none; }
     .teacherMissionRow.is-archived{ opacity: .72; }
-    .teacherMissionRowInfo{ flex: 1; min-width: 220px; }
-    .teacherMissionRowTitle{ font-weight: 900; font-size: 22px; margin-bottom: 4px; }
-    .teacherMissionRowMeta{ font-size: 18px; color: var(--muted); }
-    .teacherMissionRowMeta .status-active{ color: #38d07c; font-weight: 800; }
-    .teacherMissionRowMeta .status-paused{ color: #f5c451; font-weight: 800; }
-    .teacherMissionRowMeta .status-archived{ color: var(--muted); font-weight: 800; }
+    .teacherMissionRow .teacherMissionRowTitle{ font-weight: 900; font-size: 20px; }
+    .teacherMissionRow .teacherMissionRowMeta{ font-size: 18px; color: var(--muted); font-weight: 700; }
+    .teacherMissionRow .teacherMissionRowMeta .status-active{ color: #38d07c; font-weight: 800; }
+    .teacherMissionRow .teacherMissionRowMeta .status-paused{ color: #f5c451; font-weight: 800; }
+    .teacherMissionRow .teacherMissionRowMeta .status-archived{ color: var(--muted); font-weight: 800; }
     .teacherMissionRowActions{ display: flex; gap: 6px; flex-wrap: wrap; }
     .teacherMissionEditForm{ width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
     .teacherMissionRewardWarning{ font-size: 16px; color: #f5c451; margin: 6px 0 0; }
     .teacherMissionLockedNote{ font-size: 16px; color: var(--muted); margin: 10px 0; }
+
+    /* Prompt #133 — Review Queue compact one-line summary rows (detail/actions in review modal). */
+    #teacher-approvals .teacherApprovalPendingRow{
+      align-items: center;
+      flex-wrap: nowrap;
+      min-height: 44px;
+      padding: 4px 10px;
+      gap: 10px;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueAvatar{ display: none; }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueMeta{ display: none; }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueText{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      min-width: 0;
+      overflow: hidden;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueHead{
+      margin: 0;
+      flex-shrink: 0;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueTitle{
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalQueueMid img{
+      width: 36px;
+      height: 36px;
+    }
+    #teacher-approvals .teacherApprovalPendingRow .approvalRowReviewBtn{
+      min-width: 0;
+    }
+    @media (max-width: 640px){
+      #teacher-approvals .teacherApprovalPendingRow{
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      #teacher-approvals .teacherApprovalPendingRow .approvalQueueText{
+        flex-wrap: wrap;
+      }
+      #teacher-approvals .teacherApprovalPendingRow .approvalQueueTitle{
+        white-space: normal;
+      }
+    }
 
     @media (max-width: 900px){
       .teacherAppShell{ display: block; }
@@ -3387,7 +3431,7 @@
       }
       var row = document.createElement('div');
       row.className = 'approvalQueueRow approvalRowClickable teacherApprovalPendingRow approvalQueueRow--' + kindKey;
-      row.innerHTML = selHtml + '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn">Review</button></div>';
+      row.innerHTML = selHtml + '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn" aria-label="Review">Review</button><span class="lanternMgmtRecordChev" aria-hidden="true"></span></div>';
       function openReview(){ onReview(entry); }
       row.addEventListener('click', function(ev){ if (ev.target.closest('.approvalQueueSelectCell')) return; if (ev.target.closest('.approvalRowReviewBtn')) return; openReview(); });
       row.querySelector('.approvalRowReviewBtn').addEventListener('click', function(ev){ ev.stopPropagation(); openReview(); });
@@ -4486,6 +4530,7 @@
       var existing = row.querySelector('.teacherMissionEditForm');
       if (existing) { existing.remove(); return; }
       Array.prototype.forEach.call(document.querySelectorAll('.teacherMissionEditForm'), function(f){ f.remove(); });
+      if (row && !row.open) row.open = true;
 
       // Prompt #103 edit matrix (CURSOR REPLY #100 §5): audience/target_character_names/
       // allows_*/min_characters are only safe to edit before the mission's first submission —
@@ -4493,6 +4538,7 @@
       var hasSubmissions = (m.submission_count || 0) > 0;
       var wrap = document.createElement('div');
       wrap.className = 'teacherMissionEditForm';
+      wrap.setAttribute('data-collapsible-editor', '1');
       wrap.innerHTML =
         '<div class="teacherField"><label>Title</label><input type="text" class="teacherInput" data-edit="title" value="' + esc(m.title || '') + '" /></div>' +
         '<div class="teacherField"><label>Instructions</label><textarea class="teacherTextarea" data-edit="description">' + esc(m.description || '') + '</textarea></div>' +
@@ -4505,7 +4551,8 @@
           ? '<p class="teacherMissionLockedNote">Audience &amp; submission requirements are locked — this mission already has a submission.</p>'
           : missionEditRestrictedFieldsHtml(m)) +
         '<div class="teacherActions"><button type="button" class="btn good small teacherMissionEditSaveBtn">Save</button> <button type="button" class="btn small teacherMissionEditCancelBtn">Cancel</button></div>';
-      row.appendChild(wrap);
+      var mount = row.querySelector('.lanternMgmtRecordBd') || row;
+      mount.appendChild(wrap);
 
       wrap.querySelector('.teacherMissionEditCancelBtn').addEventListener('click', function(){ wrap.remove(); });
       wrap.querySelector('.teacherMissionEditSaveBtn').addEventListener('click', async function(){
@@ -4546,30 +4593,42 @@
         return;
       }
       container.innerHTML = '';
+      var hd = document.createElement('div');
+      hd.className = 'lanternMgmtRecordListHd lanternMgmtRecordListHd--missions';
+      hd.setAttribute('aria-hidden', 'true');
+      hd.innerHTML = '<span>Mission</span><span>Status</span><span>Submissions</span><span></span>';
+      container.appendChild(hd);
       list.forEach(function(m){
-        var row = document.createElement('div');
+        var row = document.createElement('details');
         var statusKey = missionStatusKey(m);
-        row.className = 'teacherMissionRow' + (statusKey === 'archived' ? ' is-archived' : '');
+        row.className = 'lanternMgmtRecord lanternMgmtRecord--missions teacherMissionRow' + (statusKey === 'archived' ? ' is-archived' : '');
+        row.setAttribute('data-record-key', String(m.id || m.title || ''));
         var statusLabel = statusKey === 'active' ? 'Active' : (statusKey === 'paused' ? 'Paused' : 'Archived');
         var rewardAmt = m.reward_amount || 1;
         var createdLabel = formatMissionCreatedDate(m.created_at);
         var subCount = m.submission_count || 0;
+        var subLabel = subCount + ' submission' + (subCount !== 1 ? 's' : '');
         row.innerHTML =
-          '<div class="teacherMissionRowInfo">' +
-            '<div class="teacherMissionRowTitle">' + esc(m.title || '') + '</div>' +
-            '<div class="teacherMissionRowMeta"><span class="status-' + statusKey + '">' + statusLabel + '</span> · ' +
+          '<summary class="lanternMgmtRecordHd">' +
+            '<span class="lanternMgmtRecordCol teacherMissionRowTitle">' + esc(m.title || '') + '</span>' +
+            '<span class="lanternMgmtRecordCol teacherMissionRowMeta"><span class="status-' + statusKey + '">' + statusLabel + '</span></span>' +
+            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--muted">' + esc(subLabel) + '</span>' +
+            '<span class="lanternMgmtRecordChev" aria-hidden="true"></span>' +
+          '</summary>' +
+          '<div class="lanternMgmtRecordBd">' +
+            '<p class="lanternMgmtRecordMeta">' +
               rewardAmt + ' Nugget' + (rewardAmt !== 1 ? 's' : '') +
               (createdLabel ? ' · Created ' + createdLabel : '') +
-              ' · ' + subCount + ' submission' + (subCount !== 1 ? 's' : '') +
-            '</div>' +
-          '</div>' +
-          '<div class="teacherMissionRowActions"></div>';
+              (m.featured ? ' · Promoted' : '') +
+            '</p>' +
+            '<div class="teacherMissionRowActions lanternMgmtRecordActions"></div>' +
+          '</div>';
         var actions = row.querySelector('.teacherMissionRowActions');
 
         var editBtn = document.createElement('button');
         editBtn.className = 'btn small';
         editBtn.textContent = 'Edit';
-        editBtn.addEventListener('click', function(){ toggleMissionEditForm(m, row); });
+        editBtn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); toggleMissionEditForm(m, row); });
         actions.appendChild(editBtn);
 
         var pauseBtn = document.createElement('button');
@@ -4579,7 +4638,9 @@
         if (m.archived) pauseBtn.title = 'Restore this mission first';
         pauseBtn.style.borderColor = m.active ? 'rgba(255,77,109,.5)' : 'rgba(56,208,124,.5)';
         pauseBtn.style.background = m.active ? 'rgba(255,77,109,.15)' : 'rgba(56,208,124,.15)';
-        pauseBtn.addEventListener('click', async function(){
+        pauseBtn.addEventListener('click', async function(ev){
+          ev.preventDefault();
+          ev.stopPropagation();
           pauseBtn.disabled = true;
           var res = await callUpdateTeacherMission(m.id, { active: !m.active });
           pauseBtn.disabled = false;
@@ -4592,7 +4653,9 @@
         var promoteBtn = document.createElement('button');
         promoteBtn.className = 'btn small';
         promoteBtn.textContent = m.featured ? 'Unpromote' : 'Promote';
-        promoteBtn.addEventListener('click', async function(){
+        promoteBtn.addEventListener('click', async function(ev){
+          ev.preventDefault();
+          ev.stopPropagation();
           promoteBtn.disabled = true;
           var res = await callUpdateTeacherMission(m.id, { featured: !m.featured });
           promoteBtn.disabled = false;
@@ -4605,7 +4668,9 @@
         var archiveBtn = document.createElement('button');
         archiveBtn.className = 'btn small';
         archiveBtn.textContent = m.archived ? 'Restore' : 'Archive';
-        archiveBtn.addEventListener('click', async function(){
+        archiveBtn.addEventListener('click', async function(ev){
+          ev.preventDefault();
+          ev.stopPropagation();
           if (!m.archived && !confirm('Archive "' + (m.title || '') + '"? It becomes unavailable to students; all submissions/approvals/Nugget history are preserved.')) return;
           archiveBtn.disabled = true;
           var res = await callUpdateTeacherMission(m.id, { archived: !m.archived });
@@ -4622,7 +4687,9 @@
           var deleteBtn = document.createElement('button');
           deleteBtn.className = 'btn bad small';
           deleteBtn.textContent = 'Delete';
-          deleteBtn.addEventListener('click', async function(){
+          deleteBtn.addEventListener('click', async function(ev){
+            ev.preventDefault();
+            ev.stopPropagation();
             if (!confirm('Permanently delete "' + (m.title || '') + '"? It has no submissions, so this cannot be undone.')) return;
             deleteBtn.disabled = true;
             var res = await callDeleteTeacherMission(m.id);
@@ -4636,6 +4703,9 @@
 
         container.appendChild(row);
       });
+      if (window.LanternCollapsibleList && typeof window.LanternCollapsibleList.wireRecords === 'function') {
+        window.LanternCollapsibleList.wireRecords(container);
+      }
     }
 
     // Prompt #103 — the old "Mission submissions" panel duplicated Review Queue; replaced with a
