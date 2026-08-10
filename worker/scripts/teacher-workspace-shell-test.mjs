@@ -24,8 +24,9 @@
  *  - Create Mission and My Missions are ONE sidebar destination ("Missions") — there is no
  *    separate visible Create Mission sidebar item anymore.
  *  - #create (preserved deep link) opens the Missions workspace with Create New Mission
- *    auto-expanded; #missions opens Missions with it collapsed; My Missions is expanded by
- *    default underneath either way.
+ *    auto-expanded; #missions opens Missions with it collapsed.
+ *  - Prompt #119 — My Missions / Review Queue (and other qualifying list panels) use the shared
+ *    teacherCollapsibleList pattern and load COLLAPSED by default; tests expand before asserting rows.
  *  - My Missions has [All]/[Active]/[Paused]/[Archived] filter chips + a title search box, and
  *    each mission row exposes Edit/Pause-Resume/Promote-Unpromote/Archive-Restore (+Delete only
  *    when unused).
@@ -187,7 +188,7 @@ async function main() {
   // Sidebar navigation + hash routing
   // ---------------------------------------------------------------------------
   await page.click('.teacherSidebarItem[data-workspace-link="review"]');
-  await page.waitForFunction(() => document.getElementById('teacher-approvals').classList.contains('is-active-workspace'), { timeout: 5000 });
+  await page.waitForFunction(() => document.getElementById('teacher-approvals-workspace').classList.contains('is-active-workspace'), { timeout: 5000 });
   assert(page.url().indexOf('#review') !== -1, 'Clicking the Review Queue sidebar item updates the URL hash');
   assert((await activeWorkspaceIds()).join(',') === 'review', 'Clicking the Review Queue sidebar item opens the review workspace');
   assert(await page.locator('.teacherSidebarItem[data-workspace-link="review"]').evaluate((el) => el.classList.contains('is-active')), 'Review Queue sidebar item is marked active');
@@ -223,8 +224,17 @@ async function main() {
   // Review Queue — Classroom / Schoolwide tabs, collapsible filters, contextual bulk bar
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'review'; });
-  await page.waitForFunction(() => document.getElementById('teacher-approvals').classList.contains('is-active-workspace'), { timeout: 5000 });
-  await page.waitForSelector('#myClassroomBody .teacherApprovalPendingRow', { timeout: 15000 });
+  await page.waitForFunction(() => document.getElementById('teacher-approvals-workspace').classList.contains('is-active-workspace'), { timeout: 5000 });
+  /* Prompt #119 — Review Queue is a shared collapsible list panel (collapsed by default). */
+  assert(await page.locator('#teacher-approvals').evaluate((el) => el.tagName === 'DETAILS' && el.classList.contains('teacherCollapsibleList')), 'Review Queue uses the shared teacherCollapsibleList pattern');
+  assert(await page.locator('#teacher-approvals').evaluate((el) => !el.open), 'Review Queue starts collapsed (one-row header)');
+  assert(await page.locator('#pendingApprovalsBadge').isVisible(), 'Collapsed Review Queue still shows the pending count badge');
+  await page.locator('#teacher-approvals > summary.teacherCollapsibleListHd').click();
+  assert(await page.locator('#teacher-approvals').evaluate((el) => !!el.open), 'Review Queue expands from the header row');
+  assert(await page.locator('#refreshBtn').isVisible(), 'Refresh control is available inside the expanded Review Queue body');
+  await page.locator('#refreshBtn').click();
+  await page.waitForFunction(() => document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow').length > 0, { timeout: 15000 });
+  await page.waitForSelector('#myClassroomBody .teacherApprovalPendingRow', { state: 'visible', timeout: 10000 });
 
   assert(await page.locator('.approvalsCol[data-review-panel="classroom"]').evaluate((el) => el.classList.contains('is-active')), 'My Classroom panel is the active review tab by default');
   const schoolwideHiddenBefore = await page.locator('.approvalsCol[data-review-panel="schoolwide"]').evaluate((el) => getComputedStyle(el).display === 'none');
@@ -306,9 +316,13 @@ async function main() {
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'moderation'; });
   await page.waitForFunction(() => document.getElementById('teacher-moderation').classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#moderationLiveEl').isVisible(), 'Moderation workspace shows the existing live-content moderation controls');
   assert(await page.locator('#moderationRefreshBtn').isVisible(), 'Moderation Refresh control is retained');
-  const approvalsVisibleDuringModeration = await page.locator('#teacher-approvals').evaluate((el) => el.classList.contains('is-active-workspace'));
+  /* Prompt #119 — moderation sub-lists are shared collapsible panels (collapsed by default). */
+  assert(await page.locator('#moderationLivePanel').evaluate((el) => !el.open), 'Moderation live list starts collapsed');
+  await page.locator('#moderationLivePanel > summary').click();
+  assert(await page.locator('#moderationLivePanel').evaluate((el) => el.open), 'Moderation live list expands on header click');
+  assert(await page.locator('#moderationLiveEl').isVisible(), 'Moderation workspace shows the existing live-content moderation controls once expanded');
+  const approvalsVisibleDuringModeration = await page.locator('#teacher-approvals-workspace').evaluate((el) => el.classList.contains('is-active-workspace'));
   assert(!approvalsVisibleDuringModeration, 'Review Queue is not shown while Moderation workspace is active (isolated from everyday review work)');
 
   // ---------------------------------------------------------------------------
@@ -323,17 +337,23 @@ async function main() {
   assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Redeem Nugget button is retained and reachable');
 
   // ---------------------------------------------------------------------------
-  // Missions workspace (Create + My Missions consolidated, Prompt #103) — My Missions is
-  // expanded by default, shows filters/search + per-mission management actions.
+  // Missions workspace (Create + My Missions consolidated, Prompt #103) — Prompt #119:
+  // My Missions is a shared collapsible list panel, collapsed by default.
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'missions'; });
   await page.waitForFunction(() => document.getElementById('teacher-missions').classList.contains('is-active-workspace'), { timeout: 5000 });
   assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => !el.open), 'Create New Mission is collapsed again under plain #missions (not sticky-open from #create)');
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => el.tagName === 'DETAILS' && el.classList.contains('teacherCollapsibleList')), 'My Missions uses the shared teacherCollapsibleList pattern');
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !el.open), 'My Missions starts collapsed (one-row header only)');
+  assert(await page.locator('#teacherMissionsCount').isVisible(), 'Collapsed My Missions still shows the count badge');
+  await page.locator('#teacherMyMissionsCard > summary.teacherCollapsibleListHd').click();
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !!el.open), 'My Missions expands from the header row');
   await page.waitForSelector('#teacherMissionsEl .teacherMissionRow', { timeout: 10000 });
   const allRowTitles = () => page.locator('#teacherMissionsEl .teacherMissionRow .teacherMissionRowTitle').allTextContents();
-  assert((await allRowTitles()).length === 3, 'My Missions is expanded by default and lists all 3 fixture missions with no filter applied');
+  assert((await allRowTitles()).length === 3, 'Expanded My Missions lists all 3 fixture missions with no filter applied');
   assert(await page.locator('.teacherMissionsFilterChip[data-mission-filter="all"]').evaluate((el) => el.classList.contains('is-active')), '"All" filter chip is active by default');
-
+  const missionsScrollMax = await page.locator('#teacherMissionsEl').evaluate((el) => getComputedStyle(el).maxHeight);
+  assert(/px|vh|clamp/.test(missionsScrollMax) && missionsScrollMax !== 'none', 'Expanded My Missions list body uses bounded max-height for internal scroll: ' + missionsScrollMax);
   await page.click('.teacherMissionsFilterChip[data-mission-filter="active"]');
   await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
   assert((await allRowTitles())[0] === 'Shell Test Alpha', '"Active" filter shows only the active mission');
@@ -401,7 +421,9 @@ async function main() {
   await page.evaluate(() => { location.hash = 'other'; });
   await page.waitForFunction(() => document.getElementById('teacher-utilities').classList.contains('is-active-workspace'), { timeout: 5000 });
   assert(await page.locator('#classAccessStartBtn, #classAccessEndBtn').first().count() >= 1, 'Class Access controls remain reachable inside Other Tools');
-  assert(await page.locator('#totalsBody').isVisible(), 'Student Totals table remains reachable inside Other Tools');
+  assert(await page.locator('#teacherStudentTotalsCard').evaluate((el) => !el.open), 'Student Totals list panel starts collapsed');
+  await page.locator('#teacherStudentTotalsCard > summary.teacherCollapsibleListHd').click();
+  assert(await page.locator('#totalsBody').isVisible(), 'Student Totals table remains reachable inside Other Tools once expanded');
   assert((await page.locator('#teacher-utilities .h', { hasText: 'Student Totals' }).count()) === 1, 'Legacy "Character Totals" heading renamed to "Student Totals"');
   assert((await page.locator('#teacher-utilities th.cellStudentName').innerText()) === 'Student', 'Legacy "Character" column header renamed to "Student"');
 
@@ -462,7 +484,8 @@ async function main() {
   await emptyPage.route('**/api/store/bootstrap**', okJson({ ok: true, students: [] }));
   await emptyPage.goto(base + '/teacher.html#review', { waitUntil: 'domcontentloaded' });
   await emptyPage.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
-  await emptyPage.waitForFunction(() => document.getElementById('teacher-approvals').classList.contains('is-active-workspace'), { timeout: 5000 });
+  await emptyPage.waitForFunction(() => document.getElementById('teacher-approvals-workspace').classList.contains('is-active-workspace'), { timeout: 5000 });
+  await emptyPage.locator('#teacher-approvals > summary.teacherCollapsibleListHd').click();
   await emptyPage.waitForSelector('#myClassroomBody .placeholderRow', { timeout: 10000 });
   const emptyStateText = await emptyPage.locator('#myClassroomBody .placeholderRow').innerText();
   assert(emptyStateText.toLowerCase().indexOf('no classroom submissions waiting') !== -1, 'Empty Review Queue shows a compact "No … waiting" placeholder message: ' + emptyStateText);

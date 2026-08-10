@@ -937,6 +937,9 @@
     .teacherApprovalHistoryDetails > summary::-webkit-details-marker{ display: none; }
     .teacherApprovalHistoryDetails > summary::after{ content: ' — show'; font-size: 20px; font-weight: 800; color: var(--accent); }
     .teacherApprovalHistoryDetails[open] > summary::after{ content: ' — hide'; }
+    /* Prompt #119 — Reviewed history uses shared list chevron; drop legacy show/hide suffix. */
+    .teacherApprovalHistoryDetails.teacherCollapsibleList > summary.teacherCollapsibleListHd::after{ content: none; }
+    .teacherApprovalHistoryDetails.teacherCollapsibleList[open] > summary.teacherCollapsibleListHd::after{ content: none; }
     .teacherMissionMediaHint{ margin: 4px 0 8px; }
     .teacherMissionMediaHint > summary{
       list-style: none;
@@ -1179,6 +1182,99 @@
     .teacherCollapsibleCard > summary::-webkit-details-marker{ display: none; }
     .teacherCollapsibleCard > summary::before{ content: '▸'; color: var(--muted); font-weight: 900; margin-right: 4px; }
     .teacherCollapsibleCard[open] > summary::before{ content: '▾'; }
+
+    /*
+     * Prompt #119 — ONE shared collapsible LIST PANEL pattern (entire list, not per-row).
+     * Opt in: <details class="card teacherCollapsibleList"> or nested
+     * <details class="teacherCollapsibleList teacherCollapsibleList--nested">.
+     * Collapsed = summary row only (title + optional count/actions + chevron).
+     * Expanded = body with comfortable viewport-based height; list body scrolls internally.
+     */
+    .teacherCollapsibleList > summary.teacherCollapsibleListHd{
+      list-style: none;
+      cursor: pointer;
+      user-select: none;
+      min-height: 48px;
+      box-sizing: border-box;
+    }
+    .teacherCollapsibleList > summary.teacherCollapsibleListHd::-webkit-details-marker{ display: none; }
+    .teacherCollapsibleList > summary.teacherCollapsibleListHd::before{
+      content: '▸';
+      color: var(--muted);
+      font-weight: 900;
+      margin-right: 6px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .teacherCollapsibleList[open] > summary.teacherCollapsibleListHd::before{ content: '▾'; }
+    .teacherCollapsibleList > summary.teacherCollapsibleListHd:focus-visible{
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .teacherCollapsibleList:not([open]) > summary.teacherCollapsibleListHd{
+      border-bottom: none;
+    }
+    .teacherCollapsibleListTitle{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+    .teacherCollapsibleListMeta{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    /* Comfortable expanded list height — several full rows; body scrolls when needed. */
+    .teacherCollapsibleListScroll{
+      max-height: clamp(280px, 48vh, 560px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.12);
+    }
+    @media (max-width: 640px){
+      .teacherCollapsibleListScroll{
+        max-height: clamp(240px, 42vh, 420px);
+      }
+    }
+    /* Nested list panels inside a parent card (School Access, Shout-Out!, Moderation sections). */
+    .teacherCollapsibleList--nested{
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      background: transparent;
+      box-shadow: none;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
+      border-radius: 0;
+    }
+    .teacherCollapsibleList--nested > summary.teacherCollapsibleListHd{
+      padding: 8px 0;
+      border-bottom: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .teacherCollapsibleList--nested > .teacherCollapsibleListBd{
+      padding: 8px 0 0;
+    }
+    .teacherCollapsibleList--nested .teacherCollapsibleListHd .h{
+      font-size: 22px;
+    }
+    /* Review Queue: pending bodies scroll inside the shared expanded panel (overrides §23 grow-natural). */
+    #teacher-approvals.teacherCollapsibleList[open] .approvalsColBody.teacherCollapsibleListScroll{
+      max-height: clamp(280px, 48vh, 560px);
+      overflow: auto;
+    }
 
     /* Prompt #103 — consolidated Missions workspace: My Missions filter/search toolbar and
        per-mission management row (Edit/Pause/Promote/Archive/Delete). */
@@ -1514,20 +1610,26 @@
                 </div>
                 </div>
               </details>
-              <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                  <div class="h" style="font-size:22px;">Pending Access Requests</div>
-                  <span class="pill" id="accessRequestsPendingCountPill">0</span>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="accessRequestsPendingPanel">
+                <summary class="teacherCollapsibleListHd">
+                  <div class="teacherCollapsibleListTitle"><div class="h">Pending Access Requests</div></div>
+                  <div class="teacherCollapsibleListMeta"><span class="pill" id="accessRequestsPendingCountPill">0</span></div>
+                </summary>
+                <div class="teacherCollapsibleListBd">
+                  <p class="note note-tight">A student pressed Request Access and told you their identifier. Match it below.</p>
+                  <div id="accessRequestsPendingList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+                  <p class="note" id="accessRequestsPendingEmpty" style="display:none;">No pending requests right now.</p>
                 </div>
-                <p class="note note-tight">A student pressed Request Access and told you their identifier. Match it below.</p>
-                <div id="accessRequestsPendingList"></div>
-                <p class="note" id="accessRequestsPendingEmpty" style="display:none;">No pending requests right now.</p>
-              </div>
-              <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
-                <div class="h" style="font-size:22px;margin-bottom:8px;">Active Individual Grants</div>
-                <div id="accessRequestsActiveList"></div>
-                <p class="note" id="accessRequestsActiveEmpty" style="display:none;">No active individual grants right now.</p>
-              </div>
+              </details>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="accessRequestsActivePanel">
+                <summary class="teacherCollapsibleListHd">
+                  <div class="teacherCollapsibleListTitle"><div class="h">Active Individual Grants</div></div>
+                </summary>
+                <div class="teacherCollapsibleListBd">
+                  <div id="accessRequestsActiveList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+                  <p class="note" id="accessRequestsActiveEmpty" style="display:none;">No active individual grants right now.</p>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -1539,33 +1641,41 @@
             <div class="cardBd">
               <p class="note note-tight">Enroll classroom computers once, group them (e.g. "TMS STEM Lab"), then unlock the whole group temporarily. No shared password is ever created or displayed to students.</p>
 
-              <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                  <div class="h" style="font-size:22px;">Pending Device Pairings</div>
-                  <span class="pill" id="devicePairingsPendingCountPill">0</span>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="devicePairingsPendingPanel">
+                <summary class="teacherCollapsibleListHd">
+                  <div class="teacherCollapsibleListTitle"><div class="h">Pending Device Pairings</div></div>
+                  <div class="teacherCollapsibleListMeta"><span class="pill" id="devicePairingsPendingCountPill">0</span></div>
+                </summary>
+                <div class="teacherCollapsibleListBd">
+                  <p class="note note-tight">A classroom computer requested enrollment and is displaying an identifier. Match it below, verbally confirm in the room, then assign a label and a group.</p>
+                  <div id="devicePairingsPendingList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+                  <p class="note" id="devicePairingsPendingEmpty" style="display:none;">No pending device pairings right now.</p>
                 </div>
-                <p class="note note-tight">A classroom computer requested enrollment and is displaying an identifier. Match it below, verbally confirm in the room, then assign a label and a group.</p>
-                <div id="devicePairingsPendingList"></div>
-                <p class="note" id="devicePairingsPendingEmpty" style="display:none;">No pending device pairings right now.</p>
-              </div>
+              </details>
 
-              <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                  <div class="h" style="font-size:22px;">Device Groups</div>
-                  <button type="button" class="btn small" id="deviceGroupCreateToggleBtn">+ New Group</button>
-                </div>
-                <div id="deviceGroupCreatePanel" style="display:none;margin-bottom:10px;gap:8px;">
-                  <input type="text" id="deviceGroupCreateInput" placeholder="e.g. TMS STEM Lab" style="flex:1;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
-                  <button type="button" class="btn good small" id="deviceGroupCreateConfirmBtn">Create</button>
-                </div>
-                <div id="deviceGroupsList"></div>
-                <p class="note" id="deviceGroupsEmpty" style="display:none;">No device groups yet. Create one (e.g. "TMS STEM Lab") to get started.</p>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="deviceGroupsPanel">
+                <summary class="teacherCollapsibleListHd">
+                  <div class="teacherCollapsibleListTitle"><div class="h">Device Groups</div></div>
+                </summary>
+            <div class="teacherCollapsibleListBd">
+              <div style="margin-bottom:10px;">
+                <button type="button" class="btn small" id="deviceGroupCreateToggleBtn">+ New Group</button>
               </div>
+              <div id="deviceGroupCreatePanel" style="display:none;margin-bottom:10px;gap:8px;">
+                    <input type="text" id="deviceGroupCreateInput" placeholder="e.g. TMS STEM Lab" style="flex:1;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
+                    <button type="button" class="btn good small" id="deviceGroupCreateConfirmBtn">Create</button>
+                  </div>
+                  <div id="deviceGroupsList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+                  <p class="note" id="deviceGroupsEmpty" style="display:none;">No device groups yet. Create one (e.g. "TMS STEM Lab") to get started.</p>
+                </div>
+              </details>
 
-              <details style="margin-top:16px;">
-                <summary style="cursor:pointer;font-weight:800;font-size:22px;padding-top:14px;border-top:1px solid var(--line);">Enrolled Devices (manage / revoke)</summary>
-                <div style="padding-top:10px;">
-                  <div id="deviceEnrolledList"></div>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="deviceEnrolledPanel">
+                <summary class="teacherCollapsibleListHd">
+                  <div class="teacherCollapsibleListTitle"><div class="h">Enrolled Devices (manage / revoke)</div></div>
+                </summary>
+                <div class="teacherCollapsibleListBd">
+                  <div id="deviceEnrolledList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
                   <p class="note" id="deviceEnrolledEmpty" style="display:none;">No enrolled devices yet.</p>
                 </div>
               </details>
@@ -1614,23 +1724,34 @@
           </div>
 
           <div style="margin-top:18px;">
-            <div class="h" style="font-size:24px;">Recent activity</div>
-            <div id="teacherRewardHistoryList" class="teacherRewardHistoryList"></div>
+            <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="teacherRewardHistoryPanel">
+              <summary class="teacherCollapsibleListHd">
+                <div class="teacherCollapsibleListTitle"><div class="h">Recent activity</div></div>
+              </summary>
+              <div class="teacherCollapsibleListBd">
+                <div id="teacherRewardHistoryList" class="teacherRewardHistoryList teacherCollapsibleListScroll" style="padding:8px;"></div>
+              </div>
+            </details>
           </div>
         </div>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </div>
 
-    <div class="card" id="teacher-approvals" data-workspace="review" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
-      <div class="cardHd">
-        <div class="h">Review Queue</div>
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <span class="pill accent" id="pendingApprovalsBadge">0</span>
-          <button class="btn" id="refreshBtn">Refresh</button>
+    <div data-workspace="review" id="teacher-approvals-workspace">
+    <details class="card teacherCollapsibleList" id="teacher-approvals" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle">
+          <div class="h">Review Queue</div>
         </div>
-      </div>
-      <div class="cardBd">
+        <div class="teacherCollapsibleListMeta">
+          <span class="pill accent" id="pendingApprovalsBadge">0</span>
+        </div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
+        <div class="approvalsToolbar" style="margin-bottom:10px;">
+          <button class="btn" id="refreshBtn" type="button">Refresh</button>
+        </div>
         <p class="note note-tight">Open <strong>Review</strong> before approving.</p>
         <p class="note" id="approvalsIdentityStrip" style="margin-bottom:10px;display:none;font-weight:800;color:var(--warn);"></p>
         <div class="teacherReviewTabs" role="tablist" aria-label="Review queue">
@@ -1685,18 +1806,21 @@
         </div>
         <div class="approvalsTwoCol" id="approvalsTwoCol">
           <div class="approvalsCol is-active" data-review-panel="classroom">
-            <div id="myClassroomBody" class="approvalsColBody"></div>
+            <div id="myClassroomBody" class="approvalsColBody teacherCollapsibleListScroll"></div>
           </div>
           <div class="approvalsCol" data-review-panel="schoolwide">
-            <div id="schoolwideQueueBody" class="approvalsColBody"></div>
+            <div id="schoolwideQueueBody" class="approvalsColBody teacherCollapsibleListScroll"></div>
           </div>
         </div>
-        <details class="teacherApprovalHistoryDetails">
-          <summary>Reviewed history</summary>
-          <div id="approvalHistoryEl" class="scrollArea" style="max-height: 260px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:8px;"></div>
+        <details class="teacherApprovalHistoryDetails teacherCollapsibleList teacherCollapsibleList--nested">
+          <summary class="teacherCollapsibleListHd"><div class="teacherCollapsibleListTitle"><div class="h">Reviewed history</div></div></summary>
+          <div class="teacherCollapsibleListBd">
+            <div id="approvalHistoryEl" class="teacherCollapsibleListScroll"></div>
+          </div>
         </details>
       </div>
-    </div>
+    </details>
+    </div><!-- /#teacher-approvals-workspace -->
 
     <div id="reviewOverlay" class="reviewOverlay" role="dialog" aria-modal="true" aria-labelledby="reviewPanelTitle">
       <div class="reviewPanel">
@@ -1759,18 +1883,30 @@
       </div>
       <div class="cardBd">
         <p class="note note-tight">Hide from public view or restore. Hidden items stay available here.</p>
-        <div class="moderationSection">
-          <div class="moderationSectionHd">Remove from view (live content)</div>
-          <div id="moderationLiveEl" class="scrollArea" style="max-height:200px;overflow:auto;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.12);padding:10px;"></div>
-        </div>
-        <div class="moderationSection">
-          <div class="moderationSectionHd">Hidden content (restore)</div>
-          <div id="moderationHiddenEl" class="scrollArea" style="max-height:200px;overflow:auto;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.12);padding:10px;"></div>
-        </div>
-        <div class="moderationSection">
-          <div class="moderationSectionHd">Flagged for review</div>
-          <div id="moderationFlaggedEl" class="scrollArea" style="max-height:200px;overflow:auto;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.12);padding:10px;"></div>
-        </div>
+        <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationLivePanel">
+          <summary class="teacherCollapsibleListHd">
+            <div class="teacherCollapsibleListTitle"><div class="h">Remove from view (live content)</div></div>
+          </summary>
+          <div class="teacherCollapsibleListBd">
+            <div id="moderationLiveEl" class="teacherCollapsibleListScroll" style="padding:10px;"></div>
+          </div>
+        </details>
+        <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationHiddenPanel">
+          <summary class="teacherCollapsibleListHd">
+            <div class="teacherCollapsibleListTitle"><div class="h">Hidden content (restore)</div></div>
+          </summary>
+          <div class="teacherCollapsibleListBd">
+            <div id="moderationHiddenEl" class="teacherCollapsibleListScroll" style="padding:10px;"></div>
+          </div>
+        </details>
+        <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationFlaggedPanel">
+          <summary class="teacherCollapsibleListHd">
+            <div class="teacherCollapsibleListTitle"><div class="h">Flagged for review</div></div>
+          </summary>
+          <div class="teacherCollapsibleListBd">
+            <div id="moderationFlaggedEl" class="teacherCollapsibleListScroll" style="padding:10px;"></div>
+          </div>
+        </details>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </div>
@@ -1896,12 +2032,16 @@
       </div>
     </details>
 
-    <div class="card" id="teacherMyMissionsCard">
-      <div class="cardHd">
-        <div class="h">My Missions</div>
-        <div class="pill accent" id="teacherMissionsCount">0</div>
-      </div>
-      <div class="cardBd">
+    <details class="card teacherCollapsibleList" id="teacherMyMissionsCard">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle">
+          <div class="h">My Missions</div>
+        </div>
+        <div class="teacherCollapsibleListMeta">
+          <div class="pill accent" id="teacherMissionsCount">0</div>
+        </div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
         <div class="teacherMissionsToolbar">
           <div class="teacherMissionsFilterChips" id="teacherMissionsFilterChips" role="group" aria-label="Filter missions by status">
             <button type="button" class="teacherMissionsFilterChip is-active" data-mission-filter="all">All</button>
@@ -1911,12 +2051,12 @@
           </div>
           <input type="text" id="teacherMissionsSearchInput" class="teacherInput teacherMissionsSearchInput" placeholder="Search missions…" autocomplete="off" />
         </div>
-        <div id="teacherMissionsEl" class="scrollArea" style="max-height: 420px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12);"></div>
+        <div id="teacherMissionsEl" class="teacherCollapsibleListScroll"></div>
         <p class="note note-tight teacherMissionsPendingLink" id="teacherMissionsPendingLink" style="display:none;">
           <span id="teacherMissionsPendingCount">0</span> pending submission(s) → <a href="#review" data-workspace-link="review">Review Queue</a>
         </p>
       </div>
-    </div>
+    </details>
 
     <!-- Prompt #103 (follow-up): the legacy "Reviewed & approved" browse/curate panel and the
          generic Recognition composer (Spotlight/Feature/Teacher Pick/Praise) were removed from
@@ -1932,10 +2072,9 @@
     <!-- Prompt #107 — standalone Shout-Out! workspace (not inside Missions). Uses Worker recognition API; no Nugget award. -->
     <section id="teacher-shoutout" class="teacherMissionsSection" data-workspace="shoutout" aria-labelledby="teacherShoutOutHeading">
       <h2 id="teacherShoutOutHeading" class="visuallyHidden">Shout-Out!</h2>
-      <div class="card">
+      <div class="card" id="teacher-shoutout-card">
         <div class="cardHd">
           <div class="h">Shout-Out!</div>
-          <div class="pill good" id="shoutOutCount">0</div>
         </div>
         <div class="cardBd">
           <p class="note note-tight">Recognize anyone, now.</p>
@@ -1956,7 +2095,15 @@
           <div class="teacherActions">
             <button class="btn good" id="shoutOutPostBtn" type="button">Post Shout-Out!</button>
           </div>
-          <div id="shoutOutListEl" class="scrollArea" style="max-height: 280px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12); margin-top:14px;"></div>
+          <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="shoutOutListPanel">
+            <summary class="teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Posted Shout-Outs</div></div>
+              <div class="teacherCollapsibleListMeta"><div class="pill good" id="shoutOutCount">0</div></div>
+            </summary>
+            <div class="teacherCollapsibleListBd">
+              <div id="shoutOutListEl" class="teacherCollapsibleListScroll"></div>
+            </div>
+          </details>
         </div>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
@@ -1982,13 +2129,13 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="cardHd">
-            <div class="h">Student Totals</div>
-            <div class="pill" id="lbPill">Top 20</div>
-          </div>
-          <div class="cardBd">
-            <div class="scrollArea" style="max-height: 300px; overflow:auto; border-radius:16px;">
+        <details class="card teacherCollapsibleList" id="teacherStudentTotalsCard">
+          <summary class="cardHd teacherCollapsibleListHd">
+            <div class="teacherCollapsibleListTitle"><div class="h">Student Totals</div></div>
+            <div class="teacherCollapsibleListMeta"><div class="pill" id="lbPill">Top 20</div></div>
+          </summary>
+          <div class="cardBd teacherCollapsibleListBd">
+            <div class="teacherCollapsibleListScroll">
               <table>
                 <thead>
                   <tr>
@@ -2001,7 +2148,7 @@
               </table>
             </div>
           </div>
-        </div>
+        </details>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </details>
@@ -2053,6 +2200,30 @@
       return String(location.hash || '').replace(/^#/, '').trim().toLowerCase() === 'create';
     }
 
+    /**
+     * Prompt #119 — shared collapsible list panel initializer.
+     * Syncs aria-expanded; keeps header buttons/links from toggling the panel.
+     * Does not force accordion exclusivity (independent details, like Create Mission).
+     */
+    function initTeacherCollapsibleLists(root){
+      root = root || document;
+      Array.prototype.forEach.call(root.querySelectorAll('details.teacherCollapsibleList'), function(panel){
+        if (panel.getAttribute('data-collapsible-list-ready') === '1') return;
+        panel.setAttribute('data-collapsible-list-ready', '1');
+        function syncExpanded(){
+          panel.setAttribute('aria-expanded', panel.open ? 'true' : 'false');
+        }
+        syncExpanded();
+        panel.addEventListener('toggle', syncExpanded);
+        var summary = panel.querySelector(':scope > summary.teacherCollapsibleListHd');
+        if (!summary) return;
+        if (!summary.hasAttribute('tabindex')) summary.setAttribute('tabindex', '0');
+        Array.prototype.forEach.call(summary.querySelectorAll('button, a, input, select, textarea'), function(ctrl){
+          ctrl.addEventListener('click', function(e){ e.stopPropagation(); });
+        });
+      });
+    }
+
     function closeMobileDrawer(){
       var sidebar = document.getElementById('teacherSidebar');
       var scrim = document.getElementById('teacherSidebarScrim');
@@ -2073,7 +2244,10 @@
           el.classList.toggle('is-active-workspace', isActive);
           // Other Tools (#teacher-utilities) is a native <details> — force it open when the
           // sidebar/hash brings the teacher here so the workspace never lands "collapsed".
-          if (isActive && el.tagName === 'DETAILS' && !el.open) el.open = true;
+          // Prompt #119 — do NOT force-open teacherCollapsibleList panels (Review Queue, etc.).
+          if (isActive && el.tagName === 'DETAILS' && !el.open && !el.classList.contains('teacherCollapsibleList')) {
+            el.open = true;
+          }
         });
       }
       if (name === 'missions') {
@@ -2147,6 +2321,7 @@
     }
 
     activateWorkspace(workspaceFromHash());
+    initTeacherCollapsibleLists(document);
   })();
   </script>
 
