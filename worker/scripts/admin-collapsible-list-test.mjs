@@ -39,6 +39,9 @@ const requiredPanels = [
   ['adminStudentsCard', 'Students'],
   ['adminStaffCard', 'Staff & Admin'],
   ['tmsStaffLinksCard', 'TMS Staff Links'],
+  ['walletAdjustmentCard', 'Wallet Adjustment'],
+  ['feedModerationCard', 'Feed visibility'],
+  ['marqueeSpeedCard', 'Marquee speed'],
   ['adminPendingApprovalsCard', 'Pending approvals'],
   ['adminFeedLivePanel', 'Feed live'],
   ['adminFeedHiddenPanel', 'Feed hidden'],
@@ -74,16 +77,39 @@ if (/\/api\/admin\/users\/reset-password/.test(html) && /\/api\/admin\/users/.te
   ok('Account API endpoints untouched in Admin script');
 } else bad('Account API wiring missing');
 
-/* Non-list forms must remain permanently open cards */
-if (/id="walletAdjustmentCard"[\s\S]{0,120}cardHd/.test(html) &&
-    !/id="walletAdjustmentCard"[^>]*teacherCollapsibleList/.test(html)) {
-  ok('Wallet Adjustment left as form card (not list panel)');
-} else bad('Wallet Adjustment unexpectedly list-converted');
+/* Prompt #137 — former always-open form cards now use shared disclosure, collapsed by default */
+const defaultCollapsedIds = [
+  'walletAdjustmentCard',
+  'feedModerationCard',
+  'marqueeSpeedCard',
+  'adminPendingApprovalsCard',
+];
+for (const id of defaultCollapsedIds) {
+  const re = new RegExp('<details[^>]*id="' + id + '"[^>]*>');
+  const m = html.match(re);
+  if (m && /teacherCollapsibleList/.test(m[0]) && !/\sopen[\s>]/.test(m[0])) {
+    ok(id + ' defaults collapsed (details.teacherCollapsibleList, no open attr)');
+  } else bad(id + ' not default-collapsed shared disclosure', m && m[0]);
+}
 
-if (/id="marqueeSpeedCard"[\s\S]{0,120}cardHd/.test(html) &&
-    !/id="marqueeSpeedCard"[^>]*teacherCollapsibleList/.test(html)) {
-  ok('Marquee speed left as form card (not list panel)');
-} else bad('Marquee speed unexpectedly list-converted');
+if (/id="adminFeedSummaryPill"/.test(html) && /id="marqueeSpeedSummaryPill"/.test(html)) {
+  ok('Feed / Marquee collapsed headers expose summary pills');
+} else bad('summary pills missing on Feed/Marquee');
+
+if (/closeSiblingTopLevelPanels/.test(sharedJs)) {
+  ok('shared helper implements one-open-section accordion for top-level peers');
+} else bad('accordion helper missing');
+
+if (/MANAGEMENT PANEL|form\/settings\/tool cards/.test(sharedCss) || /form\/settings\/tool/.test(sharedJs)) {
+  ok('shared pattern generalized beyond list-only');
+} else bad('shared docs still list-only');
+
+/* Ensure no leftover always-open Admin management div.card tool sections */
+if (!/<div class="card" id="walletAdjustmentCard">/.test(html) &&
+    !/<div class="card" id="feedModerationCard">/.test(html) &&
+    !/<div class="card" id="marqueeSpeedCard">/.test(html)) {
+  ok('Wallet / Feed / Marquee no longer permanently expanded div.card');
+} else bad('legacy always-open tool div.card still present');
 
 if (/id="adminStudentsCard"/.test(html) && /id="adminStudentsCountPill"/.test(html)) {
   ok('Students roster panel + count pill present');

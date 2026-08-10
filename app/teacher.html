@@ -1466,12 +1466,12 @@
         </div>
 
         <div class="teacherWorkspacePane" data-workspace="schoolaccess" id="teacherWorkspace-schoolaccess">
-          <div class="card" id="schoolAccessStatusCard" style="border-color: rgba(242,194,48,.4); background: linear-gradient(180deg, rgba(242,194,48,.10), rgba(242,194,48,.02));">
-            <div class="cardHd">
-              <div class="h">Today's School Status</div>
-              <span class="pill" id="schoolAccessEnforcementPill">Enforcement: OFF</span>
-            </div>
-            <div class="cardBd">
+          <details class="card teacherCollapsibleList" id="schoolAccessStatusCard" style="border-color: rgba(242,194,48,.4); background: linear-gradient(180deg, rgba(242,194,48,.10), rgba(242,194,48,.02));">
+            <summary class="cardHd teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Today's School Status</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="schoolAccessEnforcementPill">Enforcement: OFF</span></div>
+            </summary>
+            <div class="cardBd teacherCollapsibleListBd">
               <div id="schoolAccessScheduleTypeText" style="font-weight:1000;font-size:30px;line-height:1.25;">Loading…</div>
               <p class="note note-tight" id="schoolAccessScheduleWindowText" style="margin-top:6px;"></p>
               <p style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;">
@@ -1492,14 +1492,14 @@
                 </div>
               </details>
             </div>
-          </div>
+          </details>
 
-          <div class="card" id="schoolAccessOverrideCard" style="border-color: rgba(255,140,90,.4); background: linear-gradient(180deg, rgba(255,140,90,.08), rgba(255,140,90,.02));">
-            <div class="cardHd">
-              <div class="h">Open Lantern Temporarily</div>
-              <span class="pill" id="schoolAccessOverrideStatusPill">Not Active</span>
-            </div>
-            <div class="cardBd">
+          <details class="card teacherCollapsibleList" id="schoolAccessOverrideCard" style="border-color: rgba(255,140,90,.4); background: linear-gradient(180deg, rgba(255,140,90,.08), rgba(255,140,90,.02));">
+            <summary class="cardHd teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Open Lantern Temporarily</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="schoolAccessOverrideStatusPill">Not Active</span></div>
+            </summary>
+            <div class="cardBd teacherCollapsibleListBd">
               <p class="note note-tight">Temporarily suspend the school lock for EVERYONE (school event, club, after-hours group, unusual class situation). Every override has an explicit end time — there is no "open forever."</p>
               <div id="schoolAccessOverrideInactiveBlock">
                 <input type="text" id="schoolAccessOverrideReasonInput" placeholder="Reason (optional, e.g. Assembly)" style="width:100%;max-width:420px;margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
@@ -1525,14 +1525,14 @@
                 <button type="button" class="btn" id="schoolAccessOverrideEndBtn" style="margin-top:10px;border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">END OVERRIDE NOW</button>
               </div>
             </div>
-          </div>
+          </details>
 
-          <div class="card" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.08), rgba(90,167,255,.03));">
-            <div class="cardHd">
-              <div class="h">Class Access</div>
-              <span class="pill" id="classAccessStatusPill">Inactive</span>
-            </div>
-            <div class="cardBd">
+          <details class="card teacherCollapsibleList" id="classAccessCard" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.08), rgba(90,167,255,.03));">
+            <summary class="cardHd teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Class Access</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="classAccessStatusPill">Inactive</span></div>
+            </summary>
+            <div class="cardBd teacherCollapsibleListBd">
               <p id="classAccessErrorEl" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:12px;border:1px solid var(--warn);background:rgba(255,204,102,.12);color:var(--warn);font-weight:800;font-size:22px;"></p>
               <p class="note note-tight">Mon–Thu school hours: students need a class code. Start session for a board code; end when done.</p>
               <div id="classAccessActiveBlock" style="display:none;">
@@ -1590,14 +1590,14 @@
                 </div>
               </details>
             </div>
-          </div>
+          </details>
 
-          <div class="card" style="border-color: rgba(120,200,150,.35); background: linear-gradient(180deg, rgba(120,200,150,.08), rgba(120,200,150,.03));">
-            <div class="cardHd">
-              <div class="h">Classroom Devices</div>
-              <span class="pill" id="deviceGroupsCountPill">0 groups</span>
-            </div>
-            <div class="cardBd">
+          <details class="card teacherCollapsibleList" id="classroomDevicesCard" style="border-color: rgba(120,200,150,.35); background: linear-gradient(180deg, rgba(120,200,150,.08), rgba(120,200,150,.03));">
+            <summary class="cardHd teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Classroom Devices</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="deviceGroupsCountPill">0 groups</span></div>
+            </summary>
+            <div class="cardBd teacherCollapsibleListBd">
               <p class="note note-tight">Enroll classroom computers once, group them (e.g. "TMS STEM Lab"), then unlock the whole group temporarily. No shared password is ever created or displayed to students.</p>
 
               <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="devicePairingsPendingPanel">
@@ -1641,14 +1641,14 @@
 
               <p class="note" style="margin-top:14px;"><a href="device-pairing.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Device Pairing Page</a> — run this once on each classroom computer to enroll it.</p>
             </div>
-          </div>
+          </details>
         </div>
 
-    <div class="card" id="teacher-rewards" data-workspace="economy" style="border-color: rgba(56,208,124,.35); background: linear-gradient(180deg, rgba(56,208,124,.08), rgba(56,208,124,.02));" data-help="rewards_panel">
-      <div class="cardHd">
-        <div class="h">Rewards Panel</div>
-      </div>
-      <div class="cardBd">
+    <details class="card teacherCollapsibleList" id="teacher-rewards" data-workspace="economy" style="border-color: rgba(56,208,124,.35); background: linear-gradient(180deg, rgba(56,208,124,.08), rgba(56,208,124,.02));" data-help="rewards_panel">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Rewards Panel</div></div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
 
         <div class="teacherRewardDivider" id="teacherRewardManualSalePanel" data-help="teacher_manual_sale">
           <div class="h">Redeem a TMS Nugget</div>
@@ -1695,7 +1695,7 @@
         </div>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
-    </div>
+    </details>
 
     <div data-workspace="review" id="teacher-approvals-workspace">
     <details class="card teacherCollapsibleList" id="teacher-approvals" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
@@ -1835,12 +1835,14 @@
       </div>
     </div>
 
-    <div class="card" id="teacher-moderation" data-workspace="moderation" data-help="moderation">
-      <div class="cardHd">
-        <div class="h">Moderation</div>
-        <button class="btn small" id="moderationRefreshBtn" type="button">Refresh</button>
-      </div>
-      <div class="cardBd">
+    <details class="card teacherCollapsibleList" id="teacher-moderation" data-workspace="moderation" data-help="moderation">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Moderation</div></div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
+        <div class="approvalsToolbar" style="margin-bottom:10px;">
+          <button class="btn small" id="moderationRefreshBtn" type="button">Refresh</button>
+        </div>
         <p class="note note-tight">Hide from public view or restore. Hidden items stay available here.</p>
         <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationLivePanel">
           <summary class="teacherCollapsibleListHd">
@@ -1868,7 +1870,7 @@
         </details>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
-    </div>
+    </details>
 
     <div id="moderationPreviewOverlay" class="moderationPreviewOverlay" role="dialog" aria-modal="true" aria-labelledby="moderationPreviewTitle">
       <div class="moderationPreviewPanel">
@@ -1889,9 +1891,11 @@
     <!-- Prompt #103 — Create Mission and My Missions are one workspace now. Create is
          collapsed by default; deep link #create (preserved) auto-expands it (see
          shouldExpandCreateFromHash() below). Do not add a second, separate Create workspace. -->
-    <details id="teacherCreateMissionDetails" class="card teacherCollapsibleCard">
-      <summary class="cardHd"><div class="h">Create New Mission</div></summary>
-      <div class="cardBd teacherFormCard">
+    <details id="teacherCreateMissionDetails" class="card teacherCollapsibleList">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Create New Mission</div></div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd teacherFormCard">
         <p class="note note-tight">Students submit here; you review in <strong>Review Queue</strong>.</p>
 
         <div class="teacherFieldGroup">Mission</div>
@@ -2031,11 +2035,11 @@
     <!-- Prompt #107 — standalone Shout-Out! workspace (not inside Missions). Uses Worker recognition API; no Nugget award. -->
     <section id="teacher-shoutout" class="teacherMissionsSection" data-workspace="shoutout" aria-labelledby="teacherShoutOutHeading">
       <h2 id="teacherShoutOutHeading" class="visuallyHidden">Shout-Out!</h2>
-      <div class="card" id="teacher-shoutout-card">
-        <div class="cardHd">
-          <div class="h">Shout-Out!</div>
-        </div>
-        <div class="cardBd">
+      <details class="card teacherCollapsibleList" id="teacher-shoutout-card">
+        <summary class="cardHd teacherCollapsibleListHd">
+          <div class="teacherCollapsibleListTitle"><div class="h">Shout-Out!</div></div>
+        </summary>
+        <div class="cardBd teacherCollapsibleListBd">
           <p class="note note-tight">Recognize anyone, now.</p>
           <div class="teacherField">
             <label for="shoutOutStudentSelect">Student</label>
@@ -2064,18 +2068,18 @@
             </div>
           </details>
         </div>
-      </div>
+      </details>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
     <details id="teacher-utilities" class="teacherUtilitiesDetails" data-workspace="other">
       <summary>Utilities (sim / class access / reference)</summary>
       <div class="teacherUtilitiesInner">
-        <div class="card" id="teacherPersonaCard">
-          <div class="cardHd">
-            <div class="h">Act As Teacher</div>
-          </div>
-          <div class="cardBd">
+        <details class="card teacherCollapsibleList" id="teacherPersonaCard">
+          <summary class="cardHd teacherCollapsibleListHd">
+            <div class="teacherCollapsibleListTitle"><div class="h">Act As Teacher</div></div>
+          </summary>
+          <div class="cardBd teacherCollapsibleListBd">
             <p class="note note-tight">Switch teacher identity for verify (when not set by cloud).</p>
             <label for="simTeacherSelect">Teacher</label>
             <select id="simTeacherSelect" style="width:100%;max-width:420px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;"></select>
@@ -2086,7 +2090,7 @@
             </div>
             <button type="button" class="btn good" id="simTeacherApply">Apply teacher identity</button>
           </div>
-        </div>
+        </details>
 
         <details class="card teacherCollapsibleList" id="teacherStudentTotalsCard">
           <summary class="cardHd teacherCollapsibleListHd">

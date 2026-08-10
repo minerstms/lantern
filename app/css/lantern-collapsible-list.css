@@ -1,11 +1,11 @@
 /*
- * Prompt #119 / #122 / #131 / #133 — ONE shared collapsible LIST PANEL pattern
- * (outer list) plus compact RECORD disclosures (inner rows).
+ * Prompt #119 / #122 / #131 / #133 / #137 — ONE shared collapsible MANAGEMENT PANEL pattern
+ * (list panels AND form/settings/tool cards) plus compact RECORD disclosures (inner rows).
  * Opt in outer: <details class="card teacherCollapsibleList"> or nested
  * <details class="teacherCollapsibleList teacherCollapsibleList--nested">.
  * Opt in record: <details class="lanternMgmtRecord">.
- * Collapsed panel = summary row only. Expanded panel = compact records;
- * each record expands for actions/detail. Prefer one open record at a time.
+ * Collapsed panel = summary row only. Expanded panel = existing body content.
+ * Prefer one open top-level peer at a time; prefer one open record at a time.
  * Class name teacherCollapsibleList is the established opt-in token (Teacher + Admin).
  */
 

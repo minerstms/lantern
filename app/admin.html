@@ -380,8 +380,11 @@
     </div>
   </details>
 
-  <div class="card" id="walletAdjustmentCard">
-    <div class="cardHd">Wallet Adjustment</div>
+  <details class="card teacherCollapsibleList" id="walletAdjustmentCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Wallet Adjustment</div></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
     <p class="acctPanelHint">Edge-case nugget corrections only. Each change is logged in the economy ledger. Use a clear reason — it is stored with the transaction.</p>
     <label for="walletAdjStudent">Student account (wallet target)</label>
     <select id="walletAdjStudent" aria-describedby="walletAdjHint">
@@ -404,10 +407,15 @@
       <p class="pendingMeta" style="margin-top:16px;margin-bottom:6px;">Recent transactions (same as student-facing history)</p>
       <div id="walletAdjRecent" class="walletTxList"></div>
     </div>
-  </div>
+    </div>
+  </details>
 
-  <div class="card" id="feedModerationCard">
-    <div class="cardHd">Feed visibility (students)</div>
+  <details class="card teacherCollapsibleList" id="feedModerationCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Feed visibility (students)</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminFeedSummaryPill">0 live / 0 hidden</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
     <p class="acctPanelHint">Hide approved news or mission posts from Lantern and other student-facing feeds without deleting them. Rows stay in the database; use Unhide to restore.</p>
     <div id="feedModMsg" role="status" aria-live="polite" style="display:none;"></div>
     <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="adminFeedLivePanel">
@@ -429,10 +437,15 @@
       </div>
     </details>
     <p class="pendingMeta" style="margin-top:4px;"><button type="button" class="btn" id="feedModRefreshBtn">Refresh lists</button></p>
-  </div>
+    </div>
+  </details>
 
-  <div class="card" id="marqueeSpeedCard">
-    <div class="cardHd">Marquee (ticker) speed</div>
+  <details class="card teacherCollapsibleList" id="marqueeSpeedCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Marquee (ticker) speed</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="marqueeSpeedSummaryPill">—</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
     <p class="acctPanelHint">One canonical scroll speed for the Lantern ticker — the same value applies on every page that shows it (Explore, Missions, Games, Locker, Contribute, Teacher, Staff, Display). Ticker content is assembled automatically from approved news and recognition posts; there is no separate content editor here — this controls speed only.</p>
     <div id="marqueeSpeedMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
     <label for="marqueeSpeedRange">Scroll speed <span id="marqueeSpeedValue"></span></label>
@@ -446,7 +459,8 @@
       <button type="button" class="btn good" id="marqueeSpeedSave">Save speed</button>
       <button type="button" class="btn" id="marqueeSpeedRefresh">Reload current</button>
     </div>
-  </div>
+    </div>
+  </details>
 
   <details class="card teacherCollapsibleList" id="adminPendingApprovalsCard">
     <summary class="cardHd teacherCollapsibleListHd">
@@ -1547,8 +1561,12 @@
         var hiddenMiss = (hidMissRes && hidMissRes.submissions) || [];
         var livePill = document.getElementById('adminFeedLiveCountPill');
         var hidPill = document.getElementById('adminFeedHiddenCountPill');
-        if (livePill) livePill.textContent = String(liveNews.length + liveMiss.length);
-        if (hidPill) hidPill.textContent = String(hiddenNews.length + hiddenMiss.length);
+        var liveCount = liveNews.length + liveMiss.length;
+        var hidCount = hiddenNews.length + hiddenMiss.length;
+        if (livePill) livePill.textContent = String(liveCount);
+        if (hidPill) hidPill.textContent = String(hidCount);
+        var summaryPill = document.getElementById('adminFeedSummaryPill');
+        if (summaryPill) summaryPill.textContent = liveCount + ' live / ' + hidCount + ' hidden';
 
         liveEl.innerHTML = '';
         if (liveNews.length === 0 && liveMiss.length === 0) {
@@ -1724,9 +1742,11 @@
       var range = document.getElementById('marqueeSpeedRange');
       var num = document.getElementById('marqueeSpeedNumber');
       var label = document.getElementById('marqueeSpeedValue');
+      var summaryPill = document.getElementById('marqueeSpeedSummaryPill');
       if (range) range.value = String(n);
       if (num) num.value = String(n);
       if (label) label.textContent = n + ' px/sec';
+      if (summaryPill) summaryPill.textContent = n + ' px/sec';
     }
 
     /** Updates the slider/number UI AND live-previews the change on the real ticker widget

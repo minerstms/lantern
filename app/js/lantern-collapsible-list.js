@@ -1,7 +1,10 @@
 /**
- * Lantern shared management-list (Prompt #119 / #122 / #131 / #133).
+ * Lantern shared management disclosure (Prompt #119 / #122 / #131 / #133 / #137).
  * OUTER: details.teacherCollapsibleList — one summary header when collapsed.
+ *   Used for list panels AND short form/settings/tool cards.
  * INNER: details.lanternMgmtRecord — one compact record row; expand for actions/detail.
+ * Nested panels use .teacherCollapsibleList--nested (independent of page accordion).
+ * Top-level (non-nested) peers under the same parent: one open at a time.
  * On outer collapse: hide [data-collapsible-editor], close open records, emit
  * `lantern-collapsible-collapse` so page-level editors can close.
  * Prefer one open record at a time within a list.
@@ -22,6 +25,29 @@
     if (!root || !root.querySelectorAll) return;
     Array.prototype.forEach.call(root.querySelectorAll('details.lanternMgmtRecord[open]'), function (rec) {
       rec.open = false;
+    });
+  }
+
+  function isNestedPanel(panel) {
+    return !!(panel && panel.classList && panel.classList.contains('teacherCollapsibleList--nested'));
+  }
+
+  /** Close other top-level management panels that share the same parent (accordion). */
+  function closeSiblingTopLevelPanels(panel) {
+    if (!panel || isNestedPanel(panel)) return;
+    var parent = panel.parentNode;
+    if (!parent || !parent.children) return;
+    Array.prototype.forEach.call(parent.children, function (sib) {
+      if (
+        sib !== panel &&
+        sib.tagName === 'DETAILS' &&
+        sib.classList &&
+        sib.classList.contains('teacherCollapsibleList') &&
+        !sib.classList.contains('teacherCollapsibleList--nested') &&
+        sib.open
+      ) {
+        sib.open = false;
+      }
     });
   }
 
@@ -102,7 +128,9 @@
       function syncExpanded() {
         var isOpen = !!panel.open;
         panel.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        if (!isOpen) {
+        if (isOpen) {
+          closeSiblingTopLevelPanels(panel);
+        } else {
           hideEditorsInside();
           closeOpenRecords(panel);
           try {
@@ -143,6 +171,7 @@
     wireRecords: wireRecords,
     closeOpenRecords: closeOpenRecords,
     hideEditorsIn: hideEditorsIn,
+    closeSiblingTopLevelPanels: closeSiblingTopLevelPanels,
   };
   /** Teacher boot alias — same initializer. */
   global.initTeacherCollapsibleLists = init;

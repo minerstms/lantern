@@ -29,9 +29,10 @@ if (/js\/lantern-collapsible-list\.js/.test(html)) ok('teacher.html loads shared
 else bad('teacher.html missing shared JS script');
 
 if (/Prompt #119 \/ #122 — ONE shared collapsible LIST PANEL/.test(sharedCss) ||
-    /ONE shared collapsible LIST PANEL/.test(sharedCss)) {
-  ok('shared list-panel CSS contract present in lantern-collapsible-list.css');
-} else bad('missing shared list-panel CSS contract');
+    /ONE shared collapsible (LIST|MANAGEMENT) PANEL/.test(sharedCss) ||
+    /shared collapsible MANAGEMENT PANEL/.test(sharedCss)) {
+  ok('shared management-panel CSS contract present in lantern-collapsible-list.css');
+} else bad('missing shared management-panel CSS contract');
 
 if (/function init\(/.test(sharedJs) && /initTeacherCollapsibleLists/.test(sharedJs)) {
   ok('shared initTeacherCollapsibleLists exported from lantern-collapsible-list.js');
@@ -60,6 +61,15 @@ else bad('Teacher details hard-coded open');
 const requiredPanels = [
   ['#teacher-approvals', 'Review Queue'],
   ['#teacherMyMissionsCard', 'My Missions'],
+  ['#teacherCreateMissionDetails', 'Create New Mission'],
+  ['#teacher-rewards', 'Rewards Panel'],
+  ['#teacher-moderation', 'Moderation'],
+  ['#teacher-shoutout-card', 'Shout-Out!'],
+  ['#schoolAccessStatusCard', "Today's School Status"],
+  ['#schoolAccessOverrideCard', 'Open Lantern Temporarily'],
+  ['#classAccessCard', 'Class Access'],
+  ['#classroomDevicesCard', 'Classroom Devices'],
+  ['#teacherPersonaCard', 'Act As Teacher'],
   ['#shoutOutListPanel', 'Posted Shout-Outs'],
   ['#moderationLivePanel', 'Moderation live'],
   ['#moderationHiddenPanel', 'Moderation hidden'],
@@ -92,21 +102,27 @@ if (/<details class="card teacherCollapsibleList" id="teacherMyMissionsCard"/.te
 if (!/<div class="card" id="teacherMyMissionsCard">/.test(html)) ok('legacy always-open My Missions card wrapper removed');
 else bad('legacy My Missions div.card still present');
 
-/* Forms / non-lists should not blindly become list panels */
-if (/id="teacherCreateMissionDetails"[^>]*teacherCollapsibleCard/.test(html) ||
-    /class="card teacherCollapsibleCard" id="teacherCreateMissionDetails"/.test(html) ||
-    /id="teacherCreateMissionDetails" class="card teacherCollapsibleCard"/.test(html)) {
-  ok('Create New Mission remains teacherCollapsibleCard (form), not list pattern');
-} else {
-  const i = html.indexOf('id="teacherCreateMissionDetails"');
-  const w = i >= 0 ? html.slice(i, i + 100) : '';
-  if (/teacherCollapsibleCard/.test(w) && !/teacherCollapsibleList/.test(w)) ok('Create New Mission remains form collapsible card');
-  else bad('Create New Mission unexpectedly converted to list pattern', w);
-}
+/* Prompt #137 — Create Mission + School Access tools use shared disclosure */
+if (/id="teacherCreateMissionDetails"[^>]*teacherCollapsibleList/.test(html) ||
+    /class="card teacherCollapsibleList" id="teacherCreateMissionDetails"/.test(html) ||
+    /id="teacherCreateMissionDetails" class="card teacherCollapsibleList"/.test(html)) {
+  ok('Create New Mission uses shared teacherCollapsibleList');
+} else bad('Create New Mission not on shared disclosure pattern');
 
-if (/id="schoolAccessStatusCard"[\s\S]{0,200}cardHd/.test(html) && !/id="schoolAccessStatusCard"[^>]*teacherCollapsibleList/.test(html)) {
-  ok('Today\'s School Status summary card not converted to list panel');
-} else ok('School Status card left as non-list (or already checked)');
+if (/id="schoolAccessStatusCard"[^>]*teacherCollapsibleList/.test(html) ||
+    /class="card teacherCollapsibleList" id="schoolAccessStatusCard"/.test(html)) {
+  ok("Today's School Status uses shared teacherCollapsibleList");
+} else bad('School Status not converted to shared disclosure');
+
+if (/closeSiblingTopLevelPanels/.test(sharedJs)) {
+  ok('shared helper implements one-open-section accordion for top-level peers');
+} else bad('accordion helper missing');
+
+if (!/<div class="card" id="teacher-rewards">/.test(html) &&
+    !/<div class="card" id="teacher-moderation">/.test(html) &&
+    !/<div class="card" id="teacher-shoutout-card">/.test(html)) {
+  ok('Rewards / Moderation / Shout-Out no longer permanently expanded div.card');
+} else bad('legacy always-open Teacher tool div.card still present');
 
 /* Prompt #133 — compact record disclosures */
 if (/lanternMgmtRecord/.test(sharedCss) && /wireRecords/.test(sharedJs)) {
