@@ -15,6 +15,7 @@ import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './eco
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact } from './tms-economy-bridge.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
+import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled } from './school-schedule.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -1946,7 +1947,14 @@ function normalizeBoardCode(s) {
   return s.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-/** Monday–Thursday 8:00 AM–4:00 PM in America/Denver (Colorado). DST-aware via Intl. */
+/**
+ * Monday–Thursday 8:00 AM–4:00 PM in America/Denver (Colorado). DST-aware via Intl.
+ * LOCKED BASELINE — this is the function that actually governs production student access
+ * today (see docs/LANTERN_AUTH_BASELINE.md). Phase #30 added a separate, richer canonical
+ * evaluator (`evaluateSchoolSchedule` in ./school-schedule.js) that reports the full 2026-27
+ * calendar as informational metadata on /api/class-access/state; it does NOT call or replace
+ * this function, and enforcement based on it is OFF (see isSchoolScheduleEnforcementEnabled).
+ */
 function isLockHours(env) {
   const now = new Date();
   const tz = (env.CLASS_ACCESS_LOCK_TZ || 'America/Denver').trim();
@@ -2129,6 +2137,14 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'GET' && path === '/api/class-access/state') {
+    // Phase #30 (School Access Foundation) — additive schedule metadata, computed once and
+    // attached to every branch below. `schedule` reports the canonical 2026-27 calendar
+    // (informational only) and `scheduleEnforcementEnabled` reports the authoritative
+    // enforcement switch, which MUST remain false in production until a later phase turns it
+    // on deliberately. Neither field changes accessState/tokenValid or any existing behavior.
+    const schedule = evaluateSchoolSchedule(new Date());
+    const scheduleEnforcementEnabled = isSchoolScheduleEnforcementEnabled(env);
+
     const verifyState = await getVerifyState();
     const sim = verifyState.class_access_simulation || {};
     const mode = sim.mode === 'simulation' ? 'simulation' : 'live';
@@ -2157,6 +2173,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         accessState,
         tokenValid,
         message: 'Demo Mode: ' + (simCondition.replace(/_/g, ' ') || 'Simulated'),
+        schedule,
+        scheduleEnforcementEnabled,
       }, 200, cors);
     }
 
@@ -2168,6 +2186,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         mode: 'live',
         accessState: 'live_outside_school_hours',
         tokenValid: true,
+        schedule,
+        scheduleEnforcementEnabled,
       }, 200, cors);
     }
 
@@ -2185,6 +2205,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             mode: 'live',
             accessState: 'live_student_login_access',
             tokenValid: true,
+            schedule,
+            scheduleEnforcementEnabled,
           },
           200,
           cors
@@ -2195,6 +2217,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         mode: 'live',
         accessState: hasActiveSession ? 'live_locked_session_available' : 'live_locked_no_session',
         tokenValid: false,
+        schedule,
+        scheduleEnforcementEnabled,
       }, 200, cors);
     }
 
@@ -2210,6 +2234,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             mode: 'live',
             accessState: 'live_student_login_access',
             tokenValid: true,
+            schedule,
+            scheduleEnforcementEnabled,
           },
           200,
           cors
@@ -2221,6 +2247,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         mode: 'live',
         accessState,
         tokenValid: false,
+        schedule,
+        scheduleEnforcementEnabled,
       }, 200, cors);
     }
     return jsonResponse({
@@ -2229,6 +2257,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       accessState: 'live_student_has_valid_access',
       tokenValid: true,
       expires_at: tokenRow.expires_at,
+      schedule,
+      scheduleEnforcementEnabled,
     }, 200, cors);
   }
 

@@ -40,8 +40,14 @@ bucket_name = "lantern-media"
 #   npx wrangler secret put TMS_LANTERN_BRIDGE_SECRET
 # Optional [vars] override for the Nuggets Worker base URL (defaults to the known production URL):
 # TMS_NUGGETS_API_BASE_URL = "https://mtss-behavior-log.mrradle.workers.dev"
+# School Access Foundation (Prompt #30): SCHOOL_SCHEDULE_ENFORCEMENT_ENABLED gates the NEW
+# canonical America/Denver school-hours schedule (worker/school-schedule.js). It reports on
+# GET /api/class-access/state for teacher/frontend visibility only. MUST stay "false" in
+# production until a later, deliberate phase turns enforcement on -- flipping it to "true" is
+# intentionally out of scope for Prompt #30.
 [vars]
 ENABLE_EARLY_ENCOURAGER_REWARD = "false"
 ENABLE_REACTION_BREAKDOWN = "false"
 ENABLE_INCLUSION_BOOST = "false"
 PILOT_BOOTSTRAP_ENABLED = "false"
+SCHOOL_SCHEDULE_ENFORCEMENT_ENABLED = "false"
