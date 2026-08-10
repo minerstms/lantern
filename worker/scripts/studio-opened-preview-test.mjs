@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cardsCss = fs.readFileSync(path.join(root, 'app/css/lantern-cards.css'), 'utf8');
+const cardsJs = fs.readFileSync(path.join(root, 'app/js/lantern-cards.js'), 'utf8');
 const cardUiJs = fs.readFileSync(path.join(root, 'app/js/lantern-card-ui.js'), 'utf8');
 const finalRxJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.js'), 'utf8');
 const contributeHtml = fs.readFileSync(path.join(root, 'app/contribute.html'), 'utf8');
@@ -126,16 +127,50 @@ const removedStudioHelpers = [
   'Pick a mission from the rail, then complete it',
   'After you pick a mission, add photos, video, or links',
   'Swipe the rail to browse open missions',
+  /* Prompt #118 */
+  'School news · teacher review before publish.',
+  'Recognize someone · your message appears in the stream.',
 ];
 const stillPresent = removedStudioHelpers.filter((s) => contributeHtml.includes(s));
-if (stillPresent.length === 0) ok('Prompt #113 listed Create Studio helper strings removed at source');
-else bad('Prompt #113 helper strings still present', stillPresent.join(' | '));
-if (!/id="contributeMediaHint"|id="contributeMediaLabel"|id="contributeMediaTypePlaceholder"|class="cardHdMini"/.test(contributeHtml)) {
-  ok('Prompt #113 unused helper DOM wrappers removed');
-} else bad('Prompt #113 helper wrappers still in contribute.html');
+if (stillPresent.length === 0) ok('Prompt #113/#118 listed Create Studio helper strings removed at source');
+else bad('Prompt #113/#118 helper strings still present', stillPresent.join(' | '));
+if (!/id="contributeMediaHint"|id="contributeMediaLabel"|id="contributeMediaTypePlaceholder"|class="cardHdMini"|id="contributeTypeHelper"/.test(contributeHtml)) {
+  ok('Prompt #113/#118 unused helper DOM wrappers removed');
+} else bad('Prompt #113/#118 helper wrappers still in contribute.html');
 if (/id="contributeTypeSelect"|id="newsUnifiedMediaMount"|id="contributeMissionRail"|id="pollFallbackSelect"/.test(contributeHtml)) {
   ok('Prompt #113 functional Create controls preserved');
 } else bad('Prompt #113 functional controls missing');
+
+/* Prompt #118 — visible Create shout-out display name is Shout-Out! (value stays shoutout). */
+(function testShoutOutDisplayRename() {
+  const selMatch = contributeHtml.match(/id="contributeTypeSelect"[^>]*>[\s\S]*?<\/select>/);
+  if (!selMatch) return bad('Prompt #118: contributeTypeSelect missing');
+  if (!/<option value="shoutout">Shout-Out!<\/option>/.test(selMatch[0])) {
+    return bad('Prompt #118: selector must show Shout-Out! for value shoutout');
+  }
+  if (/<option value="shoutout">Shout-out<\/option>/.test(selMatch[0])) {
+    return bad('Prompt #118: old Shout-out selector label still present');
+  }
+  if (!/What kind of Shout-Out!/.test(contributeHtml)) {
+    return bad('Prompt #118: shout type label should use Shout-Out!');
+  }
+  if (!/ct === 'shoutout' \? 'Shout-Out!'/.test(contributeHtml)) {
+    return bad('Prompt #118: Studio headline fallback should use Shout-Out!');
+  }
+  if (/School news · teacher review before publish\.|Recognize someone · your message appears in the stream\./.test(contributeHtml)) {
+    return bad('Prompt #118: removed helper sentences still present');
+  }
+  if (!/SHOUT_OUT_DISPLAY_NAME\s*=\s*'Shout-Out!'/.test(cardsJs)) {
+    return bad('Prompt #118: lantern-cards.js missing SHOUT_OUT_DISPLAY_NAME = Shout-Out!');
+  }
+  if (!/shoutout:\s*'⭐ '\s*\+\s*SHOUT_OUT_DISPLAY_NAME/.test(cardsJs)) {
+    return bad('Prompt #118: TYPE_BADGES.shoutout must use SHOUT_OUT_DISPLAY_NAME');
+  }
+  if (!/SHOUT_OUT_DISPLAY_NAME/.test(cardUiJs)) {
+    return bad('Prompt #118: lantern-card-ui.js should read SHOUT_OUT_DISPLAY_NAME for Create preview');
+  }
+  ok('Prompt #118 helpers removed; Create/preview display name is Shout-Out!');
+})();
 
 /* Prompt #117 — Profile post (Locker) creation archived from Create UI (reversible; code/data preserved). */
 (function testProfilePostCreationArchived() {

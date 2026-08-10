@@ -7,12 +7,14 @@
 
   var TYPE_ICONS = { image: '📷', link: '🔗', video: '🎬', webapp: '📱', project: '📂', poll: '📊', teach: '🧠', create: '🛠', news: '📢', shoutout: '⭐' };
   /** Top-right type badges: always icon + short label (single format for all standard cards). */
+  /** Prompt #118 — shoutout display name is "Shout-Out!" (value key stays shoutout). */
+  var SHOUT_OUT_DISPLAY_NAME = 'Shout-Out!';
   var TYPE_BADGES = {
     poll: '📊 Poll',
     teach: '🧠 Teach',
     create: '🛠 Create',
     news: '📢 News',
-    shoutout: '⭐ Shoutout',
+    shoutout: '⭐ ' + SHOUT_OUT_DISPLAY_NAME,
     image: '📷 Image',
     video: '🎬 Video',
     link: '🔗 Link',
@@ -1224,6 +1226,7 @@
     railIdentityFirstName: railIdentityFirstName,
     TYPE_ICONS: TYPE_ICONS,
     TYPE_BADGES: TYPE_BADGES,
+    SHOUT_OUT_DISPLAY_NAME: SHOUT_OUT_DISPLAY_NAME,
     resolveCardFaceImageUrl: resolveCardFaceImageUrl,
     resolveCardFaceImageUrlWithFallbacks: resolveCardFaceImageUrlWithFallbacks,
     buildCanonicalCardFaceHtml: buildCanonicalCardFaceHtml,

@@ -950,7 +950,7 @@
     var TB = LC && LC.TYPE_BADGES ? LC.TYPE_BADGES : {};
     var ct = String(opts.contributeType || '').trim();
     var cat = String((n.category || '').trim());
-    var typeLabel = cat || (ct === 'shoutout' ? (TB.shoutout || 'Shout-out') : (TB.news || 'News'));
+    var typeLabel = cat || (ct === 'shoutout' ? (LC && LC.SHOUT_OUT_DISPLAY_NAME) || (TB.shoutout || 'Shout-Out!') : (TB.news || 'News'));
     var media = LC && LC.normalizeNewsMediaItemForExplore ? LC.normalizeNewsMediaItemForExplore(n) : n;
     var iso = n.approved_at || n.created_at || new Date().toISOString();
     return {
@@ -962,7 +962,7 @@
         linkUrl: media.link_url
       }),
       typeLabel: typeLabel,
-      title: n.title || (ct === 'shoutout' ? 'Shout-out' : 'Untitled'),
+      title: n.title || (ct === 'shoutout' ? ((LC && LC.SHOUT_OUT_DISPLAY_NAME) || 'Shout-Out!') : 'Untitled'),
       body: n.body || '',
       summary: n.body || '',
       authorDisplayName: String(n.author_name || 'Anonymous').trim(),

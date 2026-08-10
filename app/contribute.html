@@ -1036,11 +1036,10 @@
         <!-- Prompt #117 ARCHIVE: Profile-post Locker creation option removed from this selector; dormant variants/submit preserved for restore. -->
         <select id="contributeTypeSelect" style="margin-bottom:12px;">
           <option value="post">Post (school news)</option>
-          <option value="shoutout">Shout-out</option>
+          <option value="shoutout">Shout-Out!</option>
           <option value="poll">Poll</option>
           <option value="mission">Complete a mission</option>
         </select>
-        <p id="contributeTypeHelper" class="studioPanelMicro" style="margin:0;"></p>
         </div>
 
         <div id="contributeMediaBlock" class="contributeMediaRow" data-help="unified_media">
@@ -1068,7 +1067,7 @@
         <div id="variantShoutout" class="contributeVariant" style="display:none;">
           <div class="contributeFieldStack">
               <input type="hidden" id="contributeShoutReason" value="" />
-              <label for="shoutTypeSelect">What kind of shout-out?</label>
+              <label for="shoutTypeSelect">What kind of Shout-Out!</label>
               <select id="shoutTypeSelect">
                 <option value="">— Pick one —</option>
                 <option value="kindness">Kindness</option>
@@ -1088,7 +1087,7 @@
               <option value="news">News style</option>
               <option value="creation">Creation</option>
               <option value="generic">Generic</option>
-              <option value="shoutout">Shout-out style</option>
+              <option value="shoutout">Shout-Out! style</option>
               <option value="explain">Explain</option>
             </select>
           </div>
@@ -1579,20 +1578,7 @@
       var mountWrap = el('contributeMediaMountWrap');
       var fb = el('pollFallbackWrap');
       var sub = el('submitNewsBtn');
-      var helpEl = el('contributeTypeHelper');
-      /* Prompt #113: listed instructional helpers removed. Keep brief post/shout-out type lines only. */
-      var HELP = {
-        post: 'School news · teacher review before publish.',
-        shoutout: 'Recognize someone · your message appears in the stream.',
-        poll: '',
-        profile_post: '',
-        mission: ''
-      };
-      if (helpEl) {
-        var helpText = HELP[t] || '';
-        helpEl.textContent = helpText;
-        helpEl.style.display = helpText ? '' : 'none';
-      }
+      /* Prompt #118: post/shout-out type helper sentences removed at source (no contributeTypeHelper). */
       if (vp) vp.style.display = t === 'post' ? 'block' : 'none';
       if (vs) vs.style.display = t === 'shoutout' ? 'block' : 'none';
       if (vpolL) vpolL.style.display = t === 'poll' ? 'block' : 'none';
@@ -2089,7 +2075,7 @@
       var imageUrl = croppedNewsImageDataUrl || '';
       var videoUrl = hasVideo ? videoSrc : '';
       var linkUrl = (newsLinkUrl && String(newsLinkUrl).trim()) || '';
-      var headline = title || (ct === 'shoutout' ? 'Shout-out' : '');
+      var headline = title || (ct === 'shoutout' ? 'Shout-Out!' : '');
       var authorName = '';
       if (authorType === 'student'){
         authorName = getAdoptedPublicDisplayName();
