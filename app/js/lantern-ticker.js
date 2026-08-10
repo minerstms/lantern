@@ -4,8 +4,22 @@
  */
 (function (global) {
   var TICKER_INIT_DONE = false;
-  /* One full loop scrolls translateX 0 → -50% (one duplicated strip). Higher = calmer/readable. */
-  var TICKER_SCROLL_DURATION_S = 360;
+  /**
+   * Prompt #110 — SPEED, not duration, is canonical. One full loop scrolls translateX 0 → -50%
+   * (one duplicated strip); the ACTUAL animation-duration is computed per render as
+   * (single-copy width in px) / (canonical px/sec), so every page that renders #lanternTicker
+   * moves at the same physical rate regardless of content length, viewport width, or container
+   * geometry — a shared fixed duration (the old `360s` constant) could not guarantee that.
+   * Mirrors worker/lantern-settings.js MARQUEE_SPEED_DEFAULT_PX_PER_SEC — this is the one shared
+   * client-side fallback used when the setting can't be loaded (network/API failure); no page
+   * chooses its own fallback.
+   */
+  var TICKER_SPEED_FALLBACK_PX_PER_SEC = 15;
+  var tickerSpeedPxPerSecond = TICKER_SPEED_FALLBACK_PX_PER_SEC;
+  var tickerResizeWired = false;
+  var tickerActiveTrackEl = null;
+  var tickerResizeTimer = null;
+  var tickerLastViewportWidth = 0;
   var DISPLAY_LEADERBOARD_GAMES = ['Avatar Match', 'Handbook Trivia', 'Local History Trivia', 'Reaction Tap', 'Nugget Click Rush', 'Nugget Hunt'];
 
   var FALLBACK_TICKER_ITEM = {
@@ -209,6 +223,66 @@
     );
   }
 
+  /**
+   * Pure — distance (one copy's width, since one full loop is 0 → -50% of a 2x-width track,
+   * i.e. exactly one copy width of travel) ÷ canonical px/sec = seconds. Exported for tests.
+   * Guards: non-positive/unmeasured width keeps the ticker static-ish (1s, effectively no
+   * meaningful scroll) rather than dividing by zero or producing NaN/negative durations; a
+   * non-positive speed falls back to the shared constant rather than silently freezing forever.
+   */
+  function computeTickerDurationSeconds(widthPx, speedPxPerSec) {
+    var speed = speedPxPerSec > 0 ? speedPxPerSec : TICKER_SPEED_FALLBACK_PX_PER_SEC;
+    var width = widthPx > 0 ? widthPx : 0;
+    if (width <= 0) return 1;
+    var seconds = width / speed;
+    return seconds > 0.5 ? seconds : 0.5;
+  }
+
+  /** Measures the live single-copy width and applies width/duration using the canonical speed. */
+  function applyTickerDuration(track) {
+    if (!track) return;
+    var c = track.querySelectorAll('.lanternTickerCopy');
+    if (!c.length || !c[0].scrollWidth) return;
+    var singleWidth = c[0].scrollWidth;
+    track.style.width = 2 * singleWidth + 'px';
+    track.style.animationDuration = computeTickerDurationSeconds(singleWidth, tickerSpeedPxPerSecond) + 's';
+  }
+
+  function scheduleTickerResizeRecalc() {
+    if (tickerResizeTimer) clearTimeout(tickerResizeTimer);
+    tickerResizeTimer = setTimeout(function () {
+      tickerResizeTimer = null;
+      if (window.innerWidth === tickerLastViewportWidth) return;
+      tickerLastViewportWidth = window.innerWidth;
+      if (tickerActiveTrackEl && document.body.contains(tickerActiveTrackEl)) {
+        applyTickerDuration(tickerActiveTrackEl);
+      }
+    }, 200);
+  }
+
+  /** Registered once per page load (guarded) so repeated render() calls never stack listeners. */
+  function wireTickerResizeOnce() {
+    if (tickerResizeWired) return;
+    tickerResizeWired = true;
+    tickerLastViewportWidth = window.innerWidth;
+    window.addEventListener('resize', scheduleTickerResizeRecalc);
+  }
+
+  function fetchTickerSpeed(apiBase) {
+    var base = apiBase || defaultApiBase();
+    return fetch(base + '/api/settings/marquee-speed')
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (res) {
+        var n = res && res.ok ? Number(res.px_per_second) : NaN;
+        if (isFinite(n) && n > 0) tickerSpeedPxPerSecond = n;
+      })
+      .catch(function () {
+        // Network/API failure — keep the one shared fallback constant; never per-page guessing.
+      });
+  }
+
   function render(containerId, items) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -230,11 +304,10 @@
     }
     if (bar) bar.style.display = '';
     container.style.display = '';
-    if (track) track.style.animationDuration = TICKER_SCROLL_DURATION_S + 's';
+    tickerActiveTrackEl = track;
+    wireTickerResizeOnce();
     requestAnimationFrame(function () {
-      if (!track) return;
-      var c = track.querySelectorAll('.lanternTickerCopy');
-      if (c.length >= 1 && c[0].scrollWidth) track.style.width = 2 * c[0].scrollWidth + 'px';
+      applyTickerDuration(track);
     });
   }
 
@@ -347,7 +420,11 @@
     if (!document.getElementById('lanternTicker')) return;
     TICKER_INIT_DONE = true;
     var createRun = global.LANTERN_API && global.LANTERN_API.createRun ? global.LANTERN_API.createRun : null;
-    fetchDisplayTickerState(createRun, defaultApiBase()).then(function (state) {
+    var base = defaultApiBase();
+    // Load the canonical speed alongside content so the very first render already uses it
+    // (rather than fallback → re-render once the setting arrives).
+    Promise.all([fetchDisplayTickerState(createRun, base), fetchTickerSpeed(base)]).then(function (results) {
+      var state = results[0];
       renderUnifiedFromState(state.slides, state.recognitionList, state.newsList);
       try {
         document.dispatchEvent(
@@ -376,6 +453,25 @@
     buildDisplayTickerItems: buildDisplayTickerItems,
     getHeroCandidates: getHeroCandidates,
     FALLBACK_TICKER_ITEM: FALLBACK_TICKER_ITEM,
-    TICKER_SCROLL_DURATION_S: TICKER_SCROLL_DURATION_S
+    computeTickerDurationSeconds: computeTickerDurationSeconds,
+    applyTickerDuration: applyTickerDuration,
+    fetchTickerSpeed: fetchTickerSpeed,
+    TICKER_SPEED_FALLBACK_PX_PER_SEC: TICKER_SPEED_FALLBACK_PX_PER_SEC,
+    getTickerSpeedPxPerSecond: function () {
+      return tickerSpeedPxPerSecond;
+    },
+    /**
+     * Public: overrides the in-memory speed and immediately re-applies it to the currently
+     * rendered track (if any) — used by the Admin marquee editor for instant slider preview
+     * without waiting on a save round-trip. Does not persist anything by itself.
+     */
+    setTickerSpeedPxPerSecond: function (v) {
+      var n = Number(v);
+      if (!isFinite(n) || n <= 0) return;
+      tickerSpeedPxPerSecond = n;
+      if (tickerActiveTrackEl && document.body.contains(tickerActiveTrackEl)) {
+        applyTickerDuration(tickerActiveTrackEl);
+      }
+    }
   };
 })(typeof window !== 'undefined' ? window : this);

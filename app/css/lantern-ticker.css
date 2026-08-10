@@ -23,7 +23,10 @@
   width: max-content;
   align-items: center;
   white-space: nowrap;
-  animation: lanternTickerScroll 360s linear infinite;
+  /* Duration here is only a pre-JS/measurement fallback — app/js/lantern-ticker.js overwrites
+     animation-duration on every render using the canonical px/sec setting so actual on-screen
+     speed stays constant regardless of content width or viewport (Prompt #110). */
+  animation: lanternTickerScroll 40s linear infinite;
 }
 .lanternTickerTrack:hover{ animation-play-state: paused; }
 .lanternTickerTrack .lanternTickerCopy{ display: flex; flex-shrink: 0; align-items: center; }
@@ -64,4 +67,13 @@ img.lanternTickerItemAvatar:not([src]){ display: none; }
 @keyframes lanternTickerScroll{
   0%{ transform: translateX(0); }
   100%{ transform: translateX(-50%); }
+}
+/* Prompt #110 — reduced-motion is a hard stop, not a slower canonical speed. `!important` on
+   the shorthand wins over any inline animation-duration the JS sets, and Admin's configured
+   speed has no path to override this — it is purely a user-agent/OS preference. */
+@media (prefers-reduced-motion: reduce){
+  .lanternTickerTrack{
+    animation: none !important;
+    transform: none;
+  }
 }

@@ -6,6 +6,7 @@
   <title>TMS Lantern — Admin</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -47,6 +48,12 @@
     .walletTxList table { font-size: 18px; }
     .walletKeyLine { font-size: 20px; color: var(--muted); margin: 8px 0 12px; word-break: break-all; }
     .walletKeyLine code { color: var(--ink); font-size: 19px; }
+    .marqueeSpeedRow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .marqueeSpeedRow input[type="range"] { flex: 1; min-width: 220px; max-width: 420px; margin: 0; }
+    .marqueeSpeedRow input[type="number"] { width: 120px; max-width: 120px; margin: 0; }
+    #marqueeSpeedValue { font-weight: 900; color: var(--accent); min-width: 108px; display: inline-block; }
+    #marqueeSpeedPreviewWrap .lanternTicker { border-radius: 12px; }
+    #marqueeSpeedPreviewWrap { max-width: 640px; }
   </style>
 </head>
 <body>
@@ -230,6 +237,27 @@
     <p class="pendingMeta" style="margin-top:4px;"><button type="button" class="btn" id="feedModRefreshBtn">Refresh lists</button></p>
   </div>
 
+  <div class="card" id="marqueeSpeedCard">
+    <div class="cardHd">Marquee (ticker) speed</div>
+    <p class="acctPanelHint">One canonical scroll speed for the Lantern ticker — the same value applies on every page that shows it (Explore, Missions, Games, Locker, Contribute, Teacher, Staff, Display). Ticker content is assembled automatically from approved news and recognition posts; there is no separate content editor here — this controls speed only.</p>
+    <div id="marqueeSpeedMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+    <label for="marqueeSpeedRange">Scroll speed <span id="marqueeSpeedValue"></span></label>
+    <div class="marqueeSpeedRow">
+      <input type="range" id="marqueeSpeedRange" min="10" max="120" step="5" value="15" aria-describedby="marqueeSpeedHint" />
+      <input type="number" id="marqueeSpeedNumber" min="10" max="120" step="5" value="15" aria-label="Scroll speed in pixels per second" />
+      <span class="pendingMeta">px/sec</span>
+    </div>
+    <p id="marqueeSpeedHint" class="pendingMeta" style="margin-top:6px;">Range: 10–120 px/sec (higher = faster). Same physical speed on every page regardless of content length or screen size.</p>
+    <div id="marqueeSpeedPreviewWrap">
+      <div id="lanternTicker"></div>
+      <p class="pendingMeta" style="margin-top:6px;">Live preview using real ticker content — moves at the selected speed immediately, before you save.</p>
+    </div>
+    <div class="acctPanelActions" style="margin-top:14px;">
+      <button type="button" class="btn good" id="marqueeSpeedSave">Save speed</button>
+      <button type="button" class="btn" id="marqueeSpeedRefresh">Reload current</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="cardHd">Pending approvals</div>
     <p class="pendingMeta">Student submissions appear here until approved. Approving publishes per item rules.</p>
@@ -237,6 +265,7 @@
     <div id="pendingList"></div>
   </div>
 
+  <script src="js/lantern-ticker.js"></script>
   <script>
   (function(){
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
@@ -333,6 +362,22 @@
     function postAdminJson(path, body) {
       return fetch(api + path, {
         method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      }).then(function(r){
+        return r.json().then(function(j){
+          if (window.LanternAuth && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (window.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, status: r.status, body: j };
+        });
+      });
+    }
+
+    function patchAdminJson(path, body) {
+      return fetch(api + path, {
+        method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body || {}),
@@ -1172,6 +1217,107 @@
       });
     }
 
+    /** Prompt #110 — one canonical marquee/ticker speed (px/sec), same control area as the
+     * ticker itself (the #lanternTicker div above IS the real shared ticker, used as a live
+     * preview — see app/js/lantern-ticker.js). */
+    function showMarqueeSpeedMsg(text, kind) {
+      var el = document.getElementById('marqueeSpeedMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = 'usersMsg';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function setMarqueeSpeedControlsValue(v) {
+      var n = Number(v);
+      if (!isFinite(n)) return;
+      var range = document.getElementById('marqueeSpeedRange');
+      var num = document.getElementById('marqueeSpeedNumber');
+      var label = document.getElementById('marqueeSpeedValue');
+      if (range) range.value = String(n);
+      if (num) num.value = String(n);
+      if (label) label.textContent = n + ' px/sec';
+    }
+
+    /** Updates the slider/number UI AND live-previews the change on the real ticker widget
+     * immediately — no save round-trip required to see the effect. */
+    function previewMarqueeSpeed(v) {
+      setMarqueeSpeedControlsValue(v);
+      if (window.LanternTicker && typeof window.LanternTicker.setTickerSpeedPxPerSecond === 'function') {
+        window.LanternTicker.setTickerSpeedPxPerSecond(Number(v));
+      }
+    }
+
+    function loadMarqueeSpeed() {
+      fetch(api + '/api/settings/marquee-speed', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok && isFinite(Number(res.px_per_second))) {
+            previewMarqueeSpeed(Number(res.px_per_second));
+            showMarqueeSpeedMsg('', '');
+          } else {
+            showMarqueeSpeedMsg('Could not load current speed (showing fallback).', 'err');
+          }
+        })
+        .catch(function () {
+          showMarqueeSpeedMsg('Could not load current speed (network — showing fallback).', 'err');
+        });
+    }
+
+    var marqueeSpeedRange = document.getElementById('marqueeSpeedRange');
+    var marqueeSpeedNumber = document.getElementById('marqueeSpeedNumber');
+    if (marqueeSpeedRange) {
+      marqueeSpeedRange.addEventListener('input', function () {
+        previewMarqueeSpeed(marqueeSpeedRange.value);
+      });
+    }
+    if (marqueeSpeedNumber) {
+      marqueeSpeedNumber.addEventListener('input', function () {
+        previewMarqueeSpeed(marqueeSpeedNumber.value);
+      });
+    }
+    var marqueeSpeedSaveBtn = document.getElementById('marqueeSpeedSave');
+    if (marqueeSpeedSaveBtn) {
+      marqueeSpeedSaveBtn.addEventListener('click', function () {
+        var raw = marqueeSpeedNumber ? marqueeSpeedNumber.value : (marqueeSpeedRange ? marqueeSpeedRange.value : '');
+        var v = Math.round(Number(raw));
+        if (!isFinite(v)) {
+          showMarqueeSpeedMsg('Enter a valid number.', 'err');
+          return;
+        }
+        showMarqueeSpeedMsg('', '');
+        marqueeSpeedSaveBtn.disabled = true;
+        patchAdminJson('/api/settings/marquee-speed', { px_per_second: v }).then(function (res) {
+          if (res && res.blocked) return;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            showMarqueeSpeedMsg('Saved. Every Lantern page now scrolls the ticker at ' + res.body.px_per_second + ' px/sec.', 'ok');
+            previewMarqueeSpeed(res.body.px_per_second);
+          } else {
+            var err = res && res.body && res.body.error;
+            var msg = err === 'out_of_range' ? 'Speed must be between 10 and 120 px/sec.' : (err === 'forbidden' ? 'Admin access required.' : (err || 'Save failed'));
+            showMarqueeSpeedMsg(msg, 'err');
+          }
+        }).catch(function () {
+          showMarqueeSpeedMsg('Network error. Try again.', 'err');
+        }).finally(function () {
+          marqueeSpeedSaveBtn.disabled = false;
+        });
+      });
+    }
+    var marqueeSpeedRefreshBtn = document.getElementById('marqueeSpeedRefresh');
+    if (marqueeSpeedRefreshBtn) {
+      marqueeSpeedRefreshBtn.addEventListener('click', function () {
+        showMarqueeSpeedMsg('', '');
+        loadMarqueeSpeed();
+      });
+    }
+
     function loadPending(){
       fetch(api + '/api/approvals/pending?filter=mine,unassigned', { credentials: 'include' })
         .then(function(r){ return r.json(); })
@@ -1278,6 +1424,7 @@
     loadTmsIdentityLinks();
     loadFeedModeration();
     loadPending();
+    loadMarqueeSpeed();
     setInterval(loadPending, 60000);
     setInterval(loadFeedModeration, 120000);
   })();

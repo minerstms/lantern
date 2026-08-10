@@ -46,6 +46,7 @@ import {
   isGroupUnlockActive,
 } from './device-enrollment.js';
 import { ACCESS_AUDIT_ACTIONS, recordAccessAuditEvent } from './access-audit.js';
+import { handleSettingsRoutes } from './lantern-settings.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -388,6 +389,17 @@ export default {
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, cors);
+      }
+    }
+    // Prompt #110 — ONE canonical settings store (currently: marquee/ticker scroll speed).
+    if (path.startsWith('/api/settings')) {
+      try {
+        const settingsCors = request.method === 'GET' ? cors : corsForPilot(request);
+        const settingsDeps = { jsonResponse, requireAdminPilotSession, adminAuditLabel };
+        return await handleSettingsRoutes(request, url, path, env, settingsCors, settingsDeps);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
     }
     if (path.startsWith(['/', 'api', 'test-students'].join(''))) {
