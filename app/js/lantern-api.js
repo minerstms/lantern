@@ -1668,19 +1668,25 @@
     var m = getMissionsForCharacter(characterName);
     var today = todayStr();
     if (m.daily_checkin_last === today) return { ok: false, already: true };
-    if (!economyBackendCharged) addActivity(characterName, 3, 'POSITIVE', 'MISSION', 'Daily Check-In');
+    // Prompt #97: default built-in Nugget reward is 1 unless deliberately configured otherwise
+    // (was an un-updated legacy default of 3). This local-mock path only runs when no real
+    // backend is configured (economyBackendCharged is always true in production).
+    if (!economyBackendCharged) addActivity(characterName, 1, 'POSITIVE', 'MISSION', 'Daily Check-In');
     setMissionProgress(characterName, { daily_checkin_last: today });
-    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'mission', object_id: 'daily_checkin', event_type: 'mission_completed', meta: { mission: 'Daily Check-In', nuggets: 3 } });
-    return { ok: true, nuggets: 3 };
+    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'mission', object_id: 'daily_checkin', event_type: 'mission_completed', meta: { mission: 'Daily Check-In', nuggets: 1 } });
+    return { ok: true, nuggets: 1 };
   }
 
   function completeHiddenNugget(characterName, economyBackendCharged) {
     var m = getMissionsForCharacter(characterName);
     if (m.hidden_nugget) return { ok: false, already: true };
-    if (!economyBackendCharged) addActivity(characterName, 5, 'POSITIVE', 'MISSION', 'Hidden Nugget');
+    // Prompt #97: default built-in Nugget reward is 1 unless deliberately configured otherwise
+    // (was an un-updated legacy default of 5). This local-mock path only runs when no real
+    // backend is configured (economyBackendCharged is always true in production).
+    if (!economyBackendCharged) addActivity(characterName, 1, 'POSITIVE', 'MISSION', 'Hidden Nugget');
     setMissionProgress(characterName, { hidden_nugget: true });
-    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'mission', object_id: 'hidden_nugget', event_type: 'mission_completed', meta: { mission: 'Hidden Nugget', nuggets: 5 } });
-    return { ok: true, nuggets: 5 };
+    createActivityEvent({ actor_id: characterName, actor_name: characterName, actor_type: 'student', object_type: 'mission', object_id: 'hidden_nugget', event_type: 'mission_completed', meta: { mission: 'Hidden Nugget', nuggets: 1 } });
+    return { ok: true, nuggets: 1 };
   }
 
   function completeFirstGame(characterName, economyBackendCharged) {
@@ -2780,7 +2786,9 @@
           var body = {
             title: (payload && payload.title) || '',
             description: (payload && payload.description) || '',
-            reward_amount: (payload && payload.reward_amount) !== undefined ? payload.reward_amount : 3,
+            // Prompt #97: default built-in Nugget reward is 1 unless the teacher explicitly
+            // configures a different amount (was an un-updated legacy default of 3).
+            reward_amount: (payload && payload.reward_amount) !== undefined ? payload.reward_amount : 1,
             submission_type: (payload && payload.submission_type) || 'text',
             created_by_teacher_id: (payload && payload.created_by_teacher_id) || 'teacher',
             created_by_teacher_name: (payload && payload.created_by_teacher_name) || 'Teacher',
@@ -2801,7 +2809,9 @@
         var result = createTeacherMission({
           title: (payload && payload.title) || '',
           description: (payload && payload.description) || '',
-          reward_amount: (payload && payload.reward_amount) !== undefined ? payload.reward_amount : 3,
+          // Prompt #97: default built-in Nugget reward is 1 unless the teacher explicitly
+          // configures a different amount (was an un-updated legacy default of 3).
+          reward_amount: (payload && payload.reward_amount) !== undefined ? payload.reward_amount : 1,
           submission_type: (payload && payload.submission_type) || 'text',
           created_by_teacher_id: (payload && payload.created_by_teacher_id) || 'teacher',
           created_by_teacher_name: (payload && payload.created_by_teacher_name) || 'Teacher',
