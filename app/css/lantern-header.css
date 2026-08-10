@@ -7,6 +7,8 @@
   --lantern-header-h: 52px;
   /* Ticker strip (fixed px in lantern-ticker.css) + app bar 52px */
   --lantern-header-h-ticker: 100px;
+  /* Prompt #116 — Display (and any marquee-only shell): ticker strip alone, no app-bar row */
+  --lantern-header-h-marquee: 48px;
   --lantern-space-below-header: 24px;
   --lantern-space-xs: 8px;
   --lantern-space-sm: 12px;
@@ -75,6 +77,29 @@
 }
 body.page-has-ticker .lanternContent {
   padding-top: calc(var(--lantern-header-h-ticker) + var(--lantern-space-below-header));
+}
+
+/*
+ * Prompt #116 — marquee-only shell (Display): keep #lanternTicker, omit app bar controls.
+ * Hide #lanternAppBarRoot with zero footprint so no blank second-row gap remains.
+ */
+body.page-marquee-only #lanternHeader > #lanternAppBarRoot {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+body.page-marquee-only.page-has-ticker .lanternContent,
+body.page-marquee-only .lanternContent {
+  padding-top: calc(var(--lantern-header-h-marquee) + var(--lantern-space-below-header));
+}
+body.page-marquee-only.page-has-ticker .lanternOverlayBelowNav {
+  padding-top: calc(var(--lantern-header-h-marquee) + var(--lantern-space-below-header));
 }
 
 /* Global app shell — single centered column for all major pages (Explore, Locker, Create,

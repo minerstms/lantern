@@ -7,6 +7,7 @@
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Feed Review</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-feed.css">
   <style>
@@ -14,7 +15,7 @@
     .pageWrap { padding: 0 16px 32px; }
   </style>
 </head>
-<body>
+<body class="page-has-ticker">
   <script>
   (function () {
     var auth = window.LanternAuth || window.LanternPilotAuth;
@@ -34,7 +35,10 @@
     });
   })();
   </script>
-  <div id="lanternHeader"><div id="lanternAppBarRoot"></div></div>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
   <div class="wrap lanternContent pageWrap">
     <h1 class="feedPageTitle">Teacher Review</h1>
     <p class="feedPageSub">Approve, reject, or return student submissions. All actions are permission-checked server-side.</p>
@@ -43,6 +47,9 @@
     <div id="triviaReview"></div>
   </div>
   <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
   function esc(s) {

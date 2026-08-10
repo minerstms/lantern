@@ -7,6 +7,7 @@
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — My Submissions</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-feed.css">
   <style>
@@ -20,7 +21,7 @@
     .privateFeedback { margin-top: 8px; font-size: 22px; color: #ffcc66; }
   </style>
 </head>
-<body>
+<body class="page-has-ticker">
   <script>
   (function () {
     var auth = window.LanternAuth || window.LanternPilotAuth;
@@ -35,7 +36,10 @@
     });
   })();
   </script>
-  <div id="lanternHeader"><div id="lanternAppBarRoot"></div></div>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
   <div class="wrap lanternContent pageWrap">
     <h1 class="feedPageTitle">My Submissions</h1>
     <p class="feedPageSub">Drafts, pending review, approved, and returned items.</p>
@@ -45,6 +49,9 @@
     <p style="margin-top:20px;"><a href="create.html">Create something new →</a></p>
   </div>
   <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
   function esc(s) {

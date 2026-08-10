@@ -285,6 +285,12 @@ function testAllPagesShareOneTickerImplementationNoOverrides() {
     'app/teacher.html',
     'app/display.html',
     'app/staff.html',
+    'app/admin.html',
+    'app/create.html',
+    'app/home.html',
+    'app/feed-review.html',
+    'app/my-submissions.html',
+    'app/news.html',
   ];
   for (const rel of pages) {
     const html = fs.readFileSync(path.join(root, rel), 'utf8');
@@ -294,7 +300,7 @@ function testAllPagesShareOneTickerImplementationNoOverrides() {
       return bad(rel + ' contains a page-specific hardcoded ticker duration override');
     }
   }
-  ok('Explore/Missions/Games/Locker/Contribute/Teacher/Display/Staff all include the ONE shared ticker implementation, no page-specific speed overrides');
+  ok('Explore/Missions/Games/Locker/Contribute/Teacher/Display/Staff/Admin + converted shells include the ONE shared ticker implementation, no page-specific speed overrides');
 }
 
 function testNoHardcodedLegacyDurationRemainsInSharedFiles() {
@@ -312,7 +318,100 @@ function testAdminHasMarqueeSpeedControl() {
   if (!/id="marqueeSpeedNumber"/.test(html)) return bad('admin.html missing numeric speed input');
   if (!/api\/settings\/marquee-speed/.test(html)) return bad('admin.html missing settings endpoint wiring');
   if (!/PATCH/.test(html)) return bad('admin.html missing PATCH save wiring');
-  ok('Admin has a speed control (slider + numeric value) wired to the canonical settings endpoint');
+  if (!/id="lanternHeader"/.test(html) || !/id="lanternAppBarRoot"/.test(html)) {
+    return bad('admin.html must use the canonical #lanternHeader + #lanternAppBarRoot shell');
+  }
+  if (!/body class="page-has-ticker"/.test(html)) return bad('admin.html missing page-has-ticker');
+  const tickerIds = html.match(/id="lanternTicker"/g) || [];
+  if (tickerIds.length !== 1) return bad('admin.html must have exactly one #lanternTicker (header only)', tickerIds.length);
+  if (/id="marqueeSpeedPreviewWrap"/.test(html)) return bad('admin.html should not keep a second in-card ticker preview wrap');
+  ok('Admin has speed control + one canonical header ticker (no duplicate preview ticker)');
+}
+
+/* ---------- Prompt #116 — canonical Explore header site-wide + Display/Behavior exceptions ---------- */
+function testCanonicalHeaderShellOnNormalPages() {
+  const fullPages = [
+    'app/explore.html',
+    'app/contribute.html',
+    'app/missions.html',
+    'app/games.html',
+    'app/locker.html',
+    'app/teacher.html',
+    'app/admin.html',
+    'app/staff.html',
+    'app/create.html',
+    'app/home.html',
+    'app/feed-review.html',
+    'app/my-submissions.html',
+    'app/news.html',
+    'app/grades.html',
+    'app/thanks.html',
+    'app/school-survival.html',
+  ];
+  for (const rel of fullPages) {
+    const html = fs.readFileSync(path.join(root, rel), 'utf8');
+    if (!/page-has-ticker/.test(html)) return bad(rel + ' missing page-has-ticker');
+    if (/page-marquee-only/.test(html)) return bad(rel + ' must not be marquee-only');
+    if (!/id="lanternHeader"/.test(html)) return bad(rel + ' missing #lanternHeader');
+    if (!/id="lanternTicker"/.test(html)) return bad(rel + ' missing #lanternTicker');
+    if (!/id="lanternAppBarRoot"/.test(html)) return bad(rel + ' missing #lanternAppBarRoot');
+    if (!/js\/lantern-nav\.js/.test(html)) return bad(rel + ' missing lantern-nav.js');
+    if (!/js\/lantern-ticker\.js/.test(html)) return bad(rel + ' missing lantern-ticker.js');
+    const tickers = html.match(/id="lanternTicker"/g) || [];
+    if (tickers.length !== 1) return bad(rel + ' must have exactly one #lanternTicker', tickers.length);
+  }
+  ok('normal Lantern pages use the full canonical Explore header shell (ticker + app bar)');
+}
+
+function testDisplayMarqueeOnlyException() {
+  const html = fs.readFileSync(path.join(root, 'app/display.html'), 'utf8');
+  if (!/page-has-ticker/.test(html) || !/page-marquee-only/.test(html)) {
+    return bad('display.html must be page-has-ticker page-marquee-only');
+  }
+  if (!/id="lanternTicker"/.test(html)) return bad('display.html missing canonical #lanternTicker');
+  if (/id="lanternAppBarRoot"/.test(html)) return bad('display.html must omit #lanternAppBarRoot');
+  if (/js\/lantern-nav\.js/.test(html)) return bad('display.html must not load lantern-nav.js');
+  if (/js\/lantern-help\.js/.test(html)) return bad('display.html must not load lantern-help.js');
+  if (!/js\/lantern-ticker\.js/.test(html)) return bad('display.html missing lantern-ticker.js');
+  const css = fs.readFileSync(path.join(root, 'app/css/lantern-header.css'), 'utf8');
+  if (!/body\.page-marquee-only #lanternHeader > #lanternAppBarRoot/.test(css)) {
+    return bad('lantern-header.css missing page-marquee-only app-bar collapse rules');
+  }
+  if (!/--lantern-header-h-marquee:\s*48px/.test(css)) {
+    return bad('lantern-header.css missing --lantern-header-h-marquee token');
+  }
+  const nav = fs.readFileSync(path.join(root, 'app/js/lantern-nav.js'), 'utf8');
+  if (!/page-marquee-only/.test(nav)) return bad('lantern-nav.js must early-return on page-marquee-only');
+  ok('Display is marquee-only (canonical ticker, no nav/search/avatar/help, no empty app-bar row)');
+}
+
+function testBehaviorHasNoLanternHeaderInRepo() {
+  const appHtml = fs.readdirSync(path.join(root, 'app')).filter((f) => f.endsWith('.html'));
+  const behaviorish = appHtml.filter((f) => /behavior/i.test(f));
+  if (behaviorish.length) {
+    return bad('unexpected Behavior HTML in Lantern app/ — Behavior must stay outside Lantern header', behaviorish.join(','));
+  }
+  ok('Behavior exception: no Behavior page in Lantern app/ (TMS hosts Behavior without Lantern header)');
+}
+
+function testAuthStubPagesOmitLanternHeader() {
+  const stubs = [
+    'app/login.html',
+    'app/setup.html',
+    'app/change-password.html',
+    'app/device-pairing.html',
+    'app/class-code.html',
+    'app/auth-test.html',
+    'app/index.html',
+    'app/store.html',
+  ];
+  for (const rel of stubs) {
+    const html = fs.readFileSync(path.join(root, rel), 'utf8');
+    if (/id="lanternHeader"/.test(html) || /id="lanternAppBarRoot"/.test(html)) {
+      return bad(rel + ' should remain a header-less stub/auth/redirect surface');
+    }
+  }
+  ok('auth/redirect stubs correctly omit the Lantern header shell');
 }
 
 /* ---------- Prompt #111 — exactly ONE marquee source (unified slides) ---------- */
@@ -370,6 +469,10 @@ testAllPagesShareOneTickerImplementationNoOverrides();
 testNoHardcodedLegacyDurationRemainsInSharedFiles();
 testAdminHasMarqueeSpeedControl();
 testMarqueeBuildsFromUnifiedSlidesOnly();
+testCanonicalHeaderShellOnNormalPages();
+testDisplayMarqueeOnlyException();
+testBehaviorHasNoLanternHeaderInRepo();
+testAuthStubPagesOmitLanternHeader();
 
 console.log('\nmarquee-speed-settings-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

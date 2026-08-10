@@ -7,12 +7,14 @@
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
   <link rel="stylesheet" href="css/lantern-ticker.css">
+  <link rel="stylesheet" href="css/lantern-header.css">
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
     html.lantern-pilot-auth-pending body { visibility: hidden; }
-    body { margin: 0; padding: 22px 16px 48px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 22px; color: var(--ink);
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 22px; color: var(--ink);
       background: linear-gradient(180deg, #070b12, #05070b); min-height: 100vh; }
+    .adminPageWrap { padding: 0 16px 48px; max-width: 960px; margin: 0 auto; }
     h1 { font-size: 32px; font-weight: 900; margin: 0 0 8px; }
     .sub { color: var(--muted); margin-bottom: 24px; font-size: 22px; }
     .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 22px; max-width: 960px; }
@@ -52,11 +54,9 @@
     .marqueeSpeedRow input[type="range"] { flex: 1; min-width: 220px; max-width: 420px; margin: 0; }
     .marqueeSpeedRow input[type="number"] { width: 120px; max-width: 120px; margin: 0; }
     #marqueeSpeedValue { font-weight: 900; color: var(--accent); min-width: 108px; display: inline-block; }
-    #marqueeSpeedPreviewWrap .lanternTicker { border-radius: 12px; }
-    #marqueeSpeedPreviewWrap { max-width: 640px; }
   </style>
 </head>
-<body>
+<body class="page-has-ticker">
   <script>
   (function(){
     var pendingClass = 'lantern-pilot-auth-pending';
@@ -101,6 +101,11 @@
     });
   })();
   </script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="lanternContent adminPageWrap">
   <h1>Admin</h1>
   <p id="adminIdentity" class="sub adminIdentityLine" aria-live="polite"></p>
   <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
@@ -247,11 +252,7 @@
       <input type="number" id="marqueeSpeedNumber" min="10" max="120" step="5" value="15" aria-label="Scroll speed in pixels per second" />
       <span class="pendingMeta">px/sec</span>
     </div>
-    <p id="marqueeSpeedHint" class="pendingMeta" style="margin-top:6px;">Range: 10–120 px/sec (higher = faster). Same physical speed on every page regardless of content length or screen size.</p>
-    <div id="marqueeSpeedPreviewWrap">
-      <div id="lanternTicker"></div>
-      <p class="pendingMeta" style="margin-top:6px;">Live preview using real ticker content — moves at the selected speed immediately, before you save.</p>
-    </div>
+    <p id="marqueeSpeedHint" class="pendingMeta" style="margin-top:6px;">Range: 10–120 px/sec (higher = faster). Same physical speed on every page regardless of content length or screen size. Live preview is the site-wide marquee at the top of this page — it updates immediately when you move the slider, before you save.</p>
     <div class="acctPanelActions" style="margin-top:14px;">
       <button type="button" class="btn good" id="marqueeSpeedSave">Save speed</button>
       <button type="button" class="btn" id="marqueeSpeedRefresh">Reload current</button>
@@ -264,8 +265,12 @@
     <div id="pendingMsg" role="status" aria-live="polite" style="display:none;"></div>
     <div id="pendingList"></div>
   </div>
+  </div><!-- /.adminPageWrap -->
 
+  <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
   <script>
   (function(){
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
@@ -1217,9 +1222,8 @@
       });
     }
 
-    /** Prompt #110 — one canonical marquee/ticker speed (px/sec), same control area as the
-     * ticker itself (the #lanternTicker div above IS the real shared ticker, used as a live
-     * preview — see app/js/lantern-ticker.js). */
+    /** Prompt #110/#116 — one canonical marquee/ticker speed (px/sec). Live preview is the
+     * site header #lanternTicker (shared lantern-ticker.js), not a second in-card ticker. */
     function showMarqueeSpeedMsg(text, kind) {
       var el = document.getElementById('marqueeSpeedMsg');
       if (!el) return;

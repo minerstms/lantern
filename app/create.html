@@ -7,6 +7,7 @@
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>TMS Lantern — Create</title>
+  <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-feed.css">
   <style>
@@ -14,7 +15,7 @@
     .createWrap { padding: 0 16px 32px; max-width: 640px; }
   </style>
 </head>
-<body>
+<body class="page-has-ticker">
   <script>
   (function () {
     var auth = window.LanternAuth || window.LanternPilotAuth;
@@ -29,7 +30,10 @@
     });
   })();
   </script>
-  <div id="lanternHeader"><div id="lanternAppBarRoot"></div></div>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
   <div class="wrap lanternContent createWrap">
     <h1 class="feedPageTitle">Create &amp; Submit</h1>
     <p class="feedPageSub">Draft your item, then submit for teacher approval. Nothing goes public until approved.</p>
@@ -77,6 +81,9 @@
     <p id="triviaStatus" class="feedPageSub"></p>
   </div>
   <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-ticker.js"></script>
+  <script src="js/lantern-route-help.js"></script>
+  <script src="js/lantern-help.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
   (function () {

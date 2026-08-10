@@ -346,6 +346,8 @@
 
   function init() {
     if (typeof document === 'undefined' || !document.body) return;
+    /* Prompt #116 — Display (page-marquee-only): do not mount Lantern nav/search/avatar/help. */
+    if (document.body.classList.contains('page-marquee-only')) return;
     var root = document.getElementById('lanternAppBarRoot');
     if (!root) return;
     injectStyles();

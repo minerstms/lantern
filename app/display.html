@@ -38,11 +38,12 @@
       max-height: 100vh;
       text-align: center;
     }
-    body.display-showcase #lanternAppBarRoot,
-    body.display-showcase .lanternHelpToggleWrap,
-    body.display-showcase .lanternHelpPanel{ display: none !important; }
     body.display-showcase{ cursor: none; user-select: none; -webkit-user-select: none; }
     body.display-showcase *{ cursor: none; }
+    /* Prompt #116: Display is marquee-only — content sits directly under the ticker (no app-bar gap). */
+    body.page-marquee-only.page-has-ticker .lanternContent{
+      padding-top: var(--lantern-header-h-marquee, 48px);
+    }
     .mainStage{
       flex: 1;
       min-height: 0;
@@ -205,7 +206,7 @@
     .slideLeaderboardRow .gameTag{ color: var(--accent); }
   </style>
 </head>
-<body class="page-has-ticker">
+<body class="page-has-ticker page-marquee-only">
   <script>
     (function(){
       if (typeof location === 'undefined' || !location.search) return;
@@ -215,7 +216,7 @@
   </script>
   <div id="lanternHeader">
     <div id="lanternTicker"></div>
-    <div id="lanternAppBarRoot"></div>
+    <!-- Prompt #116: marquee-only — app bar omitted (no nav/search/avatar/help, no empty row). -->
   </div>
   <div class="wrap lanternContent" style="flex:1;min-height:0;width:100%;max-width:var(--lantern-page-max-width);display:flex;flex-direction:column;align-items:center;box-sizing:border-box;">
   <div class="mainStage" id="mainStage" data-help="display_page"></div>
@@ -225,9 +226,6 @@
   <script src="js/lantern-api.js"></script>
   <script src="js/lantern-reactions.js"></script>
   <script src="js/lantern-avatar.js"></script>
-  <script src="js/lantern-nav.js"></script>
-  <script src="js/lantern-route-help.js"></script>
-  <script src="js/lantern-help.js"></script>
   <script src="js/lantern-broadcast.js"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-media.js"></script>
