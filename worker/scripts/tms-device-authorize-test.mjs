@@ -277,11 +277,15 @@ async function testUnsafeReturnSanitized() {
 
 async function testBridgeSecretNotInClientSurfaces() {
   const teacherHtml = fs.readFileSync(fileURLToPath(new URL('../../app/teacher.html', import.meta.url)), 'utf8');
+  const staffNav = fs.readFileSync(fileURLToPath(new URL('../../app/js/lantern-staff-nav.js', import.meta.url)), 'utf8');
+  const lanternNav = fs.readFileSync(fileURLToPath(new URL('../../app/js/lantern-nav.js', import.meta.url)), 'utf8');
   const workerSrc = fs.readFileSync(fileURLToPath(new URL('../index.js', import.meta.url)), 'utf8');
   if (/TMS_LANTERN_BRIDGE_SECRET/.test(teacherHtml)) return bad('teacher.html must not embed bridge secret');
-  if (!/tms-device-authorize/.test(teacherHtml)) return bad('teacher Behavior nav must use tms-device-authorize');
-  if (!/href="\/api\/auth\/tms-device-authorize\?return=/.test(teacherHtml)) {
-    return bad('Behavior href must be authorize handoff', teacherHtml.match(/teacherPrimaryNavBehavior[^>]*>/)?.[0]);
+  if (!/tms-device-authorize/.test(staffNav) && !/tms-device-authorize/.test(lanternNav)) {
+    return bad('Behavior Logger nav must use tms-device-authorize');
+  }
+  if (!/hrefFor|behaviorAuthorizeHref|tms-device-authorize\?return=/.test(staffNav)) {
+    return bad('Behavior Logger href must be authorize handoff in lantern-staff-nav.js');
   }
   if (!/TMS_DEVICE|tms-device-authorize|lantern-staff-verify\/mint/.test(workerSrc)) {
     return bad('worker missing device-authorize implementation');

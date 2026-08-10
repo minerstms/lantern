@@ -31,8 +31,14 @@
     return '';
   }
 
-  /** Chevron menu: NAVIGATION + STAFF + Log out (session end). Home = Lantern link → explore.html. */
+  /** Chevron menu: NAVIGATION + STAFF + Log out. STAFF labels/order from LanternStaffNav (#145). */
   function buildLanternNavDropdownHtml(current) {
+    var staffLinks =
+      global.LanternStaffNav && typeof global.LanternStaffNav.buildStaffSectionLinksHtml === 'function'
+        ? global.LanternStaffNav.buildStaffSectionLinksHtml(current, 'lantern')
+        : '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="teacher">Teacher Tools</a>' +
+          '<a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember" role="menuitem" class="lanternAppBarDropdownLink" data-page="behavior" data-lantern-behavior-nav="1">Behavior Logger</a>' +
+          '<a href="display.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="display" target="_blank">Display Board</a>';
     return '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
       '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'locker' ? ' is-active' : '') + '" data-page="locker">Locker</a>' +
@@ -41,8 +47,7 @@
       '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'missions' ? ' is-active' : '') + '" data-page="missions">Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span></a>' +
       '</div>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
-      '<a href="display.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'display' ? ' is-active' : '') + '" data-page="display" target="_blank">Display</a>' +
-      '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'teacher' ? ' is-active' : '') + '" data-page="teacher">Teacher</a>' +
+      staffLinks +
       '</div>' +
       '<div class="lanternAppBarDropdownSection lanternAppBarDropdownSection--logout" id="lanternNavLogoutSection" hidden>' +
       '<button type="button" class="lanternAppBarDropdownLogout" id="lanternNavLogoutBtn" role="menuitem">Log out</button>' +
@@ -414,6 +419,13 @@
     menuTrigger.addEventListener('click', function (e) {
       e.stopPropagation();
       toggle();
+    });
+    Array.prototype.forEach.call(dropdown.querySelectorAll('[data-lantern-behavior-nav="1"]'), function (a) {
+      a.addEventListener('click', function (ev) {
+        if (global.LanternRememberDevice && typeof global.LanternRememberDevice.handleBehaviorNavClick === 'function') {
+          global.LanternRememberDevice.handleBehaviorNavClick(ev);
+        }
+      });
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') close();

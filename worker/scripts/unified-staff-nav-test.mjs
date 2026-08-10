@@ -1,19 +1,11 @@
 /**
- * REAL BROWSER TEST — Report #98 (unified Behavior <-> Teacher staff navigation)
+ * REAL BROWSER TEST — Prompt #145 (canonical STAFF nav: Teacher Tools / Behavior Logger / Display Board)
  *
- * Drives the ACTUAL app/teacher.html and app/explore.html in a real Chromium page (network mocked)
- * to prove the new PRIMARY staff nav without re-testing business logic already covered by
- * teacher-workspace-shell-test.mjs / mission-role-mismatch-test.mjs:
- *
- *  - Lantern Teacher page shows a primary nav with exactly Behavior + Teacher.
- *  - Teacher is marked active (aria-current="page", .is-active) on the Lantern Teacher page.
- *  - Behavior launches TMS via Lantern staff-verify authorize handoff
- *    (/api/auth/tms-device-authorize?return=…tmsnuggets…/index.html).
- *  - The primary nav does not appear on a student-facing surface (explore.html), and a student
- *    session hitting /teacher.html directly is still redirected to /explore.html (Prompt #78/#85
- *    behavior unchanged by this prompt).
- *  - The primary nav is visible and does not cause horizontal overflow at desktop/tablet/mobile
- *    widths, and does not clip/overlap the global Lantern app bar above it.
+ * Proves:
+ *  - Lantern Teacher page no longer has the giant Behavior|Teacher primary button row.
+ *  - Shared LanternStaffNav labels/order appear in the Lantern ▼ STAFF dropdown.
+ *  - Behavior Logger still uses the authorize handoff to TMS Nuggets.
+ *  - Student explore never gets a staff primary nav bar; student→teacher redirect unchanged.
  *
  * Usage: node worker/scripts/unified-staff-nav-test.mjs [baseUrl]
  * Requires a static file server for app/ at baseUrl (default http://127.0.0.1:8765).
@@ -21,6 +13,7 @@
 import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/index.mjs';
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
+const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger', 'Display Board'];
 
 async function main() {
   const results = [];
@@ -32,9 +25,6 @@ async function main() {
   const browser = await chromium.launch();
   const okJson = (body) => (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
 
-  // -------------------------------------------------------------------------
-  // Teacher session on Lantern Teacher (app/teacher.html)
-  // -------------------------------------------------------------------------
   {
     const page = await browser.newPage();
     await page.route('**/api/auth/me**', okJson({
@@ -62,46 +52,42 @@ async function main() {
     await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
     await page.waitForSelector('#teacherSidebar', { timeout: 15000 });
 
-    const nav = page.locator('.teacherPrimaryNav');
-    assert(await nav.count() === 1, 'Lantern Teacher page renders exactly one primary nav bar');
-    const navLinks = await nav.locator('.teacherPrimaryNavBtn').allTextContents();
-    assert(navLinks.length === 2, 'Primary nav has exactly two entries: ' + JSON.stringify(navLinks));
-    assert(navLinks.some((t) => t.trim() === 'Behavior'), 'Primary nav includes Behavior: ' + JSON.stringify(navLinks));
-    assert(navLinks.some((t) => t.trim() === 'Teacher'), 'Primary nav includes Teacher: ' + JSON.stringify(navLinks));
-    assert(!navLinks.some((t) => /store/i.test(t)), 'Primary nav does NOT include a Store tab: ' + JSON.stringify(navLinks));
+    assert(await page.locator('.teacherPrimaryNav').count() === 0, 'Lantern Teacher page has no giant Behavior|Teacher primary nav row');
+    assert(await page.locator('#teacherPrimaryNavBehavior').count() === 0, 'Giant Behavior button id removed');
+    assert(await page.locator('#teacherPrimaryNavTeacher').count() === 0, 'Giant Teacher button id removed');
 
-    const teacherBtn = page.locator('#teacherPrimaryNavTeacher');
-    const behaviorBtn = page.locator('#teacherPrimaryNavBehavior');
-    assert((await teacherBtn.getAttribute('aria-current')) === 'page', 'Teacher is marked active (aria-current=page) on the Lantern Teacher page');
-    assert(await teacherBtn.evaluate((el) => el.classList.contains('is-active')), 'Teacher has the is-active class on the Lantern Teacher page');
-    assert(!(await behaviorBtn.evaluate((el) => el.classList.contains('is-active'))), 'Behavior is NOT marked active on the Lantern Teacher page');
+    await page.waitForSelector('#lanternMenuTrigger', { timeout: 15000 });
+    await page.click('#lanternMenuTrigger');
+    await page.waitForSelector('#lanternMenuDropdown.is-open, #lanternMenuDropdown:not([hidden])', { timeout: 5000 }).catch(() => {});
 
-    const behaviorHref = await behaviorBtn.getAttribute('href');
+    const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
+    const staffLabels = await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents();
+    const trimmed = staffLabels.map((t) => t.trim());
+    assert(JSON.stringify(trimmed) === JSON.stringify(EXPECTED_STAFF), 'STAFF menu order/labels exact: ' + JSON.stringify(trimmed));
+
+    const teacherLink = page.locator('#lanternMenuDropdown a[data-page="teacher"]');
+    const behaviorLink = page.locator('#lanternMenuDropdown a[data-page="behavior"]');
+    const displayLink = page.locator('#lanternMenuDropdown a[data-page="display"]');
+    assert(await teacherLink.evaluate((el) => el.classList.contains('is-active')), 'Teacher Tools marked current on Teacher page');
+    assert(!(await behaviorLink.evaluate((el) => el.classList.contains('is-active'))), 'Behavior Logger not marked current on Teacher page');
+
+    const behaviorHref = await behaviorLink.getAttribute('href');
     assert(
-      /tms-device-authorize/.test(behaviorHref) && /tmsnuggets\.pages\.dev/.test(decodeURIComponent(behaviorHref)),
-      'Behavior launches TMS via Lantern staff-verify authorize: ' + behaviorHref
+      /tms-device-authorize/.test(behaviorHref || '') && /tmsnuggets\.pages\.dev/.test(decodeURIComponent(behaviorHref || '')),
+      'Behavior Logger uses authorize handoff to TMS: ' + behaviorHref
     );
-    assert((await behaviorBtn.getAttribute('target')) !== '_blank' || true, 'Behavior link attribute checked (same-tab navigation is acceptable)');
+    assert(/display\.html/.test(await displayLink.getAttribute('href') || ''), 'Display Board points at display.html');
+    assert(/teacher\.html/.test(await teacherLink.getAttribute('href') || ''), 'Teacher Tools points at teacher.html');
 
-    // Responsive: visible + no overflow/clipping at a range of widths, and does not overlap the
-    // global Lantern app bar mounted above it.
     for (const width of [1920, 1366, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
-      assert(await nav.isVisible(), `Primary nav remains visible at width ${width}px`);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
-      assert(!overflow, `No horizontal page overflow at width ${width}px with the new primary nav present`);
-      const navBox = await nav.boundingBox();
-      const barBox = await page.locator('#lanternAppBarRoot').boundingBox();
-      assert(!!navBox && !!barBox && navBox.y >= barBox.y + barBox.height - 2, `Primary nav does not overlap the global Lantern app bar at width ${width}px`);
+      assert(!overflow, `No horizontal page overflow at width ${width}px`);
     }
 
     await page.close();
   }
 
-  // -------------------------------------------------------------------------
-  // Student session must not see the primary staff nav anywhere, and hitting /teacher.html
-  // directly still redirects to /explore.html (existing Prompt #78 role gate unchanged).
-  // -------------------------------------------------------------------------
   {
     const page = await browser.newPage();
     await page.route('**/api/auth/me**', okJson({

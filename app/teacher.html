@@ -91,42 +91,7 @@
        Lantern" + signed-in-as hint), no giant centered hero, no page-specific Sign out
        (global Lantern nav already provides logout) and no Hallway TV button (moved to
        the sidebar as a workspace-adjacent destination). */
-    /* Report #98: unified staff PRIMARY nav (Behavior | Teacher) so TMS Nuggets and Lantern read as
-       one staff system. Compatible geometry/spacing with TMS Nuggets' .topRow/.topRowBtn (two fixed
-       pill buttons, active tab = deep blue gradient + white ring) without sharing CSS/source. */
-    .teacherPrimaryNav{
-      display:flex;
-      gap:10px;
-      margin:0 0 14px;
-      max-width:460px;
-    }
-    .teacherPrimaryNavBtn{
-      flex:1 1 0;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      height:52px;
-      padding:0 14px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:var(--panel2);
-      color:var(--ink);
-      font-size:24px;
-      font-weight:900;
-      letter-spacing:.2px;
-      text-decoration:none;
-      cursor:pointer;
-      -webkit-tap-highlight-color:transparent;
-    }
-    .teacherPrimaryNavBtn.is-active{
-      background:linear-gradient(180deg, var(--blue2), var(--blue1));
-      box-shadow:0 0 0 2px rgba(255,255,255,.28), 0 10px 24px rgba(0,0,0,.35);
-      cursor:default;
-    }
-    @media (max-width: 480px){
-      .teacherPrimaryNav{ gap:8px; max-width:none; }
-      .teacherPrimaryNavBtn{ height:46px; font-size:20px; padding:0 8px; }
-    }
+    /* Prompt #145: Behavior|Teacher primary button row removed; workspace switch is Lantern ▼ STAFF. */
 
     .teacherIdentityRow{
       display:flex;
@@ -1392,22 +1357,12 @@
       <span class="verifyAvatarWrap" id="teacherVerifyAvatarWrap" style="display:none;"><img id="teacherVerifyAvatarImg" class="verifyAvatarPreview" alt=""><span class="verifyAvatarFallback" id="teacherVerifyAvatarFallback"></span></span>
     </div>
     <div id="teacherPageTop" class="teacherPageShell">
-    <!-- Prompt #140: Behavior uses Remember-this-device / short-lived authorize handoff (no Staff PW,
-         no /device-pairing, no pending Admin approval for linked staff). -->
-    <nav class="teacherPrimaryNav" aria-label="Primary">
-      <a class="teacherPrimaryNavBtn" id="teacherPrimaryNavBehavior" href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember">Behavior</a>
-      <a class="teacherPrimaryNavBtn is-active" id="teacherPrimaryNavTeacher" href="teacher.html" aria-current="page">Teacher</a>
-    </nav>
+    <!-- Prompt #145: staff workspace switching uses the shared Lantern ▼ STAFF menu
+         (Teacher Tools / Behavior Logger / Display Board). No separate Behavior|Teacher button row. -->
     <script>
       (function () {
         if (window.LanternRememberDevice && typeof window.LanternRememberDevice.absorbDeviceRememberedQuery === 'function') {
           window.LanternRememberDevice.absorbDeviceRememberedQuery();
-        }
-        var btn = document.getElementById('teacherPrimaryNavBehavior');
-        if (btn && window.LanternRememberDevice && typeof window.LanternRememberDevice.handleBehaviorNavClick === 'function') {
-          btn.addEventListener('click', function (ev) {
-            window.LanternRememberDevice.handleBehaviorNavClick(ev);
-          });
         }
       })();
     </script>
@@ -2328,6 +2283,7 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/class-access.js"></script>
+  <script src="js/lantern-staff-nav.js"></script>
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
