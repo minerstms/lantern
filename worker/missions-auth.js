@@ -98,6 +98,45 @@ export function missionVisibleToStudent(missionRow, studentKey) {
   return false;
 }
 
+/**
+ * PATCH /api/missions/:id field-level authorization (Prompt #103 audit, CURSOR REPLY #100 §5).
+ * Fields here are safe to edit only before a mission has ever received its first submission
+ * (regardless of that submission's later status) — changing audience/requirements mid-flight
+ * would silently break students who already submitted under the old rules. `title`,
+ * `description`, `active`, `featured`, `archived`, and `reward_amount` are intentionally NOT
+ * listed here: they remain safe to edit at any time (reward_amount only affects FUTURE
+ * approvals — historical paid rewards are frozen by missions-reward.js's idempotent tx id).
+ */
+export const MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION = [
+  'audience',
+  'target_character_names',
+  'allows_text',
+  'allows_image',
+  'allows_video',
+  'allows_link',
+  'min_characters',
+];
+
+/**
+ * Returns which locked-after-first-submission fields a PATCH body is attempting to change.
+ * Empty array means the request contains none of them (always safe re: this rule).
+ */
+export function missionEditLockedFieldsPresent(body) {
+  if (!body || typeof body !== 'object') return [];
+  return MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.filter((f) => body[f] !== undefined);
+}
+
+/**
+ * A mission may be hard-deleted only if it has zero submissions/dependent history. Anything
+ * else (submissions, approvals, rewards, published content, polls/bug-reports keyed off a
+ * submission id) must go through Archive instead — this is the only signal we need because all
+ * of those other rows are keyed off lantern_mission_submissions.id, which cannot exist without a
+ * submissions row existing first.
+ */
+export function missionIsUnusedAndDeletable(submissionCount) {
+  return (Number(submissionCount) || 0) === 0;
+}
+
 export function teacherOwnsMission(account, missionTeacherId) {
   if (!account) return false;
   if (isAdminRole(account.role)) return true;

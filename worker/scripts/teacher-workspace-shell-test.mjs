@@ -6,21 +6,32 @@
  * logic already covered by teacher-media-display-test.mjs / teacher-create-repair-test.mjs /
  * teacher-mission-pipeline-test.mjs / missions-identity-auth-test.mjs / teacher-manual-sale-test.mjs:
  *
- *  - Sidebar exists with the 7 expected workspace items; only ONE workspace is visible at a time.
+ *  - Sidebar exists with the 6 expected workspace items; only ONE workspace is visible at a time.
  *  - Default workspace on a plain /teacher.html load is Nuggets (Prompt #91).
- *  - Sidebar clicks + hash routing (#review, #create, ...) both switch workspaces; unknown hash
+ *  - Sidebar clicks + hash routing (#review, #missions, ...) both switch workspaces; unknown hash
  *    falls back to Nuggets (Prompt #91); browser back/forward works.
  *  - Review Queue: My Classroom / Schoolwide secondary tabs show one queue at a time; Filters
  *    panel is collapsed by default and toggles open; bulk action bar is compact/inactive until
  *    something is selected, then shows Approve/Reject + count.
- *  - Create Mission workspace: existing handler still wired (Creating…/Created ✓ flow) and the
- *    reward field defaults to 1 Nugget.
  *  - Moderation and Nuggets workspaces are reachable and retain their existing controls
  *    (Nugget Ledger redeem amount also defaults to 1; Prompt #95 swapped the underlying data
  *    source to the real TMS Nugget Ledger bridge without changing these DOM ids).
  *  - Mobile drawer: sidebar is off-canvas by default at phone width, opens via the menu button,
  *    and closes after choosing a workspace.
  *  - No horizontal page overflow at 1920/1366/1024/390 widths.
+ *
+ * Prompt #103 (Missions consolidation + mission management) additions:
+ *  - Create Mission and My Missions are ONE sidebar destination ("Missions") — there is no
+ *    separate visible Create Mission sidebar item anymore.
+ *  - #create (preserved deep link) opens the Missions workspace with Create New Mission
+ *    auto-expanded; #missions opens Missions with it collapsed; My Missions is expanded by
+ *    default underneath either way.
+ *  - My Missions has [All]/[Active]/[Paused]/[Archived] filter chips + a title search box, and
+ *    each mission row exposes Edit/Pause-Resume/Promote-Unpromote/Archive-Restore (+Delete only
+ *    when unused).
+ *  - The old "Mission submissions" panel (duplicating Review Queue) is gone.
+ *  - "Character Totals"/"Character" column header in Other Tools now read "Student
+ *    Totals"/"Student"; Reviewed & approved search now says "Search by student or title…".
  *
  * Prompt #78 (visual polish + legacy option audit) additions:
  *  - Teacher-page-specific Sign out button is gone (global Lantern nav already provides logout);
@@ -35,10 +46,10 @@
  *  - Review Queue empty state is a compact placeholder, not a large blank bordered box.
  *
  * Prompt #91 (Nuggets first + default workspace) additions:
- *  - Sidebar order starts with Nuggets, then Overview/Review Queue/Create Mission/My
- *    Missions/Moderation/Hallway TV/Other Tools.
+ *  - Sidebar order starts with Nuggets, then Overview/Review Queue/Missions/Moderation/Hallway
+ *    TV/Other Tools (Prompt #103 removed the separate Create Mission item — see above).
  *  - A plain /teacher.html load (no hash) opens Nuggets by default, not Overview.
- *  - Explicit deep links (#overview, #review, #create, ...) still open their requested
+ *  - Explicit deep links (#overview, #review, #missions, ...) still open their requested
  *    workspace — Nuggets is the default, not a mandatory intermediate screen.
  *
  * Usage: node worker/scripts/teacher-workspace-shell-test.mjs [baseUrl]
@@ -47,6 +58,12 @@
 import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/index.mjs';
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
+
+// Prompt #103 — titles are deliberately non-overlapping substrings (Alpha/Beta/Gamma) so the
+// title-search assertions below can isolate exactly one fixture at a time.
+const FIXTURE_MISSION = { id: 'tmission_shell_test', title: 'Shell Test Alpha', reward_amount: 2, active: 1, archived: 0, submission_count: 1, teacher_id: 'teacher1', teacher_name: 'Ms. Carter', created_at: '2026-08-08T12:00:00.000Z' };
+const FIXTURE_MISSION_UNUSED = { id: 'tmission_shell_unused', title: 'Shell Test Beta', reward_amount: 1, active: 0, archived: 0, submission_count: 0, teacher_id: 'teacher1', teacher_name: 'Ms. Carter', created_at: '2026-08-08T12:00:00.000Z' };
+const FIXTURE_MISSION_ARCHIVED = { id: 'tmission_shell_archived', title: 'Shell Test Gamma', reward_amount: 1, active: 0, archived: 1, submission_count: 3, teacher_id: 'teacher1', teacher_name: 'Ms. Carter', created_at: '2026-08-07T12:00:00.000Z' };
 
 const FIXTURE_MISSION_SUBMISSION = {
   id: 'msub_shell_test_1',
@@ -89,7 +106,7 @@ async function main() {
     ok: true, authenticated: true, role: 'teacher', username: 'teacher1', display_name: 'Ms. Carter',
     teacher_id: 'teacher1', must_change_password: false,
   }));
-  await page.route('**/api/missions/teacher**', okJson({ ok: true, missions: [{ id: 'tmission_shell_test', title: 'Shell Test Mission', reward_amount: 2, active: 1, teacher_id: 'teacher1', teacher_name: 'Ms. Carter' }] }));
+  await page.route('**/api/missions/teacher**', okJson({ ok: true, missions: [FIXTURE_MISSION, FIXTURE_MISSION_UNUSED, FIXTURE_MISSION_ARCHIVED] }));
   await page.route('**/api/missions/submissions/teacher**', okJson({ ok: true, submissions: [FIXTURE_MISSION_SUBMISSION] }));
   await page.route('**/api/missions/submissions/approved**', okJson({ ok: true, submissions: [] }));
   await page.route('**/api/missions/submissions/hidden**', okJson({ ok: true, submissions: [] }));
@@ -118,9 +135,11 @@ async function main() {
   // Sidebar + default workspace
   // ---------------------------------------------------------------------------
   const sidebarItems = await page.locator('.teacherSidebarItem').allTextContents();
-  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'Create Mission', 'My Missions', 'Moderation', 'Other Tools'];
-  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all 7 expected workspace items: ' + JSON.stringify(sidebarItems));
+  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'Missions', 'Moderation', 'Other Tools'];
+  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all 6 expected workspace items: ' + JSON.stringify(sidebarItems));
   assert(sidebarItems[0].indexOf('Nuggets') !== -1, 'Nuggets is the first sidebar item: ' + JSON.stringify(sidebarItems));
+  assert(!sidebarItems.some((t) => t.indexOf('Create Mission') !== -1), 'Prompt #103 — Create Mission is no longer a separate visible sidebar destination: ' + JSON.stringify(sidebarItems));
+  assert((await page.locator('.teacherSidebarItem[data-workspace-link="create"]').count()) === 0, 'No sidebar item links to a standalone "create" workspace');
 
   function activeWorkspaceIds() {
     return page.evaluate(() => Array.from(document.querySelectorAll('#teacherMain > [data-workspace].is-active-workspace')).map((el) => el.getAttribute('data-workspace')));
@@ -165,13 +184,17 @@ async function main() {
   assert((await activeWorkspaceIds()).join(',') === 'review', 'Clicking the Review Queue sidebar item opens the review workspace');
   assert(await page.locator('.teacherSidebarItem[data-workspace-link="review"]').evaluate((el) => el.classList.contains('is-active')), 'Review Queue sidebar item is marked active');
 
+  // Prompt #103 — #create is a preserved deep-link ALIAS into the consolidated Missions
+  // workspace; it is not a separate workspace/pane, and it auto-expands Create New Mission.
   await page.goto(base + '/teacher.html#create', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
   await page.waitForFunction(() => {
-    const el = document.getElementById('teacher-create-mission');
+    const el = document.getElementById('teacher-missions');
     return el && el.classList.contains('is-active-workspace');
   }, { timeout: 5000 });
-  assert(true, 'Direct navigation to /teacher.html#create opens the Create Mission workspace on load');
+  assert(true, 'Direct navigation to /teacher.html#create opens the Missions workspace on load (no separate Create workspace)');
+  assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => el.open), '#create auto-expands the Create New Mission details');
+  assert(await page.locator('.teacherSidebarItem[data-workspace-link="missions"]').evaluate((el) => el.classList.contains('is-active')), '#create marks the single Missions sidebar item active (not a phantom "create" item)');
 
   await page.goto(base + '/teacher.html#not-a-real-workspace', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
@@ -240,25 +263,29 @@ async function main() {
   await page.waitForFunction(() => !document.getElementById('reviewOverlay').classList.contains('is-open'), { timeout: 5000 });
 
   // ---------------------------------------------------------------------------
-  // Create Mission workspace — handler retained + reward defaults to 1
+  // Create New Mission (now inside the Missions workspace) — handler retained + reward
+  // defaults to 1; collapsed by default via #missions, expanded via #create (Prompt #103).
   // ---------------------------------------------------------------------------
+  await page.evaluate(() => { location.hash = 'missions'; });
+  await page.waitForFunction(() => document.getElementById('teacher-missions').classList.contains('is-active-workspace'), { timeout: 5000 });
+  assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => !el.open), '#missions leaves Create New Mission collapsed by default');
   await page.evaluate(() => { location.hash = 'create'; });
-  await page.waitForFunction(() => document.getElementById('teacher-create-mission').classList.contains('is-active-workspace'), { timeout: 5000 });
+  await page.waitForFunction(() => document.getElementById('teacherCreateMissionDetails').open === true, { timeout: 5000 });
   const rewardDefault = await page.locator('#missionReward').inputValue();
   assert(rewardDefault === '1', 'Create Mission reward field defaults to 1 Nugget for new missions: ' + rewardDefault);
-  assert(await page.locator('#createMissionBtn').isVisible(), 'Create Mission button is visible and reachable in its own workspace');
+  assert(await page.locator('#createMissionBtn').isVisible(), 'Create Mission button is visible and reachable once the details are expanded');
 
   // Prompt #78 — desktop width, standardized form classes, and the two archived/relabeled options.
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.waitForTimeout(120);
-  const formCardBox = await page.locator('#teacher-create-mission .teacherFormCard').boundingBox();
+  const formCardBox = await page.locator('#teacherCreateMissionDetails').boundingBox();
   assert(!!formCardBox && formCardBox.width >= 650 && formCardBox.width <= 900, 'Create Mission form uses a sane desktop width (650-900px) at 1920, not full-bleed or phone-narrow: ' + (formCardBox && formCardBox.width));
-  assert((await page.locator('#teacher-create-mission .teacherFieldGroup').count()) >= 4, 'Create Mission form uses standardized section-group classes (Mission/Submission/Audience & reward/Advanced)');
-  assert((await page.locator('#teacher-create-mission .teacherInput, #teacher-create-mission .teacherSelect, #teacher-create-mission .teacherTextarea').count()) >= 5, 'Create Mission inputs/selects/textarea use standardized shared Teacher form classes');
+  assert((await page.locator('#teacherCreateMissionDetails .teacherFieldGroup').count()) >= 4, 'Create Mission form uses standardized section-group classes (Mission/Submission/Audience & reward/Advanced)');
+  assert((await page.locator('#teacherCreateMissionDetails .teacherInput, #teacherCreateMissionDetails .teacherSelect, #teacherCreateMissionDetails .teacherTextarea').count()) >= 5, 'Create Mission inputs/selects/textarea use standardized shared Teacher form classes');
   assert(await page.locator('#missionSiteEligible').count() === 0, 'Legacy "Highlight-worthy / site-eligible" control has been archived (removed) from Create Mission');
   const featuredLabelText = (await page.locator('#missionFeatured').locator('xpath=following-sibling::span[1]').innerText()).trim();
-  assert(featuredLabelText === 'Feature this mission', 'Pin-as-featured control has been relabeled in plain language: ' + featuredLabelText);
-  assert((await page.locator('#teacher-create-mission .teacherCheckboxHint').count()) >= 1, '"Feature this mission" has a one-sentence plain-language helper explanation');
+  assert(featuredLabelText === 'Promote this mission', 'Prompt #103 relabeled the feature checkbox from "Feature this mission" to "Promote this mission": ' + featuredLabelText);
+  assert((await page.locator('#teacherCreateMissionDetails .teacherCheckboxHint').count()) >= 1, '"Promote this mission" has a one-sentence plain-language helper explanation');
 
   // ---------------------------------------------------------------------------
   // Moderation workspace — retained, isolated from Review Queue
@@ -282,21 +309,79 @@ async function main() {
   assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Redeem Nugget button is retained and reachable');
 
   // ---------------------------------------------------------------------------
-  // My Missions workspace — retained
+  // Missions workspace (Create + My Missions consolidated, Prompt #103) — My Missions is
+  // expanded by default, shows filters/search + per-mission management actions.
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'missions'; });
   await page.waitForFunction(() => document.getElementById('teacher-missions').classList.contains('is-active-workspace'), { timeout: 5000 });
-  await page.waitForSelector('#teacherMissionsEl .curatePostRow', { timeout: 10000 });
-  assert(true, 'My Missions workspace lists the teacher\u2019s real missions');
-  assert(await page.locator('#recognitionListEl').count() === 1, 'Recognition tool remains reachable inside My Missions');
+  assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => !el.open), 'Create New Mission is collapsed again under plain #missions (not sticky-open from #create)');
+  await page.waitForSelector('#teacherMissionsEl .teacherMissionRow', { timeout: 10000 });
+  const allRowTitles = () => page.locator('#teacherMissionsEl .teacherMissionRow .teacherMissionRowTitle').allTextContents();
+  assert((await allRowTitles()).length === 3, 'My Missions is expanded by default and lists all 3 fixture missions with no filter applied');
+  assert(await page.locator('.teacherMissionsFilterChip[data-mission-filter="all"]').evaluate((el) => el.classList.contains('is-active')), '"All" filter chip is active by default');
+
+  await page.click('.teacherMissionsFilterChip[data-mission-filter="active"]');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
+  assert((await allRowTitles())[0] === 'Shell Test Alpha', '"Active" filter shows only the active mission');
+
+  await page.click('.teacherMissionsFilterChip[data-mission-filter="paused"]');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
+  assert((await allRowTitles())[0] === 'Shell Test Beta', '"Paused" filter shows only the paused mission');
+
+  await page.click('.teacherMissionsFilterChip[data-mission-filter="archived"]');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
+  assert((await allRowTitles())[0] === 'Shell Test Gamma', '"Archived" filter shows only the archived mission');
+  const archivedRowMeta = await page.locator('#teacherMissionsEl .teacherMissionRow .teacherMissionRowMeta').innerText();
+  assert(archivedRowMeta.indexOf('Archived') !== -1 && archivedRowMeta.indexOf('3 submission') !== -1, 'Archived mission row shows Archived status + submission count: ' + archivedRowMeta);
+  assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Restore")').count() === 1, 'Archived mission row shows Restore instead of Archive');
+  assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Resume")').evaluate((el) => el.disabled), 'Archived mission cannot Resume directly — must Restore first');
+  assert(await page.locator('#teacherMissionsEl .teacherMissionRow button:has-text("Delete")').count() === 0, 'Archived (used) mission has no Delete action — history exists');
+
+  await page.click('.teacherMissionsFilterChip[data-mission-filter="all"]');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 3, { timeout: 5000 });
+
+  await page.fill('#teacherMissionsSearchInput', 'Beta');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
+  assert((await allRowTitles())[0] === 'Shell Test Beta', 'Title search narrows My Missions to the matching mission');
+  const unusedRow = page.locator('#teacherMissionsEl .teacherMissionRow', { hasText: 'Shell Test Beta' });
+  assert(await unusedRow.locator('button:has-text("Delete")').count() === 1, 'Unused mission (0 submissions) exposes a Delete action');
+  assert(await unusedRow.locator('button:has-text("Resume")').count() === 1, 'Paused mission shows Resume (not Activate)');
+  assert(await unusedRow.locator('button:has-text("Promote")').count() === 1, 'Unpromoted mission shows Promote (not Feature)');
+
+  // Edit form: safe fields always shown; audience/requirements only shown pre-first-submission.
+  await unusedRow.locator('button:has-text("Edit")').click();
+  await page.waitForSelector('.teacherMissionEditForm', { timeout: 5000 });
+  assert(await page.locator('.teacherMissionEditForm [data-edit="title"]').count() === 1, 'Edit form exposes the Title field for an unused mission');
+  assert(await page.locator('.teacherMissionEditForm [data-edit="audience"]').count() === 1, 'Edit form exposes Audience for a mission with zero submissions (safe to change pre-first-submission)');
+  await page.click('.teacherMissionEditForm .teacherMissionEditCancelBtn');
+  assert(await page.locator('.teacherMissionEditForm').count() === 0, 'Cancel closes the inline edit form without saving');
+
+  await page.fill('#teacherMissionsSearchInput', 'Alpha');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 1, { timeout: 5000 });
+  const usedRow = page.locator('#teacherMissionsEl .teacherMissionRow', { hasText: 'Shell Test Alpha' });
+  await usedRow.locator('button:has-text("Edit")').click();
+  await page.waitForSelector('.teacherMissionEditForm', { timeout: 5000 });
+  assert(await page.locator('.teacherMissionEditForm [data-edit="audience"]').count() === 0, 'Edit form hides Audience once a mission has a submission (server-enforced lock)');
+  assert(await page.locator('.teacherMissionEditForm .teacherMissionLockedNote').count() === 1, 'Edit form explains the audience/requirements lock once submissions exist');
+  assert(await page.locator('.teacherMissionEditForm .teacherMissionRewardWarning').count() === 1, 'Edit form shows a reward-change warning (future approvals only, past payouts immutable)');
+  await page.click('.teacherMissionEditForm .teacherMissionEditCancelBtn');
+  await page.fill('#teacherMissionsSearchInput', '');
+  await page.waitForFunction(() => document.querySelectorAll('#teacherMissionsEl .teacherMissionRow').length === 3, { timeout: 5000 });
+
+  assert(await page.locator('#missionSubmissionsCount').count() === 0, 'Prompt #103 — the old duplicative "Mission submissions" panel is gone');
+  assert(await page.locator('#recognitionListEl').count() === 1, 'Recognition tool remains reachable inside Missions (Phase D removal deferred to #104 — see report)');
+  const searchPlaceholder = await page.locator('#reviewedSearchInput').getAttribute('placeholder');
+  assert(searchPlaceholder === 'Search by student or title\u2026', 'Reviewed & approved search placeholder now says "student" instead of "character": ' + searchPlaceholder);
 
   // ---------------------------------------------------------------------------
-  // Other Tools workspace — retained (Act As Teacher / Class Access / Character Totals)
+  // Other Tools workspace — retained (Act As Teacher / Class Access / Student Totals)
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'other'; });
   await page.waitForFunction(() => document.getElementById('teacher-utilities').classList.contains('is-active-workspace'), { timeout: 5000 });
   assert(await page.locator('#classAccessStartBtn, #classAccessEndBtn').first().count() >= 1, 'Class Access controls remain reachable inside Other Tools');
-  assert(await page.locator('#totalsBody').isVisible(), 'Character Totals table remains reachable inside Other Tools');
+  assert(await page.locator('#totalsBody').isVisible(), 'Student Totals table remains reachable inside Other Tools');
+  assert((await page.locator('#teacher-utilities .h', { hasText: 'Student Totals' }).count()) === 1, 'Legacy "Character Totals" heading renamed to "Student Totals"');
+  assert((await page.locator('#teacher-utilities th.cellStudentName').innerText()) === 'Student', 'Legacy "Character" column header renamed to "Student"');
 
   // ---------------------------------------------------------------------------
   // Mobile drawer + no horizontal overflow across required widths
@@ -312,12 +397,14 @@ async function main() {
   await page.click('#teacherMobileMenuBtn');
   await page.waitForFunction(() => document.getElementById('teacherSidebar').classList.contains('is-open'), { timeout: 5000 });
   assert(true, 'Mobile menu button opens the sidebar drawer');
-  await page.click('.teacherSidebarItem[data-workspace-link="create"]');
+  await page.click('.teacherSidebarItem[data-workspace-link="missions"]');
   await page.waitForFunction(() => !document.getElementById('teacherSidebar').classList.contains('is-open'), { timeout: 5000 });
   assert(true, 'Choosing a workspace from the mobile drawer closes the drawer');
-  assert((await activeWorkspaceIds()).join(',') === 'create', 'Mobile drawer navigation actually switched to the chosen workspace');
+  assert((await activeWorkspaceIds()).join(',') === 'missions', 'Mobile drawer navigation actually switched to the chosen workspace');
 
-  const mobileRowColumns = await page.locator('.teacherFieldRow--2').first().evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
+  await page.click('#teacherCreateMissionDetails summary');
+  await page.waitForFunction(() => document.getElementById('teacherCreateMissionDetails').open === true, { timeout: 5000 });
+  const mobileRowColumns = await page.locator('#teacherCreateMissionDetails .teacherFieldRow--2').first().evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
   assert(mobileRowColumns === 1, 'Create Mission Audience & Reward two-column row collapses to a single column at phone width');
 
   const widths = [1920, 1366, 1024, 390];

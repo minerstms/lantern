@@ -58,6 +58,7 @@ function makeMissionsDb(seed) {
       target_character_names: r.target_character_names || null,
       featured: r.featured || 0,
       active: r.active != null ? r.active : 1,
+      archived: r.archived || 0,
       site_eligible: r.site_eligible || 0,
       allows_text: r.allows_text != null ? r.allows_text : 1,
       allows_image: r.allows_image || 0,
@@ -69,7 +70,7 @@ function makeMissionsDb(seed) {
   }
 
   function runQuery(s, binds) {
-    if (s.startsWith('SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions')) {
+    if (s.startsWith('SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions')) {
       let rows = [...missions.values()];
       if (s.includes('WHERE teacher_id = ?')) {
         const tid = binds[0];
@@ -93,6 +94,15 @@ function makeMissionsDb(seed) {
       let rows = [...submissions.values()].filter((r) => missionIds.includes(r.mission_id) && r.status === status);
       rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
       return { results: rows };
+    }
+    // Prompt #103 — GET /api/missions/teacher's per-mission submission_count aggregate.
+    if (s.startsWith('SELECT mission_id, COUNT(*) AS n FROM lantern_mission_submissions WHERE mission_id IN')) {
+      const missionIds = binds;
+      const counts = {};
+      [...submissions.values()].forEach((r) => {
+        if (missionIds.includes(r.mission_id)) counts[r.mission_id] = (counts[r.mission_id] || 0) + 1;
+      });
+      return { results: Object.keys(counts).map((mission_id) => ({ mission_id, n: counts[mission_id] })) };
     }
     throw new Error('Unhandled SELECT (.all): ' + s);
   }

@@ -10,6 +10,8 @@ import {
 import {
   isAdminRole,
   missionVisibleToStudent,
+  missionEditLockedFieldsPresent,
+  missionIsUnusedAndDeletable,
   normalizeSubmissionType,
   parseTargetCharacterNames,
   requireMissionSession,
@@ -40,6 +42,9 @@ function missionRowToJson(r) {
     target_character_names: target,
     featured: !!r.featured,
     active: r.active !== 0,
+    // Prompt #103: archive is a lifecycle state distinct from active/paused; defaults to 0 for
+    // pre-migration rows via the additive column default, so existing missions read as not archived.
+    archived: !!r.archived,
     site_eligible: !!r.site_eligible,
     allows_text: r.allows_text !== undefined && r.allows_text !== null ? !!r.allows_text : true,
     allows_image: !!(r.allows_image),
@@ -50,6 +55,9 @@ function missionRowToJson(r) {
         ? Math.max(0, Math.floor(Number(r.min_characters)) || 200)
         : 200,
     created_at: r.created_at || '',
+    // Only populated by the teacher-owned list query below (submission_count is a joined
+    // aggregate, not a real column) — undefined here means "not requested", not "zero".
+    submission_count: r.submission_count !== undefined ? Number(r.submission_count) || 0 : undefined,
   };
 }
 
@@ -89,10 +97,18 @@ function mapCharacterSubmissionRow(s, byMission) {
 async function loadFullMission(db, missionId) {
   return db
     .prepare(
-      'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE id = ?'
+      'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE id = ?'
     )
     .bind(missionId)
     .first();
+}
+
+async function countMissionSubmissions(db, missionId) {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM lantern_mission_submissions WHERE mission_id = ?')
+    .bind(missionId)
+    .first();
+  return row ? Number(row.n) || 0 : 0;
 }
 
 async function handlePollAndBugSideEffects(db, row, now) {
@@ -192,7 +208,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const characterName = identity.characterName;
     const rows = await db
       .prepare(
-        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 ORDER BY featured DESC, created_at DESC'
+        // Prompt #103: student-facing "active" missions must require BOTH active=1 AND
+        // archived=0 — Archive is a separate, stronger unavailability than Pause.
+        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
       )
       .all();
     let list = (rows.results || []).map((r) => missionRowToJson(r));
@@ -215,16 +233,30 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const rows = teacherId
       ? await db
           .prepare(
-            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
+            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
           )
           .bind(teacherId)
           .all()
       : await db
           .prepare(
-            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
+            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
           )
           .all();
-    const list = (rows.results || []).map((r) => missionRowToJson(r));
+    // Prompt #103: Missions workspace mission cards show a submission count ("N submissions") —
+    // one small grouped query instead of a per-mission subquery, only on this teacher-owned list.
+    const missionIds = (rows.results || []).map((r) => r.id);
+    let countsByMission = {};
+    if (missionIds.length > 0) {
+      const placeholders = missionIds.map(() => '?').join(',');
+      const countRows = await db
+        .prepare(
+          'SELECT mission_id, COUNT(*) AS n FROM lantern_mission_submissions WHERE mission_id IN (' + placeholders + ') GROUP BY mission_id'
+        )
+        .bind(...missionIds)
+        .all();
+      (countRows.results || []).forEach((c) => { countsByMission[c.mission_id] = Number(c.n) || 0; });
+    }
+    const list = (rows.results || []).map((r) => missionRowToJson({ ...r, submission_count: countsByMission[r.id] || 0 }));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -311,6 +343,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       target_character_names: targetNames || undefined,
       featured,
       active,
+      archived: false,
       site_eligible: siteEligible,
       allows_text: allowsText,
       allows_image: allowsImage,
@@ -339,11 +372,44 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!teacherOwnsMission(auth.account, row.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized' }, 403, cors);
     }
+    // Prompt #103 — audience/target_character_names/allows_*/min_characters may only change
+    // before a mission's first submission ever exists (server-side enforcement of CURSOR REPLY
+    // #100 §5's edit matrix; the client should already avoid sending these once submissions
+    // exist, but this must hold even for old/replayed/hand-crafted requests).
+    const lockedFieldsRequested = missionEditLockedFieldsPresent(body);
+    if (lockedFieldsRequested.length > 0) {
+      const submissionCount = await countMissionSubmissions(db, id);
+      if (submissionCount > 0) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'mission_locked_after_first_submission',
+            locked_fields: lockedFieldsRequested,
+            message: 'Audience and submission requirements can only be changed before a mission receives its first submission.',
+          },
+          400,
+          cors
+        );
+      }
+    }
     const updates = [];
     const bindings = [];
     if (body.active !== undefined) {
       updates.push('active = ?');
       bindings.push(body.active ? 1 : 0);
+    }
+    if (body.archived !== undefined) {
+      const archiving = !!body.archived;
+      updates.push('archived = ?');
+      bindings.push(archiving ? 1 : 0);
+      // Archive always forces active=0 (unavailable to students) in the same update, regardless
+      // of any active value also present in this request. Restore (archived: false) deliberately
+      // does NOT touch active — a restored mission stays Paused until the teacher explicitly
+      // clicks Resume (CURSOR PROMPT #103 "Restore: leave PAUSED").
+      if (archiving && body.active === undefined) {
+        updates.push('active = ?');
+        bindings.push(0);
+      }
     }
     if (body.title !== undefined) {
       updates.push('title = ?');
@@ -408,6 +474,36 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     return jsonResponse({ ok: true, mission: m ? missionRowToJson(m) : null }, 200, cors);
   }
 
+  if (request.method === 'DELETE' && missionIdMatch) {
+    // Prompt #103 — hard delete is a secondary/destructive action for genuinely UNUSED missions
+    // only. Any submission/dependent history (approvals, published content, rewards, TMS Nugget
+    // transactions all key off lantern_mission_submissions.id) means the mission must be
+    // archived instead; we never cascade-delete that history.
+    const auth = await requireMissionTeacher(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const id = missionIdMatch[1];
+    const row = await db.prepare('SELECT id, teacher_id FROM lantern_missions WHERE id = ?').bind(id).first();
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (!teacherOwnsMission(auth.account, row.teacher_id)) {
+      return jsonResponse({ ok: false, error: 'Not authorized' }, 403, cors);
+    }
+    const submissionCount = await countMissionSubmissions(db, id);
+    if (!missionIsUnusedAndDeletable(submissionCount)) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'mission_has_history',
+          submission_count: submissionCount,
+          message: 'This mission has submission history and cannot be deleted. Archive it instead.',
+        },
+        400,
+        cors
+      );
+    }
+    await db.prepare('DELETE FROM lantern_missions WHERE id = ?').bind(id).run();
+    return jsonResponse({ ok: true, deleted: true, id }, 200, cors);
+  }
+
   if (request.method === 'POST' && path === '/api/missions/submit') {
     const auth = await requireMissionSession(deps, request, env, cors);
     if (auth.response) return auth.response;
@@ -427,7 +523,10 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!missionId) return jsonResponse({ ok: false, error: 'Missing mission_id' }, 400, cors);
     const mission = await loadFullMission(db, missionId);
     if (!mission) return jsonResponse({ ok: false, error: 'Mission not found' }, 404, cors);
-    if (mission.active === 0) return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
+    // Prompt #103 — archived missions must reject new submissions even via an old/deep-linked
+    // mission_id that a student already has cached client-side; Pause (active=0) already blocked
+    // this, Archive must too.
+    if (mission.active === 0 || !!mission.archived) return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
     if (!missionVisibleToStudent(mission, characterName)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }

@@ -1169,6 +1169,49 @@
     .teacherCollapsibleCard > summary::before{ content: '▸'; color: var(--muted); font-weight: 900; margin-right: 4px; }
     .teacherCollapsibleCard[open] > summary::before{ content: '▾'; }
 
+    /* Prompt #103 — consolidated Missions workspace: My Missions filter/search toolbar and
+       per-mission management row (Edit/Pause/Promote/Archive/Delete). */
+    .teacherMissionsToolbar{ display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .teacherMissionsFilterChips{ display: flex; flex-wrap: wrap; gap: 6px; }
+    .teacherMissionsFilterChip{
+      font-size: 17px;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      cursor: pointer;
+      line-height: 1.2;
+    }
+    .teacherMissionsFilterChip:hover{ background: rgba(255,255,255,.1); }
+    .teacherMissionsFilterChip.is-active{
+      border-color: rgba(90,167,255,.55);
+      background: rgba(90,167,255,.18);
+    }
+    .teacherMissionsSearchInput{ flex: 1; min-width: 200px; max-width: 360px; height: 48px; }
+    .teacherMissionRow{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .teacherMissionRow:last-child{ border-bottom: none; }
+    .teacherMissionRow.is-archived{ opacity: .72; }
+    .teacherMissionRowInfo{ flex: 1; min-width: 220px; }
+    .teacherMissionRowTitle{ font-weight: 900; font-size: 22px; margin-bottom: 4px; }
+    .teacherMissionRowMeta{ font-size: 18px; color: var(--muted); }
+    .teacherMissionRowMeta .status-active{ color: #38d07c; font-weight: 800; }
+    .teacherMissionRowMeta .status-paused{ color: #f5c451; font-weight: 800; }
+    .teacherMissionRowMeta .status-archived{ color: var(--muted); font-weight: 800; }
+    .teacherMissionRowActions{ display: flex; gap: 6px; flex-wrap: wrap; }
+    .teacherMissionEditForm{ width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+    .teacherMissionRewardWarning{ font-size: 16px; color: #f5c451; margin: 6px 0 0; }
+    .teacherMissionLockedNote{ font-size: 16px; color: var(--muted); margin: 10px 0; }
+
     @media (max-width: 900px){
       .teacherAppShell{ display: block; }
       .teacherMobileMenuBtn{
@@ -1312,8 +1355,7 @@
           <button type="button" class="teacherSidebarItem" data-workspace-link="economy"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Queue</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="create"><span class="teacherSidebarIcon" aria-hidden="true">➕</span><span class="teacherSidebarLabel">Create Mission</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">My Missions</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">Missions</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
           <a href="display.html" target="_blank" rel="noopener" class="teacherSidebarItem teacherSidebarItem--divider"><span class="teacherSidebarIcon" aria-hidden="true">📺</span><span class="teacherSidebarLabel">Hallway TV</span></a>
           <button type="button" class="teacherSidebarItem" data-workspace-link="other"><span class="teacherSidebarIcon" aria-hidden="true">🧰</span><span class="teacherSidebarLabel">Other Tools</span></button>
@@ -1348,7 +1390,7 @@
             <div class="teacherOverviewQuickActionsRow">
               <button type="button" class="btn primary" data-workspace-link="review">Review submissions</button>
               <button type="button" class="btn good" data-workspace-link="create">Create mission</button>
-              <button type="button" class="btn" data-workspace-link="missions">My missions</button>
+              <button type="button" class="btn" data-workspace-link="missions">Missions</button>
               <button type="button" class="btn" data-workspace-link="economy">Record Nugget sale</button>
             </div>
           </div>
@@ -1569,9 +1611,14 @@
       </div>
     </div>
 
-    <section id="teacher-create-mission" class="teacherMissionsSection" data-workspace="create" aria-labelledby="teacherCreateMissionHeading">
-    <h2 id="teacherCreateMissionHeading" class="visuallyHidden">Create Mission</h2>
-    <div class="card teacherFormCard">
+    <section id="teacher-missions" class="teacherMissionsSection" data-workspace="missions" aria-labelledby="teacherMissionsHeading">
+    <h2 id="teacherMissionsHeading" class="visuallyHidden">Missions</h2>
+
+    <!-- Prompt #103 — Create Mission and My Missions are one workspace now. Create is
+         collapsed by default; deep link #create (preserved) auto-expands it (see
+         shouldExpandCreateFromHash() below). Do not add a second, separate Create workspace. -->
+    <details id="teacherCreateMissionDetails" class="card teacherCollapsibleCard teacherFormCard">
+      <summary class="cardHd"><div class="h">Create New Mission</div></summary>
       <div class="cardBd">
         <p class="note note-tight">Students submit here; you review in <strong>Review Queue</strong>.</p>
 
@@ -1651,7 +1698,7 @@
         <div class="teacherField">
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionFeatured" />
-            <span class="teacherCheckboxLabel">Feature this mission</span>
+            <span class="teacherCheckboxLabel">Promote this mission</span>
           </label>
           <p class="teacherCheckboxHint">Shows this mission prominently to students — it's sorted to the top of their Active Missions list.</p>
         </div>
@@ -1661,29 +1708,27 @@
         </div>
         <p id="createMissionStatus" class="createMissionStatus" role="status" aria-live="polite" style="display:none;"></p>
       </div>
-    </div>
-    </section>
+    </details>
 
-    <section id="teacher-missions" class="teacherMissionsSection" data-workspace="missions" aria-labelledby="teacherMissionsHeading">
-    <h2 id="teacherMissionsHeading" class="visuallyHidden">My Missions</h2>
-    <div class="card">
+    <div class="card" id="teacherMyMissionsCard">
       <div class="cardHd">
-        <div class="h">Your Missions</div>
+        <div class="h">My Missions</div>
         <div class="pill accent" id="teacherMissionsCount">0</div>
       </div>
       <div class="cardBd">
-        <div id="teacherMissionsEl" class="scrollArea" style="max-height: 220px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12);"></div>
-      </div>
-    </div>
-
-    <div class="card" style="border-color: rgba(56,208,124,.3); background: linear-gradient(180deg, rgba(56,208,124,.06), rgba(56,208,124,.02));">
-      <div class="cardHd">
-        <div class="h">Mission submissions</div>
-        <div class="pill good" id="missionSubmissionsCount">0</div>
-      </div>
-      <div class="cardBd">
-        <p class="note note-tight">Submissions live under <strong>Approvals → My Classroom</strong>. Count below for reference.</p>
-        <div id="missionSubmissionsEl" class="scrollArea" style="display:none;"></div>
+        <div class="teacherMissionsToolbar">
+          <div class="teacherMissionsFilterChips" id="teacherMissionsFilterChips" role="group" aria-label="Filter missions by status">
+            <button type="button" class="teacherMissionsFilterChip is-active" data-mission-filter="all">All</button>
+            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="active">Active</button>
+            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="paused">Paused</button>
+            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="archived">Archived</button>
+          </div>
+          <input type="text" id="teacherMissionsSearchInput" class="teacherInput teacherMissionsSearchInput" placeholder="Search missions…" autocomplete="off" />
+        </div>
+        <div id="teacherMissionsEl" class="scrollArea" style="max-height: 420px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12);"></div>
+        <p class="note note-tight teacherMissionsPendingLink" id="teacherMissionsPendingLink" style="display:none;">
+          <span id="teacherMissionsPendingCount">0</span> pending submission(s) → <a href="#review" data-workspace-link="review">Review Queue</a>
+        </p>
       </div>
     </div>
 
@@ -1694,13 +1739,17 @@
       </div>
       <div class="cardBd">
         <p class="note note-tight">Browse approved work — spotlight, feature, or praise.</p>
-        <input type="text" id="reviewedSearchInput" placeholder="Search by character or title…" style="width:100%;max-width:400px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;" />
+        <input type="text" id="reviewedSearchInput" placeholder="Search by student or title…" style="width:100%;max-width:400px;height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:12px;" />
         <div id="curatePostsEl" class="scrollArea" style="max-height: 320px; overflow:auto; border-radius:16px; border:1px solid var(--line); background: rgba(0,0,0,.12);"></div>
       </div>
     </div>
 
     <!-- Prompt #78 — Recognition is a secondary supporting tool here (mission list is
-         the primary function of this workspace), so it's a collapsed-by-default card. -->
+         the primary function of this workspace), so it's a collapsed-by-default card.
+         Prompt #103: retirement of this Spotlight/Feature/Teacher Pick/Praise + Recognition
+         composer UI is DEFERRED to #104 (see CURSOR REPLY #103 §11) — it materially overlaps
+         with the Review Queue → Approved restructuring that hasn't happened yet, so removing it
+         now would leave teachers with no way to browse/react to approved work at all. -->
     <details class="card teacherCollapsibleCard" style="border-color: rgba(56,208,124,.3); background: linear-gradient(180deg, rgba(56,208,124,.06), rgba(56,208,124,.02));">
       <summary class="cardHd">
         <div class="h">Recognition</div>
@@ -1709,9 +1758,9 @@
       <div class="cardBd">
         <p class="note note-tight">Positive shout-out — shows immediately (no queue).</p>
         <div class="teacherField">
-          <label for="recCharacterName">Character</label>
+          <label for="recCharacterName">Student</label>
           <select id="recCharacterName" class="teacherSelect" style="max-width:320px;">
-            <option value="">— Select character —</option>
+            <option value="">— Select student —</option>
           </select>
         </div>
         <div class="teacherField">
@@ -1798,7 +1847,7 @@
 
         <div class="card">
           <div class="cardHd">
-            <div class="h">Character Totals</div>
+            <div class="h">Student Totals</div>
             <div class="pill" id="lbPill">Top 20</div>
           </div>
           <div class="cardBd">
@@ -1807,7 +1856,7 @@
                 <thead>
                   <tr>
                     <th style="width:44px;">#</th>
-                    <th class="cellStudentName">Character</th>
+                    <th class="cellStudentName">Student</th>
                     <th class="colTotal">Total</th>
                   </tr>
                 </thead>
@@ -1830,7 +1879,11 @@
    * does not call any API and does not touch mission/approval/moderation/economy logic.
    */
   (function(){
-    var WORKSPACES = ['overview', 'review', 'create', 'missions', 'moderation', 'economy', 'other'];
+    // Prompt #103 — Create Mission and My Missions are now ONE workspace ("missions").
+    // "create" is no longer a real workspace/pane; it is a preserved deep-link ALIAS that
+    // resolves to "missions" and additionally auto-expands the Create New Mission <details>.
+    var WORKSPACES = ['overview', 'review', 'missions', 'moderation', 'economy', 'other'];
+    var WORKSPACE_ALIASES = { create: 'missions' };
     // Prompt #91 — Nuggets (formerly "Nuggets & Sales") is the first sidebar item and the
     // default Teacher workspace; DEFAULT_WORKSPACE is only the hash fallback used when no
     // explicit/valid workspace is requested (see workspaceFromHash below), so deep links to
@@ -1839,16 +1892,26 @@
     var TITLES = {
       overview: 'Overview',
       review: 'Review Queue',
-      create: 'Create Mission',
-      missions: 'My Missions',
+      missions: 'Missions',
       moderation: 'Moderation',
       economy: 'Nuggets',
       other: 'Other Tools',
     };
 
+    function resolveWorkspaceAlias(name){
+      var n = String(name || '').trim().toLowerCase();
+      return WORKSPACE_ALIASES[n] || n;
+    }
+
     function workspaceFromHash(){
-      var h = String(location.hash || '').replace(/^#/, '').trim().toLowerCase();
+      var h = resolveWorkspaceAlias(String(location.hash || '').replace(/^#/, '').trim().toLowerCase());
       return WORKSPACES.indexOf(h) !== -1 ? h : DEFAULT_WORKSPACE;
+    }
+
+    // #create (preserved deep link) should expand the Create New Mission details; #missions
+    // (also preserved) and any other route into "missions" should leave it collapsed.
+    function shouldExpandCreateFromHash(){
+      return String(location.hash || '').replace(/^#/, '').trim().toLowerCase() === 'create';
     }
 
     function closeMobileDrawer(){
@@ -1861,6 +1924,7 @@
     }
 
     function activateWorkspace(name){
+      name = resolveWorkspaceAlias(name);
       if (WORKSPACES.indexOf(name) === -1) name = DEFAULT_WORKSPACE;
       var main = document.getElementById('teacherMain');
       if (main) {
@@ -1872,6 +1936,12 @@
           // sidebar/hash brings the teacher here so the workspace never lands "collapsed".
           if (isActive && el.tagName === 'DETAILS' && !el.open) el.open = true;
         });
+      }
+      if (name === 'missions') {
+        // Preserve #create as a deep-link alias that auto-expands the collapsed-by-default
+        // Create New Mission details; #missions (and everything else) leaves it collapsed.
+        var createDetails = document.getElementById('teacherCreateMissionDetails');
+        if (createDetails) createDetails.open = shouldExpandCreateFromHash();
       }
       Array.prototype.forEach.call(document.querySelectorAll('.teacherSidebarItem'), function(btn){
         var isActive = btn.getAttribute('data-workspace-link') === name;
@@ -2539,6 +2609,20 @@
       return new Promise(function(resolve){
         run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).updateTeacherMission({ id: id, updates: updates });
       });
+    }
+    function callDeleteTeacherMission(id){
+      if (avatarApiBase !== null && id) {
+        return fetch(avatarApiBase + '/api/missions/' + encodeURIComponent(id), {
+          method: 'DELETE',
+          credentials: 'include',
+        }).then(function(r){ return r.json().catch(function(){ return null; }).then(function(res){ return { httpOk: r.ok, res: res }; }); })
+          .then(function(x){
+            var res = x.res;
+            return (x.httpOk && res && res.ok) ? res : { ok: false, error: (res && res.error) || 'Could not delete mission' };
+          })
+          .catch(function(){ return { ok: false, error: 'Network error — mission could not be deleted' }; });
+      }
+      return Promise.resolve({ ok: false, error: 'Delete requires the Lantern API' });
     }
     function callApproveMissionSubmission(id){
       if (avatarApiBase !== null && id) {
@@ -4268,42 +4352,237 @@
       });
     }
 
+    // Prompt #103 — My Missions filters ([All] [Active] [Paused] [Archived]) + title search.
+    var teacherMissionsFilter = 'all';
+    var teacherMissionsSearchQuery = '';
+
+    function missionStatusKey(m){
+      if (m.archived) return 'archived';
+      return m.active ? 'active' : 'paused';
+    }
+
+    function formatMissionCreatedDate(iso){
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } catch (e) { return ''; }
+    }
+
+    function filteredTeacherMissions(){
+      var q = (teacherMissionsSearchQuery || '').trim().toLowerCase();
+      return (teacherMissions || []).filter(function(m){
+        if (teacherMissionsFilter !== 'all' && missionStatusKey(m) !== teacherMissionsFilter) return false;
+        if (q && (m.title || '').toLowerCase().indexOf(q) === -1) return false;
+        return true;
+      });
+    }
+
+    // Reused by both the Create form (before first submission) and the inline Edit form
+    // (only rendered when the mission has zero submissions) so the two stay visually consistent.
+    function missionEditRestrictedFieldsHtml(m){
+      return (
+        '<div class="teacherFieldRow teacherFieldRow--2">' +
+          '<div class="teacherField"><label>Audience</label><select class="teacherSelect" data-edit="audience">' +
+            '<option value="my_students"' + (m.audience === 'my_students' ? ' selected' : '') + '>My Students</option>' +
+            '<option value="school_mission"' + (m.audience === 'school_mission' || !m.audience ? ' selected' : '') + '>School Mission</option>' +
+            '<option value="selected_students"' + (m.audience === 'selected_students' ? ' selected' : '') + '>Selected Students</option>' +
+          '</select></div>' +
+          '<div class="teacherField"><label>Selected students (comma-separated)</label><input type="text" class="teacherInput" data-edit="target_character_names" value="' + esc((m.target_character_names || []).join(', ')) + '" /></div>' +
+        '</div>' +
+        '<div class="teacherField"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_text"' + (m.allows_text ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Written response</span></label>' +
+          '<div style="margin-left:34px;margin-bottom:12px;max-width:160px;"><label>Minimum characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + (m.min_characters != null ? m.min_characters : 200) + '" /></div>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_image"' + (m.allows_image ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Image upload</span></label>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_video"' + (m.allows_video ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Video upload</span></label>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_link"' + (m.allows_link ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Link/file</span></label>' +
+        '</div>'
+      );
+    }
+
+    function toggleMissionEditForm(m, row){
+      var existing = row.querySelector('.teacherMissionEditForm');
+      if (existing) { existing.remove(); return; }
+      Array.prototype.forEach.call(document.querySelectorAll('.teacherMissionEditForm'), function(f){ f.remove(); });
+
+      // Prompt #103 edit matrix (CURSOR REPLY #100 §5): audience/target_character_names/
+      // allows_*/min_characters are only safe to edit before the mission's first submission —
+      // once it has any submission_count, hide those fields entirely (server enforces this too).
+      var hasSubmissions = (m.submission_count || 0) > 0;
+      var wrap = document.createElement('div');
+      wrap.className = 'teacherMissionEditForm';
+      wrap.innerHTML =
+        '<div class="teacherField"><label>Title</label><input type="text" class="teacherInput" data-edit="title" value="' + esc(m.title || '') + '" /></div>' +
+        '<div class="teacherField"><label>Instructions</label><textarea class="teacherTextarea" data-edit="description">' + esc(m.description || '') + '</textarea></div>' +
+        '<div class="teacherFieldRow teacherFieldRow--2">' +
+          '<div class="teacherField"><label>Reward (nuggets)</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="1" max="99" value="' + (m.reward_amount || 1) + '" />' +
+            '<p class="teacherMissionRewardWarning">Changing this only affects future approvals — Nuggets already paid out never change.</p></div>' +
+          '<div class="teacherField"><label class="teacherCheckboxField"><input type="checkbox" data-edit="featured"' + (m.featured ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Promote this mission</span></label></div>' +
+        '</div>' +
+        (hasSubmissions
+          ? '<p class="teacherMissionLockedNote">Audience &amp; submission requirements are locked — this mission already has a submission.</p>'
+          : missionEditRestrictedFieldsHtml(m)) +
+        '<div class="teacherActions"><button type="button" class="btn good small teacherMissionEditSaveBtn">Save</button> <button type="button" class="btn small teacherMissionEditCancelBtn">Cancel</button></div>';
+      row.appendChild(wrap);
+
+      wrap.querySelector('.teacherMissionEditCancelBtn').addEventListener('click', function(){ wrap.remove(); });
+      wrap.querySelector('.teacherMissionEditSaveBtn').addEventListener('click', async function(){
+        var updates = {};
+        updates.title = (wrap.querySelector('[data-edit="title"]').value || '').trim();
+        updates.description = (wrap.querySelector('[data-edit="description"]').value || '').trim();
+        updates.reward_amount = Math.max(1, Math.min(99, parseInt(wrap.querySelector('[data-edit="reward_amount"]').value, 10) || 1));
+        updates.featured = !!wrap.querySelector('[data-edit="featured"]').checked;
+        if (!hasSubmissions) {
+          updates.audience = wrap.querySelector('[data-edit="audience"]').value;
+          if (updates.audience === 'selected_students') {
+            var namesRaw = (wrap.querySelector('[data-edit="target_character_names"]').value || '').trim();
+            updates.target_character_names = namesRaw ? namesRaw.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+          }
+          updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
+          updates.allows_image = !!wrap.querySelector('[data-edit="allows_image"]').checked;
+          updates.allows_video = !!wrap.querySelector('[data-edit="allows_video"]').checked;
+          updates.allows_link = !!wrap.querySelector('[data-edit="allows_link"]').checked;
+          updates.min_characters = Math.max(0, parseInt(wrap.querySelector('[data-edit="min_characters"]').value, 10) || 0);
+        }
+        var saveBtn = wrap.querySelector('.teacherMissionEditSaveBtn');
+        saveBtn.disabled = true;
+        var res = await callUpdateTeacherMission(m.id, updates);
+        saveBtn.disabled = false;
+        if (!res || !res.ok){ toast((res && res.error) || 'Failed to save mission'); return; }
+        toast('Mission updated');
+        await refresh();
+      });
+    }
+
     function renderTeacherMissions(){
       var container = el('teacherMissionsEl');
       if (!container) return;
       el('teacherMissionsCount').textContent = String((teacherMissions || []).length);
-      if (!teacherMissions || teacherMissions.length === 0){
-        container.innerHTML = '<div class="placeholderRow">No missions yet. Create one above.</div>';
+      var list = filteredTeacherMissions();
+      if (!list.length){
+        container.innerHTML = '<div class="placeholderRow">' + ((teacherMissions || []).length ? 'No missions match this filter/search.' : 'No missions yet. Use Create New Mission above.') + '</div>';
         return;
       }
       container.innerHTML = '';
-      teacherMissions.forEach(function(m){
+      list.forEach(function(m){
         var row = document.createElement('div');
-        row.className = 'curatePostRow';
-        var teacherAvatar = smallAvatarHtml(resolveTeacherAvatarUrl(m.created_by_teacher_id), (TEACHER_PERSONAS && TEACHER_PERSONAS.find(function(p){ return p.teacher_id === m.created_by_teacher_id; })) ? TEACHER_PERSONAS.find(function(p){ return p.teacher_id === m.created_by_teacher_id; }).displayName : (m.created_by_teacher_name || 'Teacher'));
-        row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor" style="display:flex;align-items:center;gap:10px;">' + teacherAvatar + '<span>' + esc(m.title || '') + ' (+' + (m.reward_amount || 1) + ' nugget' + ((m.reward_amount || 1) !== 1 ? 's' : '') + ')</span></div><div class="curatePostTitle" style="max-height:60px;overflow:auto;">' + esc((m.description || '').slice(0, 150)) + ((m.description || '').length > 150 ? '…' : '') + '</div></div><div class="curatePostActions"></div>';
-        var actions = row.querySelector('.curatePostActions');
-        var toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn small';
-        toggleBtn.textContent = m.active ? 'Deactivate' : 'Activate';
-        toggleBtn.style.borderColor = m.active ? 'rgba(255,77,109,.5)' : 'rgba(56,208,124,.5)';
-        toggleBtn.style.background = m.active ? 'rgba(255,77,109,.15)' : 'rgba(56,208,124,.15)';
-        toggleBtn.addEventListener('click', async function(){
-          toggleBtn.disabled = true;
+        var statusKey = missionStatusKey(m);
+        row.className = 'teacherMissionRow' + (statusKey === 'archived' ? ' is-archived' : '');
+        var statusLabel = statusKey === 'active' ? 'Active' : (statusKey === 'paused' ? 'Paused' : 'Archived');
+        var rewardAmt = m.reward_amount || 1;
+        var createdLabel = formatMissionCreatedDate(m.created_at);
+        var subCount = m.submission_count || 0;
+        row.innerHTML =
+          '<div class="teacherMissionRowInfo">' +
+            '<div class="teacherMissionRowTitle">' + esc(m.title || '') + '</div>' +
+            '<div class="teacherMissionRowMeta"><span class="status-' + statusKey + '">' + statusLabel + '</span> · ' +
+              rewardAmt + ' Nugget' + (rewardAmt !== 1 ? 's' : '') +
+              (createdLabel ? ' · Created ' + createdLabel : '') +
+              ' · ' + subCount + ' submission' + (subCount !== 1 ? 's' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="teacherMissionRowActions"></div>';
+        var actions = row.querySelector('.teacherMissionRowActions');
+
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn small';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', function(){ toggleMissionEditForm(m, row); });
+        actions.appendChild(editBtn);
+
+        var pauseBtn = document.createElement('button');
+        pauseBtn.className = 'btn small';
+        pauseBtn.textContent = m.active ? 'Pause' : 'Resume';
+        pauseBtn.disabled = !!m.archived;
+        if (m.archived) pauseBtn.title = 'Restore this mission first';
+        pauseBtn.style.borderColor = m.active ? 'rgba(255,77,109,.5)' : 'rgba(56,208,124,.5)';
+        pauseBtn.style.background = m.active ? 'rgba(255,77,109,.15)' : 'rgba(56,208,124,.15)';
+        pauseBtn.addEventListener('click', async function(){
+          pauseBtn.disabled = true;
           var res = await callUpdateTeacherMission(m.id, { active: !m.active });
-          toggleBtn.disabled = false;
+          pauseBtn.disabled = false;
           if (!res.ok){ toast(res.error || 'Failed'); return; }
-          toast(m.active ? 'Deactivated' : 'Activated');
+          toast(m.active ? 'Mission paused' : 'Mission resumed');
           await refresh();
         });
-        actions.appendChild(toggleBtn);
+        actions.appendChild(pauseBtn);
+
+        var promoteBtn = document.createElement('button');
+        promoteBtn.className = 'btn small';
+        promoteBtn.textContent = m.featured ? 'Unpromote' : 'Promote';
+        promoteBtn.addEventListener('click', async function(){
+          promoteBtn.disabled = true;
+          var res = await callUpdateTeacherMission(m.id, { featured: !m.featured });
+          promoteBtn.disabled = false;
+          if (!res.ok){ toast(res.error || 'Failed'); return; }
+          toast(m.featured ? 'Unpromoted' : 'Promoted');
+          await refresh();
+        });
+        actions.appendChild(promoteBtn);
+
+        var archiveBtn = document.createElement('button');
+        archiveBtn.className = 'btn small';
+        archiveBtn.textContent = m.archived ? 'Restore' : 'Archive';
+        archiveBtn.addEventListener('click', async function(){
+          if (!m.archived && !confirm('Archive "' + (m.title || '') + '"? It becomes unavailable to students; all submissions/approvals/Nugget history are preserved.')) return;
+          archiveBtn.disabled = true;
+          var res = await callUpdateTeacherMission(m.id, { archived: !m.archived });
+          archiveBtn.disabled = false;
+          if (!res.ok){ toast(res.error || 'Failed'); return; }
+          toast(m.archived ? 'Restored — mission stays Paused until you click Resume' : 'Archived');
+          await refresh();
+        });
+        actions.appendChild(archiveBtn);
+
+        // Delete — unused missions only (server also enforces this; hiding it here just
+        // avoids offering a destructive action that would be server-rejected anyway).
+        if (subCount === 0) {
+          var deleteBtn = document.createElement('button');
+          deleteBtn.className = 'btn bad small';
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.addEventListener('click', async function(){
+            if (!confirm('Permanently delete "' + (m.title || '') + '"? It has no submissions, so this cannot be undone.')) return;
+            deleteBtn.disabled = true;
+            var res = await callDeleteTeacherMission(m.id);
+            deleteBtn.disabled = false;
+            if (!res.ok){ toast(res.error || 'Failed'); return; }
+            toast('Mission deleted');
+            await refresh();
+          });
+          actions.appendChild(deleteBtn);
+        }
+
         container.appendChild(row);
       });
     }
 
+    // Prompt #103 — the old "Mission submissions" panel duplicated Review Queue; replaced with a
+    // tiny pending-count/link (missionSubmissions here is still the teacher's PENDING queue,
+    // fetched by callGetMissionSubmissionsForTeacher — unchanged data source, just less UI).
     function renderMissionSubmissions(){
-      var countEl = el('missionSubmissionsCount');
-      if (countEl) countEl.textContent = String((missionSubmissions || []).length);
+      var link = el('teacherMissionsPendingLink');
+      var countEl = el('teacherMissionsPendingCount');
+      var count = (missionSubmissions || []).length;
+      if (countEl) countEl.textContent = String(count);
+      if (link) link.style.display = count > 0 ? 'block' : 'none';
+    }
+
+    if (el('teacherMissionsFilterChips')) {
+      Array.prototype.forEach.call(document.querySelectorAll('.teacherMissionsFilterChip'), function(btn){
+        btn.addEventListener('click', function(){
+          teacherMissionsFilter = btn.getAttribute('data-mission-filter') || 'all';
+          Array.prototype.forEach.call(document.querySelectorAll('.teacherMissionsFilterChip'), function(b){
+            b.classList.toggle('is-active', b === btn);
+          });
+          renderTeacherMissions();
+        });
+      });
+    }
+    if (el('teacherMissionsSearchInput')) {
+      el('teacherMissionsSearchInput').addEventListener('input', function(){
+        teacherMissionsSearchQuery = this.value || '';
+        renderTeacherMissions();
+      });
     }
 
     var lastKnownClassAccessSession = null;
