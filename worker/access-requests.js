@@ -30,6 +30,14 @@ export const ACCESS_REQUEST_ALLOWED_GRANT_MINUTES = [15, 30];
 export const ACCESS_REQUEST_RATE_LIMIT_WINDOW_SEC = 10 * 60;
 export const ACCESS_REQUEST_RATE_LIMIT_MAX_PER_WINDOW = 5;
 
+/** Phase #33 — "Extend +15 min" / "Extend +30 min" on an already-active individual grant. */
+export const ACCESS_GRANT_EXTEND_ALLOWED_MINUTES = [15, 30];
+
+/** Hard ceiling (minutes from the moment of extension) a grant's expiry can ever be pushed to,
+ * no matter how many times it is extended -- this is what guarantees an "Extend" action can
+ * never accidentally turn a temporary grant into a de-facto permanent one. */
+export const ACCESS_GRANT_MAX_TOTAL_MINUTES = 180;
+
 // Classroom-safe word lists: no offensive/ambiguous vocabulary, no numerals/letters that read
 // alike, no near-duplicate words within a list (avoids a teacher mis-hearing one phrase as
 // another). WORD-WORD-NUMBER format per the prompt's own example (GREEN-FALCON-49 is directly
@@ -118,4 +126,26 @@ export function derivedRequestStatus(row, nowIso) {
  * schedule enforcement is off (see isSchoolScheduleEnforcementEnabled in school-schedule.js). */
 export function isQualifyingGrant(row, nowIso) {
   return derivedRequestStatus(row, nowIso) === 'approved';
+}
+
+/**
+ * Phase #33 — pure computation of a grant's new `grant_expires_at` after an "Extend +N min"
+ * action. Extends from whichever is later of (a) the grant's current expiry or (b) `now` (so an
+ * already-elapsed grant doesn't get "back-extended" from its stale old expiry), then clamps to a
+ * hard ceiling of `ACCESS_GRANT_MAX_TOTAL_MINUTES` minutes from `now` -- this clamp is what makes
+ * it impossible for repeated extension clicks to ever add up to a de-facto permanent grant.
+ *
+ * @param {string} currentExpiresAtIso
+ * @param {number} deltaMinutes
+ * @param {Date|number} [now]
+ * @returns {string} new ISO expiry
+ */
+export function computeExtendedGrantExpiresAt(currentExpiresAtIso, deltaMinutes, now) {
+  const nowDate = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
+  const nowMs = nowDate.getTime();
+  const currentExpiryMs = new Date(currentExpiresAtIso).getTime();
+  const baseMs = Number.isFinite(currentExpiryMs) && currentExpiryMs > nowMs ? currentExpiryMs : nowMs;
+  const extendedMs = baseMs + deltaMinutes * 60 * 1000;
+  const ceilingMs = nowMs + ACCESS_GRANT_MAX_TOTAL_MINUTES * 60 * 1000;
+  return new Date(Math.min(extendedMs, ceilingMs)).toISOString();
 }

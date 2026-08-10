@@ -23,11 +23,13 @@ import {
   ACCESS_REQUEST_ALLOWED_GRANT_MINUTES,
   ACCESS_REQUEST_RATE_LIMIT_WINDOW_SEC,
   ACCESS_REQUEST_RATE_LIMIT_MAX_PER_WINDOW,
+  ACCESS_GRANT_EXTEND_ALLOWED_MINUTES,
   generateRequestPhrase,
   generateDeviceSecret,
   hashOpaqueSecret,
   buildAccessDeviceCookieHeader,
   derivedRequestStatus,
+  computeExtendedGrantExpiresAt,
 } from './access-requests.js';
 import {
   DEVICE_PAIRING_COOKIE_NAME,
@@ -43,6 +45,7 @@ import {
   isDeviceActive,
   isGroupUnlockActive,
 } from './device-enrollment.js';
+import { ACCESS_AUDIT_ACTIONS, recordAccessAuditEvent } from './access-audit.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -1969,6 +1972,12 @@ const CLASS_ACCESS_PHRASE_BANK = [
   'Walnut Creek', 'Rowan Tree', 'Ash Grove',
 ];
 
+// Phase #33 — temporary whole-Lantern event override ("Open Lantern Temporarily"). Every
+// override MUST have an explicit, bounded expiration -- there is deliberately no "forever"
+// option and no code path that omits expires_at.
+const EVENT_OVERRIDE_ALLOWED_MINUTES = [15, 30, 60];
+const EVENT_OVERRIDE_MAX_CUSTOM_MINUTES = 180;
+
 function normalizeBoardCode(s) {
   if (typeof s !== 'string') return '';
   return s.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -2246,7 +2255,28 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       deviceGroupAccess = { qualifyingAccess: false, reason: 'lookup_error', groupId: null, groupName: null, expiresAt: null };
     }
 
-    const qualifyingAccess = !!(individualGrant.qualifyingAccess || deviceGroupAccess.qualifyingAccess);
+    // Phase #33 (temporary whole-Lantern event override) — additive, informational only, same
+    // non-gating guarantee as individualGrant/deviceGroupAccess above. Deliberately excludes
+    // startedByName/reason here (kept staff-only via GET .../override/active) so this public,
+    // unauthenticated endpoint never leaks staff identity -- only whether Lantern is temporarily
+    // open and when that ends, which is not sensitive.
+    let eventOverride = { qualifyingAccess: false, reason: 'no_active_override', expiresAt: null };
+    try {
+      const overrideRow = await db.prepare(
+        'SELECT expires_at, is_active, revoked_at FROM lantern_access_overrides ORDER BY created_at DESC LIMIT 1'
+      ).first();
+      const nowIsoForOverride = new Date().toISOString();
+      const active = isGroupUnlockActive(overrideRow, nowIsoForOverride);
+      eventOverride = {
+        qualifyingAccess: active,
+        reason: active ? 'active_event_override' : 'no_active_override',
+        expiresAt: active ? overrideRow.expires_at : null,
+      };
+    } catch (_) {
+      eventOverride = { qualifyingAccess: false, reason: 'lookup_error', expiresAt: null };
+    }
+
+    const qualifyingAccess = !!(individualGrant.qualifyingAccess || deviceGroupAccess.qualifyingAccess || eventOverride.qualifyingAccess);
 
     const verifyState = await getVerifyState();
     const sim = verifyState.class_access_simulation || {};
@@ -2280,6 +2310,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         scheduleEnforcementEnabled,
         individualGrant,
         deviceGroupAccess,
+        eventOverride,
         qualifyingAccess,
       }, 200, cors);
     }
@@ -2296,6 +2327,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         scheduleEnforcementEnabled,
         individualGrant,
         deviceGroupAccess,
+        eventOverride,
         qualifyingAccess,
       }, 200, cors);
     }
@@ -2318,6 +2350,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             scheduleEnforcementEnabled,
             individualGrant,
             deviceGroupAccess,
+            eventOverride,
             qualifyingAccess,
           },
           200,
@@ -2333,6 +2366,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         scheduleEnforcementEnabled,
         individualGrant,
         deviceGroupAccess,
+        eventOverride,
         qualifyingAccess,
       }, 200, cors);
     }
@@ -2353,6 +2387,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
             scheduleEnforcementEnabled,
             individualGrant,
             deviceGroupAccess,
+            eventOverride,
             qualifyingAccess,
           },
           200,
@@ -2369,6 +2404,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         scheduleEnforcementEnabled,
         individualGrant,
         deviceGroupAccess,
+        eventOverride,
         qualifyingAccess,
       }, 200, cors);
     }
@@ -2382,6 +2418,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       scheduleEnforcementEnabled,
       individualGrant,
       deviceGroupAccess,
+      eventOverride,
       qualifyingAccess,
     }, 200, cors);
   }
@@ -2558,6 +2595,11 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     if (!result || !result.meta || !result.meta.changes) {
       return jsonResponse({ ok: false, error: 'request_not_pending_or_expired' }, 400, cors);
     }
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.REQUEST_APPROVED,
+      staffId, staffName, targetId: id,
+      detail: { durationMinutes, grantExpiresAt },
+    });
     return jsonResponse({ ok: true, id, status: 'approved', grantExpiresAt, durationMinutes }, 200, cors);
   }
 
@@ -2578,6 +2620,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     if (!result || !result.meta || !result.meta.changes) {
       return jsonResponse({ ok: false, error: 'request_not_pending' }, 400, cors);
     }
+    await recordAccessAuditEvent(db, { action: ACCESS_AUDIT_ACTIONS.REQUEST_DENIED, staffId, staffName, targetId: id });
     return jsonResponse({ ok: true, id, status: 'denied' }, 200, cors);
   }
 
@@ -2616,7 +2659,50 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     if (!result || !result.meta || !result.meta.changes) {
       return jsonResponse({ ok: false, error: 'grant_not_active' }, 400, cors);
     }
+    const staffIdForRevoke = sessionTeacherId(auth.account);
+    const staffNameForRevoke = reviewerLabelFromAccount(auth.account);
+    await recordAccessAuditEvent(db, { action: ACCESS_AUDIT_ACTIONS.GRANT_REVOKED, staffId: staffIdForRevoke, staffName: staffNameForRevoke, targetId: id });
     return jsonResponse({ ok: true, id, status: 'revoked' }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/requests/extend') {
+    // Phase #33 — "Extend +15 min" / "Extend +30 min" on an already-active individual grant.
+    // Only ever extends a grant that is CURRENTLY qualifying (approved, not revoked, not yet
+    // expired) — an already-expired/denied/revoked request must be re-approved instead, never
+    // "resurrected" by extension. computeExtendedGrantExpiresAt enforces the hard ceiling that
+    // keeps this from ever becoming a de-facto permanent grant (see access-requests.js).
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    const deltaMinutes = parseInt(body.duration_minutes, 10);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    if (!ACCESS_GRANT_EXTEND_ALLOWED_MINUTES.includes(deltaMinutes)) {
+      return jsonResponse({ ok: false, error: 'duration_minutes must be 15 or 30' }, 400, cors);
+    }
+    const nowDate = new Date();
+    const nowIso = nowDate.toISOString();
+    const row = await db.prepare('SELECT id, status, grant_expires_at, revoked_at FROM lantern_access_requests WHERE id = ?').bind(id).first();
+    if (!row || derivedRequestStatus(row, nowIso) !== 'approved') {
+      return jsonResponse({ ok: false, error: 'grant_not_active' }, 400, cors);
+    }
+    const newExpiresAt = computeExtendedGrantExpiresAt(row.grant_expires_at, deltaMinutes, nowDate);
+    const result = await db.prepare(
+      "UPDATE lantern_access_requests SET grant_expires_at = ? WHERE id = ? AND status = 'approved' AND (revoked_at IS NULL OR revoked_at = '') AND grant_expires_at > ?"
+    ).bind(newExpiresAt, id, nowIso).run();
+    if (!result || !result.meta || !result.meta.changes) {
+      return jsonResponse({ ok: false, error: 'grant_not_active' }, 400, cors);
+    }
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.GRANT_EXTENDED,
+      staffId, staffName, targetId: id,
+      detail: { deltaMinutes, grantExpiresAt: newExpiresAt },
+    });
+    return jsonResponse({ ok: true, id, status: 'approved', grantExpiresAt: newExpiresAt, deltaMinutes }, 200, cors);
   }
 
   // ================= Phase #32 — enrolled classroom devices + device-group unlock =================
@@ -2799,6 +2885,11 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       await db.prepare('DELETE FROM lantern_access_devices WHERE id = ?').bind(deviceId).run();
       return jsonResponse({ ok: false, error: 'pairing_not_pending_or_expired' }, 400, cors);
     }
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.DEVICE_ENROLLED,
+      staffId, staffName, targetId: deviceId,
+      detail: { label, groupId },
+    });
     return jsonResponse({ ok: true, id, status: 'approved', deviceId, label, groupId }, 200, cors);
   }
 
@@ -2941,6 +3032,12 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       "UPDATE lantern_access_devices SET revoked_at = ? WHERE id = ? AND (revoked_at IS NULL OR revoked_at = '')"
     ).bind(nowIso, deviceId).run();
     if (!result || !result.meta || !result.meta.changes) return jsonResponse({ ok: false, error: 'already_revoked_or_not_found' }, 400, cors);
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.DEVICE_REVOKED,
+      staffId: sessionTeacherId(auth.account),
+      staffName: reviewerLabelFromAccount(auth.account),
+      targetId: deviceId,
+    });
     return jsonResponse({ ok: true, deviceId, revoked: true }, 200, cors);
   }
 
@@ -2991,6 +3088,11 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       'INSERT INTO lantern_access_group_unlocks (id, group_id, started_by_staff_id, started_by_staff_name, starts_at, expires_at, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
     ).bind(id, groupId, staffId || null, staffName, nowIso, expiresAt, nowIso).run();
 
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.GROUP_UNLOCKED,
+      staffId, staffName, targetId: groupId,
+      detail: { unlockId: id, expiresAt, untilSchoolClose },
+    });
     return jsonResponse({ ok: true, groupId, unlockId: id, expiresAt, untilSchoolClose }, 200, cors);
   }
 
@@ -3009,7 +3111,124 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     const result = await db.prepare(
       "UPDATE lantern_access_group_unlocks SET is_active = 0, revoked_at = ? WHERE group_id = ? AND is_active = 1 AND (revoked_at IS NULL OR revoked_at = '')"
     ).bind(nowIso, groupId).run();
-    return jsonResponse({ ok: true, groupId, locked: true, hadActiveUnlock: !!(result && result.meta && result.meta.changes) }, 200, cors);
+    const hadActiveUnlock = !!(result && result.meta && result.meta.changes);
+    if (hadActiveUnlock) {
+      await recordAccessAuditEvent(db, {
+        action: ACCESS_AUDIT_ACTIONS.GROUP_LOCKED,
+        staffId: sessionTeacherId(auth.account),
+        staffName: reviewerLabelFromAccount(auth.account),
+        targetId: groupId,
+      });
+    }
+    return jsonResponse({ ok: true, groupId, locked: true, hadActiveUnlock }, 200, cors);
+  }
+
+  // ================= Phase #33 — temporary whole-Lantern event override =================
+  // "Open Lantern Temporarily" -- a GLOBAL override (school event, club, after-hours group,
+  // unusual class situation) that suspends the schedule lock for everyone during a fixed,
+  // explicitly-expiring window. Reuses lantern_access_overrides (migration 050) and the exact
+  // same is_active/revoked_at/expires_at lifecycle as device-group unlocks above -- there is
+  // deliberately only ONE active override at a time (starting a new one supersedes any prior
+  // one) and NO code path that can create a row without a bounded expires_at ("Open Forever" is
+  // not offered anywhere in this API).
+
+  if (request.method === 'GET' && path === '/api/class-access/override/active') {
+    // Staff-only, full detail (including who started it) for the teacher control center. The
+    // public /api/class-access/state above intentionally omits startedByName/reason.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const row = await db.prepare(
+      'SELECT id, reason, created_by_staff_name, starts_at, expires_at, is_active, revoked_at FROM lantern_access_overrides ORDER BY created_at DESC LIMIT 1'
+    ).first();
+    if (!isGroupUnlockActive(row, nowIso)) return jsonResponse({ ok: true, active: false }, 200, cors);
+    return jsonResponse({
+      ok: true,
+      active: true,
+      id: row.id,
+      reason: row.reason || null,
+      startedByName: row.created_by_staff_name || null,
+      startsAt: row.starts_at,
+      expiresAt: row.expires_at,
+    }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/override/start') {
+    // Every override MUST have an explicit expiration -- exactly one of duration_minutes (15/30/60),
+    // until_school_close, or custom_minutes (1..EVENT_OVERRIDE_MAX_CUSTOM_MINUTES) is required.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+
+    const nowDate = new Date();
+    const nowIso = nowDate.toISOString();
+    let expiresAt;
+    let untilSchoolClose = false;
+    if (body.until_school_close) {
+      const resolved = resolveUntilSchoolCloseInstant(nowDate);
+      if (!resolved.ok) {
+        return jsonResponse({ ok: false, error: 'until_school_close_unavailable', reason: resolved.reason }, 400, cors);
+      }
+      expiresAt = resolved.expiresAt;
+      untilSchoolClose = true;
+    } else if (body.custom_minutes != null) {
+      const customMinutes = parseInt(body.custom_minutes, 10);
+      if (!Number.isFinite(customMinutes) || customMinutes < 1 || customMinutes > EVENT_OVERRIDE_MAX_CUSTOM_MINUTES) {
+        return jsonResponse({ ok: false, error: `custom_minutes must be between 1 and ${EVENT_OVERRIDE_MAX_CUSTOM_MINUTES}` }, 400, cors);
+      }
+      expiresAt = new Date(nowDate.getTime() + customMinutes * 60 * 1000).toISOString();
+    } else {
+      const durationMinutes = parseInt(body.duration_minutes, 10);
+      if (!EVENT_OVERRIDE_ALLOWED_MINUTES.includes(durationMinutes)) {
+        return jsonResponse({ ok: false, error: 'duration_minutes must be 15, 30, or 60 (or provide until_school_close / custom_minutes)' }, 400, cors);
+      }
+      expiresAt = new Date(nowDate.getTime() + durationMinutes * 60 * 1000).toISOString();
+    }
+
+    const reason = String(body.reason || '').trim().slice(0, 200) || null;
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+
+    // Exactly one active override at a time -- a new one supersedes (ends) any prior one, same
+    // pattern as device-group unlocks, so re-clicking a duration behaves as the teacher expects.
+    await db.prepare(
+      "UPDATE lantern_access_overrides SET is_active = 0, revoked_at = ? WHERE is_active = 1 AND (revoked_at IS NULL OR revoked_at = '')"
+    ).bind(nowIso).run();
+
+    const id = 'accoverride_' + crypto.randomUUID().replace(/-/g, '');
+    await db.prepare(
+      'INSERT INTO lantern_access_overrides (id, reason, created_by_staff_id, created_by_staff_name, starts_at, expires_at, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
+    ).bind(id, reason, staffId || null, staffName, nowIso, expiresAt, nowIso).run();
+
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.OVERRIDE_STARTED,
+      staffId, staffName, targetId: id,
+      detail: { reason, expiresAt, untilSchoolClose },
+    });
+    return jsonResponse({ ok: true, overrideId: id, reason, expiresAt, untilSchoolClose }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/override/end') {
+    // "END OVERRIDE NOW" -- ends the active override immediately and server-side: the UPDATE
+    // below is the only thing any qualification check ever reads, so there is no delayed
+    // cleanup job to wait on and no way to "forget" an override is still open.
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const result = await db.prepare(
+      "UPDATE lantern_access_overrides SET is_active = 0, revoked_at = ? WHERE is_active = 1 AND (revoked_at IS NULL OR revoked_at = '')"
+    ).bind(nowIso).run();
+    const hadActiveOverride = !!(result && result.meta && result.meta.changes);
+    if (hadActiveOverride) {
+      await recordAccessAuditEvent(db, {
+        action: ACCESS_AUDIT_ACTIONS.OVERRIDE_ENDED,
+        staffId: sessionTeacherId(auth.account),
+        staffName: reviewerLabelFromAccount(auth.account),
+      });
+    }
+    return jsonResponse({ ok: true, ended: true, hadActiveOverride }, 200, cors);
   }
 
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
