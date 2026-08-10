@@ -1628,14 +1628,20 @@
         }, RESULT_DELAY_MS);
       }
 
-      /** Brief, non-blocking celebration shown while the next target is already loading underneath. */
-      function celebrateAndContinue(){
+      /**
+       * Brief, non-blocking celebration shown while the next target is already loading underneath.
+       * Prompt #102 fix: takes the "is this the rewarded first find" answer as a parameter, captured
+       * by the caller BEFORE firstFindRecorded was mutated, rather than re-reading the shared flag
+       * here (which was always already true by the time this ran, so the "Found it! +N nuggets"
+       * branch below was unreachable dead code and every real first find showed "Nice!" instead).
+       */
+      function celebrateAndContinue(isRewardedFirstFind){
         var milestone = STREAK_MILESTONES.indexOf(streak) !== -1;
         if (milestone){
           resultBanner.innerHTML = '🔥 Streak ' + streak + '!';
           resultBanner.className = 'resultBanner show win quick milestone';
           sfxMilestone();
-        } else if (!firstFindRecorded){
+        } else if (isRewardedFirstFind){
           resultBanner.innerHTML = 'Found it! +' + lastReward + ' nugget' + (lastReward !== 1 ? 's' : '');
           resultBanner.className = 'resultBanner show win quick';
           sfxFind();
@@ -1691,24 +1697,35 @@
               // Exactly one economy award + one leaderboard submission per paid play — identical
               // contract to before. Continuing to hunt after this is a no-extra-cost bonus phase
               // for feel/practice only; it never awards more Nuggets or posts more scores.
+              //
+              // Prompt #102 fix: firstFindRecorded now advances only once we can actually commit
+              // the award (a real adopted character to award/post for). A find that can't be
+              // committed never consumes the first-find slot, so it doesn't lock in a false "won"
+              // state (showNuggetHuntResult reads firstFindRecorded at time-up) and a later find
+              // can still legitimately claim the reward. isRewardedFirstFind is snapshotted before
+              // any mutation so celebrateAndContinue always sees the correct, un-mutated answer.
+              var isRewardedFirstFind = false;
               if (!firstFindRecorded){
-                firstFindRecorded = true;
-                var reward = REWARDS[difficulty] || 1;
-                lastReward = reward;
                 var adopted = loadAdopted();
-                var timeLimit = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
-                var completionTimeSec = Math.max(0, timeLimit - remainingSec);
                 if (adopted){
+                  firstFindRecorded = true;
+                  isRewardedFirstFind = true;
+                  var reward = REWARDS[difficulty] || 1;
+                  lastReward = reward;
+                  var timeLimit = TIME_LIMITS[difficulty] || TIME_LIMITS.medium;
+                  var completionTimeSec = Math.max(0, timeLimit - remainingSec);
                   awardGameWinWithEconomy(adopted.name, 'Nugget Hunt', reward, function(){
                     refreshBalance();
-                  }, function(){}, huntRunId);
+                  }, function(){
+                    toast('Nugget award failed. Contact your teacher if this persists.');
+                  }, huntRunId);
                   if (run && run.recordGameResult) {
                     run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
                   }
                   postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){});
                 }
               }
-              celebrateAndContinue();
+              celebrateAndContinue(isRewardedFirstFind);
               if (remainingSec > 0){
                 boardWrap.classList.add('fading');
                 nextRoundTimer = setTimeout(function(){
@@ -2091,11 +2108,19 @@
         if (gameName === 'Local History Trivia') return 'localHistoryTriviaPlayBtn';
         return null;
       }
+      // Prompt #102: same fix class as Live Trivia (Prompt #99) — validate the question set is
+      // actually loaded and non-empty *before* charging the Nugget play cost, not after. Handbook
+      // content is normally static/local (no network fetch) so this is a defensive guard against a
+      // content-load race rather than a network failure, but the consequence of skipping it is
+      // identical: a charge with no playable game.
+      function getHandbookQuestionsSafe(){
+        return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getHandbookQuestions) ? window.LANTERN_GAME_CONTENT.getHandbookQuestions() : [];
+      }
       el('handbookTriviaPlayBtn').addEventListener('click', function(){
+        var questions = getHandbookQuestionsSafe();
+        if (!questions || !questions.length) { toast('No trivia questions loaded yet.'); return; }
         tryPlay('Handbook Trivia', function(){
-          runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){
-            return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getHandbookQuestions) ? window.LANTERN_GAME_CONTENT.getHandbookQuestions() : [];
-          });
+          runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){ return questions; });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('handbookTriviaPlayBtn') });
       });
       // Prompt #99: fetch the approved live-trivia question set *before* charging the Nugget play
@@ -2115,11 +2140,15 @@
           toast('No approved live trivia questions yet.');
         });
       });
+      // Prompt #102: same fetch/validate-before-charge fix as Handbook Trivia above.
+      function getLocalHistoryQuestionsSafe(){
+        return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions) ? window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions() : [];
+      }
       el('localHistoryTriviaPlayBtn').addEventListener('click', function(){
+        var questions = getLocalHistoryQuestionsSafe();
+        if (!questions || !questions.length) { toast('No trivia questions loaded yet.'); return; }
         tryPlay('Local History Trivia', function(){
-          runTriviaGame('Local History Trivia', 'Local History Trivia', function(){
-            return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions) ? window.LANTERN_GAME_CONTENT.getLocalHistoryQuestions() : [];
-          });
+          runTriviaGame('Local History Trivia', 'Local History Trivia', function(){ return questions; });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('localHistoryTriviaPlayBtn') });
       });
     })();

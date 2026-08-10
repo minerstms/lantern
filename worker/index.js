@@ -2494,7 +2494,12 @@ function buildLanternEconomyReference(kind, meta, body, txId) {
   const explicit = String((meta && meta.idempotency_key) || body.idempotency_key || '').trim();
   if (explicit) return `lantern:${kind}:${explicit}`;
   if (kind === 'poll_vote' && meta && meta.poll_id) return `lantern:poll_vote:${String(meta.poll_id).trim()}`;
-  if ((kind === 'game_play' || kind === 'game_win') && meta && meta.run_id) return `lantern:${kind}:${String(meta.run_id).trim()}`;
+  // Prompt #102: cover every game-originated economy write (game_play, game_win,
+  // game_false_start, and any future game_* kind), not just game_play/game_win. This was a real
+  // idempotency gap — Reaction Tap's false-start penalty already sent a stable client run_id, but
+  // it fell through to the random-per-request txId below because 'game_false_start' wasn't in the
+  // matched kind list, so a genuine retry of that request was never deduped.
+  if (String(kind || '').indexOf('game_') === 0 && meta && meta.run_id) return `lantern:${kind}:${String(meta.run_id).trim()}`;
   return `lantern:${kind}:${txId}`;
 }
 
