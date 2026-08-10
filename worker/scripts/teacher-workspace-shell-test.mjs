@@ -281,8 +281,14 @@ async function main() {
   // Prompt #78 — desktop width, standardized form classes, and the two archived/relabeled options.
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.waitForTimeout(120);
-  const formCardBox = await page.locator('#teacherCreateMissionDetails').boundingBox();
-  assert(!!formCardBox && formCardBox.width >= 650 && formCardBox.width <= 900, 'Create Mission form uses a sane desktop width (650-900px) at 1920, not full-bleed or phone-narrow: ' + (formCardBox && formCardBox.width));
+  // Prompt #106 — outer Create New Mission card/header is full Missions width (matches My Missions);
+  // the expanded form body keeps the Prompt #78 readable max-width (~800px).
+  const createDetailsBox = await page.locator('#teacherCreateMissionDetails').boundingBox();
+  const myMissionsBox = await page.locator('#teacherMyMissionsCard').boundingBox();
+  assert(!!createDetailsBox && !!myMissionsBox && Math.abs(createDetailsBox.width - myMissionsBox.width) <= 2,
+    'Create New Mission header/card width matches My Missions full content width: create=' + (createDetailsBox && createDetailsBox.width) + ' my=' + (myMissionsBox && myMissionsBox.width));
+  const formBodyBox = await page.locator('#teacherCreateMissionDetails > .cardBd').boundingBox();
+  assert(!!formBodyBox && formBodyBox.width >= 650 && formBodyBox.width <= 900, 'Create Mission form body uses a sane desktop width (650-900px) at 1920, not full-bleed or phone-narrow: ' + (formBodyBox && formBodyBox.width));
   assert((await page.locator('#teacherCreateMissionDetails .teacherFieldGroup').count()) >= 4, 'Create Mission form uses standardized section-group classes (Mission/Submission/Audience & reward/Advanced)');
   assert((await page.locator('#teacherCreateMissionDetails .teacherInput, #teacherCreateMissionDetails .teacherSelect, #teacherCreateMissionDetails .teacherTextarea').count()) >= 5, 'Create Mission inputs/selects/textarea use standardized shared Teacher form classes');
   assert(await page.locator('#missionSiteEligible').count() === 0, 'Legacy "Highlight-worthy / site-eligible" control has been archived (removed) from Create Mission');

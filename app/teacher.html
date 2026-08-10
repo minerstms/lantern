@@ -1122,6 +1122,17 @@
        Teacher forms) use these instead of one-off inline styles per field, so every
        input/select/textarea/checkbox/section shares one consistent look. */
     .teacherFormCard{ max-width: 800px; }
+    /* Prompt #106 — Create New Mission outer card/header matches My Missions full width;
+       keep .teacherFormCard max-width on the inner .cardBd so the expanded form stays readable. */
+    #teacherCreateMissionDetails{
+      width: 100%;
+      max-width: none;
+      box-sizing: border-box;
+    }
+    #teacherCreateMissionDetails > summary.cardHd{
+      width: 100%;
+      box-sizing: border-box;
+    }
     .teacherFieldGroup{
       font-weight: 900;
       font-size: 20px;
@@ -1617,9 +1628,9 @@
     <!-- Prompt #103 — Create Mission and My Missions are one workspace now. Create is
          collapsed by default; deep link #create (preserved) auto-expands it (see
          shouldExpandCreateFromHash() below). Do not add a second, separate Create workspace. -->
-    <details id="teacherCreateMissionDetails" class="card teacherCollapsibleCard teacherFormCard">
+    <details id="teacherCreateMissionDetails" class="card teacherCollapsibleCard">
       <summary class="cardHd"><div class="h">Create New Mission</div></summary>
-      <div class="cardBd">
+      <div class="cardBd teacherFormCard">
         <p class="note note-tight">Students submit here; you review in <strong>Review Queue</strong>.</p>
 
         <div class="teacherFieldGroup">Mission</div>
