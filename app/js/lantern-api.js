@@ -2927,8 +2927,9 @@
         Promise.resolve({ ok: true, news: list }).then(successFn).catch(failureFn);
       },
       getDisplaySlides: function () {
-        var slides = getDisplaySlides();
-        Promise.resolve({ ok: true, slides: slides }).then(successFn).catch(failureFn);
+        /* Prompt #125 — never feed localStorage seed/demo slides into production consumers.
+           Display/marquee use Worker recognition+news via lantern-ticker.js exclusively. */
+        Promise.resolve({ ok: true, slides: [] }).then(successFn).catch(failureFn);
       },
       getNewsPending: function () {
         var list = getNewsPending();

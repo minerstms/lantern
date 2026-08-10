@@ -43,18 +43,11 @@
   }
 
   function callGetDisplaySlides(createRun) {
-    var run = createRun ? createRun() : null;
-    if (!run || typeof run.getDisplaySlides !== 'function') return Promise.resolve({ ok: false, slides: [] });
-    return new Promise(function (resolve) {
-      run
-        .withSuccessHandler(function (r) {
-          resolve(r || { ok: false, slides: [] });
-        })
-        .withFailureHandler(function () {
-          resolve({ ok: false, slides: [] });
-        })
-        .getDisplaySlides();
-    });
+    /* Prompt #125 — production marquee must NOT consume LANTERN_API.getDisplaySlides.
+       That path reads browser localStorage mock/seeded demo-world content and is not an
+       authoritative Worker source. Kept as a no-op stub so older callers fail closed to
+       empty slides. */
+    return Promise.resolve({ ok: true, slides: [] });
   }
 
   function fetchWorkerLeaderboardForDisplay(base) {
@@ -134,10 +127,9 @@
   }
 
   /**
-   * Prompt #111 — ONE marquee source: unified display slides only.
-   * Recognition + approved news are merged into `slides` once in fetchDisplayTickerState;
-   * this builder must not also consume parallel recognitionList/newsList arrays (that
-   * previously double-rendered recognition: once from the list and again from injected slides).
+   * Prompt #111 / #125 — ONE marquee source: unified Worker-backed slides only.
+   * Recognition + approved news are merged into `slides` once in fetchDisplayTickerState.
+   * LANTERN_API.getDisplaySlides (localStorage seed/demo world) is intentionally NOT a source.
    * Accepts either full slides or a pre-filtered hero list; getHeroCandidates filters either way.
    */
   function slideToTickerItem(s) {
@@ -335,8 +327,13 @@
 
   function fetchDisplayTickerState(createRun, apiBase) {
     var base = apiBase || defaultApiBase();
+    /* Prompt #125 — ONE authoritative production collection:
+       Worker /api/recognition/list + /api/news/approved (demo-persona-guard already applied
+       server-side) + optional arcade leaderboard meta. Do not merge LANTERN_API localStorage
+       slides (seedDemoWorld / demo personas). createRun is retained for call-signature
+       compatibility but is not used as a content source. */
+    void createRun;
     return Promise.all([
-      callGetDisplaySlides(createRun),
       fetch(base + '/api/recognition/list?limit=50')
         .then(function (r) {
           return r.json();
@@ -359,18 +356,11 @@
         })
     ])
       .then(function (results) {
-        var res = results[0];
-        var recognitionList = results[1] || [];
-        var newsList = results[2] || [];
-        var slides = (res && res.slides) || [];
+        var recognitionList = results[0] || [];
+        var newsList = results[1] || [];
+        var slides = [];
         /* Merge recognition + news INTO slides once — the single authoritative marquee source. */
         var seenRec = {};
-        slides.forEach(function (s) {
-          if (s && s.type === 'teacher_recognition') {
-            var rk = String(s.title || '').trim().toLowerCase() + '\n' + String(s.subtitle || '').trim().toLowerCase();
-            if (rk !== '\n') seenRec[rk] = true;
-          }
-        });
         recognitionList.forEach(function (r) {
           var msg = String(r.message || '').trim().slice(0, 250);
           if ((r.message || '').length > 250) msg += '…';
@@ -388,12 +378,6 @@
           });
         });
         var seenNews = {};
-        slides.forEach(function (s) {
-          if (s && s.type === 'student_news') {
-            var nk = String(s.title || '').trim().toLowerCase();
-            if (nk) seenNews[nk] = true;
-          }
-        });
         newsList.forEach(function (n) {
           var t = String(n.title || '').trim();
           if (!t || seenNews[t.toLowerCase()]) return;
@@ -415,23 +399,15 @@
         });
         return fetchWorkerLeaderboardForDisplay(base).then(function (weeklyEntries) {
           if (weeklyEntries && weeklyEntries.length > 0) {
-            var arcade = slides.find(function (s) {
-              return s.type === 'arcade_leader';
+            slides.push({
+              type: 'arcade_leader',
+              title: 'Arcade Leaders',
+              subtitle: 'Best scores this week',
+              image: null,
+              actor_name: '',
+              meta: { daily: [], weekly: weeklyEntries, monthly: [], schoolYear: [] },
+              created_at: ''
             });
-            if (arcade) {
-              arcade.meta = arcade.meta || {};
-              arcade.meta.weekly = weeklyEntries;
-            } else {
-              slides.push({
-                type: 'arcade_leader',
-                title: 'Arcade Leaders',
-                subtitle: 'Best scores this week',
-                image: null,
-                actor_name: '',
-                meta: { daily: [], weekly: weeklyEntries, monthly: [], schoolYear: [] },
-                created_at: ''
-              });
-            }
           }
           return enrichTickerPayloadCanonical(slides, recognitionList, newsList).then(function () {
             if (slides.length === 0) {

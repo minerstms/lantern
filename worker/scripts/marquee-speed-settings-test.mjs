@@ -414,11 +414,11 @@ function testAuthStubPagesOmitLanternHeader() {
   ok('auth/redirect stubs correctly omit the Lantern header shell');
 }
 
-/* ---------- Prompt #111 — exactly ONE marquee source (unified slides) ---------- */
+/* ---------- Prompt #111 / #125 — exactly ONE marquee source (Worker slides) ---------- */
 function testMarqueeBuildsFromUnifiedSlidesOnly() {
   const js = fs.readFileSync(path.join(root, 'app/js/lantern-ticker.js'), 'utf8');
-  if (!/Prompt #111 — ONE marquee source/.test(js)) {
-    return bad('lantern-ticker.js missing Prompt #111 single-source contract comment');
+  if (!/ONE marquee source/.test(js)) {
+    return bad('lantern-ticker.js missing Prompt #111/#125 single-source contract comment');
   }
   if (/toB\(r, 'recognition'\)/.test(js) || /toB\(n, 'news'\)/.test(js)) {
     return bad('ticker still builds items from parallel recognition/news arrays via LANTERN_BROADCAST');
@@ -428,6 +428,12 @@ function testMarqueeBuildsFromUnifiedSlidesOnly() {
   }
   if (!/Merge recognition \+ news INTO slides once/.test(js)) {
     return bad('fetchDisplayTickerState should merge recognition+news into slides once');
+  }
+  if (!/must NOT consume LANTERN_API\.getDisplaySlides/.test(js)) {
+    return bad('Prompt #125: ticker must document exclusion of LANTERN_API localStorage slides');
+  }
+  if (/\.getDisplaySlides\(\)/.test(js)) {
+    return bad('lantern-ticker.js must not call .getDisplaySlides() at runtime');
   }
   const sandbox = buildTickerSandbox(async () => ({ ok: true, px_per_second: 15 }));
   const slides = [
@@ -441,12 +447,51 @@ function testMarqueeBuildsFromUnifiedSlidesOnly() {
   if (!/Ava/.test(blob) || !/Band Concert/.test(blob) || !/Lucas/.test(blob)) {
     return bad('slides-only builder dropped expected content', blob);
   }
-  /* Passing a second/third arg must not revive the old parallel-source path. */
   const itemsIgnoreExtra = sandbox.LanternTicker.buildDisplayTickerItems(slides, [{ character_name: 'DUP' }], [{ title: 'DUP NEWS' }]);
   if (itemsIgnoreExtra.length !== 3) {
     return bad('extra recognition/news args must not feed a second marquee source', itemsIgnoreExtra.length);
   }
+  const icons = items.map((it) => String(it.icon || '')).join('|');
+  if (!/⭐/.test(icons) || !/📰/.test(icons)) {
+    return bad('canonical icon-before-text item shape missing type icons', icons);
+  }
   ok('marquee builds from ONE unified slides source — no parallel recognition/news item builders');
+}
+
+function testNoLocalStorageDemoSlidesInProductionMarquee() {
+  const tickerJs = fs.readFileSync(path.join(root, 'app/js/lantern-ticker.js'), 'utf8');
+  const apiJs = fs.readFileSync(path.join(root, 'app/js/lantern-api.js'), 'utf8');
+  const exploreHtml = fs.readFileSync(path.join(root, 'app/explore.html'), 'utf8');
+  const missionsHtml = fs.readFileSync(path.join(root, 'app/missions.html'), 'utf8');
+  const displayHtml = fs.readFileSync(path.join(root, 'app/display.html'), 'utf8');
+
+  if (/Promise\.all\(\[\s*callGetDisplaySlides/.test(tickerJs.replace(/\s+/g, ' '))) {
+    return bad('fetchDisplayTickerState still Promise.all-includes callGetDisplaySlides');
+  }
+  if (!/never feed localStorage seed\/demo slides/.test(apiJs)) {
+    return bad('lantern-api getDisplaySlides runner must return empty slides in production path');
+  }
+  if (!/getDisplaySlides: function \(\) \{[\s\S]{0,280}slides: \[\]/.test(apiJs)) {
+    return bad('lantern-api getDisplaySlides must resolve to empty slides array');
+  }
+  if (!/js\/lantern-ticker\.js/.test(exploreHtml) || !/js\/lantern-avatar\.js/.test(exploreHtml)) {
+    return bad('explore.html must load shared lantern-ticker.js + lantern-avatar.js');
+  }
+  if (!/js\/lantern-ticker\.js/.test(missionsHtml) || !/js\/lantern-avatar\.js/.test(missionsHtml)) {
+    return bad('missions.html must load shared lantern-ticker.js + lantern-avatar.js');
+  }
+  if (!/js\/lantern-ticker\.js/.test(displayHtml) || !/js\/lantern-avatar\.js/.test(displayHtml)) {
+    return bad('display.html must load shared lantern-ticker.js + lantern-avatar.js');
+  }
+  if (/id="exploreTicker"|class="exploreTicker"/.test(exploreHtml)) {
+    return bad('Explore must not keep an alternate ticker DOM');
+  }
+  for (const name of ['Casey Cool', 'Riley Rise', 'Jordan Joy', 'Alex Adventure', 'Sam Star']) {
+    if (tickerJs.includes(name)) {
+      return bad('lantern-ticker.js must not hard-code demo persona ' + name);
+    }
+  }
+  ok('production marquee path excludes localStorage demo slides; Explore/Missions/Display share renderer');
 }
 
 await testDefaultWhenRowMissing();
@@ -469,6 +514,7 @@ testAllPagesShareOneTickerImplementationNoOverrides();
 testNoHardcodedLegacyDurationRemainsInSharedFiles();
 testAdminHasMarqueeSpeedControl();
 testMarqueeBuildsFromUnifiedSlidesOnly();
+testNoLocalStorageDemoSlidesInProductionMarquee();
 testCanonicalHeaderShellOnNormalPages();
 testDisplayMarqueeOnlyException();
 testBehaviorHasNoLanternHeaderInRepo();
