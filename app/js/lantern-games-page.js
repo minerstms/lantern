@@ -175,9 +175,18 @@
     return null;
   }
 
-  function renderLeaderboardCardHtml(game, bundle) {
+  /**
+   * Prompt #99 follow-up — the leaderboard carousel's game+leaderboard pairing is now rendered as
+   * ONE composite card: clean artwork on top (no title/badge/cost/description overlay — those all
+   * still live on the canonical game_hub card used by the library grid below, untouched), and the
+   * title + leaderboard info + actions directly underneath with no visible seam between the two
+   * halves. Deliberately does NOT reuse buildGameHubCardSpec()/specGameHubRailCard() (the shared
+   * LanternCards canonical card used by the library grid below, which always overlays
+   * title/badges/meta onto the image by design) — this is a plain, purpose-built element instead,
+   * so the shared card system used everywhere else on the site is untouched.
+   */
+  function renderLeaderboardPairedCardHtml(game, bundle) {
     var entries = (bundle && bundle.entries) || [];
-    var lowerBetter = game.scoring && game.scoring.lowerIsBetter;
     var lines = [];
     if (entries.length) {
       entries.slice(0, 3).forEach(function (ent, i) {
@@ -201,19 +210,30 @@
     if (you) {
       var yVal =
         you.entry.score_display != null ? String(you.entry.score_display) : String(you.entry.score || '');
-      youLine =
-        '<p class="gamesLbYou">You: #' +
-        you.rank +
-        ' · ' +
-        escapeHtml(yVal) +
-        '</p>';
+      youLine = '<p class="gamesLbYou">You: #' + you.rank + ' · ' + escapeHtml(yVal) + '</p>';
     }
+    var playLabel = catalog().playActionLabel(game.play_cost);
+    var artworkAlt = escapeHtml(game.name + ' artwork');
+    var artworkAria = escapeHtml(playLabel + ' — ' + game.name);
     return (
       '<article class="gamesLbCard" data-game-id="' +
       escapeHtml(game.id) +
       '" data-game-name="' +
       escapeHtml(game.name) +
       '">' +
+      '<button type="button" class="gamesLbArtworkBtn" data-action="play-game" aria-label="' +
+      artworkAria +
+      '">' +
+      '<img class="gamesLbArtworkImg" src="' +
+      escapeHtml(game.image || '') +
+      '" alt="' +
+      artworkAlt +
+      '" loading="lazy" onerror="this.style.display=\'none\'; this.nextElementSibling.classList.remove(\'gamesLbArtworkFallbackHidden\');">' +
+      '<span class="gamesLbArtworkFallback gamesLbArtworkFallbackHidden" aria-hidden="true"><span class="gamesLbArtworkIcon">' +
+      escapeHtml(game.icon || '🎮') +
+      '</span></span>' +
+      '</button>' +
+      '<div class="gamesLbBody">' +
       '<h3 class="gamesLbCardTitle">' +
       escapeHtml(game.icon + ' ' + game.name) +
       '</h3>' +
@@ -224,9 +244,9 @@
       '<div class="gamesLbCardActions">' +
       '<button type="button" class="gamesLbViewBtn" data-action="view-lb">View full leaderboard</button>' +
       '<button type="button" class="gamesLbPlayBtn" data-action="play-game">' +
-      escapeHtml(catalog().playActionLabel(game.play_cost)) +
+      escapeHtml(playLabel) +
       '</button>' +
-      '</div></article>'
+      '</div></div></article>'
     );
   }
 
@@ -282,25 +302,11 @@
     });
   }
 
-  /** Compact canonical game card used as the leaderboard's artwork/identity header (Prompt #88). */
-  function buildLeaderboardGameCard(g) {
-    var LC = cardsApi();
-    if (!LC || !LC.createStudentCard || !g) return null;
-    var spec = buildGameHubCardSpec(g, {
-      compact: true,
-      extraClass: 'exploreCard--gamesLbPaired',
-      reportPrefix: 'game_lb_',
-      routeSurface: 'games_leaderboard',
-    });
-    return spec ? LC.createStudentCard(spec) : null;
-  }
-
   function renderCarousel() {
     var track = el('gamesLeaderboardTrack');
     var dots = el('gamesLeaderboardDots');
     if (!track) return;
     var cat = catalog();
-    var LC = cardsApi();
     if (!cat) return;
     var games = cat.leaderboardGames();
     track.innerHTML = '';
@@ -308,18 +314,12 @@
       var wrap = document.createElement('div');
       wrap.className = 'gamesLbSlide';
       wrap.setAttribute('data-slide-index', String(idx));
-      var stack = document.createElement('div');
-      stack.className = 'leaderboardGameStack';
-      var cardNode = buildLeaderboardGameCard(bundle.game);
-      if (cardNode) stack.appendChild(cardNode);
-      var lbHost = document.createElement('div');
-      lbHost.innerHTML = renderLeaderboardCardHtml(bundle.game, bundle);
-      var lbCard = lbHost.firstElementChild;
-      if (lbCard) stack.appendChild(lbCard);
-      wrap.appendChild(stack);
+      var cardHost = document.createElement('div');
+      cardHost.innerHTML = renderLeaderboardPairedCardHtml(bundle.game, bundle);
+      var card = cardHost.firstElementChild;
+      if (card) wrap.appendChild(card);
       track.appendChild(wrap);
     });
-    if (LC && typeof LC.enhanceReportControlsIn === 'function') LC.enhanceReportControlsIn(track);
     if (dots) {
       dots.innerHTML = '';
       games.forEach(function (_g, i) {
@@ -561,10 +561,6 @@
     var root = el('gamesLeaderboardCarousel');
     if (!root || root._wired) return;
     root._wired = true;
-    // Prompt #88 — the artwork card above each leaderboard is the same clickable game-hub
-    // card used in the library grid below; reuse the existing proxy-play wiring verbatim
-    // instead of inventing a second click handler for the same action.
-    wireLibraryProxyClicks(root);
     root.addEventListener('mouseenter', function () {
       pauseAuto('hover');
     });

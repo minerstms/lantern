@@ -138,5 +138,44 @@ if (gamesPageJs.includes('filteredGames') && gamesPageJs.includes('listGames')) 
   ok('game-only library dataset from catalog');
 } else bad('game-only library');
 
+// ---------------------------------------------------------------------------
+// Prompt #99 follow-up — leaderboard carousel composite card (artwork + leaderboard, one card)
+// ---------------------------------------------------------------------------
+if (gamesPageJs.includes('function renderLeaderboardPairedCardHtml(') && !gamesPageJs.includes('leaderboardGameStack') && !gamesPageJs.includes('buildLeaderboardGameCard')) {
+  ok('leaderboard carousel renders one composite card per game (old two-card stack removed)');
+} else bad('composite leaderboard card function missing or old stack still present');
+
+const artworkBtnMatch = gamesPageJs.match(/<button type="button" class="gamesLbArtworkBtn"[\s\S]*?<\/button>/);
+if (
+  artworkBtnMatch &&
+  !artworkBtnMatch[0].includes('gamesLbCardTitle') &&
+  !artworkBtnMatch[0].includes('gamesLbCardActions') &&
+  !artworkBtnMatch[0].includes('gamesLbTop3') &&
+  !artworkBtnMatch[0].includes('typeBadge') &&
+  !artworkBtnMatch[0].includes('gamesLbYou')
+) {
+  ok('leaderboard card artwork region has no title/badge/score overlay markup (aria-label only, not visible)');
+} else bad('leaderboard card artwork still contains overlay markup', artworkBtnMatch && artworkBtnMatch[0].slice(0, 200));
+
+if (gamesPageJs.match(/gamesLbArtworkBtn[\s\S]*?gamesLbBody[\s\S]*?gamesLbCardTitle/)) {
+  ok('title + leaderboard info render below the artwork inside the same composite card');
+} else bad('title/leaderboard body not found after artwork in composite card markup');
+
+if (gamesPageJs.includes("data-game-id=") && gamesPageJs.match(/renderLeaderboardPairedCardHtml\(bundle\.game, bundle\)/)) {
+  ok('composite card still keyed off the same bundle, preserving correct game <-> leaderboard pairing');
+} else bad('game/leaderboard pairing data wiring missing');
+
+if (gamesCss.match(/\.gamesLbCard\s*\{[^}]*overflow:\s*hidden/)) {
+  ok('composite card clips artwork to one continuous rounded shape (no seam between halves)');
+} else bad('composite card overflow/seam handling missing');
+
+if (gamesCss.includes('.gamesLbArtworkBtn') && gamesCss.match(/\.gamesLbArtworkBtn\s*\{[^}]*aspect-ratio:\s*16 \/ 9/)) {
+  ok('leaderboard card artwork uses the site-wide 16:9 card aspect ratio');
+} else bad('leaderboard card artwork aspect ratio missing');
+
+if (gamesPageJs.includes('data-action="play-game"') && gamesPageJs.includes('data-action="view-lb"')) {
+  ok('play + view-full-leaderboard actions preserved on the composite card');
+} else bad('composite card actions missing');
+
 console.log('\nGames page tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

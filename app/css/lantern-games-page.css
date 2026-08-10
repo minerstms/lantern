@@ -153,36 +153,76 @@
   }
 }
 
-/* Prompt #88 — game artwork + leaderboard render as one paired stack per carousel slide.
-   Pairing is structural: both children are built from the same data bundle inside the same
-   .gamesLbSlide, so the carousel (which only ever transforms whole slides) can never separate
-   a game's artwork from its own leaderboard.
-   The canonical card keeps its contract-locked fixed width (--lantern-card-width) untouched —
-   no page may resize .exploreCard.lanternCanonicalCard (see lantern-cards.css header + runtime
-   SHELL_WIDTH_DRIFT enforcement in lantern-canonical-enforce.js). Its plain (non-canonical)
-   leaderboard sibling is constrained to the same width instead, so the pair reads as one unit.
-   Plain block stacking (not flex) is used deliberately — a flex column parent was observed to
-   break the canonical card's aspect-ratio sizing (a Chromium flex/aspect-ratio interaction),
-   which is exactly the kind of drift the canonical-card contract must never risk. */
-.leaderboardGameStack .exploreCard.lanternCanonicalCard {
-  margin: 0 auto;
-}
-
-.leaderboardGameStack .gamesLbCard {
-  width: 100%;
-  max-width: var(--lantern-card-width, 280px);
-  margin: 0.5rem auto 0;
-  box-sizing: border-box;
-}
-
+/* Prompt #99 follow-up — each carousel slide is ONE continuous composite card: clean artwork
+   (top half, no overlay text/badges/gradients) directly above the title + leaderboard info +
+   actions (bottom half), with no visible seam. Pairing stays structural — both halves are built
+   from the same data bundle inside the same .gamesLbSlide by renderLeaderboardPairedCardHtml(),
+   so the carousel (which only ever transforms whole slides) can never separate a game's artwork
+   from its own leaderboard. This card is deliberately plain (not the shared LanternCards
+   canonical card) so it can render artwork with zero overlay — the canonical card system used by
+   the library grid below overlays title/badges/meta by design and stays untouched there. */
 .gamesLbCard {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
   border: 2px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
-  padding: 1rem 1.1rem;
-  min-height: 220px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: var(--lantern-card-width, 280px);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.gamesLbArtworkBtn {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.gamesLbArtworkImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gamesLbArtworkFallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(90, 167, 255, 0.35), rgba(255, 204, 102, 0.25));
+}
+
+.gamesLbArtworkFallbackHidden {
+  display: none;
+}
+
+.gamesLbArtworkIcon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.gamesLbArtworkBtn:focus-visible {
+  outline: 2px solid var(--accent, #5aa7ff);
+  outline-offset: -2px;
+}
+
+.gamesLbBody {
+  padding: 1rem 1.1rem;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
 }
 
 .gamesLbCardTitle {
