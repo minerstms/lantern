@@ -8,6 +8,7 @@
   <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-collapsible-list.css">
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -19,6 +20,33 @@
     .sub { color: var(--muted); margin-bottom: 24px; font-size: 22px; }
     .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 22px; max-width: 960px; }
     .cardHd { font-weight: 900; font-size: 26px; margin-bottom: 12px; color: var(--accent); }
+    /* Prompt #122 — collapsible list cards use Teacher summary layout (padding on hd/bd). */
+    .card.teacherCollapsibleList { padding: 0; overflow: hidden; }
+    .card.teacherCollapsibleList > summary.cardHd.teacherCollapsibleListHd {
+      margin-bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      color: var(--accent);
+      font-size: 26px;
+    }
+    .card.teacherCollapsibleList > .cardBd.teacherCollapsibleListBd { padding: 12px 16px 16px; }
+    .card.teacherCollapsibleList .h { font-weight: 900; letter-spacing: .2px; font-size: 24px; color: inherit; }
+    .pill {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 38px; padding: 0 12px; border-radius: 999px;
+      border: 1px solid var(--line); background: rgba(0,0,0,.18);
+      font-weight: 900; letter-spacing: .2px; white-space: nowrap; font-size: 18px; color: var(--ink);
+    }
+    .pill.accent { border-color: rgba(90,167,255,.45); background: rgba(90,167,255,.12); }
+    .teacherCollapsibleListScroll th {
+      position: sticky; top: 0; z-index: 1;
+      background: #132038;
+    }
     .btn { padding: 10px 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(90,167,255,.2); color: var(--ink); font-size: 22px; font-weight: 800; cursor: pointer; font-family: inherit; margin-right: 8px; margin-top: 8px; }
     .btn.good { border-color: rgba(56,208,124,.5); background: rgba(56,208,124,.15); }
     .btn.bad { border-color: rgba(255,77,109,.5); background: rgba(255,77,109,.12); }
@@ -112,10 +140,16 @@
   <p><a href="/explore.html">Lantern (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
   <p id="logoutMsg" role="status" aria-live="polite" style="display:none;"></p>
 
-  <div class="card">
-    <div class="cardHd">Accounts</div>
+  <details class="card teacherCollapsibleList" id="adminAccountsCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Accounts</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminAccountsCountPill">0</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
     <div id="usersMsg"></div>
+    <div class="teacherCollapsibleListScroll">
     <table id="usersTable"><thead><tr><th>Login ID</th><th>First Name</th><th>Role</th><th>Active</th><th>Must change password</th><th>Actions</th></tr></thead><tbody id="usersBody"></tbody></table>
+    </div>
 
     <div id="editUserPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true">
       <p class="acctPanelHd">Edit account</p>
@@ -164,14 +198,19 @@
       <label>Student character (students) <input id="nu_scn" type="text" placeholder="e.g. Riley" /></label>
       <button type="submit" class="btn good" style="margin-top:14px;">Create user</button>
     </form>
-  </div>
+    </div>
+  </details>
 
-  <div class="card" id="tmsStaffLinksCard">
-    <div class="cardHd">TMS Staff Links</div>
+  <details class="card teacherCollapsibleList" id="tmsStaffLinksCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">TMS Staff Links</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminTmsLinksCountPill">0</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
     <p class="acctPanelHint">Explicit SSO mappings from a TMS Nuggets staff ID to a Lantern staff account. Never guessed from names — choose both sides. Unlink removes only the mapping.</p>
     <div id="tmsLinksMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
     <p class="pendingMeta" style="margin-bottom:8px;">Current mappings</p>
-    <div id="tmsLinksTableWrap">
+    <div id="tmsLinksTableWrap" class="teacherCollapsibleListScroll">
       <table id="tmsLinksTable">
         <thead>
           <tr>
@@ -203,7 +242,8 @@
       <button type="button" class="btn good" id="tmsLinkCreateBtn">Link Accounts</button>
       <button type="button" class="btn" id="tmsLinkRefreshBtn">Refresh</button>
     </div>
-  </div>
+    </div>
+  </details>
 
   <div class="card" id="walletAdjustmentCard">
     <div class="cardHd">Wallet Adjustment</div>
@@ -235,10 +275,24 @@
     <div class="cardHd">Feed visibility (students)</div>
     <p class="acctPanelHint">Hide approved news or mission posts from Lantern and other student-facing feeds without deleting them. Rows stay in the database; use Unhide to restore.</p>
     <div id="feedModMsg" role="status" aria-live="polite" style="display:none;"></div>
-    <p class="pendingMeta" style="margin-bottom:8px;">Live on student feeds</p>
-    <div id="feedModLiveList"></div>
-    <p class="pendingMeta" style="margin:20px 0 8px;">Hidden from students (recoverable)</p>
-    <div id="feedModHiddenList"></div>
+    <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="adminFeedLivePanel">
+      <summary class="teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Live on student feeds</div></div>
+        <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminFeedLiveCountPill">0</span></div>
+      </summary>
+      <div class="teacherCollapsibleListBd">
+        <div id="feedModLiveList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+      </div>
+    </details>
+    <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="adminFeedHiddenPanel">
+      <summary class="teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Hidden from students (recoverable)</div></div>
+        <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminFeedHiddenCountPill">0</span></div>
+      </summary>
+      <div class="teacherCollapsibleListBd">
+        <div id="feedModHiddenList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+      </div>
+    </details>
     <p class="pendingMeta" style="margin-top:4px;"><button type="button" class="btn" id="feedModRefreshBtn">Refresh lists</button></p>
   </div>
 
@@ -259,20 +313,29 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="cardHd">Pending approvals</div>
+  <details class="card teacherCollapsibleList" id="adminPendingApprovalsCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Pending approvals</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminPendingCountPill">0</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
     <p class="pendingMeta">Student submissions appear here until approved. Approving publishes per item rules.</p>
     <div id="pendingMsg" role="status" aria-live="polite" style="display:none;"></div>
-    <div id="pendingList"></div>
-  </div>
+    <div id="pendingList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+    </div>
+  </details>
   </div><!-- /.adminPageWrap -->
 
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-collapsible-list.js"></script>
   <script>
   (function(){
+    if (typeof window.initTeacherCollapsibleLists === 'function') {
+      window.initTeacherCollapsibleLists(document);
+    }
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
     var lastUsersList = [];
     var adminSessionMeta = { username: '', display_name: '' };
@@ -487,6 +550,10 @@
       var emptyEl = document.getElementById('tmsLinksEmpty');
       var loadingEl = document.getElementById('tmsLinksLoading');
       var table = document.getElementById('tmsLinksTable');
+      var tmsPill = document.getElementById('adminTmsLinksCountPill');
+      function setTmsCount(n) {
+        if (tmsPill) tmsPill.textContent = String(n);
+      }
       if (!tb) return;
       if (loadingEl) loadingEl.style.display = 'block';
       if (emptyEl) emptyEl.style.display = 'none';
@@ -504,9 +571,11 @@
           if (!w.body || !w.body.ok || !Array.isArray(w.body.links)) {
             showTmsLinksMsg(tmsLinkErrorMessage(w.body, w.status) || 'Could not load TMS staff links.', 'err');
             if (emptyEl) emptyEl.style.display = 'block';
+            setTmsCount(0);
             return;
           }
           var links = w.body.links;
+          setTmsCount(links.length);
           if (links.length === 0) {
             if (emptyEl) emptyEl.style.display = 'block';
             if (table) table.style.display = 'none';
@@ -560,6 +629,7 @@
           if (loadingEl) loadingEl.style.display = 'none';
           showTmsLinksMsg('Could not load TMS staff links (network).', 'err');
           if (emptyEl) emptyEl.style.display = 'block';
+          setTmsCount(0);
         });
     }
 
@@ -948,14 +1018,20 @@
         }
         var res = w.body;
         var tb = document.getElementById('usersBody');
+        var accountsPill = document.getElementById('adminAccountsCountPill');
+        function setAccountsCount(n) {
+          if (accountsPill) accountsPill.textContent = String(n);
+        }
         tb.innerHTML = '';
         if (!res || !res.ok || !res.users) {
           lastUsersList = [];
+          setAccountsCount(0);
           populateWalletStudentSelect();
           populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
           return;
         }
         lastUsersList = res.users.slice();
+        setAccountsCount(lastUsersList.length);
         populateWalletStudentSelect();
         populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
         res.users.forEach(function(u){
@@ -1069,6 +1145,10 @@
         var liveMiss = (missRes && missRes.submissions) || [];
         var hiddenNews = (hidNewsRes && hidNewsRes.news) || [];
         var hiddenMiss = (hidMissRes && hidMissRes.submissions) || [];
+        var livePill = document.getElementById('adminFeedLiveCountPill');
+        var hidPill = document.getElementById('adminFeedHiddenCountPill');
+        if (livePill) livePill.textContent = String(liveNews.length + liveMiss.length);
+        if (hidPill) hidPill.textContent = String(hiddenNews.length + hiddenMiss.length);
 
         liveEl.innerHTML = '';
         if (liveNews.length === 0 && liveMiss.length === 0) {
@@ -1327,8 +1407,10 @@
         .then(function(r){ return r.json(); })
         .then(function(res){
           var el = document.getElementById('pendingList');
+          var pendingPill = document.getElementById('adminPendingCountPill');
           el.innerHTML = '';
           var list = (res && res.pending) || [];
+          if (pendingPill) pendingPill.textContent = String(list.length);
           if (list.length === 0) {
             showPendingMsg('', '');
             el.innerHTML = '<p class="pendingMeta">No pending items.</p>';
@@ -1421,6 +1503,8 @@
         })
         .catch(function(){
           showPendingMsg('Could not load pending queue. Check your connection.', 'err');
+          var pendingPill = document.getElementById('adminPendingCountPill');
+          if (pendingPill) pendingPill.textContent = '0';
         });
     }
 

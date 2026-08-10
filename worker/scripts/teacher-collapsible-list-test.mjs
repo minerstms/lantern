@@ -1,5 +1,5 @@
 /**
- * Prompt #119 — shared Teacher collapsible list panel static contract.
+ * Prompt #119 / #122 — shared collapsible list panel static contract (Teacher + shared assets).
  * Usage: node worker/scripts/teacher-collapsible-list-test.mjs
  */
 import fs from 'fs';
@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const html = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8');
+const sharedCss = fs.readFileSync(path.join(root, 'app/css/lantern-collapsible-list.css'), 'utf8');
+const sharedJs = fs.readFileSync(path.join(root, 'app/js/lantern-collapsible-list.js'), 'utf8');
 
 let pass = 0;
 let fail = 0;
@@ -20,14 +22,29 @@ function bad(msg, detail) {
   console.log('FAIL ' + msg + (detail ? ' — ' + detail : ''));
 }
 
-if (/Prompt #119 — ONE shared collapsible LIST PANEL/.test(html)) ok('shared list-panel CSS contract comment present');
-else bad('missing shared list-panel CSS contract');
+if (/css\/lantern-collapsible-list\.css/.test(html)) ok('teacher.html links shared collapsible-list CSS');
+else bad('teacher.html missing shared CSS link');
 
-if (/function initTeacherCollapsibleLists\(/.test(html)) ok('shared initTeacherCollapsibleLists helper present');
-else bad('missing initTeacherCollapsibleLists');
+if (/js\/lantern-collapsible-list\.js/.test(html)) ok('teacher.html loads shared collapsible-list JS');
+else bad('teacher.html missing shared JS script');
+
+if (/Prompt #119 \/ #122 — ONE shared collapsible LIST PANEL/.test(sharedCss) ||
+    /ONE shared collapsible LIST PANEL/.test(sharedCss)) {
+  ok('shared list-panel CSS contract present in lantern-collapsible-list.css');
+} else bad('missing shared list-panel CSS contract');
+
+if (/function init\(/.test(sharedJs) && /initTeacherCollapsibleLists/.test(sharedJs)) {
+  ok('shared initTeacherCollapsibleLists exported from lantern-collapsible-list.js');
+} else bad('missing shared initTeacherCollapsibleLists');
 
 if (/initTeacherCollapsibleLists\(document\)/.test(html)) ok('initializer is called on Teacher boot');
 else bad('initializer not called');
+
+if (/aria-expanded/.test(sharedJs)) ok('aria-expanded sync lives in shared initializer');
+else bad('aria-expanded wiring missing');
+
+if (/max-height:\s*clamp\(280px,\s*48vh,\s*560px\)/.test(sharedCss)) ok('expanded list scroll uses responsive clamp height');
+else bad('missing clamp expanded height in shared CSS');
 
 const requiredPanels = [
   ['#teacher-approvals', 'Review Queue'],
@@ -46,21 +63,14 @@ const requiredPanels = [
 ];
 
 for (const [id, label] of requiredPanels) {
-  const re = new RegExp('id="' + id.replace(/^#/, '') + '"[^>]*class="[^"]*teacherCollapsibleList');
-  const re2 = new RegExp('class="[^"]*teacherCollapsibleList[^"]*"[^>]*id="' + id.replace(/^#/, '') + '"');
-  if (re.test(html) || re2.test(html) || html.includes('id="' + id.replace(/^#/, '') + '"') && html.includes('teacherCollapsibleList')) {
-    /* Prefer exact id+class co-occurrence nearby */
-    const idx = html.indexOf('id="' + id.replace(/^#/, '') + '"');
-    const window = idx >= 0 ? html.slice(Math.max(0, idx - 80), idx + 120) : '';
-    if (/teacherCollapsibleList/.test(window)) ok(label + ' opts into teacherCollapsibleList (' + id + ')');
-    else bad(label + ' missing teacherCollapsibleList near id', id);
-  } else {
-    bad(label + ' missing teacherCollapsibleList', id);
-  }
+  const bare = id.replace(/^#/, '');
+  const idx = html.indexOf('id="' + bare + '"');
+  const window = idx >= 0 ? html.slice(Math.max(0, idx - 80), idx + 120) : '';
+  if (/teacherCollapsibleList/.test(window)) ok(label + ' opts into teacherCollapsibleList (' + id + ')');
+  else bad(label + ' missing teacherCollapsibleList near id', id);
 }
 
-if (/id="teacher-approvals"[^>]*teacherCollapsibleList|teacherCollapsibleList[^>]*id="teacher-approvals"/.test(html) ||
-    /<details class="card teacherCollapsibleList" id="teacher-approvals"/.test(html)) {
+if (/<details class="card teacherCollapsibleList" id="teacher-approvals"/.test(html)) {
   ok('Review Queue is a details.teacherCollapsibleList card');
 } else bad('Review Queue markup not converted to details.teacherCollapsibleList');
 
@@ -71,19 +81,12 @@ if (/<details class="card teacherCollapsibleList" id="teacherMyMissionsCard"/.te
 if (!/<div class="card" id="teacherMyMissionsCard">/.test(html)) ok('legacy always-open My Missions card wrapper removed');
 else bad('legacy My Missions div.card still present');
 
-if (/max-height:\s*clamp\(280px,\s*48vh,\s*560px\)/.test(html)) ok('expanded list scroll uses responsive clamp height');
-else bad('missing clamp expanded height');
-
-if (/aria-expanded/.test(html) && /initTeacherCollapsibleLists/.test(html)) ok('aria-expanded sync lives in shared initializer');
-else bad('aria-expanded wiring missing');
-
 /* Forms / non-lists should not blindly become list panels */
 if (/id="teacherCreateMissionDetails"[^>]*teacherCollapsibleCard/.test(html) ||
     /class="card teacherCollapsibleCard" id="teacherCreateMissionDetails"/.test(html) ||
     /id="teacherCreateMissionDetails" class="card teacherCollapsibleCard"/.test(html)) {
   ok('Create New Mission remains teacherCollapsibleCard (form), not list pattern');
 } else {
-  /* tolerate attribute order */
   const i = html.indexOf('id="teacherCreateMissionDetails"');
   const w = i >= 0 ? html.slice(i, i + 100) : '';
   if (/teacherCollapsibleCard/.test(w) && !/teacherCollapsibleList/.test(w)) ok('Create New Mission remains form collapsible card');

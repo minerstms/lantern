@@ -13,6 +13,7 @@
   <link rel="prefetch" href="games.html">
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-collapsible-list.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
 
   <style>
@@ -1183,93 +1184,7 @@
     .teacherCollapsibleCard > summary::before{ content: '▸'; color: var(--muted); font-weight: 900; margin-right: 4px; }
     .teacherCollapsibleCard[open] > summary::before{ content: '▾'; }
 
-    /*
-     * Prompt #119 — ONE shared collapsible LIST PANEL pattern (entire list, not per-row).
-     * Opt in: <details class="card teacherCollapsibleList"> or nested
-     * <details class="teacherCollapsibleList teacherCollapsibleList--nested">.
-     * Collapsed = summary row only (title + optional count/actions + chevron).
-     * Expanded = body with comfortable viewport-based height; list body scrolls internally.
-     */
-    .teacherCollapsibleList > summary.teacherCollapsibleListHd{
-      list-style: none;
-      cursor: pointer;
-      user-select: none;
-      min-height: 48px;
-      box-sizing: border-box;
-    }
-    .teacherCollapsibleList > summary.teacherCollapsibleListHd::-webkit-details-marker{ display: none; }
-    .teacherCollapsibleList > summary.teacherCollapsibleListHd::before{
-      content: '▸';
-      color: var(--muted);
-      font-weight: 900;
-      margin-right: 6px;
-      flex-shrink: 0;
-      line-height: 1;
-    }
-    .teacherCollapsibleList[open] > summary.teacherCollapsibleListHd::before{ content: '▾'; }
-    .teacherCollapsibleList > summary.teacherCollapsibleListHd:focus-visible{
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-    .teacherCollapsibleList:not([open]) > summary.teacherCollapsibleListHd{
-      border-bottom: none;
-    }
-    .teacherCollapsibleListTitle{
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-      min-width: 0;
-    }
-    .teacherCollapsibleListMeta{
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      flex-shrink: 0;
-    }
-    /* Comfortable expanded list height — several full rows; body scrolls when needed. */
-    .teacherCollapsibleListScroll{
-      max-height: clamp(280px, 48vh, 560px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.12);
-    }
-    @media (max-width: 640px){
-      .teacherCollapsibleListScroll{
-        max-height: clamp(240px, 42vh, 420px);
-      }
-    }
-    /* Nested list panels inside a parent card (School Access, Shout-Out!, Moderation sections). */
-    .teacherCollapsibleList--nested{
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 1px solid var(--line);
-      background: transparent;
-      box-shadow: none;
-      border-left: none;
-      border-right: none;
-      border-bottom: none;
-      border-radius: 0;
-    }
-    .teacherCollapsibleList--nested > summary.teacherCollapsibleListHd{
-      padding: 8px 0;
-      border-bottom: none;
-      background: transparent;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .teacherCollapsibleList--nested > .teacherCollapsibleListBd{
-      padding: 8px 0 0;
-    }
-    .teacherCollapsibleList--nested .teacherCollapsibleListHd .h{
-      font-size: 22px;
-    }
+    /* Shared list-panel CSS: css/lantern-collapsible-list.css (Prompt #119/#122). */
     /* Review Queue: pending bodies scroll inside the shared expanded panel (overrides §23 grow-natural). */
     #teacher-approvals.teacherCollapsibleList[open] .approvalsColBody.teacherCollapsibleListScroll{
       max-height: clamp(280px, 48vh, 560px);
@@ -2156,6 +2071,7 @@
     </div>
   </div>
 
+  <script src="js/lantern-collapsible-list.js"></script>
   <script>
   /**
    * Prompt #77 — Teacher workspace shell: sidebar routing, mobile drawer, Review Queue
@@ -2200,29 +2116,7 @@
       return String(location.hash || '').replace(/^#/, '').trim().toLowerCase() === 'create';
     }
 
-    /**
-     * Prompt #119 — shared collapsible list panel initializer.
-     * Syncs aria-expanded; keeps header buttons/links from toggling the panel.
-     * Does not force accordion exclusivity (independent details, like Create Mission).
-     */
-    function initTeacherCollapsibleLists(root){
-      root = root || document;
-      Array.prototype.forEach.call(root.querySelectorAll('details.teacherCollapsibleList'), function(panel){
-        if (panel.getAttribute('data-collapsible-list-ready') === '1') return;
-        panel.setAttribute('data-collapsible-list-ready', '1');
-        function syncExpanded(){
-          panel.setAttribute('aria-expanded', panel.open ? 'true' : 'false');
-        }
-        syncExpanded();
-        panel.addEventListener('toggle', syncExpanded);
-        var summary = panel.querySelector(':scope > summary.teacherCollapsibleListHd');
-        if (!summary) return;
-        if (!summary.hasAttribute('tabindex')) summary.setAttribute('tabindex', '0');
-        Array.prototype.forEach.call(summary.querySelectorAll('button, a, input, select, textarea'), function(ctrl){
-          ctrl.addEventListener('click', function(e){ e.stopPropagation(); });
-        });
-      });
-    }
+    /* initTeacherCollapsibleLists → js/lantern-collapsible-list.js (shared Teacher + Admin). */
 
     function closeMobileDrawer(){
       var sidebar = document.getElementById('teacherSidebar');
