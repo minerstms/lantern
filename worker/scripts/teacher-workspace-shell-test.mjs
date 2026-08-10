@@ -25,8 +25,9 @@
  *    separate visible Create Mission sidebar item anymore.
  *  - #create (preserved deep link) opens the Missions workspace with Create New Mission
  *    auto-expanded; #missions opens Missions with it collapsed.
- *  - Prompt #119 — My Missions / Review Queue (and other qualifying list panels) use the shared
- *    teacherCollapsibleList pattern and load COLLAPSED by default; tests expand before asserting rows.
+ *  - Prompt #119 / #143 — My Missions / Review Queue (and other qualifying list panels) use the shared
+ *    teacherCollapsibleList pattern; Prompt #143 opens each destination's PRIMARY panel by default
+ *    (nested lists/records stay collapsed).
  *  - My Missions has [All]/[Active]/[Paused]/[Archived] filter chips + a title search box, and
  *    each mission row exposes Edit/Pause-Resume/Promote-Unpromote/Archive-Restore (+Delete only
  *    when unused).
@@ -50,11 +51,14 @@
  *  - Review Queue empty state is a compact placeholder, not a large blank bordered box.
  *
  * Prompt #91 (Nuggets first + default workspace) additions:
- *  - Sidebar order starts with Nuggets, then Overview/Review Queue/Missions/Moderation/Hallway
- *    TV/Other Tools (Prompt #103 removed the separate Create Mission item — see above).
+ *  - Sidebar order starts with Nuggets, then Overview/Review Queue/School Access/Missions/
+ *    Shout-Out!/Moderation/Hallway TV (Prompt #103 removed the separate Create Mission item;
+ *    Prompt #143 archives Other Tools from the sidebar — DOM retained, #other → Overview).
  *  - A plain /teacher.html load (no hash) opens Nuggets by default, not Overview.
  *  - Explicit deep links (#overview, #review, #missions, ...) still open their requested
  *    workspace — Nuggets is the default, not a mandatory intermediate screen.
+ *  - Prompt #143 — destination primary panels default OPEN (Missions: My Missions open / Create
+ *    closed; School Access: Status open / other three closed; Review/Shout-Out/Moderation open).
  *
  * Usage: node worker/scripts/teacher-workspace-shell-test.mjs [baseUrl]
  * Requires a static file server for app/ at baseUrl (default http://127.0.0.1:8765).
@@ -139,8 +143,11 @@ async function main() {
   // Sidebar + default workspace
   // ---------------------------------------------------------------------------
   const sidebarItems = await page.locator('.teacherSidebarItem').allTextContents();
-  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'Missions', 'Shout-Out!', 'Moderation', 'Other Tools'];
-  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all expected workspace items including Shout-Out!: ' + JSON.stringify(sidebarItems));
+  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'School Access', 'Missions', 'Shout-Out!', 'Moderation', 'Hallway TV'];
+  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all expected workspace items including School Access + Shout-Out!: ' + JSON.stringify(sidebarItems));
+  assert(!sidebarItems.some((t) => t.indexOf('Other Tools') !== -1), 'Prompt #143 — Other Tools is archived from the Teacher sidebar: ' + JSON.stringify(sidebarItems));
+  assert((await page.locator('.teacherSidebarItem[data-workspace-link="other"]').count()) === 0, 'No sidebar item links to archived "other" workspace');
+  assert(await page.locator('#teacher-utilities').count() === 1, 'Other Tools implementation DOM is retained (nav-only archive)');
   assert(sidebarItems.some((t) => t.indexOf('Shout-Out!') !== -1), 'Shout-Out! sidebar destination is present');
   assert(await page.locator('#teacher-shoutout').count() === 1, 'Shout-Out! workspace pane exists');
   assert((await page.locator('#teacher-shoutout .note-tight').first().innerText()).trim() === 'Recognize anyone, now.', 'Shout-Out supporting copy is exact');
@@ -149,6 +156,7 @@ async function main() {
   assert(sidebarItems[0].indexOf('Nuggets') !== -1, 'Nuggets is the first sidebar item: ' + JSON.stringify(sidebarItems));
   assert(!sidebarItems.some((t) => t.indexOf('Create Mission') !== -1), 'Prompt #103 — Create Mission is no longer a separate visible sidebar destination: ' + JSON.stringify(sidebarItems));
   assert((await page.locator('.teacherSidebarItem[data-workspace-link="create"]').count()) === 0, 'No sidebar item links to a standalone "create" workspace');
+  assert(await page.locator('#teacher-rewards').evaluate((el) => !!el.open), 'Prompt #143 — Nuggets primary Rewards panel defaults open on destination load');
 
   function activeWorkspaceIds() {
     return page.evaluate(() => Array.from(document.querySelectorAll('#teacherMain > [data-workspace].is-active-workspace')).map((el) => el.getAttribute('data-workspace')));
@@ -203,7 +211,20 @@ async function main() {
   }, { timeout: 5000 });
   assert(true, 'Direct navigation to /teacher.html#create opens the Missions workspace on load (no separate Create workspace)');
   assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => el.open), '#create auto-expands the Create New Mission details');
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !el.open), '#create leaves My Missions collapsed while Create is expanded');
   assert(await page.locator('.teacherSidebarItem[data-workspace-link="missions"]').evaluate((el) => el.classList.contains('is-active')), '#create marks the single Missions sidebar item active (not a phantom "create" item)');
+
+  // Prompt #143 — stale Other Tools hashes fall back to Overview (implementation retained).
+  await page.goto(base + '/teacher.html#other', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
+  await page.waitForFunction(() => document.getElementById('teacherWorkspace-overview')?.classList.contains('is-active-workspace'), { timeout: 5000 });
+  assert((await activeWorkspaceIds()).join(',') === 'overview', 'Stale #other falls back to Overview (Other Tools archived from nav)');
+  assert(!(await page.locator('#teacher-utilities').evaluate((el) => el.classList.contains('is-active-workspace'))), 'Stale #other does not activate archived Other Tools pane');
+
+  await page.goto(base + '/teacher.html#other-tools', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
+  await page.waitForFunction(() => document.getElementById('teacherWorkspace-overview')?.classList.contains('is-active-workspace'), { timeout: 5000 });
+  assert((await activeWorkspaceIds()).join(',') === 'overview', 'Stale #other-tools falls back to Overview');
 
   await page.goto(base + '/teacher.html#not-a-real-workspace', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
@@ -225,16 +246,15 @@ async function main() {
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'review'; });
   await page.waitForFunction(() => document.getElementById('teacher-approvals-workspace').classList.contains('is-active-workspace'), { timeout: 5000 });
-  /* Prompt #119 — Review Queue is a shared collapsible list panel (collapsed by default). */
+  /* Prompt #119 / #143 — Review Queue shared collapsible; primary panel defaults OPEN. */
   assert(await page.locator('#teacher-approvals').evaluate((el) => el.tagName === 'DETAILS' && el.classList.contains('teacherCollapsibleList')), 'Review Queue uses the shared teacherCollapsibleList pattern');
-  assert(await page.locator('#teacher-approvals').evaluate((el) => !el.open), 'Review Queue starts collapsed (one-row header)');
-  assert(await page.locator('#pendingApprovalsBadge').isVisible(), 'Collapsed Review Queue still shows the pending count badge');
-  await page.locator('#teacher-approvals > summary.teacherCollapsibleListHd').click();
-  assert(await page.locator('#teacher-approvals').evaluate((el) => !!el.open), 'Review Queue expands from the header row');
-  assert(await page.locator('#refreshBtn').isVisible(), 'Refresh control is available inside the expanded Review Queue body');
+  assert(await page.locator('#teacher-approvals').evaluate((el) => !!el.open), 'Prompt #143 — Review Queue primary panel defaults open on destination activation');
+  assert(await page.locator('#pendingApprovalsBadge').isVisible(), 'Open Review Queue still shows the pending count badge');
+  assert(await page.locator('#refreshBtn').isVisible(), 'Refresh control is available inside the expanded Review Queue body without a second click');
   await page.locator('#refreshBtn').click();
   await page.waitForFunction(() => document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow').length > 0, { timeout: 15000 });
   await page.waitForSelector('#myClassroomBody .teacherApprovalPendingRow', { state: 'visible', timeout: 10000 });
+  assert(await page.locator('#myClassroomBody .teacherApprovalPendingRow').evaluate((el) => el.tagName !== 'DETAILS' || !el.open), 'Review Queue submission rows remain compact (not auto-expanded)');
 
   assert(await page.locator('.approvalsCol[data-review-panel="classroom"]').evaluate((el) => el.classList.contains('is-active')), 'My Classroom panel is the active review tab by default');
   const schoolwideHiddenBefore = await page.locator('.approvalsCol[data-review-panel="schoolwide"]').evaluate((el) => getComputedStyle(el).display === 'none');
@@ -287,6 +307,14 @@ async function main() {
   await page.evaluate(() => { location.hash = 'missions'; });
   await page.waitForFunction(() => document.getElementById('teacher-missions').classList.contains('is-active-workspace'), { timeout: 5000 });
   assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => !el.open), '#missions leaves Create New Mission collapsed by default');
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !!el.open), '#missions opens My Missions by default (Prompt #143)');
+  const missionsOrder = await page.evaluate(() => {
+    const my = document.getElementById('teacherMyMissionsCard');
+    const create = document.getElementById('teacherCreateMissionDetails');
+    if (!my || !create || !my.compareDocumentPosition) return 'missing';
+    return (my.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING) ? 'my-then-create' : 'create-then-my';
+  });
+  assert(missionsOrder === 'my-then-create', 'Prompt #143 — Missions visual order is My Missions then Create New Mission: ' + missionsOrder);
   await page.evaluate(() => { location.hash = 'create'; });
   await page.waitForFunction(() => document.getElementById('teacherCreateMissionDetails').open === true, { timeout: 5000 });
   const rewardDefault = await page.locator('#missionReward').inputValue();
@@ -312,18 +340,37 @@ async function main() {
   assert((await page.locator('#teacherCreateMissionDetails .teacherCheckboxHint').count()) >= 1, '"Promote this mission" has a one-sentence plain-language helper explanation');
 
   // ---------------------------------------------------------------------------
+  // School Access — Prompt #143 exact default hierarchy
+  // ---------------------------------------------------------------------------
+  await page.evaluate(() => { location.hash = 'schoolaccess'; });
+  await page.waitForFunction(() => document.getElementById('teacherWorkspace-schoolaccess')?.classList.contains('is-active-workspace'), { timeout: 5000 });
+  assert(await page.locator('#schoolAccessStatusCard').evaluate((el) => !!el.open), "Prompt #143 — Today's School Status defaults open");
+  assert(await page.locator('#schoolAccessOverrideCard').evaluate((el) => !el.open), 'Prompt #143 — Open Lantern Temporarily defaults closed');
+  assert(await page.locator('#classAccessCard').evaluate((el) => !el.open), 'Prompt #143 — Class Access defaults closed');
+  assert(await page.locator('#classroomDevicesCard').evaluate((el) => !el.open), 'Prompt #143 — Classroom Devices defaults closed');
+
+  // ---------------------------------------------------------------------------
   // Moderation workspace — retained, isolated from Review Queue
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'moderation'; });
   await page.waitForFunction(() => document.getElementById('teacher-moderation').classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#moderationRefreshBtn').isVisible(), 'Moderation Refresh control is retained');
-  /* Prompt #119 — moderation sub-lists are shared collapsible panels (collapsed by default). */
-  assert(await page.locator('#moderationLivePanel').evaluate((el) => !el.open), 'Moderation live list starts collapsed');
+  assert(await page.locator('#teacher-moderation').evaluate((el) => !!el.open), 'Prompt #143 — Moderation primary panel defaults open');
+  assert(await page.locator('#moderationRefreshBtn').isVisible(), 'Moderation Refresh control is retained without a second disclosure click');
+  /* Prompt #119 — nested moderation sub-lists stay collapsed. */
+  assert(await page.locator('#moderationLivePanel').evaluate((el) => !el.open), 'Moderation live nested list starts collapsed');
   await page.locator('#moderationLivePanel > summary').click();
   assert(await page.locator('#moderationLivePanel').evaluate((el) => el.open), 'Moderation live list expands on header click');
   assert(await page.locator('#moderationLiveEl').isVisible(), 'Moderation workspace shows the existing live-content moderation controls once expanded');
   const approvalsVisibleDuringModeration = await page.locator('#teacher-approvals-workspace').evaluate((el) => el.classList.contains('is-active-workspace'));
   assert(!approvalsVisibleDuringModeration, 'Review Queue is not shown while Moderation workspace is active (isolated from everyday review work)');
+
+  // ---------------------------------------------------------------------------
+  // Shout-Out! — primary panel defaults open
+  // ---------------------------------------------------------------------------
+  await page.evaluate(() => { location.hash = 'shoutout'; });
+  await page.waitForFunction(() => document.getElementById('teacher-shoutout')?.classList.contains('is-active-workspace'), { timeout: 5000 });
+  assert(await page.locator('#teacher-shoutout-card').evaluate((el) => !!el.open), 'Prompt #143 — Shout-Out! primary panel defaults open');
+  assert(await page.locator('#shoutOutPostBtn').isVisible(), 'Shout-Out Post control is reachable without a second disclosure click');
 
   // ---------------------------------------------------------------------------
   // Nuggets workspace (formerly "Nuggets & Sales") — retained; Prompt #95 replaced the backing
@@ -337,18 +384,17 @@ async function main() {
   assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Redeem Nugget button is retained and reachable');
 
   // ---------------------------------------------------------------------------
-  // Missions workspace (Create + My Missions consolidated, Prompt #103) — Prompt #119:
-  // My Missions is a shared collapsible list panel, collapsed by default.
+  // Missions workspace (Create + My Missions consolidated, Prompt #103 / #143):
+  // My Missions first + OPEN; Create second + CLOSED; mission rows stay compact.
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'missions'; });
   await page.waitForFunction(() => document.getElementById('teacher-missions').classList.contains('is-active-workspace'), { timeout: 5000 });
   assert(await page.locator('#teacherCreateMissionDetails').evaluate((el) => !el.open), 'Create New Mission is collapsed again under plain #missions (not sticky-open from #create)');
   assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => el.tagName === 'DETAILS' && el.classList.contains('teacherCollapsibleList')), 'My Missions uses the shared teacherCollapsibleList pattern');
-  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !el.open), 'My Missions starts collapsed (one-row header only)');
-  assert(await page.locator('#teacherMissionsCount').isVisible(), 'Collapsed My Missions still shows the count badge');
-  await page.locator('#teacherMyMissionsCard > summary.teacherCollapsibleListHd').click();
-  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !!el.open), 'My Missions expands from the header row');
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !!el.open), 'Prompt #143 — My Missions defaults open on #missions (ready to work)');
+  assert(await page.locator('#teacherMissionsCount').isVisible(), 'Open My Missions still shows the count badge');
   await page.waitForSelector('#teacherMissionsEl .teacherMissionRow', { timeout: 10000 });
+  assert(await page.locator('#teacherMissionsEl .teacherMissionRow').evaluateAll((rows) => rows.every((r) => r.tagName !== 'DETAILS' || !r.open)), 'Mission record rows remain compact/collapsed by default');
   const allRowTitles = () => page.locator('#teacherMissionsEl .teacherMissionRow .teacherMissionRowTitle').allTextContents();
   assert((await allRowTitles()).length === 3, 'Expanded My Missions lists all 3 fixture missions with no filter applied');
   assert(await page.locator('.teacherMissionsFilterChip[data-mission-filter="all"]').evaluate((el) => el.classList.contains('is-active')), '"All" filter chip is active by default');
@@ -423,15 +469,12 @@ async function main() {
   assert(missionSearchPlaceholder === 'Search missions\u2026', 'My Missions title search remains in place after the Recognition/curate panel removal: ' + missionSearchPlaceholder);
 
   // ---------------------------------------------------------------------------
-  // Other Tools workspace — retained (Act As Teacher / Class Access / Student Totals)
+  // Other Tools — Prompt #143 archived from sidebar; DOM retained; Class Access lives under School Access
   // ---------------------------------------------------------------------------
-  await page.evaluate(() => { location.hash = 'other'; });
-  await page.waitForFunction(() => document.getElementById('teacher-utilities').classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#classAccessStartBtn, #classAccessEndBtn').first().count() >= 1, 'Class Access controls remain reachable inside Other Tools');
-  assert(await page.locator('#teacherStudentTotalsCard').evaluate((el) => !el.open), 'Student Totals list panel starts collapsed');
-  await page.locator('#teacherStudentTotalsCard > summary.teacherCollapsibleListHd').click();
-  assert(await page.locator('#totalsBody').isVisible(), 'Student Totals table remains reachable inside Other Tools once expanded');
-  assert((await page.locator('#teacher-utilities .h', { hasText: 'Student Totals' }).count()) === 1, 'Legacy "Character Totals" heading renamed to "Student Totals"');
+  assert((await page.locator('.teacherSidebarItem[data-workspace-link="other"]').count()) === 0, 'Other Tools has no sidebar nav entry');
+  assert(await page.locator('#teacher-utilities').count() === 1, 'Archived Other Tools pane remains in DOM for future restoration');
+  assert(await page.locator('#classAccessStartBtn, #classAccessEndBtn').first().count() >= 1, 'Class Access controls remain reachable under School Access (not deleted with Other Tools archive)');
+  assert((await page.locator('#teacher-utilities .h', { hasText: 'Student Totals' }).count()) === 1, 'Legacy "Character Totals" heading renamed to "Student Totals" (implementation preserved)');
   assert((await page.locator('#teacher-utilities th.cellStudentName').innerText()) === 'Student', 'Legacy "Character" column header renamed to "Student"');
 
   // ---------------------------------------------------------------------------
@@ -452,6 +495,7 @@ async function main() {
   await page.waitForFunction(() => !document.getElementById('teacherSidebar').classList.contains('is-open'), { timeout: 5000 });
   assert(true, 'Choosing a workspace from the mobile drawer closes the drawer');
   assert((await activeWorkspaceIds()).join(',') === 'missions', 'Mobile drawer navigation actually switched to the chosen workspace');
+  assert(await page.locator('#teacherMyMissionsCard').evaluate((el) => !!el.open), 'Mobile Missions navigation opens My Missions ready to work');
 
   await page.click('#teacherCreateMissionDetails summary');
   await page.waitForFunction(() => document.getElementById('teacherCreateMissionDetails').open === true, { timeout: 5000 });
@@ -492,7 +536,7 @@ async function main() {
   await emptyPage.goto(base + '/teacher.html#review', { waitUntil: 'domcontentloaded' });
   await emptyPage.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
   await emptyPage.waitForFunction(() => document.getElementById('teacher-approvals-workspace').classList.contains('is-active-workspace'), { timeout: 5000 });
-  await emptyPage.locator('#teacher-approvals > summary.teacherCollapsibleListHd').click();
+  assert(await emptyPage.locator('#teacher-approvals').evaluate((el) => !!el.open), 'Empty Review Queue still defaults primary panel open on direct #review hash');
   await emptyPage.waitForSelector('#myClassroomBody .placeholderRow', { timeout: 10000 });
   const emptyStateText = await emptyPage.locator('#myClassroomBody .placeholderRow').innerText();
   assert(emptyStateText.toLowerCase().indexOf('no classroom submissions waiting') !== -1, 'Empty Review Queue shows a compact "No … waiting" placeholder message: ' + emptyStateText);

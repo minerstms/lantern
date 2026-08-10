@@ -108,8 +108,12 @@ async function main() {
   // in the Review Queue workspace and is not visible from the default Overview workspace.
   await page.evaluate(() => { location.hash = 'review'; });
   await page.waitForFunction(() => {
-    const el = document.getElementById('teacher-approvals');
+    const el = document.getElementById('teacher-approvals-workspace');
     return el && el.classList.contains('is-active-workspace');
+  }, { timeout: 5000 });
+  await page.waitForFunction(() => {
+    const el = document.getElementById('teacher-approvals');
+    return el && el.open;
   }, { timeout: 5000 });
   await page.waitForSelector('#myClassroomBody .teacherApprovalPendingRow', { timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll('#myClassroomBody .teacherApprovalPendingRow').length >= 2, { timeout: 15000 });
@@ -197,12 +201,13 @@ async function main() {
   // ---------------------------------------------------------------------------
   // Section 23 — REAL BROWSER TEST: CREATE FEEDBACK (Defect 1)
   // ---------------------------------------------------------------------------
-  // Prompt #77 — Create Mission is its own workspace now; switch to it before touching the form.
+  // Prompt #103/#143 — Create Mission lives in Missions workspace; #create expands the form.
   await page.evaluate(() => { location.hash = 'create'; });
   await page.waitForFunction(() => {
-    const el = document.getElementById('teacher-create-mission');
+    const el = document.getElementById('teacher-missions');
     return el && el.classList.contains('is-active-workspace');
   }, { timeout: 5000 });
+  await page.waitForFunction(() => document.getElementById('teacherCreateMissionDetails')?.open === true, { timeout: 5000 });
   await page.fill('#missionTitle', 'New Test Mission');
   await page.fill('#missionDesc', 'Test description');
   await page.evaluate(() => document.getElementById('createMissionBtn').click());

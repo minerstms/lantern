@@ -55,8 +55,14 @@ if (/lantern-collapsible-collapse/.test(sharedJs) && /data-collapsible-editor/.t
   ok('shared JS hides editors and emits collapse event');
 } else bad('shared collapse editor cleanup missing');
 
-if (!/<details[^>]*\sopen[\s>]/.test(html)) ok('Teacher list panels do not hard-code open in markup');
-else bad('Teacher details hard-coded open');
+/* Prompt #143 — primary destination panels may ship with open + data-collapsible-default-open="1". */
+const openWithoutDefault = [];
+for (const m of html.matchAll(/<details\b[^>]*>/g)) {
+  const tag = m[0];
+  if (/\bopen\b/.test(tag) && !/data-collapsible-default-open="1"/.test(tag)) openWithoutDefault.push(tag.slice(0, 100));
+}
+if (openWithoutDefault.length === 0) ok('Teacher details with open always declare data-collapsible-default-open="1"');
+else bad('open without data-collapsible-default-open', openWithoutDefault.join(' | '));
 
 const requiredPanels = [
   ['#teacher-approvals', 'Review Queue'],

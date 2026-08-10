@@ -1438,7 +1438,7 @@
           <button type="button" class="teacherSidebarItem" data-workspace-link="shoutout"><span class="teacherSidebarIcon" aria-hidden="true">📣</span><span class="teacherSidebarLabel">Shout-Out!</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
           <a href="display.html" target="_blank" rel="noopener" class="teacherSidebarItem teacherSidebarItem--divider"><span class="teacherSidebarIcon" aria-hidden="true">📺</span><span class="teacherSidebarLabel">Hallway TV</span></a>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="other"><span class="teacherSidebarIcon" aria-hidden="true">🧰</span><span class="teacherSidebarLabel">Other Tools</span></button>
+          <!-- Prompt #143 — Other Tools archived from sidebar (implementation retained below). -->
         </nav>
       </aside>
 
@@ -1478,7 +1478,7 @@
         </div>
 
         <div class="teacherWorkspacePane" data-workspace="schoolaccess" id="teacherWorkspace-schoolaccess">
-          <details class="card teacherCollapsibleList" id="schoolAccessStatusCard" style="border-color: rgba(242,194,48,.4); background: linear-gradient(180deg, rgba(242,194,48,.10), rgba(242,194,48,.02));">
+          <details class="card teacherCollapsibleList" id="schoolAccessStatusCard" open data-collapsible-default-open="1" style="border-color: rgba(242,194,48,.4); background: linear-gradient(180deg, rgba(242,194,48,.10), rgba(242,194,48,.02));">
             <summary class="cardHd teacherCollapsibleListHd">
               <div class="teacherCollapsibleListTitle"><div class="h">Today's School Status</div></div>
               <div class="teacherCollapsibleListMeta"><span class="pill" id="schoolAccessEnforcementPill">Enforcement: OFF</span></div>
@@ -1656,7 +1656,7 @@
           </details>
         </div>
 
-    <details class="card teacherCollapsibleList" id="teacher-rewards" data-workspace="economy" style="border-color: rgba(56,208,124,.35); background: linear-gradient(180deg, rgba(56,208,124,.08), rgba(56,208,124,.02));" data-help="rewards_panel">
+    <details class="card teacherCollapsibleList" id="teacher-rewards" data-workspace="economy" open data-collapsible-default-open="1" style="border-color: rgba(56,208,124,.35); background: linear-gradient(180deg, rgba(56,208,124,.08), rgba(56,208,124,.02));" data-help="rewards_panel">
       <summary class="cardHd teacherCollapsibleListHd">
         <div class="teacherCollapsibleListTitle"><div class="h">Rewards Panel</div></div>
       </summary>
@@ -1710,7 +1710,7 @@
     </details>
 
     <div data-workspace="review" id="teacher-approvals-workspace">
-    <details class="card teacherCollapsibleList" id="teacher-approvals" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
+    <details class="card teacherCollapsibleList" id="teacher-approvals" open data-collapsible-default-open="1" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
       <summary class="cardHd teacherCollapsibleListHd">
         <div class="teacherCollapsibleListTitle">
           <div class="h">Review Queue</div>
@@ -1847,7 +1847,7 @@
       </div>
     </div>
 
-    <details class="card teacherCollapsibleList" id="teacher-moderation" data-workspace="moderation" data-help="moderation">
+    <details class="card teacherCollapsibleList" id="teacher-moderation" data-workspace="moderation" open data-collapsible-default-open="1" data-help="moderation">
       <summary class="cardHd teacherCollapsibleListHd">
         <div class="teacherCollapsibleListTitle"><div class="h">Moderation</div></div>
       </summary>
@@ -1900,9 +1900,34 @@
     <section id="teacher-missions" class="teacherMissionsSection" data-workspace="missions" aria-labelledby="teacherMissionsHeading">
     <h2 id="teacherMissionsHeading" class="visuallyHidden">Missions</h2>
 
-    <!-- Prompt #103 — Create Mission and My Missions are one workspace now. Create is
-         collapsed by default; deep link #create (preserved) auto-expands it (see
-         shouldExpandCreateFromHash() below). Do not add a second, separate Create workspace. -->
+    <!-- Prompt #143 — My Missions first + default OPEN; Create New Mission second + default CLOSED.
+         Deep link #create still expands Create (see shouldExpandCreateFromHash). -->
+    <details class="card teacherCollapsibleList" id="teacherMyMissionsCard" open data-collapsible-default-open="1">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle">
+          <div class="h">My Missions</div>
+        </div>
+        <div class="teacherCollapsibleListMeta">
+          <div class="pill accent" id="teacherMissionsCount">0</div>
+        </div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
+        <div class="teacherMissionsToolbar">
+          <div class="teacherMissionsFilterChips" id="teacherMissionsFilterChips" role="group" aria-label="Filter missions by status">
+            <button type="button" class="teacherMissionsFilterChip is-active" data-mission-filter="all">All</button>
+            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="active">Active</button>
+            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="paused">Paused</button>
+            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="archived">Archived</button>
+          </div>
+          <input type="text" id="teacherMissionsSearchInput" class="teacherInput teacherMissionsSearchInput" placeholder="Search missions…" autocomplete="off" />
+        </div>
+        <div id="teacherMissionsEl" class="teacherCollapsibleListScroll"></div>
+        <p class="note note-tight teacherMissionsPendingLink" id="teacherMissionsPendingLink" style="display:none;">
+          <span id="teacherMissionsPendingCount">0</span> pending submission(s) → <a href="#review" data-workspace-link="review">Review Queue</a>
+        </p>
+      </div>
+    </details>
+
     <details id="teacherCreateMissionDetails" class="card teacherCollapsibleList">
       <summary class="cardHd teacherCollapsibleListHd">
         <div class="teacherCollapsibleListTitle"><div class="h">Create New Mission</div></div>
@@ -2007,32 +2032,6 @@
       </div>
     </details>
 
-    <details class="card teacherCollapsibleList" id="teacherMyMissionsCard">
-      <summary class="cardHd teacherCollapsibleListHd">
-        <div class="teacherCollapsibleListTitle">
-          <div class="h">My Missions</div>
-        </div>
-        <div class="teacherCollapsibleListMeta">
-          <div class="pill accent" id="teacherMissionsCount">0</div>
-        </div>
-      </summary>
-      <div class="cardBd teacherCollapsibleListBd">
-        <div class="teacherMissionsToolbar">
-          <div class="teacherMissionsFilterChips" id="teacherMissionsFilterChips" role="group" aria-label="Filter missions by status">
-            <button type="button" class="teacherMissionsFilterChip is-active" data-mission-filter="all">All</button>
-            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="active">Active</button>
-            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="paused">Paused</button>
-            <button type="button" class="teacherMissionsFilterChip" data-mission-filter="archived">Archived</button>
-          </div>
-          <input type="text" id="teacherMissionsSearchInput" class="teacherInput teacherMissionsSearchInput" placeholder="Search missions…" autocomplete="off" />
-        </div>
-        <div id="teacherMissionsEl" class="teacherCollapsibleListScroll"></div>
-        <p class="note note-tight teacherMissionsPendingLink" id="teacherMissionsPendingLink" style="display:none;">
-          <span id="teacherMissionsPendingCount">0</span> pending submission(s) → <a href="#review" data-workspace-link="review">Review Queue</a>
-        </p>
-      </div>
-    </details>
-
     <!-- Prompt #103 (follow-up): the legacy "Reviewed & approved" browse/curate panel and the
          generic Recognition composer (Spotlight/Feature/Teacher Pick/Praise) were removed from
          this workspace. Both were wired to app/js/lantern-api.js, a localStorage-only mock API
@@ -2047,7 +2046,7 @@
     <!-- Prompt #107 — standalone Shout-Out! workspace (not inside Missions). Uses Worker recognition API; no Nugget award. -->
     <section id="teacher-shoutout" class="teacherMissionsSection" data-workspace="shoutout" aria-labelledby="teacherShoutOutHeading">
       <h2 id="teacherShoutOutHeading" class="visuallyHidden">Shout-Out!</h2>
-      <details class="card teacherCollapsibleList" id="teacher-shoutout-card">
+      <details class="card teacherCollapsibleList" id="teacher-shoutout-card" open data-collapsible-default-open="1">
         <summary class="cardHd teacherCollapsibleListHd">
           <div class="teacherCollapsibleListTitle"><div class="h">Shout-Out!</div></div>
         </summary>
@@ -2140,14 +2139,11 @@
    */
   (function(){
     // Prompt #103 — Create Mission and My Missions are now ONE workspace ("missions").
-    // "create" is no longer a real workspace/pane; it is a preserved deep-link ALIAS that
-    // resolves to "missions" and additionally auto-expands the Create New Mission <details>.
-    var WORKSPACES = ['overview', 'review', 'schoolaccess', 'missions', 'shoutout', 'moderation', 'economy', 'other'];
-    var WORKSPACE_ALIASES = { create: 'missions' };
-    // Prompt #91 — Nuggets (formerly "Nuggets & Sales") is the first sidebar item and the
-    // default Teacher workspace; DEFAULT_WORKSPACE is only the hash fallback used when no
-    // explicit/valid workspace is requested (see workspaceFromHash below), so deep links to
-    // any other workspace are unaffected.
+    // "create" is a preserved deep-link ALIAS → missions (+ expands Create).
+    // Prompt #143 — "other" archived from sidebar; stale #other falls back to Overview.
+    var WORKSPACES = ['overview', 'review', 'schoolaccess', 'missions', 'shoutout', 'moderation', 'economy'];
+    var WORKSPACE_ALIASES = { create: 'missions', other: 'overview', 'other-tools': 'overview' };
+    // Prompt #91 — Nuggets is the first sidebar item and the default Teacher workspace.
     var DEFAULT_WORKSPACE = 'economy';
     var TITLES = {
       overview: 'Overview',
@@ -2157,7 +2153,6 @@
       shoutout: 'Shout-Out!',
       moderation: 'Moderation',
       economy: 'Nuggets',
-      other: 'Other Tools',
     };
 
     function resolveWorkspaceAlias(name){
@@ -2171,9 +2166,52 @@
     }
 
     // #create (preserved deep link) should expand the Create New Mission details; #missions
-    // (also preserved) and any other route into "missions" should leave it collapsed.
+    // leaves Create collapsed and My Missions open (Prompt #143).
     function shouldExpandCreateFromHash(){
       return String(location.hash || '').replace(/^#/, '').trim().toLowerCase() === 'create';
+    }
+
+    function setPanelOpen(id, shouldOpen){
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.open = !!shouldOpen;
+      el.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    }
+
+    /**
+     * Prompt #143 — when a sidebar destination is selected (or its hash loads), open the
+     * primary useful panel(s). Nested/secondary panels stay closed. User may still collapse;
+     * navigating away and back restores these defaults.
+     */
+    function applyWorkspaceDefaultOpen(name){
+      if (name === 'missions') {
+        var expandCreate = shouldExpandCreateFromHash();
+        setPanelOpen('teacherMyMissionsCard', !expandCreate);
+        setPanelOpen('teacherCreateMissionDetails', expandCreate);
+        return;
+      }
+      if (name === 'schoolaccess') {
+        setPanelOpen('schoolAccessStatusCard', true);
+        setPanelOpen('schoolAccessOverrideCard', false);
+        setPanelOpen('classAccessCard', false);
+        setPanelOpen('classroomDevicesCard', false);
+        return;
+      }
+      if (name === 'review') {
+        setPanelOpen('teacher-approvals', true);
+        return;
+      }
+      if (name === 'shoutout') {
+        setPanelOpen('teacher-shoutout-card', true);
+        return;
+      }
+      if (name === 'moderation') {
+        setPanelOpen('teacher-moderation', true);
+        return;
+      }
+      if (name === 'economy') {
+        setPanelOpen('teacher-rewards', true);
+      }
     }
 
     /* initTeacherCollapsibleLists → js/lantern-collapsible-list.js (shared Teacher + Admin). */
@@ -2196,20 +2234,9 @@
           if (!el.hasAttribute || !el.hasAttribute('data-workspace')) return;
           var isActive = el.getAttribute('data-workspace') === name;
           el.classList.toggle('is-active-workspace', isActive);
-          // Other Tools (#teacher-utilities) is a native <details> — force it open when the
-          // sidebar/hash brings the teacher here so the workspace never lands "collapsed".
-          // Prompt #119 — do NOT force-open teacherCollapsibleList panels (Review Queue, etc.).
-          if (isActive && el.tagName === 'DETAILS' && !el.open && !el.classList.contains('teacherCollapsibleList')) {
-            el.open = true;
-          }
         });
       }
-      if (name === 'missions') {
-        // Preserve #create as a deep-link alias that auto-expands the collapsed-by-default
-        // Create New Mission details; #missions (and everything else) leaves it collapsed.
-        var createDetails = document.getElementById('teacherCreateMissionDetails');
-        if (createDetails) createDetails.open = shouldExpandCreateFromHash();
-      }
+      applyWorkspaceDefaultOpen(name);
       Array.prototype.forEach.call(document.querySelectorAll('.teacherSidebarItem'), function(btn){
         var isActive = btn.getAttribute('data-workspace-link') === name;
         btn.classList.toggle('is-active', isActive);
@@ -4605,7 +4632,7 @@
       el('teacherMissionsCount').textContent = String((teacherMissions || []).length);
       var list = filteredTeacherMissions();
       if (!list.length){
-        container.innerHTML = '<div class="placeholderRow">' + ((teacherMissions || []).length ? 'No missions match this filter/search.' : 'No missions yet. Use Create New Mission above.') + '</div>';
+        container.innerHTML = '<div class="placeholderRow">' + ((teacherMissions || []).length ? 'No missions match this filter/search.' : 'No missions yet. Open Create New Mission below.') + '</div>';
         return;
       }
       container.innerHTML = '';
