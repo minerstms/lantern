@@ -65,7 +65,7 @@ if (openWithoutDefault.length === 0) ok('Teacher details with open always declar
 else bad('open without data-collapsible-default-open', openWithoutDefault.join(' | '));
 
 const requiredPanels = [
-  ['#teacher-approvals', 'Review Queue'],
+  ['#teacher-approvals', 'Review Submissions'],
   ['#teacherMyMissionsCard', 'My Missions'],
   ['#teacherCreateMissionDetails', 'Create New Mission'],
   ['#teacher-rewards', 'Rewards Panel'],

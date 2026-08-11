@@ -85,39 +85,9 @@
 
     /* Main column: lantern-header.css .wrap.lanternContent (max-width + gutters + header offset) */
 
-    /* Prompt #78 — compact Teacher identity header: one row (icon + "Teacher" + "TMS
-       Lantern" + signed-in-as hint), no giant centered hero, no page-specific Sign out
-       (global Lantern nav already provides logout) and no Hallway TV button (moved to
-       the sidebar as a workspace-adjacent destination). */
+    /* Prompt #195 — redundant Teacher / TMS Lantern / Signed-in-as identity banner removed.
+       Global Lantern header + Teacher sidebar provide context; content starts at workspace title. */
     /* Prompt #145: Behavior|Teacher primary button row removed; workspace switch is Lantern ▼ STAFF. */
-
-    .teacherIdentityRow{
-      display:flex;
-      align-items:baseline;
-      justify-content:center;
-      gap:10px;
-      flex-wrap:wrap;
-      margin:0;
-    }
-    .teacherIdentityTitle{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      font-weight:1000;
-      letter-spacing:.2px;
-      font-size:30px;
-      line-height:1.15;
-      white-space:nowrap;
-    }
-    .teacherIdentitySub{
-      color: var(--muted);
-      font-weight:900;
-      font-size:22px;
-      letter-spacing:.2px;
-      line-height:1.3;
-    }
-    .teacherSessionHint{ display: none; font-size: 22px; font-weight: 800; color: var(--muted); margin: 0; line-height: 1.3; }
-    .teacherSessionHint.is-visible{ display: inline; }
 
     .pill{
       display:inline-flex;
@@ -1018,13 +988,6 @@
       max-width: none;
       --teacher-workspace-max: 1680px;
     }
-    /* Prompt #147 — identity header shares the same centered max-width rail as sidebar+main. */
-    .teacherPageShell{
-      max-width: var(--teacher-workspace-max);
-      width: 100%;
-      margin: 0 auto 10px;
-      box-sizing: border-box;
-    }
     .teacherAppShell{
       display: grid;
       grid-template-columns: 240px minmax(0, 1fr);
@@ -1450,9 +1413,9 @@
       <span class="verifyModeId">(<span id="teacherVerifyTeacherId">—</span>)</span>
       <span class="verifyAvatarWrap" id="teacherVerifyAvatarWrap" style="display:none;"><img id="teacherVerifyAvatarImg" class="verifyAvatarPreview" alt=""><span class="verifyAvatarFallback" id="teacherVerifyAvatarFallback"></span></span>
     </div>
-    <div id="teacherPageTop" class="teacherPageShell">
     <!-- Prompt #145/#146: staff workspace switching uses the shared Lantern ▼ STAFF menu
          (Teacher Tools / Behavior Logger). Display Board stays under Hallway TV in the sidebar. -->
+    <!-- Prompt #195 — Teacher identity banner omitted; do not reintroduce. -->
     <script>
       (function () {
         if (window.LanternRememberDevice && typeof window.LanternRememberDevice.absorbDeviceRememberedQuery === 'function') {
@@ -1460,29 +1423,18 @@
         }
       })();
     </script>
-    <div class="teacherIdentityRow">
-      <span class="teacherIdentityTitle">
-        <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M8 40 18 12 42 8 58 24 54 46 38 60 18 56 4 46Z" fill="#f2c230" stroke="#6f5200" stroke-width="3" stroke-linejoin="miter"/>
-          <path d="M22 22 36 16 48 24 42 32 26 30Z" fill="#ffe07a" opacity="0.9"/>
-          <path d="M20 24 H44 V30 H36 V48 H28 V30 H20 Z" fill="#0f3b86"/>
-        </svg>
-        <span>Teacher</span>
-      </span>
-      <span class="teacherIdentitySub">TMS Lantern</span>
-      <p id="teacherSessionHint" class="teacherSessionHint" aria-live="polite"></p>
-    </div>
-    </div>
 
-    <div class="teacherAppShell" id="teacherAppShell">
+    <div class="teacherAppShell" id="teacherAppShell" data-teacher-page-top>
+      <!-- Prompt #195 — #teacherPageTop id kept for Back-to-top anchors; no identity banner. -->
+      <span id="teacherPageTop"></span>
       <button type="button" class="teacherMobileMenuBtn" id="teacherMobileMenuBtn" aria-expanded="false" aria-controls="teacherSidebar">☰ Workspaces</button>
       <div class="teacherSidebarScrim" id="teacherSidebarScrim"></div>
       <aside class="teacherSidebar" id="teacherSidebar" aria-label="Teacher workspaces">
         <nav class="teacherSidebarNav">
           <button type="button" class="teacherSidebarItem" data-workspace-link="economy" data-help="teacher_nuggets"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview" data-help="teacher_overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Queue</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="schoolaccess" data-help="teacher_school_access"><span class="teacherSidebarIcon" aria-hidden="true">🔐</span><span class="teacherSidebarLabel">School Access</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Submissions</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="schoolaccess" data-help="teacher_school_access"><span class="teacherSidebarIcon" aria-hidden="true">🔐</span><span class="teacherSidebarLabel">Lantern Access</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="missions" data-help="teacher_missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">Missions</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="shoutout" data-help="teacher_shoutout"><span class="teacherSidebarIcon" aria-hidden="true">📣</span><span class="teacherSidebarLabel">Shout-Out!</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation" data-help="teacher_moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
@@ -1806,7 +1758,7 @@
     <details class="card teacherCollapsibleList" id="teacher-approvals" open data-collapsible-default-open="1" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
       <summary class="cardHd teacherCollapsibleListHd">
         <div class="teacherCollapsibleListTitle">
-          <div class="h">Review Queue</div>
+          <div class="h">Review Submissions</div>
         </div>
         <div class="teacherCollapsibleListMeta">
           <span class="pill accent" id="pendingApprovalsBadge">0</span>
@@ -1816,7 +1768,7 @@
         <div class="approvalsToolbar" style="margin-bottom:10px;">
           <button class="btn" id="refreshBtn" type="button">Refresh</button>
         </div>
-        <p class="note note-tight">Open <strong>Review</strong> before approving.</p>
+        <p class="note note-tight">Open a submission before approving.</p>
         <p class="note" id="approvalsIdentityStrip" style="margin-bottom:10px;display:none;font-weight:800;color:var(--warn);"></p>
         <div class="teacherReviewTabs" role="tablist" aria-label="Review queue">
           <button type="button" class="teacherReviewTab is-active" id="reviewTabClassroom" data-review-tab="classroom" role="tab" aria-selected="true">My Classroom <span class="approvalsColCount" id="myClassroomCount">(0)</span></button>
@@ -2016,7 +1968,7 @@
         </div>
         <div id="teacherMissionsEl" class="teacherCollapsibleListScroll"></div>
         <p class="note note-tight teacherMissionsPendingLink" id="teacherMissionsPendingLink" style="display:none;">
-          <span id="teacherMissionsPendingCount">0</span> pending submission(s) → <a href="#review" data-workspace-link="review">Review Queue</a>
+          <span id="teacherMissionsPendingCount">0</span> pending submission(s) → <a href="#review" data-workspace-link="review">Review Submissions</a>
         </p>
       </div>
     </details>
@@ -2026,7 +1978,7 @@
         <div class="teacherCollapsibleListTitle"><div class="h">Create New Mission</div></div>
       </summary>
       <div class="cardBd teacherCollapsibleListBd teacherFormCard">
-        <p class="note note-tight">Students submit here; you review in <strong>Review Queue</strong>.</p>
+        <p class="note note-tight">Students submit here; you review in <strong>Review Submissions</strong>.</p>
 
         <div class="teacherFieldGroup">Mission</div>
         <div class="teacherField">
@@ -2239,8 +2191,8 @@
     var DEFAULT_WORKSPACE = 'economy';
     var TITLES = {
       overview: 'Overview',
-      review: 'Review Queue',
-      schoolaccess: 'School Access',
+      review: 'Review Submissions',
+      schoolaccess: 'Lantern Access',
       missions: 'Missions',
       shoutout: 'Shout-Out!',
       moderation: 'Moderation',
@@ -2530,13 +2482,6 @@
       window.pilotSessionActive = true;
       teacherVerifyIdentitySource = 'Pilot';
       applySchoolAccessRoleVisibility();
-      var hintEl = document.getElementById('teacherSessionHint');
-      if (hintEl && me.username != null) {
-        var dnHint = me.display_name != null ? String(me.display_name).trim() : '';
-        var roleLabel = role === 'admin' ? 'admin' : 'teacher';
-        hintEl.textContent = 'Signed in as ' + String(me.username) + (dnHint ? ' · ' + dnHint : '') + ' · ' + roleLabel;
-        hintEl.classList.add('is-visible');
-      }
       var b = document.getElementById('teacherVerifyBanner');
       if (b) b.style.display = 'none';
       var pc = document.getElementById('teacherPersonaCard');
@@ -5180,7 +5125,7 @@
       var enforcementPill = el('schoolAccessEnforcementPill');
       var enforcementText = el('schoolAccessEnforcementText');
       if (!typeEl) return;
-      if (avatarApiBase === null) { typeEl.textContent = 'School Access requires the Lantern API.'; return; }
+      if (avatarApiBase === null) { typeEl.textContent = 'Lantern Access requires the Lantern API.'; return; }
       var res = await fetch(avatarApiBase + '/api/class-access/state', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
       if (!res || !res.ok || !res.schedule) { typeEl.textContent = 'Could not load today’s schedule right now.'; return; }
       schoolAccessLastSchedule = res.schedule;

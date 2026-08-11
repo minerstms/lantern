@@ -88,7 +88,7 @@ if (/teacherSidebarItem--divider/.test(html) && /Hallway TV/.test(html)) {
 
 // Primary panels default open
 for (const [id, label] of [
-  ['teacher-approvals', 'Review Queue'],
+  ['teacher-approvals', 'Review Submissions'],
   ['teacher-shoutout-card', 'Shout-Out!'],
   ['teacher-moderation', 'Moderation'],
   ['teacher-rewards', 'Nuggets Rewards Panel'],

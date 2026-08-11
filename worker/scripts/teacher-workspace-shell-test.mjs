@@ -143,8 +143,8 @@ async function main() {
   // Sidebar + default workspace
   // ---------------------------------------------------------------------------
   const sidebarItems = await page.locator('.teacherSidebarItem').allTextContents();
-  const expectedLabels = ['Nuggets', 'Overview', 'Review Queue', 'School Access', 'Missions', 'Shout-Out!', 'Moderation', 'Hallway TV'];
-  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all expected workspace items including School Access + Shout-Out!: ' + JSON.stringify(sidebarItems));
+  const expectedLabels = ['Nuggets', 'Overview', 'Review Submissions', 'Lantern Access', 'Missions', 'Shout-Out!', 'Moderation', 'Hallway TV'];
+  assert(expectedLabels.every((l) => sidebarItems.some((t) => t.indexOf(l) !== -1)), 'Sidebar has all expected workspace items including Lantern Access + Shout-Out!: ' + JSON.stringify(sidebarItems));
   assert(!sidebarItems.some((t) => t.indexOf('Other Tools') !== -1), 'Prompt #143 — Other Tools is archived from the Teacher sidebar: ' + JSON.stringify(sidebarItems));
   assert((await page.locator('.teacherSidebarItem[data-workspace-link="other"]').count()) === 0, 'No sidebar item links to archived "other" workspace');
   assert(await page.locator('#teacher-utilities').count() === 1, 'Other Tools implementation DOM is retained (nav-only archive)');
