@@ -214,20 +214,20 @@ if (txIdExample === 'tx_mission_sub_123') {
   const first = await approveMissionWithReward(db1, {
     submissionId: 'sub_123',
     recipientCharacterName: '20889',
-    rewardAmount: 5,
+    rewardAmount: 99,
     reviewerLabel: 'Teacher A',
   });
   const second = await approveMissionWithReward(db1, {
     submissionId: 'sub_123',
     recipientCharacterName: '20889',
-    rewardAmount: 5,
+    rewardAmount: 99,
     reviewerLabel: 'Teacher A',
   });
 
-  if (first.ok && !first.idempotent && first.nuggets === 5) ok('first approval succeeds with +5');
+  if (first.ok && !first.idempotent && first.nuggets === 1) ok('first approval succeeds with +1');
   else bad('first approval', first);
 
-  if (second.ok && second.idempotent && second.nuggets === 5) ok('second approval is idempotent success');
+  if (second.ok && second.idempotent && second.nuggets === 1) ok('second approval is idempotent success');
   else bad('second approval idempotent', second);
 
   if (db1._state.submissions.sub_123.status === 'accepted') ok('status remains accepted after replay');
@@ -236,7 +236,7 @@ if (txIdExample === 'tx_mission_sub_123') {
   if (countMissionRewardTx(db1, 'sub_123') === 1) ok('exactly one ledger row after double approve');
   else bad('ledger count after double approve', Object.keys(db1._state.transactions));
 
-  if (walletBalance(db1, '20889') === 15) ok('wallet +5 total (10→15) after double approve');
+  if (walletBalance(db1, '20889') === 11) ok('wallet +1 total (10→11) after double approve');
   else bad('wallet after double approve', walletBalance(db1, '20889'));
 
   // --- Concurrent approve simulation ---
@@ -268,7 +268,7 @@ if (txIdExample === 'tx_mission_sub_123') {
   if (countMissionRewardTx(db2, 'sub_race') === 1) ok('concurrent race: exactly one ledger row');
   else bad('concurrent ledger count', Object.keys(db2._state.transactions));
 
-  if (walletBalance(db2, '20889') === 5) ok('concurrent race: wallet +5 only once');
+  if (walletBalance(db2, '20889') === 1) ok('concurrent race: wallet +1 only once');
   else bad('concurrent wallet', walletBalance(db2, '20889'));
 
   const winners = [rA, rB].filter((r) => !r.idempotent).length;
@@ -345,7 +345,7 @@ if (txIdExample === 'tx_mission_sub_123') {
   const c2 = await creditMissionApprovalReward(db5, '20889', 'sub_pk', 5, 'note');
   if (c1.ok && !c1.idempotent && c2.ok && c2.idempotent) ok('duplicate INSERT blocked by PK; second call idempotent');
   else bad('PK duplicate behavior', { c1, c2 });
-  if (walletBalance(db5, '20889') === 5) ok('PK race: wallet incremented once');
+  if (walletBalance(db5, '20889') === 1) ok('PK race: wallet incremented once');
   else bad('PK race wallet', walletBalance(db5, '20889'));
 
   // --- Batch atomicity: failed wallet path rolls back ledger ---

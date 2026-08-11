@@ -4522,7 +4522,35 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       return jsonResponse(purchase, 200, cors);
     }
 
-    const delta = Math.floor(Number(body.delta));
+    // Prompt #159 — locked Nugget economy amounts (server-authoritative; do not trust client).
+    // game_play: exactly -1. game_win: exactly +1. game_false_start: no extra spend (one paid play).
+    if (kind === 'game_false_start') {
+      return jsonResponse(
+        { ok: false, error: 'game_false_start_disabled', message: 'False start does not charge an extra Nugget; play cost is already 1.' },
+        400,
+        cors
+      );
+    }
+    let delta = Math.floor(Number(body.delta));
+    if (kind === 'game_play') {
+      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== -1) {
+        return jsonResponse(
+          { ok: false, error: 'client_delta_rejected', server_delta: -1, message: 'game_play costs exactly 1 Nugget' },
+          400,
+          cors
+        );
+      }
+      delta = -1;
+    } else if (kind === 'game_win') {
+      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== 1) {
+        return jsonResponse(
+          { ok: false, error: 'client_delta_rejected', server_delta: 1, message: 'game_win awards exactly 1 Nugget' },
+          400,
+          cors
+        );
+      }
+      delta = 1;
+    }
     if (delta === 0) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const now = new Date().toISOString();
     const displayName = String(body.display_name ?? '').trim();

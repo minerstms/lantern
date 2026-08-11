@@ -32,12 +32,13 @@
   }
 
   function playCostForGame(gameName) {
+    // Prompt #159: ordinary game play costs exactly 1 Nugget (catalog should already be 1).
     var cat = catalogApi();
     if (cat && typeof cat.getGameByName === 'function') {
       var g = cat.getGameByName(gameName);
       if (g && g.play_cost != null) {
         var n = Math.floor(Number(g.play_cost));
-        if (Number.isFinite(n) && n >= 1) return n;
+        if (Number.isFinite(n) && n >= 1) return 1;
       }
     }
     return 1;

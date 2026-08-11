@@ -228,19 +228,19 @@ async function testMissionRewardThroughTms() {
     // as idempotent by the (mocked) authoritative TMS ledger -- exactly the contract TMS enforces
     // via its unique nugget_bridge_transactions.reference index.
     const seen = call.__seenRef || (call.body && call.body.reference);
-    return { body: { ok: true, student_id: '20889', student_name: '20889', delta: 5, idempotent: false, earned: 5, spent: 0, available: 5 } };
+    return { body: { ok: true, student_id: '20889', student_name: '20889', delta: 1, idempotent: false, earned: 1, spent: 0, available: 1 } };
   }, async (getCalls) => {
     const state = { submissions: { sub1: { id: 'sub1', status: 'pending', character_name: '20889' } } };
     const db = makeMissionsDb(state);
     const result = await approveMissionWithReward(db, {
       submissionId: 'sub1',
       recipientCharacterName: '20889',
-      rewardAmount: 5,
+      rewardAmount: 99,
       reviewerLabel: 'Ms. Carter',
       env: BRIDGE_ENV,
     });
     const call = getCalls()[0];
-    if (result.ok && result.nuggets === 5 && call.body.reference === 'lantern:mission_reward:sub1' && call.body.delta === 5) {
+    if (result.ok && result.nuggets === 1 && call.body.reference === 'lantern:mission_reward:sub1' && call.body.delta === 1) {
       ok('mission approval reward: first approval grants through TMS with lantern:mission_reward:<submission_id> reference');
     } else bad('mission reward TMS grant call', { result, call });
   });
@@ -248,11 +248,11 @@ async function testMissionRewardThroughTms() {
   // Repeated approval callback (e.g. retried request) must not double-pay -- TMS's own reference
   // idempotency is what protects this once Lantern no longer keeps a competing local ledger, so
   // the mock here returns idempotent:true on every call to represent that authoritative behavior.
-  await withMockedBridge(() => ({ body: { ok: true, student_id: '20889', student_name: '20889', delta: 5, idempotent: true, earned: 5, spent: 0, available: 5 } }), async (getCalls) => {
+  await withMockedBridge(() => ({ body: { ok: true, student_id: '20889', student_name: '20889', delta: 1, idempotent: true, earned: 1, spent: 0, available: 1 } }), async (getCalls) => {
     const state = { submissions: { sub2: { id: 'sub2', status: 'accepted', character_name: '20889' } } };
     const db = makeMissionsDb(state);
-    const first = await approveMissionWithReward(db, { submissionId: 'sub2', recipientCharacterName: '20889', rewardAmount: 5, reviewerLabel: 'Ms. Carter', env: BRIDGE_ENV });
-    const second = await approveMissionWithReward(db, { submissionId: 'sub2', recipientCharacterName: '20889', rewardAmount: 5, reviewerLabel: 'Ms. Carter', env: BRIDGE_ENV });
+    const first = await approveMissionWithReward(db, { submissionId: 'sub2', recipientCharacterName: '20889', rewardAmount: 99, reviewerLabel: 'Ms. Carter', env: BRIDGE_ENV });
+    const second = await approveMissionWithReward(db, { submissionId: 'sub2', recipientCharacterName: '20889', rewardAmount: 99, reviewerLabel: 'Ms. Carter', env: BRIDGE_ENV });
     if (first.ok && second.ok && first.reward_idempotent === true && second.reward_idempotent === true) {
       ok('mission approval reward: repeated approval callback stays idempotent via TMS reference (no double-pay)');
     } else bad('mission reward repeated callback idempotency', { first, second });

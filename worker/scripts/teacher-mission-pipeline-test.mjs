@@ -52,7 +52,7 @@ function makeMissionsDb(seed) {
       teacher_name: r.teacher_name,
       title: r.title,
       description: r.description || '',
-      reward_amount: r.reward_amount != null ? r.reward_amount : 3,
+      reward_amount: r.reward_amount != null ? r.reward_amount : 1,
       submission_type: r.submission_type || 'text',
       audience: r.audience || 'school_mission',
       target_character_names: r.target_character_names || null,
@@ -70,7 +70,8 @@ function makeMissionsDb(seed) {
   }
 
   function runQuery(s, binds) {
-    if (s.startsWith('SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions')) {
+    if (s.startsWith('SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions') ||
+        s.startsWith('SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions')) {
       let rows = [...missions.values()];
       if (s.includes('WHERE teacher_id = ?')) {
         const tid = binds[0];
@@ -121,16 +122,32 @@ function makeMissionsDb(seed) {
 
   function runExec(s, binds) {
     if (s.startsWith('INSERT INTO lantern_missions')) {
-      const [
-        id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience,
-        target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video,
-        allows_link, min_characters, created_at,
-      ] = binds;
-      missions.set(id, {
-        id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience,
-        target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video,
-        allows_link, min_characters, created_at,
-      });
+      // Support both legacy (no participant_scope) and current INSERT bind orders.
+      let row;
+      if (binds.length >= 19) {
+        const [
+          id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience,
+          participant_scope, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video,
+          allows_link, min_characters, created_at,
+        ] = binds;
+        row = {
+          id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience,
+          participant_scope, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video,
+          allows_link, min_characters, created_at, archived: 0,
+        };
+      } else {
+        const [
+          id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience,
+          target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video,
+          allows_link, min_characters, created_at,
+        ] = binds;
+        row = {
+          id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience,
+          target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video,
+          allows_link, min_characters, created_at, archived: 0,
+        };
+      }
+      missions.set(row.id, row);
       return { meta: { changes: 1 } };
     }
     if (s.startsWith('INSERT INTO lantern_mission_submissions')) {

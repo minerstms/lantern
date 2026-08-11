@@ -1014,7 +1014,7 @@
       type: 'mission',
       title: m.title || 'Mission',
       author: 'Missions',
-      dateMeta: '+' + (m.reward_amount || 0) + ' nuggets · Quick mission',
+      dateMeta: '+1 Nugget · Quick mission',
       thumbnailUrl: resolveCardFaceImageUrl({ title: m.title, description: m.description, image_url: m.image_url, image: m.image, type: 'mission' }),
       image_url: m.image_url,
       fallbackType: 'mission',

@@ -1243,7 +1243,7 @@
           icon: '🧠',
           title: m.title || 'Mission',
           description: (m.description || '').trim(),
-          reward: m.reward_amount != null ? Number(m.reward_amount) : null,
+          reward: 1,
           status: status,
           statusLabel: statusLabel,
           // Real persisted audience field (Prompt #81) — canonical card footer's primary
@@ -1325,9 +1325,9 @@
       var allowsVideo = !!(m.allows_video);
       var allowsLink = !!(m.allows_link);
       var anyMed = !isPollMission && !isBugMission && (allowsImage || allowsVideo || allowsLink);
-      var rew = m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : 0;
+      var rew = 1;
       if (titleEl) titleEl.textContent = (currentResubmitId ? 'Resubmit: ' : '') + (m.title || 'Mission');
-      if (metaEl) metaEl.textContent = typeBadgeForTeacher(m) + (rew ? ' · 🟡 +' + rew : '');
+      if (metaEl) metaEl.textContent = typeBadgeForTeacher(m) + ' · 🟡 +1 Nugget';
       if (descEl) descEl.textContent = (m.description || '').trim();
       if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
       if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';

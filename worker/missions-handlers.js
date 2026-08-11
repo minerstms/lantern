@@ -36,9 +36,8 @@ function missionRowToJson(r) {
     id: r.id,
     title: r.title || '',
     description: r.description || '',
-    // Prompt #97: default built-in Nugget reward is 1 unless a mission explicitly configured
-    // otherwise (this fallback only applies to legacy/null reward_amount rows).
-    reward_amount: Number(r.reward_amount) || 1,
+    // Prompt #159: ordinary mission reward is always 1 in API responses (definitions normalized).
+    reward_amount: 1,
     submission_type: r.submission_type || 'text',
     created_by_teacher_id: r.teacher_id || 'teacher',
     created_by_teacher_name: r.teacher_name || 'Teacher',
@@ -289,9 +288,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const description = (body.description || '').trim().slice(0, 1000);
-    // Prompt #97: default built-in Nugget reward is 1 unless the teacher explicitly configures
-    // a different amount (was an un-updated legacy default of 3).
-    const rewardAmount = Math.max(1, Math.min(99, Math.floor(Number(body.reward_amount) || 1)));
+    // Prompt #159: ordinary mission reward is locked to exactly 1 Nugget.
+    // Client-supplied reward_amount is ignored (was clamp 1–99; DB default still 3 cosmetically).
+    const rewardAmount = 1;
     const submissionType = normalizeSubmissionType(body.submission_type, 'text');
     const audience = ['my_students', 'selected_students', 'school_mission'].includes((body.audience || 'school_mission').trim())
       ? (body.audience || 'school_mission').trim()
@@ -427,8 +426,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       bindings.push(String(body.description).trim().slice(0, 1000));
     }
     if (body.reward_amount !== undefined) {
+      // Prompt #159: ordinary mission reward is not editable — always persist 1.
       updates.push('reward_amount = ?');
-      bindings.push(Math.max(1, Math.min(99, Math.floor(Number(body.reward_amount) || 1))));
+      bindings.push(1);
     }
     if (body.featured !== undefined) {
       updates.push('featured = ?');
@@ -844,7 +844,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (isSelfMissionSubmission(auth.account, row.character_name)) {
       return jsonResponse({ ok: false, error: 'self_approval_forbidden', message: 'You cannot approve or reward your own mission submission.' }, 403, cors);
     }
-    const reward = mission ? Math.max(1, Math.min(99, Number(mission.reward_amount) || 1)) : 1;
+    // Prompt #159: approval always awards exactly +1 Nugget (do not trust mission row / client).
+    const reward = 1;
     const reviewer = reviewerLabelFromAccount(auth.account);
     const result = await approveMissionWithReward(db, {
       submissionId: id,

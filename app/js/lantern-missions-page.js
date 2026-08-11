@@ -48,14 +48,10 @@
   // Type/category chips (Quick / Reflection / Teacher / Create / audience labels) are not
   // painted on the card face. Progress/state chips (STARTED / COMPLETED / NEEDS CHANGES) stay.
   //
-  // Reward display stays honest to item.reward. Prompt #121 also wants every card to read
-  // "+1 Nugget", but production teacher missions still award reward_amount values other than 1
-  // (verified SELECT-only). Faking +1 while awards differ is forbidden; normalizing awards
-  // requires an authorized follow-up (Worker clamp and/or D1 update), not this UI patch.
+  // Prompt #159 — every ordinary mission card shows exactly +1 Nugget.
   function rewardMeta(reward) {
     if (reward == null || reward === '' || Number(reward) <= 0) return '';
-    var n = Number(reward);
-    return '🟡 +' + n + (n === 1 ? ' Nugget' : ' Nuggets');
+    return '🟡 +1 Nugget';
   }
 
   function buildFooterMeta(item) {

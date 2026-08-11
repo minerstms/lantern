@@ -41,9 +41,9 @@ const teacherHtml = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8')
 // ---------------------------------------------------------------------------
 // Edit matrix — locked-after-first-submission fields (CURSOR REPLY #100 §5)
 // ---------------------------------------------------------------------------
-const expectedLocked = ['audience', 'target_character_names', 'allows_text', 'allows_image', 'allows_video', 'allows_link', 'min_characters'];
+const expectedLocked = ['audience', 'participant_scope', 'target_character_names', 'allows_text', 'allows_image', 'allows_video', 'allows_link', 'min_characters'];
 if (expectedLocked.every((f) => MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.includes(f)) && MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.length === expectedLocked.length) {
-  ok('locked-after-first-submission field set matches the audit exactly (audience/target_character_names/allows_*/min_characters)');
+  ok('locked-after-first-submission field set matches the audit exactly (audience/participant_scope/target_character_names/allows_*/min_characters)');
 } else bad('locked field set mismatch', MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION);
 
 if (missionEditLockedFieldsPresent({ title: 'x', active: true, featured: true, reward_amount: 5 }).length === 0) {
@@ -140,11 +140,11 @@ if (migrationFiles.length === 1) {
 } else bad('expected exactly one lantern_missions archived migration file', migrationFiles);
 
 // ---------------------------------------------------------------------------
-// Reward safety — historical payouts immutable, future approvals use current reward_amount
+// Reward safety — Prompt #159 locks ordinary approval payout to exactly +1 Nugget
 // ---------------------------------------------------------------------------
-if (/const reward = mission \? Math\.max\(1, Math\.min\(99, Number\(mission\.reward_amount\) \|\| 1\)\) : 1;/.test(missionsHandlers)) {
-  ok('approval reads reward_amount fresh from the mission row at approval time (future approvals reflect any Edit made since creation)');
-} else bad('approval reward read not found at expected call site');
+if (/const reward = 1;/.test(missionsHandlers) && /Prompt #159/.test(missionsHandlers)) {
+  ok('approval awards exactly 1 Nugget (Prompt #159 lock; does not trust mission.reward_amount)');
+} else bad('approval reward lock not found at expected call site');
 
 if (/export function missionRewardTxId\(submissionId\)/.test(missionsReward) && /findMissionRewardTx/.test(missionsReward)) {
   ok('reward credit is keyed by a deterministic tx id derived from the submission id, not the mission\u2019s reward_amount — editing reward_amount later cannot alter an already-created tx');

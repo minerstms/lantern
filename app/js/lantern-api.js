@@ -682,7 +682,7 @@
       id: id,
       title: String(opts.title || '').trim().slice(0, 200),
       description: String(opts.description || '').trim().slice(0, 1000),
-      reward_amount: Math.max(1, Math.min(99, Math.floor(Number(opts.reward_amount) || 1))),
+      reward_amount: 1,
       submission_type: ['text', 'link', 'image_url', 'confirmation'].indexOf(String(opts.submission_type || 'text').trim()) >= 0 ? String(opts.submission_type || 'text').trim() : 'text',
       created_by_teacher_id: teacherId,
       created_by_teacher_name: teacherName,
@@ -715,7 +715,7 @@
     if (updates.active !== undefined) missions[idx].active = !!updates.active;
     if (updates.title !== undefined) missions[idx].title = String(updates.title).trim().slice(0, 200);
     if (updates.description !== undefined) missions[idx].description = String(updates.description).trim().slice(0, 1000);
-    if (updates.reward_amount !== undefined) missions[idx].reward_amount = Math.max(1, Math.min(99, Math.floor(Number(updates.reward_amount) || 1)));
+    if (updates.reward_amount !== undefined) missions[idx].reward_amount = 1;
     if (updates.featured !== undefined) missions[idx].featured = !!updates.featured;
     if (updates.site_eligible !== undefined) missions[idx].site_eligible = !!updates.site_eligible;
     if (updates.audience !== undefined) missions[idx].audience = ['my_students', 'selected_students', 'school_mission'].indexOf(String(updates.audience).trim()) >= 0 ? String(updates.audience).trim() : missions[idx].audience || 'school_mission';
@@ -790,7 +790,7 @@
     var mission = getTeacherMissions().find(function (m) { return m.id === s.mission_id; });
     if (!mission) return { ok: false, error: 'Mission not found' };
     if ((s.status || 'pending') !== 'pending') return { ok: false, error: 'Can only approve pending submissions' };
-    var reward = Math.max(1, Math.min(99, Number(mission.reward_amount) || 1));
+    var reward = 1;
     subs[idx].status = 'accepted';
     subs[idx].moderation_status = 'approved';
     subs[idx].accepted_at = new Date().toISOString();
@@ -2786,9 +2786,8 @@
           var body = {
             title: (payload && payload.title) || '',
             description: (payload && payload.description) || '',
-            // Prompt #97: default built-in Nugget reward is 1 unless the teacher explicitly
-            // configures a different amount (was an un-updated legacy default of 3).
-            reward_amount: (payload && payload.reward_amount) !== undefined ? payload.reward_amount : 1,
+            // Prompt #159: ordinary mission reward is locked to exactly 1 Nugget.
+            reward_amount: 1,
             submission_type: (payload && payload.submission_type) || 'text',
             created_by_teacher_id: (payload && payload.created_by_teacher_id) || 'teacher',
             created_by_teacher_name: (payload && payload.created_by_teacher_name) || 'Teacher',
@@ -2809,9 +2808,8 @@
         var result = createTeacherMission({
           title: (payload && payload.title) || '',
           description: (payload && payload.description) || '',
-          // Prompt #97: default built-in Nugget reward is 1 unless the teacher explicitly
-          // configures a different amount (was an un-updated legacy default of 3).
-          reward_amount: (payload && payload.reward_amount) !== undefined ? payload.reward_amount : 1,
+          // Prompt #159: ordinary mission reward is locked to exactly 1 Nugget.
+          reward_amount: 1,
           submission_type: (payload && payload.submission_type) || 'text',
           created_by_teacher_id: (payload && payload.created_by_teacher_id) || 'teacher',
           created_by_teacher_name: (payload && payload.created_by_teacher_name) || 'Teacher',

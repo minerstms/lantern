@@ -1972,8 +1972,7 @@
             <p class="teacherFieldHint">Default is Students. Staff-only and Everyone missions are how teachers/admins join as participants.</p>
           </div>
           <div class="teacherField">
-            <label for="missionReward">Reward (nuggets)</label>
-            <input type="number" id="missionReward" class="teacherInput teacherInput--sm" min="1" max="99" value="1" />
+            <p class="teacherFieldHint" id="missionRewardHint">Reward: <strong>1 Nugget</strong> (fixed for every ordinary mission).</p>
           </div>
         </div>
 
@@ -4548,8 +4547,7 @@
         '<div class="teacherField"><label>Title</label><input type="text" class="teacherInput" data-edit="title" value="' + esc(m.title || '') + '" /></div>' +
         '<div class="teacherField"><label>Instructions</label><textarea class="teacherTextarea" data-edit="description">' + esc(m.description || '') + '</textarea></div>' +
         '<div class="teacherFieldRow teacherFieldRow--2">' +
-          '<div class="teacherField"><label>Reward (nuggets)</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="1" max="99" value="' + (m.reward_amount || 1) + '" />' +
-            '<p class="teacherMissionRewardWarning">Changing this only affects future approvals — Nuggets already paid out never change.</p></div>' +
+          '<div class="teacherField"><p class="teacherFieldHint">Reward: <strong>1 Nugget</strong> (fixed — not editable).</p></div>' +
           '<div class="teacherField"><label class="teacherCheckboxField"><input type="checkbox" data-edit="featured"' + (m.featured ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Promote this mission</span></label></div>' +
         '</div>' +
         (hasSubmissions
@@ -4564,7 +4562,6 @@
         var updates = {};
         updates.title = (wrap.querySelector('[data-edit="title"]').value || '').trim();
         updates.description = (wrap.querySelector('[data-edit="description"]').value || '').trim();
-        updates.reward_amount = Math.max(1, Math.min(99, parseInt(wrap.querySelector('[data-edit="reward_amount"]').value, 10) || 1));
         updates.featured = !!wrap.querySelector('[data-edit="featured"]').checked;
         if (!hasSubmissions) {
           updates.audience = wrap.querySelector('[data-edit="audience"]').value;
@@ -4609,7 +4606,7 @@
         row.className = 'lanternMgmtRecord lanternMgmtRecord--missions teacherMissionRow' + (statusKey === 'archived' ? ' is-archived' : '');
         row.setAttribute('data-record-key', String(m.id || m.title || ''));
         var statusLabel = statusKey === 'active' ? 'Active' : (statusKey === 'paused' ? 'Paused' : 'Archived');
-        var rewardAmt = m.reward_amount || 1;
+        var rewardAmt = 1;
         var createdLabel = formatMissionCreatedDate(m.created_at);
         var subCount = m.submission_count || 0;
         var subLabel = subCount + ' submission' + (subCount !== 1 ? 's' : '');
@@ -4622,7 +4619,7 @@
           '</summary>' +
           '<div class="lanternMgmtRecordBd">' +
             '<p class="lanternMgmtRecordMeta">' +
-              rewardAmt + ' Nugget' + (rewardAmt !== 1 ? 's' : '') +
+              '1 Nugget' +
               (createdLabel ? ' · Created ' + createdLabel : '') +
               (m.featured ? ' · Promoted' : '') +
             '</p>' +
@@ -5453,7 +5450,6 @@
     el('createMissionBtn').addEventListener('click', async function(){
       var title = (el('missionTitle') && el('missionTitle').value || '').trim();
       var desc = (el('missionDesc') && el('missionDesc').value || '').trim();
-      var reward = parseInt(el('missionReward') && el('missionReward').value || 1, 10) || 1;
       var typeRaw = (el('missionType') && el('missionType').value || 'text').trim();
       var type = typeRaw;
       if (typeRaw === 'video') type = 'link';
@@ -5493,7 +5489,7 @@
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
         var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
         // Prompt #78 — site_eligible archived (no reader anywhere); see docs/archive/TEACHER_CREATE_MISSION_OPTION_AUDIT.md.
-        var opts = { title: title, description: desc, reward_amount: reward, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, participant_scope: (el('missionParticipantScope') && el('missionParticipantScope').value) || 'students', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, participant_scope: (el('missionParticipantScope') && el('missionParticipantScope').value) || 'students', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
         var res = await callCreateTeacherMission(opts);
         if (!res || !res.ok){

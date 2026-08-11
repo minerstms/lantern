@@ -37,7 +37,9 @@ export async function findMissionRewardTx(db, submissionId) {
 export async function creditMissionApprovalReward(db, characterName, submissionId, rewardAmount, note, opts) {
   const key = String(characterName || '').trim();
   const sid = String(submissionId || '').trim();
-  const reward = Math.max(1, Math.min(99, Math.floor(Number(rewardAmount)) || 1));
+  // Prompt #159: ordinary mission approval credit is locked to exactly +1 Nugget.
+  // Preserve idempotency via missionRewardReference / missionRewardTxId; ignore malformed amounts.
+  const reward = 1;
   if (!key || !sid) {
     return { ok: false, error: 'missing_identity' };
   }

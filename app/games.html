@@ -1196,18 +1196,11 @@
         area.style.display = 'none';
       }
 
-      // Prompt #99: route the false-start penalty through the same TMS-authoritative economy
-      // bridge every other charge in this file uses (callEconomyTransact + a fresh idempotency
-      // run_id), instead of the legacy local-wallet-only run.spendOnGame() call. That legacy path
-      // bypassed the TMS ledger entirely and had no idempotency key of its own.
+      // Prompt #99 / #159: false start ends the paid attempt visually only.
+      // Do NOT charge an extra Nugget — one game_play already spent exactly 1.
       function applyFalseStartPenalty(){
         if (tapZone._penaltyApplied) return;
         tapZone._penaltyApplied = true;
-        var adopted = loadAdopted();
-        if (!adopted) return;
-        callEconomyTransact(adopted.name, -1, 'game_false_start', 'GAME', 'Reaction Tap False Start', generateRunId()).then(function(res){
-          if (res && res.ok) refreshBalance();
-        });
       }
 
       tapZone.addEventListener('click', function(){
@@ -1219,7 +1212,7 @@
           sfxReactionFalseStart();
           msg.textContent = 'False Start';
           msg.style.color = 'var(--bad)';
-          tapZone.textContent = 'False Start -1 nugget';
+          tapZone.textContent = 'False Start';
           tapZone.className = 'tapZone falseStart';
           if (gradeEl) gradeEl.textContent = 'Wait for the zone to turn green before tapping.';
           if (playAgainRow) playAgainRow.style.display = 'flex';
@@ -1494,7 +1487,7 @@
         { icon: '🌟', label: 'Rare Star' }
       ];
       var SIZES = { easy: 60, medium: 120, hard: 210 };
-      var REWARDS = { easy: 1, medium: 2, hard: 3 };
+      var REWARDS = { easy: 1, medium: 1, hard: 1 };
       var TIME_LIMITS = { easy: 40, medium: 30, hard: 20 };
       var URGENT_SEC = 10;
       var STREAK_MILESTONES = [3, 5, 10];
