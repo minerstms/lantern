@@ -121,6 +121,26 @@ function isLanternPagesOrigin(origin) {
   }
 }
 
+/**
+ * Prompt #203 — Behavior Logger origins for credentialed silent bootstrap CORS only.
+ * Does not broaden Lantern cookie Domain; cookies remain host-scoped on tmslantern.org.
+ */
+function isBehaviorLoggerOrigin(origin) {
+  const o = String(origin || '').trim();
+  if (!o) return false;
+  try {
+    const u = new URL(o);
+    if (u.protocol !== 'https:') return false;
+    return (
+      u.hostname === 'log.tmslantern.org' ||
+      u.hostname === 'tmsnuggets.pages.dev' ||
+      u.hostname.endsWith('.tmsnuggets.pages.dev')
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 function getCorsHeaders(request) {
   const origin = request.headers.get('Origin') || '';
   const allowed = ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
@@ -140,6 +160,7 @@ function corsForPilot(request) {
   const origin = String(request.headers.get('Origin') || '').trim();
   const allowed =
     isLanternPagesOrigin(origin) ||
+    isBehaviorLoggerOrigin(origin) ||
     ALLOWED_ORIGINS.includes(origin) ||
     origin.startsWith('http://localhost:') ||
     origin.startsWith('http://127.0.0.1:');
@@ -1525,32 +1546,80 @@ async function handleTmsNuggetsRoutes(request, url, path, env, cors) {
 
 /** Fixed, non-interpolated messages only -- `reason` is always one of our own error codes, never raw user input. */
 function tmsExchangeFailurePage(reason, cors) {
+  // Prompt #203 — product-level wording (no tms_identity_links / SSO jargon).
   const MESSAGES = {
-    missing_code: 'This Lantern sign-in link is missing its code. Please try again from Behavior Logger.',
-    session_not_configured: 'Lantern sign-in is not available right now. Please try again later.',
-    bridge_not_configured: 'Lantern sign-in is not available right now. Please try again later.',
-    redeem_request_failed: 'Could not reach Behavior Logger to verify your sign-in. Please try again.',
-    redeem_bad_response: 'Could not verify your sign-in with Behavior Logger. Please try again.',
-    unauthorized: 'This Lantern sign-in link could not be verified. Please try again from Behavior Logger.',
-    invalid_or_expired_code: 'This Lantern sign-in link has expired or was already used. Please try again from Behavior Logger.',
-    lantern_account_not_linked: 'Your Behavior Logger staff account is not yet linked to a Lantern account. Ask a Lantern admin to link it.',
-    no_primary_lantern_link: 'This Behavior Logger staff identity has Lantern links but no Primary account. Ask a Lantern admin to designate a Primary.',
-    lantern_account_disabled: 'This Lantern account is disabled. Ask a Lantern admin for help.',
-    lantern_account_not_staff: 'This Lantern account is not a teacher/admin account.',
-    must_change_password: 'Please sign in to Lantern directly once to set your password, then try again.',
+    missing_code: 'This sign-in link is missing its code. Please try again from Behavior Logger.',
+    session_not_configured: 'Sign-in is not available right now. Please try again later.',
+    bridge_not_configured: 'Sign-in is not available right now. Please try again later.',
+    redeem_request_failed: 'Could not verify your sign-in. Please try again.',
+    redeem_bad_response: 'Could not verify your sign-in. Please try again.',
+    unauthorized: 'This sign-in link could not be verified. Please try again from Behavior Logger.',
+    invalid_or_expired_code: 'This sign-in link has expired or was already used. Please try again from Behavior Logger.',
+    lantern_account_not_linked: 'Account setup needed. Contact an administrator.',
+    no_primary_lantern_link: 'Account setup needed. Contact an administrator.',
+    lantern_account_disabled: 'This account is disabled. Contact an administrator.',
+    lantern_account_not_staff: 'This account cannot open staff tools.',
+    must_change_password: 'Please sign in once to set your password, then try again.',
   };
   const message = MESSAGES[reason] || 'Sign-in failed. Please try again from Behavior Logger.';
   const html =
     '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>Lantern sign-in</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:2rem auto;' +
+    '<title>Sign in | Lantern</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:2rem auto;' +
     'padding:1rem;font-size:18px;line-height:1.5;color:#1f2937;} a{color:#1e40af;font-weight:600;}</style></head>' +
-    '<body><h1>Lantern sign-in</h1><p>' +
+    '<body><h1>Sign in</h1><p>' +
     message +
-    '</p><p><a href="https://log.tmslantern.org/index.html">Return to Behavior Logger</a></p></body></html>';
+    '</p><p><a href="https://log.tmslantern.org/index.html">Back to Behavior Logger</a></p></body></html>';
   return new Response(html, {
     status: 401,
     headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
   });
+}
+
+/**
+ * Prompt #94/#203 — redeem TMS handoff + issue Lantern pilot JWT for primary linked staff.
+ * Shared by navigation exchange (302) and silent bootstrap (JSON + Set-Cookie).
+ * Returns { ok:true, token, username, role } or { ok:false, error }.
+ */
+async function issueLanternSessionFromTmsHandoff(env, db, codeRaw) {
+  const code = String(codeRaw || '').trim();
+  if (!code) return { ok: false, error: 'missing_code' };
+  const secret = env.PILOT_SESSION_SECRET;
+  if (!secret || String(secret).trim() === '') return { ok: false, error: 'session_not_configured' };
+
+  const redeemed = await redeemTmsLanternHandoff(env, code);
+  if (!redeemed.ok) return { ok: false, error: redeemed.error || 'invalid_or_expired_code' };
+
+  const primaryRes = await resolvePrimaryLanternUsernameForTmsStaff(db, redeemed.tms_staff_id);
+  if (!primaryRes.ok) {
+    if (primaryRes.error === 'no_primary') return { ok: false, error: 'no_primary_lantern_link' };
+    return { ok: false, error: 'lantern_account_not_linked' };
+  }
+
+  const row = await db
+    .prepare(
+      `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password
+       FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+    )
+    .bind(primaryRes.lantern_username)
+    .first();
+  if (!row) return { ok: false, error: 'lantern_account_not_linked' };
+
+  const isActive = row.is_active != null ? Number(row.is_active) : 1;
+  if (isActive === 0) return { ok: false, error: 'lantern_account_disabled' };
+  if (!isTeacherLike(row.role)) return { ok: false, error: 'lantern_account_not_staff' };
+  if (pilotAccountRequiresChangePassword(row)) return { ok: false, error: 'must_change_password' };
+
+  const now = Math.floor(Date.now() / 1000);
+  const jwtPayload = {
+    sub: row.username,
+    role: row.role,
+    scn: pilotEconomyCharacterName(row) || null,
+    tid: row.teacher_id || null,
+    iat: now,
+    exp: now + PILOT_JWT_TTL_SEC,
+  };
+  const token = await signPilotJwt(jwtPayload, secret);
+  return { ok: true, token, username: row.username, role: row.role };
 }
 
 async function handleAuthRoutes(request, url, path, env, cors) {
@@ -1698,63 +1767,62 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true }, 200, cors);
   }
 
-  // Prompt #94: TMS Nuggets -> Lantern staff SSO exchange. Top-level browser GET navigation
-  // (redirected here from TMS Nuggets with a one-time handoff code), not a fetch/XHR call --
+  // Prompt #94: TMS -> Lantern staff SSO exchange. Top-level browser GET navigation
+  // (redirected here from Behavior Logger with a one-time handoff code), not a fetch/XHR call --
   // CORS is not relevant to this route. Lantern independently re-derives role/access from its
-  // OWN account row; a role/capability claim from Nuggets is never trusted for authorization.
+  // OWN account row; a role/capability claim from Behavior Logger is never trusted for authorization.
   if (request.method === 'GET' && path === '/api/auth/tms-exchange') {
     const safeReturn = sanitizeTmsExchangeReturnTarget(url.searchParams.get('return'));
     const code = String(url.searchParams.get('code') || '').trim();
-    if (!code) return tmsExchangeFailurePage('missing_code', cors);
-    const secret = env.PILOT_SESSION_SECRET;
-    if (!secret || String(secret).trim() === '') return tmsExchangeFailurePage('session_not_configured', cors);
-
-    const redeemed = await redeemTmsLanternHandoff(env, code);
-    if (!redeemed.ok) return tmsExchangeFailurePage(redeemed.error, cors);
-
-    // Prompt #184 — reverse SSO uses explicit primary link (never .first() among many).
-    const primaryRes = await resolvePrimaryLanternUsernameForTmsStaff(db, redeemed.tms_staff_id);
-    if (!primaryRes.ok) {
-      if (primaryRes.error === 'no_primary') return tmsExchangeFailurePage('no_primary_lantern_link', cors);
-      return tmsExchangeFailurePage('lantern_account_not_linked', cors);
-    }
-
-    const row = await db
-      .prepare(
-        `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password
-         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
-      )
-      .bind(primaryRes.lantern_username)
-      .first();
-    if (!row) return tmsExchangeFailurePage('lantern_account_not_linked', cors);
-
-    const isActive = row.is_active != null ? Number(row.is_active) : 1;
-    if (isActive === 0) return tmsExchangeFailurePage('lantern_account_disabled', cors);
-    // Lantern's OWN role is authoritative -- Nuggets never asserts Lantern access. A Lantern
-    // student account can never become Teacher through this handoff, no matter what Nuggets says.
-    if (!isTeacherLike(row.role)) return tmsExchangeFailurePage('lantern_account_not_staff', cors);
-    if (pilotAccountRequiresChangePassword(row)) return tmsExchangeFailurePage('must_change_password', cors);
-
-    const now = Math.floor(Date.now() / 1000);
-    const jwtPayload = {
-      sub: row.username,
-      role: row.role,
-      scn: pilotEconomyCharacterName(row) || null,
-      tid: row.teacher_id || null,
-      iat: now,
-      exp: now + PILOT_JWT_TTL_SEC,
-    };
-    const token = await signPilotJwt(jwtPayload, secret);
+    const issued = await issueLanternSessionFromTmsHandoff(env, db, code);
+    if (!issued.ok) return tmsExchangeFailurePage(issued.error, cors);
     const secure = url.protocol === 'https:';
     return new Response(null, {
       status: 302,
       headers: {
         ...cors,
         Location: safeReturn,
-        'Set-Cookie': pilotSetCookieHeader(token, secure, PILOT_JWT_TTL_SEC),
+        'Set-Cookie': pilotSetCookieHeader(issued.token, secure, PILOT_JWT_TTL_SEC),
         'Cache-Control': 'no-store',
       },
     });
+  }
+
+  // Prompt #203 — silent session bootstrap from Behavior Logger (credentialed fetch).
+  // Same handoff redemption as tms-exchange; returns JSON + Set-Cookie (no HTML redirect).
+  // Origin must be Behavior Logger (corsForPilot + explicit check). Does NOT remember devices.
+  if (request.method === 'POST' && path === '/api/auth/tms-bootstrap') {
+    const origin = String(request.headers.get('Origin') || '').trim();
+    if (!isBehaviorLoggerOrigin(origin) && !origin.startsWith('http://localhost:') && !origin.startsWith('http://127.0.0.1:')) {
+      return jsonResponse({ ok: false, error: 'origin_not_allowed' }, 403, cors);
+    }
+    let body = {};
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const code = String(body.code || '').trim();
+    const issued = await issueLanternSessionFromTmsHandoff(env, db, code);
+    if (!issued.ok) {
+      const status =
+        issued.error === 'missing_code' || issued.error === 'Invalid JSON'
+          ? 400
+          : issued.error === 'session_not_configured' || issued.error === 'bridge_not_configured'
+            ? 503
+            : 401;
+      return jsonResponse({ ok: false, error: issued.error }, status, cors);
+    }
+    const secure = url.protocol === 'https:';
+    return jsonResponse(
+      { ok: true, username: issued.username, role: issued.role },
+      200,
+      {
+        ...cors,
+        'Set-Cookie': pilotSetCookieHeader(issued.token, secure, PILOT_JWT_TTL_SEC),
+        'Cache-Control': 'no-store',
+      }
+    );
   }
 
   // Prompt #139 — Lantern first-party authorize for TMS device enrollment (linked staff only).

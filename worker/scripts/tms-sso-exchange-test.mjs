@@ -397,12 +397,121 @@ async function testNoPrimaryFailsClosed() {
         return bad('links without primary must fail closed (no arbitrary pick)', { status: res.status, setCookie });
       }
       const text = await res.text();
-      if (!/no_primary|Primary/i.test(text) && res.status !== 401) {
+      if (!/Account setup needed/i.test(text) && res.status !== 401) {
         return bad('no-primary failure should be clear', { status: res.status, text: text.slice(0, 300) });
       }
       ok('linked-but-no-primary fails closed (no .first() fallback)');
     }
   );
+}
+
+// ---------------------------------------------------------------------------
+// Prompt #203 — silent bootstrap (JSON + Set-Cookie; Behavior Logger origin only)
+// ---------------------------------------------------------------------------
+
+async function bootstrap(env, body, origin) {
+  return worker.fetch(
+    new Request('https://x.test/api/auth/tms-bootstrap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: origin || 'https://log.tmslantern.org',
+      },
+      body: JSON.stringify(body || {}),
+    }),
+    env
+  );
+}
+
+async function testSilentBootstrapSuccess() {
+  await withMockedRedeem(
+    () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
+    async () => {
+      const teacher = account({ username: 'ms_carter', role: 'teacher' });
+      const env = makeEnv({ accounts: { ms_carter: teacher }, identityLinks: { Radle: 'ms_carter' } });
+      const res = await bootstrap(env, { code: 'abc123' }, 'https://log.tmslantern.org');
+      const setCookie = res.headers.get('Set-Cookie') || '';
+      const payload = decodeCookieJwt(setCookie);
+      const json = await res.json();
+      const acao = res.headers.get('Access-Control-Allow-Origin') || '';
+      const acac = res.headers.get('Access-Control-Allow-Credentials') || '';
+      if (
+        res.status !== 200 ||
+        !json.ok ||
+        json.username !== 'ms_carter' ||
+        !payload ||
+        payload.sub !== 'ms_carter' ||
+        acao !== 'https://log.tmslantern.org' ||
+        String(acac).toLowerCase() !== 'true'
+      ) {
+        return bad('silent bootstrap success', { status: res.status, json, setCookie, payload, acao, acac });
+      }
+      ok('#203 silent bootstrap: BL origin → 200 JSON + lantern_pilot cookie + credentialed CORS');
+    }
+  );
+}
+
+async function testSilentBootstrapRejectsForeignOrigin() {
+  await withMockedRedeem(
+    () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
+    async () => {
+      const teacher = account({ username: 'ms_carter', role: 'teacher' });
+      const env = makeEnv({ accounts: { ms_carter: teacher }, identityLinks: { Radle: 'ms_carter' } });
+      const res = await bootstrap(env, { code: 'abc123' }, 'https://evil.example.com');
+      const setCookie = res.headers.get('Set-Cookie') || '';
+      if (res.status !== 403 || /lantern_pilot=/.test(setCookie)) {
+        return bad('foreign origin must not bootstrap a session', { status: res.status, setCookie });
+      }
+      ok('#203 silent bootstrap rejects non-Behavior-Logger Origin (no cookie)');
+    }
+  );
+}
+
+async function testSilentBootstrapReplayFails() {
+  await withMockedRedeem(
+    () => ({ body: { ok: false, error: 'invalid_or_expired_code' } }),
+    async () => {
+      const teacher = account({ username: 'ms_carter', role: 'teacher' });
+      const env = makeEnv({ accounts: { ms_carter: teacher }, identityLinks: { Radle: 'ms_carter' } });
+      const res = await bootstrap(env, { code: 'already-used' }, 'https://log.tmslantern.org');
+      const setCookie = res.headers.get('Set-Cookie') || '';
+      if (res.status === 200 || /lantern_pilot=/.test(setCookie)) {
+        return bad('replayed/invalid bootstrap code must fail', { status: res.status, setCookie });
+      }
+      ok('#203 silent bootstrap replay/invalid code fails closed');
+    }
+  );
+}
+
+async function testSilentBootstrapStudentDenied() {
+  await withMockedRedeem(
+    () => ({ body: { ok: true, tms_staff_id: 'some_staff' } }),
+    async () => {
+      const student = account({ username: 'zane', role: 'student', teacher_id: null });
+      const env = makeEnv({ accounts: { zane: student }, identityLinks: { some_staff: 'zane' } });
+      const res = await bootstrap(env, { code: 'abc123' }, 'https://log.tmslantern.org');
+      const setCookie = res.headers.get('Set-Cookie') || '';
+      if (res.status === 200 || /lantern_pilot=/.test(setCookie)) {
+        return bad('student must not receive staff session via bootstrap', { status: res.status, setCookie });
+      }
+      ok('#203 silent bootstrap denies student-linked identity (no cookie)');
+    }
+  );
+}
+
+async function testSilentBootstrapStaticSource() {
+  const workerIndexPath = fileURLToPath(new URL('../index.js', import.meta.url));
+  const src = fs.readFileSync(workerIndexPath, 'utf8');
+  if (!/\/api\/auth\/tms-bootstrap/.test(src) || !/issueLanternSessionFromTmsHandoff/.test(src)) {
+    return bad('worker missing tms-bootstrap / shared issueLanternSessionFromTmsHandoff');
+  }
+  if (!/isBehaviorLoggerOrigin/.test(src)) {
+    return bad('worker missing isBehaviorLoggerOrigin allowlist');
+  }
+  if (/Domain=\.tmslantern\.org/.test(src) || /Domain=\*\.tmslantern/.test(src)) {
+    return bad('must not broaden cookie Domain to parent wildcard');
+  }
+  ok('#203 worker has tms-bootstrap + BL origin check; no wildcard parent-domain cookie');
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +551,11 @@ await testNoReturnDefaultsToNuggets();
 await testBridgeSecretSentAsBearer();
 await testPrimaryChosenWhenMultipleLinks();
 await testNoPrimaryFailsClosed();
+await testSilentBootstrapSuccess();
+await testSilentBootstrapRejectsForeignOrigin();
+await testSilentBootstrapReplayFails();
+await testSilentBootstrapStudentDenied();
+testSilentBootstrapStaticSource();
 testStaticSourceInspection();
 
 console.log('\ntms-sso-exchange-test:', pass, 'PASS', fail, 'FAIL');

@@ -1,5 +1,5 @@
 /**
- * TMS Lantern — ONE ticker: same data pipeline and render as Display.
+ * Lantern — ONE ticker: same data pipeline and render as Display.
  * No activity feed, games, or news-specific ticker paths.
  */
 (function (global) {
@@ -24,7 +24,7 @@
 
   var FALLBACK_TICKER_ITEM = {
     icon: '✨',
-    text: '<span class="lanternTickerText">TMS Lantern — News · Spotlights · Community</span>',
+    text: '<span class="lanternTickerText">Lantern — News · Spotlights · Community</span>',
     avatarUrl: '',
     avatarEmoji: ''
   };
@@ -414,7 +414,7 @@
               slides = [
                 {
                   type: 'fallback',
-                  title: 'TMS Lantern',
+                  title: 'Lantern',
                   subtitle: 'Celebrating our community',
                   image: null,
                   actor_name: '',
@@ -432,7 +432,7 @@
           slides: [
             {
               type: 'fallback',
-              title: 'TMS Lantern',
+              title: 'Lantern',
               subtitle: 'Celebrating our community',
               image: null,
               actor_name: '',

@@ -1,4 +1,4 @@
-<!-- ===== TMS Lantern — Display: Scrolling Ticker + Page Rotator ===== -->
+<!-- ===== Lantern — Display: Scrolling Ticker + Page Rotator ===== -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/assets/favicon.png?v=2">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <title>TMS Lantern — Display</title>
+  <title>Display | Lantern</title>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
@@ -252,7 +252,7 @@
       if (type === 'arcade_leader') return '🎮 Arcade Leaders';
       if (type === 'nugget_rumor') return 'Hidden Nugget';
       if (type === 'teacher_recognition') return '⭐ Teacher Recognition';
-      return 'TMS Lantern';
+      return 'Lantern';
     }
 
     function truncate(s, maxLen){
@@ -340,10 +340,10 @@
 
     function buildPageList(){
       var list = [];
-      var hero = heroCandidates.length ? heroCandidates : (slides.length ? slides : [{ type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, actor_name: '', meta: {}, created_at: '' }]);
+      var hero = heroCandidates.length ? heroCandidates : (slides.length ? slides : [{ type: 'fallback', title: 'Lantern', subtitle: 'Celebrating our community', image: null, actor_name: '', meta: {}, created_at: '' }]);
       var rec = recognitionList;
       var achievements = slides.filter(function(s){ return s.type === 'achievement' || s.type === 'nugget_milestone'; });
-      var single = hero[0] ? { type: 'single', slide: hero[0] } : { type: 'single', slide: { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } };
+      var single = hero[0] ? { type: 'single', slide: hero[0] } : { type: 'single', slide: { type: 'fallback', title: 'Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } };
       var grid4Rec = rec.length >= 4 ? { type: 'grid', size: 4, title: 'Recent Recognition', items: rec.slice(0, 4) } : null;
       var grid4Achieve = achievements.length >= 4 ? { type: 'achievements', title: 'Recent Unlocks', items: achievements.slice(0, 4) } : (achievements.length > 0 ? { type: 'achievements', title: 'Recent Unlocks', items: achievements.slice(0, 6) } : null);
       var newsSpot = newsList.length > 0 ? { type: 'news_spotlight', title: 'Lantern News', items: newsList.slice(0, 3) } : null;
@@ -367,7 +367,7 @@
           },
         });
       });
-      if (list.length === 0) list.push({ type: 'single', slide: { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } });
+      if (list.length === 0) list.push({ type: 'single', slide: { type: 'fallback', title: 'Lantern', subtitle: 'Celebrating our community', image: null, meta: {}, created_at: '' } });
       return list;
     }
 
@@ -485,7 +485,7 @@
         stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide, 0) + '</div>';
         return;
       }
-      stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide || { type: 'fallback', title: 'TMS Lantern', subtitle: 'Celebrating our community', meta: {}, created_at: '' }, 0) + '</div>';
+      stage.innerHTML = '<div class="stagePage single">' + renderSlide(page.slide || { type: 'fallback', title: 'Lantern', subtitle: 'Celebrating our community', meta: {}, created_at: '' }, 0) + '</div>';
     }
 
     function advancePage(){
