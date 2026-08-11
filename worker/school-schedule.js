@@ -102,6 +102,15 @@ function localPartsInTimeZone(date, timeZone) {
 }
 
 /**
+ * Prompt #165 — America/Denver calendar date (YYYY-MM-DD) for mission daily cadence.
+ * Server-authoritative; never trust browser-local dates for Daily Check-In.
+ */
+export function denverLocalDateYYYYMMDD(now) {
+  const date = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
+  return localPartsInTimeZone(date, SCHOOL_SCHEDULE_TIMEZONE).localDate;
+}
+
+/**
  * Evaluate the canonical 2026-27 school-hours schedule at `now`.
  *
  * @param {Date|number} [now] - Instant to evaluate (defaults to `new Date()`). Callers on the

@@ -4,6 +4,7 @@
  */
 import { extractMissionSubmissionMedia } from './missions-auth.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
+import { ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -669,6 +670,16 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     await db.prepare(
       "UPDATE lantern_feed_items SET status = 'approved', approved_at = ?, approved_by = ?, private_feedback = NULL, slideshow_eligible = ?, featured_eligible = ?, hidden_at = NULL, hidden_by = NULL WHERE id = ?"
     ).bind(now, approver, slideshow, featured, id).run();
+    // Prompt #165 — First Photo Share / Shout-Out Someone action completions from Create feed.
+    try {
+      const feedType = String(row.type || '').trim();
+      const author = String(row.author_display_name || row.author_id || '').trim();
+      if (author && feedType === 'photo') {
+        await ensureContentApprovedMissionCompletion(db, env, 'photo', author, id);
+      } else if (author && feedType === 'shout_out') {
+        await ensureContentApprovedMissionCompletion(db, env, 'shoutout', author, id);
+      }
+    } catch (_) {}
     return feedJson({ ok: true, id, status: 'approved' }, 200, cors);
   }
 

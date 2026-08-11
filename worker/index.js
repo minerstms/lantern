@@ -26,6 +26,7 @@ import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaff
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
+import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
   ACCESS_REQUEST_PENDING_TTL_SEC,
@@ -4588,6 +4589,11 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
           'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         ).bind(txId, characterName, delta, kind, source, note, now, JSON.stringify({ ...meta, tms_reference: reference, tms_backed: true, tms_staff_id: staffPrincipal.tmsStaffId })).run();
       } catch (_) {}
+      if (kind === 'game_play') {
+        try {
+          await ensureFirstGameMissionCompletion(db, env, characterName, txId);
+        } catch (_) {}
+      }
       return jsonResponse({
         ok: true,
         id: txId,
@@ -4610,6 +4616,11 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
           await awardAchievementsAfterPositiveCredit(db, characterName, txId, delta);
         }
       } catch (_) {}
+      if (kind === 'game_play') {
+        try {
+          await ensureFirstGameMissionCompletion(db, env, characterName, txId);
+        } catch (_) {}
+      }
       return jsonResponse({
         ok: true,
         id: txId,
@@ -4644,6 +4655,12 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         await awardAchievementsAfterPositiveCredit(db, characterName, txId, delta);
       }
     } catch (_) {}
+
+    if (kind === 'game_play') {
+      try {
+        await ensureFirstGameMissionCompletion(db, env, characterName, txId);
+      } catch (_) {}
+    }
 
     return jsonResponse({
       ok: true,
@@ -5142,9 +5159,15 @@ async function handleApprovalsRoutes(request, url, path, env) {
         'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ? WHERE id = ?'
       ).bind('approved', now, staffId || null, staffName, approval.item_id).run();
       try {
-        const newsRow = await db.prepare('SELECT author_name FROM lantern_news_submissions WHERE id = ?').bind(approval.item_id).first();
+        const newsRow = await db.prepare('SELECT author_name, category, image_r2_key FROM lantern_news_submissions WHERE id = ?').bind(approval.item_id).first();
         if (newsRow && newsRow.author_name) {
           await awardAchievementsForNewsApproved(db, newsRow.author_name, approval.item_id);
+          const cat = String(newsRow.category || '').trim().toLowerCase();
+          const hasImage = !!(newsRow.image_r2_key && String(newsRow.image_r2_key).trim());
+          // Prompt #165 — only explicit Photo category news counts as First Photo Share.
+          if (cat === 'photo' && hasImage) {
+            await ensureContentApprovedMissionCompletion(db, env, 'photo', newsRow.author_name, approval.item_id);
+          }
         }
       } catch (_) {}
     } else if (approval.item_type === 'avatar') {
@@ -5192,6 +5215,11 @@ async function handleApprovalsRoutes(request, url, path, env) {
             await db.prepare(
               'UPDATE lantern_poll_contributions SET status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
             ).bind('approved', now, staffName, pc.id).run();
+            try {
+              if (pc.character_name) {
+                await ensureContentApprovedMissionCompletion(db, env, 'poll', pc.character_name, pc.id);
+              }
+            } catch (_) {}
           }
         }
       } catch (e) { /* table missing until migration */ }

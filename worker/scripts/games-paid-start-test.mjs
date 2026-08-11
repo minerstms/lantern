@@ -71,6 +71,9 @@ if (playAuthDisplay.ok && playAuthDisplay.characterName === '20889') {
 if (workerIndex.includes('resolveEconomyGamePlayTransact') && workerIndex.includes("kindEarly === 'game_play'")) {
   ok('worker transact routes game_play through session resolver');
 } else bad('worker game_play hook');
+if (workerIndex.includes('ensureFirstGameMissionCompletion')) {
+  ok('worker game_play success path hooks First Game mission completion');
+} else bad('worker missing first-game mission completion hook');
 
 if (walletJs.includes('canUseHttpEconomy') && walletJs.includes("economyApiBase() !== null || typeof global.fetch")) {
   ok('LanternWallet treats empty API base as same-origin HTTP');

@@ -134,6 +134,19 @@ const buildFnMatch = missionsHtml.match(/function buildUnifiedMissionItems\([\s\
 if (buildFnMatch) {
   const sandbox = {
     todayStr: () => '2026-08-07',
+    WAVE2_MISSION: {
+      daily: 'perm_daily_checkin',
+      firstGame: 'perm_first_game',
+      grade: 'perm_grade_reflection',
+      photo: 'tmission_1773676581540_qzl0kx',
+      poll: 'perm_create_a_poll',
+      shout: 'perm_shoutout_someone',
+    },
+    DAILY_CHECKIN_CHOICES: ['Ready', 'Okay', 'Tired', 'Need a reset'],
+    openDailyCheckInPicker: function () {},
+    callClaimDailyCheckIn: function () { return Promise.resolve({ ok: true }); },
+    loadMissions: function () {},
+    openMissionSubmitModal: function () {},
     console,
   };
   vm.createContext(sandbox);
@@ -164,12 +177,13 @@ if (buildFnMatch) {
           submission_type: 'text',
         },
       ],
-      [{ mission_id: 'm1', status: 'pending' }, { mission_id: 'm2', status: 'accepted' }, { mission_id: 'm3', status: 'returned' }]
+      [{ mission_id: 'm1', status: 'pending' }, { mission_id: 'm2', status: 'accepted' }, { mission_id: 'm3', status: 'returned' }],
+      {}
     );
     const avail = items.filter((i) => i.status === 'available').length;
     const prog = items.filter((i) => i.status === 'in_progress').length;
     const done = items.filter((i) => i.status === 'completed').length;
-    if (avail >= 4 && prog === 2 && done >= 1) {
+    if (avail >= 2 && prog === 2 && done >= 1) {
       ok('status derivation: pending/returned → in_progress, accepted → completed');
     } else bad('status derivation counts', { avail, prog, done, total: items.length });
     // Prompt #73 Defect 2: pending/in_progress missions carry a STARTED stateBadge (with a

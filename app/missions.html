@@ -489,22 +489,26 @@
       });
     }
     /**
-     * Daily Check-In / Hidden Nugget completion tracking (local-only, no wallet effect).
-     * Prompt #68 RED STOP: the previous economyApiBase branch here posted an
-     * arbitrary client-chosen delta+kind straight to /api/economy/transact, which the
-     * Worker only validates for identity (own wallet), not amount or once-per-day/once-ever
-     * cadence — any authenticated student could replay that call for unlimited nuggets.
-     * That branch is removed. Until a server-authoritative claim endpoint exists (one that
-     * enforces the fixed reward amount and cadence in D1, mirroring the missions approval
-     * reward pattern), this only records local completion state and must not claim a
-     * Nugget credit that never reached the authoritative wallet.
+     * Prompt #165 — Daily Check-In is server-authoritative (Denver once/day +1 via TMS).
      */
-    function callClaimDailyCheckIn(name){
-      var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false });
-      return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).claimDailyCheckIn({ character_name: name });
-      });
+    function callClaimDailyCheckIn(choice){
+      if (missionsApiBase != null) {
+        return fetch(missionsApiBase + '/api/missions/daily-checkin', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ choice: choice || 'Okay' })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
+      }
+      return Promise.resolve({ ok: false, error: 'api_unavailable' });
+    }
+    function callGetMissionProgress(){
+      if (missionsApiBase != null) {
+        return fetch(missionsApiBase + '/api/missions/progress', { credentials: 'include', cache: 'no-store' })
+          .then(function(r){ return r.json(); })
+          .catch(function(){ return { ok: false }; });
+      }
+      return Promise.resolve({ ok: false });
     }
     function callCompleteHiddenNugget(name){
       var run = createRun ? createRun() : null;
@@ -512,6 +516,52 @@
       return new Promise(function(resolve){
         run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(){ resolve({ ok: false }); }).completeHiddenNugget({ character_name: name });
       });
+    }
+
+    var WAVE2_MISSION = {
+      daily: 'perm_daily_checkin',
+      firstGame: 'perm_first_game',
+      grade: 'perm_grade_reflection',
+      photo: 'tmission_1773676581540_qzl0kx',
+      poll: 'perm_create_a_poll',
+      shout: 'perm_shoutout_someone'
+    };
+    var DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
+
+    function openDailyCheckInPicker(onPick){
+      var existing = document.getElementById('dailyCheckInPicker');
+      if (existing) existing.remove();
+      var wrap = document.createElement('div');
+      wrap.id = 'dailyCheckInPicker';
+      wrap.setAttribute('role', 'dialog');
+      wrap.setAttribute('aria-label', 'Daily Check-In');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+      var card = document.createElement('div');
+      card.style.cssText = 'background:#142038;color:#eaf0ff;border-radius:12px;padding:20px;max-width:420px;width:100%;font-size:22px;';
+      card.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">Daily Check-In</div><div style="margin-bottom:14px;opacity:.9;">How are you starting today?</div>';
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
+      DAILY_CHECKIN_CHOICES.forEach(function(c){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = c;
+        b.style.cssText = 'font-size:20px;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#1d2f52;color:#eaf0ff;cursor:pointer;';
+        b.addEventListener('click', function(){
+          wrap.remove();
+          if (typeof onPick === 'function') onPick(c);
+        });
+        row.appendChild(b);
+      });
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.style.cssText = 'margin-top:14px;font-size:18px;padding:8px 12px;border-radius:8px;border:0;background:transparent;color:#9eb0d0;cursor:pointer;';
+      cancel.addEventListener('click', function(){ wrap.remove(); });
+      card.appendChild(row);
+      card.appendChild(cancel);
+      wrap.appendChild(card);
+      wrap.addEventListener('click', function(e){ if (e.target === wrap) wrap.remove(); });
+      document.body.appendChild(wrap);
     }
 
     function toast(msg){
@@ -1044,37 +1094,29 @@
       if (closeBtn) closeBtn.focus();
     }
 
-    function buildUnifiedMissionItems(missions, teacherMissions, submissions){
+    function buildUnifiedMissionItems(missions, teacherMissions, submissions, progress){
       missions = missions || {};
       teacherMissions = teacherMissions || [];
       submissions = submissions || [];
-      var today = todayStr();
-      var dailyClaimed = (missions.daily_checkin_last || '') === today;
+      progress = progress || {};
+      var dailyClaimed = !!(progress.daily_checkin && progress.daily_checkin.completed_today);
       var hiddenDone = !!missions.hidden_nugget;
-      var firstGameDone = !!missions.first_game;
+      var firstGameDone = !!(progress.first_game && progress.first_game.completed) || !!missions.first_game;
       var subByMission = {};
-      submissions.forEach(function(s){ subByMission[s.mission_id] = s; });
+      submissions.forEach(function(s){
+        var mid = s.mission_id;
+        if (!subByMission[mid]) subByMission[mid] = s;
+        else if (String(s.created_at || '') > String(subByMission[mid].created_at || '')) subByMission[mid] = s;
+      });
       var items = [];
-
       function pushQuick(o){ items.push(o); }
 
-      /* Prompt #69 RED STOP — QUICK MISSION DESTINATION IS LEGACY-ONLY:
-         thanks.html/grades.html and their backing functions (submitThanks, getThanksForCharacter,
-         submitGradeReflection, getGradeReflectionsForCharacter, etc. in lantern-api.js) are 100%
-         localStorage-only with zero D1/Worker persistence. teacher.html's review UI for these
-         (renderGradeReflections, thanks review) reads the SAME localStorage key, so it can only
-         ever see a submission if the teacher happens to review from the exact same browser/device
-         the student submitted from — never true for real students/teachers on separate devices.
-         Routing an authenticated student into that destination is truthful about auth (once fixed)
-         but false about outcome: nothing a real teacher will ever see, no real Nugget can ever
-         result. Until these are migrated to a D1-backed submission + review path (a new data model,
-         out of this prompt's auth/dispatch-only scope), these cards give a truthful in-place
-         explanation instead of navigating into that dead end. */
+      /* Prompt #165 — Thank-You still deferred (Wave 3). Grade Reflection is D1-backed. */
       pushQuick({
         id: 'quick_thank_you',
         kind: 'quick',
         typeFilter: 'reflection',
-        typeBadge: '✍ Reflection',
+        typeBadge: '',
         icon: '💌',
         title: 'Thank-You Letter',
         description: 'This mission is being rebuilt for real classrooms and is not available yet.',
@@ -1089,71 +1131,12 @@
       });
 
       pushQuick({
-        id: 'quick_grade_reflection',
-        kind: 'quick',
-        typeFilter: 'reflection',
-        typeBadge: '✍ Reflection',
-        icon: '📊',
-        title: 'Grade Reflection',
-        description: 'This mission is being rebuilt for real classrooms and is not available yet.',
-        reward: null,
-        status: 'available',
-        statusLabel: 'Learn more →',
-        created_at: '',
-        featured: false,
-        onActivate: function(){
-          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Grade Reflection', 'Not available yet', 'This mission is being rebuilt so a real teacher can see and review your reflection. Check back soon.');
-        },
-      });
-
-      pushQuick({
-        id: 'quick_daily_checkin',
-        kind: 'quick',
-        typeFilter: 'quick',
-        typeBadge: '⚡ Quick',
-        icon: '✅',
-        title: 'Daily Check-In',
-        /* Prompt #68: no server-authoritative claim path exists yet for this reward (see
-           callClaimDailyCheckIn above), so the card must not promise a Nugget amount that
-           never reaches the authoritative wallet. reward stays null until that path exists. */
-        description: dailyClaimed ? 'Come back tomorrow for another check-in.' : 'Check in once per day.',
-        reward: null,
-        status: dailyClaimed ? 'completed' : 'available',
-        stateBadge: dailyClaimed ? 'COMPLETED' : '',
-        statusLabel: dailyClaimed ? '✅ Completed today' : 'Claim →',
-        created_at: today,
-        featured: true,
-        onActivate: function(){
-          if (dailyClaimed) {
-            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', 'Completed', 'Come back tomorrow for another +3 nuggets.');
-            return;
-          }
-          var a = getAdopted();
-          if (!a || !a.name) { toast('Sign in to claim your daily check-in.'); return; }
-          callClaimDailyCheckIn(a.name).then(function(res){
-            if (res && res.ok){
-              toast('Daily check-in recorded.');
-              loadMissions();
-            } else if (res && res.already){
-              toast('Already claimed today');
-              loadMissions();
-            } else {
-              toast('Could not claim check-in. Try again.');
-            }
-          });
-        },
-      });
-
-      pushQuick({
         id: 'quick_hidden_nugget',
         kind: 'quick',
         typeFilter: 'quick',
-        typeBadge: '⚡ Quick',
+        typeBadge: '',
         icon: '🔍',
         title: 'Hidden Nugget',
-        /* Prompt #68: same rule as Daily Check-In — no daily_checkin/hidden_nugget
-           transaction has ever been written to lantern_transactions (verified read-only
-           against production D1), so this card must not claim a Nugget amount was earned. */
         description: hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
         reward: null,
         status: hiddenDone ? 'completed' : 'available',
@@ -1165,50 +1148,113 @@
         },
       });
 
-      // Prompt #97: default built-in Nugget reward is 1 unless deliberately configured
-      // otherwise — this card previously displayed an un-updated legacy default of +10.
-      if (firstGameDone) {
-        pushQuick({
-          id: 'quick_first_game',
-          kind: 'quick',
-          typeFilter: 'quick',
-          typeBadge: '⚡ Quick',
-          icon: '🎮',
-          title: 'First Game Played',
-          description: 'You played a game and earned +1 nugget.',
-          reward: 1,
-          status: 'completed',
-          stateBadge: 'COMPLETED',
-          statusLabel: '✅ Completed',
-          created_at: '',
-          onActivate: function(){
-            if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +1 nugget.');
-          },
-        });
-      } else {
-        pushQuick({
-          id: 'quick_first_game',
-          kind: 'quick',
-          typeFilter: 'quick',
-          typeBadge: '⚡ Quick',
-          icon: '🎮',
-          title: 'First Game Played',
-          description: 'Play any game once to earn +1 nugget.',
-          reward: 1,
-          status: 'available',
-          statusLabel: 'Go to Games →',
-          url: 'games.html',
-          created_at: '',
-        });
-      }
-
       teacherMissions.forEach(function(m){
+        var mid = String(m.id || '');
         var sub = subByMission[m.id] || null;
         var st = sub ? (sub.status || 'pending') : null;
         var status = 'available';
         var statusLabel = 'Start →';
         var stateBadge = '';
-        if (st === 'accepted') {
+
+        if (mid === WAVE2_MISSION.daily) {
+          status = dailyClaimed ? 'completed' : 'available';
+          statusLabel = dailyClaimed ? '✅ Completed today' : 'Check in →';
+          stateBadge = dailyClaimed ? 'COMPLETED' : '';
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'quick',
+            typeBadge: '',
+            stateBadge: stateBadge,
+            icon: '✅',
+            title: m.title || 'Daily Check-In',
+            description: dailyClaimed ? 'Come back tomorrow for another check-in.' : ((m.description || '').trim() || 'How are you starting today?'),
+            reward: 1,
+            status: status,
+            statusLabel: statusLabel,
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            raw: m,
+            submission: sub,
+            onActivate: function(){
+              if (dailyClaimed) {
+                if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', 'Completed', 'Come back tomorrow for another +1 Nugget.');
+                return;
+              }
+              openDailyCheckInPicker(function(choice){
+                callClaimDailyCheckIn(choice).then(function(res){
+                  if (res && res.ok){
+                    toast(res.idempotent ? 'Already checked in today.' : 'Daily check-in recorded. +1 Nugget');
+                    loadMissions();
+                  } else {
+                    toast((res && res.error) || 'Could not claim check-in. Try again.');
+                  }
+                });
+              });
+            },
+          });
+          return;
+        }
+
+        if (mid === WAVE2_MISSION.firstGame) {
+          var fgDone = firstGameDone || st === 'accepted';
+          status = fgDone ? 'completed' : 'available';
+          statusLabel = fgDone ? '✅ Completed' : 'Go to Games →';
+          stateBadge = fgDone ? 'COMPLETED' : '';
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'quick',
+            typeBadge: '',
+            stateBadge: stateBadge,
+            icon: '🎮',
+            title: m.title || 'First Game Played',
+            description: fgDone ? 'You played a game and earned +1 Nugget.' : ((m.description || '').trim() || 'Play any paid game once.'),
+            reward: 1,
+            status: status,
+            statusLabel: statusLabel,
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            url: fgDone ? '' : 'games.html',
+            raw: m,
+            submission: sub,
+            onActivate: fgDone ? function(){
+              if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +1 Nugget.');
+            } : null,
+          });
+          return;
+        }
+
+        var photoDone = mid === WAVE2_MISSION.photo && ((progress.first_photo && progress.first_photo.completed) || st === 'accepted');
+        var pollDone = mid === WAVE2_MISSION.poll && ((progress.create_poll && progress.create_poll.completed) || st === 'accepted');
+        var shoutDone = mid === WAVE2_MISSION.shout && ((progress.shoutout && progress.shoutout.completed) || st === 'accepted');
+
+        if (mid === WAVE2_MISSION.photo && !photoDone && (!st || st === 'rejected')) {
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'create',
+            typeBadge: '',
+            stateBadge: '',
+            icon: '📸',
+            title: m.title || 'First Photo Share',
+            description: (m.description || '').trim(),
+            reward: 1,
+            status: 'available',
+            statusLabel: 'Create a Photo →',
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            url: 'create.html?type=photo',
+            raw: m,
+            submission: sub,
+          });
+          return;
+        }
+
+        if (st === 'accepted' || photoDone || pollDone || shoutDone) {
           status = 'completed';
           statusLabel = '✅ Completed';
           stateBadge = 'COMPLETED';
@@ -1226,13 +1272,10 @@
           stateBadge = 'NEEDS CHANGES';
         }
         var tf = 'teacher';
-        var badge = '🧠 Teacher';
+        var badge = '';
         var stype = String(m.submission_type || '').trim();
-        if (stype === 'poll') { tf = 'create'; badge = '🎨 Create'; }
-        else if (stype === 'bug_report') { tf = 'create'; badge = '📸 Photo'; }
-        // Real card image (if the student's submission actually has a photo) — the Missions
-        // grid card (Prompt #76) shows this in place of the official Mission cover fallback.
-        // Never any other synthetic/library image here: real media or nothing.
+        if (stype === 'poll') tf = 'create';
+        else if (stype === 'bug_report') tf = 'create';
         var mmForCard = (sub && typeof window !== 'undefined' && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
         items.push({
           id: m.id,
@@ -1246,8 +1289,6 @@
           reward: 1,
           status: status,
           statusLabel: statusLabel,
-          // Real persisted audience field (Prompt #81) — canonical card footer's primary
-          // metadata token; not previously threaded through to card rendering.
           audience: m.audience || '',
           featured: !!m.featured,
           created_at: m.created_at || '',
@@ -1264,9 +1305,6 @@
               return;
             }
             if (st === 'pending') {
-              // Pending submissions stay clickable but open a read-only view of what was
-              // submitted — the mission is still "STARTED", not lost, and the server already
-              // rejects a second submission while pending (409 submission_pending).
               if (window.LanternCardUI) {
                 var capPending = '';
                 var mmPending = (sub && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
@@ -1285,13 +1323,14 @@
       return items;
     }
 
-    function refreshMissionLibrary(missions, teacherMissions, submissions, loading, teacherFetchFailed){
+    function refreshMissionLibrary(missions, teacherMissions, submissions, loading, teacherFetchFailed, progress){
+      progress = progress || {};
       if (window.LanternMissionsPage && typeof window.LanternMissionsPage.setItems === 'function') {
-        window.LanternMissionsPage.setItems(buildUnifiedMissionItems(missions, teacherMissions, submissions), loading, !!teacherFetchFailed);
+        window.LanternMissionsPage.setItems(buildUnifiedMissionItems(missions, teacherMissions, submissions, progress), loading, !!teacherFetchFailed);
       }
       var badge = document.getElementById('lanternNavMissionsBadge');
       if (badge) {
-        var avail = buildUnifiedMissionItems(missions, teacherMissions, submissions).filter(function(i){ return i.status === 'available'; }).length;
+        var avail = buildUnifiedMissionItems(missions, teacherMissions, submissions, progress).filter(function(i){ return i.status === 'available'; }).length;
         badge.textContent = avail > 0 ? String(avail) : '';
       }
       /* Single authoritative wallet refresh alongside every mission-library reload (no loading placeholder pass),
@@ -1604,19 +1643,20 @@
     function loadMissions(){
       var adopted = getAdopted();
       if (!adopted || !adopted.name){
-        refreshMissionLibrary({}, [], [], false, false);
+        refreshMissionLibrary({}, [], [], false, false, {});
         return;
       }
-      refreshMissionLibrary({}, [], [], true, false);
+      refreshMissionLibrary({}, [], [], true, false, {});
       var characterNameForApi = getCharacterNameForApi() || adopted.name;
       var quickData = {};
       var teacherData = [];
       var subsData = [];
+      var progressData = {};
       var teacherFetchFailed = false;
-      var pending = 3;
+      var pending = 4;
       function done(){
         pending--;
-        if (pending <= 0) refreshMissionLibrary(quickData, filterStaleMissions(teacherData), subsData, false, teacherFetchFailed);
+        if (pending <= 0) refreshMissionLibrary(quickData, filterStaleMissions(teacherData), subsData, false, teacherFetchFailed, progressData);
       }
       callGetMissions(adopted.name).then(function(res){
         quickData = (res && res.missions) || {};
@@ -1647,6 +1687,10 @@
           teacherFetchFailed = true;
           done();
         });
+      });
+      callGetMissionProgress().then(function(pres){
+        if (pres && pres.ok) progressData = pres;
+        done();
       });
       callGetMissionSubmissionsForCharacter(characterNameForApi).then(function(sres){
         if (sres && sres.ok && Array.isArray(sres.submissions)) {

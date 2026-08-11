@@ -97,6 +97,14 @@
     var imageKey = null;
     var statusEl = document.getElementById('createStatus');
     var triviaStatus = document.getElementById('triviaStatus');
+    try {
+      var typeParam = new URLSearchParams(location.search || '').get('type');
+      var typeEl = document.getElementById('createType');
+      if (typeParam && typeEl) {
+        var allowed = { article: 1, news: 1, photo: 1, video: 1, shout_out: 1, achievement: 1 };
+        if (allowed[typeParam]) typeEl.value = typeParam;
+      }
+    } catch (e) {}
 
     function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ''; }
     function setTriviaStatus(msg) { if (triviaStatus) triviaStatus.textContent = msg || ''; }

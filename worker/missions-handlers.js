@@ -29,6 +29,13 @@ import {
   validateMissionSubmissionPayload,
 } from './missions-auth.js';
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
+import {
+  WAVE2_MISSION_IDS,
+  claimDailyCheckInForCharacter,
+  ensureContentApprovedMissionCompletion,
+  ensureFirstGameMissionCompletion,
+  getMissionProgressForCharacter,
+} from './mission-event-completions.js';
 
 function missionRowToJson(r) {
   let target = parseTargetCharacterNames(r.target_character_names);
@@ -219,6 +226,57 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     let list = (rows.results || []).map((r) => missionRowToJson(r));
     list = list.filter((m) => missionVisibleToParticipant(m, identity));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
+  }
+
+  // Prompt #165 — authoritative Wave-2 progress (Denver day + once-ever flags).
+  if (request.method === 'GET' && path === '/api/missions/progress') {
+    const auth = await requireMissionSession(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
+    if (!identity.ok) {
+      return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    try {
+      await ensureFirstGameMissionCompletion(db, env, identity.characterName, null);
+    } catch (_) {}
+    const progress = await getMissionProgressForCharacter(db, identity.characterName, new Date());
+    return jsonResponse(progress, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/missions/daily-checkin') {
+    const auth = await requireMissionSession(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
+    if (!identity.ok) {
+      return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await claimDailyCheckInForCharacter(db, env, identity.characterName, body.choice, new Date());
+    if (!result.ok) {
+      const code = result.error === 'invalid_choice' ? 400 : 500;
+      return jsonResponse({ ok: false, error: result.error }, code, cors);
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        completed: true,
+        idempotent: !!result.idempotent,
+        rewarded: !!result.rewarded,
+        day: result.day,
+        choice: result.choice,
+        timezone: result.timezone,
+        nuggets: result.rewarded || result.reward_idempotent ? 1 : 0,
+        mission_id: WAVE2_MISSION_IDS.DAILY_CHECKIN,
+      },
+      200,
+      cors
+    );
   }
 
   if (request.method === 'GET' && path === '/api/missions/teacher') {
@@ -540,6 +598,13 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (mission.active === 0 || !!mission.archived) return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
     if (!missionVisibleToParticipant(mission, identity)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
+    }
+    // Prompt #165 — Daily Check-In / First Game use dedicated event endpoints, not free-form submit.
+    if (missionId === WAVE2_MISSION_IDS.DAILY_CHECKIN) {
+      return jsonResponse({ ok: false, error: 'use_daily_checkin', message: 'Use Daily Check-In to complete this mission.' }, 400, cors);
+    }
+    if (missionId === WAVE2_MISSION_IDS.FIRST_GAME) {
+      return jsonResponse({ ok: false, error: 'use_games', message: 'Play a paid game to complete this mission.' }, 400, cors);
     }
     const existing = await db
       .prepare(
@@ -873,6 +938,18 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         return jsonResponse(side, 503, cors);
       }
     }
+    // Prompt #165 — once-ever action completion markers (idempotent; no second reward when
+    // an accepted submission already exists for this mission+student).
+    try {
+      const mid = String(row.mission_id || '');
+      if (mid === WAVE2_MISSION_IDS.CREATE_POLL) {
+        await ensureContentApprovedMissionCompletion(db, env, 'poll', row.character_name, id);
+      } else if (mid === WAVE2_MISSION_IDS.SHOUTOUT) {
+        await ensureContentApprovedMissionCompletion(db, env, 'shoutout', row.character_name, id);
+      } else if (mid === WAVE2_MISSION_IDS.FIRST_PHOTO) {
+        await ensureContentApprovedMissionCompletion(db, env, 'photo', row.character_name, id);
+      }
+    } catch (_) {}
     return jsonResponse(
       {
         ok: true,

@@ -300,7 +300,23 @@ function mockEvent() {
   let builtItems = null;
   let sandbox2 = null;
   if (buildFnMatch) {
-    sandbox2 = { todayStr: () => '2026-08-08', console };
+    sandbox2 = {
+      todayStr: () => '2026-08-08',
+      WAVE2_MISSION: {
+        daily: 'perm_daily_checkin',
+        firstGame: 'perm_first_game',
+        grade: 'perm_grade_reflection',
+        photo: 'tmission_1773676581540_qzl0kx',
+        poll: 'perm_create_a_poll',
+        shout: 'perm_shoutout_someone',
+      },
+      DAILY_CHECKIN_CHOICES: ['Ready', 'Okay', 'Tired', 'Need a reset'],
+      openDailyCheckInPicker: function () {},
+      callClaimDailyCheckIn: function () { return Promise.resolve({ ok: true }); },
+      loadMissions: function () {},
+      openMissionSubmitModal: function () {},
+      console,
+    };
     sandbox2.window = sandbox2;
     vm.createContext(sandbox2);
     try {
@@ -308,7 +324,8 @@ function mockEvent() {
       const items = sandbox2.buildUnifiedMissionItems(
         { daily_checkin_last: '', hidden_nugget: false, first_game: false },
         [{ id: 'm1', title: 'Teacher Mission', description: 'Do a thing', reward_amount: 5, submission_type: 'text' }],
-        []
+        [],
+        {}
       );
       builtItems = items;
       const dead = items.filter((i) => i.status === 'available' && typeof i.onActivate !== 'function' && !i.url);
@@ -319,19 +336,16 @@ function mockEvent() {
     }
   } else bad('buildUnifiedMissionItems not found');
 
-  /* ---------- 6b. Prompt #69 RED STOP proof: Thank-You/Grade Reflection no longer route into the
-     legacy localStorage-only thanks.html/grades.html destinations (no cross-device teacher visibility,
-     no real reward path, and — until fixed — an auth-bootstrap redirect to /login). They must instead
-     resolve to a truthful in-place onActivate action, never a url navigation. ---------- */
+  /* ---------- 6b. Prompt #69/#165: Thank-You stays deferred; Grade Reflection is D1 (no quick stub). ---------- */
   if (builtItems) {
     const thankYou = builtItems.find((i) => i.id === 'quick_thank_you');
     const gradeRefl = builtItems.find((i) => i.id === 'quick_grade_reflection');
     if (thankYou && typeof thankYou.onActivate === 'function' && !thankYou.url) {
       ok('Thank-You Letter no longer navigates to the legacy thanks.html destination');
     } else bad('Thank-You Letter still has a url (would hit the legacy/broken destination)', thankYou);
-    if (gradeRefl && typeof gradeRefl.onActivate === 'function' && !gradeRefl.url) {
-      ok('Grade Reflection no longer navigates to the legacy grades.html destination');
-    } else bad('Grade Reflection still has a url (would hit the legacy/broken destination)', gradeRefl);
+    if (!gradeRefl) {
+      ok('Grade Reflection quick stub retired (real D1 mission replaces it)');
+    } else bad('Grade Reflection quick stub still injected', gradeRefl);
   }
 
   /* ---------- 6c. Hidden Nugget keeps working (control case) after all other fixes ---------- */
