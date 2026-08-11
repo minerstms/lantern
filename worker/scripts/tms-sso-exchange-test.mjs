@@ -145,10 +145,10 @@ async function testValidMappedStaffExchangesToNormalSession() {
       if (res.status !== 302 || !setCookie.includes('lantern_pilot=') || !payload || payload.sub !== 'ms_carter' || payload.role !== 'teacher') {
         return bad('valid mapped staff exchanges into normal session', { status: res.status, setCookie, payload });
       }
-      if (res.headers.get('Location') !== '/teacher.html') {
-        return bad('valid exchange with no return defaults to /teacher.html', res.headers.get('Location'));
+      if (res.headers.get('Location') !== '/teacher') {
+        return bad('valid exchange with no return defaults to /teacher', res.headers.get('Location'));
       }
-      ok('valid mapped teacher identity -> 302 + lantern_pilot cookie with correct sub/role, default Location /teacher.html');
+      ok('valid mapped teacher identity -> 302 + lantern_pilot cookie with correct sub/role, default Location /teacher');
     }
   );
 }
@@ -257,11 +257,11 @@ async function testForeignReturnUrlRejected() {
       for (const bad_return of attempts) {
         const res = await exchange(env, { code: 'abc123', return: bad_return });
         const loc = res.headers.get('Location');
-        if (res.status !== 302 || loc !== '/teacher.html') {
-          return bad('unsafe return value must fall back to /teacher.html default, not be honored', { bad_return, status: res.status, loc });
+        if (res.status !== 302 || loc !== '/teacher') {
+          return bad('unsafe return value must fall back to /teacher default, not be honored', { bad_return, status: res.status, loc });
         }
       }
-      ok('foreign/protocol-relative/javascript:/path-traversal/unknown-workspace return values all fall back to safe default /teacher.html (no open redirect)');
+      ok('foreign/protocol-relative/javascript:/path-traversal/unknown-workspace return values all fall back to safe default /teacher (no open redirect)');
     }
   );
 }
@@ -273,10 +273,47 @@ async function testValidDeepLinkReturnPreserved() {
       const teacher = account({ username: 'ms_carter', role: 'teacher' });
       const env = makeEnv({ accounts: { ms_carter: teacher }, identityLinks: { Radle: 'ms_carter' } });
       const res = await exchange(env, { code: 'abc123', return: 'teacher.html#overview' });
-      if (res.status !== 302 || res.headers.get('Location') !== '/teacher.html#overview') {
+      if (res.status !== 302 || res.headers.get('Location') !== '/teacher#overview') {
         return bad('valid Teacher deep link must be preserved', { status: res.status, loc: res.headers.get('Location') });
       }
-      ok('return=teacher.html#overview is preserved exactly as /teacher.html#overview');
+      ok('return=teacher.html#overview is preserved exactly as /teacher#overview');
+    }
+  );
+}
+
+/** Prompt #196 — Behavior Logger Teacher handoff return forms must survive sanitize → Location /teacher. */
+async function testTeacherReturnFormsSurviveIncludingCanonicalAbsolute() {
+  await withMockedRedeem(
+    () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
+    async () => {
+      const teacher = account({ username: 'ms_carter', role: 'teacher' });
+      const env = makeEnv({ accounts: { ms_carter: teacher }, identityLinks: { Radle: 'ms_carter' } });
+      const good = [
+        '/teacher',
+        'teacher',
+        'teacher.html',
+        '/teacher.html',
+        'https://tmslantern.org/teacher',
+        'https://tmslantern.org/teacher.html',
+        'https://tmslantern.org/teacher#economy',
+      ];
+      for (const ret of good) {
+        const res = await exchange(env, { code: 'abc123', return: ret });
+        const loc = res.headers.get('Location');
+        const expect = ret.indexOf('#economy') !== -1 ? '/teacher#economy' : '/teacher';
+        if (res.status !== 302 || loc !== expect) {
+          return bad('Teacher return form must map to /teacher', { ret, status: res.status, loc, expect });
+        }
+      }
+      const lockerish = ['/locker', '/locker.html', '/', 'https://tmslantern.org/', 'https://tmslantern.org/locker'];
+      for (const ret of lockerish) {
+        const res = await exchange(env, { code: 'abc123', return: ret });
+        const loc = res.headers.get('Location');
+        if (res.status !== 302 || loc !== '/teacher') {
+          return bad('Locker/root return must NOT win over Teacher default', { ret, status: res.status, loc });
+        }
+      }
+      ok('#196 Teacher return forms → /teacher; Locker/root returns do not override Teacher default');
     }
   );
 }
@@ -289,10 +326,10 @@ async function testNoReturnDefaultsToNuggets() {
       const env = makeEnv({ accounts: { ms_carter: teacher }, identityLinks: { Radle: 'ms_carter' } });
       const res = await exchange(env, { code: 'abc123' });
       // /teacher.html with no hash lands on the Prompt #91 default workspace (Nuggets) client-side.
-      if (res.status !== 302 || res.headers.get('Location') !== '/teacher.html') {
-        return bad('no-return must default to /teacher.html (Teacher -> Nuggets default)', res.headers.get('Location'));
+      if (res.status !== 302 || res.headers.get('Location') !== '/teacher') {
+        return bad('no-return must default to /teacher (Teacher -> Nuggets default)', res.headers.get('Location'));
       }
-      ok('no return= param -> Location /teacher.html (client-side defaults to Nuggets per Prompt #91)');
+      ok('no return= param -> Location /teacher (client-side defaults to Nuggets per Prompt #91)');
     }
   );
 }
@@ -400,6 +437,7 @@ await testInvalidExpiredConsumedCodeFails();
 await testMissingCodeFailsClosed();
 await testForeignReturnUrlRejected();
 await testValidDeepLinkReturnPreserved();
+await testTeacherReturnFormsSurviveIncludingCanonicalAbsolute();
 await testNoReturnDefaultsToNuggets();
 await testBridgeSecretSentAsBearer();
 await testPrimaryChosenWhenMultipleLinks();

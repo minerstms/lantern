@@ -67,7 +67,8 @@
       }
     }
     if (id === 'teacher') {
-      return ctx === 'tms' ? '#' : '/teacher.html';
+      // Prompt #196 — real Teacher Tools URL (not # / not Locker). SSO click still intercepts on TMS.
+      return ctx === 'tms' ? LANTERN_ORIGIN + '/teacher' : '/teacher.html';
     }
     if (id === 'behavior') {
       return ctx === 'tms' ? 'index.html' : behaviorAuthorizeHref();

@@ -3,6 +3,7 @@
  * Upstream: lantern-api Worker (JWT auth unchanged).
  */
 const UPSTREAM_API = 'https://lantern-api.mrradle.workers.dev';
+const LANTERN_PUBLIC_HOSTS = ['tmslantern.org', 'www.tmslantern.org'];
 
 /**
  * @param {string} cookie One Set-Cookie header value
@@ -19,6 +20,29 @@ function rewriteSetCookieForFirstParty(cookie) {
   if (!/;\s*HttpOnly(?:\s*;|\s*$)/i.test(s)) s += '; HttpOnly';
   if (!/;\s*Path=/i.test(s)) s += '; Path=/';
   return s;
+}
+
+/**
+ * Prompt #196 — keep SSO redirects on the public Pages host.
+ * Upstream fetch may absolutize Location to the workers.dev API host; rewrite those (and
+ * canonical tmslantern.org absolutes) to same-origin relative paths so the browser never
+ * leaves tmslantern.org mid-handoff (which can surface the root Locker-titled interstitial).
+ * @param {string} locationHeader
+ * @returns {string}
+ */
+function rewriteLocationForFirstParty(locationHeader) {
+  if (!locationHeader || typeof locationHeader !== 'string') return locationHeader;
+  const raw = locationHeader.trim();
+  if (!raw || raw.charAt(0) === '/') return raw;
+  try {
+    const upstreamOrigin = new URL(UPSTREAM_API).origin;
+    const loc = new URL(raw, upstreamOrigin);
+    const host = String(loc.hostname || '').toLowerCase();
+    if (loc.origin === upstreamOrigin || LANTERN_PUBLIC_HOSTS.indexOf(host) !== -1) {
+      return loc.pathname + loc.search + loc.hash;
+    }
+  } catch (_) {}
+  return raw;
 }
 
 /**
@@ -40,7 +64,12 @@ function collectSetCookies(upstream) {
 function buildProxiedResponse(upstream) {
   const headers = new Headers();
   for (const [key, value] of upstream.headers) {
-    if (key.toLowerCase() === 'set-cookie') continue;
+    const k = key.toLowerCase();
+    if (k === 'set-cookie') continue;
+    if (k === 'location') {
+      headers.append(key, rewriteLocationForFirstParty(value));
+      continue;
+    }
     headers.append(key, value);
   }
   const cookies = collectSetCookies(upstream);

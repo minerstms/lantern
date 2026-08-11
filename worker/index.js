@@ -1060,19 +1060,38 @@ function pilotEconomyCharacterName(row) {
 const TMS_EXCHANGE_ALLOWED_WORKSPACES = ['overview', 'review', 'create', 'missions', 'moderation', 'economy', 'other'];
 
 /**
- * Server-controlled return-target validation for the TMS exchange redirect. Always returns a
- * same-origin relative path starting with "/teacher.html" -- never trusts the caller's `return`
- * value directly. Any input that is not exactly "teacher.html" or "teacher.html#<known-workspace>"
- * (with or without a leading slash) falls back to the Teacher default (Nuggets). No open redirect.
+ * Server-controlled return-target validation for the TMS exchange redirect (Prompt #94 / #196).
+ * Always returns a same-origin relative Teacher Tools path — never trusts the caller's `return`
+ * value directly. Accepts teacher / /teacher / teacher.html / /teacher.html (optional #workspace)
+ * and canonical https://tmslantern.org/teacher[…] URLs. Everything else falls back to /teacher.
+ * Default is extensionless /teacher so Cloudflare Pages does not insert an extra .html→pretty-URL
+ * 308 hop after Set-Cookie (mobile Custom Tabs). No open redirect.
  */
 function sanitizeTmsExchangeReturnTarget(raw) {
-  const DEFAULT_TARGET = '/teacher.html';
-  const s = String(raw || '').trim();
-  if (!s || s === 'teacher.html' || s === '/teacher.html') return DEFAULT_TARGET;
-  const prefixes = ['teacher.html#', '/teacher.html#'];
-  const matchedPrefix = prefixes.find(p => s.indexOf(p) === 0);
-  if (!matchedPrefix) return DEFAULT_TARGET;
-  const workspace = s.slice(matchedPrefix.length).trim();
+  const DEFAULT_TARGET = '/teacher';
+  let s = String(raw || '').trim();
+  if (!s) return DEFAULT_TARGET;
+  // Absolute URLs: only canonical Lantern public host; strip to path+hash.
+  if (/^https?:\/\//i.test(s) || s.indexOf('//') === 0) {
+    try {
+      const u = new URL(s.indexOf('//') === 0 ? 'https:' + s : s);
+      const host = String(u.hostname || '').toLowerCase();
+      if (host !== 'tmslantern.org' && host !== 'www.tmslantern.org') return DEFAULT_TARGET;
+      s = (u.pathname || '/') + (u.hash || '');
+    } catch (_) {
+      return DEFAULT_TARGET;
+    }
+  }
+  // Normalize path (drop trailing slash except root); keep hash.
+  const hashIdx = s.indexOf('#');
+  let pathOnly = hashIdx >= 0 ? s.slice(0, hashIdx) : s;
+  const hashPart = hashIdx >= 0 ? s.slice(hashIdx + 1) : '';
+  pathOnly = pathOnly.replace(/\/$/, '') || '/';
+  if (pathOnly.charAt(0) !== '/') pathOnly = '/' + pathOnly;
+  const teacherPaths = ['/teacher', '/teacher.html'];
+  if (teacherPaths.indexOf(pathOnly) === -1) return DEFAULT_TARGET;
+  if (!hashPart) return DEFAULT_TARGET;
+  const workspace = hashPart.trim();
   if (!workspace || TMS_EXCHANGE_ALLOWED_WORKSPACES.indexOf(workspace) === -1) return DEFAULT_TARGET;
   return DEFAULT_TARGET + '#' + workspace;
 }
@@ -1111,8 +1130,11 @@ function sanitizeTmsDeviceAuthorizeReturn(raw) {
     params.set('intent', intent);
   }
   const lanternReturn = String(u.searchParams.get('lantern_return') || '').trim();
+  // Prompt #196 — reject bare "/" (root interstitial / Locker-titled index) so Remember-device
+  // return never dumps staff on https://tmslantern.org/ after Behavior Logger trust.
   if (
     lanternReturn.charAt(0) === '/' &&
+    lanternReturn !== '/' &&
     lanternReturn.indexOf('//') !== 0 &&
     lanternReturn.indexOf('/login') !== 0
   ) {
