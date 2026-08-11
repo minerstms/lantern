@@ -118,8 +118,9 @@
   border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.12));
   position: sticky;
   top: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 1;
+  /* Prompt #206 — solid opaque navy so scrolling rows cannot show through. */
+  background: #132038;
+  z-index: 2;
 }
 .lanternMgmtRecordListHd--staff {
   grid-template-columns: minmax(72px, 0.65fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(64px, 0.55fr) minmax(110px, 1.1fr) minmax(88px, 0.75fr) 28px;
