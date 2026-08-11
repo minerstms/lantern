@@ -61,21 +61,81 @@
     .cardHd .h{ font-weight: 900; font-size: 26px; letter-spacing: .2px; }
     .cardBd{ padding: 16px; }
     #contributeUnifiedBd.cardBd{ padding: 10px 12px 12px; }
+    /*
+     * Prompt #157 — Create form-control contract (ONE visual system).
+     * Labels stay prominent; control CONTENT uses ordinary readable typography.
+     * Form input prominence != published card / "When opened" preview typography.
+     */
+    :root{
+      --create-control-fs: 22px;
+      --create-control-fw: 400;
+      --create-control-lh: 1.35;
+      --create-control-pad-y: 12px;
+      --create-control-pad-x: 14px;
+      --create-control-radius: 14px;
+      --create-control-border: 1px solid var(--line);
+      --create-control-bg: rgba(0,0,0,.25);
+      --create-control-color: var(--ink);
+      --create-control-placeholder: rgba(185,198,234,.72);
+      --create-control-focus-border: rgba(56,208,124,.65);
+      --create-control-focus-ring: 0 0 0 3px rgba(56,208,124,.2);
+      --create-textarea-min-h: 160px;
+      --create-textarea-lh: 1.5;
+    }
     .wrap.lanternContent label{ display: block; font-weight: 800; color: var(--muted); font-size: 22px; margin: 0 0 6px 2px; }
     .wrap.lanternContent input[type="text"],
     .wrap.lanternContent select,
     .wrap.lanternContent textarea,
-    .wrap.lanternContent input[type="url"]{
+    .wrap.lanternContent input[type="url"],
+    .wrap.lanternContent input.pollOptInput,
+    .wrap.lanternContent input.studioHeadlineInput,
+    .wrap.lanternContent textarea.studioBodyInput{
       width: 100%;
-      padding: 12px 14px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.25);
-      color: var(--ink);
-      font-size: 22px;
+      box-sizing: border-box;
+      padding: var(--create-control-pad-y) var(--create-control-pad-x);
+      border-radius: var(--create-control-radius);
+      border: var(--create-control-border);
+      background: var(--create-control-bg);
+      color: var(--create-control-color);
+      font-size: var(--create-control-fs);
+      font-weight: var(--create-control-fw);
+      line-height: var(--create-control-lh);
       font-family: inherit;
     }
-    .wrap.lanternContent textarea{ min-height: 160px; resize: vertical; line-height: 1.5; }
+    .wrap.lanternContent input[type="text"]::placeholder,
+    .wrap.lanternContent input[type="url"]::placeholder,
+    .wrap.lanternContent textarea::placeholder,
+    .wrap.lanternContent input.studioHeadlineInput::placeholder,
+    .wrap.lanternContent textarea.studioBodyInput::placeholder,
+    .wrap.lanternContent input.pollOptInput::placeholder{
+      color: var(--create-control-placeholder);
+      font-size: var(--create-control-fs);
+      font-weight: var(--create-control-fw);
+      opacity: 1;
+    }
+    .wrap.lanternContent textarea,
+    .wrap.lanternContent textarea.studioBodyInput{
+      min-height: var(--create-textarea-min-h);
+      resize: vertical;
+      line-height: var(--create-textarea-lh);
+    }
+    #contributeUnifiedBd input[type="text"]:focus,
+    #contributeUnifiedBd input[type="url"]:focus,
+    #contributeUnifiedBd select:focus,
+    #contributeUnifiedBd textarea:focus,
+    #contributeUnifiedBd input.studioHeadlineInput:focus,
+    #contributeUnifiedBd textarea.studioBodyInput:focus,
+    #contributeUnifiedBd input.pollOptInput:focus{
+      outline: none;
+      border-color: var(--create-control-focus-border);
+      box-shadow: var(--create-control-focus-ring);
+    }
+    #contributeUnifiedBd input:disabled,
+    #contributeUnifiedBd select:disabled,
+    #contributeUnifiedBd textarea:disabled{
+      opacity: .55;
+      cursor: not-allowed;
+    }
     .btn{
       height: 56px;
       padding: 0 24px;
@@ -296,16 +356,12 @@
     #contributePostIdentityCategory{
       margin-bottom: 0;
     }
-    /* Primary body: compact but readable; canonical card body is below title/identity on preview */
+    /* Primary body: compact but readable; typography still matches --create-control-* */
     #contributeUnifiedBd textarea.studioBodyInput{
-      min-height: 120px !important;
+      min-height: 120px;
     }
     #contributeUnifiedBd #profilePostCaption.studioBodyInput{
-      min-height: 88px !important;
-    }
-    #contributeUnifiedBd #newsTitle.studioHeadlineInput,
-    #contributeUnifiedBd input.studioHeadlineInput{
-      min-height: 52px;
+      min-height: 88px;
     }
     .contributeVariantFullRow{
       grid-column: 1 / -1;
@@ -641,33 +697,22 @@
       margin-top: 14px;
     }
     .studioEditorZone label:first-of-type{ margin-top: 0; }
+    /*
+     * Prompt #157 — studioHeadlineInput / studioBodyInput are semantic class names only.
+     * They must NOT invent louder typography than ordinary Create controls.
+     * Published preview titles remain bold via #studioFullPreview / card CSS.
+     */
     #newsTitle.studioHeadlineInput,
-    input.studioHeadlineInput{
-      margin-top: 8px;
-      font-size: 26px !important;
-      font-weight: 800;
-      min-height: 52px;
-      padding: 12px 14px !important;
-      border: 2px solid rgba(90,167,255,.5) !important;
-      background: rgba(0,0,0,.45) !important;
-      color: #fff !important;
-    }
+    input.studioHeadlineInput,
     #newsBody.studioBodyInput,
     textarea.studioBodyInput{
       margin-top: 8px;
-      min-height: 160px;
-      font-size: 22px !important;
-      line-height: 1.45;
-      padding: 14px !important;
-      border: 2px solid rgba(90,167,255,.4) !important;
-      background: rgba(0,0,0,.45) !important;
-      color: #eaf0ff !important;
-    }
-    #newsTitle.studioHeadlineInput:focus,
-    #newsBody.studioBodyInput:focus{
-      outline: none;
-      border-color: rgba(56,208,124,.65) !important;
-      box-shadow: 0 0 0 3px rgba(56,208,124,.2);
+      font-size: var(--create-control-fs);
+      font-weight: var(--create-control-fw);
+      padding: var(--create-control-pad-y) var(--create-control-pad-x);
+      border: var(--create-control-border);
+      background: var(--create-control-bg);
+      color: var(--create-control-color);
     }
     .studioColLabel{ font-weight: 900; font-size: 22px; color: var(--muted); margin-bottom: 10px; }
     .purposeChips{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -1098,7 +1143,7 @@
           <!-- Prompt #117 ARCHIVE: Profile post (Locker) left fields — kept dormant; not selectable in contributeTypeSelect. -->
           <div class="contributeFieldStack">
               <label for="profilePostType">Post type</label>
-              <select id="profilePostType" style="width:100%;margin-bottom:0;font-size:22px;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:inherit;">
+              <select id="profilePostType">
                 <option value="image">Image</option>
                 <option value="link">Link</option>
                 <option value="video">Video</option>
@@ -1107,7 +1152,7 @@
               </select>
               <div class="checkboxRow" style="margin-top:4px;display:flex;align-items:center;gap:10px;">
                 <input type="checkbox" id="profilePostPinned" />
-                <label for="profilePostPinned" style="margin:0;font-size:22px;">Pin on profile</label>
+                <label for="profilePostPinned" style="margin:0;">Pin on profile</label>
               </div>
           </div>
         </div>
@@ -1162,11 +1207,11 @@
         <div id="variantProfilePostRight" class="contributeVariant" style="display:none;" data-lantern-archived-feature="profile_post" aria-hidden="true">
           <!-- Prompt #117 ARCHIVE: Profile post (Locker) right fields — kept dormant. -->
           <label for="profilePostTitle">Title</label>
-          <input type="text" id="profilePostTitle" class="studioHeadlineInput" placeholder="Post title" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+          <input type="text" id="profilePostTitle" class="studioHeadlineInput" placeholder="Post title" maxlength="200" />
           <label for="profilePostUrl" style="margin-top:0;">URL (image, link, video, or app)</label>
-          <input type="url" id="profilePostUrl" placeholder="https://…" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+          <input type="url" id="profilePostUrl" placeholder="https://…" />
           <label for="profilePostCaption" style="margin-top:10px;">Caption</label>
-          <textarea id="profilePostCaption" class="studioBodyInput" placeholder="Optional caption" rows="6" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;"></textarea>
+          <textarea id="profilePostCaption" class="studioBodyInput" placeholder="Optional caption" rows="6"></textarea>
         </div>
 
         <div id="variantMissionRight" class="contributeVariant" style="display:none;">
@@ -1190,29 +1235,29 @@
               </div>
               <div id="missionSubmitLinkPreview" style="display:none;"><a id="missionSubmitLinkPreviewA" href="#"></a></div>
               <div id="missionUnifiedMediaOuter" style="display:none;">
-                <label id="missionUnifiedMediaLabel" style="display:block;font-weight:800;margin-bottom:8px;font-size:22px;">Add photo, video, or link</label>
+                <label id="missionUnifiedMediaLabel" style="display:block;margin-bottom:8px;">Add photo, video, or link</label>
                 <div id="missionUnifiedMediaMount"></div>
               </div>
               <div id="missionSubmitPollWrap" style="display:none;">
-                <label for="missionSubmitPollQuestion" style="font-size:22px;">Poll question</label>
-                <input type="text" id="missionSubmitPollQuestion" placeholder="What do you want to ask the school?" maxlength="500" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
-                <p style="margin:14px 0 6px 0;font-weight:800;color:var(--muted);font-size:22px;">Answer choices (2–4)</p>
-                <input type="text" id="missionSubmitPollChoice1" placeholder="Choice 1" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
-                <input type="text" id="missionSubmitPollChoice2" placeholder="Choice 2" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
-                <input type="text" id="missionSubmitPollChoice3" placeholder="Choice 3 (optional)" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
-                <input type="text" id="missionSubmitPollChoice4" placeholder="Choice 4 (optional)" maxlength="200" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;margin-bottom:8px;font-family:inherit;" />
-                <label style="margin-top:14px;font-size:22px;">Poll image (required)</label>
+                <label for="missionSubmitPollQuestion">Poll question</label>
+                <input type="text" id="missionSubmitPollQuestion" placeholder="What do you want to ask the school?" maxlength="500" />
+                <p class="studioPanelMicro" style="margin:14px 0 6px 0;">Answer choices (2–4)</p>
+                <input type="text" id="missionSubmitPollChoice1" class="pollOptInput" placeholder="Choice 1" maxlength="200" style="margin-bottom:8px;" />
+                <input type="text" id="missionSubmitPollChoice2" class="pollOptInput" placeholder="Choice 2" maxlength="200" style="margin-bottom:8px;" />
+                <input type="text" id="missionSubmitPollChoice3" class="pollOptInput" placeholder="Choice 3 (optional)" maxlength="200" style="margin-bottom:8px;" />
+                <input type="text" id="missionSubmitPollChoice4" class="pollOptInput" placeholder="Choice 4 (optional)" maxlength="200" style="margin-bottom:8px;" />
+                <label style="margin-top:14px;">Poll image (required)</label>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-                  <input type="url" id="missionSubmitPollImageUrl" placeholder="Image URL or library" style="flex:1;min-width:0;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;" />
+                  <input type="url" id="missionSubmitPollImageUrl" placeholder="Image URL or library" style="flex:1;min-width:0;" />
                   <button type="button" class="btn small" id="missionSubmitPollLibraryBtn">Library</button>
                 </div>
                 <div id="missionSubmitPollImagePreview" style="display:none;margin-top:10px;"><img id="missionSubmitPollImagePreviewImg" alt="" style="max-height:160px;border-radius:12px;" /></div>
               </div>
               <div id="missionSubmitBugReportWrap" style="display:none;">
-                <label for="missionSubmitBugReportDesc" style="font-size:22px;">Description (required)</label>
-                <textarea id="missionSubmitBugReportDesc" placeholder="Describe the bug or issue…" style="min-height:120px;width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;"></textarea>
-                <label for="missionSubmitBugReportScreenshot" style="margin-top:14px;font-size:22px;">Screenshot URL (optional)</label>
-                <input type="url" id="missionSubmitBugReportScreenshot" placeholder="https://…" style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-size:22px;font-family:inherit;margin-top:8px;" />
+                <label for="missionSubmitBugReportDesc">Description (required)</label>
+                <textarea id="missionSubmitBugReportDesc" placeholder="Describe the bug or issue…" style="min-height:120px;"></textarea>
+                <label for="missionSubmitBugReportScreenshot" style="margin-top:14px;">Screenshot URL (optional)</label>
+                <input type="url" id="missionSubmitBugReportScreenshot" placeholder="https://…" style="margin-top:8px;" />
               </div>
               <button class="btn good" id="missionSubmitBtn" type="button" style="width:100%;margin-top:12px;">Submit mission</button>
             </div>
