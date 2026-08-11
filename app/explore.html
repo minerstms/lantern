@@ -14,8 +14,8 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
-  <link rel="stylesheet" href="css/lantern-feed.css?v=20260810-explorecompact">
-  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260810-explorecompact">
+  <link rel="stylesheet" href="css/lantern-feed.css?v=20260811-exploreheaderfilters">
+  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260811-exploreheaderfilters">
   <link rel="stylesheet" href="css/lantern-reactions.css">
   <style>
     :root {
@@ -60,14 +60,8 @@
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
       <main class="lanternExploreSurface" data-surface-context="explore" data-help="explore">
       <div class="lanternExplorePageContainer">
-      <header class="feedHeading feedHeading--exploreCompact" aria-label="Feed controls">
-        <div class="feedHeadingRow">
-          <h1 class="feedPageTitle">Lantern</h1>
-          <div class="feedHeadingControls">
-            <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
-            <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
-          </div>
-        </div>
+      <!-- Prompt #187 — body title / count / Filters control removed; Filters lives in Explore header. -->
+      <header class="feedHeading feedHeading--exploreHeaderFilters" aria-label="Feed filters">
         <div id="feedFiltersPanel" class="feedFiltersPanel" hidden>
           <div class="feedFiltersToolbarRow">
             <select id="feedSortSelect" class="feedSortSelect" aria-label="Sort feed">
@@ -102,7 +96,7 @@
   </div>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
-  <script src="js/lantern-nav.js?v=20260808-feedlayout"></script>
+  <script src="js/lantern-nav.js?v=20260811-exploreheaderfilters"></script>
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-ticker.js"></script>
@@ -114,7 +108,7 @@
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-feed-card.js"></script>
   <script src="js/lantern-surface-theme.js?v=20260808-feedlayout"></script>
-  <script src="js/lantern-feed-explore.js?v=20260808-feedlayout"></script>
+  <script src="js/lantern-feed-explore.js?v=20260811-exploreheaderfilters"></script>
   <script>
   (function () {
     function boot() {

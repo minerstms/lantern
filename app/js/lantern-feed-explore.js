@@ -112,7 +112,8 @@
       if (!global.LANTERN_FEED || state.loading) return;
       state.loading = true;
       var status = el('feedStatus');
-      if (status) status.textContent = 'Loading…';
+      /* Prompt #187 — Explore has no visible item count; Locker (#185) still shows live count. */
+      if (status && context === 'locker') status.textContent = 'Loading…';
       var req;
       if (context === 'locker' && global.LANTERN_FEED.getLockerPersonalFeed) {
         req = global.LANTERN_FEED.getLockerPersonalFeed({
@@ -132,15 +133,15 @@
       }
       req.then(function (res) {
         state.loading = false;
-        if (status) status.textContent = '';
+        if (status && context === 'locker') status.textContent = '';
         if (!res || !res.ok) {
-          if (status) status.textContent = 'Could not load feed.';
+          if (status && context === 'locker') status.textContent = 'Could not load feed.';
           state.items = [];
           renderGrid();
           return;
         }
         state.items = res.items || [];
-        if (status) {
+        if (status && context === 'locker') {
           status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
         }
         /* Prompt #158 — resolve canonical author avatars before paint when available. */

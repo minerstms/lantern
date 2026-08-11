@@ -149,11 +149,20 @@
     var ctxClass = 'lanternAppBarContext' + (contextText ? '' : ' lanternAppBarContext--empty');
     var context = '<div class="' + ctxClass + '" id="lanternAppBarContext">' + (contextText || '') + '</div>';
     var searchWrap = '<div class="lanternAppBarSearchWrap" id="lanternExploreSearchWrap"><span class="lanternAppBarSearchTrigger" id="lanternExploreSearchTrigger" role="button" tabindex="0" aria-label="Search">&#128269;</span><input type="text" class="lanternAppBarSearchInput" id="lanternExploreSearch" placeholder="Search Lantern..." aria-label="Search Lantern"></div>';
+    /* Prompt #187 — Explore-only Filters sits immediately right of Search (same existing disclosure). */
+    var exploreFilters =
+      current === 'explore'
+        ? '<button type="button" class="lanternAppBarFiltersBtn" id="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>'
+        : '';
+    var searchCluster =
+      current === 'explore'
+        ? '<div class="lanternAppBarSearchFilters">' + searchWrap + exploreFilters + '</div>'
+        : searchWrap;
     // Prompt #185 — keep Needs Attention bell; remove header avatar + Help Mode slot (desktop + phone).
     var bellBtn = '<button type="button" class="lanternAppBarIconBtn" id="lanternExploreBell" style="display:none" aria-hidden="true" aria-label="Needs attention">&#128276;</button>';
     var right = '<div class="lanternAppBarRight">' + bellBtn + '</div>';
     return '<div class="lanternAppBar lanternAppBarExplore" id="lanternAppBar">' +
-      '<div class="lanternAppBarInner">' + left + context + searchWrap + right + '</div></div>';
+      '<div class="lanternAppBarInner">' + left + context + searchCluster + right + '</div></div>';
   }
 
   function buildBar() {
@@ -211,6 +220,13 @@
       '.lanternNavBadge:empty{ display: none; }',
       '/* Header + in-page: same max width (~320px); do not flex-grow to full row. */',
       '.lanternAppBar .lanternAppBarSearchWrap{ flex: 0 1 var(--lantern-appbar-search-max); min-width: 0; max-width: var(--lantern-appbar-search-max); margin: 0 12px; display: flex; align-items: center; gap: 0; transition: max-width .2s ease; }',
+      /* Prompt #187 — Explore Search + Filters as one compact action cluster */
+      '.lanternAppBarSearchFilters{ display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; max-width: calc(var(--lantern-appbar-search-max) + 96px); }',
+      '.lanternAppBarSearchFilters .lanternAppBarSearchWrap{ margin: 0; flex: 1 1 auto; min-width: 0; max-width: var(--lantern-appbar-search-max); }',
+      '.lanternAppBarFiltersBtn{ flex: 0 0 auto; background: transparent; border: none; color: ' + NAV.white + '; font-size: 16px; font-weight: 800; font-family: inherit; line-height: 1.2; padding: 6px 4px; margin: 0; border-radius: 8px; cursor: pointer; white-space: nowrap; min-height: 36px; -webkit-tap-highlight-color: transparent; }',
+      '.lanternAppBarFiltersBtn:hover{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.08); }',
+      '.lanternAppBarFiltersBtn:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; }',
+      '.lanternAppBarFiltersBtn[aria-expanded="true"]{ color: ' + NAV.columbiaBlue + '; }',
       '.lanternAppBar .lanternAppBarSearchTrigger{ display: none; }',
       '.lanternAppBarSearchInput{ width: 100%; max-width: 100%; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background: rgba(0,0,0,.25); color: ' + NAV.white + '; font-size: 16px; font-weight: 700; font-family: inherit; transition: width .2s ease, padding .2s ease, opacity .2s ease; box-sizing: border-box; }',
       '.lanternAppBarSearchInput::placeholder{ color: rgba(255,255,255,.6); }',
@@ -222,9 +238,9 @@
       '.lanternAppBarIconBtn:hover{ background: rgba(255,255,255,.1); color: ' + NAV.columbiaBlue + '; }',
       '.lanternAppBarBell--inactive{ visibility: hidden; opacity: 0; pointer-events: none; }',
       '@media (max-width: 900px){ .lanternAppBar .lanternAppBarSearchWrap{ max-width: var(--lantern-appbar-search-max); } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: var(--lantern-appbar-search-max); } }',
-      '@media (max-width: 768px){ .lanternAppBarExplore .lanternAppBarInner{ flex-wrap: nowrap; gap: 10px; } .lanternAppBar .lanternAppBarSearchWrap{ margin: 0 6px; } }',
-      '@media (max-width: 560px){ .lanternAppBarInner{ gap: 8px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; margin: 0 4px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } .lanternAppBarBrandMenu .lanternAppBarHomeLink{ font-size: 16px; padding: 8px 10px 8px 12px; } }',
-      '@media (max-width: 480px){ .lanternAppBarInner{ gap: 6px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; margin: 0; } .lanternAppBar .lanternAppBarSearchTrigger{ display: flex; align-items: center; justify-content: center; width: 44px; height: 36px; flex-shrink: 0; cursor: pointer; font-size: 20px; color: rgba(255,255,255,.9); } .lanternAppBar .lanternAppBarSearchTrigger:hover{ color: ' + NAV.columbiaBlue + '; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ width: 0; min-width: 0; padding: 0 8px; font-size: 14px; opacity: 0; pointer-events: none; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded{ max-width: min(220px, calc(100vw - 150px)); flex: 1; min-width: 0; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchInput{ width: 100%; min-width: 80px; padding: 6px 12px; opacity: 1; pointer-events: auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchTrigger{ display: none; } }',
+      '@media (max-width: 768px){ .lanternAppBarExplore .lanternAppBarInner{ flex-wrap: nowrap; gap: 10px; } .lanternAppBar .lanternAppBarSearchWrap{ margin: 0 6px; } .lanternAppBarSearchFilters{ gap: 4px; } }',
+      '@media (max-width: 560px){ .lanternAppBarInner{ gap: 8px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; margin: 0 4px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBarSearchFilters{ max-width: calc(200px + 88px); } .lanternAppBarSearchFilters .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: auto; margin: 0; } .lanternAppBarFiltersBtn{ font-size: 15px; padding: 6px 2px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } .lanternAppBarBrandMenu .lanternAppBarHomeLink{ font-size: 16px; padding: 8px 10px 8px 12px; } }',
+      '@media (max-width: 480px){ .lanternAppBarInner{ gap: 6px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; margin: 0; } .lanternAppBarSearchFilters{ max-width: none; gap: 2px; } .lanternAppBarSearchFilters .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; } .lanternAppBarFiltersBtn{ font-size: 14px; padding: 6px 0; } .lanternAppBar .lanternAppBarSearchTrigger{ display: flex; align-items: center; justify-content: center; width: 44px; height: 36px; flex-shrink: 0; cursor: pointer; font-size: 20px; color: rgba(255,255,255,.9); } .lanternAppBar .lanternAppBarSearchTrigger:hover{ color: ' + NAV.columbiaBlue + '; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ width: 0; min-width: 0; padding: 0 8px; font-size: 14px; opacity: 0; pointer-events: none; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded{ max-width: min(220px, calc(100vw - 150px)); flex: 1; min-width: 0; } .lanternAppBarSearchFilters .lanternAppBarSearchWrap.is-expanded{ max-width: min(180px, calc(100vw - 200px)); flex: 1 1 auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchInput{ width: 100%; min-width: 80px; padding: 6px 12px; opacity: 1; pointer-events: auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchTrigger{ display: none; } }',
     ].join('\n');
     document.head.appendChild(s);
   }

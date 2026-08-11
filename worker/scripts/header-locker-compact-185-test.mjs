@@ -51,8 +51,8 @@ assert(/feedFiltersPanel/.test(lockerHeading), 'Filters panel retained');
 assert(/feedHeadingControls--inline/.test(feedCss), 'Inline controls CSS present');
 assert(/feedHeading--lockerCompact/.test(feedCss), 'Locker compact CSS present');
 assert(
-  /status\.textContent = state\.items\.length \+ ' item'/.test(feedExploreJs),
-  'Live item count singular/plural still driven by feed explore'
+  /context === 'locker'[\s\S]{0,200}status\.textContent = state\.items\.length \+ ' item'/.test(feedExploreJs),
+  'Live item count singular/plural still driven by feed explore (Locker only)'
 );
 
 assert(!/lanternHelpSlot/.test(navJs), 'Canonical nav no longer mounts Help Mode slot');

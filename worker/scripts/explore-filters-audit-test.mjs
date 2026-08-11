@@ -30,9 +30,10 @@ const ARCHIVED = ['Game Scores', 'Leaderboards', 'Achievements', 'Trivia'];
 
 assert(!exploreHtml.includes('One feed — filter and sort approved Lantern content.'), '1. helper sentence absent');
 assert(!/feedPageSub/.test(exploreHtml), '2. no Explore feedPageSub helper markup (dead spacing source removed)');
-assert(exploreHtml.includes('feedHeadingControls') && /feedHeadingControls[\s\S]*?id="feedStatus"/.test(exploreHtml), '2b. status/count in compact heading controls (#169)');
-assert(!/feedMetaRow/.test(exploreHtml), '2c. obsolete Explore feedMetaRow wrapper removed (#169)');
-assert(feedCss.includes('.feedHeadingControls') && feedCss.includes('feedHeading--exploreCompact'), '2d. compact Explore heading CSS present');
+assert(/feedHeading--exploreHeaderFilters/.test(exploreHtml) && /id="feedFiltersPanel"/.test(exploreHtml), '2b. Explore filters panel under compact header-filters host (#187)');
+assert(!/id="feedStatus"/.test(exploreHtml), '2c. Explore visible item count removed (#187)');
+assert(!/feedMetaRow/.test(exploreHtml), '2d. obsolete Explore feedMetaRow wrapper removed (#169)');
+assert(feedCss.includes('feedHeading--exploreHeaderFilters'), '2e. Explore header-filters CSS present');
 
 assert(JSON.stringify(EXPLORE_FEED_FILTERS.map((f) => f.label)) === JSON.stringify(EXPECTED), '3–10. Explore filter labels exact order', JSON.stringify(EXPLORE_FEED_FILTERS.map((f) => f.label)));
 assert(JSON.stringify(EXPLORE_FEED_FILTERS.map((f) => f.id)) === JSON.stringify(EXPECTED_IDS), 'filter ids exact order');
@@ -165,7 +166,8 @@ const newest = filterFeedItems(sample, { sort: 'newest' });
 assert(newest.length === sample.length, '18b. newest sort functional');
 
 assert(exploreHtml.includes('feedSortSelect') && exploreHtml.includes('feedRefreshBtn'), '18c. sort/Refresh markup retained');
-assert(exploreHtml.includes('id="feedStatus"'), '18d. item count host retained');
+assert(!exploreHtml.includes('id="feedStatus"'), '18d. Explore item count host removed (#187)');
+assert(read('app/locker.html').includes('id="feedStatus"'), '18e. Locker item count host retained');
 
 console.log('\nexplore-filters-audit-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

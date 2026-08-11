@@ -143,6 +143,25 @@
   line-height: 1.2;
 }
 
+/* Prompt #187 — Explore body chrome removed; only filter panel remains above cards */
+.feedHeading--exploreHeaderFilters {
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.feedHeading--exploreHeaderFilters .feedFiltersPanel {
+  margin-top: 0;
+  margin-bottom: var(--lantern-space-sm, 12px);
+  padding-top: 10px;
+}
+
+.feedHeading--exploreHeaderFilters .feedFiltersPanel[hidden] {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 .feedPageTitle {
   font-size: 32px;
   font-weight: 900;
