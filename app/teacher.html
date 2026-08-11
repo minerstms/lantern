@@ -2154,10 +2154,7 @@
             <label for="shoutOutMessage">Message (max 250 characters)</label>
             <textarea id="shoutOutMessage" class="teacherTextarea" placeholder="Short positive message…" maxlength="250"></textarea>
           </div>
-          <div class="teacherField">
-            <label for="shoutOutCategory">Category (optional)</label>
-            <input type="text" id="shoutOutCategory" class="teacherInput" placeholder="e.g. Kindness, Effort" autocomplete="off" style="max-width:240px;" />
-          </div>
+          <!-- Prompt #186: Shout-Out category removed from Create/teacher Shout-Out UI. -->
           <div class="teacherField">
             <label for="shoutOutMediaMount">Add photo, video, or link</label>
             <div id="shoutOutMediaMount" aria-label="Add photo, video, or link"></div>
@@ -6113,7 +6110,6 @@
           if (avatarApiBase === null){ toast('Shout-Out requires Lantern API'); return; }
           var student = (el('shoutOutStudentSelect') && el('shoutOutStudentSelect').value || '').trim();
           var message = (el('shoutOutMessage') && el('shoutOutMessage').value || '').trim();
-          var category = (el('shoutOutCategory') && el('shoutOutCategory').value || '').trim();
           if (!student){ toast('Select a student'); return; }
           if (DEMO_BLOCK[student.toLowerCase()]){ toast('That student is not available'); return; }
           if (!message){ toast('Write a message'); return; }
@@ -6123,7 +6119,7 @@
             var payload = {
               character_name: student,
               message: message,
-              category: category || undefined
+              category: null
             };
             if (shoutVideoFile) {
               btn.textContent = 'Uploading video…';
@@ -6159,7 +6155,6 @@
             if (!res || !res.ok){ toast((res && res.error) || 'Failed to post shout-out'); btn.disabled = false; btn.textContent = 'Post Shout-Out!'; return; }
             toast('Shout-Out posted');
             if (el('shoutOutMessage')) el('shoutOutMessage').value = '';
-            if (el('shoutOutCategory')) el('shoutOutCategory').value = '';
             if (el('shoutOutStudentSelect')) el('shoutOutStudentSelect').value = '';
             clearShoutMediaState();
             if (shoutUnifiedField) shoutUnifiedField.clearPreview();

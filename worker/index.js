@@ -5050,11 +5050,31 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    // Prompt #186 — submission identity/authorization from authenticated session only.
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+    }
+    const sessionRole = String(account.role || '').trim().toLowerCase();
+    // Preserve historic news publisher set (teacher/staff/admin). Do not widen isTeacherLike.
+    const NEWS_PUBLISHER_ROLES = ['teacher', 'staff', 'admin'];
+    const authorType = NEWS_PUBLISHER_ROLES.includes(sessionRole) ? sessionRole : 'student';
+    const clientClaim = (body.author_type || '').trim().toLowerCase();
+    if (clientClaim && NEWS_PUBLISHER_ROLES.includes(clientClaim) && authorType === 'student') {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const title = (body.title || '').trim();
     const articleBody = (body.body || '').trim();
-    const actorId = (body.actor_id || '').trim();
-    const authorName = (body.author_name || '').trim();
-    const authorType = (body.author_type || 'student').trim().toLowerCase();
+    let authorName = '';
+    if (authorType === 'student') {
+      authorName = String(account.student_character_name || body.author_name || account.display_name || account.username || '').trim();
+    } else {
+      authorName = String(account.display_name || account.username || body.author_name || '').trim();
+    }
+    const actorId = authorType === 'student'
+      ? String(account.student_character_name || body.actor_id || authorName || '').trim()
+      : String(body.actor_id || account.username || '').trim();
     const imageR2Key = (body.image_r2_key || '').trim() || null;
     const fullImageR2Key = (body.full_image_r2_key || '').trim() || null;
     const imageFileName = (body.image_file_name || '').trim() || null;
@@ -5073,14 +5093,14 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     if (!authorName) return jsonResponse({ ok: false, error: 'Missing author_name' }, 400, cors);
     const id = 'news-' + crypto.randomUUID();
     const now = new Date().toISOString();
-    const isTeacherLike = ['teacher', 'staff', 'admin'].includes(authorType);
-    const status = isTeacherLike ? 'approved' : 'pending';
-    const reviewedAt = isTeacherLike ? now : null;
-    const reviewedBy = isTeacherLike ? (authorName || 'Teacher') : null;
+    const staffPublisher = NEWS_PUBLISHER_ROLES.includes(authorType);
+    const status = staffPublisher ? 'approved' : 'pending';
+    const reviewedAt = staffPublisher ? now : null;
+    const reviewedBy = staffPublisher ? (authorName || 'Teacher') : null;
     await db.prepare(
       'INSERT INTO lantern_news_submissions (id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at, reviewed_by_staff_id, reviewed_by_staff_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, title, articleBody, actorId || null, authorName, authorType, imageR2Key, fullImageR2Key, imageFileName, imageMimeType, imageFileSize, photoCredit, videoR2Key, videoFileName, videoMimeType, videoFileSize, linkUrl, category, status, now, reviewedAt, null, reviewedBy).run();
-    if (!isTeacherLike) {
+    if (!staffPublisher) {
       const approvalId = 'approval-' + crypto.randomUUID();
       await db.prepare(
         'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -5692,14 +5712,15 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     if (!characterName) return jsonResponse({ ok: false, error: 'character_name required' }, 400, cors);
     if (!question) return jsonResponse({ ok: false, error: 'question required' }, 400, cors);
     if (choices.length < 2 || choices.length > 5) return jsonResponse({ ok: false, error: 'Provide 2–5 answer choices' }, 400, cors);
-    if (!imageUrl && (!fallbackKeyRaw || !ALLOWED_FB.includes(fallbackKeyRaw))) {
-      return jsonResponse({ ok: false, error: 'Add a poll image or pick a fallback picture' }, 400, cors);
-    }
+    // Prompt #186 — canonical Poll fallback when no image; do not require style picker.
+    const fallbackResolved = imageUrl
+      ? null
+      : (ALLOWED_FB.includes(fallbackKeyRaw) ? fallbackKeyRaw : 'poll');
     const contribId = 'pcontrib_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     const approvalId = 'appr_poll_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     const now = new Date().toISOString();
     const choicesJson = JSON.stringify(choices);
-    const fb = imageUrl ? null : fallbackKeyRaw;
+    const fb = fallbackResolved;
     try {
       await db.prepare(
         'INSERT INTO lantern_poll_contributions (id, character_name, question, choices_json, image_url, fallback_key, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -5841,15 +5862,16 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     if (!contribId || !characterName) return jsonResponse({ ok: false, error: 'id and character_name required' }, 400, cors);
     if (!question) return jsonResponse({ ok: false, error: 'question required' }, 400, cors);
     if (choices.length < 2 || choices.length > 5) return jsonResponse({ ok: false, error: 'Provide 2–5 answer choices' }, 400, cors);
-    if (!imageUrl && (!fallbackKeyRaw || !ALLOWED_FB.includes(fallbackKeyRaw))) {
-      return jsonResponse({ ok: false, error: 'Add a poll image or pick a fallback picture' }, 400, cors);
-    }
+    // Prompt #186 — canonical Poll fallback when no image on resubmit.
+    const fallbackResolved = imageUrl
+      ? null
+      : (ALLOWED_FB.includes(fallbackKeyRaw) ? fallbackKeyRaw : 'poll');
     const row = await db.prepare('SELECT id, status FROM lantern_poll_contributions WHERE id = ? AND character_name = ?').bind(contribId, characterName).first();
     if (!row) return jsonResponse({ ok: false, error: 'Contribution not found' }, 404, cors);
     if ((row.status || '') !== 'returned') return jsonResponse({ ok: false, error: 'Can only resubmit returned polls' }, 400, cors);
     const now = new Date().toISOString();
     const choicesJson = JSON.stringify(choices);
-    const fb = imageUrl ? null : fallbackKeyRaw;
+    const fb = fallbackResolved;
     await db.prepare(
       'UPDATE lantern_poll_contributions SET question = ?, choices_json = ?, image_url = ?, fallback_key = ?, status = ?, decision_note = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
     ).bind(question, choicesJson, imageUrl, fb, 'pending', null, null, null, contribId).run();

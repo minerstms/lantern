@@ -55,11 +55,19 @@ const typeSelect = html.match(/id="contributeTypeSelect"[\s\S]*?<\/select>/);
 assert(!!typeSelect, '14. contributeTypeSelect present');
 if (typeSelect) {
   const block = typeSelect[0];
-  assert(/value="post"/.test(block), '14a. mode: Post (school news)');
+  assert(/value="post"/.test(block), '14a. mode: News / Update');
   assert(/value="shoutout"/.test(block), '14b. mode: Shout-Out!');
   assert(/value="poll"/.test(block), '14c. mode: Poll');
-  assert(/value="mission"/.test(block), '14d. mode: Complete a mission');
+  assert(!/value="mission"/.test(block), '14d. Prompt #186: Complete a mission absent from Create selector');
 }
+
+assert(!/I am submitting as/i.test(html), '14e. Prompt #186: I am submitting as removed');
+assert(!/Why you['’]re writing/i.test(html) || /ARCHIVE:[\s\S]{0,80}Why you/.test(html), '14f. Prompt #186: Why you\'re writing not user-facing');
+assert(!/<option[^>]*>Kindness</.test(html), '14g. Prompt #186: Shout-Out Kindness category option absent');
+assert(!/Poll \(default\)|News style|Shout-Out! style/.test(html), '14h. Prompt #186: Poll style picker labels absent');
+assert(/data-lantern-archived-feature="create_mission_picker"/.test(html), '14i. Prompt #186: Open missions picker archived');
+assert(/resolveSessionAuthorType/.test(html), '14j. Prompt #186: session author type helper present');
+assert(/hidden[\s\S]{0,40}id="pollFallbackSelect"[\s\S]{0,40}value="poll"/.test(html) || /id="pollFallbackSelect"[^>]*value="poll"/.test(html), '14k. Prompt #186: poll fallback defaults to poll');
 
 assert(
   /\.wrap\.lanternContent input\[type="text"\][\s\S]{0,500}font-size:\s*var\(--create-control-fs\)/.test(html),

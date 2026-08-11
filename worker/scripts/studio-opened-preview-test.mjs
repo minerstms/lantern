@@ -137,9 +137,16 @@ else bad('Prompt #113/#118 helper strings still present', stillPresent.join(' | 
 if (!/id="contributeMediaHint"|id="contributeMediaLabel"|id="contributeMediaTypePlaceholder"|class="cardHdMini"|id="contributeTypeHelper"/.test(contributeHtml)) {
   ok('Prompt #113/#118 unused helper DOM wrappers removed');
 } else bad('Prompt #113/#118 helper wrappers still in contribute.html');
-if (/id="contributeTypeSelect"|id="newsUnifiedMediaMount"|id="contributeMissionRail"|id="pollFallbackSelect"/.test(contributeHtml)) {
+if (/id="contributeTypeSelect"|id="newsUnifiedMediaMount"|id="pollFallbackSelect"/.test(contributeHtml)) {
   ok('Prompt #113 functional Create controls preserved');
 } else bad('Prompt #113 functional controls missing');
+if (/id="contributeMissionRail"/.test(contributeHtml) && /data-lantern-archived-feature="create_mission_picker"/.test(contributeHtml)) {
+  ok('Prompt #186: Open missions rail retained only as archived markup');
+} else if (!/id="contributeMissionRail"/.test(contributeHtml)) {
+  ok('Prompt #186: Open missions rail removed');
+} else {
+  bad('Prompt #186: contributeMissionRail present without archive marker');
+}
 
 /* Prompt #118 — visible Create shout-out display name is Shout-Out! (value stays shoutout). */
 (function testShoutOutDisplayRename() {
@@ -151,8 +158,9 @@ if (/id="contributeTypeSelect"|id="newsUnifiedMediaMount"|id="contributeMissionR
   if (/<option value="shoutout">Shout-out<\/option>/.test(selMatch[0])) {
     return bad('Prompt #118: old Shout-out selector label still present');
   }
-  if (!/What kind of Shout-Out!/.test(contributeHtml)) {
-    return bad('Prompt #118: shout type label should use Shout-Out!');
+  /* Prompt #186 — shout category picker removed; primary type remains Shout-Out! */
+  if (/What kind of Shout-Out!/.test(contributeHtml)) {
+    return bad('Prompt #186: shout type category label must be removed from Create');
   }
   if (!/ct === 'shoutout' \? 'Shout-Out!'/.test(contributeHtml)) {
     return bad('Prompt #118: Studio headline fallback should use Shout-Out!');

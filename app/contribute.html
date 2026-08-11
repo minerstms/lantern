@@ -1079,11 +1079,11 @@
         <div class="composerTopBlock">
         <label for="contributeTypeSelect">What are you submitting?</label>
         <!-- Prompt #117 ARCHIVE: Profile-post Locker creation option removed from this selector; dormant variants/submit preserved for restore. -->
+        <!-- Prompt #186 ARCHIVE: Complete a mission removed — Missions page is the front door. -->
         <select id="contributeTypeSelect" style="margin-bottom:12px;">
-          <option value="post">Post (school news)</option>
+          <option value="post">News / Update</option>
           <option value="shoutout">Shout-Out!</option>
           <option value="poll">Poll</option>
-          <option value="mission">Complete a mission</option>
         </select>
         </div>
 
@@ -1095,7 +1095,8 @@
         </div>
 
         <div class="contributeCenterRow2 contributeMainStudioRow" id="contributeMainStudioRow">
-          <div id="missionPickerState" class="missionPickerState" style="display:none;" aria-hidden="true">
+          <div id="missionPickerState" class="missionPickerState" style="display:none;" aria-hidden="true" data-lantern-archived-feature="create_mission_picker">
+            <!-- Prompt #186 ARCHIVE: Open missions rail no longer shown in Create. -->
             <div class="sectionSubLane">Open missions</div>
             <div id="contributeMissionRail" data-lantern-rail-host="true" data-scroller-aria-label="Open missions">
               <p class="sectionPlaceholder">Loading missions…</p>
@@ -1110,33 +1111,14 @@
         </div>
 
         <div id="variantShoutout" class="contributeVariant" style="display:none;">
-          <div class="contributeFieldStack">
-              <input type="hidden" id="contributeShoutReason" value="" />
-              <label for="shoutTypeSelect">What kind of Shout-Out!</label>
-              <select id="shoutTypeSelect">
-                <option value="">— Pick one —</option>
-                <option value="kindness">Kindness</option>
-                <option value="effort">Effort</option>
-                <option value="teamwork">Teamwork</option>
-                <option value="helping">Helping out</option>
-                <option value="great_work">Great work</option>
-              </select>
-          </div>
+          <!-- Prompt #186: Shout-Out category picker removed; recipient + message are enough. -->
+          <input type="hidden" id="contributeShoutReason" value="" />
         </div>
 
         <div id="variantPollLeft" class="contributeVariant" style="display:none;">
-          <div id="pollFallbackWrap" style="display:none;margin-top:0;">
-            <label for="pollFallbackSelect">Poll card art · if no upload</label>
-            <select id="pollFallbackSelect">
-              <option value="poll">Poll (default)</option>
-              <option value="news">News style</option>
-              <option value="creation">Creation</option>
-              <option value="generic">Generic</option>
-              <option value="shoutout">Shout-Out! style</option>
-              <option value="explain">Explain</option>
-            </select>
-          </div>
-          <p class="studioPanelMicro" style="margin:4px 0 0 0;">Fallback · 2–5 choices below</p>
+          <!-- Prompt #186: Poll style/template picker removed; new polls use canonical fallback "poll". -->
+          <input type="hidden" id="pollFallbackSelect" value="poll" />
+          <p class="studioPanelMicro" style="margin:4px 0 0 0;">2–5 choices below</p>
         </div>
 
         <div id="variantProfilePostLeft" class="contributeVariant" style="display:none;" data-lantern-archived-feature="profile_post" aria-hidden="true">
@@ -1157,19 +1139,12 @@
           </div>
         </div>
 
-        <div id="contributePostIdentityAuthor" class="contributeVariant" style="display:none;">
-          <div class="contributeFieldStack">
-              <label for="newsAuthorType">I am submitting as</label>
-              <select id="newsAuthorType">
-                <option value="student">Student Reporter</option>
-                <option value="teacher">Teacher Contributor</option>
-                <option value="staff">Staff Announcement</option>
-                <option value="admin">Admin Update</option>
-              </select>
-          </div>
+        <!-- Prompt #186 ARCHIVE: submit-as role picker removed — session role is authoritative. -->
+        <div id="contributePostIdentityAuthor" class="contributeVariant" style="display:none;" data-lantern-archived-feature="submit_as" aria-hidden="true">
+          <input type="hidden" id="newsAuthorType" value="student" />
         </div>
 
-        <div id="missionRespondMetaLeft" class="contributeVariant" style="display:none;">
+        <div id="missionRespondMetaLeft" class="contributeVariant" style="display:none;" data-lantern-archived-feature="create_mission_respond" aria-hidden="true">
           <div id="missionSelectedMeta" class="missionSelectedMeta" style="display:none;"></div>
         </div>
           </div>
@@ -1184,19 +1159,10 @@
           <label for="newsTitle">Title</label>
           <input type="text" id="newsTitle" class="studioHeadlineInput" autocomplete="off" placeholder="Headline…" maxlength="200" />
         </div>
-        <div id="contributePostIdentityCategory" class="contributeVariant" style="display:none;">
-          <div class="contributeFieldStack">
-              <label for="newsCategorySelect">Why you’re writing</label>
-              <select id="newsCategorySelect">
-                <option value="">— Pick one —</option>
-                <option value="Events|happened">Something that happened</option>
-                <option value="Events|coming_up">Something coming up</option>
-                <option value="Student Spotlight|student_success">Student success</option>
-                <option value="School News|school_update">School update</option>
-                <option value="Announcements|should_know">Something people should know</option>
-              </select>
-              <input type="hidden" id="contributeDerivedCategory" value="" />
-          </div>
+        <!-- Prompt #186 ARCHIVE: "Why you're writing" removed — not required for news/update. -->
+        <div id="contributePostIdentityCategory" class="contributeVariant" style="display:none;" data-lantern-archived-feature="why_writing" aria-hidden="true">
+          <input type="hidden" id="contributeDerivedCategory" value="School News" />
+          <input type="hidden" id="newsCategorySelect" value="" />
         </div>
 
         <div id="variantPollRight" class="contributeVariant" style="display:none;">
@@ -1444,7 +1410,7 @@
 
     /* Prompt #117 ARCHIVE: Profile post (Locker) creation retired from Create UI. Keep dormant
      * renderer/submit below for restore; never surface the mode via selector/deep-link/stale state. */
-    var ARCHIVED_CONTRIBUTE_TYPES = { profile_post: true, profilepost: true };
+    var ARCHIVED_CONTRIBUTE_TYPES = { profile_post: true, profilepost: true, mission: true };
     var DEFAULT_CONTRIBUTE_TYPE = 'post';
     function normalizeContributeType(raw){
       var t = String(raw || '').trim().toLowerCase();
@@ -1461,18 +1427,51 @@
       }
       return t || DEFAULT_CONTRIBUTE_TYPE;
     }
-    var SHOUT_LABELS = { kindness: 'Kindness', effort: 'Effort', teamwork: 'Teamwork', helping: 'Helping out', great_work: 'Great work' };
+    /* Prompt #186 — session role is authoritative (not a Create dropdown). */
+    function resolveSessionAuthorType(){
+      try {
+        var me = window.LANTERN_PILOT_ME;
+        if (me && me.ok && me.authenticated !== false && me.role != null) {
+          var r = String(me.role || '').trim().toLowerCase();
+          if (r === 'teacher' || r === 'staff' || r === 'admin') return r;
+          if (r === 'student') return 'student';
+        }
+        var auth = window.LanternAuth || window.LanternPilotAuth;
+        if (auth && typeof auth.normalizeRole === 'function' && me && me.role != null) {
+          var nr = auth.normalizeRole(me.role);
+          if (nr === 'teacher' || nr === 'staff' || nr === 'admin') return nr;
+          if (nr === 'student') return 'student';
+        }
+      } catch (e) {}
+      return 'student';
+    }
+    function resolveSessionAuthorName(authorType){
+      var at = String(authorType || resolveSessionAuthorType()).trim().toLowerCase();
+      if (at === 'student') {
+        var dn = getAdoptedPublicDisplayName();
+        if (dn) return dn;
+        var ad = getAdopted();
+        return (ad && ad.name) ? String(ad.name).trim() : '';
+      }
+      try {
+        var me = window.LANTERN_PILOT_ME;
+        if (me && me.display_name) return String(me.display_name).trim();
+        if (me && me.username) return String(me.username).trim();
+      } catch (e2) {}
+      return at === 'admin' ? 'Admin' : at === 'staff' ? 'Staff' : 'Teacher';
+    }
 
     function resetContributeFormPartial(){
       if (el('newsCategorySelect')) el('newsCategorySelect').value = '';
-      el('contributeDerivedCategory').value = '';
-      el('contributeShoutReason').value = '';
-      if (el('shoutTypeSelect')) el('shoutTypeSelect').value = '';
+      if (el('contributeDerivedCategory')) el('contributeDerivedCategory').value = 'School News';
+      if (el('contributeShoutReason')) el('contributeShoutReason').value = '';
       if (el('shoutRecipient')) el('shoutRecipient').value = '';
       if (el('newsTitle')) el('newsTitle').value = '';
       if (el('newsBody')) el('newsBody').value = '';
       if (el('newsPhotoCredit')) el('newsPhotoCredit').value = '';
       if (el('pollQuestion')) el('pollQuestion').value = '';
+      if (el('pollFallbackSelect')) el('pollFallbackSelect').value = 'poll';
+      if (el('newsAuthorType')) el('newsAuthorType').value = resolveSessionAuthorType();
       if (el('profilePostType')) el('profilePostType').value = 'link';
       if (el('profilePostTitle')) el('profilePostTitle').value = '';
       if (el('profilePostCaption')) el('profilePostCaption').value = '';
@@ -1622,24 +1621,21 @@
       var ss = el('sharedStoryBlock');
       var media = el('contributeMediaBlock');
       var mountWrap = el('contributeMediaMountWrap');
-      var fb = el('pollFallbackWrap');
       var sub = el('submitNewsBtn');
       /* Prompt #118: post/shout-out type helper sentences removed at source (no contributeTypeHelper). */
       if (vp) vp.style.display = t === 'post' ? 'block' : 'none';
       if (vs) vs.style.display = t === 'shoutout' ? 'block' : 'none';
       if (vpolL) vpolL.style.display = t === 'poll' ? 'block' : 'none';
       if (vpolR) vpolR.style.display = t === 'poll' ? 'block' : 'none';
-      if (vprofL) vprofL.style.display = t === 'profile_post' ? 'block' : 'none';
-      if (vprofR) vprofR.style.display = t === 'profile_post' ? 'block' : 'none';
-      if (vmR) vmR.style.display = t === 'mission' ? 'block' : 'none';
+      if (vprofL) vprofL.style.display = 'none';
+      if (vprofR) vprofR.style.display = 'none';
+      if (vmR) vmR.style.display = 'none';
       if (ss) ss.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
-      /* Hide the media row when the mount is unused (mission / locker profile) so no empty helper shell remains. */
-      if (media) media.style.display = (t === 'mission' || t === 'profile_post') ? 'none' : 'block';
-      if (mountWrap) mountWrap.style.display = (t === 'mission' || t === 'profile_post') ? 'none' : 'block';
-      if (fb) fb.style.display = t === 'poll' ? 'block' : 'none';
+      if (media) media.style.display = t === 'profile_post' ? 'none' : 'block';
+      if (mountWrap) mountWrap.style.display = t === 'profile_post' ? 'none' : 'block';
       if (sub){
-        sub.style.display = t === 'mission' ? 'none' : 'inline-flex';
-        sub.textContent = t === 'poll' ? 'Submit poll for approval' : (t === 'profile_post' ? 'Save profile post' : 'Submit for approval');
+        sub.style.display = 'inline-flex';
+        sub.textContent = t === 'poll' ? 'Submit poll for approval' : 'Submit for approval';
       }
       var bl = el('newsBodyLabel');
       if (bl) bl.textContent = t === 'shoutout' ? 'Message' : 'Description';
@@ -1647,8 +1643,9 @@
       if (ntb) ntb.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
       var pibA = el('contributePostIdentityAuthor');
       var pibC = el('contributePostIdentityCategory');
-      if (pibA) pibA.style.display = t === 'post' ? 'block' : 'none';
-      if (pibC) pibC.style.display = t === 'post' ? 'block' : 'none';
+      if (pibA) pibA.style.display = 'none';
+      if (pibC) pibC.style.display = 'none';
+      if (el('newsAuthorType')) el('newsAuthorType').value = resolveSessionAuthorType();
       var shrWrap = el('contributeShoutRecipientWrap');
       if (shrWrap) shrWrap.style.display = t === 'shoutout' ? 'block' : 'none';
       var pollAns = el('contributePollAnswersRow');
@@ -1657,7 +1654,6 @@
         document.body.classList.add('contributeStudioOpen');
       }
       mountNewsUnifiedForType();
-      if (t === 'mission') loadContributeMissions();
       syncMissionCenterFlow();
       updateStudioAll();
     }
@@ -1666,17 +1662,7 @@
       hideContributePostSuccessBanner();
       syncContributeTypeUI();
     });
-    el('newsCategorySelect').addEventListener('change', function(){
-      var v = (el('newsCategorySelect').value || '').trim();
-      if (!v){ el('contributeDerivedCategory').value = ''; updateStudioAll(); return; }
-      var parts = v.split('|');
-      el('contributeDerivedCategory').value = parts[0] || 'School News';
-      updateStudioAll();
-    });
-    el('shoutTypeSelect').addEventListener('change', function(){
-      el('contributeShoutReason').value = (el('shoutTypeSelect').value || '').trim();
-      updateStudioAll();
-    });
+    /* Prompt #186 — why-writing / shout category / poll style selectors removed from Create. */
     el('pollAddOptionBtn').addEventListener('click', function(){
       var n = el('pollOptionsWrap').querySelectorAll('.pollOptInput').length;
       if (n >= 5){ toast('Maximum 5 choices.'); return; }
@@ -1691,7 +1677,6 @@
     });
     if (el('pollQuestion')) el('pollQuestion').addEventListener('input', updateStudioAll);
     if (el('pollOptionsWrap')) el('pollOptionsWrap').addEventListener('input', function(e){ if (e.target.classList && e.target.classList.contains('pollOptInput')) updateStudioAll(); });
-    if (el('pollFallbackSelect')) el('pollFallbackSelect').addEventListener('change', updateStudioAll);
 
     // —— News path: Worker/API submit (shared with Locker My Articles) ——
     var croppedNewsImageDataUrl = null;
@@ -1844,11 +1829,19 @@
       try {
         var q = new URLSearchParams(window.location.search || '');
         var tp = (q.get('type') || '').trim().toLowerCase();
+        /* Prompt #186 — Missions are entered through Missions, not Create. */
+        if (tp === 'mission') {
+          location.replace('missions.html');
+          return;
+        }
         var sel = el('contributeTypeSelect');
-        if (sel && tp === 'mission') sel.value = 'mission';
         if (sel && tp === 'poll') sel.value = 'poll';
-        if (sel && tp === 'post') sel.value = 'post';
-        if (sel && tp === 'shoutout') sel.value = 'shoutout';
+        if (sel && (tp === 'post' || tp === 'news' || tp === 'photo' || tp === 'update')) sel.value = 'post';
+        /* Prompt #165/#186 — First Photo Share mission needs category Photo for completion attribution. */
+        if (tp === 'photo' && el('contributeDerivedCategory')) {
+          el('contributeDerivedCategory').value = 'Photo';
+        }
+        if (sel && (tp === 'shoutout' || tp === 'shout_out' || tp === 'shout-out')) sel.value = 'shoutout';
         /* Prompt #117 ARCHIVE: stale ?type=profile_post falls back to default Create type. */
         if (sel && (tp === 'profile_post' || tp === 'profilepost')) sel.value = DEFAULT_CONTRIBUTE_TYPE;
         var rawN = sessionStorage.getItem('LANTERN_NEWS_ARTICLE_RESUBMIT');
@@ -1863,8 +1856,8 @@
         var rawM = sessionStorage.getItem('LANTERN_STUDIO_MISSION_OPEN');
         if (rawM) {
           sessionStorage.removeItem('LANTERN_STUDIO_MISSION_OPEN');
-          pendingStudioMissionOpen = JSON.parse(rawM);
-          if (sel) sel.value = 'mission';
+          location.replace('missions.html');
+          return;
         }
       } catch (e) {}
     })();
@@ -2114,7 +2107,8 @@
       var title = (el('newsTitle') && el('newsTitle').value || '').trim();
       var body = (el('newsBody') && el('newsBody').value || '').trim();
       var category = ct === 'shoutout' ? 'Student Spotlight' : ((el('contributeDerivedCategory') && el('contributeDerivedCategory').value) || 'School News').trim();
-      var authorType = (el('newsAuthorType') && el('newsAuthorType').value || 'student').trim();
+      var authorType = resolveSessionAuthorType();
+      if (el('newsAuthorType')) el('newsAuthorType').value = authorType;
       var photoCredit = (el('newsPhotoCredit') && el('newsPhotoCredit').value || '').trim();
       var videoSrc = (el('newsVideoPreviewEl') && el('newsVideoPreviewEl').src || '').trim();
       var hasVideo = newsVideoFile && videoSrc.indexOf('blob:') === 0;
@@ -2122,12 +2116,7 @@
       var videoUrl = hasVideo ? videoSrc : '';
       var linkUrl = (newsLinkUrl && String(newsLinkUrl).trim()) || '';
       var headline = title || (ct === 'shoutout' ? 'Shout-Out!' : '');
-      var authorName = '';
-      if (authorType === 'student'){
-        authorName = getAdoptedPublicDisplayName();
-      } else {
-        authorName = authorType === 'teacher' ? 'Teacher' : authorType === 'staff' ? 'Staff' : 'Admin';
-      }
+      var authorName = resolveSessionAuthorName(authorType);
       var nowIso = new Date().toISOString();
       var newsDraft = {
         id: 'preview-draft',
@@ -2230,7 +2219,7 @@
       }, true);
     })();
 
-    [['newsTitle','input'],['newsBody','input'],['newsAuthorType','change'],['newsPhotoCredit','input']].forEach(function(pair){
+    [['newsTitle','input'],['newsBody','input'],['newsPhotoCredit','input'],['shoutRecipient','input']].forEach(function(pair){
       var node = el(pair[0]);
       if (node) node.addEventListener(pair[1], function(){ updateStudioAll(); });
     });
@@ -2264,7 +2253,8 @@
           imgOut = newsLinkUrl.trim().slice(0, 500);
         }
         var fbk = (el('pollFallbackSelect') && el('pollFallbackSelect').value) || 'poll';
-        if (!imgOut && !fbk){ toast('Add a poll image or pick a fallback picture.'); return; }
+        if (!imgOut) fbk = 'poll';
+        if (!imgOut && !fbk){ toast('Add a poll image (or submit with default Poll art).'); return; }
         var btnP = el('submitNewsBtn');
         btnP.disabled = true;
         var isResubmit = !!resubmitPollContribId;
@@ -2275,7 +2265,7 @@
           question: pq.slice(0, 500),
           choices: pch,
           image_url: imgOut || null,
-          fallback_key: imgOut ? null : fbk
+          fallback_key: imgOut ? null : 'poll'
         };
         if (isResubmit) body.id = resubmitPollContribId;
         var pres = await fetch(url, {
@@ -2334,12 +2324,10 @@
       }
       var titleRaw = (el('newsTitle').value || '').trim();
       var bodyRaw = (el('newsBody').value || '').trim();
-      var category = (el('contributeDerivedCategory') && el('contributeDerivedCategory').value || '').trim();
-      var authorType = (el('newsAuthorType').value || 'student').trim();
+      var category = (el('contributeDerivedCategory') && el('contributeDerivedCategory').value || 'School News').trim() || 'School News';
+      var authorType = resolveSessionAuthorType();
       var photoCredit = (el('newsPhotoCredit') && el('newsPhotoCredit').value) ? (el('newsPhotoCredit').value || '').trim() : '';
-      if (ct === 'post' && !category){ toast('Pick why you’re writing (dropdown).'); return; }
       if (ct === 'shoutout'){
-        if (!(el('contributeShoutReason') && el('contributeShoutReason').value)){ toast('Pick what kind of shout-out'); return; }
         var rec = (el('shoutRecipient') && el('shoutRecipient').value || '').trim();
         if (!rec){ toast('Who or what are you recognizing?'); return; }
         if (!bodyRaw){ toast('Write your shout-out message'); return; }
@@ -2347,21 +2335,16 @@
       var title = titleRaw;
       var body = bodyRaw;
       if (ct === 'shoutout'){
-        var rk = el('contributeShoutReason').value || '';
-        var rl = SHOUT_LABELS[rk] || 'Shout-out';
         var rec2 = (el('shoutRecipient').value || '').trim();
-        body = 'Shout-out (' + rl + ')\n\nRecognizing: ' + rec2 + '\n\n' + bodyRaw;
+        body = 'Recognizing: ' + rec2 + '\n\n' + bodyRaw;
         category = 'Student Spotlight';
-        if (!title) title = 'Shout-out: ' + rec2;
+        if (!title) title = 'Shout-Out!: ' + rec2;
       }
       if (!title){ toast('Enter a title'); return; }
       if (!body){ toast('Enter your story'); return; }
-      var adopted = getAdopted();
-      var authorName = '';
-      if (authorType === 'student'){
-        if (!adopted || !adopted.name){ toast('Adopt a character first to submit as Student Reporter.'); return; }
-        authorName = adopted.name;
-      } else { authorName = authorType === 'teacher' ? 'Teacher' : authorType === 'staff' ? 'Staff' : 'Admin'; }
+      var authorName = resolveSessionAuthorName(authorType);
+      if (authorType === 'student' && !authorName){ toast('Adopt a character first (Locker → Overview).'); return; }
+      if (!authorName){ toast('Could not resolve your signed-in name. Sign in again.'); return; }
       var btn = el('submitNewsBtn');
       var isPostFlow = ct === 'post';
       function setPostSubmitBusy(isBusy, label){

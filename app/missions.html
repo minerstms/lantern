@@ -1247,7 +1247,54 @@
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
-            url: 'create.html?type=photo',
+            url: 'contribute.html?type=photo',
+            raw: m,
+            submission: sub,
+          });
+          return;
+        }
+
+        /* Prompt #186 — Create tools are entered from Missions, not via Create “Complete a mission”. */
+        if (mid === WAVE2_MISSION.poll && !pollDone && (!st || st === 'rejected')) {
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'create',
+            typeBadge: '',
+            stateBadge: '',
+            icon: '📊',
+            title: m.title || 'Create a Poll',
+            description: (m.description || '').trim(),
+            reward: 1,
+            status: 'available',
+            statusLabel: 'Create a Poll →',
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            url: 'contribute.html?type=poll',
+            raw: m,
+            submission: sub,
+          });
+          return;
+        }
+
+        if (mid === WAVE2_MISSION.shout && !shoutDone && (!st || st === 'rejected')) {
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'create',
+            typeBadge: '',
+            stateBadge: '',
+            icon: '📣',
+            title: m.title || 'Shout-Out Someone',
+            description: (m.description || '').trim(),
+            reward: 1,
+            status: 'available',
+            statusLabel: 'Create a Shout-Out →',
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            url: 'contribute.html?type=shoutout',
             raw: m,
             submission: sub,
           });
