@@ -15,6 +15,8 @@ import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/in
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
 const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
+const EXPECTED_NAV = ['Locker', 'Create', 'Play', 'Missions'];
+const EXPECTED_FULL = EXPECTED_NAV.concat(EXPECTED_STAFF);
 
 async function main() {
   const results = [];
@@ -67,9 +69,43 @@ async function main() {
     assert(JSON.stringify(trimmed) === JSON.stringify(EXPECTED_STAFF), 'STAFF menu order/labels exact: ' + JSON.stringify(trimmed));
     assert(!trimmed.some((t) => /display|hallway/i.test(t)), 'Global STAFF dropdown has no Display / Display Board / Hallway TV: ' + JSON.stringify(trimmed));
 
+    const navSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'NAVIGATION' });
+    const navLabels = (await navSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) =>
+      t.replace(/\s+\d+\s*$/, '').trim()
+    );
+    assert(JSON.stringify(navLabels) === JSON.stringify(EXPECTED_NAV), 'NAVIGATION menu order/labels exact: ' + JSON.stringify(navLabels));
+
+    const allLinkLabels = (await page.locator('#lanternMenuDropdown a.lanternAppBarDropdownLink').allTextContents()).map((t) =>
+      t.replace(/\s+\d+\s*$/, '').trim()
+    );
+    assert(JSON.stringify(allLinkLabels) === JSON.stringify(EXPECTED_FULL), 'Full Explore-canonical menu order: ' + JSON.stringify(allLinkLabels));
+    assert(await page.locator('#lanternMenuDropdown a[data-page="display"]').count() === 0, 'Global dropdown has no data-page=display link');
+    assert(!(await page.locator('#lanternMenuDropdown').innerText()).match(/Display Board|Hallway TV/i), 'Display Board / Hallway TV absent from global menu text');
+
+    // Prompt #152 — shared text inset aligns dropdown item text under L in Lantern
+    const align = await page.evaluate(() => {
+      const home = document.getElementById('lanternHomeLink');
+      const locker = document.querySelector('#lanternMenuDropdown a[data-page="locker"]');
+      if (!home || !locker) return { ok: false, reason: 'missing nodes' };
+      const homeL = home.getBoundingClientRect().left;
+      // Approximate glyph start: padding-box left (getBoundingClientRect is border-box; padding via computed)
+      const hs = getComputedStyle(home);
+      const homeTextX = homeL + (parseFloat(hs.paddingLeft) || 0) + (parseFloat(hs.borderLeftWidth) || 0);
+      const lr = locker.getBoundingClientRect().left;
+      const ls = getComputedStyle(locker);
+      const lockerTextX = lr + (parseFloat(ls.paddingLeft) || 0) + (parseFloat(ls.borderLeftWidth) || 0);
+      return {
+        ok: Math.abs(homeTextX - lockerTextX) <= 1.5,
+        homeTextX,
+        lockerTextX,
+        inset: getComputedStyle(document.documentElement).getPropertyValue('--lantern-nav-text-inset').trim(),
+      };
+    });
+    assert(align.ok, 'Dropdown item text aligns under L in Lantern (±1.5px): ' + JSON.stringify(align));
+    assert(align.inset === '14px', 'Shared --lantern-nav-text-inset is 14px: ' + align.inset);
+
     const teacherLink = page.locator('#lanternMenuDropdown a[data-page="teacher"]');
     const behaviorLink = page.locator('#lanternMenuDropdown a[data-page="behavior"]');
-    assert(await page.locator('#lanternMenuDropdown a[data-page="display"]').count() === 0, 'Global dropdown has no data-page=display link');
     assert(await teacherLink.evaluate((el) => el.classList.contains('is-active')), 'Teacher Tools marked current on Teacher page');
     assert(!(await behaviorLink.evaluate((el) => el.classList.contains('is-active'))), 'Behavior Logger not marked current on Teacher page');
 

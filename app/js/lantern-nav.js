@@ -31,26 +31,28 @@
     return '';
   }
 
-  /** Chevron menu: NAVIGATION + STAFF + Log out. STAFF labels/order from LanternStaffNav (#145). */
+  /** Chevron menu: NAVIGATION + STAFF + Log out. Full menu from LanternStaffNav (#152). */
   function buildLanternNavDropdownHtml(current) {
-    var staffLinks =
-      global.LanternStaffNav && typeof global.LanternStaffNav.buildStaffSectionLinksHtml === 'function'
-        ? global.LanternStaffNav.buildStaffSectionLinksHtml(current, 'lantern')
-        : '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="teacher">Teacher Tools</a>' +
-          '<a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember" role="menuitem" class="lanternAppBarDropdownLink" data-page="behavior" data-lantern-behavior-nav="1">Behavior Logger</a>';
-    return '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
-      '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
-      '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'locker' ? ' is-active' : '') + '" data-page="locker">Locker</a>' +
-      '<a href="contribute.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'contribute' ? ' is-active' : '') + '" data-page="create">Create</a>' +
-      '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'games' ? ' is-active' : '') + '" data-page="play">Play</a>' +
-      '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'missions' ? ' is-active' : '') + '" data-page="missions">Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span></a>' +
-      '</div>' +
-      '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
-      staffLinks +
-      '</div>' +
+    var sections =
+      global.LanternStaffNav && typeof global.LanternStaffNav.buildMenuSectionsHtml === 'function'
+        ? global.LanternStaffNav.buildMenuSectionsHtml(current, 'lantern')
+        : '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
+          '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">Locker</a>' +
+          '<a href="contribute.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="create">Create</a>' +
+          '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Play</a>' +
+          '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="missions">Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span></a>' +
+          '</div>' +
+          '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
+          '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="teacher">Teacher Tools</a>' +
+          '<a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember" role="menuitem" class="lanternAppBarDropdownLink" data-page="behavior" data-lantern-behavior-nav="1">Behavior Logger</a>' +
+          '</div>';
+    return (
+      '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
+      sections +
       '<div class="lanternAppBarDropdownSection lanternAppBarDropdownSection--logout" id="lanternNavLogoutSection" hidden>' +
       '<button type="button" class="lanternAppBarDropdownLogout" id="lanternNavLogoutBtn" role="menuitem">Log out</button>' +
-      '</div></div>';
+      '</div></div>'
+    );
   }
 
   function buildLanternChevronMenuWrap(current) {
@@ -170,14 +172,15 @@
     var s = document.createElement('style');
     s.id = 'lantern-nav-styles';
     s.textContent = [
-      ':root{ --lantern-appbar-search-max: 320px; }',
+      ':root{ --lantern-appbar-search-max: 320px; --lantern-nav-text-inset: 14px; }',
       '@keyframes lanternBellWiggle{ 0%,100%{ transform: rotate(0); } 20%{ transform: rotate(-10deg); } 40%{ transform: rotate(10deg); } 60%{ transform: rotate(-6deg); } 80%{ transform: rotate(6deg); } }',
       '.lanternAppBarBell--attention{ animation: lanternBellWiggle 2.4s ease-in-out infinite; transform-origin: 50% 0; }',
       '.lanternAppBar{ position: sticky; top: 0; z-index: 10000; background: ' + NAV.navy + '; color: ' + NAV.white + '; padding: 0 var(--lantern-pad-x); flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.1); }',
       '.lanternAppBarInner{ max-width: var(--lantern-page-max-width); margin: 0 auto; display: flex; align-items: center; flex-wrap: nowrap; height: 52px; min-height: 52px; max-height: 52px; box-sizing: border-box; gap: 16px; overflow: visible; }',
       '.lanternAppBarLeft{ display: flex; align-items: center; flex-shrink: 0; gap: 2px; flex-wrap: wrap; }',
-      '.lanternAppBarBrandMenu{ display: inline-flex; align-items: stretch; flex-shrink: 0; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(0,0,0,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.07); overflow: visible; }',
-      '.lanternAppBarBrandMenu .lanternAppBarHomeLink{ display: inline-flex; align-items: center; align-self: stretch; color: ' + NAV.white + '; font-weight: 900; font-size: 17px; text-decoration: none; padding: 8px 12px 8px 14px; margin: 0; border-radius: 11px 0 0 11px; min-height: 38px; box-sizing: border-box; transition: background .15s, color .15s; font-family: inherit; cursor: pointer; }',
+      /* Prompt #152 — brand menu is the positioning root so dropdown text aligns under the L in Lantern */
+      '.lanternAppBarBrandMenu{ position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(0,0,0,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.07); overflow: visible; }',
+      '.lanternAppBarBrandMenu .lanternAppBarHomeLink{ display: inline-flex; align-items: center; align-self: stretch; color: ' + NAV.white + '; font-weight: 900; font-size: 17px; text-decoration: none; padding: 8px 12px 8px var(--lantern-nav-text-inset); margin: 0; border-radius: 11px 0 0 11px; min-height: 38px; box-sizing: border-box; transition: background .15s, color .15s; font-family: inherit; cursor: pointer; }',
       '.lanternAppBarBrandMenu .lanternAppBarHomeLink:hover{ background: rgba(255,255,255,.1); color: ' + NAV.columbiaBlue + '; }',
       '.lanternAppBarBrandMenu .lanternAppBarHomeLink:active{ background: rgba(0,0,0,.25); }',
       '.lanternAppBarBrandMenu .lanternAppBarHomeLink:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; z-index: 1; position: relative; }',
@@ -186,28 +189,31 @@
       '.lanternAppBarContext--empty{ display: none !important; flex: 0 !important; min-width: 0 !important; width: 0 !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; }',
       '.lanternAppBarContextGlow{ text-shadow: 0 0 16px rgba(157,212,240,.35), 0 0 6px rgba(255,255,255,.2); }',
       '.lanternAppBarMenuWrap{ position: relative; }',
-      '.lanternAppBarBrandMenu .lanternAppBarLanternMenuWrap{ display: inline-flex; align-items: stretch; align-self: stretch; margin: 0; }',
+      '.lanternAppBarBrandMenu .lanternAppBarLanternMenuWrap{ display: inline-flex; align-items: stretch; align-self: stretch; margin: 0; position: static; }',
       '.lanternAppBarBrandMenu .lanternAppBarMenuChevron{ background: transparent; border: none; color: rgba(255,255,255,.95); font-size: 14px; line-height: 1; cursor: pointer; padding: 4px 12px 4px 10px; margin: 0; border-radius: 0 9px 9px 0; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 0; max-height: 100%; flex-shrink: 0; box-sizing: border-box; transition: background .15s, color .15s; border-left: 1px solid rgba(255,255,255,.16); }',
       '.lanternAppBarBrandMenu .lanternAppBarMenuChevronIcon{ display: inline-block; font-size: 13px; line-height: 1; margin: 0; transform: translateY(0); font-weight: 700; }',
       '.lanternAppBarBrandMenu .lanternAppBarMenuChevron:hover{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.1); }',
       '.lanternAppBarBrandMenu .lanternAppBarMenuChevron:active{ background: rgba(0,0,0,.28); }',
       '.lanternAppBarBrandMenu .lanternAppBarMenuChevron:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; z-index: 1; position: relative; }',
       '.lanternAppBarBrandMenu .lanternAppBarMenuChevron[aria-expanded="true"]{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.12); }',
+      /* Dropdown anchors to brand menu; item padding matches --lantern-nav-text-inset (L under L) */
+      '.lanternAppBarBrandMenu > .lanternAppBarDropdown, .lanternAppBarBrandMenu .lanternAppBarDropdown{ position: absolute; top: 100%; left: 0; right: auto; margin-top: 4px; min-width: 240px; max-width: min(320px, 92vw); background: ' + NAV.white + '; color: ' + NAV.navy + '; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 8px 0; z-index: 10001; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }',
       '.lanternAppBarDropdown{ position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 220px; max-width: min(320px, 92vw); background: ' + NAV.white + '; color: ' + NAV.navy + '; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 8px 0; z-index: 10001; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }',
       '.lanternAppBarDropdown.is-open{ opacity: 1; transform: translateY(0); pointer-events: auto; }',
       '.lanternAppBarDropdown.is-open[hidden]{ display: block !important; }',
       '.lanternAppBarDropdownSection{ padding: 4px 0; }',
       '.lanternAppBarDropdownSection + .lanternAppBarDropdownSection{ border-top: 1px solid rgba(15,39,68,.12); }',
-      '.lanternAppBarDropdownGroupLabel{ font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: rgba(15,39,68,.65); padding: 6px 14px 4px; }',
-      '.lanternAppBarDropdownLink{ display: block; padding: 10px 14px; font-size: 16px; font-weight: 700; color: ' + NAV.navy + '; text-decoration: none; transition: background .12s, color .12s; }',
+      '.lanternAppBarDropdownGroupLabel{ font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: rgba(15,39,68,.65); padding: 6px var(--lantern-nav-text-inset) 4px; }',
+      '.lanternAppBarDropdownLink{ display: block; padding: 10px var(--lantern-nav-text-inset); font-size: 16px; font-weight: 700; color: ' + NAV.navy + '; text-decoration: none; transition: background .12s, color .12s; }',
       '.lanternAppBarDropdownLink:hover{ background: rgba(157,212,240,.25); color: ' + NAV.navy + '; }',
       '.lanternAppBarDropdownLink.is-active{ background: rgba(157,212,240,.35); color: #0a1d35; }',
       '.lanternAppBarDropdownLink{ position: relative; }',
       '.lanternAppBarDropdownSection--logout{ border-top: 1px solid rgba(15,39,68,.16); padding-top: 6px; margin-top: 2px; }',
-      '.lanternAppBarDropdownLogout{ display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 16px; font-weight: 800; color: #7a2030; background: transparent; border: none; cursor: pointer; font-family: inherit; box-sizing: border-box; }',
+      '.lanternAppBarDropdownLogout{ display: block; width: 100%; text-align: left; padding: 10px var(--lantern-nav-text-inset); font-size: 16px; font-weight: 800; color: #7a2030; background: transparent; border: none; cursor: pointer; font-family: inherit; box-sizing: border-box; }',
       '.lanternAppBarDropdownLogout:hover{ background: rgba(157,212,240,.25); color: #5a1020; }',
       '.lanternAppBarDropdownLogout:disabled{ opacity: .65; cursor: wait; }',
       '.lanternAppBarDropdownLogout--avatar{ color: #7a2030; }',
+      '@media (max-width: 420px){ .lanternAppBarBrandMenu .lanternAppBarDropdown{ left: 0; right: auto; max-width: min(320px, calc(100vw - 16px)); } }',
       '.lanternNavBadge{ display: inline-block; min-width: 20px; padding: 2px 6px; margin-left: 6px; font-size: 12px; font-weight: 800; background: ' + NAV.columbiaBlue + '; color: ' + NAV.navy + '; border-radius: 10px; }',
       '.lanternNavBadge:empty{ display: none; }',
       '.lanternHelpSlot{ display: flex; align-items: center; flex-shrink: 0; }',
