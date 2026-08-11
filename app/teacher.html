@@ -2145,10 +2145,8 @@
         <div class="cardBd teacherCollapsibleListBd">
           <p class="note note-tight">Recognize anyone, now.</p>
           <div class="teacherField">
-            <label for="shoutOutStudentSelect">Student</label>
-            <select id="shoutOutStudentSelect" class="teacherSelect" style="max-width:360px;">
-              <option value="">— Select student —</option>
-            </select>
+            <label for="teacherShoutPeopleSearch">Recognizing</label>
+            <div id="teacherShoutPeopleMount" aria-label="Recognizing"></div>
           </div>
           <div class="teacherField">
             <label for="shoutOutMessage">Message (max 250 characters)</label>
@@ -2435,6 +2433,7 @@
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-media.js"></script>
   <script src="js/lantern-unified-media-field.js"></script>
+  <script src="js/lantern-people-picker.js"></script>
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/class-access.js"></script>
@@ -3696,6 +3695,9 @@
           pch.forEach(function(c){ html += '<li>' + esc(String(c)) + '</li>'; });
           html += '</ol>';
         }
+        if (item.people && item.people.length) {
+          html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">People</p><div class="reviewFullText">' + esc(item.people.map(function(p){ return p.label || ''; }).filter(Boolean).join(', ')) + '</div>';
+        }
         if (item.preview_url) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Card image</p><img class="reviewLargeImg" src="' + esc(item.preview_url) + '" alt="Poll">';
         html += '</div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (publish poll)</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
@@ -3708,6 +3710,10 @@
         html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.author_name || item.submitter) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.author_name || item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Title</p><div class="reviewFullText">' + esc(item.title || item.item_id || '') + '</div>';
         if (item.body) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Body</p><div class="reviewFullText">' + esc(item.body) + '</div>';
+        if (item.people && item.people.length) {
+          var peopleLabel = (String(item.category || '').toLowerCase() === 'student spotlight') ? 'Recognizing' : 'People';
+          html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">' + esc(peopleLabel) + '</p><div class="reviewFullText">' + esc(item.people.map(function(p){ return p.label || ''; }).filter(Boolean).join(', ')) + '</div>';
+        }
         var newsMediaItem = item;
         if (item.preview_url && String(item.preview_url).trim() && !String(item.image_url || '').trim()) {
           newsMediaItem = Object.assign({}, item, { image_url: item.preview_url, full_image_url: item.full_image_url || item.preview_url });
@@ -5872,19 +5878,18 @@
       });
     }
 
-    // Prompt #107/#175 — Shout-Out! workspace (Worker recognition API + student media pipeline parity).
+    // Prompt #107/#175/#190 — Shout-Out! workspace (Worker recognition API + People picker).
     (function initShoutOutWorkspace(){
       var DEMO_BLOCK = { 'alex adventure':1, 'sam star':1, 'casey cool':1, 'jordan joy':1, 'riley rise':1 };
-      var sel = el('shoutOutStudentSelect');
-      var chars = (window.LANTERN_DATA && window.LANTERN_DATA.DEFAULT_CHARACTERS) || [];
-      if (sel && chars.length) {
-        chars.forEach(function(c){
-          var name = (c.name || '').trim();
-          if (!name || DEMO_BLOCK[name.toLowerCase()]) return;
-          var opt = document.createElement('option');
-          opt.value = name;
-          opt.textContent = name;
-          sel.appendChild(opt);
+      var teacherShoutPeoplePicker = null;
+      var shoutPeopleMount = el('teacherShoutPeopleMount');
+      if (window.LanternPeoplePicker && shoutPeopleMount) {
+        teacherShoutPeoplePicker = window.LanternPeoplePicker.mount(shoutPeopleMount, {
+          label: 'Recognizing',
+          placeholder: 'Search students or staff...',
+          relationship: 'recognized',
+          max: 1,
+          inputId: 'teacherShoutPeopleSearch'
         });
       }
 
@@ -6108,16 +6113,21 @@
       if (el('shoutOutPostBtn')) {
         el('shoutOutPostBtn').addEventListener('click', async function(){
           if (avatarApiBase === null){ toast('Shout-Out requires Lantern API'); return; }
-          var student = (el('shoutOutStudentSelect') && el('shoutOutStudentSelect').value || '').trim();
+          var peoplePayload = teacherShoutPeoplePicker && teacherShoutPeoplePicker.getPeoplePayload
+            ? teacherShoutPeoplePicker.getPeoplePayload()
+            : [];
+          var selected = teacherShoutPeoplePicker && teacherShoutPeoplePicker.getSelected
+            ? teacherShoutPeoplePicker.getSelected()
+            : [];
           var message = (el('shoutOutMessage') && el('shoutOutMessage').value || '').trim();
-          if (!student){ toast('Select a student'); return; }
-          if (DEMO_BLOCK[student.toLowerCase()]){ toast('That student is not available'); return; }
+          if (!peoplePayload.length || !selected.length){ toast('Select who you are recognizing'); return; }
+          if (DEMO_BLOCK[String(selected[0].label || '').toLowerCase()]){ toast('That person is not available'); return; }
           if (!message){ toast('Write a message'); return; }
           var btn = el('shoutOutPostBtn');
           btn.disabled = true;
           try {
             var payload = {
-              character_name: student,
+              people: peoplePayload,
               message: message,
               category: null
             };
@@ -6155,7 +6165,7 @@
             if (!res || !res.ok){ toast((res && res.error) || 'Failed to post shout-out'); btn.disabled = false; btn.textContent = 'Post Shout-Out!'; return; }
             toast('Shout-Out posted');
             if (el('shoutOutMessage')) el('shoutOutMessage').value = '';
-            if (el('shoutOutStudentSelect')) el('shoutOutStudentSelect').value = '';
+            if (teacherShoutPeoplePicker && teacherShoutPeoplePicker.clear) teacherShoutPeoplePicker.clear();
             clearShoutMediaState();
             if (shoutUnifiedField) shoutUnifiedField.clearPreview();
             await refreshShoutOuts();

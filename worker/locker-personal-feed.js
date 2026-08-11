@@ -3,6 +3,7 @@ import {
   filterFeedItems,
   attachReactionsAndComments,
 } from './feed-handlers.js';
+import { personKeysForAccount, feedIdsRelatedToPersonKeys } from './content-people.js';
 
 const ATTRIBUTION_KEYS = [
   'photographer',
@@ -71,6 +72,8 @@ function isTaggedForIdentity(item, keys) {
       if (matchesIdentity(item.contentSlot[k], keys)) return true;
     }
   }
+  // Legacy shout recipient display text (pre-relational) — attribution only when it matches identity keys.
+  if (matchesIdentity(extra.recipient, keys)) return true;
   return false;
 }
 
@@ -92,6 +95,7 @@ async function reactedFeedIds(db, reactorUsername) {
 
 /**
  * Build authenticated personal feed for Locker (server-scoped).
+ * Prompt #190 — include approved content where viewer is recognized/tagged via lantern_content_people.
  */
 export async function buildLockerPersonalFeed(db, origin, account, economyKey, params) {
   const keys = identityKeysForAccount(account, economyKey);
@@ -105,6 +109,11 @@ export async function buildLockerPersonalFeed(db, origin, account, economyKey, p
     ? await reactedFeedIds(db, username)
     : new Set();
 
+  const personKeys = await personKeysForAccount(db, account);
+  const relatedFeedIds = personKeys.length
+    ? await feedIdsRelatedToPersonKeys(db, personKeys)
+    : new Set();
+
   function submittedSet() {
     return items.filter((it) => isSubmittedByIdentity(it, keys, username));
   }
@@ -112,7 +121,10 @@ export async function buildLockerPersonalFeed(db, origin, account, economyKey, p
     return items.filter((it) => reactedIds.has(String(it.id)));
   }
   function taggedSet() {
-    return items.filter((it) => isTaggedForIdentity(it, keys));
+    return items.filter((it) => {
+      if (relatedFeedIds.has(String(it.id))) return true;
+      return isTaggedForIdentity(it, keys);
+    });
   }
 
   let scoped = items;

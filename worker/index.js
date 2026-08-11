@@ -25,6 +25,14 @@ import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './eco
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
+import {
+  searchPeople,
+  normalizePeoplePayload,
+  replaceContentPeople,
+  copyContentPeople,
+  listContentPeople,
+  publicPeopleForReview,
+} from './content-people.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
@@ -271,6 +279,14 @@ export default {
     if (path.startsWith('/api/news')) {
       try {
         return await handleNewsRoutes(request, url, path, env, cors);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, cors);
+      }
+    }
+    if (path.startsWith('/api/people')) {
+      try {
+        return await handlePeopleRoutes(request, url, path, env, cors);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, cors);
@@ -4978,6 +4994,33 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
 
+/** Prompt #190 — authenticated People search for Create tagging. */
+async function handlePeopleRoutes(request, url, path, env, cors) {
+  const db = env.DB;
+  if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+  const account = await getPilotAccountFromRequest(request, env);
+  if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+  if (pilotAccountRequiresChangePassword(account)) {
+    return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+  }
+  if (request.method === 'GET' && path === '/api/people/search') {
+    const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
+    const limit = url.searchParams.get('limit');
+    const result = await searchPeople(db, q, limit);
+    if (!result.ok) return jsonResponse(result, 503, cors);
+    return jsonResponse(
+      {
+        ok: true,
+        students: result.students,
+        staff: result.staff,
+      },
+      200,
+      cors
+    );
+  }
+  return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
+}
+
 /** Lantern news */
 async function handleNewsRoutes(request, url, path, env, cors) {
   const origin = url.origin || '';
@@ -5089,8 +5132,21 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     if (linkUrl && !/^https?:\/\//i.test(linkUrl)) linkUrl = null;
     if (linkUrl) linkUrl = linkUrl.slice(0, 2000);
     const category = (body.category != null && String(body.category).trim() !== '') ? String(body.category).trim().slice(0, 200) : null;
+    const isShoutOut = String(category || '').trim().toLowerCase() === 'student spotlight';
+    const peopleNorm = await normalizePeoplePayload(db, body.people, {
+      requireRecognizedOne: isShoutOut,
+    });
+    if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
     if (!title) return jsonResponse({ ok: false, error: 'Missing title' }, 400, cors);
     if (!authorName) return jsonResponse({ ok: false, error: 'Missing author_name' }, 400, cors);
+    let articleBodyFinal = articleBody;
+    if (isShoutOut && peopleNorm.people[0] && peopleNorm.people[0].display_label) {
+      const label = peopleNorm.people[0].display_label;
+      // Keep Recognizing: prefix for Explore/mission detectors; identity is relational.
+      if (!/^Recognizing:\s*/i.test(articleBodyFinal)) {
+        articleBodyFinal = 'Recognizing: ' + label + '\n\n' + articleBodyFinal;
+      }
+    }
     const id = 'news-' + crypto.randomUUID();
     const now = new Date().toISOString();
     const staffPublisher = NEWS_PUBLISHER_ROLES.includes(authorType);
@@ -5099,7 +5155,12 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const reviewedBy = staffPublisher ? (authorName || 'Teacher') : null;
     await db.prepare(
       'INSERT INTO lantern_news_submissions (id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, image_file_name, image_mime_type, image_file_size, photo_credit, video_r2_key, video_file_name, video_mime_type, video_file_size, link_url, category, status, created_at, reviewed_at, reviewed_by_staff_id, reviewed_by_staff_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, title, articleBody, actorId || null, authorName, authorType, imageR2Key, fullImageR2Key, imageFileName, imageMimeType, imageFileSize, photoCredit, videoR2Key, videoFileName, videoMimeType, videoFileSize, linkUrl, category, status, now, reviewedAt, null, reviewedBy).run();
+    ).bind(id, title, articleBodyFinal, actorId || null, authorName, authorType, imageR2Key, fullImageR2Key, imageFileName, imageMimeType, imageFileSize, photoCredit, videoR2Key, videoFileName, videoMimeType, videoFileSize, linkUrl, category, status, now, reviewedAt, null, reviewedBy).run();
+    try {
+      await replaceContentPeople(db, 'news', id, peopleNorm.people, account.username);
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
+    }
     if (!staffPublisher) {
       const approvalId = 'approval-' + crypto.randomUUID();
       await db.prepare(
@@ -5350,6 +5411,7 @@ async function handleApprovalsRoutes(request, url, path, env) {
           const videoUrl = newsRow.video_r2_key ? origin + '/api/news/video?key=' + encodeURIComponent(newsRow.video_r2_key) : null;
           const linkUrl = (newsRow.link_url && /^https?:\/\//i.test(String(newsRow.link_url).trim())) ? String(newsRow.link_url).trim().slice(0, 2000) : null;
           const cat = newsRow.category != null && String(newsRow.category).trim() !== '' ? String(newsRow.category).trim() : null;
+          const peopleRows = await listContentPeople(db, 'news', a.item_id);
           out.push({
             id: a.id,
             item_type: a.item_type,
@@ -5368,6 +5430,7 @@ async function handleApprovalsRoutes(request, url, path, env) {
             body: newsRow.body || '',
             author_name: newsRow.author_name || submitter,
             category: cat,
+            people: publicPeopleForReview(peopleRows),
           });
           continue;
         }
@@ -5390,6 +5453,7 @@ async function handleApprovalsRoutes(request, url, path, env) {
             const DEF = { poll: 'default/default_poll.png', news: 'default/default_news.png', creation: 'default/default_creation.png', generic: 'default/default_generic_stem.png', shoutout: 'default/default_shoutout.png', explain: 'default/default_explain.png' };
             preview_url = origin + '/api/media/image?key=' + encodeURIComponent(DEF[fk] || DEF.poll);
           }
+          const peopleRows = await listContentPeople(db, 'poll_contribution', a.item_id);
           out.push({
             id: a.id,
             item_type: a.item_type,
@@ -5405,6 +5469,7 @@ async function handleApprovalsRoutes(request, url, path, env) {
             preview_url,
             poll_choices: ch,
             poll_question: pc.question || '',
+            people: publicPeopleForReview(peopleRows),
           });
           continue;
         }
@@ -5546,6 +5611,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
             await db.prepare(
               'UPDATE lantern_poll_contributions SET status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
             ).bind('approved', now, staffName, pc.id).run();
+            try {
+              await copyContentPeople(db, 'poll_contribution', pc.id, 'poll', pollId, staffName);
+            } catch (_) {}
             try {
               if (pc.character_name) {
                 await ensureContentApprovedMissionCompletion(db, env, 'poll', pc.character_name, pc.id);
@@ -5716,6 +5784,8 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     const fallbackResolved = imageUrl
       ? null
       : (ALLOWED_FB.includes(fallbackKeyRaw) ? fallbackKeyRaw : 'poll');
+    const peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: false });
+    if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
     const contribId = 'pcontrib_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     const approvalId = 'appr_poll_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     const now = new Date().toISOString();
@@ -5727,6 +5797,11 @@ async function handlePollsRoutes(request, url, path, env, cors) {
       ).bind(contribId, characterName, question, choicesJson, imageUrl, fb, 'pending', now).run();
     } catch (e) {
       return jsonResponse({ ok: false, error: 'Poll submissions require DB migration 029 (lantern_poll_contributions)' }, 503, cors);
+    }
+    try {
+      await replaceContentPeople(db, 'poll_contribution', contribId, peopleNorm.people, characterName);
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
     }
     await db.prepare(
       'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -5866,6 +5941,8 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     const fallbackResolved = imageUrl
       ? null
       : (ALLOWED_FB.includes(fallbackKeyRaw) ? fallbackKeyRaw : 'poll');
+    const peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: false });
+    if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
     const row = await db.prepare('SELECT id, status FROM lantern_poll_contributions WHERE id = ? AND character_name = ?').bind(contribId, characterName).first();
     if (!row) return jsonResponse({ ok: false, error: 'Contribution not found' }, 404, cors);
     if ((row.status || '') !== 'returned') return jsonResponse({ ok: false, error: 'Can only resubmit returned polls' }, 400, cors);
@@ -5875,6 +5952,11 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     await db.prepare(
       'UPDATE lantern_poll_contributions SET question = ?, choices_json = ?, image_url = ?, fallback_key = ?, status = ?, decision_note = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
     ).bind(question, choicesJson, imageUrl, fb, 'pending', null, null, null, contribId).run();
+    try {
+      await replaceContentPeople(db, 'poll_contribution', contribId, peopleNorm.people, characterName);
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
+    }
     const approvalId = 'appr_poll_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     await db.prepare(
       'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -6316,9 +6398,13 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const characterName = (body.character_name || '').trim();
+    // Prompt #190 — Recognizing via canonical People picker (not free-text / demo roster select).
+    const peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: true });
+    if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
+    const recognized = peopleNorm.people[0];
+    const characterName = String(recognized.display_label || '').trim();
     const message = (body.message || '').trim().slice(0, 250);
-    if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+    if (!characterName) return jsonResponse({ ok: false, error: 'Missing recognized person' }, 400, cors);
     if (isKnownDemoPersonaName(characterName)) {
       return jsonResponse({ ok: false, error: 'demo_persona_not_allowed' }, 400, cors);
     }
@@ -6365,6 +6451,11 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
       ).bind(id, characterName, message, category, now, createdByTeacherId, createdByTeacherName).run();
     }
     try {
+      await replaceContentPeople(db, 'recognition', id, peopleNorm.people, auth.account.username);
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
+    }
+    try {
       await awardAchievementsForRecognition(db, characterName, category, message, id);
     } catch (_) {}
     return jsonResponse({
@@ -6379,6 +6470,7 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
       full_image_r2_key: fullImageR2Key,
       video_r2_key: videoR2Key,
       link_url: linkUrl,
+      people: publicPeopleForReview(peopleNorm.people),
     }, 200, cors);
   }
 
