@@ -65,11 +65,11 @@ if (/refreshAvatarCropAffordability\(\)/.test(profileJs) && /callGetBalance\(\)/
   ok('profile-app: crop modal refreshes session wallet with loading state');
 } else bad('profile-app missing crop modal session wallet refresh');
 
-if (/avatarCropAvailable == null/.test(profileJs) && /avatarCropSubmitting/.test(profileJs)) {
+if (/avatarCropAvailable == null/.test(profileJs) && (/AvatarCropper\.isSubmitting|state\.submitting|lockerAvatarSubmitAllowed/.test(profileJs))) {
   ok('profile-app: blocks submit while loading or in flight');
 } else bad('profile-app missing submit guards');
 
-if (/syncAvatarCropSubmitState/.test(profileJs) && /avatarCropImageReady/.test(profileJs)) {
+if (/syncAvatarCropSubmitState/.test(profileJs) && (/lockerAvatarSubmitAllowed|state\.imageReady/.test(profileJs))) {
   ok('profile-app: submit gated on image ready and wallet');
 } else bad('profile-app missing combined submit gate');
 

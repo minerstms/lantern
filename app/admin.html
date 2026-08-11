@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-collapsible-list.css">
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
+  <link rel="stylesheet" href="css/lantern-avatar-cropper.css">
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -302,23 +304,60 @@
         <button type="button" class="btn" id="tempPwCancel">Cancel</button>
       </div>
     </div>
-    <div id="adminAvatarPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" hidden data-admin-floating-editor="1">
-      <p class="acctPanelHd">Manage Avatar</p>
+  </div>
+
+  <!-- Prompt #212 — Manage Avatar (fixed overlay; survives Staff/Students list re-render) -->
+  <div class="overlay" id="adminAvatarOverlay" aria-hidden="true">
+    <div class="modal" style="max-width:520px;" role="dialog" aria-labelledby="adminAvatarTitle">
+      <div class="modalHd">
+        <div class="h" id="adminAvatarTitle">Manage Avatar</div>
+        <button type="button" class="x" id="adminAvatarCloseBtn" aria-label="Close">✕</button>
+      </div>
       <p id="adminAvatarHint" class="acctPanelHint"></p>
       <input type="hidden" id="adminAvatarUsername" value="" />
       <p class="acctPanelHint" style="margin:0 0 8px;">Current Avatar</p>
       <div id="adminAvatarPreviewWrap" style="margin:0 0 12px;">
-        <img id="adminAvatarPreview" alt="Current avatar" width="96" height="96" style="display:none;width:96px;height:96px;object-fit:cover;border-radius:12px;border:1px solid rgba(0,0,0,.12);" />
+        <img id="adminAvatarPreview" alt="Current avatar" width="96" height="96" style="display:none;width:96px;height:96px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.12);" />
         <p id="adminAvatarNone" class="acctPanelHint" style="margin:0;">No Avatar</p>
       </div>
-      <label for="adminAvatarFile">Upload New Avatar</label>
-      <input id="adminAvatarFile" type="file" accept="image/png,image/jpeg,image/webp" />
+      <input id="adminAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/jpg" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" />
       <p id="adminAvatarMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
-      <p class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Image becomes active immediately.</p>
+      <p class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper. Image becomes active immediately.</p>
       <div class="acctPanelActions">
-        <button type="button" class="btn good" id="adminAvatarUploadBtn">Upload / Replace Avatar</button>
+        <button type="button" class="btn good" id="adminAvatarChooseBtn">Upload / Replace Avatar</button>
         <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Exact Locker avatar crop overlay (shared LanternAvatarCropper) -->
+  <div class="overlay" id="avatarCropOverlay">
+    <div class="modal" style="max-width:520px;">
+      <div class="modalHd">
+        <div class="h">Crop Avatar</div>
+        <button type="button" class="x" id="avatarCropCloseBtn" aria-label="Close cropper">✕</button>
+      </div>
+      <div style="font-size:19px; color:var(--muted); margin-bottom:10px;">
+        Drag to position your avatar. Keep your face centered. Square crop only.
+      </div>
+      <div id="avatarCropContainer" style="width:100%; max-width:400px; height:400px; margin:0 auto 10px; background:rgba(0,0,0,.5); border-radius:16px; overflow:hidden;">
+        <img id="avatarCropImage" alt="Avatar preview" style="max-width:100%; max-height:100%; display:block;">
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn small" id="avatarCropZoomInBtn">Zoom in</button>
+          <button type="button" class="btn small" id="avatarCropZoomOutBtn">Zoom out</button>
+          <button type="button" class="btn small" id="avatarCropRotateLeftBtn">Rotate</button>
+        </div>
+        <div style="font-size:18px; color:var(--muted);">Exported at 384×384 · JPEG</div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button type="button" class="btn" id="avatarCropCancelBtn" style="flex:1;">Cancel</button>
+        <button type="button" class="btn good" id="avatarCropSubmitBtn" style="flex:1;">Assign Avatar (0 Nuggets)</button>
+      </div>
+      <p id="avatarCropImageStatus" class="avatarCropImageStatus" aria-live="polite"></p>
+      <p id="avatarCropBalanceStatus" class="avatarCropBalanceStatus" aria-live="polite"></p>
+      <div id="avatarCropError" style="margin-top:8px; font-size:18px; color:#ffcc66;"></div>
     </div>
   </div>
 
@@ -700,6 +739,8 @@
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-collapsible-list.js"></script>
   <script src="js/lantern-admin-bl-system.js"></script>
+  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/lantern-avatar-cropper.js"></script>
   <script>
   (function(){
     if (typeof window.initTeacherCollapsibleLists === 'function') {
@@ -1680,60 +1721,75 @@
       }
     }
     function closeAdminAvatarPanel() {
-      var p = document.getElementById('adminAvatarPanel');
+      var overlay = document.getElementById('adminAvatarOverlay');
       var file = document.getElementById('adminAvatarFile');
       var msg = document.getElementById('adminAvatarMsg');
       var hid = document.getElementById('adminAvatarUsername');
       var img = document.getElementById('adminAvatarPreview');
       var none = document.getElementById('adminAvatarNone');
+      var chooseBtn = document.getElementById('adminAvatarChooseBtn');
       if (file) file.value = '';
       if (msg) msg.textContent = '';
       if (hid) hid.value = '';
+      if (chooseBtn) {
+        chooseBtn.disabled = false;
+        chooseBtn.textContent = 'Upload / Replace Avatar';
+      }
       if (img) {
         img.removeAttribute('src');
         img.style.display = 'none';
       }
       if (none) none.style.display = 'block';
-      if (p) {
-        p.style.display = 'none';
-        p.setAttribute('aria-hidden', 'true');
-        p.hidden = true;
-        parkAdminEditor(p);
+      if (overlay) {
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
       }
     }
     function setAdminAvatarPreview(url) {
       var img = document.getElementById('adminAvatarPreview');
       var none = document.getElementById('adminAvatarNone');
+      var chooseBtn = document.getElementById('adminAvatarChooseBtn');
       if (url) {
         if (img) {
           img.src = url;
           img.style.display = 'block';
         }
         if (none) none.style.display = 'none';
+        if (chooseBtn) chooseBtn.textContent = 'Replace Avatar';
       } else {
         if (img) {
           img.removeAttribute('src');
           img.style.display = 'none';
         }
         if (none) none.style.display = 'block';
+        if (chooseBtn) chooseBtn.textContent = 'Upload Avatar';
       }
     }
-    function openAdminAvatarPanel(username, label, mountEl) {
+    function openAdminAvatarPanel(username, label) {
       closeEditUserPanel();
       closeTempPwPanel();
       closeStudentsEditPanels();
       var user = String(username || '').trim();
-      if (!user) return;
+      if (!user) {
+        showUsersMsg('Manage Avatar: missing account username.', 'err');
+        return;
+      }
+      var overlay = document.getElementById('adminAvatarOverlay');
       var hint = document.getElementById('adminAvatarHint');
       var hid = document.getElementById('adminAvatarUsername');
       var msg = document.getElementById('adminAvatarMsg');
       var file = document.getElementById('adminAvatarFile');
+      if (!overlay) {
+        showUsersMsg('Manage Avatar UI is missing. Refresh the page.', 'err');
+        return;
+      }
       if (hint) hint.textContent = 'Assigning avatar for ' + (label || user) + ' (' + user + '). Costs 0 Nuggets.';
       if (hid) hid.value = user;
       if (msg) msg.textContent = 'Loading current avatar…';
       if (file) file.value = '';
       setAdminAvatarPreview(null);
-      mountAdminEditor(document.getElementById('adminAvatarPanel'), mountEl || null);
+      overlay.classList.add('show');
+      overlay.setAttribute('aria-hidden', 'false');
       fetch(api + '/api/admin/avatar/status?username=' + encodeURIComponent(user), { credentials: 'include', cache: 'no-store' })
         .then(function(r) {
           return r.json().then(function(j) {
@@ -1744,7 +1800,9 @@
           if (!msg) return;
           if (res && res.okHttp && res.body && res.body.ok) {
             setAdminAvatarPreview(res.body.active_image || null);
-            msg.textContent = res.body.active_image ? 'Replace with a new image, or keep the current avatar.' : 'No avatar yet — upload one to assign immediately.';
+            msg.textContent = res.body.active_image
+              ? 'Replace with a new image, or keep the current avatar.'
+              : 'No avatar yet — upload one to assign immediately.';
             return;
           }
           msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not load avatar status.';
@@ -1752,6 +1810,54 @@
         .catch(function() {
           if (msg) msg.textContent = 'Network error loading avatar status.';
         });
+    }
+    function openAdminAvatarCropper(file, username) {
+      var CropperApi = window.LanternAvatarCropper;
+      var msg = document.getElementById('adminAvatarMsg');
+      if (!CropperApi || typeof CropperApi.openFromFile !== 'function') {
+        if (msg) msg.textContent = 'Cropper not loaded. Refresh the page.';
+        showUsersMsg('Cropper not loaded. Refresh the page.', 'err');
+        return;
+      }
+      var user = String(username || '').trim();
+      if (!user) {
+        if (msg) msg.textContent = 'Missing account username.';
+        return;
+      }
+      CropperApi.openFromFile(file, {
+        submitLabel: 'Assign Avatar (0 Nuggets)',
+        balanceStatusText: 'System Admin assignment — 0 Nuggets. No wallet debit.',
+        isSubmitAllowed: function(state) {
+          return !!(state && state.imageReady && !state.submitting);
+        },
+        blockedMessage: function() {
+          return 'Preparing image…';
+        },
+        onConfirm: function(dataUrl) {
+          return postAdminJson('/api/admin/avatar/set', { username: user, image: dataUrl }).then(function(res) {
+            if (res && res.blocked) return { ok: false, error: 'Session blocked' };
+            if (res && res.okHttp && res.body && res.body.ok) {
+              return {
+                ok: true,
+                active_image: res.body.active_image || null,
+                username: user,
+              };
+            }
+            return {
+              ok: false,
+              error: (res && res.body && (res.body.message || res.body.error)) || 'Upload failed',
+            };
+          });
+        },
+        onConfirmSuccess: function(res) {
+          setAdminAvatarPreview(res && res.active_image ? res.active_image : null);
+          if (msg) msg.textContent = 'Avatar assigned. 0 Nuggets charged. Active immediately.';
+          showUsersMsg('Avatar updated for ' + user + ' (0 Nuggets).', 'ok');
+          if (typeof showStudentsRosterMsg === 'function') {
+            showStudentsRosterMsg('Avatar updated for ' + user + ' (0 Nuggets).', 'ok');
+          }
+        },
+      });
     }
     function closeAllFloatingEditors() {
       closeEditUserPanel();
@@ -1907,52 +2013,49 @@
 
     var adminAvatarCancelBtn = document.getElementById('adminAvatarCancelBtn');
     if (adminAvatarCancelBtn) adminAvatarCancelBtn.addEventListener('click', closeAdminAvatarPanel);
-    var adminAvatarUploadBtn = document.getElementById('adminAvatarUploadBtn');
-    if (adminAvatarUploadBtn) {
-      adminAvatarUploadBtn.addEventListener('click', function() {
+    var adminAvatarCloseBtn = document.getElementById('adminAvatarCloseBtn');
+    if (adminAvatarCloseBtn) adminAvatarCloseBtn.addEventListener('click', closeAdminAvatarPanel);
+    var adminAvatarOverlay = document.getElementById('adminAvatarOverlay');
+    if (adminAvatarOverlay) {
+      adminAvatarOverlay.addEventListener('click', function(ev) {
+        if (ev.target === adminAvatarOverlay) closeAdminAvatarPanel();
+      });
+    }
+    var adminAvatarChooseBtn = document.getElementById('adminAvatarChooseBtn');
+    var adminAvatarFile = document.getElementById('adminAvatarFile');
+    if (adminAvatarChooseBtn && adminAvatarFile) {
+      adminAvatarChooseBtn.addEventListener('click', function() {
         var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
-        var fileEl = document.getElementById('adminAvatarFile');
         var msg = document.getElementById('adminAvatarMsg');
-        var file = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
         if (!username) {
           if (msg) msg.textContent = 'Missing account username.';
           return;
         }
-        if (!file) {
-          if (msg) msg.textContent = 'Choose an image file first.';
+        adminAvatarFile.value = '';
+        adminAvatarFile.click();
+      });
+      adminAvatarFile.addEventListener('change', function() {
+        var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+        var msg = document.getElementById('adminAvatarMsg');
+        var file = adminAvatarFile.files && adminAvatarFile.files[0] ? adminAvatarFile.files[0] : null;
+        if (!file) return;
+        if (!username) {
+          if (msg) msg.textContent = 'Missing account username.';
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          if (msg) msg.textContent = 'Image too large (max 5MB).';
+        var CropperApi = window.LanternAvatarCropper;
+        if (CropperApi && typeof CropperApi.validateFile === 'function') {
+          var verr = CropperApi.validateFile(file);
+          if (verr) {
+            if (msg) msg.textContent = verr;
+            return;
+          }
+        } else if (file.size > 3 * 1024 * 1024) {
+          if (msg) msg.textContent = 'Image is too large. Please keep it under 3MB.';
           return;
         }
-        if (msg) msg.textContent = 'Uploading…';
-        adminAvatarUploadBtn.disabled = true;
-        var reader = new FileReader();
-        reader.onload = function() {
-          var dataUrl = String(reader.result || '');
-          postAdminJson('/api/admin/avatar/set', { username: username, image: dataUrl }).then(function(res) {
-            if (res && res.blocked) return;
-            if (res && res.okHttp && res.body && res.body.ok) {
-              setAdminAvatarPreview(res.body.active_image || null);
-              if (fileEl) fileEl.value = '';
-              if (msg) msg.textContent = 'Avatar assigned. 0 Nuggets charged. Active immediately.';
-              showUsersMsg('Avatar updated for ' + username + ' (0 Nuggets).', 'ok');
-              showStudentsRosterMsg('Avatar updated for ' + username + ' (0 Nuggets).', 'ok');
-              return;
-            }
-            if (msg) msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Upload failed';
-          }).catch(function() {
-            if (msg) msg.textContent = 'Network error while uploading avatar.';
-          }).finally(function() {
-            adminAvatarUploadBtn.disabled = false;
-          });
-        };
-        reader.onerror = function() {
-          if (msg) msg.textContent = 'Could not read image file.';
-          adminAvatarUploadBtn.disabled = false;
-        };
-        reader.readAsDataURL(file);
+        if (msg) msg.textContent = 'Opening cropper…';
+        openAdminAvatarCropper(file, username);
       });
     }
 
@@ -2042,6 +2145,7 @@
       if (!tb) return;
       closeEditUserPanel();
       closeTempPwPanel();
+      closeAdminAvatarPanel();
       tb.innerHTML = '';
       var rows = filteredStaffList();
       if (empty) empty.style.display = rows.length ? 'none' : 'block';
@@ -2112,7 +2216,7 @@
           ev.preventDefault();
           ev.stopPropagation();
           var label = formatStaffDisplayName(u) || u.username;
-          openAdminAvatarPanel(u.username, label, editorMount);
+          openAdminAvatarPanel(u.username, label);
         });
         cell.appendChild(bAvatar);
         if (active) {
@@ -3234,7 +3338,7 @@
           bAvatar.addEventListener('click', function(ev) {
             ev.preventDefault();
             ev.stopPropagation();
-            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username, editorMount);
+            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
           });
           actions.appendChild(bAvatar);
 
@@ -3289,7 +3393,7 @@
           bAvatarArch.addEventListener('click', function(ev) {
             ev.preventDefault();
             ev.stopPropagation();
-            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username, editorMount);
+            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
           });
           actions.appendChild(bAvatarArch);
         }

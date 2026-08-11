@@ -1,0 +1,72 @@
+/* Canonical avatar crop overlay shell (Locker + Admin). Cropper.js stylesheet loaded separately. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  padding: 18px;
+}
+.overlay.show {
+  display: flex;
+}
+#avatarCropOverlay.show {
+  z-index: 10000;
+}
+.overlay .modal {
+  width: min(500px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0f1b33;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  padding: 20px;
+  color: #eaf0ff;
+  box-sizing: border-box;
+}
+.overlay .modalHd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.overlay .modalHd .h {
+  font-weight: 900;
+  font-size: 28px;
+}
+.overlay .modalHd .x,
+.overlay button.x {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: #eaf0ff;
+  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.overlay .btn.small {
+  height: 44px;
+  font-size: 20px;
+  padding: 0 12px;
+  margin-top: 0;
+}
+.avatarCropImageStatus,
+.avatarCropBalanceStatus {
+  margin-top: 8px;
+  font-size: 18px;
+  color: #b9c6ea;
+  min-height: 1.2em;
+}
+
+@media (max-width: 420px) {
+  #avatarCropContainer {
+    height: min(70vw, 320px) !important;
+    max-width: 100% !important;
+  }
+}

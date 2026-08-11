@@ -1658,22 +1658,14 @@
       var themePicker = el('editProfileThemePicker');
       var featuredSelect = el('editProfileFeaturedPost');
     var currentAvatarStatus = null;
-    var avatarCropper = null;
-    var avatarCropDataUrl = null;
-    var avatarCropOpenGuard = false;
-    var avatarCropSubmitting = false;
     var avatarCropAvailable = null;
     var avatarCropBalanceLoaded = false;
-    var avatarCropImageReady = false;
-    var avatarCropImageLoading = false;
-    var avatarCropImageLoadToken = 0;
-    var avatarCropPreviewUrl = null;
-    var avatarCropSelectedFile = null;
     var AVATAR_UPLOAD_COST = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST != null)
       ? Number(window.LanternWallet.AVATAR_UPLOAD_COST)
       : 1;
     if (!Number.isFinite(AVATAR_UPLOAD_COST) || AVATAR_UPLOAD_COST < 1) AVATAR_UPLOAD_COST = 1;
     AVATAR_UPLOAD_COST = Math.floor(AVATAR_UPLOAD_COST);
+    var AvatarCropper = window.LanternAvatarCropper || null;
 
     function avatarCostLabel(cost){
       var n = Number(cost) || 1;
@@ -1681,55 +1673,10 @@
     }
 
     function syncAvatarCropSubmitState(){
-      var submitBtn = el('avatarCropSubmitBtn');
-      var cost = AVATAR_UPLOAD_COST;
-      var canSubmit = avatarCropImageReady
-        && avatarCropBalanceLoaded
-        && avatarCropAvailable != null
-        && avatarCropAvailable >= cost
-        && !avatarCropSubmitting;
-      if (submitBtn) {
-        submitBtn.disabled = !canSubmit;
-        submitBtn.textContent = 'Submit avatar (' + avatarCostLabel(cost) + ')';
+      if (AvatarCropper && typeof AvatarCropper.syncSubmitState === 'function') {
+        AvatarCropper.setSubmitLabel('Submit avatar (' + avatarCostLabel(AVATAR_UPLOAD_COST) + ')');
+        AvatarCropper.syncSubmitState();
       }
-    }
-
-    function updateAvatarCropImageStatus(opts){
-      opts = opts || {};
-      var statusEl = el('avatarCropImageStatus');
-      if (!statusEl) return;
-      if (opts.loading) {
-        statusEl.textContent = 'Preparing image…';
-        return;
-      }
-      if (opts.ready) {
-        statusEl.textContent = '';
-        return;
-      }
-      if (opts.error) {
-        statusEl.textContent = '';
-        return;
-      }
-      statusEl.textContent = '';
-    }
-
-    function resetAvatarCropImageState(opts){
-      opts = opts || {};
-      avatarCropImageLoadToken += 1;
-      avatarCropImageReady = false;
-      avatarCropImageLoading = false;
-      avatarCropPreviewUrl = null;
-      avatarCropSelectedFile = null;
-      avatarCropDataUrl = null;
-      if (!opts.keepCropper) destroyAvatarCropper();
-      var imgEl = el('avatarCropImage');
-      if (imgEl) {
-        imgEl.onload = null;
-        imgEl.onerror = null;
-        imgEl.removeAttribute('src');
-      }
-      updateAvatarCropImageStatus({});
-      syncAvatarCropSubmitState();
     }
 
     function refreshProfileBalanceDisplay(res){
@@ -1799,6 +1746,53 @@
           error: res && res.error,
         });
         return res;
+      });
+    }
+
+    function lockerAvatarSubmitAllowed(state){
+      state = state || {};
+      return !!(state.imageReady
+        && avatarCropBalanceLoaded
+        && avatarCropAvailable != null
+        && avatarCropAvailable >= AVATAR_UPLOAD_COST
+        && !state.submitting);
+    }
+
+    function openLockerAvatarCropper(file){
+      if (!AvatarCropper || typeof AvatarCropper.openFromFile !== 'function') {
+        toast('Cropper not loaded. Refresh the page.');
+        return;
+      }
+      AvatarCropper.openFromFile(file, {
+        submitLabel: 'Submit avatar (' + avatarCostLabel(AVATAR_UPLOAD_COST) + ')',
+        balanceStatusText: 'Checking balance…',
+        isSubmitAllowed: lockerAvatarSubmitAllowed,
+        blockedMessage: function(){
+          if (!avatarCropBalanceLoaded || avatarCropAvailable == null) return 'Checking balance…';
+          if (avatarCropAvailable < AVATAR_UPLOAD_COST) {
+            return 'Not enough nuggets. Need ' + AVATAR_UPLOAD_COST + ', available ' + avatarCropAvailable;
+          }
+          return 'Cannot submit yet.';
+        },
+        onOpen: function(){
+          refreshAvatarCropAffordability();
+        },
+        onConfirm: function(dataUrl){
+          var adopted = getAdopted();
+          if (!adopted || !adopted.name) {
+            return Promise.resolve({ ok: false, error: 'Adopt a character first.' });
+          }
+          return callSubmitAvatarUpload(adopted.name, dataUrl, AVATAR_UPLOAD_COST);
+        },
+        onConfirmFailed: function(){
+          refreshAvatarCropAffordability();
+        },
+        onConfirmSuccess: function(){
+          toast('Avatar submitted for approval. -' + avatarCostLabel(AVATAR_UPLOAD_COST));
+          refreshWalletAfterAvatarPurchase().then(function(){
+            showProfile();
+          });
+        },
       });
     }
 
@@ -2208,13 +2202,6 @@
       if (el('editProfileCloseBtn')) el('editProfileCloseBtn').addEventListener('click', function(){ if (overlay) overlay.classList.remove('show'); });
       if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
 
-      function destroyAvatarCropper(){
-        if (avatarCropper){
-          avatarCropper.destroy();
-          avatarCropper = null;
-        }
-      }
-
       function openAvatarFileChooser(){
         var adopted = getAdopted();
         if (!adopted) { toast('Adopt a character first'); return; }
@@ -2238,218 +2225,13 @@
       if (fileInput){
         fileInput.addEventListener('change', function(){
           var file = fileInput.files && fileInput.files[0];
-          var errorEl = el('avatarCropError');
-          if (errorEl) errorEl.textContent = '';
-          if (!file){
-            return;
-          }
+          if (!file) return;
           var adopted = getAdopted();
           if (!adopted || !String(adopted.name || '').trim()){
-            if (errorEl) errorEl.textContent = 'Adopt a character first.';
+            toast('Adopt a character first.');
             return;
           }
-          if (!/^image\//i.test(file.type || '')){
-            if (errorEl) errorEl.textContent = 'Please choose an image file.';
-            return;
-          }
-          if (file.size && file.size > 3 * 1024 * 1024){
-            if (errorEl) errorEl.textContent = 'Image is too large. Please keep it under 3MB.';
-            return;
-          }
-          var imgEl = el('avatarCropImage');
-          var overlayEl = el('avatarCropOverlay');
-          if (!imgEl || !overlayEl) return;
-
-          resetAvatarCropImageState({ keepCropper: false });
-          var loadToken = avatarCropImageLoadToken;
-          avatarCropSelectedFile = file;
-          avatarCropImageLoading = true;
-          avatarCropImageReady = false;
-          updateAvatarCropImageStatus({ loading: true });
-          syncAvatarCropSubmitState();
-
-          overlayEl.classList.add('show');
-          avatarCropOpenGuard = true;
-          setTimeout(function(){ avatarCropOpenGuard = false; }, 400);
-          refreshAvatarCropAffordability();
-
-          var reader = new FileReader();
-          reader.onload = function(ev){
-            if (loadToken !== avatarCropImageLoadToken) return;
-            var url = ev.target && ev.target.result;
-            if (!url) {
-              avatarCropImageLoading = false;
-              if (errorEl) errorEl.textContent = 'Could not load image.';
-              updateAvatarCropImageStatus({ error: true });
-              syncAvatarCropSubmitState();
-              return;
-            }
-            avatarCropPreviewUrl = url;
-            imgEl.onload = function(){
-              if (loadToken !== avatarCropImageLoadToken) return;
-              try{
-                var naturalMin = Math.min(imgEl.naturalWidth || 0, imgEl.naturalHeight || 0);
-                if (naturalMin < 128){
-                  if (errorEl) errorEl.textContent = 'Image is too small. Use an image at least 128×128.';
-                  avatarCropImageLoading = false;
-                  avatarCropImageReady = false;
-                  updateAvatarCropImageStatus({ error: true });
-                  destroyAvatarCropper();
-                  overlayEl.classList.remove('show');
-                  syncAvatarCropSubmitState();
-                  return;
-                }
-                if (window.Cropper){
-                  destroyAvatarCropper();
-                  avatarCropper = new window.Cropper(imgEl, {
-                    aspectRatio: 1,
-                    viewMode: 1,
-                    background: false,
-                    autoCropArea: 0.9,
-                  });
-                  avatarCropImageLoading = false;
-                  avatarCropImageReady = true;
-                  updateAvatarCropImageStatus({ ready: true });
-                  syncAvatarCropSubmitState();
-                } else {
-                  avatarCropImageLoading = false;
-                  avatarCropImageReady = false;
-                  if (errorEl) errorEl.textContent = 'Cropper not loaded. Refresh the page.';
-                  updateAvatarCropImageStatus({ error: true });
-                  syncAvatarCropSubmitState();
-                }
-              }catch(e){
-                avatarCropImageLoading = false;
-                avatarCropImageReady = false;
-                if (errorEl) errorEl.textContent = 'Could not start cropper.';
-                updateAvatarCropImageStatus({ error: true });
-                syncAvatarCropSubmitState();
-              }
-            };
-            imgEl.onerror = function(){
-              if (loadToken !== avatarCropImageLoadToken) return;
-              avatarCropImageLoading = false;
-              avatarCropImageReady = false;
-              if (errorEl) errorEl.textContent = 'Could not load image.';
-              updateAvatarCropImageStatus({ error: true });
-              syncAvatarCropSubmitState();
-            };
-            imgEl.src = url;
-          };
-          reader.onerror = function(){
-            if (loadToken !== avatarCropImageLoadToken) return;
-            avatarCropImageLoading = false;
-            avatarCropImageReady = false;
-            if (errorEl) errorEl.textContent = 'Could not load image.';
-            updateAvatarCropImageStatus({ error: true });
-            syncAvatarCropSubmitState();
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-
-      function closeAvatarCropOverlay(){
-        var overlayEl = el('avatarCropOverlay');
-        var errorEl = el('avatarCropError');
-        var statusEl = el('avatarCropBalanceStatus');
-        var imageStatusEl = el('avatarCropImageStatus');
-        if (overlayEl) overlayEl.classList.remove('show');
-        if (errorEl) errorEl.textContent = '';
-        if (statusEl) statusEl.textContent = '';
-        if (imageStatusEl) imageStatusEl.textContent = '';
-        avatarCropSubmitting = false;
-        avatarCropAvailable = null;
-        avatarCropBalanceLoaded = false;
-        resetAvatarCropImageState({ keepCropper: false });
-      }
-
-      var cropCloseBtn = el('avatarCropCloseBtn');
-      var cropCancelBtn = el('avatarCropCancelBtn');
-      if (cropCloseBtn) cropCloseBtn.addEventListener('click', closeAvatarCropOverlay);
-      if (cropCancelBtn) cropCancelBtn.addEventListener('click', closeAvatarCropOverlay);
-      var cropOverlay = el('avatarCropOverlay');
-      if (cropOverlay){
-        cropOverlay.addEventListener('click', function(e){
-          if (e.target !== cropOverlay) return;
-          if (avatarCropOpenGuard) return;
-          closeAvatarCropOverlay();
-        });
-      }
-
-      var zoomInBtn = el('avatarCropZoomInBtn');
-      var zoomOutBtn = el('avatarCropZoomOutBtn');
-      var rotateBtn = el('avatarCropRotateLeftBtn');
-      if (zoomInBtn){
-        zoomInBtn.addEventListener('click', function(){
-          if (avatarCropper && avatarCropImageReady) avatarCropper.zoom(0.15);
-        });
-      }
-      if (zoomOutBtn){
-        zoomOutBtn.addEventListener('click', function(){
-          if (avatarCropper && avatarCropImageReady) avatarCropper.zoom(-0.15);
-        });
-      }
-      if (rotateBtn){
-        rotateBtn.addEventListener('click', function(){
-          if (avatarCropper && avatarCropImageReady) avatarCropper.rotate(90);
-        });
-      }
-
-      var cropSubmitBtn = el('avatarCropSubmitBtn');
-      if (cropSubmitBtn){
-        cropSubmitBtn.addEventListener('click', function(){
-          var adopted = getAdopted();
-          var errorEl = el('avatarCropError');
-          if (!adopted || !adopted.name){
-            if (errorEl) errorEl.textContent = 'Adopt a character first.';
-            return;
-          }
-          if (avatarCropSubmitting) return;
-          if (!avatarCropImageReady || !avatarCropper){
-            if (errorEl) errorEl.textContent = avatarCropImageLoading ? 'Preparing image…' : 'No image to crop.';
-            return;
-          }
-          if (!avatarCropBalanceLoaded || avatarCropAvailable == null) {
-            if (errorEl) errorEl.textContent = 'Checking balance…';
-            return;
-          }
-          if (avatarCropAvailable < AVATAR_UPLOAD_COST){
-            if (errorEl) errorEl.textContent = 'Not enough nuggets. Need ' + AVATAR_UPLOAD_COST + ', available ' + avatarCropAvailable;
-            return;
-          }
-          try{
-            var canvas = avatarCropper.getCroppedCanvas({ width: 384, height: 384 });
-            if (!canvas){
-              if (errorEl) errorEl.textContent = 'Unable to crop image.';
-              return;
-            }
-            if (canvas.width < 128 || canvas.height < 128){
-              if (errorEl) errorEl.textContent = 'Cropped image is too small.';
-              return;
-            }
-            var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            avatarCropDataUrl = dataUrl;
-          }catch(e){
-            if (errorEl) errorEl.textContent = 'Unable to crop image.';
-            return;
-          }
-          cropSubmitBtn.disabled = true;
-          avatarCropSubmitting = true;
-          syncAvatarCropSubmitState();
-          callSubmitAvatarUpload(adopted.name, avatarCropDataUrl, AVATAR_UPLOAD_COST).then(function(res){
-            avatarCropSubmitting = false;
-            if (!res || !res.ok){
-              syncAvatarCropSubmitState();
-              if (errorEl) errorEl.textContent = (res && res.error) || 'Failed to submit avatar.';
-              refreshAvatarCropAffordability();
-              return;
-            }
-            toast('Avatar submitted for approval. -' + avatarCostLabel(AVATAR_UPLOAD_COST));
-            closeAvatarCropOverlay();
-            refreshWalletAfterAvatarPurchase().then(function(){
-              showProfile();
-            });
-          });
+          openLockerAvatarCropper(file);
         });
       }
 

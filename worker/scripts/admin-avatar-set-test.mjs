@@ -89,7 +89,7 @@ if (/callEconomyTransact\(name, -costAmt, 'avatar_upload'/.test(profileJs)) {
   ok('profile-app: normal self-service still charges avatar_upload');
 } else bad('profile-app normal avatar charge path missing');
 
-if (adminHtml.includes('adminAvatarPanel') && adminHtml.includes('Manage Avatar') && adminHtml.includes('/api/admin/avatar/set')) {
+if (adminHtml.includes('adminAvatarOverlay') && adminHtml.includes('Manage Avatar') && adminHtml.includes('/api/admin/avatar/set')) {
   ok('admin.html: Manage Avatar UI wired to privileged set API');
 } else bad('admin.html missing Manage Avatar UI');
 
