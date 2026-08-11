@@ -203,6 +203,12 @@ function normalizeMissionRow(row, origin) {
   // Prompt #123 — visible Explore card title is the source mission title (via mission_id join),
   // never a hard-coded "Mission Submission" when the mission row still resolves.
   const missionTitle = String(row.mission_title || '').trim();
+  // Prompt #210 — artwork priority: submission media → Mission Card Image → client mission fallback.
+  const cardKey = row.card_image_r2_key != null ? String(row.card_image_r2_key).trim() : '';
+  const missionCardUrl = cardKey
+    ? `${String(origin || '').replace(/\/$/, '')}/api/news/image?key=${encodeURIComponent(cardKey)}`
+    : null;
+  const imageForCard = media.image_url || missionCardUrl || null;
   const adapted = {
     id: `mission:${row.id}`,
     type: 'mission',
@@ -212,7 +218,7 @@ function normalizeMissionRow(row, origin) {
     author_id: null,
     author_display_name: row.character_name,
     author_role: 'student',
-    direct_image_url: media.image_url || null,
+    direct_image_url: imageForCard,
     video_r2_key: null,
     tags: '[]',
     status: 'approved',
@@ -228,6 +234,8 @@ function normalizeMissionRow(row, origin) {
       missionTitle: missionTitle || null,
       submissionType: row.submission_type,
       videoUrl: media.video_url || null,
+      usedMissionCardImage: !media.image_url && !!missionCardUrl,
+      cardImageR2Key: cardKey || null,
     }),
   };
   return normalizeFeedItemRow(adapted, origin, 'mission');
@@ -337,20 +345,35 @@ async function fetchApprovedMissions(db, origin, limit) {
   const byMission = {};
   if (missionIds.length > 0) {
     const placeholders = missionIds.map(() => '?').join(',');
-    const mRows = await db
-      .prepare('SELECT id, title FROM lantern_missions WHERE id IN (' + placeholders + ')')
-      .bind(...missionIds)
-      .all();
+    let mRows;
+    try {
+      mRows = await db
+        .prepare('SELECT id, title, card_image_r2_key FROM lantern_missions WHERE id IN (' + placeholders + ')')
+        .bind(...missionIds)
+        .all();
+    } catch (_) {
+      mRows = await db
+        .prepare('SELECT id, title FROM lantern_missions WHERE id IN (' + placeholders + ')')
+        .bind(...missionIds)
+        .all();
+    }
     (mRows.results || []).forEach((m) => {
-      byMission[m.id] = String(m.title || '').trim();
+      byMission[m.id] = {
+        title: String(m.title || '').trim(),
+        card_image_r2_key: m.card_image_r2_key != null ? String(m.card_image_r2_key).trim() : '',
+      };
     });
   }
-  return results.map((r) =>
-    normalizeMissionRow(
-      Object.assign({}, r, { mission_title: byMission[r.mission_id] || '' }),
+  return results.map((r) => {
+    const meta = byMission[r.mission_id] || { title: '', card_image_r2_key: '' };
+    return normalizeMissionRow(
+      Object.assign({}, r, {
+        mission_title: meta.title || '',
+        card_image_r2_key: meta.card_image_r2_key || '',
+      }),
       origin
-    )
-  );
+    );
+  });
 }
 
 async function fetchApprovedPolls(db, origin, limit) {

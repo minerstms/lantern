@@ -248,19 +248,43 @@
 
   function normalizeFeedItemToFaceModel(item) {
     item = item || {};
+    var type = String(item.type || 'news').toLowerCase();
     var iso = item.approvedAt || item.createdAt || item.created_at || item.approved_at || null;
     var authorRaw = String(item.authorDisplayName || item.display_name || item.author_name || item.character_name || '').trim();
-    var desc = getExploreDescriptionPreview({
-      title: item.title,
-      summary: item.summary,
-      body: item.body,
-      description: item.description,
-      type: item.type,
-    });
+    var slot = item.contentSlot || {};
+    var isGameAchievement =
+      type === 'game_score' || type === 'achievement' || type === 'leaderboard' ||
+      !!slot.gameAchievement;
+
+    // Prompt #210 — game achievement/score cards ALWAYS use canonical game artwork (not mission/generic).
+    var gameArtUrl = '';
+    if (isGameAchievement && global.LANTERN_GAME_CATALOG && typeof global.LANTERN_GAME_CATALOG.artworkUrl === 'function') {
+      gameArtUrl = global.LANTERN_GAME_CATALOG.artworkUrl(slot.gameId || slot.game_id || slot.gameName || slot.game_name || item.title) || '';
+    }
+    if (isGameAchievement && !gameArtUrl && (slot.gameArtworkUrl || slot.imageUrl || item.imageUrl)) {
+      gameArtUrl = String(slot.gameArtworkUrl || slot.imageUrl || item.imageUrl || '').trim();
+    }
+
+    var headline = String(slot.headline || item.title || 'Achievement').trim();
+    var scoreLine = '';
+    if (isGameAchievement) {
+      scoreLine = String(slot.scoreDisplay || slot.score || slot.result || slot.achievement || item.summary || item.body || '').trim();
+    }
+
+    var desc = isGameAchievement
+      ? scoreLine
+      : getExploreDescriptionPreview({
+          title: item.title,
+          summary: item.summary,
+          body: item.body,
+          description: item.description,
+          type: item.type,
+        });
+
     return {
       id: item.id,
       type: item.type || 'news',
-      title: item.title || 'Untitled',
+      title: isGameAchievement ? headline : (item.title || 'Untitled'),
       author: authorRaw,
       character_name: String(item.character_name || authorRaw || '').trim(),
       author_name: String(item.author_name || authorRaw || '').trim(),
@@ -269,10 +293,11 @@
       dateMeta: formatCompactDate(iso),
       descriptionPreview: desc,
       exploreOverlay: true,
-      thumbnailUrl: item.thumbnailUrl,
-      imageUrl: item.imageUrl || item.image_url,
+      gameAchievementOverlay: !!isGameAchievement,
+      thumbnailUrl: isGameAchievement ? (gameArtUrl || item.thumbnailUrl) : item.thumbnailUrl,
+      imageUrl: isGameAchievement ? (gameArtUrl || item.imageUrl || item.image_url) : (item.imageUrl || item.image_url),
       url: item.url,
-      fallbackType: item.type || 'news',
+      fallbackType: isGameAchievement ? 'create' : (item.type || 'news'),
       /* Prompt #123 — Explore /api/feed rail faces: no ULHC/URHC type/category corner badges.
          Missions/Games pages pass their own typeBadge/stateBadge via dedicated specs. */
       typeBadge: '',

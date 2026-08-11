@@ -1461,7 +1461,7 @@
           audience: m.audience || '',
           featured: !!m.featured,
           created_at: m.created_at || '',
-          imageUrl: mmForCard.image_url || '',
+          imageUrl: (mmForCard.image_url || (m && m.card_image_url) || '').trim(),
           raw: m,
           submission: sub,
           onActivate: function(){
@@ -1487,6 +1487,12 @@
             openMissionSubmitModal(m, st === 'returned' ? sub.id : null, st === 'returned' ? (sub.submission_content || '') : '');
           },
         });
+      });
+
+      // Prompt #210 — Mission Card Image fills library cards when no stronger submission photo.
+      items.forEach(function(it){
+        if (it.imageUrl) return;
+        if (it.raw && it.raw.card_image_url) it.imageUrl = String(it.raw.card_image_url).trim();
       });
 
       return items;

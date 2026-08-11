@@ -32,8 +32,9 @@
     if (type === 'shout_out' && slot.recipient) {
       return '<div class="feedDetailSlot feedDetailSlot--shout">For ' + esc(slot.recipient) + '</div>';
     }
-    if (type === 'game_score' && slot.score) {
-      return '<div class="feedDetailSlot feedDetailSlot--score">' + esc(slot.score) + '</div>';
+    if (type === 'game_score' && (slot.score || slot.scoreDisplay || slot.result)) {
+      var bits = [slot.headline, slot.scoreDisplay || slot.score || slot.result].filter(Boolean);
+      return '<div class="feedDetailSlot feedDetailSlot--score">' + esc(bits.join(' · ')) + '</div>';
     }
     if (type === 'leaderboard' && slot.rankings) {
       return '<div class="feedDetailSlot feedDetailSlot--leaderboard">' + esc(String(slot.rankings).slice(0, 120)) + '</div>';

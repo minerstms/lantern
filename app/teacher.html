@@ -1990,6 +1990,23 @@
           <label for="missionDesc">Instructions</label>
           <textarea id="missionDesc" class="teacherTextarea" placeholder="What should students do?"></textarea>
         </div>
+        <div class="teacherField" id="missionCardImageField">
+          <label>Mission Card Image <span class="pendingMeta">(optional)</span></label>
+          <p class="teacherFieldHint">Artwork used for this mission card and for completion posts that do not have their own media. Landscape/card-friendly photos work best.</p>
+          <input type="hidden" id="missionCardImageKey" value="" />
+          <div id="missionCardImagePreviewWrap" style="display:none;margin:8px 0;">
+            <img id="missionCardImagePreview" alt="Mission card preview" style="max-width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12);" />
+          </div>
+          <div class="teacherActions" style="margin-top:8px;flex-wrap:wrap;gap:8px;">
+            <label class="btn" style="cursor:pointer;margin:0;">
+              Upload image
+              <input type="file" id="missionCardImageFile" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif" hidden />
+            </label>
+            <button type="button" class="btn" id="missionCardImageReplaceBtn" style="display:none;">Replace</button>
+            <button type="button" class="btn bad" id="missionCardImageRemoveBtn" style="display:none;">Remove</button>
+          </div>
+          <p id="missionCardImageStatus" class="pendingMeta" role="status" style="display:none;margin-top:6px;"></p>
+        </div>
 
         <div class="teacherFieldGroup">Submission</div>
         <div class="teacherField">
@@ -2947,6 +2964,74 @@
       return new Promise(function(resolve){
         run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).updateTeacherMission({ id: id, updates: updates });
       });
+    }
+
+    /** Prompt #210 — Mission Card Image upload via Worker (staff session). */
+    function uploadMissionCardImageFile(file){
+      if (!file || avatarApiBase === null) return Promise.resolve({ ok: false, error: 'Upload unavailable' });
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onload = function(){
+          var dataUrl = String(reader.result || '');
+          fetch(avatarApiBase + '/api/missions/upload-card-image', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image: dataUrl,
+              mime_type: file.type || 'image/png',
+              file_name: file.name || 'mission-card.png'
+            })
+          }).then(function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return { httpOk: r.ok, body: j }; }); })
+            .then(function(x){
+              if (x.httpOk && x.body && x.body.ok && x.body.image_r2_key) resolve(x.body);
+              else resolve({ ok: false, error: (x.body && x.body.error) || 'Upload failed' });
+            })
+            .catch(function(){ resolve({ ok: false, error: 'Network error' }); });
+        };
+        reader.onerror = function(){ resolve({ ok: false, error: 'Could not read file' }); };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function setMissionCardImageCreatePreview(key, url){
+      var keyEl = el('missionCardImageKey');
+      var wrap = el('missionCardImagePreviewWrap');
+      var img = el('missionCardImagePreview');
+      var rem = el('missionCardImageRemoveBtn');
+      var rep = el('missionCardImageReplaceBtn');
+      if (keyEl) keyEl.value = key || '';
+      if (key && url && img && wrap) {
+        img.src = url;
+        wrap.style.display = 'block';
+        if (rem) rem.style.display = '';
+        if (rep) rep.style.display = '';
+      } else {
+        if (img) img.removeAttribute('src');
+        if (wrap) wrap.style.display = 'none';
+        if (rem) rem.style.display = 'none';
+        if (rep) rep.style.display = 'none';
+      }
+    }
+
+    function missionCardImageEditorHtml(m){
+      var key = (m && m.card_image_r2_key) ? String(m.card_image_r2_key) : '';
+      var url = (m && m.card_image_url) ? String(m.card_image_url) : '';
+      return (
+        '<div class="teacherField teacherMissionCardImageEdit">' +
+          '<label>Mission Card Image <span class="pendingMeta">(optional)</span></label>' +
+          '<p class="teacherFieldHint">Artwork used for this mission card and for completion posts that do not have their own media.</p>' +
+          '<input type="hidden" data-edit="card_image_r2_key" value="' + esc(key) + '" />' +
+          '<div class="missionCardImageEditPreview" style="' + (url ? '' : 'display:none;') + 'margin:8px 0;">' +
+            (url ? '<img src="' + esc(url) + '" alt="" style="max-width:100%;max-height:160px;object-fit:cover;border-radius:10px;" />' : '') +
+          '</div>' +
+          '<div class="teacherActions" style="flex-wrap:wrap;gap:8px;">' +
+            '<label class="btn" style="cursor:pointer;margin:0;">Upload / Replace<input type="file" data-edit="card_image_file" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif" hidden /></label>' +
+            '<button type="button" class="btn bad teacherMissionCardImageClearBtn"' + (key ? '' : ' style="display:none;"') + '>Remove</button>' +
+          '</div>' +
+          '<p class="pendingMeta teacherMissionCardImageMsg" style="display:none;margin-top:6px;"></p>' +
+        '</div>'
+      );
     }
     function callDeleteTeacherMission(id){
       if (avatarApiBase !== null && id) {
@@ -4662,6 +4747,7 @@
       wrap.innerHTML =
         '<div class="teacherField"><label>Title</label><input type="text" class="teacherInput" data-edit="title" value="' + esc(m.title || '') + '" /></div>' +
         '<div class="teacherField"><label>Instructions</label><textarea class="teacherTextarea" data-edit="description">' + esc(m.description || '') + '</textarea></div>' +
+        missionCardImageEditorHtml(m) +
         '<div class="teacherFieldRow teacherFieldRow--2">' +
           '<div class="teacherField"><p class="teacherFieldHint">Reward: <strong>1 Nugget</strong> (fixed — not editable).</p></div>' +
           '<div class="teacherField"><label class="teacherCheckboxField"><input type="checkbox" data-edit="featured"' + (m.featured ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Promote this mission</span></label></div>' +
@@ -4673,12 +4759,50 @@
       var mount = row.querySelector('.lanternMgmtRecordBd') || row;
       mount.appendChild(wrap);
 
+      var cardKeyInput = wrap.querySelector('[data-edit="card_image_r2_key"]');
+      var cardFileInput = wrap.querySelector('[data-edit="card_image_file"]');
+      var cardClearBtn = wrap.querySelector('.teacherMissionCardImageClearBtn');
+      var cardMsg = wrap.querySelector('.teacherMissionCardImageMsg');
+      var cardPreview = wrap.querySelector('.missionCardImageEditPreview');
+      function setEditCardMsg(text){
+        if (!cardMsg) return;
+        if (!text) { cardMsg.style.display = 'none'; cardMsg.textContent = ''; return; }
+        cardMsg.style.display = 'block';
+        cardMsg.textContent = text;
+      }
+      if (cardFileInput) {
+        cardFileInput.addEventListener('change', function(){
+          var f = cardFileInput.files && cardFileInput.files[0];
+          if (!f) return;
+          setEditCardMsg('Uploading…');
+          uploadMissionCardImageFile(f).then(function(res){
+            if (!res || !res.ok) { setEditCardMsg((res && res.error) || 'Upload failed'); return; }
+            if (cardKeyInput) cardKeyInput.value = res.image_r2_key || '';
+            if (cardPreview) {
+              cardPreview.style.display = '';
+              cardPreview.innerHTML = '<img src="' + esc(res.image_url || '') + '" alt="" style="max-width:100%;max-height:160px;object-fit:cover;border-radius:10px;" />';
+            }
+            if (cardClearBtn) cardClearBtn.style.display = '';
+            setEditCardMsg('Image ready — click Save to apply.');
+          });
+        });
+      }
+      if (cardClearBtn) {
+        cardClearBtn.addEventListener('click', function(){
+          if (cardKeyInput) cardKeyInput.value = '';
+          if (cardPreview) { cardPreview.style.display = 'none'; cardPreview.innerHTML = ''; }
+          cardClearBtn.style.display = 'none';
+          setEditCardMsg('Image cleared — click Save to apply.');
+        });
+      }
+
       wrap.querySelector('.teacherMissionEditCancelBtn').addEventListener('click', function(){ wrap.remove(); });
       wrap.querySelector('.teacherMissionEditSaveBtn').addEventListener('click', async function(){
         var updates = {};
         updates.title = (wrap.querySelector('[data-edit="title"]').value || '').trim();
         updates.description = (wrap.querySelector('[data-edit="description"]').value || '').trim();
         updates.featured = !!wrap.querySelector('[data-edit="featured"]').checked;
+        if (cardKeyInput) updates.card_image_r2_key = (cardKeyInput.value || '').trim() || null;
         if (!hasSubmissions) {
           updates.audience = wrap.querySelector('[data-edit="audience"]').value;
           if (updates.audience === 'selected_students') {
@@ -5575,6 +5699,30 @@
         });
       }
     })();
+    (function wireMissionCardImageCreate(){
+      var fileEl = el('missionCardImageFile');
+      var rem = el('missionCardImageRemoveBtn');
+      var rep = el('missionCardImageReplaceBtn');
+      var statusEl = el('missionCardImageStatus');
+      function showStatus(msg){
+        if (!statusEl) return;
+        if (!msg) { statusEl.style.display = 'none'; statusEl.textContent = ''; return; }
+        statusEl.style.display = 'block';
+        statusEl.textContent = msg;
+      }
+      function onFile(f){
+        if (!f) return;
+        showStatus('Uploading…');
+        uploadMissionCardImageFile(f).then(function(res){
+          if (!res || !res.ok) { showStatus((res && res.error) || 'Upload failed'); return; }
+          setMissionCardImageCreatePreview(res.image_r2_key, res.image_url);
+          showStatus('Image ready.');
+        });
+      }
+      if (fileEl) fileEl.addEventListener('change', function(){ onFile(fileEl.files && fileEl.files[0]); fileEl.value = ''; });
+      if (rep) rep.addEventListener('click', function(){ if (fileEl) fileEl.click(); });
+      if (rem) rem.addEventListener('click', function(){ setMissionCardImageCreatePreview('', ''); showStatus(''); });
+    })();
     el('createMissionBtn').addEventListener('click', async function(){
       var title = (el('missionTitle') && el('missionTitle').value || '').trim();
       var desc = (el('missionDesc') && el('missionDesc').value || '').trim();
@@ -5619,6 +5767,8 @@
         // Prompt #78 — site_eligible archived (no reader anywhere); see docs/archive/TEACHER_CREATE_MISSION_OPTION_AUDIT.md.
         var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, participant_scope: (el('missionParticipantScope') && el('missionParticipantScope').value) || 'students', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
+        var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();
+        if (cardKeyCreate) opts.card_image_r2_key = cardKeyCreate;
         var res = await callCreateTeacherMission(opts);
         if (!res || !res.ok){
           var errMsg = (res && res.error) || 'unknown error';
@@ -5634,6 +5784,7 @@
         toast('Mission created');
         el('missionTitle').value = '';
         el('missionDesc').value = '';
+        setMissionCardImageCreatePreview('', '');
         if (el('missionFeatured')) el('missionFeatured').checked = false;
         await refresh();
         setTimeout(function(){

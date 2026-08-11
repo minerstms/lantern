@@ -38,8 +38,29 @@ import {
 } from './mission-event-completions.js';
 import { sendThankYouMission } from './thank-you-mission.js';
 
-function missionRowToJson(r) {
+/** Prompt #210 — shared SELECT list including optional Mission Card Image. */
+const MISSION_SELECT_COLS =
+  'id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, card_image_r2_key, created_at';
+
+function stripBase64Payload(dataUrlOrB64) {
+  const s = String(dataUrlOrB64 || '').trim();
+  if (!s) return '';
+  const marker = ';base64,';
+  const idx = s.indexOf(marker);
+  if (idx !== -1) return s.slice(idx + marker.length).replace(/\s/g, '');
+  return s.replace(/\s/g, '');
+}
+
+function missionCardImageUrl(origin, r2Key) {
+  const key = r2Key != null ? String(r2Key).trim() : '';
+  if (!key) return null;
+  const base = String(origin || '').replace(/\/$/, '');
+  return (base || '') + '/api/news/image?key=' + encodeURIComponent(key);
+}
+
+function missionRowToJson(r, origin) {
   let target = parseTargetCharacterNames(r.target_character_names);
+  const cardKey = r.card_image_r2_key != null ? String(r.card_image_r2_key).trim() : '';
   return {
     id: r.id,
     title: r.title || '',
@@ -67,6 +88,9 @@ function missionRowToJson(r) {
       r.min_characters !== undefined && r.min_characters !== null
         ? Math.max(0, Math.floor(Number(r.min_characters)) || 200)
         : 200,
+    // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
+    card_image_r2_key: cardKey || null,
+    card_image_url: cardKey ? missionCardImageUrl(origin, cardKey) : null,
     created_at: r.created_at || '',
     // Only populated by the teacher-owned list query below (submission_count is a joined
     // aggregate, not a real column) — undefined here means "not requested", not "zero".
@@ -108,12 +132,19 @@ function mapCharacterSubmissionRow(s, byMission) {
 }
 
 async function loadFullMission(db, missionId) {
-  return db
-    .prepare(
-      'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE id = ?'
-    )
-    .bind(missionId)
-    .first();
+  try {
+    return await db
+      .prepare('SELECT ' + MISSION_SELECT_COLS + ' FROM lantern_missions WHERE id = ?')
+      .bind(missionId)
+      .first();
+  } catch (_) {
+    return db
+      .prepare(
+        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE id = ?'
+      )
+      .bind(missionId)
+      .first();
+  }
 }
 
 async function countMissionSubmissions(db, missionId) {
@@ -210,6 +241,54 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
   const jsonResponse = deps.jsonResponse;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
   const pilotEconomyCharacterName = deps.pilotEconomyCharacterName;
+  const origin = url.origin || '';
+
+  // Prompt #210 — Mission Card Image upload (staff only). Reuses news R2 bucket + MIME/size rules.
+  if (request.method === 'POST' && path === '/api/missions/upload-card-image') {
+    const auth = await requireMissionTeacher(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
+    if (!bucket) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
+    let body;
+    try {
+      body = JSON.parse(await request.text() || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const imageData = body.image;
+    if (!imageData || typeof imageData !== 'string') return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
+    const base64 = stripBase64Payload(imageData);
+    if (!base64) return jsonResponse({ ok: false, error: 'Missing image payload' }, 400, cors);
+    let bytes;
+    try {
+      bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid base64 image' }, 400, cors);
+    }
+    const maxSize = 5 * 1024 * 1024;
+    if (bytes.length > maxSize) return jsonResponse({ ok: false, error: 'Image too large (max 5MB)' }, 400, cors);
+    const mime = (body.mime_type || 'image/png').trim().toLowerCase();
+    const allowedMime = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
+    if (!allowedMime.includes(mime)) return jsonResponse({ ok: false, error: 'Invalid mime type' }, 400, cors);
+    const ext = mime === 'image/jpeg' || mime === 'image/jpg' ? 'jpg' : mime === 'image/webp' ? 'webp' : mime === 'image/gif' ? 'gif' : 'png';
+    const fileName = (body.file_name || '').trim() || 'mission-card.' + ext;
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const id = 'mission-card-' + crypto.randomUUID();
+    const key = 'missions/card/' + id + (safeName.includes('.') ? '' : '.' + ext);
+    await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
+    return jsonResponse(
+      {
+        ok: true,
+        image_r2_key: key,
+        image_url: missionCardImageUrl(origin, key),
+        image_file_name: safeName,
+        image_mime_type: mime,
+        image_file_size: bytes.length,
+      },
+      200,
+      cors
+    );
+  }
 
   if (request.method === 'GET' && path === '/api/missions/active') {
     const auth = await requireMissionSession(deps, request, env, cors);
@@ -218,14 +297,23 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
     }
-    const rows = await db
-      .prepare(
-        // Prompt #103 + #107 + #211: active+unarchived; catalog visibility filtered in JS
-        // (staff may SEE students-only school missions; completion remains eligibility-gated).
-        'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
-      )
-      .all();
-    let list = (rows.results || []).map((r) => missionRowToJson(r));
+    let rows;
+    try {
+      rows = await db
+        .prepare(
+          // Prompt #103 + #107 + #211: active+unarchived; catalog visibility filtered in JS
+          // (staff may SEE students-only school missions; completion remains eligibility-gated).
+          'SELECT ' + MISSION_SELECT_COLS + ' FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
+        )
+        .all();
+    } catch (_) {
+      rows = await db
+        .prepare(
+          'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
+        )
+        .all();
+    }
+    let list = (rows.results || []).map((r) => missionRowToJson(r, origin));
     list = list.filter((m) => missionInCatalogForParticipant(m, identity));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
@@ -369,17 +457,32 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const rows = teacherId
-      ? await db
-          .prepare(
-            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
-          )
-          .bind(teacherId)
-          .all()
-      : await db
-          .prepare(
-            'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
-          )
-          .all();
+      ? await (async () => {
+          try {
+            return await db
+              .prepare('SELECT ' + MISSION_SELECT_COLS + ' FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC')
+              .bind(teacherId)
+              .all();
+          } catch (_) {
+            return db
+              .prepare(
+                'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE teacher_id = ? ORDER BY created_at DESC'
+              )
+              .bind(teacherId)
+              .all();
+          }
+        })()
+      : await (async () => {
+          try {
+            return await db.prepare('SELECT ' + MISSION_SELECT_COLS + ' FROM lantern_missions ORDER BY created_at DESC').all();
+          } catch (_) {
+            return db
+              .prepare(
+                'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions ORDER BY created_at DESC'
+              )
+              .all();
+          }
+        })();
     // Prompt #103: Missions workspace mission cards show a submission count ("N submissions") —
     // one small grouped query instead of a per-mission subquery, only on this teacher-owned list.
     const missionIds = (rows.results || []).map((r) => r.id);
@@ -394,7 +497,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         .all();
       (countRows.results || []).forEach((c) => { countsByMission[c.mission_id] = Number(c.n) || 0; });
     }
-    const list = (rows.results || []).map((r) => missionRowToJson({ ...r, submission_count: countsByMission[r.id] || 0 }));
+    const list = (rows.results || []).map((r) => missionRowToJson({ ...r, submission_count: countsByMission[r.id] || 0 }, origin));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -443,34 +546,76 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!Number.isFinite(minChars)) {
       minChars = submissionType === 'bug_report' ? 0 : 200;
     }
+    // Prompt #210 — optional Mission Card Image key (must be missions/card/… from upload endpoint).
+    let cardImageKey = null;
+    if (body.card_image_r2_key != null && String(body.card_image_r2_key).trim()) {
+      const k = String(body.card_image_r2_key).trim().slice(0, 500);
+      if (!/^missions\/card\//.test(k)) {
+        return jsonResponse({ ok: false, error: 'invalid_card_image_key' }, 400, cors);
+      }
+      cardImageKey = k;
+    }
     const id = 'tmission_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const now = new Date().toISOString();
-    await db
-      .prepare(
-        'INSERT INTO lantern_missions (id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-      .bind(
-        id,
-        teacherId,
-        teacherName,
-        title,
-        description,
-        rewardAmount,
-        submissionType,
-        audience,
-        participantScope,
-        targetNames ? JSON.stringify(targetNames) : null,
-        featured ? 1 : 0,
-        active ? 1 : 0,
-        siteEligible ? 1 : 0,
-        allowsText ? 1 : 0,
-        allowsImage ? 1 : 0,
-        allowsVideo ? 1 : 0,
-        allowsLink ? 1 : 0,
-        minChars,
-        now
-      )
-      .run();
+    try {
+      await db
+        .prepare(
+          'INSERT INTO lantern_missions (id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, card_image_r2_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        .bind(
+          id,
+          teacherId,
+          teacherName,
+          title,
+          description,
+          rewardAmount,
+          submissionType,
+          audience,
+          participantScope,
+          targetNames ? JSON.stringify(targetNames) : null,
+          featured ? 1 : 0,
+          active ? 1 : 0,
+          siteEligible ? 1 : 0,
+          allowsText ? 1 : 0,
+          allowsImage ? 1 : 0,
+          allowsVideo ? 1 : 0,
+          allowsLink ? 1 : 0,
+          minChars,
+          cardImageKey,
+          now
+        )
+        .run();
+    } catch (e) {
+      if (cardImageKey) {
+        return jsonResponse({ ok: false, error: 'Mission Card Image requires DB migration 068 (card_image_r2_key)' }, 503, cors);
+      }
+      await db
+        .prepare(
+          'INSERT INTO lantern_missions (id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        .bind(
+          id,
+          teacherId,
+          teacherName,
+          title,
+          description,
+          rewardAmount,
+          submissionType,
+          audience,
+          participantScope,
+          targetNames ? JSON.stringify(targetNames) : null,
+          featured ? 1 : 0,
+          active ? 1 : 0,
+          siteEligible ? 1 : 0,
+          allowsText ? 1 : 0,
+          allowsImage ? 1 : 0,
+          allowsVideo ? 1 : 0,
+          allowsLink ? 1 : 0,
+          minChars,
+          now
+        )
+        .run();
+    }
     const mission = {
       id,
       title,
@@ -491,6 +636,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       allows_video: allowsVideo,
       allows_link: allowsLink,
       min_characters: minChars,
+      card_image_r2_key: cardImageKey,
+      card_image_url: cardImageKey ? missionCardImageUrl(origin, cardImageKey) : null,
       created_at: now,
     };
     return jsonResponse({ ok: true, id, mission }, 200, cors);
@@ -610,14 +757,36 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       updates.push('min_characters = ?');
       bindings.push(Number.isFinite(mc) ? mc : 200);
     }
+    // Prompt #210 — set / clear Mission Card Image (null or '' clears). Editable anytime (definition art).
+    if (Object.prototype.hasOwnProperty.call(body, 'card_image_r2_key')) {
+      const raw = body.card_image_r2_key;
+      if (raw == null || String(raw).trim() === '') {
+        updates.push('card_image_r2_key = ?');
+        bindings.push(null);
+      } else {
+        const k = String(raw).trim().slice(0, 500);
+        if (!/^missions\/card\//.test(k)) {
+          return jsonResponse({ ok: false, error: 'invalid_card_image_key' }, 400, cors);
+        }
+        updates.push('card_image_r2_key = ?');
+        bindings.push(k);
+      }
+    }
     if (updates.length === 0) {
       const m = await loadFullMission(db, id);
-      return jsonResponse({ ok: true, mission: m ? missionRowToJson(m) : null }, 200, cors);
+      return jsonResponse({ ok: true, mission: m ? missionRowToJson(m, origin) : null }, 200, cors);
     }
     bindings.push(id);
-    await db.prepare('UPDATE lantern_missions SET ' + updates.join(', ') + ' WHERE id = ?').bind(...bindings).run();
+    try {
+      await db.prepare('UPDATE lantern_missions SET ' + updates.join(', ') + ' WHERE id = ?').bind(...bindings).run();
+    } catch (e) {
+      if (Object.prototype.hasOwnProperty.call(body, 'card_image_r2_key')) {
+        return jsonResponse({ ok: false, error: 'Mission Card Image requires DB migration 068 (card_image_r2_key)' }, 503, cors);
+      }
+      throw e;
+    }
     const m = await loadFullMission(db, id);
-    return jsonResponse({ ok: true, mission: m ? missionRowToJson(m) : null }, 200, cors);
+    return jsonResponse({ ok: true, mission: m ? missionRowToJson(m, origin) : null }, 200, cors);
   }
 
   if (request.method === 'DELETE' && missionIdMatch) {
