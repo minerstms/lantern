@@ -1072,6 +1072,17 @@ function pilotEconomyCharacterName(row) {
 }
 
 /**
+ * Prompt #211 — avatar profile key for a pilot account (same identity Locker uses for status).
+ * Students: economy/MTSS key. Staff/admin: login username.
+ */
+function avatarCharacterNameForPilotAccount(row) {
+  if (!row) return '';
+  const role = String(row.role || '').trim().toLowerCase();
+  if (role === 'student') return pilotEconomyCharacterName(row);
+  return String(row.username || '').trim();
+}
+
+/**
  * Prompt #94 -- TMS Nuggets -> Lantern staff SSO. Same set as app/teacher.html WORKSPACES
  * (Prompt #91); kept as a literal allowlist here rather than importing the frontend file, since
  * this is a strict server-side authorization boundary against open redirect, not UI state.
@@ -2290,6 +2301,160 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const updated = await fetchAdminUserRow(db, targetUser);
     return jsonResponse({ ok: true, user: updated || { username: targetUser } }, 200, cors);
+  }
+
+  // Prompt #211 — System Admin set/replace avatar for any account (0 Nuggets; no economy path).
+  if (request.method === 'GET' && path === '/api/admin/avatar/status') {
+    const username = String(url.searchParams.get('username') || '').trim();
+    if (!username) {
+      return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
+    }
+    const target = await db
+      .prepare(
+        `SELECT username, role, mtss_student_id, student_character_name, staff_id, is_active
+         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?)) LIMIT 1`
+      )
+      .bind(username)
+      .first();
+    if (!target) {
+      return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
+    }
+    const characterName = avatarCharacterNameForPilotAccount(target);
+    if (!characterName) {
+      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
+    }
+    const profile = await db
+      .prepare(`SELECT current_avatar_key, updated_at FROM lantern_avatar_profiles WHERE character_name = ?`)
+      .bind(characterName)
+      .first();
+    const origin = new URL(request.url).origin;
+    const activeV = profile && profile.updated_at
+      ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
+      : '';
+    const activeImage = profile && profile.current_avatar_key
+      ? (origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : ''))
+      : null;
+    return jsonResponse(
+      {
+        ok: true,
+        username: String(target.username),
+        role: String(target.role || ''),
+        character_name: characterName,
+        staff_id: target.staff_id != null ? String(target.staff_id) : null,
+        is_active: Number(target.is_active) === 1 ? 1 : 0,
+        active_image: activeImage,
+        current_avatar_key: profile && profile.current_avatar_key ? String(profile.current_avatar_key) : null,
+        updated_at: profile && profile.updated_at ? String(profile.updated_at) : null,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/avatar/set') {
+    const bucket = env.AVATAR_BUCKET;
+    if (!bucket) {
+      return jsonResponse({ ok: false, error: 'Avatar bucket not configured' }, 503, cors);
+    }
+    let body;
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    // Never honor client economy/privilege flags — admin session alone authorizes zero-cost set.
+    const username = String(body.username || '').trim();
+    if (!username) {
+      return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
+    }
+    const target = await db
+      .prepare(
+        `SELECT username, role, mtss_student_id, student_character_name, staff_id, is_active
+         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?)) LIMIT 1`
+      )
+      .bind(username)
+      .first();
+    if (!target) {
+      return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
+    }
+    const characterName = avatarCharacterNameForPilotAccount(target);
+    if (!characterName) {
+      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
+    }
+    const imageData = body.image;
+    if (!imageData || typeof imageData !== 'string') {
+      return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
+    }
+    const base64 = stripBase64Payload(imageData);
+    if (!base64) {
+      return jsonResponse({ ok: false, error: 'Missing image payload' }, 400, cors);
+    }
+    let bytes;
+    try {
+      bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid base64 image' }, 400, cors);
+    }
+    if (bytes.length < 32) {
+      return jsonResponse({ ok: false, error: 'Image too small' }, 400, cors);
+    }
+    if (bytes.length > 5 * 1024 * 1024) {
+      return jsonResponse({ ok: false, error: 'Image too large (max 5MB)' }, 400, cors);
+    }
+    const id = 'av-' + crypto.randomUUID();
+    const key = 'avatars/' + id + '.png';
+    await bucket.put(key, bytes, { httpMetadata: { contentType: 'image/png' } });
+    const now = new Date().toISOString();
+    const adminLabel = adminAuditLabel(account);
+    // Direct administrative assignment: approved + equipped immediately. No Nugget path.
+    await db
+      .prepare(
+        `INSERT INTO lantern_avatar_submissions (id, character_name, image_key, status, created_at, approved_at, approved_by)
+         VALUES (?, ?, ?, 'approved', ?, ?, ?)`
+      )
+      .bind(id, characterName, key, now, now, adminLabel)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO lantern_avatar_profiles (character_name, current_avatar_key, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(character_name) DO UPDATE SET
+           current_avatar_key = excluded.current_avatar_key,
+           updated_at = excluded.updated_at`
+      )
+      .bind(characterName, key, now)
+      .run();
+    // Supersede any pending submissions for this identity (admin decision is final).
+    try {
+      await db
+        .prepare(
+          `UPDATE lantern_avatar_submissions
+           SET status = 'rejected', rejected_at = ?, rejected_by = ?, rejected_reason = ?
+           WHERE character_name = ? AND status = 'pending' AND id != ?`
+        )
+        .bind(now, adminLabel, 'Superseded by System Admin avatar assignment', characterName, id)
+        .run();
+    } catch (_) {}
+    const origin = new URL(request.url).origin;
+    const activeV = String(now).replace(/[^\d]/g, '').slice(0, 14);
+    const activeImage =
+      origin + '/api/avatar/image?key=' + encodeURIComponent(key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : '');
+    return jsonResponse(
+      {
+        ok: true,
+        username: String(target.username),
+        role: String(target.role || ''),
+        character_name: characterName,
+        submission_id: id,
+        image_key: key,
+        active_image: activeImage,
+        admin_set: true,
+        nugget_charged: 0,
+        approved_by: adminLabel,
+      },
+      200,
+      cors
+    );
   }
 
   // Prompt #94/#184: explicit TMS ↔ Lantern staff identity links (admin-created ONLY).
@@ -4734,8 +4899,11 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
     const profile = await db.prepare('SELECT current_avatar_key, updated_at FROM lantern_avatar_profiles WHERE character_name = ?').bind(characterName).first();
     const pending = await db.prepare('SELECT id, image_key, created_at FROM lantern_avatar_submissions WHERE character_name = ? AND status = ? ORDER BY created_at DESC LIMIT 1').bind(characterName, 'pending').first();
+    const activeV = profile && profile.updated_at
+      ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
+      : '';
     const activeImage = profile
-      ? (origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key))
+      ? (origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : ''))
       : null;
     const pendingImage = pending ? (origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key)) : null;
     return jsonResponse({

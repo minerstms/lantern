@@ -302,6 +302,24 @@
         <button type="button" class="btn" id="tempPwCancel">Cancel</button>
       </div>
     </div>
+    <div id="adminAvatarPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" hidden data-admin-floating-editor="1">
+      <p class="acctPanelHd">Manage Avatar</p>
+      <p id="adminAvatarHint" class="acctPanelHint"></p>
+      <input type="hidden" id="adminAvatarUsername" value="" />
+      <p class="acctPanelHint" style="margin:0 0 8px;">Current Avatar</p>
+      <div id="adminAvatarPreviewWrap" style="margin:0 0 12px;">
+        <img id="adminAvatarPreview" alt="Current avatar" width="96" height="96" style="display:none;width:96px;height:96px;object-fit:cover;border-radius:12px;border:1px solid rgba(0,0,0,.12);" />
+        <p id="adminAvatarNone" class="acctPanelHint" style="margin:0;">No Avatar</p>
+      </div>
+      <label for="adminAvatarFile">Upload New Avatar</label>
+      <input id="adminAvatarFile" type="file" accept="image/png,image/jpeg,image/webp" />
+      <p id="adminAvatarMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
+      <p class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Image becomes active immediately.</p>
+      <div class="acctPanelActions">
+        <button type="button" class="btn good" id="adminAvatarUploadBtn">Upload / Replace Avatar</button>
+        <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <details class="card teacherCollapsibleList" id="adminStaffCard">
@@ -1661,9 +1679,84 @@
         parkAdminEditor(p);
       }
     }
+    function closeAdminAvatarPanel() {
+      var p = document.getElementById('adminAvatarPanel');
+      var file = document.getElementById('adminAvatarFile');
+      var msg = document.getElementById('adminAvatarMsg');
+      var hid = document.getElementById('adminAvatarUsername');
+      var img = document.getElementById('adminAvatarPreview');
+      var none = document.getElementById('adminAvatarNone');
+      if (file) file.value = '';
+      if (msg) msg.textContent = '';
+      if (hid) hid.value = '';
+      if (img) {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
+      if (none) none.style.display = 'block';
+      if (p) {
+        p.style.display = 'none';
+        p.setAttribute('aria-hidden', 'true');
+        p.hidden = true;
+        parkAdminEditor(p);
+      }
+    }
+    function setAdminAvatarPreview(url) {
+      var img = document.getElementById('adminAvatarPreview');
+      var none = document.getElementById('adminAvatarNone');
+      if (url) {
+        if (img) {
+          img.src = url;
+          img.style.display = 'block';
+        }
+        if (none) none.style.display = 'none';
+      } else {
+        if (img) {
+          img.removeAttribute('src');
+          img.style.display = 'none';
+        }
+        if (none) none.style.display = 'block';
+      }
+    }
+    function openAdminAvatarPanel(username, label, mountEl) {
+      closeEditUserPanel();
+      closeTempPwPanel();
+      closeStudentsEditPanels();
+      var user = String(username || '').trim();
+      if (!user) return;
+      var hint = document.getElementById('adminAvatarHint');
+      var hid = document.getElementById('adminAvatarUsername');
+      var msg = document.getElementById('adminAvatarMsg');
+      var file = document.getElementById('adminAvatarFile');
+      if (hint) hint.textContent = 'Assigning avatar for ' + (label || user) + ' (' + user + '). Costs 0 Nuggets.';
+      if (hid) hid.value = user;
+      if (msg) msg.textContent = 'Loading current avatar…';
+      if (file) file.value = '';
+      setAdminAvatarPreview(null);
+      mountAdminEditor(document.getElementById('adminAvatarPanel'), mountEl || null);
+      fetch(api + '/api/admin/avatar/status?username=' + encodeURIComponent(user), { credentials: 'include', cache: 'no-store' })
+        .then(function(r) {
+          return r.json().then(function(j) {
+            return { okHttp: r.ok, body: j };
+          });
+        })
+        .then(function(res) {
+          if (!msg) return;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            setAdminAvatarPreview(res.body.active_image || null);
+            msg.textContent = res.body.active_image ? 'Replace with a new image, or keep the current avatar.' : 'No avatar yet — upload one to assign immediately.';
+            return;
+          }
+          msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not load avatar status.';
+        })
+        .catch(function() {
+          if (msg) msg.textContent = 'Network error loading avatar status.';
+        });
+    }
     function closeAllFloatingEditors() {
       closeEditUserPanel();
       closeTempPwPanel();
+      closeAdminAvatarPanel();
       closeStudentsEditPanels();
       var staffAdd = document.getElementById('staffAddPanel');
       if (staffAdd) {
@@ -1674,6 +1767,7 @@
     }
     function openEditUserPanel(u, mountEl) {
       closeTempPwPanel();
+      closeAdminAvatarPanel();
       closeStudentsEditPanels();
       var user = u.username != null ? String(u.username) : '';
       var disp = document.getElementById('editUserDisplay');
@@ -1712,6 +1806,7 @@
     }
     function openTempPwPanel(username, mountEl) {
       closeEditUserPanel();
+      closeAdminAvatarPanel();
       closeStudentsEditPanels();
       var hint = document.getElementById('tempPwUserHint');
       if (hint) hint.textContent = 'Setting a new temporary password for ' + String(username) + '. They will sign in once, then choose their own password.';
@@ -1809,6 +1904,57 @@
         if (c) c.disabled = false;
       });
     });
+
+    var adminAvatarCancelBtn = document.getElementById('adminAvatarCancelBtn');
+    if (adminAvatarCancelBtn) adminAvatarCancelBtn.addEventListener('click', closeAdminAvatarPanel);
+    var adminAvatarUploadBtn = document.getElementById('adminAvatarUploadBtn');
+    if (adminAvatarUploadBtn) {
+      adminAvatarUploadBtn.addEventListener('click', function() {
+        var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+        var fileEl = document.getElementById('adminAvatarFile');
+        var msg = document.getElementById('adminAvatarMsg');
+        var file = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
+        if (!username) {
+          if (msg) msg.textContent = 'Missing account username.';
+          return;
+        }
+        if (!file) {
+          if (msg) msg.textContent = 'Choose an image file first.';
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          if (msg) msg.textContent = 'Image too large (max 5MB).';
+          return;
+        }
+        if (msg) msg.textContent = 'Uploading…';
+        adminAvatarUploadBtn.disabled = true;
+        var reader = new FileReader();
+        reader.onload = function() {
+          var dataUrl = String(reader.result || '');
+          postAdminJson('/api/admin/avatar/set', { username: username, image: dataUrl }).then(function(res) {
+            if (res && res.blocked) return;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              setAdminAvatarPreview(res.body.active_image || null);
+              if (fileEl) fileEl.value = '';
+              if (msg) msg.textContent = 'Avatar assigned. 0 Nuggets charged. Active immediately.';
+              showUsersMsg('Avatar updated for ' + username + ' (0 Nuggets).', 'ok');
+              showStudentsRosterMsg('Avatar updated for ' + username + ' (0 Nuggets).', 'ok');
+              return;
+            }
+            if (msg) msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Upload failed';
+          }).catch(function() {
+            if (msg) msg.textContent = 'Network error while uploading avatar.';
+          }).finally(function() {
+            adminAvatarUploadBtn.disabled = false;
+          });
+        };
+        reader.onerror = function() {
+          if (msg) msg.textContent = 'Could not read image file.';
+          adminAvatarUploadBtn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
 
     function isStaffRole(role) {
       var r = String(role || '').trim().toLowerCase();
@@ -1958,6 +2104,17 @@
         });
         cell.appendChild(bEdit);
         cell.appendChild(bTemp);
+        var bAvatar = document.createElement('button');
+        bAvatar.type = 'button';
+        bAvatar.className = 'btn';
+        bAvatar.textContent = 'Manage Avatar';
+        bAvatar.addEventListener('click', function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var label = formatStaffDisplayName(u) || u.username;
+          openAdminAvatarPanel(u.username, label, editorMount);
+        });
+        cell.appendChild(bAvatar);
         if (active) {
           var bArch = document.createElement('button');
           bArch.type = 'button';
@@ -2875,6 +3032,7 @@
     function openEditStudentId(s, mountEl) {
       closeEditUserPanel();
       closeTempPwPanel();
+      closeAdminAvatarPanel();
       var add = document.getElementById('studentsAddPanel');
       if (add) {
         add.style.display = 'none';
@@ -3069,6 +3227,17 @@
           });
           actions.appendChild(bTemp);
 
+          var bAvatar = document.createElement('button');
+          bAvatar.type = 'button';
+          bAvatar.className = 'btn';
+          bAvatar.textContent = 'Manage Avatar';
+          bAvatar.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username, editorMount);
+          });
+          actions.appendChild(bAvatar);
+
           var bArch = document.createElement('button');
           bArch.type = 'button';
           bArch.className = 'btn';
@@ -3112,6 +3281,17 @@
             });
           });
           actions.appendChild(bRest);
+
+          var bAvatarArch = document.createElement('button');
+          bAvatarArch.type = 'button';
+          bAvatarArch.className = 'btn';
+          bAvatarArch.textContent = 'Manage Avatar';
+          bAvatarArch.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username, editorMount);
+          });
+          actions.appendChild(bAvatarArch);
         }
 
         body.appendChild(rec);
