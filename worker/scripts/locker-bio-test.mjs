@@ -380,8 +380,9 @@ else bad('resolveProfileBio in handlers');
 // UI static checks
 const shellJs = fs.readFileSync(path.join(root, 'app/js/lantern-locker-shell.js'), 'utf8');
 const exploreHtml = fs.readFileSync(path.join(root, 'app/explore.html'), 'utf8');
-if (shellJs.includes('Add Bio') && shellJs.includes('textContent')) ok('UI empty/add bio + textContent display');
-else bad('UI shell bio');
+if (shellJs.includes('Add a short bio.') && shellJs.includes('openAboutBioEditor') && shellJs.includes('textContent')) {
+  ok('UI empty/add bio + textContent display (via Locker Options → Edit About)');
+} else bad('UI shell bio');
 if (shellJs.includes('callUpdateBio') && shellJs.includes('getFeedController')) ok('bio save avoids feed rerender path');
 else bad('UI no feed rerender');
 if (!exploreHtml.includes('lockerHeaderBio')) ok('Explore does not display personal bio');

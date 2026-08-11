@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="css/lantern-store-panel.css">
   <link rel="stylesheet" href="css/lantern-rails.css">
   <link rel="stylesheet" href="css/lantern-feed.css?v=20260808-feedlayout">
-  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260808-feedlayout">
+  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260810-locker-options">
   <link rel="stylesheet" href="css/lantern-reactions.css">
   <link rel="prefetch" href="games.html">
   <link rel="prefetch" href="explore.html">
@@ -30,37 +30,6 @@
     .lockerSection{ margin-bottom: 28px; }
     .lockerSectionHd{ font-weight: 900; font-size: 26px; color: var(--accent); margin-bottom: 12px; }
     .lockerEmpty{ color: var(--muted); font-size: 22px; font-weight: 800; padding: 16px 0; }
-    .lockerTabsMount{ width: 100%; box-sizing: border-box; }
-    .lockerTabsMount--sticky .lockerTabs{ margin: 0 0 16px; }
-    #lockerTabsMountPicker .lockerTabs,
-    #pickerCard .lockerTabs{ margin: 0 0 14px; }
-    .profileHero .lockerTabsMount,
-    #lockerTabsMountHero{ align-self: stretch; width: 100%; }
-    .lockerTabs{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      margin:0;
-      align-items:center;
-      justify-content:center;
-    }
-    .lockerTabBtn{
-      min-height:48px;
-      padding:10px 18px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.08);
-      color:var(--ink);
-      font-weight:800;
-      font-size:22px;
-      cursor:pointer;
-      font-family:inherit;
-    }
-    .lockerTabBtn[aria-selected="true"]{
-      border-color: rgba(90,167,255,.5);
-      background: linear-gradient(180deg, rgba(90,167,255,.25), rgba(90,167,255,.12));
-      cursor: default;
-    }
     .lockerPanel{ margin: 0 0 24px; }
     /* SP6: visible surface cue on the active tabpanel only (uses data-locker-surface from Phase-SP5). */
     .wrap.lanternContent [data-locker-surface]:not([hidden]){
@@ -74,6 +43,70 @@
       margin: 0 calc(-1 * var(--lantern-pad-x, 12px));
       padding: 8px var(--lantern-pad-x, 12px) 16px;
       min-width: 0;
+    }
+    /* Prompt #161 — Locker Options ▾ (compact, replaces large Overview/Items/Store tabs) */
+    .lockerOptions{
+      position: relative;
+      flex: 0 0 auto;
+      max-width: 100%;
+    }
+    .lockerOptionsTrigger{
+      min-height: 44px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--surface-muted, #b9c6ea);
+      font-weight: 700;
+      font-size: 18px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .lockerOptionsTrigger:hover,
+    .lockerOptionsTrigger:focus-visible{
+      color: var(--surface-ink, #eaf0ff);
+      background: rgba(255,255,255,.06);
+      outline: none;
+    }
+    .lockerOptionsChevron{ margin-left: 2px; }
+    .lockerOptionsMenu{
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 40;
+      min-width: 200px;
+      max-width: min(280px, calc(100vw - 24px));
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid var(--surface-chip-border, rgba(255,255,255,.12));
+      background: #0f1728;
+      box-shadow: 0 12px 28px rgba(0,0,0,.45);
+      box-sizing: border-box;
+    }
+    .lockerOptionsItem{
+      display: block;
+      width: 100%;
+      text-align: left;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--surface-ink, #eaf0ff);
+      font-weight: 700;
+      font-size: 18px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .lockerOptionsItem:hover,
+    .lockerOptionsItem:focus-visible{
+      background: rgba(90,167,255,.16);
+      outline: none;
+    }
+    .lockerOptionsItem.is-current,
+    .lockerOptionsItem[aria-current="page"]{
+      color: var(--accent, #5aa7ff);
     }
 
   </style>
@@ -113,15 +146,10 @@
     <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
 
-    <div id="lockerTabsMountSticky" class="lockerTabsMount lockerTabsMount--sticky">
-    <div id="lockerTabs" class="lockerTabs" role="tablist" aria-label="Locker sections">
-      <button type="button" class="lockerTabBtn" role="tab" id="lockerTabOverview" data-locker-tab="overview" aria-selected="true">Overview</button>
-      <button type="button" class="lockerTabBtn" role="tab" id="lockerTabItems" data-locker-tab="items" aria-selected="false">Items</button>
-      <button type="button" class="lockerTabBtn" role="tab" id="lockerTabStore" data-locker-tab="store" aria-selected="false">Store</button>
-    </div>
-    </div>
+    <!-- Prompt #161: Overview/Items/Store live in Locker Options ▾ (About header). Hidden Edit Profile trigger retained for existing Profile Studio wiring. -->
+    <button type="button" id="editProfileBtn" hidden aria-hidden="true" tabindex="-1" data-help="edit_profile">Edit Profile</button>
     <!-- Locker tabpanel: Overview (#lockerPanelOverview) — profile .section / .sectionHd / .sectionBd + profile CSS; body = overviewMain slice. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
-    <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabOverview" data-locker-surface="overview" data-help="profile">
+    <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-label="Overview" data-locker-surface="overview" data-help="profile">
     <div id="pilotLockerNeedCharacter" class="card" style="display:none;">
       <div class="cardBd">
         <p class="note">Your Locker could not be loaded. Sign out and sign in again, or contact your teacher if this continues.</p>
@@ -132,9 +160,6 @@
     <main class="lanternExploreSurface lanternLockerSurface" data-surface-context="locker">
       <div class="lanternExplorePageContainer">
       <section id="lockerProfileHeader" class="lockerProfileHeader" aria-label="Locker profile"></section>
-      <p class="lockerEditProfileAccess">
-        <button type="button" class="profileHeroAction feedToolbarBtn" id="editProfileBtn" data-help="edit_profile">Edit Profile</button>
-      </p>
       <header class="feedHeading" aria-label="Feed controls">
         <div class="feedHeadingRow">
           <h1 class="feedPageTitle">My Lantern</h1>
@@ -206,12 +231,12 @@
     </div>
     </div>
     <!-- Locker tabpanel: Items (#lockerPanelItems) — #lockerSectionsEl + JS-built .lockerSection* + .lanternScroller + Lantern cosmetic cards. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
-    <div id="lockerPanelItems" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabItems" hidden data-locker-surface="items" data-help="cosmetics">
+    <div id="lockerPanelItems" class="lockerPanel" role="tabpanel" aria-label="Items" hidden data-locker-surface="items" data-help="cosmetics">
       <div id="lockerSectionsEl"></div>
-      <p class="note" style="padding:0;">Equip cosmetics here. For name, bio, avatar, and featured work, use <strong>Edit Profile</strong> on Overview. Buy more on the Store tab.</p>
+      <p class="note" style="padding:0;">Equip cosmetics here. For name, bio, avatar, and featured work, use <strong>Locker Options → Edit Profile</strong>. Buy more on Store.</p>
     </div>
     <!-- Locker tabpanel: Store (#lockerPanelStore) — .storePanelRoot; static .lockerSection* + .card rows. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
-    <div id="lockerPanelStore" class="lockerPanel" role="tabpanel" aria-labelledby="lockerTabStore" hidden data-locker-surface="store" data-help="store">
+    <div id="lockerPanelStore" class="lockerPanel" role="tabpanel" aria-label="Store" hidden data-locker-surface="store" data-help="store">
       <div class="storePanelRoot">
     <div class="titleRow">
       <div class="appTitle">
@@ -273,7 +298,7 @@
         <div class="h">Profile look &amp; cosmetics</div>
       </div>
       <div class="cardBd">
-        <p class="note" style="margin:0;">Customize your avatar, frames, themes, and cosmetics in <strong>Profile Studio</strong>. In <a href="locker.html#overview" target="_top" style="color:var(--accent);">Locker</a> → Overview, tap <strong>Edit Profile</strong> to open it.</p>
+        <p class="note" style="margin:0;">Customize your avatar, frames, themes, and cosmetics in <strong>Profile Studio</strong>. In <a href="locker.html#overview" target="_top" style="color:var(--accent);">Locker</a>, open <strong>Locker Options → Edit Profile</strong>.</p>
         <p class="note" style="margin:8px 0 0; font-size:18px;">Page background = backdrop. Card theme = hero and card colors. Frame = border around avatar.</p>
       </div>
     </div>
@@ -497,21 +522,9 @@
     }
 
     function setTabButtonsActive(tab){
-      document.querySelectorAll('.lockerTabBtn').forEach(function(btn){
-        var t = btn.getAttribute('data-locker-tab');
-        btn.setAttribute('aria-selected', t === tab ? 'true' : 'false');
-      });
-    }
-
-    function syncLockerTabsPlacement(){
-      var tabs = lockerEl('lockerTabs');
-      var mountSticky = lockerEl('lockerTabsMountSticky');
-      if (!tabs || !mountSticky) return;
-      mountSticky.appendChild(tabs);
-    }
-
-    function wireLockerTabsPlacementObserver(){
-      window.addEventListener('resize', syncLockerTabsPlacement);
+      if (window.LANTERN_LOCKER_SHELL && typeof window.LANTERN_LOCKER_SHELL.setActiveLockerOption === 'function') {
+        window.LANTERN_LOCKER_SHELL.setActiveLockerOption(tab);
+      }
     }
 
     function showLockerTab(tab){
@@ -529,7 +542,6 @@
           document.dispatchEvent(new CustomEvent('lantern-store-tab-activated'));
         } catch (e) {}
       }
-      syncLockerTabsPlacement();
     }
 
     function applyLockerHash(){
@@ -537,24 +549,54 @@
       showLockerTab(r.tab);
     }
 
-    function wireLockerTabs(){
-      document.querySelectorAll('.lockerTabBtn').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var t = btn.getAttribute('data-locker-tab');
-          if (!t) return;
-          var current = parseLockerRoute().tab;
-          if (current === t) return;
-          var h = '#overview';
-          if (t === 'items') h = '#items';
-          else if (t === 'store') h = '#store';
-          try {
-            location.hash = h;
-          } catch (e) {
-            applyLockerHash();
-          }
-        });
+    function navigateLockerTab(t){
+      if (!t) return;
+      var current = parseLockerRoute().tab;
+      if (current === t) {
+        setTabButtonsActive(t);
+        return;
+      }
+      var h = '#overview';
+      if (t === 'items') h = '#items';
+      else if (t === 'store') h = '#store';
+      try {
+        location.hash = h;
+      } catch (e) {
+        applyLockerHash();
+      }
+    }
+
+    function wireLockerOptions(){
+      document.addEventListener('click', function(e){
+        var item = e.target && e.target.closest ? e.target.closest('.lockerOptionsItem') : null;
+        if (!item) return;
+        var action = item.getAttribute('data-locker-action');
+        if (window.LANTERN_LOCKER_SHELL && typeof window.LANTERN_LOCKER_SHELL.closeLockerOptionsMenu === 'function') {
+          window.LANTERN_LOCKER_SHELL.closeLockerOptionsMenu();
+        }
+        if (action === 'tab') {
+          navigateLockerTab(item.getAttribute('data-locker-tab'));
+          return;
+        }
+        if (action === 'edit-profile') {
+          var ep = lockerEl('editProfileBtn');
+          if (ep) ep.click();
+          return;
+        }
+        if (action === 'edit-about') {
+          navigateLockerTab('overview');
+          setTimeout(function(){
+            if (window.LANTERN_LOCKER_SHELL && typeof window.LANTERN_LOCKER_SHELL.openAboutBioEditor === 'function') {
+              window.LANTERN_LOCKER_SHELL.openAboutBioEditor();
+            }
+          }, 0);
+        }
       });
       window.addEventListener('hashchange', function(){ applyLockerHash(); });
+    }
+
+    function wireLockerTabs(){
+      wireLockerOptions();
     }
 
     var cosmetics = [];
@@ -747,12 +789,11 @@
 
     function bootLockerPage(){
       wireLockerTabs();
-      wireLockerTabsPlacementObserver();
       applyLockerHash();
-      syncLockerTabsPlacement();
-      setTimeout(syncLockerTabsPlacement, 0);
-      setTimeout(syncLockerTabsPlacement, 300);
-      setTimeout(syncLockerTabsPlacement, 900);
+      /* Re-mark current section after shell header mounts asynchronously */
+      setTimeout(applyLockerHash, 0);
+      setTimeout(applyLockerHash, 300);
+      setTimeout(applyLockerHash, 900);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootLockerPage);
     else bootLockerPage();
@@ -764,6 +805,6 @@
   <script src="js/lantern-feed-card.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-surface-theme.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-feed-explore.js?v=20260808-feedlayout"></script>
-  <script src="js/lantern-locker-shell.js?v=20260808-feedlayout"></script>
+  <script src="js/lantern-locker-shell.js?v=20260810-locker-options"></script>
 </body>
 </html>
