@@ -1,9 +1,14 @@
 /**
- * Admin TMS ↔ Lantern staff identity-link management — Prompt #101.
+ * Admin TMS ↔ Lantern staff identity-link management — Prompt #101 / #184.
  *
  * Exercises the REAL worker/index.js fetch(request, env) entry point for
- * GET/POST/DELETE /api/admin/tms-identity-links (and a light SSO exchange check for
- * unlink/relink fail-closed behavior), with mocked D1 + real HS256 pilot JWTs.
+ * GET/POST/DELETE /api/admin/tms-identity-links (+ /primary), with mocked D1 +
+ * real HS256 pilot JWTs.
+ *
+ * Prompt #184 cardinality:
+ *   ONE TMS staff → MANY Lantern accounts
+ *   ONE Lantern account → at most ONE TMS staff
+ *   Explicit is_primary (at most one per tms_staff_id)
  *
  * Usage: node worker/scripts/tms-identity-links-admin-test.mjs
  */
@@ -56,6 +61,7 @@ function account(overrides) {
     student_character_name: null,
     teacher_id: null,
     mtss_student_id: null,
+    staff_id: 1,
     is_active: 1,
     must_change_password: 0,
     password_hash: 'HASH_SHOULD_NEVER_APPEAR',
@@ -65,26 +71,51 @@ function account(overrides) {
 }
 
 /**
- * In-memory D1 stub covering identity-link admin SQL + session account lookups + SSO exchange.
- * linksByTms: tms_staff_id -> { lantern_username, created_at, created_by }
- * accounts: lower(username) -> row
- * Also tracks whether any DELETE/UPDATE hit lantern_pilot_accounts (must stay false on unlink).
+ * In-memory D1 stub for #184 schema:
+ * state.links[] = { id, tms_staff_id, lantern_username, lantern_staff_id, is_primary, created_at, created_by }
  */
 function makeEnv(state) {
   state.accounts = state.accounts || {};
-  state.linksByTms = state.linksByTms || {};
+  state.links = state.links || [];
+  state.nextLinkId = state.nextLinkId || (state.links.reduce((m, l) => Math.max(m, Number(l.id) || 0), 0) + 1);
   state.accountMutations = state.accountMutations || [];
   state.deletedAccounts = state.deletedAccounts || [];
 
+  function allLinks() {
+    return state.links.slice();
+  }
+
   function prepare(sql) {
-    const s = String(sql);
+    const s = String(sql).replace(/\s+/g, ' ');
     const binds = [];
     const api = {
       bind(...args) { binds.push(...args); return api; },
       async first() {
-        if (s.includes('FROM tms_identity_links WHERE tms_staff_id')) {
-          const link = state.linksByTms[binds[0]];
-          return link ? { lantern_username: link.lantern_username, tms_staff_id: binds[0] } : null;
+        if (s.includes('SELECT COUNT(*) AS n FROM tms_identity_links WHERE tms_staff_id')) {
+          const tms = binds[0];
+          return { n: allLinks().filter((l) => l.tms_staff_id === tms).length };
+        }
+        if (s.includes('FROM tms_identity_links WHERE id = ?')) {
+          const id = Number(binds[0]);
+          return allLinks().find((l) => Number(l.id) === id) || null;
+        }
+        if (
+          s.includes('FROM tms_identity_links') &&
+          s.includes('lower(trim(lantern_username))') &&
+          s.includes('is_primary')
+        ) {
+          const u = String(binds[0] || '').trim().toLowerCase();
+          return allLinks().find((l) => String(l.lantern_username).toLowerCase() === u) || null;
+        }
+        if (s.includes('FROM tms_identity_links') && s.includes('is_primary = 1')) {
+          const tms = binds[0];
+          const row = allLinks().find((l) => l.tms_staff_id === tms && Number(l.is_primary) === 1);
+          return row ? { lantern_username: row.lantern_username } : null;
+        }
+        if (s.includes('FROM tms_identity_links WHERE tms_staff_id = ?') && !s.includes('is_primary') && !s.includes('COUNT')) {
+          const tms = binds[0];
+          const row = allLinks().find((l) => l.tms_staff_id === tms);
+          return row ? { lantern_username: row.lantern_username, tms_staff_id: tms } : null;
         }
         if (s.includes('FROM lantern_pilot_accounts WHERE lower(trim(username))')) {
           const key = String(binds[0] || '').trim().toLowerCase();
@@ -94,48 +125,89 @@ function makeEnv(state) {
       },
       async all() {
         if (s.includes('FROM tms_identity_links l') && s.includes('LEFT JOIN lantern_pilot_accounts')) {
-          const results = Object.keys(state.linksByTms).sort().map((tmsId) => {
-            const link = state.linksByTms[tmsId];
-            const acct = state.accounts[String(link.lantern_username || '').toLowerCase()] || {};
-            return {
-              tms_staff_id: tmsId,
-              lantern_username: link.lantern_username,
-              created_at: link.created_at || '2026-01-01',
-              created_by: link.created_by || 'admin',
-              display_name: acct.display_name != null ? acct.display_name : null,
-              role: acct.role != null ? acct.role : null,
-              is_active: acct.is_active != null ? acct.is_active : null,
-            };
-          });
+          const results = allLinks()
+            .slice()
+            .sort((a, b) => {
+              if (a.tms_staff_id !== b.tms_staff_id) return String(a.tms_staff_id).localeCompare(String(b.tms_staff_id));
+              const ap = Number(a.is_primary) === 1 ? 0 : 1;
+              const bp = Number(b.is_primary) === 1 ? 0 : 1;
+              if (ap !== bp) return ap - bp;
+              return String(a.lantern_username).localeCompare(String(b.lantern_username));
+            })
+            .map((link) => {
+              const acct = state.accounts[String(link.lantern_username || '').toLowerCase()] || {};
+              return {
+                id: link.id,
+                tms_staff_id: link.tms_staff_id,
+                lantern_username: link.lantern_username,
+                lantern_staff_id: link.lantern_staff_id != null ? link.lantern_staff_id : null,
+                is_primary: Number(link.is_primary) === 1 ? 1 : 0,
+                created_at: link.created_at || '2026-01-01',
+                created_by: link.created_by || 'admin',
+                display_name: acct.display_name != null ? acct.display_name : null,
+                role: acct.role != null ? acct.role : null,
+                is_active: acct.is_active != null ? acct.is_active : null,
+              };
+            });
+          return { results };
+        }
+        if (s.includes('FROM tms_identity_links') && s.includes('WHERE tms_staff_id = ? AND id != ?')) {
+          const tms = binds[0];
+          const excludeId = Number(binds[1]);
+          const results = allLinks()
+            .filter((l) => l.tms_staff_id === tms && Number(l.id) !== excludeId)
+            .sort((a, b) => String(a.lantern_username).localeCompare(String(b.lantern_username)))
+            .map((l) => ({ id: l.id, lantern_username: l.lantern_username, is_primary: l.is_primary }));
           return { results };
         }
         return { results: [] };
       },
       async run() {
         if (s.includes('INSERT INTO tms_identity_links')) {
-          const [tmsStaffId, lanternUsername, createdBy] = binds;
-          for (const existing of Object.values(state.linksByTms)) {
-            if (String(existing.lantern_username) === String(lanternUsername)) {
+          const [tmsStaffId, lanternUsername, lanternStaffId, isPrimary, createdBy] = binds;
+          for (const existing of allLinks()) {
+            if (String(existing.lantern_username).toLowerCase() === String(lanternUsername).toLowerCase()) {
               throw new Error('UNIQUE constraint failed: tms_identity_links.lantern_username');
             }
+            if (
+              lanternStaffId != null &&
+              existing.lantern_staff_id != null &&
+              Number(existing.lantern_staff_id) === Number(lanternStaffId)
+            ) {
+              throw new Error('UNIQUE constraint failed: tms_identity_links.lantern_staff_id');
+            }
           }
-          if (state.linksByTms[tmsStaffId]) {
-            throw new Error('UNIQUE constraint failed: tms_identity_links.tms_staff_id');
-          }
-          state.linksByTms[tmsStaffId] = {
+          const id = state.nextLinkId++;
+          state.links.push({
+            id,
+            tms_staff_id: tmsStaffId,
             lantern_username: lanternUsername,
-            created_at: '2026-08-09',
+            lantern_staff_id: lanternStaffId,
+            is_primary: Number(isPrimary) === 1 ? 1 : 0,
+            created_at: '2026-08-10',
             created_by: createdBy,
-          };
+          });
+          return { success: true, meta: { changes: 1, last_row_id: id } };
+        }
+        if (s.includes('UPDATE tms_identity_links SET is_primary = 0 WHERE tms_staff_id')) {
+          const tms = binds[0];
+          for (const l of state.links) {
+            if (l.tms_staff_id === tms) l.is_primary = 0;
+          }
           return { success: true, meta: { changes: 1 } };
         }
-        if (s.includes('DELETE FROM tms_identity_links WHERE tms_staff_id')) {
-          const tmsStaffId = binds[0];
-          if (state.linksByTms[tmsStaffId]) {
-            delete state.linksByTms[tmsStaffId];
-            return { success: true, meta: { changes: 1 } };
+        if (s.includes('UPDATE tms_identity_links SET is_primary = 1 WHERE id')) {
+          const id = Number(binds[0]);
+          for (const l of state.links) {
+            if (Number(l.id) === id) l.is_primary = 1;
           }
-          return { success: true, meta: { changes: 0 } };
+          return { success: true, meta: { changes: 1 } };
+        }
+        if (s.includes('DELETE FROM tms_identity_links WHERE id = ?')) {
+          const id = Number(binds[0]);
+          const before = state.links.length;
+          state.links = state.links.filter((l) => Number(l.id) !== id);
+          return { success: true, meta: { changes: before - state.links.length } };
         }
         if (/DELETE\s+FROM\s+lantern_pilot_accounts/i.test(s)) {
           state.deletedAccounts.push({ sql: s, binds: binds.slice() });
@@ -151,8 +223,16 @@ function makeEnv(state) {
     return api;
   }
 
+  async function batch(statements) {
+    const out = [];
+    for (const stmt of statements) {
+      out.push(await stmt.run());
+    }
+    return out;
+  }
+
   return {
-    DB: { prepare },
+    DB: { prepare, batch },
     PILOT_SESSION_SECRET: TEST_PILOT_SECRET,
     TMS_LANTERN_BRIDGE_SECRET: TEST_BRIDGE_SECRET,
     _state: state,
@@ -185,12 +265,20 @@ function withMockedRedeem(behavior, fn) {
 }
 
 function seedAdminWorld() {
-  const admin = account({ username: 'Rick Radle', display_name: 'Rick Radle', role: 'admin' });
+  const admin = account({ username: 'Rick Radle', display_name: 'Rick Radle', role: 'admin', staff_id: 1 });
+  const teacherRick = account({
+    username: 'rick.radle',
+    display_name: 'Rick Radle',
+    role: 'teacher',
+    staff_id: 4,
+    teacher_id: 't_rick',
+  });
   const teacher = account({
     username: 'ms_carter',
     display_name: 'Ms. Carter',
     role: 'teacher',
     teacher_id: 't_carter',
+    staff_id: 10,
   });
   const student = account({
     username: '20889',
@@ -199,24 +287,40 @@ function seedAdminWorld() {
     teacher_id: null,
     student_character_name: 'Lucas',
     mtss_student_id: '20889',
+    staff_id: null,
   });
   const inactive = account({
     username: 'retired_teacher',
     display_name: 'Retired Teacher',
     role: 'teacher',
     is_active: 0,
+    staff_id: 11,
   });
   return makeEnv({
     accounts: {
       'rick radle': admin,
+      'rick.radle': teacherRick,
       ms_carter: teacher,
       '20889': student,
       retired_teacher: inactive,
     },
-    linksByTms: {
-      Radle: { lantern_username: 'Rick Radle', created_at: '2026-01-01', created_by: 'seed' },
-    },
+    links: [
+      {
+        id: 1,
+        tms_staff_id: 'Radle',
+        lantern_username: 'Rick Radle',
+        lantern_staff_id: 1,
+        is_primary: 1,
+        created_at: '2026-01-01',
+        created_by: 'seed',
+      },
+    ],
+    nextLinkId: 2,
   });
+}
+
+function linksForTms(env, tms) {
+  return env._state.links.filter((l) => l.tms_staff_id === tms);
 }
 
 // ---------------------------------------------------------------------------
@@ -264,7 +368,9 @@ async function testCurrentMappingRenders() {
     return bad('current Radle → Rick Radle mapping must render with display_name', body);
   }
   if (radle.role !== 'admin') return bad('mapping should include role', radle);
-  ok('current mapping renders (Radle → Rick Radle)');
+  if (Number(radle.is_primary) !== 1) return bad('seed link should be primary', radle);
+  if (radle.id == null) return bad('link rows must include id', radle);
+  ok('current mapping renders (Radle → Rick Radle, primary)');
 }
 
 async function testAdminCanCreateValidMapping() {
@@ -278,24 +384,33 @@ async function testAdminCanCreateValidMapping() {
   if (res.status !== 200 || !body.ok || body.tms_staff_id !== 'Carter' || body.lantern_username !== 'ms_carter') {
     return bad('admin can create valid mapping', { status: res.status, body });
   }
-  if (!env._state.linksByTms.Carter || env._state.linksByTms.Carter.lantern_username !== 'ms_carter') {
-    return bad('mapping not persisted in D1 stub', env._state.linksByTms);
+  if (Number(body.is_primary) !== 1) return bad('first link for TMS staff must be primary', body);
+  const carter = linksForTms(env, 'Carter');
+  if (carter.length !== 1 || carter[0].lantern_username !== 'ms_carter' || Number(carter[0].is_primary) !== 1) {
+    return bad('mapping not persisted in D1 stub', env._state.links);
   }
-  ok('admin can create valid mapping');
+  ok('admin can create valid mapping (first link auto-primary)');
 }
 
-async function testDuplicateTmsIdRejected() {
+async function testSecondLinkSameTmsAllowedAsSecondary() {
   const env = seedAdminWorld();
   const cookie = await cookieFor(env._state.accounts['rick radle']);
   const res = await worker.fetch(
-    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'ms_carter' }, cookie),
+    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
   );
   const body = await jsonOf(res);
-  if (res.status !== 409 || body.error !== 'link_already_exists') {
-    return bad('duplicate TMS ID rejected', { status: res.status, body });
+  if (res.status !== 200 || !body.ok || body.lantern_username !== 'rick.radle') {
+    return bad('second Lantern link for same TMS must be allowed', { status: res.status, body });
   }
-  ok('duplicate TMS ID rejected');
+  if (Number(body.is_primary) !== 0) return bad('additional link must default is_primary=0', body);
+  const radleLinks = linksForTms(env, 'Radle');
+  if (radleLinks.length !== 2) return bad('expected two Radle links', radleLinks);
+  const primaries = radleLinks.filter((l) => Number(l.is_primary) === 1);
+  if (primaries.length !== 1 || primaries[0].lantern_username !== 'Rick Radle') {
+    return bad('exactly one primary must remain on admin account until switched', primaries);
+  }
+  ok('ONE TMS → TWO Lantern links allowed; additional defaults secondary');
 }
 
 async function testDuplicateLanternAccountRejected() {
@@ -309,7 +424,7 @@ async function testDuplicateLanternAccountRejected() {
   if (res.status !== 409 || body.error !== 'link_already_exists') {
     return bad('duplicate Lantern account rejected', { status: res.status, body });
   }
-  ok('duplicate Lantern account rejected');
+  ok('duplicate Lantern account rejected (ONE Lantern → ONE TMS)');
 }
 
 async function testStudentAccountRejected() {
@@ -342,15 +457,13 @@ async function testInactiveAccountRejected() {
 
 async function testNameSimilarityDoesNotAutoLink() {
   const env = seedAdminWorld();
-  // Drop the seed link so the world has Rick Radle + a TMS-ish name "Radle" available, but no row.
-  delete env._state.linksByTms.Radle;
+  env._state.links = [];
   const cookie = await cookieFor(env._state.accounts['rick radle']);
   const listRes = await worker.fetch(adminReq('GET', '/api/admin/tms-identity-links', undefined, cookie), env);
   const listBody = await jsonOf(listRes);
   if ((listBody.links || []).length !== 0) {
     return bad('no auto-link after clearing mappings', listBody);
   }
-  // Creating still requires BOTH sides explicitly — posting only a name-like TMS id without lantern_username fails.
   const badRes = await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle' }, cookie),
     env
@@ -359,25 +472,61 @@ async function testNameSimilarityDoesNotAutoLink() {
   if (badRes.status !== 400 || badBody.error !== 'invalid_lantern_username') {
     return bad('POST without explicit lantern_username must fail (no name guess)', { status: badRes.status, body: badBody });
   }
-  if (env._state.linksByTms.Radle) {
-    return bad('name similarity must never create a row', env._state.linksByTms);
+  if (linksForTms(env, 'Radle').length) {
+    return bad('name similarity must never create a row', env._state.links);
   }
   ok('name similarity does not auto-link');
 }
 
-async function testUnlinkRemovesMappingOnly() {
+async function testSetPrimaryAtomic() {
   const env = seedAdminWorld();
   const cookie = await cookieFor(env._state.accounts['rick radle']);
+  await worker.fetch(
+    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
+    env
+  );
+  const teacherLink = linksForTms(env, 'Radle').find((l) => l.lantern_username === 'rick.radle');
+  const res = await worker.fetch(
+    adminReq('POST', '/api/admin/tms-identity-links/primary', { id: teacherLink.id }, cookie),
+    env
+  );
+  const body = await jsonOf(res);
+  if (res.status !== 200 || !body.ok || body.lantern_username !== 'rick.radle') {
+    return bad('set primary failed', { status: res.status, body });
+  }
+  const radle = linksForTms(env, 'Radle');
+  const primaries = radle.filter((l) => Number(l.is_primary) === 1);
+  if (primaries.length !== 1 || primaries[0].lantern_username !== 'rick.radle') {
+    return bad('exactly one primary after switch', radle);
+  }
+  const adminLink = radle.find((l) => l.lantern_username === 'Rick Radle');
+  if (!adminLink || Number(adminLink.is_primary) !== 0) {
+    return bad('admin link must become secondary', adminLink);
+  }
+  ok('primary designation is atomic (one primary per TMS)');
+}
+
+async function testUnlinkByIdRemovesOneLinkOnly() {
+  const env = seedAdminWorld();
+  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  await worker.fetch(
+    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
+    env
+  );
+  const teacherLink = linksForTms(env, 'Radle').find((l) => l.lantern_username === 'rick.radle');
   const beforeAccounts = JSON.stringify(env._state.accounts);
   const res = await worker.fetch(
-    adminReq('DELETE', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle' }, cookie),
+    adminReq('DELETE', '/api/admin/tms-identity-links', { id: teacherLink.id }, cookie),
     env
   );
   const body = await jsonOf(res);
   if (res.status !== 200 || !body.ok || body.deleted !== true) {
-    return bad('unlink removes mapping', { status: res.status, body });
+    return bad('unlink by id removes mapping', { status: res.status, body });
   }
-  if (env._state.linksByTms.Radle) return bad('Radle link still present after unlink', env._state.linksByTms);
+  if (linksForTms(env, 'Radle').length !== 1) return bad('must leave other Radle link', env._state.links);
+  if (linksForTms(env, 'Radle')[0].lantern_username !== 'Rick Radle') {
+    return bad('admin link must remain', env._state.links);
+  }
   if (JSON.stringify(env._state.accounts) !== beforeAccounts) {
     return bad('unlink mutated accounts', { before: beforeAccounts, after: env._state.accounts });
   }
@@ -387,28 +536,63 @@ async function testUnlinkRemovesMappingOnly() {
       accountMutations: env._state.accountMutations,
     });
   }
-  ok('unlink removes mapping only');
+  ok('unlink by id removes one link only');
 }
 
-async function testUnlinkDoesNotDeleteAccountsOrData() {
-  // Covered structurally above; also assert Rick Radle account still loadable via session after unlink.
+async function testDeleteByTmsStaffIdAloneRefused() {
   const env = seedAdminWorld();
   const cookie = await cookieFor(env._state.accounts['rick radle']);
-  await worker.fetch(adminReq('DELETE', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle' }, cookie), env);
-  const listRes = await worker.fetch(adminReq('GET', '/api/admin/tms-identity-links', undefined, cookie), env);
-  const listBody = await jsonOf(listRes);
-  if (listRes.status !== 200 || !listBody.ok) {
-    return bad('admin session/account still works after unlink', { status: listRes.status, body: listBody });
+  const res = await worker.fetch(
+    adminReq('DELETE', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle' }, cookie),
+    env
+  );
+  const body = await jsonOf(res);
+  if (res.status !== 400 || body.error !== 'missing_link_id') {
+    return bad('DELETE by tms_staff_id alone must be refused', { status: res.status, body });
   }
-  if (!env._state.accounts['rick radle'] || env._state.accounts['rick radle'].role !== 'admin') {
-    return bad('Rick Radle account must remain', env._state.accounts['rick radle']);
+  if (linksForTms(env, 'Radle').length !== 1) return bad('must not delete any links', env._state.links);
+  ok('DELETE by tms_staff_id alone refused (no bulk unlink-all)');
+}
+
+async function testPrimaryUnlinkRequiresReplacement() {
+  const env = seedAdminWorld();
+  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  await worker.fetch(
+    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
+    env
+  );
+  const primary = linksForTms(env, 'Radle').find((l) => Number(l.is_primary) === 1);
+  const refuse = await worker.fetch(
+    adminReq('DELETE', '/api/admin/tms-identity-links', { id: primary.id }, cookie),
+    env
+  );
+  const refuseBody = await jsonOf(refuse);
+  if (refuse.status !== 400 || refuseBody.error !== 'replacement_primary_required') {
+    return bad('primary unlink without replacement must fail', { status: refuse.status, body: refuseBody });
   }
-  ok('unlink does not delete accounts/data');
+  const okRes = await worker.fetch(
+    adminReq(
+      'DELETE',
+      '/api/admin/tms-identity-links',
+      { id: primary.id, replacement_lantern_username: 'rick.radle' },
+      cookie
+    ),
+    env
+  );
+  const okBody = await jsonOf(okRes);
+  if (okRes.status !== 200 || !okBody.ok || okBody.new_primary_lantern_username !== 'rick.radle') {
+    return bad('primary unlink with replacement failed', { status: okRes.status, body: okBody });
+  }
+  const remaining = linksForTms(env, 'Radle');
+  if (remaining.length !== 1 || remaining[0].lantern_username !== 'rick.radle' || Number(remaining[0].is_primary) !== 1) {
+    return bad('replacement must become sole primary', remaining);
+  }
+  ok('primary unlink requires explicit replacement');
 }
 
 async function testUnmappedUserFailsSsoClosed() {
   const env = seedAdminWorld();
-  delete env._state.linksByTms.Radle;
+  env._state.links = [];
   await withMockedRedeem(
     () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
     async () => {
@@ -416,11 +600,7 @@ async function testUnmappedUserFailsSsoClosed() {
         new Request('https://x.test/api/auth/tms-exchange?code=abc123', { method: 'GET' }),
         env
       );
-      const text = await res.text();
       if (res.status === 302) return bad('unmapped SSO must not redirect into app', res.headers.get('Location'));
-      if (!/lantern_account_not_linked|not linked|SSO/i.test(text) && res.status !== 200) {
-        // Failure pages are 200 HTML with an error code embedded; accept either.
-      }
       if (/Set-Cookie:\s*lantern_pilot=/i.test(String(res.headers.get('Set-Cookie') || ''))) {
         return bad('unmapped SSO must not set lantern_pilot cookie', res.headers.get('Set-Cookie'));
       }
@@ -429,16 +609,15 @@ async function testUnmappedUserFailsSsoClosed() {
   );
 }
 
-async function testRelinkRestoresSsoEligibility() {
+async function testPrimaryWinsReverseSso() {
   const env = seedAdminWorld();
   const cookie = await cookieFor(env._state.accounts['rick radle']);
-  await worker.fetch(adminReq('DELETE', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle' }, cookie), env);
-  const linkRes = await worker.fetch(
-    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'Rick Radle' }, cookie),
+  await worker.fetch(
+    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
   );
-  const linkBody = await jsonOf(linkRes);
-  if (!linkRes.ok || !linkBody.ok) return bad('relink POST failed', { status: linkRes.status, body: linkBody });
+  const teacherLink = linksForTms(env, 'Radle').find((l) => l.lantern_username === 'rick.radle');
+  await worker.fetch(adminReq('POST', '/api/admin/tms-identity-links/primary', { id: teacherLink.id }, cookie), env);
 
   await withMockedRedeem(
     () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
@@ -448,14 +627,21 @@ async function testRelinkRestoresSsoEligibility() {
         env
       );
       if (res.status !== 302 || res.headers.get('Location') !== '/teacher.html') {
-        return bad('relink must restore SSO eligibility (302 /teacher.html)', {
+        return bad('primary reverse SSO must land in teacher account session', {
           status: res.status,
           loc: res.headers.get('Location'),
         });
       }
       const setCookie = res.headers.get('Set-Cookie') || '';
-      if (!/lantern_pilot=/.test(setCookie)) return bad('relinked SSO must set lantern_pilot cookie', setCookie);
-      ok('relink restores SSO eligibility');
+      if (!/lantern_pilot=/.test(setCookie)) return bad('primary SSO must set lantern_pilot cookie', setCookie);
+      // Decode JWT payload sub
+      const m = /lantern_pilot=([^;]+)/.exec(setCookie);
+      const token = decodeURIComponent(m[1]);
+      const payload = JSON.parse(Buffer.from(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+      if (payload.sub !== 'rick.radle' || payload.role !== 'teacher') {
+        return bad('SSO must target primary rick.radle teacher, not admin', payload);
+      }
+      ok('TMS→Lantern reverse SSO uses primary rick.radle (not admin)');
     }
   );
 }
@@ -469,14 +655,22 @@ async function testNoSecretsDisplayed() {
   if (/HASH_SHOULD_NEVER_APPEAR|SALT_SHOULD_NEVER_APPEAR|password_hash|password_salt|PILOT_SESSION|BRIDGE_SECRET|jwt/i.test(raw)) {
     return bad('links response leaked secrets', body);
   }
+  const allowed = [
+    'created_at',
+    'created_by',
+    'display_name',
+    'id',
+    'is_active',
+    'is_primary',
+    'lantern_staff_id',
+    'lantern_username',
+    'role',
+    'tms_staff_id',
+  ];
   for (const link of body.links || []) {
-    const keys = Object.keys(link).sort().join(',');
-    // Allow only the safe projection from the SELECT.
-    const allowed = ['created_at', 'created_by', 'display_name', 'is_active', 'lantern_username', 'role', 'tms_staff_id'];
     for (const k of Object.keys(link)) {
       if (!allowed.includes(k)) return bad('unexpected field in link row: ' + k, link);
     }
-    if (keys.indexOf('password') !== -1) return bad('password field present', keys);
   }
   ok('no secrets displayed in identity-link API responses');
 }
@@ -487,7 +681,9 @@ function testAdminUiPresentAndSafe() {
   if (!/TMS Staff Links/.test(html)) return bad('admin.html missing TMS Staff Links section');
   if (!/tms-identity-links/.test(html)) return bad('admin.html missing tms-identity-links API calls');
   if (!/Link Accounts/.test(html) || !/Unlink/.test(html)) return bad('admin.html missing Link/Unlink actions');
-  // The TMS links card must not invent password fields or dump raw tokens.
+  if (!/Make Primary/.test(html) || !/is_primary/.test(html)) {
+    return bad('admin.html missing Primary designation UI');
+  }
   const cardStart = html.indexOf('id="tmsStaffLinksCard"');
   const cardEnd = html.indexOf('id="walletAdjustmentCard"');
   if (cardStart < 0 || cardEnd < 0 || cardEnd <= cardStart) return bad('could not isolate TMS Staff Links card markup');
@@ -495,27 +691,48 @@ function testAdminUiPresentAndSafe() {
   if (/type="password"|password_hash|device.?token|Authorization/i.test(card)) {
     return bad('TMS Staff Links card must not expose secrets/password inputs', card.slice(0, 200));
   }
-  if (!/confirm\(/.test(html) || !/Unlink TMS staff/.test(html)) {
+  if (!/confirm\(/.test(html) || !/Unlink Lantern account/.test(html)) {
     return bad('unlink confirmation missing');
   }
-  ok('admin UI present with Link/Unlink and no secrets surface');
+  if (/deleteAdminJson\(\s*'\/api\/admin\/tms-identity-links'\s*,\s*\{\s*tms_staff_id:/.test(html)) {
+    return bad('Admin UI must not DELETE by tms_staff_id alone');
+  }
+  ok('admin UI present with Link/Unlink/Primary and no secrets surface');
+}
+
+function testMigration063Present() {
+  const migPath = fileURLToPath(new URL('../migrations/063_tms_identity_links_one_tms_many_lantern.sql', import.meta.url));
+  const sql = fs.readFileSync(migPath, 'utf8');
+  if (!/tms_identity_links_v2/.test(sql) || !/is_primary/.test(sql)) {
+    return bad('migration 063 missing v2 table / is_primary');
+  }
+  if (!/idx_tms_identity_links_one_primary/.test(sql) || !/WHERE is_primary = 1/.test(sql)) {
+    return bad('migration 063 missing one-primary partial unique index');
+  }
+  if (!/idx_tms_identity_links_tms_staff_id/.test(sql)) {
+    return bad('migration 063 missing non-unique tms_staff_id index');
+  }
+  ok('migration 063 schema present');
 }
 
 await testAdminCanLoadLinks();
 await testNonAdminDenied();
 await testCurrentMappingRenders();
 await testAdminCanCreateValidMapping();
-await testDuplicateTmsIdRejected();
+await testSecondLinkSameTmsAllowedAsSecondary();
 await testDuplicateLanternAccountRejected();
 await testStudentAccountRejected();
 await testInactiveAccountRejected();
 await testNameSimilarityDoesNotAutoLink();
-await testUnlinkRemovesMappingOnly();
-await testUnlinkDoesNotDeleteAccountsOrData();
+await testSetPrimaryAtomic();
+await testUnlinkByIdRemovesOneLinkOnly();
+await testDeleteByTmsStaffIdAloneRefused();
+await testPrimaryUnlinkRequiresReplacement();
 await testUnmappedUserFailsSsoClosed();
-await testRelinkRestoresSsoEligibility();
+await testPrimaryWinsReverseSso();
 await testNoSecretsDisplayed();
 testAdminUiPresentAndSafe();
+testMigration063Present();
 
 console.log('\ntms-identity-links-admin-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

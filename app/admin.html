@@ -355,7 +355,7 @@
       <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminTmsLinksCountPill">0</span></div>
     </summary>
     <div class="cardBd teacherCollapsibleListBd">
-    <p class="acctPanelHint">Explicit SSO mappings from a Behavior Logger staff ID to a Lantern staff account. Never guessed from names — choose both sides. Unlink removes only the mapping.</p>
+    <p class="acctPanelHint">Explicit SSO mappings from a Behavior Logger staff ID to one or more intentional Lantern accounts. One Lantern account maps to at most one TMS identity. Designate exactly one Primary account for TMS→Lantern SSO.</p>
     <div id="tmsLinksMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
     <p class="pendingMeta" style="margin-bottom:8px;">Current mappings</p>
     <div id="tmsLinksTableWrap" class="teacherCollapsibleListScroll">
@@ -365,6 +365,7 @@
             <th>TMS Staff ID</th>
             <th>Lantern Account</th>
             <th>Role</th>
+            <th>SSO</th>
             <th>Active</th>
             <th>Actions</th>
           </tr>
@@ -788,13 +789,20 @@
 
     function tmsLinkErrorMessage(body, status) {
       var err = body && body.error ? String(body.error) : '';
-      if (err === 'link_already_exists') return 'That TMS Staff ID or Lantern account is already linked (1:1 mapping).';
+      if (err === 'link_already_exists') return 'That Lantern account is already linked, or this mapping conflicts with an existing unique link.';
       if (err === 'lantern_account_not_staff') return 'Only teacher or admin Lantern accounts can be linked.';
       if (err === 'lantern_account_inactive') return 'That Lantern account is inactive and cannot be linked.';
       if (err === 'lantern_account_not_found') return 'Lantern account not found.';
       if (err === 'invalid_tms_staff_id') return 'Enter a valid TMS Staff ID.';
       if (err === 'invalid_lantern_username') return 'Select a Lantern staff account.';
       if (err === 'missing_tms_staff_id') return 'Missing TMS Staff ID.';
+      if (err === 'missing_link_id') return 'Choose a specific Lantern link to unlink (bulk unlink-all is disabled).';
+      if (err === 'link_not_found') return 'That link was not found.';
+      if (err === 'replacement_primary_required') {
+        var rem = body && Array.isArray(body.remaining) ? body.remaining.join(', ') : '';
+        return 'This is the Primary SSO account. Choose a replacement Primary before unlinking' + (rem ? ' (remaining: ' + rem + ')' : '') + '.';
+      }
+      if (err === 'replacement_primary_not_found') return 'Replacement Primary must be another linked Lantern account for the same TMS staff.';
       if (err === 'forbidden') return 'Admin access required.';
       if (status === 409) return 'Duplicate or conflicting link.';
       return err || 'Request failed.';
@@ -838,34 +846,85 @@
           }
           if (emptyEl) emptyEl.style.display = 'none';
           if (table) table.style.display = 'table';
+          var byTms = {};
+          links.forEach(function(link){
+            var tid = String(link.tms_staff_id || '');
+            if (!byTms[tid]) byTms[tid] = [];
+            byTms[tid].push(link);
+          });
           links.forEach(function(link){
             var tr = document.createElement('tr');
+            var linkId = link.id != null ? Number(link.id) : 0;
             var tmsId = String(link.tms_staff_id || '');
             var uname = String(link.lantern_username || '');
             var dn = link.display_name != null ? String(link.display_name).trim() : '';
             var role = link.role != null ? String(link.role) : '—';
+            var isPrimary = Number(link.is_primary) === 1;
             var active = (link.is_active === 0 || link.is_active === '0') ? 'No' : (link.is_active == null ? '—' : 'Yes');
             var acctLabel = uname + (dn ? ' · ' + dn : '');
+            var ssoLabel = isPrimary ? 'Primary' : 'Linked';
             tr.innerHTML =
               '<td>' + esc(tmsId) + '</td>' +
               '<td>' + esc(acctLabel) + '</td>' +
               '<td>' + esc(role) + '</td>' +
+              '<td>' + esc(ssoLabel) + '</td>' +
               '<td>' + esc(active) + '</td>' +
               '<td class="acctActions"></td>';
             var cell = tr.querySelector('.acctActions');
+            if (!isPrimary && linkId > 0) {
+              var primaryBtn = document.createElement('button');
+              primaryBtn.type = 'button';
+              primaryBtn.className = 'btn';
+              primaryBtn.textContent = 'Make Primary';
+              primaryBtn.addEventListener('click', function(){
+                primaryBtn.disabled = true;
+                postAdminJson('/api/admin/tms-identity-links/primary', { id: linkId }).then(function(res){
+                  if (res && res.blocked) return;
+                  if (res && res.okHttp && res.body && res.body.ok) {
+                    showTmsLinksMsg('Primary SSO for ' + tmsId + ' is now ' + uname + '.', 'ok');
+                    loadTmsIdentityLinks();
+                  } else {
+                    showTmsLinksMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
+                  }
+                }).catch(function(){
+                  showTmsLinksMsg('Network error while setting Primary.', 'err');
+                }).finally(function(){
+                  primaryBtn.disabled = false;
+                });
+              });
+              cell.appendChild(primaryBtn);
+            }
             var unlinkBtn = document.createElement('button');
             unlinkBtn.type = 'button';
             unlinkBtn.className = 'btn bad';
             unlinkBtn.textContent = 'Unlink';
             unlinkBtn.addEventListener('click', function(){
-              if (!window.confirm('Unlink TMS staff "' + tmsId + '" from Lantern account "' + uname + '"?\n\nThis removes only the SSO mapping. Accounts and data stay intact. Future SSO for this staff fails until relinked.')) {
-                return;
+              var siblings = (byTms[tmsId] || []).filter(function(x){
+                return String(x.lantern_username || '') !== uname;
+              });
+              var payload = linkId > 0 ? { id: linkId } : { lantern_username: uname };
+              var confirmMsg = 'Unlink Lantern account "' + uname + '" from TMS staff "' + tmsId + '"?\n\nThis removes only this SSO mapping. Accounts and data stay intact.';
+              if (isPrimary && siblings.length > 0) {
+                var names = siblings.map(function(s){ return String(s.lantern_username || ''); }).filter(Boolean);
+                var replacement = window.prompt(
+                  'This is the Primary SSO account. Enter the Lantern username that should become Primary after unlink:\n\n' + names.join('\n'),
+                  names[0] || ''
+                );
+                if (replacement == null) return;
+                replacement = String(replacement || '').trim();
+                if (!replacement) {
+                  showTmsLinksMsg('Replacement Primary username is required.', 'err');
+                  return;
+                }
+                payload.replacement_lantern_username = replacement;
+                confirmMsg = 'Unlink Primary "' + uname + '" and make "' + replacement + '" Primary for TMS staff "' + tmsId + '"?';
               }
+              if (!window.confirm(confirmMsg)) return;
               unlinkBtn.disabled = true;
-              deleteAdminJson('/api/admin/tms-identity-links', { tms_staff_id: tmsId }).then(function(res){
+              deleteAdminJson('/api/admin/tms-identity-links', payload).then(function(res){
                 if (res && res.blocked) return;
                 if (res && res.okHttp && res.body && res.body.ok) {
-                  showTmsLinksMsg('Unlinked ' + tmsId + '. SSO mapping removed only — accounts and data unchanged.', 'ok');
+                  showTmsLinksMsg('Unlinked ' + uname + ' from ' + tmsId + '.', 'ok');
                   loadTmsIdentityLinks();
                 } else {
                   showTmsLinksMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');

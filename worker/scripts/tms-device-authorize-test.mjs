@@ -274,6 +274,32 @@ async function testAdminCanVerifySimilarly() {
   });
 }
 
+async function testTeacherRickAlsoResolvesToRadle() {
+  const teacher = account({ username: 'rick.radle', role: 'teacher', staff_id: 4 });
+  const env = makeEnv({
+    accounts: { 'rick.radle': teacher },
+    identityLinksByUsername: {
+      'Rick Radle': 'Radle',
+      'rick.radle': 'Radle',
+    },
+  });
+  const cookie = await cookieFor(teacher);
+  await withMockedMint((call) => {
+    const body = JSON.parse(call.opts.body);
+    if (body.tms_staff_id !== 'Radle' || body.lantern_username !== 'rick.radle') {
+      throw new Error('teacher Rick mint identity mismatch: ' + JSON.stringify(body));
+    }
+    return { body: { ok: true, code: 'teacher-rick-code', tms_staff_id: 'Radle' } };
+  }, async () => {
+    const res = await authorize(env, cookie, 'https://log.tmslantern.org/index.html');
+    const loc = res.headers.get('Location') || '';
+    if (res.status !== 302 || !loc.includes('lantern_staff_code=teacher-rick-code')) {
+      return bad('teacher rick.radle must verify as TMS Radle', { status: res.status, loc });
+    }
+    ok('teacher rick.radle verifies as same canonical TMS Radle');
+  });
+}
+
 async function testUnsafeReturnSanitized() {
   const teacher = account({ username: 'Rick Radle', role: 'admin' });
   const env = makeEnv({
@@ -336,6 +362,7 @@ await testInactiveRejected();
 await testMustChangePasswordRedirect();
 await testLinkedTeacherMintsAndRedirects();
 await testAdminCanVerifySimilarly();
+await testTeacherRickAlsoResolvesToRadle();
 await testUnsafeReturnSanitized();
 await testCanonicalLogHostReturnAccepted();
 await testBridgeSecretNotInClientSurfaces();

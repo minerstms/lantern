@@ -100,11 +100,14 @@ const accounts = {
   },
 };
 
+// Prompt #184 — both intentional Rick Lantern accounts share one TMS principal.
 const linksByUsername = {
   'rick radle': { tms_staff_id: 'Radle', lantern_username: 'Rick Radle', lantern_staff_id: 1 },
+  'rick.radle': { tms_staff_id: 'Radle', lantern_username: 'rick.radle', lantern_staff_id: 4 },
 };
 const linksByStaffId = {
   1: { tms_staff_id: 'Radle', lantern_username: 'Rick Radle', lantern_staff_id: 1 },
+  4: { tms_staff_id: 'Radle', lantern_username: 'rick.radle', lantern_staff_id: 4 },
 };
 
 function makeDb() {
@@ -165,13 +168,18 @@ const db = makeDb();
 }
 {
   const a = await resolveStaffTmsPrincipal(db, 'staff:rick.radle');
-  if (!a.ok && a.error === 'tms_identity_not_linked') ok('unlinked clone staff:rick.radle fails closed');
-  else bad('rick.radle must fail closed', a);
+  if (a.ok && a.tmsStaffId === 'Radle') ok('staff:rick.radle resolves to same TMS Radle');
+  else bad('rick.radle must resolve to Radle', a);
 }
 {
   const a = await resolveStaffTmsPrincipal(db, 'staff_id:4');
-  if (!a.ok && a.error === 'tms_identity_not_linked') ok('unlinked staff_id:4 fails closed');
-  else bad('staff_id:4 must fail closed', a);
+  if (a.ok && a.tmsStaffId === 'Radle') ok('staff_id:4 resolves to same TMS Radle');
+  else bad('staff_id:4 must resolve to Radle', a);
+}
+{
+  const a = await resolveStaffTmsPrincipal(db, 'staff:unlinked');
+  if (!a.ok && a.error === 'tms_identity_not_linked') ok('truly unlinked staff fails closed');
+  else bad('unlinked staff must fail closed', a);
 }
 {
   const a = await resolveTmsStaffIdForLanternAccount(db, 'Rick Radle');
@@ -311,15 +319,32 @@ try {
   } else bad('admin_adjustment bridge', txCall);
 
   bridgeCalls.length = 0;
-  const unlinkedBal = await worker.fetch(
+  const teacherRickBal = await worker.fetch(
     new Request('https://x.test/api/economy/balance?character_name=staff_id:4', {
+      headers: { Cookie: adminCookie },
+    }),
+    env
+  );
+  const teacherRickBody = await teacherRickBal.json();
+  if (
+    teacherRickBal.status === 200 &&
+    teacherRickBody.ok &&
+    teacherRickBody.tms_staff_id === 'Radle' &&
+    teacherRickBody.economy_authority === 'tms_nuggets_staff'
+  ) {
+    ok('Teacher rick.radle staff_id:4 resolves to same TMS Radle principal');
+  } else bad('Teacher Rick same principal', { status: teacherRickBal.status, teacherRickBody });
+
+  bridgeCalls.length = 0;
+  const unlinkedBal = await worker.fetch(
+    new Request('https://x.test/api/economy/balance?character_name=staff_id:99', {
       headers: { Cookie: adminCookie },
     }),
     env
   );
   const unlinkedBody = await unlinkedBal.json();
   if (unlinkedBal.status === 403 && unlinkedBody.error === 'tms_identity_not_linked' && bridgeCalls.length === 0) {
-    ok('Unlinked staff_id:4 fails closed with no TMS/wallet fallback');
+    ok('Truly unlinked staff_id:99 fails closed with no TMS/wallet fallback');
   } else bad('Unlinked fail-closed', { status: unlinkedBal.status, unlinkedBody, bridgeCalls });
 
   // Prove no lantern_wallets path for staff keys: unlinked error must not invent balance 0.

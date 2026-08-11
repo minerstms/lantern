@@ -24,7 +24,7 @@ import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
-import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount } from './staff-economy.js';
+import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
@@ -1496,6 +1496,7 @@ function tmsExchangeFailurePage(reason, cors) {
     unauthorized: 'This Lantern sign-in link could not be verified. Please try again from Behavior Logger.',
     invalid_or_expired_code: 'This Lantern sign-in link has expired or was already used. Please try again from Behavior Logger.',
     lantern_account_not_linked: 'Your Behavior Logger staff account is not yet linked to a Lantern account. Ask a Lantern admin to link it.',
+    no_primary_lantern_link: 'This Behavior Logger staff identity has Lantern links but no Primary account. Ask a Lantern admin to designate a Primary.',
     lantern_account_disabled: 'This Lantern account is disabled. Ask a Lantern admin for help.',
     lantern_account_not_staff: 'This Lantern account is not a teacher/admin account.',
     must_change_password: 'Please sign in to Lantern directly once to set your password, then try again.',
@@ -1673,18 +1674,19 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     const redeemed = await redeemTmsLanternHandoff(env, code);
     if (!redeemed.ok) return tmsExchangeFailurePage(redeemed.error, cors);
 
-    const link = await db
-      .prepare(`SELECT lantern_username FROM tms_identity_links WHERE tms_staff_id = ?`)
-      .bind(redeemed.tms_staff_id)
-      .first();
-    if (!link || !link.lantern_username) return tmsExchangeFailurePage('lantern_account_not_linked', cors);
+    // Prompt #184 — reverse SSO uses explicit primary link (never .first() among many).
+    const primaryRes = await resolvePrimaryLanternUsernameForTmsStaff(db, redeemed.tms_staff_id);
+    if (!primaryRes.ok) {
+      if (primaryRes.error === 'no_primary') return tmsExchangeFailurePage('no_primary_lantern_link', cors);
+      return tmsExchangeFailurePage('lantern_account_not_linked', cors);
+    }
 
     const row = await db
       .prepare(
         `SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password
          FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
       )
-      .bind(link.lantern_username)
+      .bind(primaryRes.lantern_username)
       .first();
     if (!row) return tmsExchangeFailurePage('lantern_account_not_linked', cors);
 
@@ -2172,20 +2174,83 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, user: updated || { username: targetUser } }, 200, cors);
   }
 
-  // Prompt #94: explicit TMS Nuggets staff identity link, admin-created ONLY -- never populated
-  // by display-name matching or any automated guess (see worker/migrations/048_tms_identity_links.sql).
-  // An account with no row here simply cannot use TMS -> Lantern SSO (fails closed).
+  // Prompt #94/#184: explicit TMS ↔ Lantern staff identity links (admin-created ONLY).
+  // Cardinality: one TMS staff → many Lantern accounts; one Lantern account → at most one TMS.
+  // Reverse SSO uses is_primary (at most one primary per tms_staff_id).
   if (request.method === 'GET' && path === '/api/admin/tms-identity-links') {
-    const rows = await db
-      .prepare(
-        `SELECT l.tms_staff_id, l.lantern_username, l.created_at, l.created_by,
-                a.display_name, a.role, a.is_active
-         FROM tms_identity_links l
-         LEFT JOIN lantern_pilot_accounts a ON a.username = l.lantern_username
-         ORDER BY l.tms_staff_id`
-      )
-      .all();
+    let rows;
+    try {
+      rows = await db
+        .prepare(
+          `SELECT l.id, l.tms_staff_id, l.lantern_username, l.lantern_staff_id, l.is_primary,
+                  l.created_at, l.created_by,
+                  a.display_name, a.role, a.is_active
+           FROM tms_identity_links l
+           LEFT JOIN lantern_pilot_accounts a ON a.username = l.lantern_username
+           ORDER BY l.tms_staff_id, CASE WHEN l.is_primary = 1 THEN 0 ELSE 1 END, l.lantern_username`
+        )
+        .all();
+    } catch (_) {
+      // Pre-migration 063 fallback.
+      rows = await db
+        .prepare(
+          `SELECT l.tms_staff_id, l.lantern_username, l.created_at, l.created_by,
+                  a.display_name, a.role, a.is_active
+           FROM tms_identity_links l
+           LEFT JOIN lantern_pilot_accounts a ON a.username = l.lantern_username
+           ORDER BY l.tms_staff_id`
+        )
+        .all();
+    }
     return jsonResponse({ ok: true, links: rows.results || [] }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/tms-identity-links/primary') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const linkId = body.id != null && String(body.id).trim() !== '' ? Number(body.id) : 0;
+    const lanternUsername = String(body.lantern_username || '').trim();
+    let targetLink = null;
+    if (Number.isFinite(linkId) && linkId > 0) {
+      targetLink = await db
+        .prepare(`SELECT id, tms_staff_id, lantern_username, is_primary FROM tms_identity_links WHERE id = ?`)
+        .bind(Math.floor(linkId))
+        .first();
+    } else if (lanternUsername) {
+      targetLink = await db
+        .prepare(
+          `SELECT id, tms_staff_id, lantern_username, is_primary FROM tms_identity_links
+           WHERE lower(trim(lantern_username)) = lower(trim(?))`
+        )
+        .bind(lanternUsername)
+        .first();
+    } else {
+      return jsonResponse({ ok: false, error: 'missing_link_id' }, 400, cors);
+    }
+    if (!targetLink || !targetLink.id) {
+      return jsonResponse({ ok: false, error: 'link_not_found' }, 404, cors);
+    }
+    const tmsStaffId = String(targetLink.tms_staff_id || '').trim();
+    await db.batch([
+      db.prepare(`UPDATE tms_identity_links SET is_primary = 0 WHERE tms_staff_id = ?`).bind(tmsStaffId),
+      db.prepare(`UPDATE tms_identity_links SET is_primary = 1 WHERE id = ?`).bind(Number(targetLink.id)),
+    ]);
+    return jsonResponse(
+      {
+        ok: true,
+        id: Number(targetLink.id),
+        tms_staff_id: tmsStaffId,
+        lantern_username: String(targetLink.lantern_username || ''),
+        is_primary: 1,
+      },
+      200,
+      cors
+    );
   }
 
   if (request.method === 'POST' && path === '/api/admin/tms-identity-links') {
@@ -2198,6 +2263,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const tmsStaffId = String(body.tms_staff_id || '').trim();
     const lanternUsername = String(body.lantern_username || '').trim();
+    const makePrimary = body.make_primary === true || body.make_primary === 1 || body.make_primary === '1';
     if (!tmsStaffId || tmsStaffId.length > 128) {
       return jsonResponse({ ok: false, error: 'invalid_tms_staff_id' }, 400, cors);
     }
@@ -2211,36 +2277,32 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!target) {
       return jsonResponse({ ok: false, error: 'lantern_account_not_found' }, 404, cors);
     }
-    // SSO into Teacher is staff-only; never link a student account here (Prompt #94 scope).
     if (!isTeacherLike(target.role)) {
       return jsonResponse({ ok: false, error: 'lantern_account_not_staff' }, 400, cors);
     }
-    // Inactive / suspended Lantern accounts cannot be linked (Prompt #101). SSO exchange already
-    // fails closed for disabled accounts; refuse the mapping itself so admins cannot create a
-    // dormant link that looks valid in the admin UI.
     const targetActive = target.is_active != null ? Number(target.is_active) : 1;
     if (targetActive === 0) {
       return jsonResponse({ ok: false, error: 'lantern_account_inactive' }, 400, cors);
     }
     const adminUsername = String(account.username || '').trim() || 'admin';
     const lanternStaffId = target.staff_id != null && Number(target.staff_id) > 0 ? Math.floor(Number(target.staff_id)) : null;
+    const existingCountRow = await db
+      .prepare(`SELECT COUNT(*) AS n FROM tms_identity_links WHERE tms_staff_id = ?`)
+      .bind(tmsStaffId)
+      .first();
+    const existingCount = existingCountRow ? Number(existingCountRow.n) || 0 : 0;
+    const isPrimary = existingCount === 0 || makePrimary ? 1 : 0;
     try {
-      try {
-        await db
-          .prepare(
-            `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, lantern_staff_id, created_at, created_by) VALUES (?, ?, ?, datetime('now'), ?)`
-          )
-          .bind(tmsStaffId, target.username, lanternStaffId, adminUsername)
-          .run();
-      } catch (colErr) {
-        // Pre-migration 062: column may not exist yet.
-        await db
-          .prepare(
-            `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, created_at, created_by) VALUES (?, ?, datetime('now'), ?)`
-          )
-          .bind(tmsStaffId, target.username, adminUsername)
-          .run();
+      if (isPrimary === 1 && existingCount > 0) {
+        await db.prepare(`UPDATE tms_identity_links SET is_primary = 0 WHERE tms_staff_id = ?`).bind(tmsStaffId).run();
       }
+      await db
+        .prepare(
+          `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, lantern_staff_id, is_primary, created_at, created_by)
+           VALUES (?, ?, ?, ?, datetime('now'), ?)`
+        )
+        .bind(tmsStaffId, target.username, lanternStaffId, isPrimary, adminUsername)
+        .run();
     } catch (e) {
       const msg = e && e.message ? String(e.message) : '';
       if (/UNIQUE constraint failed/i.test(msg)) {
@@ -2248,7 +2310,17 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       }
       throw e;
     }
-    return jsonResponse({ ok: true, tms_staff_id: tmsStaffId, lantern_username: target.username, lantern_staff_id: lanternStaffId }, 200, cors);
+    return jsonResponse(
+      {
+        ok: true,
+        tms_staff_id: tmsStaffId,
+        lantern_username: target.username,
+        lantern_staff_id: lanternStaffId,
+        is_primary: isPrimary,
+      },
+      200,
+      cors
+    );
   }
 
   if (request.method === 'DELETE' && path === '/api/admin/tms-identity-links') {
@@ -2259,13 +2331,87 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     } catch (_) {
       body = {};
     }
-    const tmsStaffId = String(body.tms_staff_id || url.searchParams.get('tms_staff_id') || '').trim();
-    if (!tmsStaffId) {
-      return jsonResponse({ ok: false, error: 'missing_tms_staff_id' }, 400, cors);
+    const linkId = body.id != null && String(body.id).trim() !== '' ? Number(body.id) : 0;
+    const lanternUsername = String(body.lantern_username || url.searchParams.get('lantern_username') || '').trim();
+    const replacementUsername = String(body.replacement_lantern_username || '').trim();
+    let targetLink = null;
+    if (Number.isFinite(linkId) && linkId > 0) {
+      targetLink = await db
+        .prepare(`SELECT id, tms_staff_id, lantern_username, is_primary FROM tms_identity_links WHERE id = ?`)
+        .bind(Math.floor(linkId))
+        .first();
+    } else if (lanternUsername) {
+      targetLink = await db
+        .prepare(
+          `SELECT id, tms_staff_id, lantern_username, is_primary FROM tms_identity_links
+           WHERE lower(trim(lantern_username)) = lower(trim(?))`
+        )
+        .bind(lanternUsername)
+        .first();
+    } else {
+      // Prompt #184 — refuse bulk delete-by-tms_staff_id (would wipe all Lantern links).
+      return jsonResponse({ ok: false, error: 'missing_link_id' }, 400, cors);
     }
-    const del = await db.prepare(`DELETE FROM tms_identity_links WHERE tms_staff_id = ?`).bind(tmsStaffId).run();
+    if (!targetLink || !targetLink.id) {
+      return jsonResponse({ ok: false, error: 'link_not_found' }, 404, cors);
+    }
+    const tmsStaffId = String(targetLink.tms_staff_id || '').trim();
+    const wasPrimary = Number(targetLink.is_primary) === 1;
+    const siblings = await db
+      .prepare(
+        `SELECT id, lantern_username, is_primary FROM tms_identity_links
+         WHERE tms_staff_id = ? AND id != ?
+         ORDER BY lantern_username`
+      )
+      .bind(tmsStaffId, Number(targetLink.id))
+      .all();
+    const otherLinks = siblings.results || [];
+    if (wasPrimary && otherLinks.length > 0) {
+      if (!replacementUsername) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'replacement_primary_required',
+            remaining: otherLinks.map((r) => String(r.lantern_username || '')),
+          },
+          400,
+          cors
+        );
+      }
+      const replacement = otherLinks.find(
+        (r) => String(r.lantern_username || '').trim().toLowerCase() === replacementUsername.toLowerCase()
+      );
+      if (!replacement) {
+        return jsonResponse({ ok: false, error: 'replacement_primary_not_found' }, 400, cors);
+      }
+      await db.batch([
+        db.prepare(`DELETE FROM tms_identity_links WHERE id = ?`).bind(Number(targetLink.id)),
+        db.prepare(`UPDATE tms_identity_links SET is_primary = 0 WHERE tms_staff_id = ?`).bind(tmsStaffId),
+        db.prepare(`UPDATE tms_identity_links SET is_primary = 1 WHERE id = ?`).bind(Number(replacement.id)),
+      ]);
+      return jsonResponse(
+        {
+          ok: true,
+          deleted: true,
+          id: Number(targetLink.id),
+          new_primary_lantern_username: String(replacement.lantern_username || ''),
+        },
+        200,
+        cors
+      );
+    }
+    const del = await db.prepare(`DELETE FROM tms_identity_links WHERE id = ?`).bind(Number(targetLink.id)).run();
     const changed = typeof del.meta?.changes === 'number' ? del.meta.changes : 0;
-    return jsonResponse({ ok: true, deleted: changed > 0 }, 200, cors);
+    return jsonResponse(
+      {
+        ok: true,
+        deleted: changed > 0,
+        id: Number(targetLink.id),
+        lantern_username: String(targetLink.lantern_username || ''),
+      },
+      200,
+      cors
+    );
   }
 
   // Prompt #127 — Admin TMS student roster / account readiness (bridge to authoritative TMS students).

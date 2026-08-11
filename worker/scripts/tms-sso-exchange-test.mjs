@@ -27,19 +27,41 @@ function bad(label, detail) { fail++; console.error('FAIL', label, detail != nul
 const TEST_PILOT_SECRET = 'test-secret-not-a-real-pilot-session-secret';
 const TEST_BRIDGE_SECRET = 'test-bridge-secret-not-real';
 
+/**
+ * identityLinks[tms_staff_id]:
+ *   - string username (legacy single primary), OR
+ *   - array of { lantern_username, is_primary }
+ */
+function normalizeLinks(entry) {
+  if (entry == null) return [];
+  if (typeof entry === 'string') return [{ lantern_username: entry, is_primary: 1 }];
+  if (Array.isArray(entry)) return entry;
+  return [];
+}
+
 function makeEnv(state) {
   state.accounts = state.accounts || {};
   state.identityLinks = state.identityLinks || {};
 
   function prepare(sql) {
-    const s = String(sql);
+    const s = String(sql).replace(/\s+/g, ' ');
     const binds = [];
     const api = {
       bind(...args) { binds.push(...args); return api; },
       async first() {
+        if (s.includes('FROM tms_identity_links') && s.includes('is_primary = 1')) {
+          const links = normalizeLinks(state.identityLinks[binds[0]]);
+          const primary = links.find((l) => Number(l.is_primary) === 1);
+          return primary ? { lantern_username: primary.lantern_username } : null;
+        }
+        if (s.includes('SELECT COUNT(*) AS n FROM tms_identity_links WHERE tms_staff_id')) {
+          const links = normalizeLinks(state.identityLinks[binds[0]]);
+          return { n: links.length };
+        }
         if (s.includes('FROM tms_identity_links WHERE tms_staff_id')) {
-          const link = state.identityLinks[binds[0]];
-          return link ? { lantern_username: link } : null;
+          // Legacy pre-063 fallback path inside resolvePrimaryLanternUsernameForTmsStaff.
+          const links = normalizeLinks(state.identityLinks[binds[0]]);
+          return links[0] ? { lantern_username: links[0].lantern_username } : null;
         }
         if (s.includes('FROM lantern_pilot_accounts WHERE lower(trim(username))')) {
           const key = String(binds[0] || '').trim().toLowerCase();
@@ -292,6 +314,60 @@ async function testBridgeSecretSentAsBearer() {
   );
 }
 
+async function testPrimaryChosenWhenMultipleLinks() {
+  await withMockedRedeem(
+    () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
+    async () => {
+      const teacher = account({ username: 'rick.radle', role: 'teacher', teacher_id: 't_rick' });
+      const admin = account({ username: 'Rick Radle', role: 'admin', teacher_id: null });
+      const env = makeEnv({
+        accounts: { 'rick.radle': teacher, 'rick radle': admin },
+        identityLinks: {
+          Radle: [
+            { lantern_username: 'Rick Radle', is_primary: 0 },
+            { lantern_username: 'rick.radle', is_primary: 1 },
+          ],
+        },
+      });
+      const res = await exchange(env, { code: 'abc123' });
+      const payload = decodeCookieJwt(res.headers.get('Set-Cookie') || '');
+      if (res.status !== 302 || !payload || payload.sub !== 'rick.radle' || payload.role !== 'teacher') {
+        return bad('when two links exist, exchange must use is_primary=1 only', { status: res.status, payload });
+      }
+      ok('ONE TMS → TWO Lantern: reverse SSO lands on explicit primary (rick.radle)');
+    }
+  );
+}
+
+async function testNoPrimaryFailsClosed() {
+  await withMockedRedeem(
+    () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
+    async () => {
+      const teacher = account({ username: 'rick.radle', role: 'teacher' });
+      const admin = account({ username: 'Rick Radle', role: 'admin' });
+      const env = makeEnv({
+        accounts: { 'rick.radle': teacher, 'rick radle': admin },
+        identityLinks: {
+          Radle: [
+            { lantern_username: 'Rick Radle', is_primary: 0 },
+            { lantern_username: 'rick.radle', is_primary: 0 },
+          ],
+        },
+      });
+      const res = await exchange(env, { code: 'abc123' });
+      const setCookie = res.headers.get('Set-Cookie') || '';
+      if (res.status === 302 || /lantern_pilot=/.test(setCookie)) {
+        return bad('links without primary must fail closed (no arbitrary pick)', { status: res.status, setCookie });
+      }
+      const text = await res.text();
+      if (!/no_primary|Primary/i.test(text) && res.status !== 401) {
+        return bad('no-primary failure should be clear', { status: res.status, text: text.slice(0, 300) });
+      }
+      ok('linked-but-no-primary fails closed (no .first() fallback)');
+    }
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Regression: static-source presence checks for adjacent locked behavior.
 // ---------------------------------------------------------------------------
@@ -301,6 +377,9 @@ function testStaticSourceInspection() {
   if (/tms_staff_id/.test(src) && /tms_identity_links/.test(src)) {
     ok('worker/index.js references tms_identity_links + tms_staff_id (identity link mechanism present)');
   } else bad('worker/index.js missing expected TMS identity link plumbing');
+  if (/resolvePrimaryLanternUsernameForTmsStaff/.test(src)) {
+    ok('tms-exchange uses resolvePrimaryLanternUsernameForTmsStaff (not .first())');
+  } else bad('tms-exchange missing primary resolver');
   if (/isTeacherLike\(row\.role\)/.test(src)) {
     ok('tms-exchange route re-derives role via isTeacherLike(row.role) from the LOCAL account row');
   } else bad('tms-exchange route missing local isTeacherLike(row.role) check');
@@ -323,6 +402,8 @@ await testForeignReturnUrlRejected();
 await testValidDeepLinkReturnPreserved();
 await testNoReturnDefaultsToNuggets();
 await testBridgeSecretSentAsBearer();
+await testPrimaryChosenWhenMultipleLinks();
+await testNoPrimaryFailsClosed();
 testStaticSourceInspection();
 
 console.log('\ntms-sso-exchange-test:', pass, 'PASS', fail, 'FAIL');

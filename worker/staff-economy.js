@@ -1,5 +1,5 @@
 /**
- * Prompt #107/#176 — resolve Lantern staff economy key to TMS staff principal.
+ * Prompt #107/#176/#184 — resolve Lantern staff economy key to TMS staff principal.
  *
  * Supported keys:
  *   staff:<lantern_username>   — legacy / Games session key
@@ -9,6 +9,9 @@
  *   1) direct username match on tms_identity_links (lower/trim)
  *   2) lantern_staff_id on tms_identity_links
  *   3) username → pilot.staff_id → lantern_staff_id on links
+ *
+ * Prompt #184: multiple Lantern accounts may share one tms_staff_id; lantern_username
+ * and lantern_staff_id remain unique. Reverse SSO uses is_primary (not .first()).
  */
 
 export function parseStaffEconomyKey(characterName) {
@@ -87,6 +90,44 @@ export async function resolveTmsStaffIdForLanternAccount(db, username) {
     return lookupTmsStaffIdForLanternStaffId(db, sid);
   }
   return '';
+}
+
+/**
+ * Prompt #184 — TMS→Lantern reverse SSO must use explicit primary link (never .first()).
+ * @returns {{ ok: true, lantern_username: string } | { ok: false, error: 'not_linked'|'no_primary' }}
+ */
+export async function resolvePrimaryLanternUsernameForTmsStaff(db, tmsStaffIdRaw) {
+  const tmsStaffId = String(tmsStaffIdRaw || '').trim();
+  if (!tmsStaffId || !db) return { ok: false, error: 'not_linked' };
+  try {
+    const primary = await db
+      .prepare(
+        `SELECT lantern_username FROM tms_identity_links
+         WHERE tms_staff_id = ? AND is_primary = 1
+         LIMIT 1`
+      )
+      .bind(tmsStaffId)
+      .first();
+    if (primary && primary.lantern_username) {
+      return { ok: true, lantern_username: String(primary.lantern_username).trim() };
+    }
+    const any = await db
+      .prepare(`SELECT COUNT(*) AS n FROM tms_identity_links WHERE tms_staff_id = ?`)
+      .bind(tmsStaffId)
+      .first();
+    if (any && Number(any.n) > 0) return { ok: false, error: 'no_primary' };
+    return { ok: false, error: 'not_linked' };
+  } catch (_) {
+    // Pre-migration 063: is_primary absent — fall back to single 1:1 row.
+    const legacy = await db
+      .prepare(`SELECT lantern_username FROM tms_identity_links WHERE tms_staff_id = ? LIMIT 1`)
+      .bind(tmsStaffId)
+      .first();
+    if (legacy && legacy.lantern_username) {
+      return { ok: true, lantern_username: String(legacy.lantern_username).trim() };
+    }
+    return { ok: false, error: 'not_linked' };
+  }
 }
 
 export async function resolveStaffTmsPrincipal(db, characterName) {
