@@ -13,8 +13,9 @@
   /** Shared text inset: trigger "Lantern" and dropdown item text share this left padding. */
   var MENU_TEXT_INSET = '14px';
 
-  /** Exact NAVIGATION order (Explore canonical). */
+  /** Exact NAVIGATION order (Explore canonical). Prompt #202 — Lantern first (= home/Explore). */
   var NAVIGATION_ITEMS = [
+    { id: 'lantern', dataPage: 'explore', label: 'Lantern', path: '/explore.html', currentKeys: ['explore', 'lantern'] },
     { id: 'locker', dataPage: 'locker', label: 'Locker', path: '/locker.html' },
     { id: 'create', dataPage: 'create', label: 'Create', path: '/contribute.html', currentKeys: ['contribute', 'create'] },
     { id: 'play', dataPage: 'play', label: 'Play', path: '/games.html', currentKeys: ['games', 'play'] },

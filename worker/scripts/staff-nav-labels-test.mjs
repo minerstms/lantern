@@ -20,7 +20,7 @@ function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 const EXPECTED = ['Teacher Tools', 'Behavior Logger'];
 const EXPECTED_ADMIN = ['Teacher Tools', 'Behavior Logger', 'Admin'];
-const EXPECTED_NAV = ['Locker', 'Create', 'Play', 'Missions'];
+const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Play', 'Missions'];
 const staffNav = read('app/js/lantern-staff-nav.js');
 const lanternNav = read('app/js/lantern-nav.js');
 const teacherHtml = read('app/teacher.html');
@@ -52,6 +52,9 @@ assert(lanternNav.includes('LanternStaffNav.buildMenuSectionsHtml'), 'lantern-na
 assert(lanternNav.includes('applyStaffNavForRole'), 'lantern-nav.js applies role-gated STAFF after auth (#199)');
 assert(lanternNav.includes('--lantern-nav-text-inset'), 'lantern-nav.js shares text-inset alignment variable');
 assert(lanternNav.includes('Teacher Tools') && lanternNav.includes('Behavior Logger'), 'lantern-nav fallback uses Teacher Tools + Behavior Logger');
+assert(staffNav.includes("label: 'Lantern'"), 'lantern-staff-nav: Lantern first NAVIGATION label (#202)');
+assert(staffNav.includes("path: '/explore.html'"), 'lantern-staff-nav: Lantern/Explore path');
+assert(lanternNav.includes('href="explore.html"') && lanternNav.includes('id="lanternHomeLink"'), 'lantern-nav home link is explore.html');
 assert(lanternNav.includes('Locker') && lanternNav.includes('Create') && lanternNav.includes('Play') && lanternNav.includes('Missions'), 'lantern-nav fallback includes NAVIGATION destinations');
 assert(!lanternNav.includes('Display Board'), 'lantern-nav fallback has no Display Board');
 assert(!/>Display</.test(lanternNav), 'lantern-nav has no bare Display STAFF label');
