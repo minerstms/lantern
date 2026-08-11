@@ -1,4 +1,3 @@
-// force deploy sync test
 /**
  * Lantern API — Cloudflare Worker (Lantern-only)
  * Routes: /api/avatar, /api/economy, /api/news, /api/approvals, /api/recognition, /api/reactions, /api/feed, /api/trivia

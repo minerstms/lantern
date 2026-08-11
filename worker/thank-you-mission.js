@@ -182,7 +182,18 @@ export async function sendThankYouEmailViaBridge(env, payload) {
     return { ok: false, error: 'mail_bad_response' };
   }
   if (!resp.ok || !data || !data.ok) {
-    return { ok: false, error: (data && data.error) || 'mail_send_failed' };
+    const parts = ['mail_send_failed'];
+    if (data && data.from_source) parts.push(String(data.from_source).slice(0, 40));
+    if (data && data.provider_status) parts.push(String(data.provider_status));
+    if (data && data.provider_error) parts.push(String(data.provider_error).slice(0, 120));
+    else if (data && data.error && data.error !== 'mail_send_failed') parts.push(String(data.error).slice(0, 80));
+    return {
+      ok: false,
+      error: parts.join(':').slice(0, 180),
+      provider_status: data && data.provider_status != null ? data.provider_status : null,
+      provider_error: data && data.provider_error ? String(data.provider_error).slice(0, 240) : null,
+      from_source: data && data.from_source ? String(data.from_source) : null,
+    };
   }
   return {
     ok: true,
@@ -367,7 +378,21 @@ export async function sendThankYouMission(db, env, opts) {
       }
     }
   } else if (String(existingSend.send_status) === 'attempting') {
-    return { ok: false, error: 'send_in_progress', _httpStatus: 409 };
+    // Prompt #207 — allow retry after a stuck attempting row (prior worker crash / network cut).
+    // A prior successful send is already handled above; only block concurrent in-flight attempts briefly.
+    const createdMs = Date.parse(String(existingSend.created_at || '')) || 0;
+    if (createdMs && Date.now() - createdMs < 60 * 1000) {
+      return { ok: false, error: 'send_in_progress', _httpStatus: 409 };
+    }
+  } else if (String(existingSend.send_status) === 'failed') {
+    try {
+      await db
+        .prepare(
+          `UPDATE lantern_thank_you_sends SET send_status = 'attempting', error_code = NULL WHERE event_key = ? AND send_status = 'failed'`
+        )
+        .bind(eventKey)
+        .run();
+    } catch (_) {}
   }
 
   const mail = await sendThankYouEmailViaBridge(env, {
@@ -384,10 +409,16 @@ export async function sendThankYouMission(db, env, opts) {
         .prepare(
           `UPDATE lantern_thank_you_sends SET send_status = 'failed', error_code = ? WHERE event_key = ? AND send_status != 'sent'`
         )
-        .bind(String(mail.error || 'mail_send_failed').slice(0, 80), eventKey)
+        .bind(String(mail.error || 'mail_send_failed').slice(0, 180), eventKey)
         .run();
     } catch (_) {}
-    return { ok: false, error: 'mail_send_failed', _httpStatus: 502 };
+    return {
+      ok: false,
+      error: String(mail.error || 'mail_send_failed').slice(0, 180),
+      _httpStatus: 502,
+      provider_status: mail.provider_status != null ? mail.provider_status : null,
+      from_source: mail.from_source || null,
+    };
   }
 
   const sentAt = new Date().toISOString();

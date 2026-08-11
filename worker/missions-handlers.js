@@ -304,8 +304,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     });
     if (!result.ok) {
       const status = result._httpStatus && result._httpStatus >= 400 ? result._httpStatus : 400;
+      const err = String(result.error || '');
       const userMessage =
-        result.error === 'mail_send_failed' || result.error === 'mail_request_failed' || result.error === 'mail_bad_response'
+        err === 'mail_send_failed' ||
+        err.startsWith('mail_send_failed:') ||
+        err === 'mail_request_failed' ||
+        err === 'mail_bad_response' ||
+        err === 'mail_not_configured' ||
+        err === 'bridge_not_configured'
           ? "Your thank-you couldn't be sent. Please try again."
           : result.error === 'staff_email_missing'
             ? "Your thank-you couldn't be sent. Please try again."

@@ -172,6 +172,14 @@ function makeDb(state) {
           }
           return { success: true, meta: { changes: 1 } };
         }
+        if (s.includes('UPDATE lantern_thank_you_sends') && s.includes("send_status = 'attempting'") && s.includes("send_status = 'failed'")) {
+          const eventKey = binds[0];
+          if (state.sends[eventKey] && state.sends[eventKey].send_status === 'failed') {
+            state.sends[eventKey].send_status = 'attempting';
+            state.sends[eventKey].error_code = null;
+          }
+          return { success: true, meta: { changes: 1 } };
+        }
         if (s.includes('UPDATE lantern_thank_you_sends SET submission_id')) {
           const eventKey = binds[1];
           if (state.sends[eventKey]) state.sends[eventKey].submission_id = binds[0];
@@ -319,9 +327,80 @@ const rFail = await sendThankYouMission(dbFail, env, {
   message: 'Thank you for believing in me this week!',
   now: new Date('2026-08-11T18:00:00.000Z'),
 });
-if (!rFail.ok && rFail.error === 'mail_send_failed' && Object.keys(stateFail.completions || {}).length === 0) {
+if (!rFail.ok && String(rFail.error || '').startsWith('mail_send_failed') && Object.keys(stateFail.completions || {}).length === 0) {
   ok('failed send: no completion/reward');
 } else bad('failed send still completed', { rFail, completions: stateFail.completions });
+
+// Prompt #207 — failed audit row remains retryable; provider detail preserved in error string
+{
+  mailCalls = 0;
+  let phase = 'fail';
+  globalThis.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('mail/thank-you')) {
+      mailCalls++;
+      if (phase === 'fail') {
+        return {
+          ok: false,
+          status: 502,
+          json: async () => ({
+            ok: false,
+            error: 'mail_send_failed',
+            provider_status: 403,
+            provider_error: 'You can only send testing emails to your own email address',
+            from_source: 'onboarding_default',
+          }),
+        };
+      }
+      const body = JSON.parse((opts && opts.body) || '{}');
+      if (!body.to) return { ok: false, json: async () => ({ ok: false }) };
+      return { ok: true, json: async () => ({ ok: true, id: 're_retry_ok' }) };
+    }
+    if (u.includes('staff/list')) {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          staff: [{ tms_staff_id: 'Radle', teacher_name: 'Rick Radle', teacher_email: 'rick.radle@trinidad.k12.co.us' }],
+        }),
+      };
+    }
+    if (u.includes('/api/lantern-bridge/economy/')) {
+      return { ok: true, json: async () => ({ ok: true, available: 11, delta: 1, idempotent: false }) };
+    }
+    return { ok: false, json: async () => ({}) };
+  };
+  const stateRetry = {};
+  const dbRetry = makeDb(stateRetry);
+  const rFail2 = await sendThankYouMission(dbRetry, env, {
+    account,
+    characterName: '20891',
+    recipient_token: 'staff_tms:Radle',
+    message: 'Thank you for believing in me this week!',
+    now: new Date('2026-08-11T18:00:00.000Z'),
+  });
+  if (
+    !rFail2.ok &&
+    /onboarding_default/.test(String(rFail2.error || '')) &&
+    /403/.test(String(rFail2.error || '')) &&
+    stateRetry.sends &&
+    stateRetry.sends['thank_you:20891:2026-08-11'] &&
+    stateRetry.sends['thank_you:20891:2026-08-11'].send_status === 'failed'
+  ) {
+    ok('failed send stores provider/from detail and failed audit row');
+  } else bad('failed detail/audit', { rFail2, sends: stateRetry.sends });
+
+  phase = 'ok';
+  const rRetry = await sendThankYouMission(dbRetry, env, {
+    account,
+    characterName: '20891',
+    recipient_token: 'staff_tms:Radle',
+    message: 'Thank you for believing in me this week!',
+    now: new Date('2026-08-11T18:10:00.000Z'),
+  });
+  if (rRetry.ok && rRetry.completed && mailCalls === 2) ok('retry after failed send succeeds once');
+  else bad('retry after fail', { rRetry, mailCalls });
+}
 
 globalThis.fetch = originalFetch;
 
