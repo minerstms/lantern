@@ -211,7 +211,10 @@ async function testFrontendSurfaces() {
   if (!/lantern-remember-device\.js/.test(loginHtml)) return bad('login must load remember-device script');
   if (!/maybeOfferRememberDevice/.test(loginHtml)) return bad('login must offer remember/onboard after auth');
   if (!/lantern-remember-device\.js/.test(teacherHtml)) return bad('teacher must load remember-device script');
-  if (!/handleBehaviorNavClick/.test(teacherHtml)) return bad('Behavior nav must use remember handler');
+  const lanternNav = fs.readFileSync(fileURLToPath(new URL('../../app/js/lantern-nav.js', import.meta.url)), 'utf8');
+  if (!/handleBehaviorNavClick/.test(lanternNav) || !/data-lantern-behavior-nav/.test(lanternNav)) {
+    return bad('Behavior Logger global nav must wire remember handler');
+  }
   if (/device-pairing\.html/.test(teacherHtml) && /personal staff sign-in uses Remember this device/i.test(teacherHtml)) {
     ok('device-pairing retained for classroom only; linked staff not onboarded through it');
   } else if (!/Classroom computer pairing/i.test(teacherHtml)) {
