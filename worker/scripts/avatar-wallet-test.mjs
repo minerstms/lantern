@@ -1,5 +1,5 @@
 /**
- * Avatar purchase wallet authority tests — Prompt #54
+ * Avatar purchase wallet authority tests — Prompt #54 / #179
  */
 import fs from 'fs';
 import path from 'path';
@@ -38,8 +38,17 @@ if (/\/api\/economy\/balance/.test(walletJs) && /cache: 'no-store'/.test(walletJ
   ok('lantern-wallet.js: authoritative economy balance fetch');
 } else bad('lantern-wallet.js missing economy balance fetch');
 
-if (/AVATAR_UPLOAD_COST:\s*25|AVATAR_UPLOAD_COST = 25/.test(walletJs)) ok('lantern-wallet.js: avatar cost constant');
-else bad('lantern-wallet.js missing avatar cost');
+if (/AVATAR_UPLOAD_COST\s*=\s*1/.test(walletJs) && !/AVATAR_UPLOAD_COST\s*=\s*25/.test(walletJs)) {
+  ok('lantern-wallet.js: avatar cost constant is 1 Nugget');
+} else bad('lantern-wallet.js avatar cost must be 1');
+
+if (/Submit avatar \(1 Nugget\)/.test(lockerHtml) && /costs <strong>1 Nugget<\/strong>/.test(lockerHtml)) {
+  ok('locker.html: avatar copy uses 1 Nugget');
+} else bad('locker.html still references 25 nuggets for avatar');
+
+if (!/Submit avatar \(25/.test(lockerHtml) && !/costs <strong>25 nuggets<\/strong>/.test(lockerHtml)) {
+  ok('locker.html: no leftover 25-nugget avatar product copy');
+} else bad('locker.html still has 25-nugget avatar product copy');
 
 if (/fetchMyBalance/.test(walletJs) && /\/api\/economy\/balance'/.test(walletJs)) {
   ok('lantern-wallet.js: session-scoped self balance fetch');
@@ -76,9 +85,25 @@ if (/credentials:\s*'include'/.test(profileJs) && profileJs.includes('/api/avata
   ok('profile-app: avatar upload uses session credentials');
 } else bad('profile-app avatar upload missing credentials include');
 
+if (/useHttp/.test(profileJs) && /canUseHttpEconomy/.test(profileJs) && /idempotency_key/.test(profileJs)) {
+  ok('profile-app: same-origin HTTP spend + idempotency for avatar_upload');
+} else bad('profile-app missing same-origin/idempotent avatar charge path');
+
+if (/Charge authoritative TMS first|callEconomyTransact\(name, -costAmt, 'avatar_upload'/.test(profileJs)) {
+  ok('profile-app: charges TMS before creating avatar submission');
+} else bad('profile-app missing charge-then-upload ordering');
+
 if (/insufficient/.test(profileJs) && /available/.test(profileJs)) {
   ok('profile-app: insufficient funds message includes available');
 } else bad('profile-app missing insufficient funds formatting');
+
+if (/You need .+ to submit an avatar/.test(profileJs)) {
+  ok('profile-app: zero-balance message is clear');
+} else bad('profile-app missing zero-balance copy');
+
+if (/kind === 'avatar_upload'/.test(workerIndex) && /server_delta: -1/.test(workerIndex) && /avatar_upload costs exactly 1 Nugget/.test(workerIndex)) {
+  ok('server: avatar_upload enforces exactly -1 Nugget');
+} else bad('server missing avatar_upload price lock');
 
 if (/error:\s*'insufficient'/.test(workerIndex) && /available:\s*currentBalance/.test(workerIndex)) {
   ok('server: economy transact enforces insufficient funds with available');
@@ -96,5 +121,9 @@ if (/Not enough nuggets\. Need ' \+ cost/.test(apiJs) && /economyBackendCharged/
   ok('lantern-api: local runner still validates balance when backend not charged');
 } else bad('lantern-api local avatar balance check missing');
 
+if (/costPerSubmit \|\| 1/.test(apiJs) && !/costPerSubmit \|\| 25/.test(apiJs)) {
+  ok('lantern-api: local runner default avatar cost is 1');
+} else bad('lantern-api still defaults avatar cost to 25');
+
 console.log('\n--- avatar-wallet-test: ' + passed + ' passed, ' + failed + ' failed ---');
-process.exit(failed > 0 ? 1 : 0);
+process.exit(failed ? 1 : 0);

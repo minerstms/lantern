@@ -4691,6 +4691,16 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         );
       }
       delta = 1;
+    } else if (kind === 'avatar_upload') {
+      // Prompt #179 — ordinary avatar submission costs exactly 1 Nugget (server-authoritative).
+      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== -1) {
+        return jsonResponse(
+          { ok: false, error: 'client_delta_rejected', server_delta: -1, message: 'avatar_upload costs exactly 1 Nugget' },
+          400,
+          cors
+        );
+      }
+      delta = -1;
     }
     if (delta === 0) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const now = new Date().toISOString();

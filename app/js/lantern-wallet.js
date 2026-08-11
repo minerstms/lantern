@@ -6,7 +6,7 @@
 (function (global) {
   'use strict';
 
-  var AVATAR_UPLOAD_COST = 25;
+  var AVATAR_UPLOAD_COST = 1;
 
   function economyApiBase() {
     if (typeof global === 'undefined') return null;

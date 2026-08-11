@@ -233,8 +233,19 @@
       });
     }
     function callEconomyTransact(characterName, delta, kind, source, note, meta){
+      if (window.LanternWallet && typeof window.LanternWallet.postEconomyTransact === 'function' && window.LanternWallet.canUseHttpEconomy()) {
+        return window.LanternWallet.postEconomyTransact({
+          character_name: characterName,
+          delta: delta,
+          kind: kind || 'misc',
+          source: source || '',
+          note: note || '',
+          meta: meta || {}
+        });
+      }
       if (economyApiBase == null) return Promise.resolve({ ok: false, error: 'Economy API not configured' });
-      return fetch(economyApiBase + '/api/economy/transact', {
+      var prefix = economyApiBase != null ? economyApiBase : '';
+      return fetch(prefix + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -275,66 +286,75 @@
     }
 
     function callSubmitAvatarUpload(name, imageData, cost){
-      var base = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-      function formatInsufficient(err, costAmt, available) {
-        if (err === 'insufficient' || (typeof err === 'string' && err.indexOf('insufficient') >= 0)) {
+      // Prompt #179 — empty LANTERN_AVATAR_API means same-origin HTTP (Pages), not localStorage.
+      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null)
+        ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
+        : null;
+      var useHttp = apiBase != null || (window.LanternWallet && typeof window.LanternWallet.canUseHttpEconomy === 'function' && window.LanternWallet.canUseHttpEconomy());
+      var costAmt = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST != null)
+        ? Number(window.LanternWallet.AVATAR_UPLOAD_COST)
+        : 1;
+      if (!Number.isFinite(costAmt) || costAmt < 1) costAmt = 1;
+      costAmt = Math.floor(costAmt);
+      function formatInsufficient(err, available) {
+        if (err === 'insufficient' || err === 'insufficient_balance' || (typeof err === 'string' && err.indexOf('insufficient') >= 0)) {
           return 'Not enough nuggets. Need ' + costAmt + ', available ' + (available != null ? available : 0);
         }
         return err || 'Failed to submit avatar.';
       }
-      function afterEconomyCharge(tRes, payload) {
-        if (!tRes || !tRes.ok) {
-          return {
-            ok: false,
-            error: formatInsufficient(tRes && tRes.error, cost, tRes && tRes.available),
-            available: tRes && tRes.available,
-          };
-        }
-        return payload;
-      }
-      if (base) {
-        return fetch(base + '/api/avatar/upload', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ character_name: name, image: imageData })
-        }).then(function(r){ return r.json(); }).then(function(upRes){
-          if (!upRes || !upRes.ok) return Promise.reject(new Error(upRes && upRes.error || 'Upload failed'));
-          if (economyApiBase) {
-            return callEconomyTransact(name, -cost, 'avatar_upload', '', 'Avatar upload', {}).then(function(tRes){
-              var out = afterEconomyCharge(tRes, { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status, available_after: tRes.balance_after });
-              if (!out.ok) return Promise.reject(new Error(out.error));
-              return out;
-            });
+      if (useHttp && typeof fetch === 'function') {
+        var prefix = apiBase != null ? apiBase : '';
+        var idemKey = 'avatar_upload-' + (window.crypto && window.crypto.randomUUID
+          ? window.crypto.randomUUID()
+          : (String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10)));
+        // Charge authoritative TMS first; only then create the pending avatar submission.
+        return callEconomyTransact(name, -costAmt, 'avatar_upload', 'LOCKER', 'Avatar upload', {
+          idempotency_key: idemKey
+        }).then(function(tRes){
+          if (!tRes || !tRes.ok) {
+            return {
+              ok: false,
+              error: formatInsufficient(tRes && tRes.error, tRes && (tRes.available != null ? tRes.available : tRes.balance_after)),
+              available: tRes && (tRes.available != null ? tRes.available : null)
+            };
           }
-          var run = createRun ? createRun() : null;
-          if (!run) return { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status };
-          return new Promise(function(resolve, reject){
-            run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost, backend_only: true });
-          }).then(function(){ return { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status }; });
-        }).catch(function(err){ return { ok: false, error: String(err && err.message || err) }; });
+          return fetch(prefix + '/api/avatar/upload', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ character_name: name, image: imageData })
+          }).then(function(r){ return r.json(); }).then(function(upRes){
+            if (!upRes || !upRes.ok) {
+              return {
+                ok: false,
+                error: (upRes && upRes.error) || 'Upload failed after Nugget charge. Contact a teacher if balance looks wrong.',
+                available_after: tRes.balance_after
+              };
+            }
+            return {
+              ok: true,
+              id: upRes.id,
+              image_url: upRes.image_url,
+              status: upRes.status,
+              available_after: tRes.balance_after,
+              idempotent: !!tRes.idempotent
+            };
+          });
+        }).catch(function(err){
+          return { ok: false, error: String(err && err.message || err) };
+        });
       }
-      if (economyApiBase) {
-        return callEconomyTransact(name, -cost, 'avatar_upload', '', 'Avatar upload', {}).then(function(tRes){
-          var out = afterEconomyCharge(tRes, { ok: true, id: 'local', status: 'pending', available_after: tRes.balance_after });
-          if (!out.ok) return out;
-          var run = createRun ? createRun() : null;
-          if (!run) return { ok: true, id: 'local', status: 'pending' };
-          return new Promise(function(resolve, reject){
-            run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost, economy_backend_charged: true });
-          }).then(function(r){ return { ok: true, id: (r && r.id) || 'local', status: 'pending', available_after: tRes.balance_after }; });
-        }).catch(function(err){ return { ok: false, error: String(err && err.message || err) }; });
-      }
+      // Local/dev runner only when HTTP economy is unavailable.
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
       return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost });
+        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: costAmt });
       });
     }
 
     function callGetAvatarStatus(name){
       var base = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-      if (base) {
+      if (base != null) {
         return fetch(base + '/api/avatar/status?character_name=' + encodeURIComponent(name))
           .then(function(r){ return r.json(); })
           .then(function(s){ return (s && s.ok && s.status) ? { ok: true, status: s.status } : { ok: false, status: {} }; })
@@ -519,7 +539,7 @@
       var c = cosmetics.find(function(x){ return x.id === cosmeticId; });
       if (!c || c.purchasable === false) return Promise.resolve({ ok: false, error: 'Cosmetic not found or unlock only' });
       var cost = Number(c.cost) || 0;
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         var idemKey = 'cosmetic-' + cosmeticId + '-' + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()));
         return callEconomyTransact(characterName, 0, 'cosmetic', '', (c.name || cosmeticId) + ' purchase', {
           cosmetic_id: cosmeticId,
@@ -542,7 +562,7 @@
     }
 
     function callClaimDailyCheckIn(name){
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         var run = createRun ? createRun() : null;
         if (!run) return Promise.resolve({ ok: false });
         return new Promise(function(resolve){
@@ -562,7 +582,7 @@
     }
 
     function callCompleteHiddenNugget(name){
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         var run = createRun ? createRun() : null;
         if (!run) return Promise.resolve({ ok: false });
         return new Promise(function(resolve){
@@ -592,7 +612,7 @@
     }
 
     function callClaimDailyNuggetHunt(name){
-      if (economyApiBase) {
+      if (economyApiBase != null) {
         var run = createRun ? createRun() : null;
         if (!run) return Promise.resolve({ ok: false });
         return new Promise(function(resolve, reject){
@@ -1649,7 +1669,16 @@
     var avatarCropImageLoadToken = 0;
     var avatarCropPreviewUrl = null;
     var avatarCropSelectedFile = null;
-    var AVATAR_UPLOAD_COST = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST) || 25;
+    var AVATAR_UPLOAD_COST = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST != null)
+      ? Number(window.LanternWallet.AVATAR_UPLOAD_COST)
+      : 1;
+    if (!Number.isFinite(AVATAR_UPLOAD_COST) || AVATAR_UPLOAD_COST < 1) AVATAR_UPLOAD_COST = 1;
+    AVATAR_UPLOAD_COST = Math.floor(AVATAR_UPLOAD_COST);
+
+    function avatarCostLabel(cost){
+      var n = Number(cost) || 1;
+      return n === 1 ? '1 Nugget' : (n + ' Nuggets');
+    }
 
     function syncAvatarCropSubmitState(){
       var submitBtn = el('avatarCropSubmitBtn');
@@ -1661,7 +1690,7 @@
         && !avatarCropSubmitting;
       if (submitBtn) {
         submitBtn.disabled = !canSubmit;
-        submitBtn.textContent = 'Submit avatar (' + cost + ' nuggets)';
+        submitBtn.textContent = 'Submit avatar (' + avatarCostLabel(cost) + ')';
       }
     }
 
@@ -1751,7 +1780,9 @@
       avatarCropAvailable = parsedAvailable;
       if (statusEl) {
         if (avatarCropAvailable >= cost) {
-          statusEl.textContent = 'Available: ' + avatarCropAvailable + ' nuggets';
+          statusEl.textContent = 'Available: ' + avatarCropAvailable + (avatarCropAvailable === 1 ? ' Nugget' : ' Nuggets');
+        } else if (avatarCropAvailable === 0) {
+          statusEl.textContent = 'Available: 0 Nuggets. You need ' + avatarCostLabel(cost) + ' to submit an avatar.';
         } else {
           statusEl.textContent = 'Not enough nuggets. Need ' + cost + ', available ' + avatarCropAvailable;
         }
@@ -2070,7 +2101,7 @@
             uploadStatusEl.textContent = 'You already have an avatar awaiting approval.';
             uploadStatusEl.style.color = 'var(--muted)';
           } else {
-            uploadStatusEl.textContent = 'Avatar uploads cost 25 nuggets and must be school-appropriate.';
+            uploadStatusEl.textContent = 'Avatar uploads cost 1 Nugget and must be school-appropriate.';
             uploadStatusEl.style.color = 'var(--muted)';
           }
         }
@@ -2413,7 +2444,7 @@
               refreshAvatarCropAffordability();
               return;
             }
-            toast('Avatar submitted for approval. -' + AVATAR_UPLOAD_COST + ' nuggets');
+            toast('Avatar submitted for approval. -' + avatarCostLabel(AVATAR_UPLOAD_COST));
             closeAvatarCropOverlay();
             refreshWalletAfterAvatarPurchase().then(function(){
               showProfile();

@@ -65,6 +65,17 @@ if (
 } else bad('game_play enforcement');
 
 if (
+  workerIndex.includes("kind === 'avatar_upload'") &&
+  workerIndex.includes('avatar_upload costs exactly 1 Nugget')
+) {
+  ok('avatar_upload server enforces delta = -1');
+} else bad('avatar_upload enforcement');
+
+if (/AVATAR_UPLOAD_COST\s*=\s*1/.test(walletJs)) {
+  ok('client AVATAR_UPLOAD_COST is 1');
+} else bad('client AVATAR_UPLOAD_COST');
+
+if (
   workerIndex.includes("kind === 'game_win'") &&
   workerIndex.includes('delta = 1') &&
   workerIndex.includes('game_win awards exactly 1 Nugget')

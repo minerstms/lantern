@@ -1408,7 +1408,7 @@
     var subs = getAvatarSubmissions();
     var alreadyPending = subs.some(function (s) { return String(s.character_name || '').trim() === key && String(s.status || 'pending') === 'pending'; });
     if (!backendOnly && !economyBackendCharged && alreadyPending) return { ok: false, error: 'You already have an avatar awaiting approval.' };
-    var cost = Math.max(1, Math.floor(Number(costPerSubmit || 25)));
+    var cost = Math.max(1, Math.floor(Number(costPerSubmit || 1)));
     if (!economyBackendCharged) {
       var balance = getCharacterBalance(key);
       if (balance < cost) return { ok: false, error: 'Not enough nuggets. Need ' + cost + ', available ' + balance };
