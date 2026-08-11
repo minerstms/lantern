@@ -40,6 +40,9 @@ assert(/defaultRoleHomePath|roleHome/.test(indexHtml), '7. root index routes aut
 assert(/fetchMe/.test(indexHtml), '8. root index checks session before sign-in interstitial');
 assert(/LANTERN_ORIGIN \+ '\/teacher'/.test(staffNav), '9. Lantern staff-nav Teacher Tools TMS href is /teacher');
 assert(!/TMS Lantern — Locker/.test(indexHtml), '10. root interstitial title is no longer Locker');
+const wranglerToml = fs.readFileSync(path.join(root, 'worker', 'wrangler.toml'), 'utf8');
+assert(/tmslantern\.org\/api\/\*/.test(wranglerToml), '11. Worker zone route tmslantern.org/api/* present');
+assert(fs.existsSync(path.join(root, 'app', '_routes.json')), '12. Pages _routes.json includes /api/*');
 
 console.log('\nbl-teacher-handoff-196-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);
