@@ -1,6 +1,6 @@
 /**
  * E2E card contract audit — v2 compact faces vs detail surfaces.
- * Run: node e2e/studio-contribute/card-cancer-audit.mjs
+ * Run: node e2e/studio-contribute/card-counterfeit-audit.mjs
  * Requires local app server on BASE (default http://127.0.0.1:8765).
  */
 import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/index.mjs';
@@ -135,7 +135,7 @@ async function auditPageViewport(page, pagePath, vp) {
       railStacks: document.querySelectorAll('.exploreCardRailStack').length,
       lcRows: document.querySelectorAll('.lcRailRow').length,
       contractV1: document.querySelectorAll('[data-lantern-card-contract-version="1"]').length,
-      cancerReport: window.__lanternCancerReport ? window.__lanternCancerReport.slice() : [],
+      counterfeitReport: window.__lanternCounterfeitReport ? window.__lanternCounterfeitReport.slice() : [],
       enforceLoaded: window.__lanternCanonicalEnforcementLoaded === true,
       detailOverlay: !!document.getElementById('feedDetailOverlay') || !!document.querySelector('.feedDetailOverlay'),
     };
@@ -174,7 +174,7 @@ async function auditPageViewport(page, pagePath, vp) {
           data.lcRows > 0 ||
           data.contractV1 > 0 ||
           faceViolations.length > 0 ||
-          (data.cancerReport && data.cancerReport.length > 0)
+          (data.counterfeitReport && data.counterfeitReport.length > 0)
         ? 'FAIL'
         : 'PASS';
 

@@ -291,16 +291,17 @@
   object-fit: cover;
 }
 
-/* Card cancer (LanternCanonicalEnforce.scanAllExploreCards) — invalid .exploreCard vs contract; see window.__lanternCancerReport */
-.exploreCard.lanternCardCancer,
-a.exploreCard.lanternCardCancer{
+/* Card counterfeit (LanternCanonicalEnforce.scanAllExploreCards) — developer-only visual;
+   production never applies .lanternCardCounterfeit (see allowVisualCounterfeitMark). */
+.exploreCard.lanternCardCounterfeit,
+a.exploreCard.lanternCardCounterfeit{
   position: relative;
   outline: 3px solid #e02020 !important;
   outline-offset: 2px;
   box-shadow: 0 0 0 2px rgba(224,32,32,.35) inset;
   z-index: 1;
 }
-.lanternCardCancerBanner{
+.lanternCardCounterfeitBanner{
   position: absolute;
   inset: 0;
   z-index: 25;

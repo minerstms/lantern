@@ -154,7 +154,7 @@ async function checkOne(page, pagePath, vp) {
       missingFrames: dims.filter((d) => !d.hasFrame).length,
       missingOverlays: dims.filter((d) => !d.hasOverlay).length,
       belowFrameCount: dims.filter((d) => d.belowFrame).length,
-      cancerCount: window.__lanternCancerReport ? window.__lanternCancerReport.length : 0,
+      counterfeitCount: window.__lanternCounterfeitReport ? window.__lanternCounterfeitReport.length : 0,
       enforceLoaded: window.__lanternCanonicalEnforcementLoaded === true,
       dims,
       gridCols,
@@ -176,7 +176,7 @@ async function checkOne(page, pagePath, vp) {
           metrics.missingFrames > 0 ||
           metrics.missingOverlays > 0 ||
           metrics.belowFrameCount > 0 ||
-          metrics.cancerCount > 0
+          metrics.counterfeitCount > 0
         ? 'FAIL'
         : 'PASS';
 

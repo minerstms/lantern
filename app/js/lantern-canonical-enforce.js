@@ -1,19 +1,22 @@
 /**
  * Lantern Brand Killer — runtime contract for canonical cards, rails, and thumbscrolls.
- * CARD CANCER SCANNER: every .exploreCard is inspected; failures get .lanternCardCancer + __lanternCancerReport.
+ * CARD COUNTERFEIT SCANNER: every .exploreCard is inspected; genuine counterfeits are
+ * recorded on __lanternCounterfeitReport. Visual red overlays are developer-only
+ * (localhost / ?lanternDebugCards=1 / __LANTERN_CARD_DEBUG_VISUAL__), never production UI.
+ * Prompt #160: optional metadata row must NOT classify a card as counterfeit.
  * Depends: DOM after lantern-cards.js (factory-branded outputs).
  */
 (function (global) {
   'use strict';
 
   global.__lanternCanonicalEnforcementLoaded = true;
-  if (!global.__lanternCancerReport) global.__lanternCancerReport = [];
+  if (!global.__lanternCounterfeitReport) global.__lanternCounterfeitReport = [];
 
   var ZONE_SELECTORS = ['.wrap.lanternContent', '#lanternCardDetailOverlay'];
   var BANNED_CLASS_NAMES = ['contentScrollerTrack', 'contentScroller', 'scrollerCard'];
   var FATAL_ID = 'lanternBrandKillerFatal';
   var ERR_PREFIX = '[LanternBrandKiller]';
-  var CANCER_LOG = '[LANTERN CARD CANCER]';
+  var COUNTERFEIT_LOG = '[LANTERN CARD COUNTERFEIT]';
 
   var FACTORY_EXPECTED = 'LanternCards';
 
@@ -90,6 +93,18 @@
     return fallback;
   }
 
+  /** Visual red overlays are developer-only — never student-facing production UI (Prompt #160). */
+  function allowVisualCounterfeitMark() {
+    try {
+      if (global.__LANTERN_CARD_DEBUG_VISUAL__ === true) return true;
+      var h = String((global.location && global.location.hostname) || '').toLowerCase();
+      if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return true;
+      var q = String((global.location && global.location.search) || '');
+      if (/[?&]lanternDebugCards=1(?:&|$)/.test(q)) return true;
+    } catch (e) {}
+    return false;
+  }
+
   function inferSourceAndKill(el) {
     var cls = String(el.className || '');
     if (/\bmissionSpotlightCard\b/.test(cls)) {
@@ -159,6 +174,11 @@
     return true;
   }
 
+  /**
+   * Compact face contract (Prompt #160):
+   * ROW 1 headline/title — REQUIRED
+   * ROW 2 metadata — OPTIONAL (missing author/date/description/meta is NOT counterfeit)
+   */
   function inspectCanonicalCardFace(el, reasons) {
     var surface = el.getAttribute('data-lantern-card-surface');
     if (surface === 'detail') return;
@@ -194,15 +214,18 @@
       var st = global.getComputedStyle(tEl);
       var clampRaw = st.webkitLineClamp || st.getPropertyValue('-webkit-line-clamp');
       var clampN = parseInt(String(clampRaw || ''), 10);
-      if (!(clampN === 2)) {
+      /* Prompt #158/#160: one-line (or legacy two-line) clamp satisfies the title contract. */
+      if (clampN === 1 || clampN === 2) {
+        /* ok — CSS clamp is authoritative; do not false-positive on scrollHeight */
+      } else {
         var lh = parseFloat(st.lineHeight);
         if (isNaN(lh) || lh <= 0) lh = parseFloat(st.fontSize) * 1.2;
         if (tEl.scrollHeight > lh * 2 + 6) reasons.push('TITLE_EXCEEDS_TWO_LINES');
       }
     }
+    /* Prompt #160: meta row is optional. Only inspect wrapping when a meta row is present. */
     var meta = frame.querySelector('.lanternCanonicalCardMeta');
-    if (!meta) reasons.push('MISSING_META_ROW');
-    else if (meta.scrollHeight > meta.clientHeight + 3) reasons.push('META_WRAPS_OR_STACKS');
+    if (meta && meta.scrollHeight > meta.clientHeight + 3) reasons.push('META_WRAPS_OR_STACKS');
     var ew = readCssVarPx(el, '--lantern-card-width', 280);
     if (isVisibleCompactFace(el)) {
       if (Math.abs(el.offsetWidth - ew) > 8) reasons.push('SHELL_WIDTH_DRIFT');
@@ -243,28 +266,34 @@
     return { ok: ok, reasons: reasons, sourceHint: sk.sourceHint, killTarget: sk.killTarget };
   }
 
-  function unmarkCancer(el) {
+  function unmarkCounterfeit(el) {
     if (!el || !el.classList) return;
-    el.classList.remove('lanternCardCancer');
+    el.classList.remove('lanternCardCounterfeit');
     el.removeAttribute('data-lantern-invalid');
-    var ban = el.querySelector(':scope > .lanternCardCancerBanner');
+    el.removeAttribute('data-lantern-counterfeit');
+    var ban = el.querySelector(':scope > .lanternCardCounterfeitBanner');
     if (ban && ban.parentNode) ban.parentNode.removeChild(ban);
   }
 
-  function markCancer(el, result) {
-    if (!el || !el.classList) return;
-    el.classList.add('lanternCardCancer');
+  /**
+   * Developer-only visual mark. Production never paints red overlays or exposes
+   * source filenames / function names on student-facing cards (Prompt #160).
+   */
+  function markCounterfeitVisual(el, result) {
+    if (!el || !el.classList || !allowVisualCounterfeitMark()) return;
+    el.classList.add('lanternCardCounterfeit');
     el.setAttribute('data-lantern-invalid', 'true');
-    var lines = ['LANTERN CARD CANCER'];
+    el.setAttribute('data-lantern-counterfeit', 'true');
+    var lines = ['LANTERN CARD COUNTERFEIT'];
     var rs = result.reasons || [];
     for (var i = 0; i < rs.length && i < 6; i++) lines.push(String(rs[i]).replace(/_/g, ' '));
     if (rs.length > 6) lines.push('+' + (rs.length - 6) + ' more');
     lines.push('→ ' + (result.killTarget || result.sourceHint || ''));
     var txt = lines.join('\n');
-    var ban = el.querySelector(':scope > .lanternCardCancerBanner');
+    var ban = el.querySelector(':scope > .lanternCardCounterfeitBanner');
     if (!ban) {
       ban = (el.ownerDocument || global.document).createElement('div');
-      ban.className = 'lanternCardCancerBanner';
+      ban.className = 'lanternCardCounterfeitBanner';
       ban.setAttribute('aria-hidden', 'true');
       el.appendChild(ban);
     }
@@ -299,28 +328,28 @@
     for (i = 0; i < cards.length; i++) {
       var el = cards[i];
       if (!isVisibleCompactFace(el)) {
-        unmarkCancer(el);
+        unmarkCounterfeit(el);
         continue;
       }
       var r = inspectExploreCard(el);
       if (!r.ok) {
-        markCancer(el, r);
+        markCounterfeitVisual(el, r);
         report.push(buildReportEntry(el, r));
-        if (global.console && global.console.error) {
-          global.console.error(CANCER_LOG, r.reasons.join('; '), r.sourceHint, r.killTarget, describeNode(el));
+        if (global.console && global.console.warn) {
+          global.console.warn(COUNTERFEIT_LOG, r.reasons.join('; '), r.sourceHint, r.killTarget, describeNode(el));
         }
       } else {
-        unmarkCancer(el);
+        unmarkCounterfeit(el);
       }
     }
     var feedRoots = doc.querySelectorAll('.feedCard');
     for (i = 0; i < feedRoots.length; i++) {
       var fr = feedRoots[i];
       var fake = { ok: false, reasons: ['PARALLEL_FEED_CARD_ROOT'], sourceHint: 'lantern-feed-card.js legacy', killTarget: 'app/js/lantern-feed-card.js' };
-      markCancer(fr, fake);
+      markCounterfeitVisual(fr, fake);
       report.push(buildReportEntry(fr, fake));
     }
-    global.__lanternCancerReport = report;
+    global.__lanternCounterfeitReport = report;
   }
 
   function validateLanternScroller(el) {
@@ -448,6 +477,7 @@
     validateZones: validateZones,
     scanAllExploreCards: scanAllExploreCards,
     inspectExploreCard: inspectExploreCard,
+    allowVisualCounterfeitMark: allowVisualCounterfeitMark,
     install: install,
     FACTORY_EXPECTED: FACTORY_EXPECTED
   };

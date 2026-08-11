@@ -153,7 +153,7 @@ async function checkPath(page, path) {
   await page.goto(base + path, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForTimeout(2500);
   const state = await measureCards(page);
-  const canonicalConsole = consoleErrors.filter((m) => /canonical|LanternKillSwitch|LanternBrandKiller|CARD CANCER/i.test(m));
+  const canonicalConsole = consoleErrors.filter((m) => /canonical|LanternKillSwitch|LanternBrandKiller|CARD COUNTERFEIT/i.test(m));
   return { path, ...state, canonicalConsole };
 }
 

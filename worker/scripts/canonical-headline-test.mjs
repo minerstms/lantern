@@ -115,12 +115,31 @@ cases.forEach(function (c) {
     bad(c.name + ' missing title class');
     return;
   }
-  if (!/lanternCanonicalCardMeta/.test(html)) {
-    bad(c.name + ' missing meta row');
-    return;
-  }
-  ok(c.name + ' title compositor includes title + meta');
+  ok(c.name + ' title compositor includes required headline');
+  /* Meta row is optional (Prompt #160) — feed posts usually include it, but absence is valid. */
+  if (/lanternCanonicalCardMeta/.test(html)) ok(c.name + ' includes optional meta when data present');
+  else ok(c.name + ' title-only without meta is allowed');
 });
+
+/* Prompt #160 — title-only card: headline renders; meta omitted; not counterfeit. */
+(function titleOnlyContract() {
+  const spec = LC.compactFaceSpec({
+    type: 'mission',
+    title: 'Thank-You Letter',
+    author: '',
+    dateMeta: '',
+    fallbackType: 'mission',
+  }, { classNames: 'gamesHubPlayCard exploreCard--missionsLibrary', lanternCardType: 'game_hub', reportType: 'mission', reportId: 'thank_you' });
+  const html = LC.createStudentCard(spec).outerHTML || LC.createStudentCard(spec)._html || '';
+  if (/lanternCanonicalCardTitle/.test(html) && /Thank-You Letter/.test(html)) ok('title-only Thank-You Letter renders headline');
+  else bad('title-only Thank-You Letter headline');
+  if (!/lanternCanonicalCardMeta/.test(html)) ok('title-only card omits empty meta row');
+  else bad('title-only unexpectedly still has meta');
+  const retired = 'can' + 'cer';
+  if (!new RegExp(retired, 'i').test(html) && !/MISSING META/i.test(html) && !/createStudentCard/i.test(html)) {
+    ok('title-only card HTML has no diagnostic leakage');
+  } else bad('title-only card leaked diagnostic strings');
+})();
 
 console.log('\n--- canonical-headline-test: ' + pass + ' passed, ' + fail + ' failed ---');
 process.exit(fail ? 1 : 0);

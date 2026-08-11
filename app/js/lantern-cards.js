@@ -428,7 +428,7 @@
         }
       }
     } catch (err) {
-      if (global.console && global.console.warn) global.console.warn('[LanternCards] canonical cancer scan skipped', err);
+      if (global.console && global.console.warn) global.console.warn('[LanternCards] canonical counterfeit scan skipped', err);
     }
   }
 

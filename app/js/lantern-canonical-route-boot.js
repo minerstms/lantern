@@ -6,7 +6,7 @@
   'use strict';
 
   global.__LANTERN_CANONICAL_STUDENT_ROUTE = 1;
-  global.__lanternCancerReport = global.__lanternCancerReport || [];
+  global.__lanternCounterfeitReport = global.__lanternCounterfeitReport || [];
 
   var FATAL_ID = 'lanternCanonicalKillSwitchFatal';
 

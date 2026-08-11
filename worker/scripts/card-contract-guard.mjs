@@ -36,7 +36,7 @@ const ALLOWLIST = new Set([
   'app/js/lantern-canonical-enforce.js',
   'worker/scripts/card-contract-guard.mjs',
   'worker/scripts/explore-canonical-check.mjs',
-  'e2e/studio-contribute/card-cancer-audit.mjs',
+  'e2e/studio-contribute/card-counterfeit-audit.mjs',
   'worker/scripts/card-browser-matrix.mjs',
 ]);
 
