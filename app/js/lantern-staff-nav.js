@@ -44,7 +44,8 @@
       id: 'system',
       dataPage: 'system',
       label: 'System',
-      path: 'admin.html#system',
+      // Prompt #201 — System Administration lives on Lantern Admin (not BL admin#system).
+      path: '/admin#system',
       canShow: function (caps) {
         return !!(caps && caps.system_admin);
       },
@@ -95,6 +96,10 @@
     if (id === 'admin') {
       // Prompt #199 — canonical Lantern Admin front door.
       return ctx === 'tms' ? LANTERN_ORIGIN + '/admin' : '/admin';
+    }
+    if (id === 'system') {
+      // Prompt #201 — always Lantern Admin System Administration.
+      return ctx === 'tms' ? LANTERN_ORIGIN + '/admin#system' : '/admin#system';
     }
     for (i = 0; i < PRIVILEGED_NAV_ITEMS.length; i++) {
       if (PRIVILEGED_NAV_ITEMS[i].id === id) {

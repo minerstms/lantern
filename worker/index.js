@@ -2257,6 +2257,31 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, links: rows.results || [] }, 200, cors);
   }
 
+  // Prompt #201 — Lantern Admin → TMS Device Access + System Administration ops.
+  // Gate: Lantern admin session (same as other /api/admin/*). Forwards allowlisted actions
+  // via lantern-bridge admin/action (no schema change; no staff-account mutations).
+  if (request.method === 'POST' && path === '/api/admin/tms-ops') {
+    let body = {};
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const action = String(body.action || '').trim();
+    if (!action) return jsonResponse({ ok: false, error: 'action_required' }, 400, cors);
+    const bridge = await callTmsRosterBridge(env, 'admin/action', body);
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null, action },
+        status,
+        cors
+      );
+    }
+    const { _httpStatus, ...rest } = bridge;
+    return jsonResponse(rest, 200, cors);
+  }
+
   // Prompt #197 — Behavior Logger staff directory for Staff link picker + Needs Attention.
   // Composes existing TMS staff table via lantern-bridge staff/list + tms_identity_links.
   if (request.method === 'GET' && path === '/api/admin/tms-staff') {

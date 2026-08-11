@@ -362,6 +362,147 @@
         </div>
       </div>
     </div>
+
+    <!-- Prompt #201 — Device Access (Remembered Devices) nested under Staff -->
+    <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternDeviceAccessPanel">
+      <summary class="teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Device Access</div></div>
+      </summary>
+      <div class="teacherCollapsibleListBd">
+        <p class="acctPanelHint">Approve, remember, or revoke Behavior Logger staff devices. Pending is only for legacy unlinked Staff PW requests.</p>
+        <div id="lanternDeviceAccessMsg" class="usersMsg" style="display:none;" role="status" aria-live="polite"></div>
+        <div class="rosterToolbar" style="margin-bottom:10px;">
+          <button type="button" class="btn primary" id="lanternDevicesTabPending">Pending (legacy)</button>
+          <button type="button" class="btn" id="lanternDevicesTabApproved">Remembered</button>
+          <button type="button" class="btn" id="lanternDevicesTabRevoked">Revoked</button>
+          <button type="button" class="btn" id="lanternDeviceAccessRefresh">Refresh</button>
+        </div>
+        <div id="lanternDeviceAccessList" class="teacherCollapsibleListScroll" style="padding:8px;max-height:420px;"></div>
+      </div>
+    </details>
+    </div>
+  </details>
+
+  <!-- Prompt #201 — System Administration (Behavior Logger operational tools) -->
+  <details class="card teacherCollapsibleList" id="adminSystemAdministrationCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">System Administration</div></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Behavior Logger operational tools. Staff accounts live under Staff. Student identity editing lives under Students.</p>
+
+      <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternBlOpsPanel" open>
+        <summary class="teacherCollapsibleListHd">
+          <div class="teacherCollapsibleListTitle"><div class="h">Behavior Logger</div></div>
+        </summary>
+        <div class="teacherCollapsibleListBd">
+
+          <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternBlGroupsPanel">
+            <summary class="teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Groups</div></div>
+            </summary>
+            <div class="teacherCollapsibleListBd">
+              <div id="lanternBlGroupsMsg" class="usersMsg" style="display:none;" role="status"></div>
+              <div class="rosterToolbar">
+                <button type="button" class="btn" id="lanternBlGroupsRefresh">Refresh</button>
+                <button type="button" class="btn primary" id="lanternBlSeedGroupsBtn">Seed default groups</button>
+              </div>
+              <div id="lanternBlGroupsList" style="margin:10px 0;"></div>
+              <div class="acctInlinePanel" style="margin-top:12px;">
+                <p class="acctPanelHd">Add group</p>
+                <label for="lanternBlNewGroupCategory">Category</label>
+                <select id="lanternBlNewGroupCategory"><option value="">— Category —</option></select>
+                <label for="lanternBlNewGroupName">Name</label>
+                <input id="lanternBlNewGroupName" type="text" autocomplete="off" />
+                <div class="acctPanelActions" style="margin-top:10px;">
+                  <button type="button" class="btn good" id="lanternBlAddGroupBtn">Create group</button>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternBlBulkPanel">
+            <summary class="teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Bulk Tools</div></div>
+            </summary>
+            <div class="teacherCollapsibleListBd">
+              <p class="acctPanelHint">Assign or remove students from a group. Changes save when you check or uncheck.</p>
+              <div id="lanternBlBulkMsg" class="usersMsg" style="display:none;" role="status"></div>
+              <label for="lanternBlBulkGroupSelect">Group</label>
+              <select id="lanternBlBulkGroupSelect"><option value="">— Select group —</option></select>
+              <div class="rosterToolbar" style="margin-top:10px;">
+                <input id="lanternBlBulkStudentSearch" type="search" placeholder="Filter students…" autocomplete="off" />
+                <button type="button" class="btn" id="lanternBlBulkRefresh">Refresh list</button>
+              </div>
+              <div id="lanternBlBulkStudentList" class="teacherCollapsibleListScroll" style="padding:8px;max-height:360px;margin-top:8px;"></div>
+            </div>
+          </details>
+
+          <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternBlGradePanel">
+            <summary class="teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Grade Assignments</div></div>
+            </summary>
+            <div class="teacherCollapsibleListBd">
+              <p class="acctPanelHint">Click a grade to assign; click again to clear. Seed groups first if grades are missing.</p>
+              <div id="lanternBlGradeMsg" class="usersMsg" style="display:none;" role="status"></div>
+              <div class="rosterToolbar">
+                <input id="lanternBlGradeSearch" type="search" placeholder="Filter students…" autocomplete="off" />
+                <button type="button" class="btn" id="lanternBlGradeRefresh">Refresh list</button>
+              </div>
+              <div id="lanternBlGradeList" class="teacherCollapsibleListScroll" style="padding:8px;max-height:420px;margin-top:8px;"></div>
+            </div>
+          </details>
+
+          <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternBlRolloverPanel">
+            <summary class="teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Rollover</div></div>
+            </summary>
+            <div class="teacherCollapsibleListBd">
+              <p class="acctPanelHint">Advance the active roster once per year: 6th → 7th, 7th → 8th, 8th → Archived. Preview before applying.</p>
+              <div id="lanternRolloverMsg" class="usersMsg" style="display:none;" role="status"></div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px;margin:10px 0;">
+                <div><div class="h" id="lanternRolloverStatActive">—</div><div class="pendingMeta">Active</div></div>
+                <div><div class="h" id="lanternRolloverStat67">—</div><div class="pendingMeta">6→7</div></div>
+                <div><div class="h" id="lanternRolloverStat78">—</div><div class="pendingMeta">7→8</div></div>
+                <div><div class="h" id="lanternRolloverStat8A">—</div><div class="pendingMeta">8→Archived</div></div>
+                <div><div class="h" id="lanternRolloverStatExceptions">—</div><div class="pendingMeta">Exceptions</div></div>
+              </div>
+              <label for="lanternRolloverSchoolYearInput">School year label</label>
+              <input id="lanternRolloverSchoolYearInput" type="text" placeholder="e.g. 2026-2027" autocomplete="off" />
+              <div class="acctPanelActions" style="margin-top:10px;">
+                <button type="button" class="btn primary" id="lanternRolloverPreviewBtn">Preview Changes</button>
+                <button type="button" class="btn" id="lanternRolloverApplyBtn" style="display:none;">Advance School Year</button>
+                <button type="button" class="btn" id="lanternRolloverUndoBtn" style="display:none;">Undo Last Rollover</button>
+              </div>
+              <div id="lanternRolloverPreviewWrap" style="display:none;margin-top:14px;">
+                <div class="h" style="margin-bottom:6px;">Planned changes</div>
+                <div class="teacherCollapsibleListScroll" style="max-height:220px;">
+                  <table style="width:100%;border-collapse:collapse;"><thead><tr><th>Student</th><th>Change</th></tr></thead>
+                  <tbody id="lanternRolloverChangesBody"></tbody></table>
+                </div>
+                <div class="h" style="margin:12px 0 6px;">Exceptions</div>
+                <div class="teacherCollapsibleListScroll" style="max-height:160px;">
+                  <table style="width:100%;border-collapse:collapse;"><thead><tr><th>Student</th><th>Reason</th></tr></thead>
+                  <tbody id="lanternRolloverExceptionsBody"></tbody></table>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="lanternBlStudentOpsPanel">
+            <summary class="teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Other Operations</div></div>
+            </summary>
+            <div class="teacherCollapsibleListBd">
+              <p class="acctPanelHint">Duplicate Student ID report. For Student ID / grade identity edits, use Students above.</p>
+              <div id="lanternBlStudentOpsMsg" class="usersMsg" style="display:none;" role="status"></div>
+              <button type="button" class="btn" id="lanternBlDupReportBtn">Show duplicate Student IDs</button>
+              <div id="lanternBlDupReportList" style="margin-top:10px;"></div>
+            </div>
+          </details>
+
+        </div>
+      </details>
     </div>
   </details>
 
@@ -529,6 +670,7 @@
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-collapsible-list.js"></script>
+  <script src="js/lantern-admin-bl-system.js"></script>
   <script>
   (function(){
     if (typeof window.initTeacherCollapsibleLists === 'function') {
