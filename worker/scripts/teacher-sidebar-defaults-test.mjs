@@ -95,6 +95,20 @@ if (/id="teacher-utilities"/.test(html) && /data-workspace="other"/.test(html)) 
 if (/Hallway TV/.test(html) && /href="display\.html"/.test(html)) ok('Hallway TV remains separate display.html link');
 else bad('Hallway TV link missing');
 
+const hallwayIdx = html.indexOf('Hallway TV');
+const phoneIdx = html.indexOf('Phone App Download');
+if (phoneIdx > hallwayIdx && hallwayIdx > 0) ok('Phone App Download appears after Hallway TV (bottom of sidebar)');
+else bad('Phone App Download placement', { hallwayIdx, phoneIdx });
+
+if (/id="teacherPhoneAppDownloadLink"/.test(html) && /intent=install/.test(html) && /tmsnuggets\.pages\.dev/.test(html)) {
+  ok('Phone App Download routes to existing TMS PWA install intent');
+} else bad('Phone App Download route/intent missing');
+
+const staffNavPath = path.join(root, 'app/js/lantern-staff-nav.js');
+const staffNav = fs.readFileSync(staffNavPath, 'utf8');
+if (!/Phone App Download/.test(staffNav)) ok('Phone App Download absent from global LanternStaffNav');
+else bad('Phone App Download must not be in global dropdown');
+
 if (/lanternMgmtRecord/.test(html) || /wireRecords/.test(html) || /LanternCollapsibleList/.test(html)) {
   ok('record-level disclosure system still referenced');
 } else bad('record disclosure system missing');
