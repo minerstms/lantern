@@ -10,11 +10,23 @@
 name = "lantern-api"
 main = "index.js"
 compatibility_date = "2024-01-01"
+workers_dev = true
+preview_urls = true
 # global_fetch_strictly_public (Prompt #94): required so this Worker's outbound fetch() to
 # mtss-behavior-log.mrradle.workers.dev (TMS Nuggets, same workers.dev zone) goes over the public
 # internet instead of Cloudflare's internal same-zone routing -- otherwise it fails with error 1042
 # ("Worker tried to fetch from another Worker on the same zone"). Nuggets' worker already sets this.
 compatibility_flags = ["global_fetch_strictly_public"]
+
+# Prompt #196 — ensure /api/* on the public Lantern host always hits lantern-api (never SPA
+# index.html / Locker-titled interstitial). Pages Functions remain a same-origin proxy fallback.
+[[routes]]
+pattern = "tmslantern.org/api/*"
+zone_name = "tmslantern.org"
+
+[[routes]]
+pattern = "www.tmslantern.org/api/*"
+zone_name = "tmslantern.org"
 
 [[d1_databases]]
 binding = "DB"
