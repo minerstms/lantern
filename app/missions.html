@@ -1513,7 +1513,8 @@
       });
     }
 
-    var STALE_MISSION_TITLES = { 'fff': 1, 'ff': 1, 'help someone': 1 };
+    /* Prompt #164 — remove 'help someone'; Wave-1 title is now "Help Someone" and must stay visible. */
+    var STALE_MISSION_TITLES = { 'fff': 1, 'ff': 1 };
     function filterStaleMissions(missions){
       if (!Array.isArray(missions)) return missions || [];
       return missions.filter(function(m){
