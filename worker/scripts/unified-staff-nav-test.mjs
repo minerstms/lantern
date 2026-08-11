@@ -1,10 +1,11 @@
 /**
- * REAL BROWSER TEST — Prompt #145 (canonical STAFF nav: Teacher Tools / Behavior Logger / Display Board)
+ * REAL BROWSER TEST — Prompt #145/#146 (canonical STAFF nav: Teacher Tools / Behavior Logger)
  *
  * Proves:
  *  - Lantern Teacher page no longer has the giant Behavior|Teacher primary button row.
- *  - Shared LanternStaffNav labels/order appear in the Lantern ▼ STAFF dropdown.
+ *  - Shared LanternStaffNav labels/order appear in the Lantern ▼ STAFF dropdown (no Display Board).
  *  - Behavior Logger still uses the authorize handoff to TMS Nuggets.
+ *  - Hallway TV remains in the Teacher Tools sidebar.
  *  - Student explore never gets a staff primary nav bar; student→teacher redirect unchanged.
  *
  * Usage: node worker/scripts/unified-staff-nav-test.mjs [baseUrl]
@@ -13,7 +14,7 @@
 import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/index.mjs';
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
-const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger', 'Display Board'];
+const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
 
 async function main() {
   const results = [];
@@ -64,10 +65,11 @@ async function main() {
     const staffLabels = await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents();
     const trimmed = staffLabels.map((t) => t.trim());
     assert(JSON.stringify(trimmed) === JSON.stringify(EXPECTED_STAFF), 'STAFF menu order/labels exact: ' + JSON.stringify(trimmed));
+    assert(!trimmed.some((t) => /display|hallway/i.test(t)), 'Global STAFF dropdown has no Display / Display Board / Hallway TV: ' + JSON.stringify(trimmed));
 
     const teacherLink = page.locator('#lanternMenuDropdown a[data-page="teacher"]');
     const behaviorLink = page.locator('#lanternMenuDropdown a[data-page="behavior"]');
-    const displayLink = page.locator('#lanternMenuDropdown a[data-page="display"]');
+    assert(await page.locator('#lanternMenuDropdown a[data-page="display"]').count() === 0, 'Global dropdown has no data-page=display link');
     assert(await teacherLink.evaluate((el) => el.classList.contains('is-active')), 'Teacher Tools marked current on Teacher page');
     assert(!(await behaviorLink.evaluate((el) => el.classList.contains('is-active'))), 'Behavior Logger not marked current on Teacher page');
 
@@ -76,8 +78,11 @@ async function main() {
       /tms-device-authorize/.test(behaviorHref || '') && /tmsnuggets\.pages\.dev/.test(decodeURIComponent(behaviorHref || '')),
       'Behavior Logger uses authorize handoff to TMS: ' + behaviorHref
     );
-    assert(/display\.html/.test(await displayLink.getAttribute('href') || ''), 'Display Board points at display.html');
     assert(/teacher\.html/.test(await teacherLink.getAttribute('href') || ''), 'Teacher Tools points at teacher.html');
+
+    const hallwayTvLink = page.locator('a.teacherSidebarItem[href="display.html"]');
+    assert(await hallwayTvLink.count() === 1, 'Hallway TV remains in Teacher Tools sidebar');
+    assert(((await hallwayTvLink.innerText()) || '').indexOf('Hallway TV') !== -1, 'Hallway TV sidebar item is labeled correctly');
 
     for (const width of [1920, 1366, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });

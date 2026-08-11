@@ -37,8 +37,7 @@
       global.LanternStaffNav && typeof global.LanternStaffNav.buildStaffSectionLinksHtml === 'function'
         ? global.LanternStaffNav.buildStaffSectionLinksHtml(current, 'lantern')
         : '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="teacher">Teacher Tools</a>' +
-          '<a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember" role="menuitem" class="lanternAppBarDropdownLink" data-page="behavior" data-lantern-behavior-nav="1">Behavior Logger</a>' +
-          '<a href="display.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="display" target="_blank">Display Board</a>';
+          '<a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember" role="menuitem" class="lanternAppBarDropdownLink" data-page="behavior" data-lantern-behavior-nav="1">Behavior Logger</a>';
     return '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
       '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink' + (current === 'locker' ? ' is-active' : '') + '" data-page="locker">Locker</a>' +

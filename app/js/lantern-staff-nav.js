@@ -1,7 +1,8 @@
 /**
- * Prompt #145 — Canonical STAFF navigation contract (labels + order + routes).
+ * Prompt #145 / #146 — Canonical STAFF navigation contract (labels + order + routes).
  * Mirrored in TMS public/lantern-staff-nav.js — keep labels/order/ids identical.
  * Navigation terminology only; does not change auth roles or capabilities.
+ *   Prompt #146: Display Board removed from global dropdown (use Teacher sidebar Hallway TV instead).
  */
 (function (global) {
   'use strict';
@@ -9,11 +10,10 @@
   var LANTERN_ORIGIN = 'https://lantern-42i.pages.dev';
   var TMS_ORIGIN = 'https://tmsnuggets.pages.dev';
 
-  /** Exact order required by Prompt #145. */
+  /** Exact STAFF order for Prompt #146. */
   var STAFF_NAV_ITEMS = [
     { id: 'teacher', dataPage: 'teacher', label: 'Teacher Tools' },
     { id: 'behavior', dataPage: 'behavior', label: 'Behavior Logger' },
-    { id: 'display', dataPage: 'display', label: 'Display Board' },
   ];
 
   function behaviorAuthorizeHref() {
@@ -33,15 +33,12 @@
     if (id === 'behavior') {
       return ctx === 'tms' ? 'index.html' : behaviorAuthorizeHref();
     }
-    if (id === 'display') {
-      return ctx === 'tms' ? LANTERN_ORIGIN + '/display.html' : 'display.html';
-    }
     return '#';
   }
 
   /**
    * STAFF section link markup (no wrapping section).
-   * @param {string} current page key (teacher|behavior|display|…)
+   * @param {string} current page key (teacher|behavior|…)
    * @param {'lantern'|'tms'} ctx
    */
   function buildStaffSectionLinksHtml(current, ctx) {
@@ -51,7 +48,6 @@
       var href = hrefFor(item.id, ctx);
       var active = current === item.dataPage || current === item.id;
       var attrs = '';
-      if (item.id === 'display') attrs += ' target="_blank" rel="noopener"';
       if (item.id === 'teacher' && ctx === 'tms') attrs += ' data-lantern-teacher-handoff="1"';
       if (item.id === 'behavior' && ctx === 'lantern') attrs += ' data-lantern-behavior-nav="1"';
       return (
