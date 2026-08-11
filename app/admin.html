@@ -99,8 +99,9 @@
     .pendingRowActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; flex: 1; min-width: 0; }
     .pendingRejectNote { flex: 1; min-width: 140px; max-width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.28); color: var(--ink); font-size: 20px; font-family: inherit; }
     .pendingRow .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .acctInlinePanel { margin-top: 16px; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); max-width: 440px; }
-    .acctInlinePanel label { margin-top: 10px; }
+    .acctInlinePanel { margin-top: 16px; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); max-width: 440px; box-sizing: border-box; width: 100%; }
+    .acctInlinePanel label { margin-top: 10px; display: block; }
+    .acctInlinePanel input, .acctInlinePanel select, .acctInlinePanel textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
     .acctPanelHd { font-weight: 900; font-size: 24px; margin: 0 0 10px; color: var(--accent); }
     .acctPanelActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
     .acctPanelHint { color: var(--muted); font-size: 20px; margin: 0 0 12px; line-height: 1.4; }
@@ -247,14 +248,24 @@
 
   <div id="adminEditorPark" hidden aria-hidden="true">
     <div id="studentsEditIdPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden data-admin-floating-editor="1">
-      <p class="acctPanelHd" id="studentsEditIdTitle">Edit Student ID</p>
+      <p class="acctPanelHd" id="studentsEditIdTitle">Edit Student</p>
       <p id="studentsEditIdHint" class="acctPanelHint"></p>
-      <input type="hidden" id="studentsEditName" value="" />
+      <input type="hidden" id="studentsEditPrevName" value="" />
       <input type="hidden" id="studentsEditPrevId" value="" />
       <label for="studentsEditIdInput">Student ID</label>
       <input id="studentsEditIdInput" type="text" maxlength="256" autocomplete="off" />
+      <label for="studentsEditFirst">First Name</label>
+      <input id="studentsEditFirst" type="text" maxlength="64" autocomplete="off" required />
+      <label for="studentsEditLast">Last Name</label>
+      <input id="studentsEditLast" type="text" maxlength="64" autocomplete="off" />
+      <label for="studentsEditGrade">Grade</label>
+      <select id="studentsEditGrade" aria-label="Grade">
+        <option value="6">6th Grade</option>
+        <option value="7">7th Grade</option>
+        <option value="8">8th Grade</option>
+      </select>
       <div class="acctPanelActions">
-        <button type="button" class="btn good" id="studentsEditIdSaveBtn">Save ID</button>
+        <button type="button" class="btn good" id="studentsEditIdSaveBtn">Save Changes</button>
         <button type="button" class="btn" id="studentsEditIdCancelBtn">Cancel</button>
       </div>
     </div>
@@ -2813,20 +2824,27 @@
       }
       var panel = document.getElementById('studentsEditIdPanel');
       if (!panel || !s) return;
-      document.getElementById('studentsEditName').value = s.student_name || '';
+      document.getElementById('studentsEditPrevName').value = s.student_name || '';
       document.getElementById('studentsEditPrevId').value = s.student_id || '';
       document.getElementById('studentsEditIdInput').value = s.student_id || '';
+      document.getElementById('studentsEditFirst').value = s.first_name || '';
+      document.getElementById('studentsEditLast').value = s.last_name || '';
+      var gradeEl = document.getElementById('studentsEditGrade');
+      if (gradeEl) {
+        var g = String(s.grade || '').replace(/^grade-/, '').trim();
+        gradeEl.value = (g === '6' || g === '7' || g === '8') ? g : '6';
+      }
       var title = document.getElementById('studentsEditIdTitle');
       var hint = document.getElementById('studentsEditIdHint');
-      if (title) title.textContent = s.student_id ? 'Change Student ID' : 'Edit ID';
+      if (title) title.textContent = 'Edit Student';
       if (hint) {
         hint.textContent = s.student_id
-          ? ('Current ID: ' + s.student_id + ' for ' + s.student_name + '.')
-          : ('Assign Student ID for ' + s.student_name + '.');
+          ? ('Editing school identity for ' + (s.student_name || '') + '.')
+          : ('Assign Student ID and confirm name/grade for ' + (s.student_name || '') + '.');
       }
       mountAdminEditor(panel, mountEl || null);
-      var inp = document.getElementById('studentsEditIdInput');
-      if (inp) inp.focus();
+      var first = document.getElementById('studentsEditFirst');
+      if (first) first.focus();
     }
 
     function renderStudentsRosterTable() {
@@ -2872,49 +2890,17 @@
               ' · Must change password: ' + mcpLabel +
               (inconsistency ? ' · <span class="rosterStatusChip rosterStatusChip--bad">' + escapeRosterHtml(inconsistency) + '</span>' : '') +
             '</p>' +
-            '<p class="acctPanelHint" style="margin:0 0 10px;">Editable school identity: Student ID and Grade. First/Last follow the roster name (no separate rename API).</p>' +
-            '<div class="studentsGradeEditRow" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;">' +
-              '<label style="margin:0;font-size:20px;">Grade</label>' +
-              studentGradeSelectHtml(s.grade) +
-              '<button type="button" class="btn good studentsSaveGradeBtn">Save Grade</button>' +
-            '</div>' +
+            '<p class="acctPanelHint" style="margin:0 0 10px;">Edit opens Student ID, First Name, Last Name, and Grade together. Lantern login and Archive stay as separate actions.</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
         var actions = rec.querySelector('.lanternMgmtRecordActions');
         var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
-        var gradeSelect = rec.querySelector('.studentsGradeSelect');
-        var saveGradeBtn = rec.querySelector('.studentsSaveGradeBtn');
-        if (saveGradeBtn) {
-          saveGradeBtn.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
-            var nextGrade = gradeSelect ? String(gradeSelect.value || '6') : '6';
-            saveGradeBtn.disabled = true;
-            postAdminJson('/api/admin/tms-roster/set-grade', {
-              student_name: s.student_name,
-              student_id: s.student_id || '',
-              grade: nextGrade
-            }).then(function(res) {
-              if (res && res.blocked) return;
-              if (res && res.okHttp && res.body && res.body.ok) {
-                showStudentsRosterMsg('Updated grade for ' + (s.student_name || '') + ' → ' + (res.body.grade || nextGrade) + '.', 'ok');
-                loadStudentsRoster();
-                return;
-              }
-              showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Grade update failed', 'err');
-            }).catch(function() {
-              showStudentsRosterMsg('Network error while updating grade.', 'err');
-            }).finally(function() {
-              saveGradeBtn.disabled = false;
-            });
-          });
-        }
 
         var bEdit = document.createElement('button');
         bEdit.type = 'button';
         bEdit.className = s.student_id ? 'btn' : 'btn good';
-        bEdit.textContent = s.student_id ? 'Edit Student ID' : 'Set Student ID';
+        bEdit.textContent = 'Edit';
         bEdit.addEventListener('click', function(ev) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -3111,32 +3097,60 @@
     }
 
     function saveStudentIdEdit() {
-      var name = (document.getElementById('studentsEditName') || {}).value || '';
+      var prevName = String((document.getElementById('studentsEditPrevName') || {}).value || '').trim();
       var prev = String((document.getElementById('studentsEditPrevId') || {}).value || '').trim();
       var next = String((document.getElementById('studentsEditIdInput') || {}).value || '').trim();
-      if (!name) return;
+      var first = String((document.getElementById('studentsEditFirst') || {}).value || '').trim();
+      var last = String((document.getElementById('studentsEditLast') || {}).value || '').trim();
+      var gradeEl = document.getElementById('studentsEditGrade');
+      var grade = gradeEl ? String(gradeEl.value || '6').trim() : '6';
+      if (!prevName) return;
+      if (!first) {
+        showStudentsRosterMsg('First name is required.', 'err');
+        return;
+      }
       if (!next) {
         showStudentsRosterMsg('Student ID cannot be blank.', 'err');
         return;
       }
+      var nextName = [first, last].filter(Boolean).join(' ').trim();
       if (prev && prev !== next) {
-        var summary = 'Confirm Student ID change?\n\n' + name + '\n\nOld ID: ' + prev + '\n→\nNew ID: ' + next + '\n\nIf a Lantern account already depends on the old ID, this will be refused.';
+        var summary =
+          'Confirm Student ID change?\n\n' +
+          prevName +
+          '\n\nOld ID: ' +
+          prev +
+          '\n→\nNew ID: ' +
+          next +
+          '\n\nIf a Lantern account already depends on the old ID, this will be refused.';
         if (!window.confirm(summary)) return;
       } else if (!prev) {
-        if (!window.confirm('Set Student ID for ' + name + ' to:\n\n' + next + '\n\nThis must be the real school/TMS ID (not invented).')) return;
+        if (!window.confirm('Set Student ID for ' + nextName + ' to:\n\n' + next + '\n\nThis must be the real school/TMS ID (not invented).')) return;
       }
       var payload = {
-        student_name: name,
+        previous_student_name: prevName,
         previous_student_id: prev,
+        first_name: first,
+        last_name: last,
         student_id: next,
+        grade: grade,
         confirm_change: !!(prev && prev !== next)
       };
       var btn = document.getElementById('studentsEditIdSaveBtn');
       if (btn) btn.disabled = true;
-      postAdminJson('/api/admin/tms-roster/set-student-id', payload).then(function(res) {
+      postAdminJson('/api/admin/tms-roster/update', payload).then(function(res) {
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
-          showStudentsRosterMsg('Saved Student ID ' + next + ' for ' + name + '.', 'ok');
+          showStudentsRosterMsg(
+            'Saved ' +
+              (res.body.student_name || nextName) +
+              ' · ID ' +
+              (res.body.student_id || next) +
+              ' · Grade ' +
+              (res.body.grade || grade) +
+              '.',
+            'ok'
+          );
           closeStudentsEditPanels();
           loadStudentsRoster();
           return;
@@ -3144,7 +3158,7 @@
         var msg = (res && res.body && (res.body.message || res.body.error)) || 'Save failed';
         showStudentsRosterMsg(msg, 'err');
       }).catch(function() {
-        showStudentsRosterMsg('Network error while saving Student ID.', 'err');
+        showStudentsRosterMsg('Network error while saving student.', 'err');
       }).finally(function() {
         if (btn) btn.disabled = false;
       });

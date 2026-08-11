@@ -2954,6 +2954,123 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     );
   }
 
+  // Prompt #205 — edit Student ID + First/Last + Grade in one save.
+  if (request.method === 'POST' && path === '/api/admin/tms-roster/update') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const previousName = String(body.previous_student_name || body.student_name || '').trim();
+    const previousId = String(body.previous_student_id ?? '').trim();
+    const first = String(body.first_name || '').trim();
+    const last = String(body.last_name || '').trim();
+    const nextName =
+      String(body.next_student_name || '').trim() || [first, last].filter(Boolean).join(' ').trim();
+    const studentId = String(body.student_id ?? '').trim();
+    const gradeRaw = body.grade_slug != null ? body.grade_slug : body.grade;
+    const gradeSlug = normalizeAdminTmsGradeSlug(gradeRaw);
+    if (!previousName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
+    if (!first) return jsonResponse({ ok: false, error: 'first_name_required', message: 'First name is required.' }, 400, cors);
+    if (!nextName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
+    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required' }, 400, cors);
+    if (studentId.length > ADMIN_TMS_STUDENT_ID_MAX_LEN) {
+      return jsonResponse({ ok: false, error: 'student_id_too_long', max: ADMIN_TMS_STUDENT_ID_MAX_LEN }, 400, cors);
+    }
+    if (!gradeSlug) {
+      return jsonResponse({ ok: false, error: 'invalid_grade', message: 'grade must be 6, 7, or 8' }, 400, cors);
+    }
+
+    if (previousId && previousId !== studentId) {
+      if (body.confirm_change !== true) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'confirm_change_required',
+            previous_student_id: previousId,
+            student_id: studentId,
+            message: 'Changing a non-blank Student ID requires explicit confirmation.',
+          },
+          400,
+          cors
+        );
+      }
+      const linkedRows = await db
+        .prepare(
+          `SELECT username, role, mtss_student_id, is_active FROM lantern_pilot_accounts
+           WHERE lower(trim(role)) = 'student'
+             AND (
+               (mtss_student_id IS NOT NULL AND lower(trim(mtss_student_id)) = lower(trim(?)))
+               OR lower(trim(username)) = lower(trim(?))
+             )`
+        )
+        .bind(previousId, previousId)
+        .all();
+      const linked = linkedRows.results || [];
+      if (linked.length) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'lantern_reconcile_required',
+            message:
+              'Changing this Student ID would break an existing Lantern student identity. Reconcile the Lantern account first (do not silently relink).',
+            lantern_accounts: linked.map((r) => ({
+              username: String(r.username || '').trim(),
+              mtss_student_id: r.mtss_student_id != null ? String(r.mtss_student_id).trim() : null,
+            })),
+            previous_student_id: previousId,
+            student_id: studentId,
+          },
+          409,
+          cors
+        );
+      }
+    }
+
+    const bridge = await callTmsRosterBridge(env, 'roster/update', {
+      previous_student_name: previousName,
+      previous_student_id: previousId,
+      first_name: first,
+      last_name: last,
+      next_student_name: nextName,
+      student_id: studentId,
+      grade: gradeSlug.replace(/^grade-/, ''),
+      grade_slug: gradeSlug,
+    });
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        {
+          ok: false,
+          error: bridge.error || bridge.code || 'bridge_failed',
+          code: bridge.code || null,
+          message: bridge.message || bridge.error || null,
+        },
+        status,
+        cors
+      );
+    }
+    const names = splitRosterDisplayName(bridge.student_name || nextName);
+    return jsonResponse(
+      {
+        ok: true,
+        previous_student_name: previousName,
+        previous_student_id: previousId,
+        student_name: bridge.student_name || nextName,
+        student_id: bridge.student_id != null ? String(bridge.student_id) : studentId,
+        first_name: bridge.first_name != null ? String(bridge.first_name) : names.first_name,
+        last_name: bridge.last_name != null ? String(bridge.last_name) : names.last_name,
+        grade: bridge.grade != null ? String(bridge.grade) : gradeSlug.replace(/^grade-/, ''),
+        grade_slug: bridge.grade_slug || gradeSlug,
+        identity_changed: !!bridge.identity_changed,
+      },
+      200,
+      cors
+    );
+  }
+
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 

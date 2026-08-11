@@ -249,6 +249,36 @@ async function run() {
           grade_slug: 'grade-' + g,
         };
       },
+      'roster/update': async (body) => {
+        const first = String(body.first_name || '').trim();
+        const last = String(body.last_name || '').trim();
+        if (!first) {
+          return { ok: false, error: 'First name is required.', code: 'first_name_required', _httpStatus: 400 };
+        }
+        const g = String(body.grade || body.grade_slug || '').replace(/^grade-/, '');
+        if (!['6', '7', '8'].includes(g)) {
+          return { ok: false, error: 'grade must be 6, 7, or 8', code: 'invalid_grade', _httpStatus: 400 };
+        }
+        const sid = String(body.student_id || '').trim();
+        if (!sid) return { ok: false, error: 'student_id is required.', code: 'student_id_required', _httpStatus: 400 };
+        if (sid === '20889' && String(body.previous_student_name || '') !== 'Lucas Radle' && String(body.previous_student_id || '') !== '20889') {
+          return { ok: false, error: 'Student ID already assigned', code: 'duplicate_student_id', _httpStatus: 409 };
+        }
+        const name = String(body.next_student_name || '').trim() || [first, last].filter(Boolean).join(' ').trim();
+        return {
+          ok: true,
+          previous_student_name: body.previous_student_name,
+          previous_student_id: body.previous_student_id,
+          student_name: name,
+          student_id: sid,
+          first_name: first,
+          last_name: last,
+          grade: g,
+          grade_slug: 'grade-' + g,
+          identity_changed:
+            String(body.previous_student_name || '') !== name || String(body.previous_student_id || '') !== sid,
+        };
+      },
     },
   };
   const env = makeEnv(state);
@@ -437,6 +467,63 @@ async function run() {
       } else bad('set-grade mutated lantern account');
     }
 
+    // Prompt #205 — multi-field update
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/update', {
+          previous_student_name: 'Lucas Radle',
+          previous_student_id: '20889',
+          first_name: 'Lucas',
+          last_name: 'Radle',
+          student_id: '20889',
+          grade: '7',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (res.status === 200 && body.ok && body.student_id === '20889' && String(body.grade) === '7') {
+        ok('admin can update name/grade together via tms-roster/update');
+      } else bad('roster update', JSON.stringify(body));
+      if (state.accounts['20889'].mtss_student_id === '20889' && state.accounts['20889'].password_hash === 'HASH_SHOULD_NEVER_APPEAR') {
+        ok('roster update did not touch Lantern link or password');
+      } else bad('roster update mutated lantern account');
+    }
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/update', {
+          previous_student_name: 'Lucas Radle',
+          previous_student_id: '20889',
+          first_name: '',
+          last_name: 'Radle',
+          student_id: '20889',
+          grade: '6',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (res.status === 400 && (body.error === 'first_name_required' || /first/i.test(body.message || body.error || ''))) {
+        ok('update rejects blank first name');
+      } else bad('blank first on update', JSON.stringify(body));
+    }
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/update', {
+          previous_student_name: 'Lucas Radle',
+          previous_student_id: '20889',
+          first_name: 'Lucas',
+          last_name: 'Radle',
+          student_id: '99999',
+          grade: '6',
+          confirm_change: true,
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (res.status === 409 && body.error === 'lantern_reconcile_required') {
+        ok('ID change blocked when Lantern login depends on old ID');
+      } else bad('lantern reconcile on update', JSON.stringify(body));
+    }
+
     // Teacher cannot write
     {
       const res = await worker.fetch(
@@ -457,6 +544,21 @@ async function run() {
       );
       if (res.status === 403) ok('non-admin cannot change grade');
       else bad('teacher set-grade forbidden', res.status);
+    }
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/update', {
+          previous_student_name: 'Lucas Radle',
+          previous_student_id: '20889',
+          first_name: 'Lucas',
+          last_name: 'Radle',
+          student_id: '20889',
+          grade: '6',
+        }, teacherCookie),
+        env
+      );
+      if (res.status === 403) ok('non-admin cannot update roster identity');
+      else bad('teacher update forbidden', res.status);
     }
   });
 
