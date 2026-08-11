@@ -1,5 +1,5 @@
 /**
- * Prompt #143 — Teacher sidebar default-open states + Missions order + Other Tools archive.
+ * Prompt #143 / #171 — Teacher sidebar default-open states + Missions order + School Access order.
  * Static contract against app/teacher.html (no browser).
  * Usage: node worker/scripts/teacher-sidebar-defaults-test.mjs
  */
@@ -44,26 +44,47 @@ if (createTag && !/\bopen\b/.test(createTag) && !/data-collapsible-default-open=
 if (/'other-tools'\s*:\s*'overview'|"other-tools"\s*:\s*"overview"|other-tools:\s*'overview'/.test(html)) ok('stale #other-tools aliases to overview');
 else bad('other-tools→overview alias missing');
 
-// School Access order + defaults
+// Prompt #171 — School Access order + always-open status dashboard
 const statusIdx = html.indexOf('id="schoolAccessStatusCard"');
-const overrideIdx = html.indexOf('id="schoolAccessOverrideCard"');
+const individualIdx = html.indexOf('id="individualAccessCard"');
 const classIdx = html.indexOf('id="classAccessCard"');
+const overrideIdx = html.indexOf('id="schoolAccessOverrideCard"');
 const devicesIdx = html.indexOf('id="classroomDevicesCard"');
-if (statusIdx < overrideIdx && overrideIdx < classIdx && classIdx < devicesIdx) {
-  ok('School Access order: Status → Open Temporarily → Class Access → Classroom Devices');
-} else bad('School Access order wrong');
+if (statusIdx > 0 && statusIdx < individualIdx && individualIdx < classIdx && classIdx < overrideIdx && overrideIdx < devicesIdx) {
+  ok('School Access order: Status → Individual → Class → Schoolwide → Device Enrollment');
+} else bad('School Access order wrong', { statusIdx, individualIdx, classIdx, overrideIdx, devicesIdx });
 
 const statusTag = openingTagForId('schoolAccessStatusCard');
-if (/\bopen\b/.test(statusTag) && /data-collapsible-default-open="1"/.test(statusTag)) {
-  ok("Today's School Status defaults open");
-} else bad('School Status missing default-open', statusTag);
+if (/<section\b/.test(statusTag) && /schoolAccessStatusDashboard/.test(statusTag) && !/teacherCollapsibleList/.test(statusTag)) {
+  ok('Current Access Status is always-open section dashboard (not accordion details)');
+} else bad('School Status must be section.schoolAccessStatusDashboard', statusTag);
 
-for (const id of ['schoolAccessOverrideCard', 'classAccessCard', 'classroomDevicesCard']) {
+if (/Current Access Status/.test(html)) ok('Current Access Status label present');
+else bad('Current Access Status label missing');
+
+if (/Individual Access/.test(html) && /id="individualAccessCard"/.test(html)) ok('Individual Access panel present');
+else bad('Individual Access panel missing');
+
+if (/Schoolwide Access/.test(html)) ok('Schoolwide Access label present');
+else bad('Schoolwide Access label missing');
+
+if (/Device Enrollment/.test(html) && /id="classroomDevicesCard"/.test(html)) ok('Device Enrollment label present');
+else bad('Device Enrollment label missing');
+
+for (const id of ['individualAccessCard', 'classAccessCard', 'schoolAccessOverrideCard', 'classroomDevicesCard']) {
   const tag = openingTagForId(id);
   if (/\bopen\b/.test(tag) || /data-collapsible-default-open="1"/.test(tag)) {
     bad(id + ' should default closed', tag);
   } else ok(id + ' defaults closed');
 }
+
+if (/schoolAccessAdminOnly/.test(html) && /id="schoolAccessOverrideCard"/.test(html) && /id="classAccessSimDetails"/.test(html)) {
+  ok('Schoolwide + simulation marked schoolAccessAdminOnly');
+} else bad('admin-only School Access markers missing');
+
+if (/teacherSidebarItem--divider/.test(html) && /Hallway TV/.test(html)) {
+  ok('Intentional Hallway TV sidebar divider class preserved');
+} else bad('Hallway TV divider missing');
 
 // Primary panels default open
 for (const [id, label] of [

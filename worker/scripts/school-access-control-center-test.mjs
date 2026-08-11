@@ -14,11 +14,11 @@
  *      inactive/expired/denied/revoked grant or any duration other than 15/30
  *  2)  Extend has a hard ceiling -- repeated extension can never make a grant de-facto permanent
  *  3)  GET /api/class-access/state now also reports eventOverride (informational only)
- *  4)  "Open Lantern Temporarily" supports 15/30/60/custom/until-school-close, always with an
+ *  4)  Schoolwide Access override supports 15/30/60/custom/until-school-close, always with an
  *      explicit expiration (no "forever" option anywhere in the API)
  *  5)  starting a new override supersedes (ends) any prior active override
- *  6)  "END OVERRIDE NOW" ends the active override immediately, evaluated purely by server time
- *  7)  override start/end/active-status are staff-only
+ *  6)  "END SCHOOLWIDE ACCESS NOW" ends the active override immediately, evaluated purely by server time
+ *  7)  override start/end are admin-only; override/active remains staff-readable (Prompt #171)
  *  8)  the public state endpoint's eventOverride field never leaks staff identity (that is
  *      staff-only via GET .../override/active)
  *  9)  security actions (request approved/denied/extended/revoked, device enrolled/revoked, group
@@ -479,10 +479,10 @@ async function testStateReportsEventOverrideInformationalOnly() {
   if (before.qualifyingAccess !== false) return bad('top-level qualifyingAccess is false with nothing active', before);
   ok('GET /api/class-access/state reports eventOverride.qualifyingAccess=false when no override is active (informational only, matches individualGrant/deviceGroupAccess shape)');
 
-  const teacher = account({ username: 'ms_diaz', role: 'teacher', teacher_id: 't_diaz', display_name: 'Ms. Diaz' });
-  const env2 = makeEnv({ accounts: { ms_diaz: teacher } });
-  const teacherCookie = await pilotCookieFor(teacher);
-  await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 30, reason: 'Assembly' }) }, teacherCookie), env2);
+  const admin = account({ username: 'ms_diaz', role: 'admin', teacher_id: 't_diaz', display_name: 'Ms. Diaz' });
+  const env2 = makeEnv({ accounts: { ms_diaz: admin } });
+  const adminCookie = await pilotCookieFor(admin);
+  await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 30, reason: 'Assembly' }) }, adminCookie), env2);
 
   const afterRes = await worker.fetch(req('https://x.test/api/class-access/state', { method: 'GET' }), env2);
   const afterRaw = await afterRes.clone().text();
@@ -493,42 +493,53 @@ async function testStateReportsEventOverrideInformationalOnly() {
   ok('GET /api/class-access/state reports eventOverride.qualifyingAccess=true (and top-level qualifyingAccess=true) while an override is active, WITHOUT ever exposing the starting staff member\'s name on this public endpoint');
 }
 
-async function testOverrideStartRequiresStaffAndExplicitExpiration() {
+async function testOverrideStartRequiresAdminAndExplicitExpiration() {
   const env = makeEnv({});
   const noSession = await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 15 }) }), env);
-  if (noSession.status !== 401) return bad('override start requires a staff session', noSession.status);
+  if (noSession.status !== 401) return bad('override start requires an authenticated session', noSession.status);
   const noSessionEnd = await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }), env);
-  if (noSessionEnd.status !== 401) return bad('override end requires a staff session', noSessionEnd.status);
+  if (noSessionEnd.status !== 401) return bad('override end requires an authenticated session', noSessionEnd.status);
   const noSessionActive = await worker.fetch(req('https://x.test/api/class-access/override/active', { method: 'GET' }), env);
-  if (noSessionActive.status !== 401) return bad('override active-status requires a staff session', noSessionActive.status);
-  ok('POST .../override/start, POST .../override/end, and GET .../override/active all require an authenticated staff session (401 otherwise)');
+  if (noSessionActive.status !== 401) return bad('override active-status requires an authenticated staff session', noSessionActive.status);
+  ok('POST .../override/start, POST .../override/end, and GET .../override/active all require authentication (401 otherwise)');
 
   const teacher = account({ username: 'mr_ellis', role: 'teacher', teacher_id: 't_ellis' });
   const teacherEnv = makeEnv({ accounts: { mr_ellis: teacher } });
   const teacherCookie = await pilotCookieFor(teacher);
-  const noExpiry = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, teacherCookie), teacherEnv));
+  const teacherStart = await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 15 }) }, teacherCookie), teacherEnv);
+  if (teacherStart.status !== 403) return bad('ordinary teacher must be forbidden from override/start (403)', teacherStart.status);
+  const teacherEnd = await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, teacherCookie), teacherEnv);
+  if (teacherEnd.status !== 403) return bad('ordinary teacher must be forbidden from override/end (403)', teacherEnd.status);
+  const teacherActive = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/active', { method: 'GET' }, teacherCookie), teacherEnv));
+  if (!teacherActive.ok) return bad('teachers may still read override/active status (staff session)', teacherActive);
+  ok('Prompt #171 — override start/end are admin-only (teacher gets 403); override/active remains staff-readable');
+
+  const admin = account({ username: 'admin_ellis', role: 'admin', teacher_id: 't_admin_ellis' });
+  const adminEnv = makeEnv({ accounts: { admin_ellis: admin } });
+  const adminCookie = await pilotCookieFor(admin);
+  const noExpiry = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, adminCookie), adminEnv));
   if (noExpiry.ok !== false) return bad('starting an override with no duration_minutes/until_school_close/custom_minutes must be rejected -- there is no "Open Forever"', noExpiry);
   ok('POST .../override/start with none of duration_minutes/until_school_close/custom_minutes is rejected -- there is no code path that can create an override without an explicit, bounded expires_at');
 }
 
 async function testOverrideDurationsAndCustomBounds() {
-  const teacher = account({ username: 'mrs_kohl', role: 'teacher', teacher_id: 't_kohl' });
-  const env = makeEnv({ accounts: { mrs_kohl: teacher } });
-  const teacherCookie = await pilotCookieFor(teacher);
+  const admin = account({ username: 'mrs_kohl', role: 'admin', teacher_id: 't_kohl' });
+  const env = makeEnv({ accounts: { mrs_kohl: admin } });
+  const adminCookie = await pilotCookieFor(admin);
 
   for (const minutes of [15, 30, 60]) {
-    const res = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: minutes }) }, teacherCookie), env));
+    const res = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: minutes }) }, adminCookie), env));
     if (!res.ok) return bad(`override start ${minutes} min succeeds`, res);
     const deltaMs = new Date(res.expiresAt).getTime() - Date.now();
     if (deltaMs < (minutes - 1) * 60 * 1000 || deltaMs > (minutes + 1) * 60 * 1000) return bad(`override ${minutes} min expires ~${minutes} minutes from now`, res);
   }
-  ok('"Open Lantern Temporarily" 15 / 30 / 60 minute buttons each set an expiry the correct number of minutes from now');
+  ok('Schoolwide Access 15 / 30 / 60 minute buttons each set an expiry the correct number of minutes from now');
 
-  const tooLong = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_minutes: 500 }) }, teacherCookie), env));
+  const tooLong = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_minutes: 500 }) }, adminCookie), env));
   if (tooLong.ok !== false) return bad('custom_minutes above the max must be rejected', tooLong);
-  const zero = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_minutes: 0 }) }, teacherCookie), env));
+  const zero = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_minutes: 0 }) }, adminCookie), env));
   if (zero.ok !== false) return bad('custom_minutes of 0 must be rejected', zero);
-  const custom = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_minutes: 45 }) }, teacherCookie), env));
+  const custom = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_minutes: 45 }) }, adminCookie), env));
   if (!custom.ok) return bad('a valid custom_minutes (45) succeeds', custom);
   const deltaMs = new Date(custom.expiresAt).getTime() - Date.now();
   if (deltaMs < 44 * 60 * 1000 || deltaMs > 46 * 60 * 1000) return bad('custom 45-minute override expires ~45 minutes from now', custom);
@@ -536,37 +547,39 @@ async function testOverrideDurationsAndCustomBounds() {
 }
 
 async function testOverrideSupersedesPriorAndEndNow() {
-  const teacher = account({ username: 'mr_song', role: 'teacher', teacher_id: 't_song', display_name: 'Mr. Song' });
-  const env = makeEnv({ accounts: { mr_song: teacher } });
-  const teacherCookie = await pilotCookieFor(teacher);
+  const admin = account({ username: 'mr_song', role: 'admin', teacher_id: 't_song', display_name: 'Mr. Song' });
+  const env = makeEnv({ accounts: { mr_song: admin } });
+  const adminCookie = await pilotCookieFor(admin);
 
-  await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 15, reason: 'Pep rally' }) }, teacherCookie), env);
-  const secondStart = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 60, reason: 'Extended rally' }) }, teacherCookie), env));
+  await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 15, reason: 'Pep rally' }) }, adminCookie), env);
+  const secondStart = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 60, reason: 'Extended rally' }) }, adminCookie), env));
   if (!secondStart.ok) return bad('a second override start succeeds', secondStart);
 
   const activeCount = env.DB.__overrides.filter((o) => o.is_active).length;
   if (activeCount !== 1) return bad('starting a new override must supersede (end) any prior active override -- exactly one active at a time', env.DB.__overrides);
-  ok('starting a new override immediately supersedes (ends) any prior active override, so re-clicking a duration behaves as the teacher expects -- exactly one active override at a time');
+  ok('starting a new override immediately supersedes (ends) any prior active override, so re-clicking a duration behaves as expected -- exactly one active override at a time');
 
-  const activeStatus = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/active', { method: 'GET' }, teacherCookie), env));
+  const activeStatus = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/active', { method: 'GET' }, adminCookie), env));
   if (!activeStatus.active || activeStatus.reason !== 'Extended rally' || activeStatus.startedByName !== 'Mr. Song') return bad('staff-only active-status endpoint shows the full detail (reason + started-by)', activeStatus);
-  ok('GET .../override/active (staff-only) shows "Lantern temporarily open" detail: reason, started-by name, and expiry -- exactly what the teacher control center displays');
+  ok('GET .../override/active (staff-readable) shows Schoolwide Access detail: reason, started-by name, and expiry');
 
-  const endRes = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, teacherCookie), env));
-  if (!endRes.ok || !endRes.hadActiveOverride) return bad('END OVERRIDE NOW reports it ended an active override', endRes);
-  const afterEnd = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/active', { method: 'GET' }, teacherCookie), env));
-  if (afterEnd.active) return bad('after END OVERRIDE NOW, override/active must report inactive immediately (server time, no cleanup job)', afterEnd);
-  ok('"END OVERRIDE NOW" ends the active override immediately server-side -- the very next status check reports it inactive, purely from current server time');
+  const endRes = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, adminCookie), env));
+  if (!endRes.ok || !endRes.hadActiveOverride) return bad('END SCHOOLWIDE ACCESS NOW reports it ended an active override', endRes);
+  const afterEnd = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/active', { method: 'GET' }, adminCookie), env));
+  if (afterEnd.active) return bad('after END SCHOOLWIDE ACCESS NOW, override/active must report inactive immediately (server time, no cleanup job)', afterEnd);
+  ok('"END SCHOOLWIDE ACCESS NOW" ends the active override immediately server-side -- the very next status check reports it inactive, purely from current server time');
 
-  const doubleEnd = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, teacherCookie), env));
+  const doubleEnd = await jsonOf(await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, adminCookie), env));
   if (doubleEnd.hadActiveOverride) return bad('ending an already-ended override should report hadActiveOverride:false, not double-process', doubleEnd);
   ok('ending an override when none is active reports hadActiveOverride:false rather than double-processing');
 }
 
 async function testAuditLogCoversCoreSecurityActionsWithoutSecrets() {
   const teacher = account({ username: 'ms_hale', role: 'teacher', teacher_id: 't_hale', display_name: 'Ms. Hale' });
-  const env = makeEnv({ accounts: { ms_hale: teacher } });
+  const admin = account({ username: 'admin_hale', role: 'admin', teacher_id: 't_admin_hale', display_name: 'Admin Hale' });
+  const env = makeEnv({ accounts: { ms_hale: teacher, admin_hale: admin } });
   const teacherCookie = await pilotCookieFor(teacher);
+  const adminCookie = await pilotCookieFor(admin);
 
   // request approved, extended, revoked
   const grant = await createAndApproveRequest(env, teacherCookie, 15);
@@ -580,9 +593,9 @@ async function testAuditLogCoversCoreSecurityActionsWithoutSecrets() {
   const row2 = pendingBody2.requests.find((r) => r.requestPhrase === createBody2.requestPhrase);
   await worker.fetch(req('https://x.test/api/class-access/requests/deny', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row2.id }) }, teacherCookie), env);
 
-  // override started + ended
-  await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 15, reason: 'Fire drill' }) }, teacherCookie), env);
-  await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, teacherCookie), env);
+  // override started + ended (admin-only)
+  await worker.fetch(req('https://x.test/api/class-access/override/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration_minutes: 15, reason: 'Fire drill' }) }, adminCookie), env);
+  await worker.fetch(req('https://x.test/api/class-access/override/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, adminCookie), env);
 
   const actions = env.DB.__auditLog.map((r) => r.action);
   const expected = ['request_approved', 'grant_extended', 'grant_revoked', 'request_denied', 'override_started', 'override_ended'];
@@ -592,7 +605,7 @@ async function testAuditLogCoversCoreSecurityActionsWithoutSecrets() {
   ok('lantern_access_audit_log records request_approved / grant_extended / grant_revoked / request_denied / override_started / override_ended for the security actions exercised in this test (#33 audit integration)');
 
   const allStaffNames = env.DB.__auditLog.map((r) => r.staff_name);
-  if (!allStaffNames.every((n) => n === 'Ms. Hale' || n == null)) return bad('audit rows record the acting staff member by name', allStaffNames);
+  if (!allStaffNames.every((n) => n === 'Ms. Hale' || n === 'Admin Hale' || n == null)) return bad('audit rows record the acting staff member by name', allStaffNames);
   ok('each audit row records the session-derived acting staff member\'s name (never a client-supplied identity)');
 
   const rawAudit = JSON.stringify(env.DB.__auditLog);
@@ -634,7 +647,7 @@ await testRecordAccessAuditEventNeverThrowsOnDbFailure();
 await testExtendHappyPathAndValidation();
 await testExtendNeverExceedsCeilingEndToEnd();
 await testStateReportsEventOverrideInformationalOnly();
-await testOverrideStartRequiresStaffAndExplicitExpiration();
+await testOverrideStartRequiresAdminAndExplicitExpiration();
 await testOverrideDurationsAndCustomBounds();
 await testOverrideSupersedesPriorAndEndNow();
 await testAuditLogCoversCoreSecurityActionsWithoutSecrets();

@@ -343,14 +343,18 @@ async function main() {
   assert((await page.locator('#teacherCreateMissionDetails .teacherCheckboxHint').count()) >= 1, '"Promote this mission" has a one-sentence plain-language helper explanation');
 
   // ---------------------------------------------------------------------------
-  // School Access — Prompt #143 exact default hierarchy
+  // School Access — Prompt #171 hierarchy (status always open; action panels closed)
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'schoolaccess'; });
   await page.waitForFunction(() => document.getElementById('teacherWorkspace-schoolaccess')?.classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#schoolAccessStatusCard').evaluate((el) => !!el.open), "Prompt #143 — Today's School Status defaults open");
-  assert(await page.locator('#schoolAccessOverrideCard').evaluate((el) => !el.open), 'Prompt #143 — Open Lantern Temporarily defaults closed');
-  assert(await page.locator('#classAccessCard').evaluate((el) => !el.open), 'Prompt #143 — Class Access defaults closed');
-  assert(await page.locator('#classroomDevicesCard').evaluate((el) => !el.open), 'Prompt #143 — Classroom Devices defaults closed');
+  assert(await page.locator('#schoolAccessStatusCard').evaluate((el) => el.tagName === 'SECTION' && el.classList.contains('schoolAccessStatusDashboard')), 'Prompt #171 — Current Access Status is always-open dashboard section');
+  assert((await page.locator('#schoolAccessStatusCard .h').first().innerText()).trim() === 'Current Access Status', 'Prompt #171 — Current Access Status title');
+  assert(await page.locator('#individualAccessCard').evaluate((el) => !el.open), 'Prompt #171 — Individual Access defaults closed');
+  assert(await page.locator('#classAccessCard').evaluate((el) => !el.open), 'Prompt #171 — Class Access defaults closed');
+  assert(await page.locator('#classroomDevicesCard').evaluate((el) => !el.open), 'Prompt #171 — Device Enrollment defaults closed');
+  assert(await page.locator('#schoolAccessOverrideCard').evaluate((el) => !!el.hidden), 'Prompt #171 — Schoolwide Access hidden for ordinary teacher');
+  assert(await page.locator('#classAccessSimDetails').evaluate((el) => !!el.hidden), 'Prompt #171 — Access control (testing) hidden for ordinary teacher');
+  assert((await page.locator('#classroomDevicesCard .h').first().innerText()).trim() === 'Device Enrollment', 'Prompt #171 — Device Enrollment label');
 
   // ---------------------------------------------------------------------------
   // Moderation workspace — retained, isolated from Review Queue

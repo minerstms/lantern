@@ -30,7 +30,7 @@
     teacher_nuggets: 'Nuggets: manage student Nugget rewards and manual redemptions for real roster students. Students spend Nuggets in Locker → Store.',
     teacher_overview: 'Overview: quick counts and shortcuts into Review Queue and Missions for your Teacher Tools workspaces.',
     teacher_review: 'Review Queue: approve, reject, or return student submissions waiting for your check. Only approved items appear to students.',
-    teacher_school_access: 'School Access: manage which students can use Lantern for your school or classes. Follow the on-screen steps for your school’s setup.',
+    teacher_school_access: 'School Access: Current Access Status, Individual Access (approve student requests), Class Access, Schoolwide Access (admin), and Device Enrollment for shared classroom computers.',
     teacher_missions: 'Missions (Teacher Tools): create and manage missions students complete in Lantern. Mission rewards follow the current Nuggets rules shown when you create or edit a mission.',
     teacher_shoutout: 'Shout-Out!: post positive recognition for students. This is not a Nugget award — it is recognition only.',
     teacher_moderation: 'Moderation: hide live posts from public view or restore hidden items. Hidden content stays listed here until you restore it.',

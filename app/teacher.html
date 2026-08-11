@@ -916,6 +916,27 @@
     .teacherMissionMediaHint > summary::-webkit-details-marker{ display: none; }
     .teacherMissionMediaHint > summary::after{ content: ' ▼'; font-size: 16px; opacity: .75; }
     .teacherMissionMediaHint[open] > summary::after{ content: ' ▲'; }
+    /* Always-open School Access status dashboard (not an accordion peer). */
+    .schoolAccessStatusDashboard{
+      margin: 0 0 14px;
+      border: 1px solid rgba(242,194,48,.4);
+      border-radius: var(--r);
+      background: linear-gradient(180deg, rgba(242,194,48,.10), rgba(242,194,48,.02));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .schoolAccessStatusDashboardHd{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .schoolAccessStatusDashboardHd .h{ font-weight: 1000; font-size: 26px; margin: 0; }
+    .schoolAccessStatusDashboardBd{ padding: 12px 16px 16px; }
+    .schoolAccessAdminOnly[hidden]{ display: none !important; }
     .teacherClassAccessSimDetails{ margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
     .teacherClassAccessSimDetails > summary{
       list-style: none;
@@ -966,7 +987,8 @@
       border-radius: var(--r);
       background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
       padding: 10px;
-      box-shadow: var(--shadow);
+      /* Contained shadow — avoid page-wide horizontal seam look beside long sidebar lists. */
+      box-shadow: 0 8px 18px rgba(0,0,0,.18);
     }
     .teacherSidebarNav{ display: flex; flex-direction: column; gap: 4px; }
     .teacherSidebarItem{
@@ -1441,113 +1463,45 @@
         </div>
 
         <div class="teacherWorkspacePane" data-workspace="schoolaccess" id="teacherWorkspace-schoolaccess">
-          <details class="card teacherCollapsibleList" id="schoolAccessStatusCard" open data-collapsible-default-open="1" style="border-color: rgba(242,194,48,.4); background: linear-gradient(180deg, rgba(242,194,48,.10), rgba(242,194,48,.02));">
-            <summary class="cardHd teacherCollapsibleListHd">
-              <div class="teacherCollapsibleListTitle"><div class="h">Today's School Status</div></div>
-              <div class="teacherCollapsibleListMeta"><span class="pill" id="schoolAccessEnforcementPill">Enforcement: OFF</span></div>
-            </summary>
-            <div class="cardBd teacherCollapsibleListBd">
-              <div id="schoolAccessScheduleTypeText" style="font-weight:1000;font-size:30px;line-height:1.25;">Loading…</div>
+          <!-- Prompt #171 — Current Access Status is an always-open dashboard card (not accordion). -->
+          <section class="schoolAccessStatusDashboard" id="schoolAccessStatusCard" aria-label="Current Access Status">
+            <div class="schoolAccessStatusDashboardHd">
+              <div class="h">Current Access Status</div>
+              <span class="pill" id="schoolAccessEnforcementPill">Enforcement: OFF</span>
+            </div>
+            <div class="schoolAccessStatusDashboardBd">
+              <div id="schoolAccessScheduleTypeText" style="font-weight:1000;font-size:28px;line-height:1.25;">Loading…</div>
               <p class="note note-tight" id="schoolAccessScheduleWindowText" style="margin-top:6px;"></p>
+              <p class="note note-tight" id="schoolAccessEffectiveStatusText" style="margin-top:8px;font-weight:800;color:var(--ink);"></p>
               <p style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;">
-                School schedule enforcement: <span id="schoolAccessEnforcementText">OFF</span> — the automatic lock is NOT active in production yet. Nothing on this page changes student access by itself.
+                School schedule enforcement: <span id="schoolAccessEnforcementText">OFF</span> — the automatic lock is NOT active in production yet.
               </p>
               <details class="teacherClassAccessSimDetails" style="margin-top:12px;">
                 <summary>Intended final access priority (not active yet)</summary>
                 <div style="padding-top:8px;">
                   <ol style="margin:0;padding-left:22px;font-size:20px;line-height:1.55;color:var(--ink);">
                     <li>Teacher / admin / staff → always allowed</li>
-                    <li>Active temporary event override → allowed</li>
+                    <li>Active temporary schoolwide override → allowed</li>
                     <li>Valid enrolled device in an unlocked group → allowed</li>
                     <li>Active teacher-approved individual grant → allowed</li>
                     <li>Otherwise, during scheduled school lock → locked / Request Access</li>
                     <li>Outside scheduled school lock → normal Lantern behavior</li>
                   </ol>
-                  <p class="note" style="margin-top:8px;">Steps 1–4 already work today and are informational-only. Step 5 (the actual automatic lock) will not turn on until a future phase.</p>
                 </div>
               </details>
             </div>
-          </details>
+          </section>
 
-          <details class="card teacherCollapsibleList" id="schoolAccessOverrideCard" style="border-color: rgba(255,140,90,.4); background: linear-gradient(180deg, rgba(255,140,90,.08), rgba(255,140,90,.02));">
+          <details class="card teacherCollapsibleList" id="individualAccessCard" style="border-color: rgba(157,212,240,.4); background: linear-gradient(180deg, rgba(157,212,240,.08), rgba(157,212,240,.02));">
             <summary class="cardHd teacherCollapsibleListHd">
-              <div class="teacherCollapsibleListTitle"><div class="h">Open Lantern Temporarily</div></div>
-              <div class="teacherCollapsibleListMeta"><span class="pill" id="schoolAccessOverrideStatusPill">Not Active</span></div>
+              <div class="teacherCollapsibleListTitle"><div class="h">Individual Access</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="accessRequestsPendingCountPill">0</span></div>
             </summary>
             <div class="cardBd teacherCollapsibleListBd">
-              <p class="note note-tight">Temporarily suspend the school lock for EVERYONE (school event, club, after-hours group, unusual class situation). Every override has an explicit end time — there is no "open forever."</p>
-              <div id="schoolAccessOverrideInactiveBlock">
-                <input type="text" id="schoolAccessOverrideReasonInput" placeholder="Reason (optional, e.g. Assembly)" style="width:100%;max-width:420px;margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
-                <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">
-                  <button type="button" class="btn good" id="schoolAccessOverride15Btn">15 minutes</button>
-                  <button type="button" class="btn good" id="schoolAccessOverride30Btn">30 minutes</button>
-                  <button type="button" class="btn good" id="schoolAccessOverride60Btn">60 minutes</button>
-                  <button type="button" class="btn good" id="schoolAccessOverrideUntilCloseBtn">Until School Close</button>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;">
-                  <label style="font-weight:800;font-size:22px;">Custom:</label>
-                  <input type="number" id="schoolAccessOverrideCustomInput" min="1" max="180" placeholder="minutes" style="width:110px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
-                  <button type="button" class="btn" id="schoolAccessOverrideCustomBtn">Open for custom minutes</button>
-                  <span class="note" style="font-size:18px;">(max 180 — every override must expire)</span>
-                </div>
-              </div>
-              <div id="schoolAccessOverrideActiveBlock" style="display:none;margin-top:10px;">
-                <p style="font-weight:1000;font-size:26px;margin-bottom:8px;color:var(--ink);">Lantern temporarily open</p>
-                <p class="note note-tight">Started by: <span id="schoolAccessOverrideStartedBy" style="font-weight:800;color:var(--ink);">—</span></p>
-                <p class="note note-tight">Expires: <span id="schoolAccessOverrideExpiresAt" style="font-weight:800;color:var(--ink);">—</span> (Mountain Time)</p>
-                <p class="note note-tight">Remaining: <span id="schoolAccessOverrideRemaining" style="font-weight:800;color:var(--ink);">—</span></p>
-                <p class="note note-tight" id="schoolAccessOverrideReasonText" style="display:none;"></p>
-                <button type="button" class="btn" id="schoolAccessOverrideEndBtn" style="margin-top:10px;border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">END OVERRIDE NOW</button>
-              </div>
-            </div>
-          </details>
-
-          <details class="card teacherCollapsibleList" id="classAccessCard" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.08), rgba(90,167,255,.03));">
-            <summary class="cardHd teacherCollapsibleListHd">
-              <div class="teacherCollapsibleListTitle"><div class="h">Class Access</div></div>
-              <div class="teacherCollapsibleListMeta"><span class="pill" id="classAccessStatusPill">Inactive</span></div>
-            </summary>
-            <div class="cardBd teacherCollapsibleListBd">
-              <p id="classAccessErrorEl" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:12px;border:1px solid var(--warn);background:rgba(255,204,102,.12);color:var(--warn);font-weight:800;font-size:22px;"></p>
-              <p class="note note-tight">Mon–Thu school hours: students need a class code. Start session for a board code; end when done.</p>
-              <div id="classAccessActiveBlock" style="display:none;">
-                <p style="font-weight:800;font-size:22px;margin-bottom:6px;">Status: <span id="classAccessStatusText">Active</span></p>
-                <p style="font-weight:800;font-size:22px;margin-bottom:8px;">Code: <span id="classAccessCodeDisplay" style="font-weight:1000;font-size:36px;line-height:1.2;letter-spacing:.05em;color:var(--ink);background:rgba(0,0,0,.25);padding:16px 20px;border-radius:16px;border:2px solid var(--accent);display:inline-block;margin-left:8px;"></span></p>
-                <p style="font-size:22px;color:var(--muted);margin-bottom:8px;">Expires at: <span id="classAccessExpiresAtText" style="font-weight:800;color:var(--ink);"></span></p>
-                <p style="font-size:22px;color:var(--muted);margin-bottom:14px;">Time remaining: <span id="classAccessExpiresText" style="font-weight:800;color:var(--ink);"></span></p>
-                <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
-                  <button type="button" class="btn accent" id="classAccessShowCodeBtn" style="font-size:22px;padding:12px 20px;">Show Class Code</button>
-                  <a href="class-code.html" target="_blank" rel="noopener" class="btn" style="font-size:22px;padding:12px 20px;text-decoration:none;">Open Class Code Display</a>
-                  <button type="button" class="btn" id="classAccessEndBtn" style="border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">End Access Now</button>
-                </div>
-              </div>
-              <div id="classAccessInactiveBlock">
-                <p class="note" style="margin-bottom:14px;">No active class access session. Start one to display a code for students.</p>
-                <button type="button" class="btn good" id="classAccessStartBtn">Start Class Access</button>
-                <p class="note" style="margin-top:14px;"><a href="class-code.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Class Code Display</a> — for projector or second tab.</p>
-              </div>
-              <details class="teacherClassAccessSimDetails">
-                <summary>Access control (testing)</summary>
-                <div style="padding-top:8px;">
-                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:10px;">
-                  <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="live" checked> Live</label>
-                  <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="simulation"> Simulation</label>
-                </div>
-                <div id="classAccessSimConditionWrap" style="display:none;margin-top:8px;">
-                  <label style="display:block;font-weight:800;font-size:22px;margin-bottom:6px;">Simulated condition</label>
-                  <select id="classAccessSimCondition" style="width:100%;max-width:320px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;">
-                    <option value="locked_no_active_class">Locked — No Active Class Code</option>
-                    <option value="unlocked_valid_session">Unlocked — Valid Student Session</option>
-                    <option value="locked_session_expired">Locked — Session Expired</option>
-                    <option value="locked_session_revoked">Locked — Session Revoked</option>
-                  </select>
-                </div>
-                </div>
-              </details>
-              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="accessRequestsPendingPanel">
+              <p class="note note-tight">Approve temporary Lantern access for one student browser after they request it. Grants expire automatically; revoke or extend from Active Individual Grants.</p>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="accessRequestsPendingPanel" open data-collapsible-default-open="1">
                 <summary class="teacherCollapsibleListHd">
                   <div class="teacherCollapsibleListTitle"><div class="h">Pending Access Requests</div></div>
-                  <div class="teacherCollapsibleListMeta"><span class="pill" id="accessRequestsPendingCountPill">0</span></div>
                 </summary>
                 <div class="teacherCollapsibleListBd">
                   <p class="note note-tight">A student pressed Request Access and told you their identifier. Match it below.</p>
@@ -1567,13 +1521,92 @@
             </div>
           </details>
 
+          <details class="card teacherCollapsibleList" id="classAccessCard" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.08), rgba(90,167,255,.03));">
+            <summary class="cardHd teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Class Access</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="classAccessStatusPill">Inactive</span></div>
+            </summary>
+            <div class="cardBd teacherCollapsibleListBd">
+              <p id="classAccessErrorEl" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:12px;border:1px solid var(--warn);background:rgba(255,204,102,.12);color:var(--warn);font-weight:800;font-size:22px;"></p>
+              <p class="note note-tight">Start a class session to display a board code for your classroom. End the session when class is finished.</p>
+              <div id="classAccessActiveBlock" style="display:none;">
+                <p style="font-weight:800;font-size:22px;margin-bottom:6px;">Status: <span id="classAccessStatusText">Active</span></p>
+                <p style="font-weight:800;font-size:22px;margin-bottom:8px;">Code: <span id="classAccessCodeDisplay" style="font-weight:1000;font-size:36px;line-height:1.2;letter-spacing:.05em;color:var(--ink);background:rgba(0,0,0,.25);padding:16px 20px;border-radius:16px;border:2px solid var(--accent);display:inline-block;margin-left:8px;"></span></p>
+                <p style="font-size:22px;color:var(--muted);margin-bottom:8px;">Expires at: <span id="classAccessExpiresAtText" style="font-weight:800;color:var(--ink);"></span></p>
+                <p style="font-size:22px;color:var(--muted);margin-bottom:14px;">Time remaining: <span id="classAccessExpiresText" style="font-weight:800;color:var(--ink);"></span></p>
+                <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                  <button type="button" class="btn accent" id="classAccessShowCodeBtn" style="font-size:22px;padding:12px 20px;">Show Class Code</button>
+                  <a href="class-code.html" target="_blank" rel="noopener" class="btn" style="font-size:22px;padding:12px 20px;text-decoration:none;">Open Class Code Display</a>
+                  <button type="button" class="btn" id="classAccessEndBtn" style="border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">End Access Now</button>
+                </div>
+              </div>
+              <div id="classAccessInactiveBlock">
+                <p class="note" style="margin-bottom:14px;">No active class access session. Start one to display a code for students.</p>
+                <button type="button" class="btn good" id="classAccessStartBtn">Start Class Access</button>
+                <p class="note" style="margin-top:14px;"><a href="class-code.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Class Code Display</a> — for projector or second tab.</p>
+              </div>
+              <details class="teacherClassAccessSimDetails schoolAccessAdminOnly" id="classAccessSimDetails" hidden>
+                <summary>Access control (testing)</summary>
+                <div style="padding-top:8px;">
+                <p class="note note-tight">Admin diagnostic only. Does not change the real school-access gate.</p>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:10px;">
+                  <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="live" checked> Live</label>
+                  <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="simulation"> Simulation</label>
+                </div>
+                <div id="classAccessSimConditionWrap" style="display:none;margin-top:8px;">
+                  <label style="display:block;font-weight:800;font-size:22px;margin-bottom:6px;">Simulated condition</label>
+                  <select id="classAccessSimCondition" style="width:100%;max-width:320px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;">
+                    <option value="locked_no_active_class">Locked — No Active Class Code</option>
+                    <option value="unlocked_valid_session">Unlocked — Valid Student Session</option>
+                    <option value="locked_session_expired">Locked — Session Expired</option>
+                    <option value="locked_session_revoked">Locked — Session Revoked</option>
+                  </select>
+                </div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="card teacherCollapsibleList schoolAccessAdminOnly" id="schoolAccessOverrideCard" hidden style="border-color: rgba(255,140,90,.4); background: linear-gradient(180deg, rgba(255,140,90,.08), rgba(255,140,90,.02));">
+            <summary class="cardHd teacherCollapsibleListHd">
+              <div class="teacherCollapsibleListTitle"><div class="h">Schoolwide Access</div></div>
+              <div class="teacherCollapsibleListMeta"><span class="pill" id="schoolAccessOverrideStatusPill">Inactive</span></div>
+            </summary>
+            <div class="cardBd teacherCollapsibleListBd">
+              <p class="note note-tight">Temporarily open Lantern for all students by suspending the school lock schoolwide. Staff remain allowed either way. Every override has an explicit end time — there is no “open forever.” Admin only.</p>
+              <div id="schoolAccessOverrideInactiveBlock">
+                <input type="text" id="schoolAccessOverrideReasonInput" placeholder="Reason (optional, e.g. Assembly)" style="width:100%;max-width:420px;margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
+                <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">
+                  <button type="button" class="btn good" id="schoolAccessOverride15Btn">15 minutes</button>
+                  <button type="button" class="btn good" id="schoolAccessOverride30Btn">30 minutes</button>
+                  <button type="button" class="btn good" id="schoolAccessOverride60Btn">60 minutes</button>
+                  <button type="button" class="btn good" id="schoolAccessOverrideUntilCloseBtn">Until School Close</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;">
+                  <label style="font-weight:800;font-size:22px;">Custom:</label>
+                  <input type="number" id="schoolAccessOverrideCustomInput" min="1" max="180" placeholder="minutes" style="width:110px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;" />
+                  <button type="button" class="btn" id="schoolAccessOverrideCustomBtn">Open for custom minutes</button>
+                  <span class="note" style="font-size:18px;">(max 180 — every override must expire)</span>
+                </div>
+              </div>
+              <div id="schoolAccessOverrideActiveBlock" style="display:none;margin-top:10px;">
+                <p style="font-weight:1000;font-size:26px;margin-bottom:8px;color:var(--ink);">Schoolwide access active</p>
+                <p class="note note-tight">Started by: <span id="schoolAccessOverrideStartedBy" style="font-weight:800;color:var(--ink);">—</span></p>
+                <p class="note note-tight">Expires: <span id="schoolAccessOverrideExpiresAt" style="font-weight:800;color:var(--ink);">—</span> (Mountain Time)</p>
+                <p class="note note-tight">Remaining: <span id="schoolAccessOverrideRemaining" style="font-weight:800;color:var(--ink);">—</span></p>
+                <p class="note note-tight" id="schoolAccessOverrideReasonText" style="display:none;"></p>
+                <button type="button" class="btn" id="schoolAccessOverrideEndBtn" style="margin-top:10px;border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">END SCHOOLWIDE ACCESS NOW</button>
+              </div>
+            </div>
+          </details>
+
           <details class="card teacherCollapsibleList" id="classroomDevicesCard" style="border-color: rgba(120,200,150,.35); background: linear-gradient(180deg, rgba(120,200,150,.08), rgba(120,200,150,.03));">
             <summary class="cardHd teacherCollapsibleListHd">
-              <div class="teacherCollapsibleListTitle"><div class="h">Classroom Devices</div></div>
+              <div class="teacherCollapsibleListTitle"><div class="h">Device Enrollment</div></div>
               <div class="teacherCollapsibleListMeta"><span class="pill" id="deviceGroupsCountPill">0 groups</span></div>
             </summary>
             <div class="cardBd teacherCollapsibleListBd">
-              <p class="note note-tight">Enroll classroom computers once, group them (e.g. "TMS STEM Lab"), then unlock the whole group temporarily. No shared password is ever created or displayed to students.</p>
+              <p class="note note-tight">Enroll shared student/classroom computers, group them (e.g. “TMS STEM Lab”), then unlock the group temporarily. This is not personal staff device trust — staff use Remember this device after Lantern login.</p>
 
               <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="devicePairingsPendingPanel">
                 <summary class="teacherCollapsibleListHd">
@@ -1614,7 +1647,7 @@
                 </div>
               </details>
 
-              <p class="note" style="margin-top:14px;"><a href="device-pairing.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Classroom computer pairing</a> — for shared student classroom browsers only (class access). Personal staff sign-in uses Remember this device after login — not this page.</p>
+              <p class="note" style="margin-top:14px;"><a href="device-pairing.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Classroom computer pairing</a> — shared student classroom browsers only. Personal staff devices use Remember this device after login — not this page.</p>
             </div>
           </details>
         </div>
@@ -2153,9 +2186,10 @@
         return;
       }
       if (name === 'schoolaccess') {
-        setPanelOpen('schoolAccessStatusCard', true);
-        setPanelOpen('schoolAccessOverrideCard', false);
+        /* Status dashboard is always visible (not a details accordion). */
+        setPanelOpen('individualAccessCard', false);
         setPanelOpen('classAccessCard', false);
+        setPanelOpen('schoolAccessOverrideCard', false);
         setPanelOpen('classroomDevicesCard', false);
         return;
       }
@@ -2348,6 +2382,19 @@
     window.pilotSessionActive = false;
     var teacherVerifyIdentitySource = '';
     var teacherVerifyApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+    function applySchoolAccessRoleVisibility(){
+      var isAdmin = !!(typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin);
+      Array.prototype.forEach.call(document.querySelectorAll('.schoolAccessAdminOnly'), function(node){
+        if (isAdmin) {
+          node.hidden = false;
+          node.removeAttribute('hidden');
+        } else {
+          node.hidden = true;
+          node.setAttribute('hidden', '');
+          if (node.tagName === 'DETAILS') node.open = false;
+        }
+      });
+    }
     function initTeacherScopeFromPilot(me){
       if (!me || !me.ok || !me.authenticated) return;
       var normalize =
@@ -2363,9 +2410,13 @@
       } else if (role === 'teacher' && me.teacher_id) {
         window.pilotIsAdmin = false;
         approvalStaffId = String(me.teacher_id).trim();
+      } else if (role === 'teacher') {
+        /* Teacher without teacher_id still gets School Access tools (staff session). */
+        window.pilotIsAdmin = false;
       } else return;
       window.pilotSessionActive = true;
       teacherVerifyIdentitySource = 'Pilot';
+      applySchoolAccessRoleVisibility();
       var hintEl = document.getElementById('teacherSessionHint');
       if (hintEl && me.username != null) {
         var dnHint = me.display_name != null ? String(me.display_name).trim() : '';
@@ -5005,12 +5056,13 @@
     async function refreshTodayStatusUI(){
       var typeEl = el('schoolAccessScheduleTypeText');
       var windowEl = el('schoolAccessScheduleWindowText');
+      var effectiveEl = el('schoolAccessEffectiveStatusText');
       var enforcementPill = el('schoolAccessEnforcementPill');
       var enforcementText = el('schoolAccessEnforcementText');
       if (!typeEl) return;
       if (avatarApiBase === null) { typeEl.textContent = 'School Access requires the Lantern API.'; return; }
       var res = await fetch(avatarApiBase + '/api/class-access/state', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
-      if (!res || !res.ok || !res.schedule) { typeEl.textContent = 'Could not load today\u2019s schedule right now.'; return; }
+      if (!res || !res.ok || !res.schedule) { typeEl.textContent = 'Could not load today’s schedule right now.'; return; }
       schoolAccessLastSchedule = res.schedule;
       var s = res.schedule;
       var label = SCHOOL_ACCESS_SCHEDULE_LABELS[s.scheduleType] || s.scheduleType.toUpperCase();
@@ -5031,13 +5083,24 @@
         enforcementPill.style.color = enforcementOn ? '#ffb4c2' : '';
       }
       if (enforcementText) enforcementText.textContent = enforcementOn ? 'ON' : 'OFF';
+      if (effectiveEl) {
+        var bits = [];
+        if (res.eventOverride && res.eventOverride.qualifyingAccess) bits.push('Schoolwide override active');
+        if (res.deviceGroupAccess && res.deviceGroupAccess.qualifyingAccess) bits.push('Device-group unlock active');
+        if (res.individualGrant && res.individualGrant.qualifyingAccess) bits.push('Individual grant active on this browser');
+        if (!bits.length) {
+          bits.push(enforcementOn
+            ? (s.withinScheduledLock ? 'Within school lock window (enforcement on)' : 'Outside school lock window')
+            : 'Normal open access (schedule enforcement off)');
+        }
+        effectiveEl.textContent = 'Effective now: ' + bits.join(' · ');
+      }
     }
     var schoolAccessLastSchedule = null;
 
     /**
-     * Phase #33 — "Open Lantern Temporarily" global event override. Staff-only status/start/end
-     * endpoints (lantern_access_overrides, migration 050). Deliberately no "Open Forever" option
-     * anywhere in this UI or its API — every button here always sends a bounded expiration.
+     * Phase #33 / #171 — Schoolwide Access (lantern_access_overrides). Start/end are admin-only;
+     * GET .../override/active remains staff-readable. No "Open Forever" — every start is bounded.
      */
     function callOverrideApi(pathSuffix, body){
       var opts = { method: body ? 'POST' : 'GET', credentials: 'include' };
@@ -5054,7 +5117,7 @@
       if (avatarApiBase === null) return;
       var res = await callOverrideApi('active');
       var active = !!(res && res.ok && res.active);
-      statusPill.textContent = active ? 'Active' : 'Not Active';
+      statusPill.textContent = active ? 'Active' : 'Inactive';
       statusPill.style.background = active ? 'rgba(56,208,124,.25)' : '';
       statusPill.style.color = active ? '#8fe8b4' : '';
       if (inactiveBlock) inactiveBlock.style.display = active ? 'none' : 'block';

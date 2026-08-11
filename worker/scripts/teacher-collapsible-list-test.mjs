@@ -71,10 +71,10 @@ const requiredPanels = [
   ['#teacher-rewards', 'Rewards Panel'],
   ['#teacher-moderation', 'Moderation'],
   ['#teacher-shoutout-card', 'Shout-Out!'],
-  ['#schoolAccessStatusCard', "Today's School Status"],
-  ['#schoolAccessOverrideCard', 'Open Lantern Temporarily'],
+  ['#individualAccessCard', 'Individual Access'],
+  ['#schoolAccessOverrideCard', 'Schoolwide Access'],
   ['#classAccessCard', 'Class Access'],
-  ['#classroomDevicesCard', 'Classroom Devices'],
+  ['#classroomDevicesCard', 'Device Enrollment'],
   ['#teacherPersonaCard', 'Act As Teacher'],
   ['#shoutOutListPanel', 'Posted Shout-Outs'],
   ['#moderationLivePanel', 'Moderation live'],
@@ -115,10 +115,15 @@ if (/id="teacherCreateMissionDetails"[^>]*teacherCollapsibleList/.test(html) ||
   ok('Create New Mission uses shared teacherCollapsibleList');
 } else bad('Create New Mission not on shared disclosure pattern');
 
-if (/id="schoolAccessStatusCard"[^>]*teacherCollapsibleList/.test(html) ||
-    /class="card teacherCollapsibleList" id="schoolAccessStatusCard"/.test(html)) {
-  ok("Today's School Status uses shared teacherCollapsibleList");
-} else bad('School Status not converted to shared disclosure');
+if (/id="schoolAccessStatusCard"[^>]*schoolAccessStatusDashboard/.test(html) ||
+    /class="schoolAccessStatusDashboard" id="schoolAccessStatusCard"/.test(html)) {
+  ok('Current Access Status is always-open dashboard (not teacherCollapsibleList accordion)');
+} else bad('School Status dashboard markup missing');
+
+if (!/id="schoolAccessStatusCard"[^>]*teacherCollapsibleList/.test(html) &&
+    !/class="card teacherCollapsibleList" id="schoolAccessStatusCard"/.test(html)) {
+  ok('Current Access Status is not a collapsible accordion peer');
+} else bad('School Status must not use teacherCollapsibleList');
 
 if (/closeSiblingTopLevelPanels/.test(sharedJs)) {
   ok('shared helper implements one-open-section accordion for top-level peers');

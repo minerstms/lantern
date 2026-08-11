@@ -4077,9 +4077,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/class-access/override/start') {
-    // Every override MUST have an explicit expiration -- exactly one of duration_minutes (15/30/60),
-    // until_school_close, or custom_minutes (1..EVENT_OVERRIDE_MAX_CUSTOM_MINUTES) is required.
-    const auth = await requireStaffPilotSession(request, env, cors);
+    // Prompt #171 — schoolwide override is admin-only (teachers use Individual / Class Access).
+    const auth = await requireAdminPilotSession(request, env, cors);
     if (auth.response) return auth.response;
     const text = await request.text();
     let body;
@@ -4134,10 +4133,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/class-access/override/end') {
-    // "END OVERRIDE NOW" -- ends the active override immediately and server-side: the UPDATE
-    // below is the only thing any qualification check ever reads, so there is no delayed
-    // cleanup job to wait on and no way to "forget" an override is still open.
-    const auth = await requireStaffPilotSession(request, env, cors);
+    // Prompt #171 — schoolwide override end is admin-only.
+    const auth = await requireAdminPilotSession(request, env, cors);
     if (auth.response) return auth.response;
     const nowIso = new Date().toISOString();
     const result = await db.prepare(
