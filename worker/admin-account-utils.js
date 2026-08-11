@@ -46,7 +46,8 @@ export function validateStaffNamePart(raw, field, opts) {
   }
   const value = String(raw).trim();
   if (!value) {
-    return { ok: false, error: emptyError };
+    if (required) return { ok: false, error: emptyError };
+    return { ok: true, value: null };
   }
   if (value.length > STAFF_NAME_PART_MAX_LEN) {
     return { ok: false, error: tooLongError, max: STAFF_NAME_PART_MAX_LEN };

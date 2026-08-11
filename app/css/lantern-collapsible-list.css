@@ -122,10 +122,10 @@
   z-index: 1;
 }
 .lanternMgmtRecordListHd--staff {
-  grid-template-columns: minmax(88px, 0.75fr) minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(64px, 0.6fr) minmax(96px, 0.85fr) 28px;
+  grid-template-columns: minmax(72px, 0.65fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(64px, 0.55fr) minmax(110px, 1.1fr) minmax(88px, 0.75fr) 28px;
 }
 .lanternMgmtRecordListHd--students {
-  grid-template-columns: minmax(64px, 0.8fr) minmax(0, 1.4fr) minmax(48px, 0.5fr) minmax(72px, 0.8fr) minmax(72px, 0.8fr) 28px;
+  grid-template-columns: minmax(64px, 0.75fr) minmax(0, 0.95fr) minmax(0, 0.95fr) minmax(48px, 0.45fr) minmax(72px, 0.9fr) minmax(96px, 0.95fr) 28px;
 }
 .lanternMgmtRecordListHd--missions {
   grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.7fr) minmax(88px, 0.8fr) 28px;
@@ -162,10 +162,10 @@
   display: none;
 }
 .lanternMgmtRecord--staff > summary.lanternMgmtRecordHd {
-  grid-template-columns: minmax(88px, 0.75fr) minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(64px, 0.6fr) minmax(96px, 0.85fr) 28px;
+  grid-template-columns: minmax(72px, 0.65fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(64px, 0.55fr) minmax(110px, 1.1fr) minmax(88px, 0.75fr) 28px;
 }
 .lanternMgmtRecord--students > summary.lanternMgmtRecordHd {
-  grid-template-columns: minmax(64px, 0.8fr) minmax(0, 1.4fr) minmax(48px, 0.5fr) minmax(72px, 0.8fr) minmax(72px, 0.8fr) 28px;
+  grid-template-columns: minmax(64px, 0.75fr) minmax(0, 0.95fr) minmax(0, 0.95fr) minmax(48px, 0.45fr) minmax(72px, 0.9fr) minmax(96px, 0.95fr) 28px;
 }
 .lanternMgmtRecord--missions > summary.lanternMgmtRecordHd {
   grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.7fr) minmax(88px, 0.8fr) 28px;
@@ -262,4 +262,56 @@
   .lanternMgmtRecordCol {
     white-space: nowrap;
   }
+}
+
+/* Prompt #197 — staff Needs Attention + status chips */
+.staffNeedsAttention {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line, rgba(255, 255, 255, 0.12));
+}
+.staffNeedsAttentionList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.staffNeedsAttentionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  padding: 8px 10px;
+  font-size: 18px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+}
+.rosterStatusChip {
+  font-weight: 800;
+}
+.rosterStatusChip--warn {
+  color: #f0c674;
+}
+.rosterStatusChip--ok {
+  color: #7dcea0;
+}
+.rosterStatusChip--muted {
+  color: var(--muted, #b9c6ea);
+}
+.rosterStatusChip--bad {
+  color: #f1948a;
+}
+.staffBlLinkPanel {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line, rgba(255, 255, 255, 0.12));
+}
+.staffBlLinkPanel label {
+  display: block;
+  margin-top: 8px;
+}
+.staffBlLinkPanel select {
+  width: 100%;
+  max-width: 420px;
 }

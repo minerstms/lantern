@@ -124,25 +124,29 @@ function req(method, path, body, cookie) {
 }
 
 /* ---------- Static Admin UI contract ---------- */
-if (/id="adminStudentsCard"/.test(html) && /id="adminStaffCard"/.test(html)) ok('Students + Staff & Admin panels present');
+if (/id="adminStudentsCard"/.test(html) && /id="adminStaffCard"/.test(html)) ok('Students + Staff panels present');
 else bad('required panels missing');
 
-if (!/id="adminAccountsCard"/.test(html) && !/>\s*Accounts\s*</.test(html.replace(/Staff &amp; Admin|TMS Staff Links|Accounts created|account management/gi, ''))) {
+if (!/id="adminAccountsCard"/.test(html) && !/>\s*Accounts\s*</.test(html.replace(/Staff &amp; Admin|Staff|TMS Staff Links|Accounts created|account management/gi, ''))) {
   // softer: no adminAccountsCard id
 }
 if (!/id="adminAccountsCard"/.test(html)) ok('generic Accounts panel retired (no adminAccountsCard)');
 else bad('generic Accounts panel still present');
 
-if (/Staff &amp; Admin|Staff & Admin/.test(html) && /id="adminStaffCountPill"/.test(html)) ok('Staff & Admin title + count pill');
-else bad('Staff & Admin chrome missing');
+if (/>\s*Staff\s*</.test(html) && /id="adminStaffCountPill"/.test(html) && !/Staff &amp; Admin/.test(html)) ok('Staff title + count pill');
+else bad('Staff chrome missing');
 
 if (/nu_role[\s\S]{0,200}teacher[\s\S]{0,80}admin/.test(html) && !/id="nu_role"[\s\S]{0,120}<option value="student"/.test(html)) {
   ok('Add Staff role select excludes student');
 } else bad('Add Staff still offers student role');
 
-if (/Archive \/ Deactivate|Archive Lantern Login/.test(html) && /Restore Lantern Login|Restore/.test(html)) {
+if (/Archive Login|Archive<\/|Archive"/.test(html) && /Restore Login|Restore/.test(html)) {
   ok('Archive/Restore actions present in Admin UI');
 } else bad('Archive/Restore UI missing');
+
+if (/Create Lantern Login/.test(html) && /Behavior Logger Link/.test(html)) {
+  ok('Prompt #197 Create Lantern Login + Behavior Logger Link present');
+} else bad('Prompt #197 canonical actions missing');
 
 if (!/Delete account|deleteAccount|permanent delete/i.test(html)) ok('No normal Delete account UI');
 else bad('Destructive delete UI present');

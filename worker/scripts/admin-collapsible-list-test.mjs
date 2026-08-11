@@ -37,7 +37,7 @@ if (/LanternCollapsibleList/.test(sharedJs) && /teacherCollapsibleList/.test(sha
 
 const requiredPanels = [
   ['adminStudentsCard', 'Students'],
-  ['adminStaffCard', 'Staff & Admin'],
+  ['adminStaffCard', 'Staff'],
   ['tmsStaffLinksCard', 'TMS Staff Links'],
   ['walletAdjustmentCard', 'Nugget Adjustment'],
   ['feedModerationCard', 'Feed visibility'],
@@ -58,11 +58,11 @@ if (!/id="adminAccountsCard"/.test(html)) ok('generic Accounts panel retired');
 else bad('generic Accounts panel still present');
 
 if (/<details class="card teacherCollapsibleList" id="adminStaffCard"/.test(html)) {
-  ok('Staff & Admin is details.teacherCollapsibleList');
-} else bad('Staff & Admin not converted to details.teacherCollapsibleList');
+  ok('Staff is details.teacherCollapsibleList');
+} else bad('Staff not converted to details.teacherCollapsibleList');
 
-if (/id="adminStaffCountPill"/.test(html)) ok('Staff & Admin count pill present');
-else bad('Staff & Admin count pill missing');
+if (/id="adminStaffCountPill"/.test(html)) ok('Staff count pill present');
+else bad('Staff count pill missing');
 
 if (/teacherCollapsibleListScroll[\s\S]{0,200}id="usersBody"|id="usersBody"[\s\S]{0,80}lanternMgmtRecordList/.test(html) ||
     /class="teacherCollapsibleListScroll"[\s\S]{0,400}usersBody/.test(html)) {
@@ -76,6 +76,26 @@ if (/id="editUserPanel"/.test(html) && /id="tempPwPanel"/.test(html) && /id="add
 if (/\/api\/admin\/users\/reset-password/.test(html) && /\/api\/admin\/users/.test(html)) {
   ok('Account API endpoints untouched in Admin script');
 } else bad('Account API wiring missing');
+
+/* Prompt #197 — canonical Staff label; TMS Staff Links superseded (hidden, APIs kept) */
+if (/>\s*Staff\s*</.test(html) && !/Staff &amp; Admin/.test(html)) ok('Staff label is canonical (not Staff & Admin)');
+else bad('Staff label not renamed to Staff');
+
+if (/data-canonical-superseded="staff"/.test(html) && /id="tmsStaffLinksCard"[^>]*(hidden|display:\s*none)/.test(html.replace(/\s+/g, ' '))) {
+  ok('standalone TMS Staff Links superseded/hidden from normal Admin layout');
+} else bad('TMS Staff Links not marked superseded/hidden');
+
+if (/Behavior Logger Link/.test(html) && /Link Behavior Logger identity|Make Primary/.test(html) && /staffNeedsAttention/.test(html)) {
+  ok('Staff inline Behavior Logger link + Needs Attention present');
+} else bad('Staff Behavior Logger integration incomplete');
+
+if (/Create Lantern Login/.test(html) && /Missing Student ID/.test(html) && /studentsRosterFilter[\s\S]{0,400}value="active" selected/.test(html)) {
+  ok('Students canonical status + Create Lantern Login + Active default filter');
+} else bad('Students canonical UX incomplete');
+
+if (/\/api\/admin\/tms-staff/.test(html) && /loadTmsStaffDirectory/.test(html)) {
+  ok('TMS staff directory API wired for link select');
+} else bad('TMS staff directory wiring missing');
 
 /* Prompt #137 — former always-open form cards now use shared disclosure, collapsed by default */
 const defaultCollapsedIds = [
@@ -131,7 +151,7 @@ if (/\/api\/admin\/tms-roster\/set-grade/.test(html) && /studentsRosterGradeFilt
   ok('set-grade API + grade filter wired in Admin Students');
 } else bad('set-grade / grade filter wiring missing');
 
-if (/isStaffRole|filteredStaffList|Archive Lantern Login/.test(html)) {
+if (/isStaffRole|filteredStaffList|Archive Login/.test(html)) {
   ok('Staff-only filter + student archive actions present');
 } else bad('Staff filter / student archive wiring missing');
 

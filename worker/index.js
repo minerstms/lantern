@@ -1926,13 +1926,27 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         passwordPlain = generatedTempPassword;
       }
     } else {
+      // Prompt #197 — student Lantern login create may omit password; server issues one-time temp PW.
       const dnCheck = validateDisplayName(body.display_name, { required: true });
       if (!dnCheck.ok) {
         return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
       }
       displayName = dnCheck.value;
+      if (body.first_name != null || body.last_name != null) {
+        const fnOpt = validateStaffNamePart(body.first_name, 'first_name', { required: false });
+        if (!fnOpt.ok) {
+          return jsonResponse({ ok: false, error: fnOpt.error, max: fnOpt.max }, 400, cors);
+        }
+        const lnOpt = validateStaffNamePart(body.last_name, 'last_name', { required: false });
+        if (!lnOpt.ok) {
+          return jsonResponse({ ok: false, error: lnOpt.error, max: lnOpt.max }, 400, cors);
+        }
+        firstName = fnOpt.value;
+        lastName = lnOpt.value;
+      }
       if (!passwordPlain || passwordPlain.length < 8) {
-        return jsonResponse({ ok: false, error: 'username_and_password_required' }, 400, cors);
+        generatedTempPassword = generateStaffTempPassword();
+        passwordPlain = generatedTempPassword;
       }
     }
 
@@ -2241,6 +2255,74 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .all();
     }
     return jsonResponse({ ok: true, links: rows.results || [] }, 200, cors);
+  }
+
+  // Prompt #197 — Behavior Logger staff directory for Staff link picker + Needs Attention.
+  // Composes existing TMS staff table via lantern-bridge staff/list + tms_identity_links.
+  if (request.method === 'GET' && path === '/api/admin/tms-staff') {
+    const bridge = await callTmsRosterBridge(env, 'staff/list', {});
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null },
+        status,
+        cors
+      );
+    }
+    let linkRows;
+    try {
+      linkRows = await db
+        .prepare(
+          `SELECT id, tms_staff_id, lantern_username, is_primary FROM tms_identity_links`
+        )
+        .all();
+    } catch (_) {
+      linkRows = await db
+        .prepare(`SELECT tms_staff_id, lantern_username FROM tms_identity_links`)
+        .all();
+    }
+    const links = linkRows.results || [];
+    const byTms = {};
+    links.forEach((l) => {
+      const tid = String(l.tms_staff_id || '').trim();
+      if (!tid) return;
+      if (!byTms[tid]) byTms[tid] = [];
+      byTms[tid].push({
+        id: l.id != null ? Number(l.id) : null,
+        lantern_username: String(l.lantern_username || '').trim(),
+        is_primary: Number(l.is_primary) === 1 ? 1 : 0,
+      });
+    });
+    const staff = (Array.isArray(bridge.staff) ? bridge.staff : []).map((s) => {
+      const tid = String(s.tms_staff_id || '').trim();
+      const linked = byTms[tid] || [];
+      return {
+        tms_staff_id: tid,
+        teacher_name: String(s.teacher_name || '').trim(),
+        teacher_email: String(s.teacher_email || '').trim(),
+        role: String(s.role || '').trim(),
+        is_admin: !!s.is_admin,
+        link_count: linked.length,
+        lantern_usernames: linked.map((x) => x.lantern_username).filter(Boolean),
+        has_primary: linked.some((x) => x.is_primary === 1),
+        lantern_linked: linked.length > 0,
+      };
+    });
+    const needsAttention = staff.filter((s) => !s.lantern_linked);
+    return jsonResponse(
+      {
+        ok: true,
+        staff,
+        needs_attention: needsAttention,
+        counts: {
+          total: staff.length,
+          linked: staff.filter((s) => s.lantern_linked).length,
+          needs_attention: needsAttention.length,
+        },
+      },
+      200,
+      cors
+    );
   }
 
   if (request.method === 'POST' && path === '/api/admin/tms-identity-links/primary') {

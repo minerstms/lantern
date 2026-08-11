@@ -626,10 +626,11 @@ async function testPrimaryWinsReverseSso() {
         new Request('https://x.test/api/auth/tms-exchange?code=abc123', { method: 'GET' }),
         env
       );
-      if (res.status !== 302 || res.headers.get('Location') !== '/teacher.html') {
+      const loc = res.headers.get('Location') || '';
+      if (res.status !== 302 || (loc !== '/teacher.html' && loc !== '/teacher')) {
         return bad('primary reverse SSO must land in teacher account session', {
           status: res.status,
-          loc: res.headers.get('Location'),
+          loc,
         });
       }
       const setCookie = res.headers.get('Set-Cookie') || '';
@@ -680,9 +681,17 @@ function testAdminUiPresentAndSafe() {
   const html = fs.readFileSync(adminPath, 'utf8');
   if (!/TMS Staff Links/.test(html)) return bad('admin.html missing TMS Staff Links section');
   if (!/tms-identity-links/.test(html)) return bad('admin.html missing tms-identity-links API calls');
-  if (!/Link Accounts/.test(html) || !/Unlink/.test(html)) return bad('admin.html missing Link/Unlink actions');
+  if (!/Link Accounts|Link Behavior Logger identity/.test(html) || !/Unlink/.test(html)) {
+    return bad('admin.html missing Link/Unlink actions');
+  }
   if (!/Make Primary/.test(html) || !/is_primary/.test(html)) {
     return bad('admin.html missing Primary designation UI');
+  }
+  if (!/data-canonical-superseded="staff"/.test(html)) {
+    return bad('TMS Staff Links must be marked superseded by Staff');
+  }
+  if (!/Behavior Logger Link/.test(html) || !/staffNeedsAttention/.test(html)) {
+    return bad('Staff must host Behavior Logger link + Needs Attention');
   }
   const cardStart = html.indexOf('id="tmsStaffLinksCard"');
   const cardEnd = html.indexOf('id="walletAdjustmentCard"');
