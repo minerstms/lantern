@@ -176,20 +176,25 @@ async function main() {
   assert(activeMissionsText === '1', 'Overview Active Missions count reflects real mission data: ' + activeMissionsText);
 
   // ---------------------------------------------------------------------------
-  // Prompt #78 — compact header, no redundant Sign out, Hallway TV moved to sidebar
+  // Prompt #78/#195/#198 — no redundant identity banner; shell is sidebar + main only
   // ---------------------------------------------------------------------------
   assert(await page.locator('#teacherLogoutBtn').count() === 0, 'Teacher-page-specific Sign out button has been removed (global Lantern nav already provides logout)');
   assert(await page.locator('#lanternAppBarRoot').count() === 1, 'Global Lantern nav mount point is still present and unaffected');
   assert(await page.locator('.teacherActionRow').count() === 0, 'Old centered header action row (Hallway TV + Sign out buttons) no longer exists');
-  const headerBox = await page.locator('#teacherPageTop').boundingBox();
-  // Prompt #78 compact header; Prompt #145 removed the Behavior|Teacher primary nav row.
-  assert(!!headerBox && headerBox.height < 120, 'Teacher identity header is compact, not a giant hero (< 120px tall): ' + (headerBox && headerBox.height));
+  assert(await page.locator('.teacherIdentityRow').count() === 0, 'Redundant Teacher identity banner remains absent');
+  const pageTopInsideShell = await page.evaluate(() => {
+    const top = document.getElementById('teacherPageTop');
+    const shell = document.getElementById('teacherAppShell');
+    return !!(top && shell && shell.contains(top));
+  });
+  assert(!pageTopInsideShell, '#teacherPageTop is not nested inside #teacherAppShell (Prompt #198 grid regression guard)');
   const shellBox = await page.locator('#teacherAppShell').boundingBox();
-  assert(!!shellBox && !!headerBox, 'Teacher header and app shell both have layout boxes');
-  const headerCenter = headerBox.x + headerBox.width / 2;
-  const shellCenter = shellBox.x + shellBox.width / 2;
-  assert(Math.abs(headerCenter - shellCenter) <= 2, 'Teacher header shares horizontal center with sidebar+main shell (Δ=' + Math.abs(headerCenter - shellCenter).toFixed(2) + 'px)');
-  assert(Math.abs(headerBox.width - shellBox.width) <= 2, 'Teacher header width matches workspace shell max-width rail (Δ=' + Math.abs(headerBox.width - shellBox.width).toFixed(2) + 'px)');
+  const sidebarBox = await page.locator('#teacherSidebar').boundingBox();
+  const mainBox = await page.locator('#teacherMain').boundingBox();
+  assert(!!shellBox && !!sidebarBox && !!mainBox, 'Teacher shell, sidebar, and main all have layout boxes');
+  assert(sidebarBox.width >= 180 && sidebarBox.width <= 320, 'Desktop sidebar is compact (~240px), not full page width: ' + sidebarBox.width);
+  assert(mainBox.x >= sidebarBox.x + sidebarBox.width - 4, 'Main content sits to the right of the sidebar');
+  assert(mainBox.width > sidebarBox.width * 1.5, 'Main content uses remaining width (not the 240px grid cell): ' + mainBox.width);
   const hallwayTvLink = page.locator('a.teacherSidebarItem[href="display.html"]');
   assert(await hallwayTvLink.count() === 1, 'Hallway TV is available as a sidebar destination/link');
   assert(((await hallwayTvLink.innerText()) || '').indexOf('Hallway TV') !== -1, 'Hallway TV sidebar item is labeled correctly');

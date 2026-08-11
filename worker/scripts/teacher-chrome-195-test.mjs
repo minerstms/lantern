@@ -37,5 +37,15 @@ assert(/id="lanternAppBarRoot"/.test(html), '16. global header root present');
 assert(/Review Submissions/.test(help) && /Lantern Access/.test(help), '17. help copy updated');
 assert(!/Review Queue/.test(help) && !/School Access:/.test(help), '18. help no old feature names');
 
+/* Prompt #198 — empty #teacherPageTop must not be a .teacherAppShell CSS Grid child */
+assert(/id="teacherPageTop"/.test(html), '19. #teacherPageTop anchor still present for Back-to-top');
+assert(
+  /id="teacherPageTop"[\s\S]{0,400}?id="teacherAppShell"/.test(html) &&
+    !/<div[^>]*id="teacherAppShell"[^>]*>[\s\S]{0,200}?id="teacherPageTop"/.test(html),
+  '20. #teacherPageTop precedes teacherAppShell and is not nested inside it'
+);
+assert(/\.teacherAppShell\{[\s\S]*?grid-template-columns:\s*240px\s+minmax\(0,\s*1fr\)/.test(html), '21. desktop shell remains 240px + 1fr grid');
+assert(!/transform:\s*scale\(|\bzoom\s*:/.test(html), '22. no scale/zoom layout hacks');
+
 console.log('\nteacher-chrome-195-test:', pass, 'PASS', fail, 'FAIL');
 process.exit(fail ? 1 : 0);

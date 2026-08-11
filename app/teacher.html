@@ -1416,6 +1416,8 @@
     <!-- Prompt #145/#146: staff workspace switching uses the shared Lantern ▼ STAFF menu
          (Teacher Tools / Behavior Logger). Display Board stays under Hallway TV in the sidebar. -->
     <!-- Prompt #195 — Teacher identity banner omitted; do not reintroduce. -->
+    <!-- Prompt #198 — #teacherPageTop must NOT be a .teacherAppShell grid child (empty span
+         stole the 240px column and collapsed main into a tiny second-row cell). -->
     <script>
       (function () {
         if (window.LanternRememberDevice && typeof window.LanternRememberDevice.absorbDeviceRememberedQuery === 'function') {
@@ -1424,9 +1426,8 @@
       })();
     </script>
 
+    <span id="teacherPageTop"></span>
     <div class="teacherAppShell" id="teacherAppShell" data-teacher-page-top>
-      <!-- Prompt #195 — #teacherPageTop id kept for Back-to-top anchors; no identity banner. -->
-      <span id="teacherPageTop"></span>
       <button type="button" class="teacherMobileMenuBtn" id="teacherMobileMenuBtn" aria-expanded="false" aria-controls="teacherSidebar">☰ Workspaces</button>
       <div class="teacherSidebarScrim" id="teacherSidebarScrim"></div>
       <aside class="teacherSidebar" id="teacherSidebar" aria-label="Teacher workspaces">
