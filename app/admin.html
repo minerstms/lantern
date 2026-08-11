@@ -254,6 +254,8 @@
       <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
       <label for="editUserLastName">Last Name</label>
       <input id="editUserLastName" type="text" maxlength="64" autocomplete="off" required />
+      <label for="editUserEmail">School email</label>
+      <input id="editUserEmail" type="email" maxlength="120" autocomplete="off" placeholder="first.last@trinidad.k12.co.us" />
       <label for="editUserRole">Role</label>
       <select id="editUserRole"><option value="teacher">teacher</option><option value="admin">admin</option></select>
       <label for="editUserActive">Account status</label>
@@ -315,6 +317,8 @@
         <input id="nu_last" type="text" required maxlength="64" autocomplete="off" />
         <label for="nu_username">Login username</label>
         <input id="nu_username" type="text" required autocomplete="off" />
+        <label for="nu_email">School email (optional)</label>
+        <input id="nu_email" type="email" maxlength="120" autocomplete="off" placeholder="first.last@trinidad.k12.co.us" />
         <label>Role
           <select id="nu_role"><option value="teacher">teacher</option><option value="admin">admin</option></select>
         </label>
@@ -1125,6 +1129,7 @@
       var actSel = document.getElementById('editUserActive');
       var fnInput = document.getElementById('editUserFirstName');
       var lnInput = document.getElementById('editUserLastName');
+      var emailInput = document.getElementById('editUserEmail');
       var mcpSel = document.getElementById('editUserMustChangePw');
       if (disp) disp.textContent = 'Login username: ' + user + ' (unchanged)';
       if (staffIdEl) staffIdEl.textContent = formatStaffIdLabel(u.staff_id) + ' — permanent, not editable';
@@ -1135,6 +1140,7 @@
       if (hid) hid.value = user;
       if (fnInput) fnInput.value = u.first_name != null ? String(u.first_name).trim() : '';
       if (lnInput) lnInput.value = u.last_name != null ? String(u.last_name).trim() : '';
+      if (emailInput) emailInput.value = u.email != null ? String(u.email).trim() : '';
       if (roleSel) {
         var rv = String(u.role || 'teacher').trim().toLowerCase();
         if (rv !== 'admin' && rv !== 'teacher') rv = 'teacher';
@@ -1169,6 +1175,7 @@
       var username = (document.getElementById('editUserUsername').value || '').trim();
       var firstName = (document.getElementById('editUserFirstName').value || '').trim();
       var lastName = (document.getElementById('editUserLastName').value || '').trim();
+      var email = (document.getElementById('editUserEmail') && document.getElementById('editUserEmail').value || '').trim();
       var role = (document.getElementById('editUserRole').value || 'teacher').trim();
       var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
       var mustChange = parseInt(document.getElementById('editUserMustChangePw').value, 10) ? true : false;
@@ -1195,6 +1202,7 @@
         username: username,
         first_name: firstName,
         last_name: lastName,
+        email: email,
         role: role,
         is_active: act,
         must_change_password: mustChange ? 1 : 0
@@ -1349,6 +1357,7 @@
           '</summary>' +
           '<div class="lanternMgmtRecordBd">' +
             '<p class="lanternMgmtRecordMeta">Must change password: ' + esc(mcpLabel) +
+              (u.email ? ' · Email: ' + esc(String(u.email)) : '') +
               (needsName ? ' · Needs Name Setup' : '') +
               (u.display_name && needsName ? ' · Current display: ' + esc(String(u.display_name)) : '') +
             '</p>' +
@@ -1451,6 +1460,8 @@
         last_name: lastName,
         role: role
       };
+      var email = (document.getElementById('nu_email') && document.getElementById('nu_email').value || '').trim();
+      if (email) body.email = email;
       var tid = document.getElementById('nu_teacher_id').value.trim();
       if (tid) body.teacher_id = tid;
       postAdminJson('/api/admin/users', body).then(function(res){

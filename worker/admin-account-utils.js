@@ -89,6 +89,37 @@ export function formatStaffIdLabel(staffId) {
   return `Staff #${String(Math.trunc(n)).padStart(4, '0')}`;
 }
 
+const STAFF_EMAIL_MAX_LEN = 120;
+const STAFF_EMAIL_DOMAIN = 'trinidad.k12.co.us';
+
+/**
+ * Optional school email for staff/admin (Prompt #170). Empty clears.
+ * @param {unknown} raw
+ * @param {{ required?: boolean }} opts
+ */
+export function validateStaffEmail(raw, opts) {
+  const required = !!(opts && opts.required);
+  if (raw == null || raw === undefined) {
+    if (required) return { ok: false, error: 'email_required' };
+    return { ok: true, value: null };
+  }
+  const value = String(raw).trim().toLowerCase();
+  if (!value) {
+    if (required) return { ok: false, error: 'email_required' };
+    return { ok: true, value: null };
+  }
+  if (value.length > STAFF_EMAIL_MAX_LEN) {
+    return { ok: false, error: 'email_too_long', max: STAFF_EMAIL_MAX_LEN };
+  }
+  // Allow known school domain addresses and existing legacy TMS values already stored.
+  if (!/^[a-z0-9][a-z0-9._+-]*@[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) {
+    return { ok: false, error: 'email_invalid' };
+  }
+  return { ok: true, value };
+}
+
+export { STAFF_EMAIL_DOMAIN, STAFF_EMAIL_MAX_LEN };
+
 /**
  * Allocate next never-reused Staff ID via AUTOINCREMENT table.
  * Do NOT use MAX(staff_id)+1.
@@ -158,7 +189,7 @@ export async function fetchAdminUserRow(db, username) {
   if (!db || !username) return null;
   return db
     .prepare(
-      `SELECT username, display_name, first_name, last_name, staff_id, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      `SELECT username, display_name, first_name, last_name, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
     )
     .bind(String(username))
     .first();

@@ -1,0 +1,39 @@
+-- Prompt #170 — AUDIT RECORD of production import applied 2026-08-11 (UTC).
+-- This file documents the successful apply. It is NOT re-executable as-is
+-- (idempotent importer: node worker/scripts/import-real-staff-170.mjs --live --apply).
+--
+-- BEFORE: staff/admin=6, tms_identity_links=1 (Radle→Rick Radle), students=3
+-- AFTER:  staff/admin=34, tms_identity_links=19, students=3
+-- Actions: CREATE 28, UPDATE 3 (Rick Radle, alyssa.glorioso, lisa.glorioso), CONFLICT 0
+-- New accounts: password_hash/salt NULL (password_not_set until admin temp password)
+-- Existing passwords untouched. Rick remains role=admin, username="Rick Radle", staff_id=1.
+--
+-- UPDATED:
+--   Rick Radle → first_name=Rick, last_name=Radle, email=rick.radle@trinidad.k12.co.us (username/role/password preserved)
+--   alyssa.glorioso → email=alyssa.glorioso@trinidad.k12.co.us
+--   lisa.glorioso → email=lisa.glorioso@trinidad.k12.co.us
+--
+-- CREATED (teacher, staff_id 7..34, uninitialized password):
+--   amanda.cooper, ashleigh.ackerman, ashley.cordova, charles.glorioso, darcy.dunker,
+--   deana.pachelli, eric.colorado, frank.begano, harmonee.valdez, jeffrey.hecht,
+--   jessie.russett, kristina.vezzani, michael.peitsmeyer, mychaela.vecellio, nickol.dominguez,
+--   norma.rice, preston.russett, rebecca.wilson, sara.wilson, shanda.vasquez,
+--   sherry.garcia, sherry.hinchley, steph.garcia, theresa.sanchez, tom.romero,
+--   vincent.gumlich, xander.wilson, je.lynn
+--
+-- TMS links created (exact name or exact email only):
+--   AGlorioso→alyssa.glorioso, CGlorioso→charles.glorioso, Pachelli→deana.pachelli,
+--   Begano→frank.begano, Valdez→harmonee.valdez, Hecht→jeffrey.hecht,
+--   JRussett→jessie.russett, Vezzani→kristina.vezzani, LGlorioso→lisa.glorioso,
+--   Peitsmeyer→michael.peitsmeyer, Vecellio→mychaela.vecellio, Dominguez→nickol.dominguez,
+--   PRussett→preston.russett, BWilson→rebecca.wilson, SWilson→sara.wilson,
+--   Hinchley→sherry.hinchley, Garcia→steph.garcia, Gumlich→vincent.gumlich
+--   (unchanged: Radle→Rick Radle)
+--
+-- UNLINKED (no exact TMS match / spelling mismatch left for manual review):
+--   amanda.cooper, ashleigh.ackerman (TMS Ashliegh/ashliegh.*), ashley.cordova,
+--   darcy.dunker, eric.colorado, norma.rice, shanda.vasquez, sherry.garcia,
+--   theresa.sanchez, tom.romero, xander.wilson, je.lynn
+--
+-- LEFTOVER (not deleted): rick.radle teacher clone (staff_id=4); teacher1/teacher2 archived pilots.
+SELECT 1;

@@ -12,6 +12,7 @@ import {
   generateStaffTempPassword,
   isStaffAccountRole,
   validateDisplayName,
+  validateStaffEmail,
   validateStaffNamePart,
 } from './admin-account-utils.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed-handlers.js';
@@ -1777,7 +1778,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const rows = await db
       .prepare(
-        `SELECT username, display_name, first_name, last_name, staff_id, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
+        `SELECT username, display_name, first_name, last_name, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
     return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
@@ -1808,8 +1809,10 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     let firstName = null;
     let lastName = null;
     let staffId = null;
+    let email = null;
     let passwordPlain = String(body.password || '');
     let generatedTempPassword = null;
+    let deferCredentials = body.defer_credentials === true || body.uninitialized_password === true;
 
     if (isStaffAccountRole(role)) {
       const fnCheck = validateStaffNamePart(body.first_name, 'first_name', { required: true });
@@ -1828,12 +1831,17 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         return jsonResponse({ ok: false, error: dnCheck.error, max: dnCheck.max }, 400, cors);
       }
       displayName = dnCheck.value;
+      const emailCheck = validateStaffEmail(body.email, { required: false });
+      if (!emailCheck.ok) {
+        return jsonResponse({ ok: false, error: emailCheck.error, max: emailCheck.max }, 400, cors);
+      }
+      email = emailCheck.value;
       try {
         staffId = await allocateStaffId(db);
       } catch (_) {
         return jsonResponse({ ok: false, error: 'staff_id_allocation_failed' }, 500, cors);
       }
-      if (!passwordPlain || passwordPlain.length < 8) {
+      if (!deferCredentials && (!passwordPlain || passwordPlain.length < 8)) {
         generatedTempPassword = generateStaffTempPassword();
         passwordPlain = generatedTempPassword;
       }
@@ -1848,8 +1856,18 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       }
     }
 
-    const salt = pilotRandomSaltHex();
-    const hash = await pilotHashPassword(passwordPlain, salt);
+    let salt = null;
+    let hash = null;
+    let mustChange = 0;
+    let resetAt = null;
+    let resetBy = null;
+    if (!(isStaffAccountRole(role) && deferCredentials)) {
+      salt = pilotRandomSaltHex();
+      hash = await pilotHashPassword(passwordPlain, salt);
+      mustChange = 1;
+      resetAt = null; // set via datetime in SQL
+      resetBy = String(account.username || '').trim() || 'admin';
+    }
     const scn = body.student_character_name != null ? String(body.student_character_name).trim() : null;
     const tid = body.teacher_id != null ? String(body.teacher_id).trim() : null;
     const mtssId =
@@ -1857,11 +1875,38 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         ? String(body.mtss_student_id).trim()
         : null;
     const adminUsername = String(account.username || '').trim() || 'admin';
+    if (email) {
+      const clash = await db
+        .prepare(
+          `SELECT username FROM lantern_pilot_accounts WHERE lower(trim(email)) = lower(trim(?)) LIMIT 1`
+        )
+        .bind(email)
+        .first();
+      if (clash && String(clash.username) !== u) {
+        return jsonResponse({ ok: false, error: 'email_taken' }, 409, cors);
+      }
+    }
     const ins = await db
       .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, staff_id, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), ?)`
+        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, staff_id, email, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, ?, CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END, ?)`
       )
-      .bind(u, displayName, firstName, lastName, staffId, role, hash, salt, scn || null, tid || null, mtssId, adminUsername)
+      .bind(
+        u,
+        displayName,
+        firstName,
+        lastName,
+        staffId,
+        email,
+        role,
+        hash,
+        salt,
+        scn || null,
+        tid || null,
+        mtssId,
+        mustChange,
+        mustChange,
+        mustChange ? adminUsername : null
+      )
       .run();
     if (!ins.success) {
       return jsonResponse({ ok: false, error: 'insert_failed' }, 500, cors);
@@ -1870,11 +1915,15 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const payload = {
       ok: true,
       username: u,
-      user: created || { username: u, staff_id: staffId, display_name: displayName, first_name: firstName, last_name: lastName },
+      user: created || { username: u, staff_id: staffId, display_name: displayName, first_name: firstName, last_name: lastName, email },
     };
     if (generatedTempPassword) {
       payload.temporary_password = generatedTempPassword;
       payload.must_change_password = true;
+    }
+    if (deferCredentials) {
+      payload.credentials_deferred = true;
+      payload.must_change_password = false;
     }
     return jsonResponse(payload, 200, cors);
   }
@@ -1930,7 +1979,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const existing = await db
       .prepare(
-        `SELECT username, role, staff_id, first_name, last_name, display_name FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+        `SELECT username, role, staff_id, first_name, last_name, display_name, email FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
       )
       .bind(u)
       .first();
@@ -2003,6 +2052,28 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       await db
         .prepare(`UPDATE lantern_pilot_accounts SET display_name = ?, updated_at = datetime('now') WHERE username = ?`)
         .bind(dnCheck.value, targetUser)
+        .run();
+    }
+
+    if (body.email !== undefined && isStaffAccountRole(existing.role)) {
+      const emailCheck = validateStaffEmail(body.email, { required: false });
+      if (!emailCheck.ok) {
+        return jsonResponse({ ok: false, error: emailCheck.error, max: emailCheck.max }, 400, cors);
+      }
+      if (emailCheck.value) {
+        const clash = await db
+          .prepare(
+            `SELECT username FROM lantern_pilot_accounts WHERE lower(trim(email)) = lower(trim(?)) AND lower(trim(username)) != lower(trim(?)) LIMIT 1`
+          )
+          .bind(emailCheck.value, targetUser)
+          .first();
+        if (clash) {
+          return jsonResponse({ ok: false, error: 'email_taken' }, 409, cors);
+        }
+      }
+      await db
+        .prepare(`UPDATE lantern_pilot_accounts SET email = ?, updated_at = datetime('now') WHERE username = ?`)
+        .bind(emailCheck.value, targetUser)
         .run();
     }
 
