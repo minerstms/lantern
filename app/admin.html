@@ -536,10 +536,11 @@
         if (d && d.ok && d.authenticated) {
           adminSessionMeta.username = String(d.username || '');
           adminSessionMeta.display_name = d.display_name != null ? String(d.display_name).trim() : '';
+          if (typeof populateWalletStudentSelect === 'function') populateWalletStudentSelect();
         }
       }).catch(function(){});
     }
-    /** Student economy key (MTSS id preferred). Staff/admin use staff:<username>. */
+    /** Student economy key (MTSS id preferred). Staff/admin use durable staff_id:<id> when present. */
     function walletEconomyCharacterName(u) {
       if (!u) return '';
       var role = String(u.role || '').trim().toLowerCase();
@@ -551,6 +552,8 @@
         return String(u.username || '').trim();
       }
       if (role === 'teacher' || role === 'admin') {
+        var sid = u.staff_id != null ? Number(u.staff_id) : 0;
+        if (isFinite(sid) && sid > 0) return 'staff_id:' + Math.floor(sid);
         var un = String(u.username || '').trim();
         return un ? ('staff:' + un) : '';
       }
@@ -571,11 +574,13 @@
     function nuggetAdjOptionLabel(u) {
       var role = String(u.role || '').trim().toLowerCase();
       var name = nuggetAdjDisplayName(u);
+      var uname = String(u.username || '').trim();
       if (role === 'student') {
         var sid = u.mtss_student_id != null ? String(u.mtss_student_id).trim() : '';
         return name + (sid ? ' · ID ' + sid : '') + ' · student';
       }
-      return name + ' · ' + role;
+      var staffLabel = formatStaffIdLabel(u.staff_id);
+      return name + ' · ' + role + ' · ' + uname + (staffLabel !== '—' ? ' · ' + staffLabel : '');
     }
     var walletAdjLastBalance = null;
     var walletAdjPendingIdempotencyKey = '';
@@ -982,6 +987,7 @@
       var sel = document.getElementById('walletAdjStudent');
       if (!sel) return;
       var prev = sel.value;
+      var sessionUser = String(adminSessionMeta.username || '').trim();
       var q = (document.getElementById('walletAdjSearch') && document.getElementById('walletAdjSearch').value || '').trim().toLowerCase();
       sel.innerHTML = '<option value="">— Select account —</option>';
       var count = 0;
@@ -991,7 +997,7 @@
         if (!q) return true;
         var hay = [
           u.username, u.display_name, u.first_name, u.last_name, u.role,
-          u.mtss_student_id, u.student_character_name, u.teacher_id
+          u.mtss_student_id, u.student_character_name, u.teacher_id, u.staff_id
         ].map(function(x){ return x != null ? String(x) : ''; }).join(' ').toLowerCase();
         return hay.indexOf(q) !== -1;
       }).sort(function(a, b){
@@ -1001,7 +1007,9 @@
         var da = order[ra] != null ? order[ra] : 9;
         var db = order[rb] != null ? order[rb] : 9;
         if (da !== db) return da - db;
-        return nuggetAdjDisplayName(a).localeCompare(nuggetAdjDisplayName(b));
+        var an = nuggetAdjDisplayName(a).localeCompare(nuggetAdjDisplayName(b));
+        if (an !== 0) return an;
+        return String(a.username || '').localeCompare(String(b.username || ''));
       });
       rows.forEach(function(u){
         var opt = document.createElement('option');
@@ -1010,7 +1018,12 @@
         sel.appendChild(opt);
         count++;
       });
-      if (prev && Array.prototype.some.call(sel.options, function(o){ return o.value === prev; })) sel.value = prev;
+      // Prefer prior selection, else signed-in admin account (exact username — not display-name twin).
+      if (prev && Array.prototype.some.call(sel.options, function(o){ return o.value === prev; })) {
+        sel.value = prev;
+      } else if (sessionUser && Array.prototype.some.call(sel.options, function(o){ return o.value === sessionUser; })) {
+        sel.value = sessionUser;
+      }
       if (count === 0) {
         var o = document.createElement('option');
         o.value = '';

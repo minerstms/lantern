@@ -1,5 +1,5 @@
 import { tmsEconomyTransact, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
-import { parseStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
+import { isStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
 
 /**
  * Server-authoritative mission approval rewards — exactly-once (Prompt #66).
@@ -47,7 +47,7 @@ export async function creditMissionApprovalReward(db, characterName, submissionI
   const env = opts && opts.env;
   if (env) {
     // Prompt #107 — staff participant rewards go to TMS staff principal, never a fake student row.
-    if (parseStaffEconomyKey(key)) {
+    if (isStaffEconomyKey(key)) {
       const staffPrincipal = await resolveStaffTmsPrincipal(db, key);
       if (!staffPrincipal.ok) {
         return { ok: false, error: 'tms_identity_not_linked' };

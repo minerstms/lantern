@@ -72,9 +72,25 @@ function makeEnv(state) {
           const key = String(binds[0] || '').trim().toLowerCase();
           return state.accounts[key] || null;
         }
-        if (s.includes('FROM tms_identity_links WHERE lantern_username = ?')) {
-          const id = state.identityLinksByUsername[String(binds[0] || '').trim()];
+        if (
+          s.includes('FROM tms_identity_links WHERE lower(trim(lantern_username))') ||
+          s.includes('FROM tms_identity_links WHERE lantern_username = ?')
+        ) {
+          const raw = String(binds[0] || '').trim();
+          const lower = raw.toLowerCase();
+          let id = state.identityLinksByUsername[raw] || state.identityLinksByUsername[lower] || null;
+          if (!id) {
+            for (const [k, v] of Object.entries(state.identityLinksByUsername)) {
+              if (String(k).trim().toLowerCase() === lower) {
+                id = v;
+                break;
+              }
+            }
+          }
           return id ? { tms_staff_id: id } : null;
+        }
+        if (s.includes('FROM tms_identity_links WHERE lantern_staff_id') || s.includes('INNER JOIN lantern_pilot_accounts')) {
+          return null;
         }
         return null;
       },

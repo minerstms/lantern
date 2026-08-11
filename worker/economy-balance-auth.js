@@ -1,11 +1,13 @@
 /**
  * Resolve which economy character_name may be read for GET /api/economy/balance.
  * Self wallet (no query param) always derives from authenticated session.
- * Prompt #107: staff self key is staff:<lantern_username> (not a fabricated student id).
+ * Prompt #107/#176: prefer durable staff_id:<id>; fall back to staff:<username>.
  */
 
 export function staffEconomyKey(account) {
   if (!account) return '';
+  const sid = account.staff_id != null ? Number(account.staff_id) : 0;
+  if (Number.isFinite(sid) && sid > 0) return 'staff_id:' + Math.floor(sid);
   const u = account.username != null ? String(account.username).trim() : '';
   return u ? ('staff:' + u) : '';
 }

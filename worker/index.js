@@ -24,7 +24,7 @@ import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
-import { parseStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
+import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount } from './staff-economy.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
@@ -948,7 +948,7 @@ async function getPilotAccountFromRequest(request, env) {
   if (!payload || !payload.sub) return null;
   const row = await db
     .prepare(
-      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      `SELECT username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, staff_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
     )
     .bind(String(payload.sub))
     .first();
@@ -1208,12 +1208,12 @@ function tmsDeviceAuthorizeFailurePage(errorCode, cors) {
  * An account with no row here simply cannot use the Nuggets bridge (fail closed) -- never guessed
  * from display name.
  */
+/**
+ * Prompt #95/#176 -- Lantern account → TMS staff id via shared durable resolver
+ * (username lower/trim, then immutable lantern staff_id). Never guessed from display name.
+ */
 async function getTmsStaffIdForLanternAccount(db, username) {
-  const row = await db
-    .prepare('SELECT tms_staff_id FROM tms_identity_links WHERE lantern_username = ?')
-    .bind(String(username || '').trim())
-    .first();
-  return row && row.tms_staff_id ? String(row.tms_staff_id) : '';
+  return resolveTmsStaffIdForLanternAccount(db, username);
 }
 
 /**
@@ -2198,7 +2198,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'invalid_lantern_username' }, 400, cors);
     }
     const target = await db
-      .prepare(`SELECT username, role, is_active FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`)
+      .prepare(`SELECT username, role, is_active, staff_id FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`)
       .bind(lanternUsername)
       .first();
     if (!target) {
@@ -2216,13 +2216,24 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'lantern_account_inactive' }, 400, cors);
     }
     const adminUsername = String(account.username || '').trim() || 'admin';
+    const lanternStaffId = target.staff_id != null && Number(target.staff_id) > 0 ? Math.floor(Number(target.staff_id)) : null;
     try {
-      await db
-        .prepare(
-          `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, created_at, created_by) VALUES (?, ?, datetime('now'), ?)`
-        )
-        .bind(tmsStaffId, target.username, adminUsername)
-        .run();
+      try {
+        await db
+          .prepare(
+            `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, lantern_staff_id, created_at, created_by) VALUES (?, ?, ?, datetime('now'), ?)`
+          )
+          .bind(tmsStaffId, target.username, lanternStaffId, adminUsername)
+          .run();
+      } catch (colErr) {
+        // Pre-migration 062: column may not exist yet.
+        await db
+          .prepare(
+            `INSERT INTO tms_identity_links (tms_staff_id, lantern_username, created_at, created_by) VALUES (?, ?, datetime('now'), ?)`
+          )
+          .bind(tmsStaffId, target.username, adminUsername)
+          .run();
+      }
     } catch (e) {
       const msg = e && e.message ? String(e.message) : '';
       if (/UNIQUE constraint failed/i.test(msg)) {
@@ -2230,7 +2241,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       }
       throw e;
     }
-    return jsonResponse({ ok: true, tms_staff_id: tmsStaffId, lantern_username: target.username }, 200, cors);
+    return jsonResponse({ ok: true, tms_staff_id: tmsStaffId, lantern_username: target.username, lantern_staff_id: lanternStaffId }, 200, cors);
   }
 
   if (request.method === 'DELETE' && path === '/api/admin/tms-identity-links') {
@@ -4487,7 +4498,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
 
     // Prompt #107 — staff self wallet uses staff:<username> → tms_identity_links → TMS staff ledger.
     // Never fabricate a student row or show a misleading 0 for unlinked staff.
-    if (parseStaffEconomyKey(characterName)) {
+    if (isStaffEconomyKey(characterName)) {
       const staffPrincipal = await resolveStaffTmsPrincipal(db, characterName);
       if (!staffPrincipal.ok) {
         return jsonResponse({
@@ -4703,7 +4714,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     const reference = buildLanternEconomyReference(kind, meta, body, txId);
 
     // Prompt #107 — staff principal spends/grants (games cost, rewards) use TMS staff ledger.
-    if (parseStaffEconomyKey(characterName)) {
+    if (isStaffEconomyKey(characterName)) {
       const staffPrincipal = await resolveStaffTmsPrincipal(db, characterName);
       if (!staffPrincipal.ok) {
         return jsonResponse({ ok: false, error: 'tms_identity_not_linked', message: 'Nugget account needs linking' }, 403, cors);

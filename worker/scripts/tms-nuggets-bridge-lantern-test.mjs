@@ -85,9 +85,19 @@ function makeEnv(state) {
           const key = String(binds[0] || '').trim().toLowerCase();
           return state.accounts[key] || null;
         }
-        if (s.includes('FROM tms_identity_links WHERE lantern_username = ?')) {
-          const staffId = state.identityLinks[binds[0]];
+        if (
+          s.includes('FROM tms_identity_links WHERE lower(trim(lantern_username))') ||
+          s.includes('FROM tms_identity_links WHERE lantern_username = ?')
+        ) {
+          const raw = String(binds[0] || '').trim();
+          const staffId =
+            state.identityLinks[raw] ||
+            state.identityLinks[raw.toLowerCase()] ||
+            null;
           return staffId ? { tms_staff_id: staffId } : null;
+        }
+        if (s.includes('FROM tms_identity_links WHERE lantern_staff_id') || s.includes('INNER JOIN lantern_pilot_accounts')) {
+          return null;
         }
         return null;
       },

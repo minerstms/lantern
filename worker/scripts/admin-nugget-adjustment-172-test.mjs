@@ -35,9 +35,9 @@ if (/walletAdjDirection/.test(html) && /Add/.test(html) && /Remove/.test(html)) 
   ok('Add/Remove direction controls present');
 } else bad('direction controls missing');
 
-if (/staff:<username>|staff:' \+ un|staff:'\s*\+\s*un/.test(html) || /'staff:' \+ un/.test(html) || /"staff:" \+ un/.test(html) || /staff:' \+ un/.test(html)) {
-  ok('Staff targets resolve to staff:<username> economy key');
-} else if (/staff:' \+/.test(html) || /'staff:'\s*\+/.test(html)) {
+if (/staff_id:' \+ Math\.floor\(sid\)/.test(html) || /'staff_id:' \+ Math\.floor/.test(html) || /staff_id:/.test(html) && /walletEconomyCharacterName/.test(html)) {
+  ok('Staff targets resolve to durable staff_id:<id> (fallback staff:<username>)');
+} else if (/staff:' \+ un/.test(html) || /'staff:'\s*\+/.test(html)) {
   ok('Staff targets resolve to staff:<username> economy key');
 } else bad('staff economy key wiring missing');
 
@@ -111,9 +111,13 @@ function makeEnv(accounts) {
               const key = String(binds[0] || '').trim().toLowerCase();
               return accounts[key] || null;
             }
-            if (s.includes('FROM tms_identity_links')) {
+            if (s.includes('FROM tms_identity_links WHERE lower(trim(lantern_username))') ||
+                (s.includes('FROM tms_identity_links') && !s.includes('lantern_staff_id') && !s.includes('INNER JOIN'))) {
               const u = String(binds[0] || '').trim().toLowerCase();
               if (u === 'rradle') return { tms_staff_id: 'tms_staff_rick' };
+              return null;
+            }
+            if (s.includes('FROM tms_identity_links WHERE lantern_staff_id') || s.includes('INNER JOIN lantern_pilot_accounts')) {
               return null;
             }
             return null;
