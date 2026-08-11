@@ -42,6 +42,30 @@
   flex-wrap: wrap;
 }
 
+/* Prompt #169 — title + Filters + item count as one compact right-aligned control stack */
+.feedHeadingControls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.feedHeadingControls .feedFiltersToggle {
+  margin-left: 0;
+}
+
+.feedHeadingControls .feedItemCount,
+.feedHeadingControls .feedStatus {
+  margin: 0;
+  margin-left: 0;
+  line-height: 1.2;
+  text-align: right;
+}
+
 .feedMetaRow {
   display: flex;
   justify-content: space-between;
@@ -55,6 +79,21 @@
   justify-content: flex-end;
   margin-top: 4px;
   min-height: 0;
+}
+
+/* Explore-only: tighter gap from title/controls to first card row */
+.feedHeading--exploreCompact {
+  margin: 0 0 var(--lantern-space-sm, 12px);
+}
+
+.feedHeading--exploreCompact .feedHeadingRow {
+  align-items: flex-start;
+  gap: var(--lantern-space-sm, 12px) var(--lantern-space-md, 16px);
+}
+
+.feedHeading--exploreCompact .feedPageTitle {
+  padding-top: 8px; /* optically align with Filters button text, not full 48px control */
+  line-height: 1.2;
 }
 
 .feedPageTitle {

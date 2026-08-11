@@ -29,6 +29,13 @@
   box-sizing: border-box;
 }
 
+/* Prompt #169 — Explore top shell: no reserved hero/top pad; page bg unchanged */
+.lanternExploreSurface[data-surface-context="explore"] {
+  padding-top: 0;
+  padding-bottom: var(--lantern-space-lg, 24px);
+  min-height: 0;
+}
+
 .lanternLockerSurface.lanternLockerSurface--themed {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }

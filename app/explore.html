@@ -14,8 +14,8 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
-  <link rel="stylesheet" href="css/lantern-feed.css?v=20260808-feedlayout">
-  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260808-feedlayout">
+  <link rel="stylesheet" href="css/lantern-feed.css?v=20260810-explorecompact">
+  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260810-explorecompact">
   <link rel="stylesheet" href="css/lantern-reactions.css">
   <style>
     :root {
@@ -60,13 +60,13 @@
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
       <main class="lanternExploreSurface" data-surface-context="explore" data-help="explore">
       <div class="lanternExplorePageContainer">
-      <header class="feedHeading" aria-label="Feed controls">
+      <header class="feedHeading feedHeading--exploreCompact" aria-label="Feed controls">
         <div class="feedHeadingRow">
           <h1 class="feedPageTitle">Lantern</h1>
-          <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
-        </div>
-        <div class="feedMetaRow feedMetaRow--statusOnly">
-          <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
+          <div class="feedHeadingControls">
+            <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+            <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
+          </div>
         </div>
         <div id="feedFiltersPanel" class="feedFiltersPanel" hidden>
           <div class="feedFiltersToolbarRow">

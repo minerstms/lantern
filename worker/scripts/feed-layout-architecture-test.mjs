@@ -66,13 +66,25 @@ if (feedCss.includes('.feedFiltersToggle') && feedCss.includes('.feedFiltersPane
 
 if (
   feedCss.includes('.feedHeadingRow') &&
-  feedCss.includes('.feedMetaRow') &&
+  feedCss.includes('.feedHeadingControls') &&
   feedCss.includes('justify-content: space-between')
 ) {
   ok('shared compact feed heading rows in CSS');
 } else bad('compact feed heading CSS');
 
-function hasCompactFeedHeading(html) {
+function hasExploreCompactFeedHeading(html) {
+  return (
+    html.includes('feedHeading--exploreCompact') &&
+    html.includes('class="feedHeadingRow"') &&
+    html.includes('feedHeadingControls') &&
+    /feedHeadingControls[\s\S]*?feedFiltersToggle[\s\S]*?id="feedStatus"/.test(html) &&
+    !/feedMetaRow/.test(html) &&
+    !html.includes('feedFiltersHost') &&
+    !html.includes('feedPageSub')
+  );
+}
+
+function hasLockerCompactFeedHeading(html) {
   return (
     html.includes('class="feedHeading"') &&
     html.includes('class="feedHeadingRow"') &&
@@ -83,17 +95,17 @@ function hasCompactFeedHeading(html) {
   );
 }
 
-if (hasCompactFeedHeading(exploreHtml)) ok('Explore compact two-row feed heading');
+if (hasExploreCompactFeedHeading(exploreHtml)) ok('Explore compact single-row feed heading (#169)');
 else bad('Explore compact feed heading markup');
 
-if (hasCompactFeedHeading(lockerHtml)) ok('Locker compact two-row feed heading');
+if (hasLockerCompactFeedHeading(lockerHtml)) ok('Locker compact two-row feed heading');
 else bad('Locker compact feed heading markup');
 
 if (!exploreHtml.includes('feedResultsHost') || !/feedResultsHost[\s\S]*?feedGrid/.test(exploreHtml)) {
   bad('feedResultsHost structure');
-} else if (!/feedMetaRow[\s\S]*?feedStatus/.test(exploreHtml) && !/feedMetaRow[\s\S]*?id="feedStatus"/.test(exploreHtml)) {
-  bad('item count not in feedMetaRow');
-} else ok('item count lives in feedMetaRow, not above grid stack');
+} else if (!/feedHeadingControls[\s\S]*?id="feedStatus"/.test(exploreHtml)) {
+  bad('item count not in feedHeadingControls');
+} else ok('item count lives in feedHeadingControls, directly under Filters');
 
 if (!exploreHtml.includes('feedSearchInput') && !lockerHtml.includes('feedSearchInput')) {
   ok('page-local search removed from Explore and Locker HTML');

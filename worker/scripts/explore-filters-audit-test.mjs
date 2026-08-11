@@ -30,8 +30,9 @@ const ARCHIVED = ['Game Scores', 'Leaderboards', 'Achievements', 'Trivia'];
 
 assert(!exploreHtml.includes('One feed — filter and sort approved Lantern content.'), '1. helper sentence absent');
 assert(!/feedPageSub/.test(exploreHtml), '2. no Explore feedPageSub helper markup (dead spacing source removed)');
-assert(exploreHtml.includes('feedMetaRow--statusOnly') || /feedMetaRow[\s\S]*?feedStatus/.test(exploreHtml), '2b. status/count row retained');
-assert(feedCss.includes('.feedMetaRow--statusOnly'), '2c. status-only spacing CSS present');
+assert(exploreHtml.includes('feedHeadingControls') && /feedHeadingControls[\s\S]*?id="feedStatus"/.test(exploreHtml), '2b. status/count in compact heading controls (#169)');
+assert(!/feedMetaRow/.test(exploreHtml), '2c. obsolete Explore feedMetaRow wrapper removed (#169)');
+assert(feedCss.includes('.feedHeadingControls') && feedCss.includes('feedHeading--exploreCompact'), '2d. compact Explore heading CSS present');
 
 assert(JSON.stringify(EXPLORE_FEED_FILTERS.map((f) => f.label)) === JSON.stringify(EXPECTED), '3–10. Explore filter labels exact order', JSON.stringify(EXPLORE_FEED_FILTERS.map((f) => f.label)));
 assert(JSON.stringify(EXPLORE_FEED_FILTERS.map((f) => f.id)) === JSON.stringify(EXPECTED_IDS), 'filter ids exact order');
