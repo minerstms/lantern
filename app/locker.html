@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="css/lantern-store-panel.css">
   <link rel="stylesheet" href="css/lantern-rails.css">
   <link rel="stylesheet" href="css/lantern-feed.css?v=20260808-feedlayout">
-  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260810-locker-options">
+  <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260811-lockerchrome188">
   <link rel="stylesheet" href="css/lantern-reactions.css">
   <link rel="prefetch" href="games.html">
   <link rel="prefetch" href="explore.html">
@@ -31,9 +31,14 @@
     .lockerSectionHd{ font-weight: 900; font-size: 26px; color: var(--accent); margin-bottom: 12px; }
     .lockerEmpty{ color: var(--muted); font-size: 22px; font-weight: 800; padding: 16px 0; }
     .lockerPanel{ margin: 0 0 24px; }
-    /* SP6: visible surface cue on the active tabpanel only (uses data-locker-surface from Phase-SP5). */
-    .wrap.lanternContent [data-locker-surface]:not([hidden]){
-      box-shadow: inset 0 3px 0 0 var(--accent);
+    /* SP6 / Prompt #188 — Overview no longer uses the bright top accent bar or panel outline cue.
+       Items/Store keep a light active-surface cue without a heavy blue top stripe. */
+    .wrap.lanternContent [data-locker-surface="overview"]:not([hidden]){
+      box-shadow: none;
+    }
+    .wrap.lanternContent [data-locker-surface="items"]:not([hidden]),
+    .wrap.lanternContent [data-locker-surface="store"]:not([hidden]){
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     }
     /* L-Rail-4: Items tab cosmetics rails — .lanternScroller replaces contentScroller + contentScrollerTrack.
        Matches former lantern-rails .contentScroller margin/padding + .contentScrollerTrack gap (14px); no scroll-snap. */

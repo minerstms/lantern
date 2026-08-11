@@ -37,7 +37,8 @@
 }
 
 .lanternLockerSurface.lanternLockerSurface--themed {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  /* Prompt #188 — remove thin inset outline around Locker profile/feed shell */
+  box-shadow: none;
 }
 
 .lanternExploreSurface .feedFilterChip {
