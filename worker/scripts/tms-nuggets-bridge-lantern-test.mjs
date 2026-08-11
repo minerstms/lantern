@@ -238,13 +238,88 @@ async function testValidRedeemPassesThroughAndAppliesToMappedStaff() {
   );
 }
 
+async function testValidAwardPassesThrough() {
+  const state = { accounts: { ms_carter: account({ username: 'ms_carter', role: 'teacher' }) }, identityLinks: { ms_carter: 'Radle' } };
+  const env = makeEnv(state);
+  const cookie = await cookieFor(state.accounts.ms_carter);
+  await withMockedBridge(
+    () => ({
+      body: {
+        ok: true,
+        student_name: 'Alex Rivera',
+        student_id: 'sid-1',
+        awarded_amount: 3,
+        earned: 13,
+        spent: 1,
+        available: 12,
+        recent_history: [],
+        teacher_name: 'Rick Radle',
+      },
+    }),
+    async (getLastCall) => {
+      const res = await worker.fetch(
+        req('/api/tms-nuggets/award', {
+          student_name: 'Alex Rivera',
+          amount: 3,
+          note: 'Great class participation',
+          idempotency_key: 'award-1',
+          tms_staff_id: 'SPOOFED',
+        }, cookie),
+        env
+      );
+      const body = await jsonOf(res);
+      const call = getLastCall();
+      if (!res.ok || !body.ok || body.available !== 12 || body.awarded_amount !== 3) {
+        return bad('valid award should pass through Nuggets authoritative result', body);
+      }
+      if (body.current_balance !== 12 || body.total_earned !== 13 || body.total_spent !== 1) {
+        return bad('award response should include dashboard aliases', body);
+      }
+      if (!call || call.body.tms_staff_id !== 'Radle' || call.body.reference !== 'award-1') {
+        return bad('award must use mapped staff id + idempotency reference', call && call.body);
+      }
+      ok('valid award uses TMS teacher_award path with server-mapped staff identity and dashboard aliases');
+    }
+  );
+}
+
+async function testAwardRequiresReason() {
+  const state = { accounts: { ms_carter: account({ username: 'ms_carter', role: 'teacher' }) }, identityLinks: { ms_carter: 'Radle' } };
+  const env = makeEnv(state);
+  const cookie = await cookieFor(state.accounts.ms_carter);
+  const res = await worker.fetch(
+    req('/api/tms-nuggets/award', { student_name: 'Alex', amount: 1, note: '   ' }, cookie),
+    env
+  );
+  const body = await jsonOf(res);
+  if (res.status !== 400 || !body || body.error !== 'reason_required') {
+    return bad('award without reason must 400 reason_required', { status: res.status, body });
+  }
+  ok('award requires a non-empty reason on the Lantern Worker');
+}
+
+async function testRedeemRequiresReason() {
+  const state = { accounts: { ms_carter: account({ username: 'ms_carter', role: 'teacher' }) }, identityLinks: { ms_carter: 'Radle' } };
+  const env = makeEnv(state);
+  const cookie = await cookieFor(state.accounts.ms_carter);
+  const res = await worker.fetch(
+    req('/api/tms-nuggets/redeem', { student_name: 'Alex', amount: 1, note: '' }, cookie),
+    env
+  );
+  const body = await jsonOf(res);
+  if (res.status !== 400 || !body || body.error !== 'reason_required') {
+    return bad('redeem without reason must 400 reason_required', { status: res.status, body });
+  }
+  ok('redeem requires a non-empty reason on the Lantern Worker');
+}
+
 async function testUnknownSubRouteRejected() {
   const state = { accounts: { ms_carter: account({ username: 'ms_carter', role: 'teacher' }) }, identityLinks: { ms_carter: 'Radle' } };
   const env = makeEnv(state);
   const cookie = await cookieFor(state.accounts.ms_carter);
   const res = await worker.fetch(req('/api/tms-nuggets/something-else', {}, cookie), env);
   if (res.status !== 404) return bad('unknown tms-nuggets sub-route must 404, not expose a generic proxy', res.status);
-  ok('Lantern side exposes only the three named tms-nuggets sub-routes -- no generic proxy');
+  ok('Lantern side exposes only the named tms-nuggets sub-routes -- no generic proxy');
 }
 
 async function testBridgeUnreachableFailsGracefully() {
@@ -270,6 +345,9 @@ await testTeacherWithoutLinkFailsClosed();
 await testValidTeacherSearchUsesMappedStaffId();
 await testBridgeSecretSentButNeverReturnedToBrowser();
 await testValidRedeemPassesThroughAndAppliesToMappedStaff();
+await testValidAwardPassesThrough();
+await testAwardRequiresReason();
+await testRedeemRequiresReason();
 await testUnknownSubRouteRejected();
 await testBridgeUnreachableFailsGracefully();
 

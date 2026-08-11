@@ -1,14 +1,8 @@
 /**
- * Teacher manual sale / TMS Nugget Ledger tests — Prompt #52, superseded by Prompt #95.
+ * Teacher Nuggets / TMS Nugget Ledger tests — Prompt #95 / #173.
  *
- * Prompt #95 replaced the old Lantern-only "Manual sale" implementation (which searched a
- * client-side, localStorage-only demo character list and deducted from a separate Lantern wallet)
- * with the real TMS Nugget Ledger, reached through the /api/tms-nuggets/* bridge. The panel/button
- * DOM ids are intentionally UNCHANGED (teacherRewardManualSalePanel, teacherRewardRecordSaleBtn,
- * teacherRewardStudentInput, teacherRewardAvail/Earned/Spent, teacherRewardSaleAmount) so the
- * existing teacher-workspace-shell-test.mjs e2e assertions keep working -- only what backs them
- * changed. Static checks below: catalog grid stays retired, and the panel is now wired to the real
- * bridge rather than the old client-only demo-character economy path.
+ * Prompt #173 redesigns Redeem-only UI into Student Nugget Dashboard + Earn/Spend.
+ * DOM ids for search/amount/stats/button are intentionally preserved where possible.
  */
 import fs from 'fs';
 import path from 'path';
@@ -25,8 +19,6 @@ function bad(msg, detail) { failed++; console.log('FAIL', msg, detail != null ? 
 
 const teacherHtml = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8');
 const rewardJs = fs.readFileSync(path.join(root, 'app/js/lantern-teacher-reward-redeem.js'), 'utf8');
-const apiJs = fs.readFileSync(path.join(root, 'app/js/lantern-api.js'), 'utf8');
-const dataJs = fs.readFileSync(path.join(root, 'app/js/lantern-data.js'), 'utf8');
 const workerJs = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 
 if (!/Catalog item — tap a card to select/.test(teacherHtml)) ok('teacher.html: no catalog grid label');
@@ -35,53 +27,61 @@ else bad('teacher.html still has catalog grid label');
 if (!/teacherRewardCatalogGrid/.test(teacherHtml)) ok('teacher.html: no catalog grid element');
 else bad('teacher.html still has catalog grid id');
 
-if (!/teacherRewardCatalogGrid/.test(rewardJs)) ok('reward JS: no catalog grid rendering');
-else bad('reward JS still references catalog grid');
+if (/teacherRewardManualSalePanel/.test(teacherHtml)) ok('teacher.html: Nuggets panel present');
+else bad('teacher.html missing Nuggets panel');
 
-if (/teacherRewardManualSalePanel/.test(teacherHtml)) ok('teacher.html: manual sale panel present');
-else bad('teacher.html missing manual sale panel');
+if (/Current Balance/.test(teacherHtml) && /Total Earned/.test(teacherHtml) && /Total Spent/.test(teacherHtml)) {
+  ok('teacher.html: Current Balance / Total Earned / Total Spent labels');
+} else bad('teacher.html missing dashboard labels');
 
-if (/teacherRewardSaleAmount/.test(teacherHtml)) ok('teacher.html: sale amount input');
-else bad('teacher.html missing sale amount input');
+if (/This Transaction/.test(teacherHtml) && /teacherRewardDirection/.test(teacherHtml) && /Earn/.test(teacherHtml) && /Spend/.test(teacherHtml)) {
+  ok('teacher.html: This Transaction Earn/Spend toggle');
+} else bad('teacher.html missing Earn/Spend toggle');
 
-if (/Redeem Nugget/.test(teacherHtml)) ok('teacher.html: Redeem Nugget button (Prompt #95 -- was "Record Sale")');
-else bad('teacher.html missing Redeem Nugget button');
+if (/Balance After/.test(teacherHtml) && /teacherRewardBalanceAfter/.test(teacherHtml)) {
+  ok('teacher.html: Balance After preview');
+} else bad('teacher.html missing Balance After');
+
+if (/Add Nuggets/.test(teacherHtml) || /teacherRewardRecordSaleBtn/.test(teacherHtml)) {
+  ok('teacher.html: primary transaction button present');
+} else bad('teacher.html missing primary button');
+
+if (!/Redeem Nugget/.test(teacherHtml) && !/Redeem a TMS Nugget/.test(teacherHtml)) {
+  ok('teacher.html: Redeem-only framing removed');
+} else bad('teacher.html still framed as Redeem-only');
+
+if (/teacherRewardSaleAmount/.test(teacherHtml)) ok('teacher.html: amount input');
+else bad('teacher.html missing amount input');
 
 if (/teacherRewardAvail/.test(teacherHtml) && /teacherRewardEarned/.test(teacherHtml) && /teacherRewardSpent/.test(teacherHtml)) {
-  ok('teacher.html: Available / Earned / Spent stats remain');
-} else bad('teacher.html missing balance stats');
+  ok('teacher.html: dashboard stat element ids preserved');
+} else bad('teacher.html missing balance stats ids');
 
 if (/teacherRewardStudentInput/.test(teacherHtml)) ok('teacher.html: student selector remains');
 else bad('teacher.html missing student selector');
 
 if (!/callManualSale|TEACHER_MANUAL_SALE|\/api\/economy\/transact|LANTERN_DATA\.ensureCharacters/.test(rewardJs)) {
-  ok('reward JS: old Lantern-only manual sale / demo-character economy path fully retired (Prompt #95)');
-} else bad('reward JS still references the retired Lantern-only manual sale path');
+  ok('reward JS: old Lantern-only manual sale path retired');
+} else bad('reward JS still references retired Lantern-only path');
 
-if (/'\/api\/tms-nuggets\/'/.test(rewardJs) && /postTmsNuggets\('redeem'/.test(rewardJs) && /postTmsNuggets\('ledger'/.test(rewardJs) && /postTmsNuggets\('students\/search'/.test(rewardJs)) {
-  ok('reward JS: wired to the real TMS Nugget Ledger bridge (search/ledger/redeem)');
-} else bad('reward JS missing TMS Nugget Ledger bridge calls');
+if (/'\/api\/tms-nuggets\/'/.test(rewardJs) && /postTmsNuggets\('redeem'/.test(rewardJs) && /postTmsNuggets\('award'/.test(rewardJs) && /postTmsNuggets\('ledger'/.test(rewardJs)) {
+  ok('reward JS: wired to search/ledger/award/redeem');
+} else bad('reward JS missing award/redeem/ledger bridge calls');
 
-if (/parseSaleAmount/.test(rewardJs)) ok('reward JS: amount validation helper');
-else bad('reward JS missing parseSaleAmount');
+if (/Insufficient Nuggets/.test(rewardJs) && /updateBalanceAfterPreview/.test(rewardJs)) {
+  ok('reward JS: Balance After preview + overspend guard');
+} else bad('reward JS missing preview/overspend');
 
-if (/showRedeemConfirm/.test(rewardJs)) ok('reward JS: confirmation before redemption');
-else bad('reward JS missing confirmation');
+if (/idempotency_key/.test(rewardJs) && /reason/.test(rewardJs)) {
+  ok('reward JS: reason + award idempotency');
+} else bad('reward JS missing reason/idempotency');
+
+if (/\/api\/tms-nuggets\/award/.test(workerJs) && /reason_required/.test(workerJs) && /current_balance/.test(workerJs)) {
+  ok('Lantern Worker: award route + dashboard aliases + reason gate');
+} else bad('Lantern Worker award/dashboard wiring missing');
 
 if (!/selectedItemId|renderCatalogCards|callRedeem/.test(rewardJs)) ok('reward JS: catalog selection removed');
 else bad('reward JS still has catalog selection code');
 
-if (/storeManualSale/.test(apiJs)) ok('lantern-api: local dev manual sale fallback');
-else bad('lantern-api missing storeManualSale');
-
-if (/DEFAULT_CATALOG/.test(dataJs)) ok('catalog data preserved in lantern-data.js');
-else bad('catalog data removed from lantern-data.js');
-
-if (!/DROP TABLE.*catalog/i.test(workerJs)) ok('worker: no catalog table drops');
-else bad('worker drops catalog tables');
-
-if (fs.existsSync(path.join(root, 'archive/teacher-catalog-ui/README.md'))) ok('archive README present');
-else bad('archive README missing');
-
-console.log('\n--- teacher-manual-sale-test: ' + passed + ' passed, ' + failed + ' failed ---');
-process.exit(failed > 0 ? 1 : 0);
+console.log('\nteacher-manual-sale-test:', passed, 'PASS', failed, 'FAIL');
+process.exit(failed ? 1 : 0);

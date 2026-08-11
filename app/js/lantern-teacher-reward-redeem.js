@@ -1,16 +1,9 @@
 /**
- * Prompt #95 — Teacher -> Nuggets workspace, backed by the REAL TMS Nugget Ledger.
+ * Prompt #95 / #173 — Teacher → Nuggets workspace on the authoritative TMS Nugget Ledger.
  *
- * Replaces the earlier "Manual sale" implementation (Prompt #52), which searched a client-side,
- * localStorage-only demo character list (via the Lantern data helpers' character store) and
- * deducted from a separate Lantern-only wallet. That picker is not the authoritative TMS student
- * roster and must never be used for real TMS Nugget transactions.
- *
- * Every call here goes through Lantern's own authenticated API (/api/tms-nuggets/*), which in turn
- * calls a narrow server-to-server bridge into TMS Nuggets. Lantern never stores or duplicates a
- * TMS balance; every balance/history/redeem result shown here is a live read from TMS Nuggets.
- * Student results carry the authoritative TMS student_name (validated server-side on every
- * request) -- display text only, never invented client-side.
+ * Student Nugget Dashboard (Current Balance / Total Earned / Total Spent) plus This Transaction
+ * (Earn | Spend). Every call goes through Lantern /api/tms-nuggets/* → TMS bridge. No localStorage
+ * wallet authority. Admin Nugget Adjustment (#172) remains a separate privileged Admin tool.
  */
 (function () {
   'use strict';
@@ -18,11 +11,13 @@
   var el = function (id) { return document.getElementById(id); };
   var overlay = el('teacherRewardOverlay');
 
-  var students = []; // authoritative TMS roster rows only: [{student_name, student_id}]
+  var students = [];
   var selectedStudent = null;
   var searchDebounceTimer = null;
   var lastSearchQuery = '';
   var busy = false;
+  var lastDashboard = null; // { current_balance, total_earned, total_spent, ... }
+  var pendingIdempotencyKey = '';
 
   function showModal(title, html) {
     var t = el('teacherRewardModalTitle');
@@ -38,7 +33,9 @@
   if (overlay) overlay.addEventListener('click', function (e) { if (e.target === overlay) hideModal(); });
 
   function escapeHtml(s) {
-    return String(s || '').replace(/[&<>"']/g, function (c) { return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;'; });
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;';
+    });
   }
 
   function postTmsNuggets(sub, payload) {
@@ -54,30 +51,96 @@
     });
   }
 
-  function parseSaleAmount(raw) {
-    var n = Math.floor(Number(raw));
-    if (!Number.isFinite(n) || n < 1) return null;
+  function parseAmount(raw) {
+    if (raw === '' || raw == null) return null;
+    var n = Number(raw);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return null;
     return n;
   }
 
-  function setBalanceLoading(show) {
-    if (show) {
-      var e = el('teacherRewardEarned');
-      var s = el('teacherRewardSpent');
-      var a = el('teacherRewardAvail');
-      if (e) e.innerHTML = '<span class="teacherRewardSpinner"></span>';
-      if (s) s.innerHTML = '<span class="teacherRewardSpinner"></span>';
-      if (a) a.innerHTML = '<span class="teacherRewardSpinner"></span>';
-    }
+  function getDirection() {
+    var checked = document.querySelector('input[name="teacherRewardDirection"]:checked');
+    return checked && checked.value === 'spend' ? 'spend' : 'earn';
   }
 
-  function setBalanceUI(b) {
+  function syncDirectionUi() {
+    var dir = getDirection();
+    var earnLab = el('teacherRewardDirEarnLabel');
+    var spendLab = el('teacherRewardDirSpendLabel');
+    if (earnLab) {
+      earnLab.classList.toggle('is-active', dir === 'earn');
+      earnLab.classList.remove('is-active-spend');
+    }
+    if (spendLab) {
+      spendLab.classList.toggle('is-active', dir === 'spend');
+      spendLab.classList.toggle('is-active-spend', dir === 'spend');
+    }
+    var btn = el('teacherRewardRecordSaleBtn');
+    if (btn && !busy) btn.textContent = dir === 'spend' ? 'Spend Nuggets' : 'Add Nuggets';
+    updateBalanceAfterPreview();
+  }
+
+  function setPanelsVisible(hasStudent) {
+    var dash = el('teacherRewardDashWrap');
+    var txn = el('teacherRewardTxnWrap');
+    var hist = el('teacherRewardHistoryWrap');
+    if (dash) dash.hidden = !hasStudent;
+    if (txn) txn.hidden = !hasStudent;
+    if (hist) hist.style.display = hasStudent ? 'block' : 'none';
+  }
+
+  function setBalanceLoading(show) {
+    if (!show) return;
+    ['teacherRewardEarned', 'teacherRewardSpent', 'teacherRewardAvail'].forEach(function (id) {
+      var node = el(id);
+      if (node) node.innerHTML = '<span class="teacherRewardSpinner"></span>';
+    });
+  }
+
+  function applyDashboard(b) {
+    lastDashboard = b && b.ok !== false ? {
+      current_balance: b.current_balance != null ? Number(b.current_balance) : (b.available != null ? Number(b.available) : null),
+      total_earned: b.total_earned != null ? Number(b.total_earned) : (b.earned != null ? Number(b.earned) : null),
+      total_spent: b.total_spent != null ? Number(b.total_spent) : (b.spent != null ? Number(b.spent) : null),
+    } : null;
+    var a = el('teacherRewardAvail');
     var e = el('teacherRewardEarned');
     var s = el('teacherRewardSpent');
-    var a = el('teacherRewardAvail');
-    if (e) e.textContent = b && b.earned != null ? String(b.earned) : '—';
-    if (s) s.textContent = b && b.spent != null ? String(b.spent) : '—';
-    if (a) a.textContent = b && b.available != null ? String(b.available) : '—';
+    if (a) a.textContent = lastDashboard && lastDashboard.current_balance != null ? String(lastDashboard.current_balance) : '—';
+    if (e) e.textContent = lastDashboard && lastDashboard.total_earned != null ? String(lastDashboard.total_earned) : '—';
+    if (s) s.textContent = lastDashboard && lastDashboard.total_spent != null ? String(lastDashboard.total_spent) : '—';
+    updateBalanceAfterPreview();
+  }
+
+  function updateBalanceAfterPreview() {
+    var preview = el('teacherRewardBalanceAfter');
+    var btn = el('teacherRewardRecordSaleBtn');
+    if (!preview) return;
+    if (!selectedStudent || !lastDashboard || lastDashboard.current_balance == null) {
+      preview.textContent = 'Balance After: —';
+      preview.classList.remove('is-blocked');
+      if (btn && !busy) btn.disabled = false;
+      return;
+    }
+    var amount = parseAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
+    if (amount == null) {
+      preview.textContent = 'Balance After: —';
+      preview.classList.remove('is-blocked');
+      if (btn && !busy) btn.disabled = false;
+      return;
+    }
+    var dir = getDirection();
+    var current = Number(lastDashboard.current_balance);
+    if (dir === 'spend' && amount > current) {
+      preview.textContent = 'Insufficient Nuggets';
+      preview.classList.add('is-blocked');
+      if (btn && !busy) btn.disabled = true;
+      return;
+    }
+    var next = dir === 'spend' ? current - amount : current + amount;
+    preview.textContent = 'Balance After: ' + next + ' Nuggets';
+    preview.classList.remove('is-blocked');
+    if (btn && !busy) btn.disabled = false;
   }
 
   function renderHistory(history) {
@@ -96,9 +159,9 @@
       var isEarn = item.type === 'earned';
       var amount = Math.abs(Number(item.amount) || 0);
       var amountText = (isEarn ? '+' : '\u2212') + String(amount);
-      var label = isEarn ? 'Earned' : 'Redeemed';
+      var label = isEarn ? 'Earned' : 'Spent';
       var teacherName = String(item.teacher_name || '').trim();
-      var noteBit = (!isEarn && item.note) ? (' \u2022 ' + escapeHtml(item.note)) : '';
+      var noteBit = item.note ? (' \u2022 ' + escapeHtml(item.note)) : '';
       var row = document.createElement('div');
       row.className = 'teacherRewardHistoryRow';
       row.innerHTML =
@@ -115,6 +178,7 @@
 
   function setSelectedStudent(student) {
     selectedStudent = student || null;
+    pendingIdempotencyKey = '';
     var inp = el('teacherRewardStudentInput');
     if (inp) inp.value = selectedStudent ? selectedStudent.student_name : '';
     var pill = el('teacherRewardSelectedPill');
@@ -122,6 +186,11 @@
     if (pill) {
       pill.style.display = selectedStudent ? 'block' : 'none';
       if (nameEl) nameEl.textContent = selectedStudent ? selectedStudent.student_name : '';
+    }
+    setPanelsVisible(!!selectedStudent);
+    if (!selectedStudent) {
+      applyDashboard(null);
+      renderHistory([]);
     }
   }
 
@@ -158,7 +227,7 @@
       div.addEventListener('click', function () {
         setSelectedStudent(s);
         closeStudentDropdown();
-        loadBalance();
+        loadDashboard();
       });
       box.appendChild(div);
     });
@@ -173,39 +242,56 @@
     });
   }
 
-  async function loadBalance() {
+  async function loadDashboard() {
     var name = getSelectedStudentName();
     if (!name) {
-      setBalanceUI(null);
+      applyDashboard(null);
       renderHistory([]);
+      setPanelsVisible(false);
       return;
     }
     setBalanceLoading(true);
     var res = await postTmsNuggets('ledger', { student_name: name });
     if (!res || !res.ok) {
-      setBalanceUI(null);
+      applyDashboard(null);
       renderHistory([]);
       showModal('Nugget Ledger error', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml((res && res.error) || 'Unknown error') + '</div>');
       return;
     }
-    setBalanceUI(res);
+    applyDashboard(res);
     renderHistory(res.recent_history || []);
   }
 
-  function clearSaleForm() {
+  function clearTxnForm() {
     var amountEl = el('teacherRewardSaleAmount');
     if (amountEl) amountEl.value = '1';
     if (el('teacherRewardNote')) el('teacherRewardNote').value = '';
+    pendingIdempotencyKey = '';
+    updateBalanceAfterPreview();
   }
 
-  function showRedeemConfirm(studentName, amount, note, onConfirm) {
-    var noteLine = note ? '<div style="margin-top:8px;font-size:22px;opacity:.85;">Note: ' + escapeHtml(note) + '</div>' : '';
+  function newIdempotencyKey() {
+    if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return 'txn-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+
+  function showTxnConfirm(dir, studentName, amount, reason, onConfirm) {
+    var verb = dir === 'spend' ? 'Spend' : 'Add';
+    var after = null;
+    if (lastDashboard && lastDashboard.current_balance != null) {
+      after = dir === 'spend'
+        ? Number(lastDashboard.current_balance) - amount
+        : Number(lastDashboard.current_balance) + amount;
+    }
     showModal(
-      'Confirm redemption',
-      '<div style="font-size:22px;">Redeem <b>' + amount + '</b> Nugget' + (amount === 1 ? '' : 's') + ' for <b>' + escapeHtml(studentName) + '</b>?</div>' + noteLine +
+      'Confirm transaction',
+      '<div style="font-size:22px;">' + verb + ' <b>' + amount + '</b> Nugget' + (amount === 1 ? '' : 's') +
+      (dir === 'spend' ? ' from ' : ' to ') + '<b>' + escapeHtml(studentName) + '</b>?</div>' +
+      '<div style="margin-top:8px;font-size:22px;opacity:.85;">Reason: ' + escapeHtml(reason) + '</div>' +
+      (after != null ? '<div style="margin-top:8px;font-size:22px;">Balance After: <b>' + after + '</b> Nuggets</div>' : '') +
       '<div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">' +
       '<button type="button" class="btn" id="teacherRewardSaleCancelBtn">Cancel</button>' +
-      '<button type="button" class="btn good" id="teacherRewardSaleConfirmBtn">Redeem</button></div>'
+      '<button type="button" class="btn good" id="teacherRewardSaleConfirmBtn">' + escapeHtml(verb) + '</button></div>'
     );
     var cancelBtn = el('teacherRewardSaleCancelBtn');
     var confirmBtn = el('teacherRewardSaleConfirmBtn');
@@ -216,42 +302,86 @@
     });
   }
 
-  async function executeRedeem() {
+  async function executeTransaction() {
     var studentName = getSelectedStudentName();
-    var amount = parseSaleAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
-    var note = (el('teacherRewardNote') && el('teacherRewardNote').value || '').trim();
+    var amount = parseAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
+    var reason = (el('teacherRewardNote') && el('teacherRewardNote').value || '').trim();
+    var dir = getDirection();
+    if (!studentName || amount == null || !reason) return;
 
-    if (!studentName || amount == null) return;
+    if (!pendingIdempotencyKey) pendingIdempotencyKey = newIdempotencyKey();
+    var idem = pendingIdempotencyKey;
 
     var btn = el('teacherRewardRecordSaleBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Redeeming…'; }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = dir === 'spend' ? 'Spending…' : 'Adding…';
+    }
     busy = true;
 
-    var res = await postTmsNuggets('redeem', { student_name: studentName, amount: amount, note: note });
+    var res;
+    if (dir === 'spend') {
+      res = await postTmsNuggets('redeem', { student_name: studentName, amount: amount, note: reason });
+    } else {
+      res = await postTmsNuggets('award', {
+        student_name: studentName,
+        amount: amount,
+        note: reason,
+        idempotency_key: idem,
+      });
+    }
 
-    if (btn) { btn.disabled = false; btn.textContent = 'Redeem Nugget'; }
     busy = false;
+    syncDirectionUi();
 
     if (!res || !res.ok) {
-      showModal('Redemption failed', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml((res && res.error) || 'Unknown error') + '</div>');
+      var err = (res && res.error) || 'Unknown error';
+      var code = res && res.code ? String(res.code) : '';
+      if (err === 'insufficient_balance' || code === 'insufficient_balance') {
+        showModal('Insufficient Nuggets', '<div style="color:#ffcc66;font-weight:900;">Not enough Nuggets for that Spend.</div>');
+      } else if (err === 'reason_required') {
+        showModal('Reason required', '<div style="font-size:22px;">Enter a short reason before submitting.</div>');
+      } else {
+        showModal('Transaction failed', '<div style="color:#ffcc66;font-weight:900;">' + escapeHtml(err) + '</div>');
+      }
+      await loadDashboard();
       return;
     }
 
-    setBalanceUI(res);
+    pendingIdempotencyKey = '';
+    applyDashboard(res);
     renderHistory(res.recent_history || []);
-    clearSaleForm();
-    showModal(
-      'Nugget redeemed',
-      '<div style="font-weight:900; font-size:22px; margin-bottom:8px;">' + escapeHtml(res.student_name) + ' \u2014 ' + res.redeemed_amount + ' Nugget' + (res.redeemed_amount === 1 ? '' : 's') + '</div>' +
-      '<div style="color:#b9c6ea; font-weight:800;">Available: <b style="color:#38d07c;">' + res.available + '</b></div>'
-    );
+    clearTxnForm();
+
+    var displayName = res.student_name || studentName;
+    if (dir === 'spend') {
+      var spentAmt = res.redeemed_amount != null ? res.redeemed_amount : amount;
+      showModal(
+        'Nuggets spent',
+        '<div style="font-weight:900;font-size:22px;">Spent ' + spentAmt + ' Nugget' + (spentAmt === 1 ? '' : 's') +
+        ' from ' + escapeHtml(displayName) + '\'s balance.</div>' +
+        '<div style="color:#b9c6ea;font-weight:800;margin-top:8px;">Current Balance: <b style="color:#38d07c;">' +
+        (res.available != null ? res.available : '—') + '</b></div>'
+      );
+    } else {
+      var awarded = res.awarded_amount != null ? res.awarded_amount : amount;
+      showModal(
+        'Nuggets added',
+        '<div style="font-weight:900;font-size:22px;">Added ' + awarded + ' Nugget' + (awarded === 1 ? '' : 's') +
+        ' to ' + escapeHtml(displayName) + '.' +
+        (res.idempotent ? ' (duplicate request ignored)' : '') + '</div>' +
+        '<div style="color:#b9c6ea;font-weight:800;margin-top:8px;">Current Balance: <b style="color:#38d07c;">' +
+        (res.available != null ? res.available : '—') + '</b></div>'
+      );
+    }
   }
 
-  function redeem() {
+  function submitTransaction() {
     if (busy) return;
     var studentName = getSelectedStudentName();
-    var amount = parseSaleAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
-    var note = (el('teacherRewardNote') && el('teacherRewardNote').value || '').trim();
+    var amount = parseAmount(el('teacherRewardSaleAmount') && el('teacherRewardSaleAmount').value);
+    var reason = (el('teacherRewardNote') && el('teacherRewardNote').value || '').trim();
+    var dir = getDirection();
 
     if (!studentName) {
       showModal('Select a student', '<div style="font-size:22px;">Choose a real TMS student from the list above first.</div>');
@@ -261,7 +391,15 @@
       showModal('Invalid amount', '<div style="font-size:22px;">Enter a whole number of Nuggets (minimum 1).</div>');
       return;
     }
-    showRedeemConfirm(studentName, amount, note, executeRedeem);
+    if (!reason) {
+      showModal('Reason required', '<div style="font-size:22px;">Enter a short reason for this transaction.</div>');
+      return;
+    }
+    if (dir === 'spend' && lastDashboard && lastDashboard.current_balance != null && amount > Number(lastDashboard.current_balance)) {
+      showModal('Insufficient Nuggets', '<div style="font-size:22px;">Current Balance is ' + lastDashboard.current_balance + '.</div>');
+      return;
+    }
+    showTxnConfirm(dir, studentName, amount, reason, executeTransaction);
   }
 
   function wireTeacherRewardTool() {
@@ -270,21 +408,31 @@
     var refreshBtn = el('teacherRewardRefreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', function () {
       if (!getSelectedStudentName()) {
-        showModal('Select a student', '<div style="font-size:22px;">Choose a student to load their TMS Nugget balance.</div>');
+        showModal('Select a student', '<div style="font-size:22px;">Choose a student to load their Nugget dashboard.</div>');
         return;
       }
-      loadBalance();
+      loadDashboard();
     });
 
     var saleBtn = el('teacherRewardRecordSaleBtn');
-    if (saleBtn) saleBtn.addEventListener('click', function () { redeem(); });
+    if (saleBtn) saleBtn.addEventListener('click', function () { submitTransaction(); });
+
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="teacherRewardDirection"]'), function (radio) {
+      radio.addEventListener('change', function () {
+        pendingIdempotencyKey = '';
+        syncDirectionUi();
+      });
+    });
 
     var amountInput = el('teacherRewardSaleAmount');
     if (amountInput) {
+      amountInput.addEventListener('input', updateBalanceAfterPreview);
       amountInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); redeem(); }
+        if (e.key === 'Enter') { e.preventDefault(); submitTransaction(); }
       });
     }
+    var noteInput = el('teacherRewardNote');
+    if (noteInput) noteInput.addEventListener('input', function () { /* reason only */ });
 
     var inp = el('teacherRewardStudentInput');
     var dd = el('teacherRewardStudentDropdown');
@@ -302,9 +450,10 @@
     }
 
     setSelectedStudent(null);
-    setBalanceUI(null);
+    applyDashboard(null);
     renderHistory([]);
-    clearSaleForm();
+    clearTxnForm();
+    syncDirectionUi();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireTeacherRewardTool);

@@ -388,7 +388,9 @@ async function main() {
   assert(await page.locator('#teacherRewardManualSalePanel').isVisible(), 'Nuggets workspace shows the TMS Nugget Ledger panel');
   const saleAmountDefault = await page.locator('#teacherRewardSaleAmount').inputValue();
   assert(saleAmountDefault === '1', 'Redeem amount defaults to 1 Nugget: ' + saleAmountDefault);
-  assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Redeem Nugget button is retained and reachable');
+  assert(await page.locator('#teacherRewardRecordSaleBtn').isVisible(), 'Nuggets primary transaction button is retained and reachable');
+  assert(await page.locator('#teacherRewardDashWrap').count() === 1, 'Student Nugget Dashboard wrap present');
+  assert(await page.locator('#teacherRewardTxnWrap').count() === 1, 'This Transaction wrap present');
 
   // ---------------------------------------------------------------------------
   // Missions workspace (Create + My Missions consolidated, Prompt #103 / #143):

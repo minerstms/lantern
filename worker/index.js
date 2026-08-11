@@ -1430,12 +1430,45 @@ async function handleTmsNuggetsRoutes(request, url, path, env, cors) {
     result = await callTmsNuggetsBridge(env, 'students/search', tmsStaffId, { query: body.query, limit: body.limit });
   } else if (path === '/api/tms-nuggets/ledger') {
     result = await callTmsNuggetsBridge(env, 'ledger', tmsStaffId, { student_name: body.student_name });
+    // Prompt #173 — dashboard aliases for Teacher Student Nugget Dashboard (same TMS totals).
+    if (result && result.ok) {
+      result.current_balance = result.available;
+      result.total_earned = result.earned;
+      result.total_spent = result.spent;
+    }
   } else if (path === '/api/tms-nuggets/redeem') {
+    const note = String(body.note || '').trim();
+    if (!note) {
+      return jsonResponse({ ok: false, error: 'reason_required' }, 400, cors);
+    }
     result = await callTmsNuggetsBridge(env, 'redeem', tmsStaffId, {
       student_name: body.student_name,
       amount: body.amount,
-      note: body.note,
+      note,
     });
+    if (result && result.ok) {
+      result.current_balance = result.available;
+      result.total_earned = result.earned;
+      result.total_spent = result.spent;
+    }
+  } else if (path === '/api/tms-nuggets/award') {
+    const note = String(body.note || '').trim();
+    if (!note) {
+      return jsonResponse({ ok: false, error: 'reason_required' }, 400, cors);
+    }
+    const idem = String(body.idempotency_key || body.reference || '').trim();
+    const reference = idem || ('lantern:teacher_award:' + crypto.randomUUID());
+    result = await callTmsNuggetsBridge(env, 'award', tmsStaffId, {
+      student_name: body.student_name,
+      amount: body.amount,
+      note,
+      reference,
+    });
+    if (result && result.ok) {
+      result.current_balance = result.available;
+      result.total_earned = result.earned;
+      result.total_spent = result.spent;
+    }
   } else {
     return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
   }
