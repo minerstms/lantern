@@ -68,8 +68,8 @@ async function cookieFor(account) {
 
 function account(overrides) {
   return {
-    username: 'Rick Radle',
-    display_name: 'Rick Radle',
+    username: 'admin',
+    display_name: 'Web Admin',
     first_name: null,
     last_name: null,
     staff_id: null,
@@ -306,7 +306,8 @@ if (staffNeedsNameSetup({ role: 'teacher', first_name: null, last_name: null, di
 }
 
 async function runApi() {
-  const admin = account({ username: 'Rick Radle', display_name: 'Rick Radle', role: 'admin' });
+  const admin = account({ username: 'admin',
+    display_name: 'Web Admin', role: 'admin' });
   const teacher1 = account({
     username: 'teacher1',
     display_name: 'Ms. Carter',
@@ -347,16 +348,16 @@ async function runApi() {
     const ids = [admin, teacher1, teacher2].map((a) => state.accounts[a.username.toLowerCase()].staff_id);
     if (new Set(ids).size === 3 && ids.every((id) => id > 0)) ok('Staff IDs unique and positive');
     else bad('Staff ID uniqueness', ids);
-    // deterministic username order: Rick Radle, teacher1, teacher2
+    // deterministic username order: admin, teacher1, teacher2
     if (
-      state.accounts['rick radle'].staff_id === 1 &&
+      state.accounts.admin.staff_id === 1 &&
       state.accounts.teacher1.staff_id === 2 &&
       state.accounts.teacher2.staff_id === 3
     ) {
-      ok('deterministic backfill order: Rick Radle=1, teacher1=2, teacher2=3');
+      ok('deterministic backfill order: admin=1, teacher1=2, teacher2=3');
     } else {
       bad('backfill order', {
-        rick: state.accounts['rick radle'].staff_id,
+        rick: state.accounts.admin.staff_id,
         t1: state.accounts.teacher1.staff_id,
         t2: state.accounts.teacher2.staff_id,
       });
@@ -377,9 +378,9 @@ async function runApi() {
     const res = await worker.fetch(req('GET', '/api/admin/users', undefined, adminCookie), env);
     const body = await res.json();
     const users = body.users || [];
-    const rick = users.find((u) => u.username === 'Rick Radle');
+    const rick = users.find((u) => u.username === 'admin');
     const lucas = users.find((u) => u.username === '20889');
-    if (rick && rick.staff_id === 1 && rick.display_name === 'Rick Radle') ok('GET users returns Staff ID + unchanged username/display');
+    if (rick && rick.staff_id === 1 && rick.display_name === 'Web Admin') ok('GET users returns Staff ID + unchanged username/display');
     else bad('GET users staff fields', rick);
     if (lucas && (lucas.staff_id == null || lucas.staff_id === '')) ok('GET users student staff_id null');
     else bad('GET student staff_id', lucas);

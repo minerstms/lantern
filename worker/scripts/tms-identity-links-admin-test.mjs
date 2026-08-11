@@ -55,8 +55,8 @@ async function cookieFor(account) {
 
 function account(overrides) {
   return {
-    username: 'Rick Radle',
-    display_name: 'Rick Radle',
+    username: 'admin',
+    display_name: 'Web Admin',
     role: 'admin',
     student_character_name: null,
     teacher_id: null,
@@ -265,7 +265,7 @@ function withMockedRedeem(behavior, fn) {
 }
 
 function seedAdminWorld() {
-  const admin = account({ username: 'Rick Radle', display_name: 'Rick Radle', role: 'admin', staff_id: 1 });
+  const admin = account({ username: 'admin', display_name: 'Web Admin', role: 'admin', staff_id: 1 });
   const teacherRick = account({
     username: 'rick.radle',
     display_name: 'Rick Radle',
@@ -298,7 +298,7 @@ function seedAdminWorld() {
   });
   return makeEnv({
     accounts: {
-      'rick radle': admin,
+      admin,
       'rick.radle': teacherRick,
       ms_carter: teacher,
       '20889': student,
@@ -308,7 +308,7 @@ function seedAdminWorld() {
       {
         id: 1,
         tms_staff_id: 'Radle',
-        lantern_username: 'Rick Radle',
+        lantern_username: 'admin',
         lantern_staff_id: 1,
         is_primary: 1,
         created_at: '2026-01-01',
@@ -327,7 +327,7 @@ function linksForTms(env, tms) {
 
 async function testAdminCanLoadLinks() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(adminReq('GET', '/api/admin/tms-identity-links', undefined, cookie), env);
   const body = await jsonOf(res);
   if (res.status !== 200 || !body.ok || !Array.isArray(body.links)) {
@@ -360,22 +360,22 @@ async function testNonAdminDenied() {
 
 async function testCurrentMappingRenders() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(adminReq('GET', '/api/admin/tms-identity-links', undefined, cookie), env);
   const body = await jsonOf(res);
   const radle = (body.links || []).find((l) => l.tms_staff_id === 'Radle');
-  if (!radle || radle.lantern_username !== 'Rick Radle' || radle.display_name !== 'Rick Radle') {
-    return bad('current Radle → Rick Radle mapping must render with display_name', body);
+  if (!radle || radle.lantern_username !== 'admin' || radle.display_name !== 'Web Admin') {
+    return bad('current Radle → admin mapping must render with display_name', body);
   }
   if (radle.role !== 'admin') return bad('mapping should include role', radle);
   if (Number(radle.is_primary) !== 1) return bad('seed link should be primary', radle);
   if (radle.id == null) return bad('link rows must include id', radle);
-  ok('current mapping renders (Radle → Rick Radle, primary)');
+  ok('current mapping renders (Radle → admin, primary)');
 }
 
 async function testAdminCanCreateValidMapping() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Carter', lantern_username: 'ms_carter' }, cookie),
     env
@@ -394,7 +394,7 @@ async function testAdminCanCreateValidMapping() {
 
 async function testSecondLinkSameTmsAllowedAsSecondary() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
@@ -407,7 +407,7 @@ async function testSecondLinkSameTmsAllowedAsSecondary() {
   const radleLinks = linksForTms(env, 'Radle');
   if (radleLinks.length !== 2) return bad('expected two Radle links', radleLinks);
   const primaries = radleLinks.filter((l) => Number(l.is_primary) === 1);
-  if (primaries.length !== 1 || primaries[0].lantern_username !== 'Rick Radle') {
+  if (primaries.length !== 1 || primaries[0].lantern_username !== 'admin') {
     return bad('exactly one primary must remain on admin account until switched', primaries);
   }
   ok('ONE TMS → TWO Lantern links allowed; additional defaults secondary');
@@ -415,9 +415,9 @@ async function testSecondLinkSameTmsAllowedAsSecondary() {
 
 async function testDuplicateLanternAccountRejected() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(
-    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'OtherStaff', lantern_username: 'Rick Radle' }, cookie),
+    adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'OtherStaff', lantern_username: 'admin' }, cookie),
     env
   );
   const body = await jsonOf(res);
@@ -429,7 +429,7 @@ async function testDuplicateLanternAccountRejected() {
 
 async function testStudentAccountRejected() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'NewStaff', lantern_username: '20889' }, cookie),
     env
@@ -443,7 +443,7 @@ async function testStudentAccountRejected() {
 
 async function testInactiveAccountRejected() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'NewStaff', lantern_username: 'retired_teacher' }, cookie),
     env
@@ -458,7 +458,7 @@ async function testInactiveAccountRejected() {
 async function testNameSimilarityDoesNotAutoLink() {
   const env = seedAdminWorld();
   env._state.links = [];
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const listRes = await worker.fetch(adminReq('GET', '/api/admin/tms-identity-links', undefined, cookie), env);
   const listBody = await jsonOf(listRes);
   if ((listBody.links || []).length !== 0) {
@@ -480,7 +480,7 @@ async function testNameSimilarityDoesNotAutoLink() {
 
 async function testSetPrimaryAtomic() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
@@ -499,7 +499,7 @@ async function testSetPrimaryAtomic() {
   if (primaries.length !== 1 || primaries[0].lantern_username !== 'rick.radle') {
     return bad('exactly one primary after switch', radle);
   }
-  const adminLink = radle.find((l) => l.lantern_username === 'Rick Radle');
+  const adminLink = radle.find((l) => l.lantern_username === 'admin');
   if (!adminLink || Number(adminLink.is_primary) !== 0) {
     return bad('admin link must become secondary', adminLink);
   }
@@ -508,7 +508,7 @@ async function testSetPrimaryAtomic() {
 
 async function testUnlinkByIdRemovesOneLinkOnly() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
@@ -524,7 +524,7 @@ async function testUnlinkByIdRemovesOneLinkOnly() {
     return bad('unlink by id removes mapping', { status: res.status, body });
   }
   if (linksForTms(env, 'Radle').length !== 1) return bad('must leave other Radle link', env._state.links);
-  if (linksForTms(env, 'Radle')[0].lantern_username !== 'Rick Radle') {
+  if (linksForTms(env, 'Radle')[0].lantern_username !== 'admin') {
     return bad('admin link must remain', env._state.links);
   }
   if (JSON.stringify(env._state.accounts) !== beforeAccounts) {
@@ -541,7 +541,7 @@ async function testUnlinkByIdRemovesOneLinkOnly() {
 
 async function testDeleteByTmsStaffIdAloneRefused() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(
     adminReq('DELETE', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle' }, cookie),
     env
@@ -556,7 +556,7 @@ async function testDeleteByTmsStaffIdAloneRefused() {
 
 async function testPrimaryUnlinkRequiresReplacement() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
@@ -611,7 +611,7 @@ async function testUnmappedUserFailsSsoClosed() {
 
 async function testPrimaryWinsReverseSso() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   await worker.fetch(
     adminReq('POST', '/api/admin/tms-identity-links', { tms_staff_id: 'Radle', lantern_username: 'rick.radle' }, cookie),
     env
@@ -649,7 +649,7 @@ async function testPrimaryWinsReverseSso() {
 
 async function testNoSecretsDisplayed() {
   const env = seedAdminWorld();
-  const cookie = await cookieFor(env._state.accounts['rick radle']);
+  const cookie = await cookieFor(env._state.accounts.admin);
   const res = await worker.fetch(adminReq('GET', '/api/admin/tms-identity-links', undefined, cookie), env);
   const body = await jsonOf(res);
   const raw = JSON.stringify(body);

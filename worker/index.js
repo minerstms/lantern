@@ -685,10 +685,10 @@ const PILOT_JWT_TTL_SEC = 8 * 3600;
 /** Only these usernames may be updated by POST /api/pilot/bootstrap-passwords */
 const PILOT_LOCKED_USERNAMES = ['student1', 'student2', 'teacher1', 'teacher2', 'admin'];
 
-/** Canonical primary admin (Lantern ship contract). Login ID + password enforced before verify on each login attempt. */
-const LANTERN_PRIMARY_ADMIN_USERNAME = 'Rick Radle';
+/** Canonical primary admin (Lantern ship contract). Prompt #209 — login `admin`, display Web Admin. */
+const LANTERN_PRIMARY_ADMIN_USERNAME = 'admin';
 const LANTERN_PRIMARY_ADMIN_PASSWORD = '1606';
-const LANTERN_PRIMARY_ADMIN_DISPLAY_NAME = 'Rick Radle';
+const LANTERN_PRIMARY_ADMIN_DISPLAY_NAME = 'Web Admin';
 
 function b64urlFromBytes(bytes) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -724,12 +724,11 @@ function pilotRandomSaltHex() {
 }
 
 /**
- * Ensures exactly one row for the primary admin: username Rick Radle, role admin, active, PBKDF2 hash for password 1606.
- * Invoked only on POST /api/pilot/login when the submitted username matches LANTERN_PRIMARY_ADMIN_USERNAME (trimmed).
+ * Ensures primary admin row exists (username admin / display Web Admin).
+ * Prompt #209 — never rotate password_hash/salt for an existing row (preserves live credentials).
+ * Currently unused by login; kept for bootstrap/setup callers.
  */
 async function ensureLanternPrimaryAdminCredentials(db) {
-  const salt = pilotRandomSaltHex();
-  const hash = await pilotHashPassword(LANTERN_PRIMARY_ADMIN_PASSWORD, salt);
   const existing = await db
     .prepare('SELECT username FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))')
     .bind(LANTERN_PRIMARY_ADMIN_USERNAME)
@@ -738,28 +737,25 @@ async function ensureLanternPrimaryAdminCredentials(db) {
     await db
       .prepare(
         `UPDATE lantern_pilot_accounts SET
-          password_hash = ?,
-          password_salt = ?,
           role = 'admin',
           display_name = ?,
           is_active = 1,
           must_change_password = 0,
-          password_changed_at = datetime('now'),
-          updated_at = datetime('now'),
-          password_reset_at = NULL,
-          password_reset_by = NULL
+          updated_at = datetime('now')
         WHERE username = ?`
       )
-      .bind(hash, salt, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, String(existing.username))
+      .bind(LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, String(existing.username))
       .run();
-  } else {
-    await db
-      .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active, must_change_password, password_changed_at, password_reset_at, password_reset_by) VALUES (?, ?, 'admin', ?, ?, NULL, NULL, datetime('now'), 1, 0, datetime('now'), NULL, NULL)`
-      )
-      .bind(LANTERN_PRIMARY_ADMIN_USERNAME, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, hash, salt)
-      .run();
+    return;
   }
+  const salt = pilotRandomSaltHex();
+  const hash = await pilotHashPassword(LANTERN_PRIMARY_ADMIN_PASSWORD, salt);
+  await db
+    .prepare(
+      `INSERT INTO lantern_pilot_accounts (username, display_name, role, password_hash, password_salt, student_character_name, teacher_id, updated_at, is_active, must_change_password, password_changed_at, password_reset_at, password_reset_by) VALUES (?, ?, 'admin', ?, ?, NULL, NULL, datetime('now'), 1, 0, datetime('now'), NULL, NULL)`
+    )
+    .bind(LANTERN_PRIMARY_ADMIN_USERNAME, LANTERN_PRIMARY_ADMIN_DISPLAY_NAME, hash, salt)
+    .run();
 }
 
 async function signPilotJwt(payload, secret) {

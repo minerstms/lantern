@@ -356,12 +356,12 @@ async function testPrimaryChosenWhenMultipleLinks() {
     () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
     async () => {
       const teacher = account({ username: 'rick.radle', role: 'teacher', teacher_id: 't_rick' });
-      const admin = account({ username: 'Rick Radle', role: 'admin', teacher_id: null });
+      const admin = account({ username: 'admin', role: 'admin', teacher_id: null });
       const env = makeEnv({
-        accounts: { 'rick.radle': teacher, 'rick radle': admin },
+        accounts: { 'rick.radle': teacher, admin },
         identityLinks: {
           Radle: [
-            { lantern_username: 'Rick Radle', is_primary: 0 },
+            { lantern_username: 'admin', is_primary: 0 },
             { lantern_username: 'rick.radle', is_primary: 1 },
           ],
         },
@@ -381,12 +381,12 @@ async function testNoPrimaryFailsClosed() {
     () => ({ body: { ok: true, tms_staff_id: 'Radle' } }),
     async () => {
       const teacher = account({ username: 'rick.radle', role: 'teacher' });
-      const admin = account({ username: 'Rick Radle', role: 'admin' });
+      const admin = account({ username: 'admin', role: 'admin' });
       const env = makeEnv({
-        accounts: { 'rick.radle': teacher, 'rick radle': admin },
+        accounts: { 'rick.radle': teacher, admin },
         identityLinks: {
           Radle: [
-            { lantern_username: 'Rick Radle', is_primary: 0 },
+            { lantern_username: 'admin', is_primary: 0 },
             { lantern_username: 'rick.radle', is_primary: 0 },
           ],
         },

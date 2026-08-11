@@ -48,8 +48,8 @@ async function cookieFor(account) {
 
 function account(overrides) {
   return {
-    username: 'Rick Radle',
-    display_name: 'Rick Radle',
+    username: 'admin',
+    display_name: 'Web Admin',
     role: 'admin',
     student_character_name: null,
     teacher_id: null,

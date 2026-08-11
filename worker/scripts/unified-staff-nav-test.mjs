@@ -133,7 +133,7 @@ async function main() {
     // Prompt #199 — admin role sees Admin under STAFF → /admin; teacher/student do not.
     const page = await browser.newPage();
     await page.route('**/api/auth/me**', okJson({
-      ok: true, authenticated: true, role: 'admin', username: 'Rick Radle', display_name: 'Rick Radle',
+      ok: true, authenticated: true, role: 'admin', username: 'admin', display_name: 'Web Admin',
       teacher_id: null, must_change_password: false,
     }));
     await page.route('**/api/missions/teacher**', okJson({ ok: true, missions: [] }));

@@ -61,14 +61,14 @@ if (/lantern_wallets/.test(indexSrc) && /isStaffEconomyKey\(characterName\)[\s\S
 // ---- Unit: key parsers ----
 if (parseStaffIdEconomyKey('staff_id:1') === 1 && parseStaffEconomyKey('staff_id:1') === '') ok('parse staff_id:1');
 else bad('parse staff_id:1');
-if (parseStaffEconomyKey('staff:Rick Radle') === 'Rick Radle' && parseStaffIdEconomyKey('staff:Rick Radle') === 0) {
-  ok('parse staff:Rick Radle');
-} else bad('parse staff:Rick Radle');
+if (parseStaffEconomyKey('staff:admin') === 'admin' && parseStaffIdEconomyKey('staff:admin') === 0) {
+  ok('parse staff:admin');
+} else bad('parse staff:admin');
 if (isStaffEconomyKey('staff_id:1') && isStaffEconomyKey('staff:rick.radle') && !isStaffEconomyKey('20889')) {
   ok('isStaffEconomyKey discriminates staff vs student');
 } else bad('isStaffEconomyKey');
 
-if (staffEconomyKey({ username: 'Rick Radle', staff_id: 1, role: 'admin' }) === 'staff_id:1') {
+if (staffEconomyKey({ username: 'admin', staff_id: 1, role: 'admin' }) === 'staff_id:1') {
   ok('Games/session staffEconomyKey prefers staff_id');
 } else bad('staffEconomyKey durable preference');
 if (staffEconomyKey({ username: 'legacy.staff', role: 'teacher' }) === 'staff:legacy.staff') {
@@ -77,9 +77,9 @@ if (staffEconomyKey({ username: 'legacy.staff', role: 'teacher' }) === 'staff:le
 
 // ---- In-memory D1 fixture matching production twin accounts ----
 const accounts = {
-  'rick radle': {
-    username: 'Rick Radle',
-    display_name: 'Rick Radle',
+  admin: {
+    username: 'admin',
+    display_name: 'Web Admin',
     role: 'admin',
     staff_id: 1,
     is_active: 1,
@@ -102,11 +102,11 @@ const accounts = {
 
 // Prompt #184 — both intentional Rick Lantern accounts share one TMS principal.
 const linksByUsername = {
-  'rick radle': { tms_staff_id: 'Radle', lantern_username: 'Rick Radle', lantern_staff_id: 1 },
+  admin: { tms_staff_id: 'Radle', lantern_username: 'admin', lantern_staff_id: 1 },
   'rick.radle': { tms_staff_id: 'Radle', lantern_username: 'rick.radle', lantern_staff_id: 4 },
 };
 const linksByStaffId = {
-  1: { tms_staff_id: 'Radle', lantern_username: 'Rick Radle', lantern_staff_id: 1 },
+  1: { tms_staff_id: 'Radle', lantern_username: 'admin', lantern_staff_id: 1 },
   4: { tms_staff_id: 'Radle', lantern_username: 'rick.radle', lantern_staff_id: 4 },
 };
 
@@ -162,9 +162,9 @@ const db = makeDb();
   else bad('staff_id:1 resolve', a);
 }
 {
-  const a = await resolveStaffTmsPrincipal(db, 'staff:Rick Radle');
-  if (a.ok && a.tmsStaffId === 'Radle') ok('staff:Rick Radle resolves to TMS Radle');
-  else bad('staff:Rick Radle resolve', a);
+  const a = await resolveStaffTmsPrincipal(db, 'staff:admin');
+  if (a.ok && a.tmsStaffId === 'Radle') ok('staff:admin resolves to TMS Radle');
+  else bad('staff:admin resolve', a);
 }
 {
   const a = await resolveStaffTmsPrincipal(db, 'staff:rick.radle');
@@ -182,16 +182,16 @@ const db = makeDb();
   else bad('unlinked staff must fail closed', a);
 }
 {
-  const a = await resolveTmsStaffIdForLanternAccount(db, 'Rick Radle');
-  const b = await resolveStaffTmsPrincipal(db, staffEconomyKey(accounts['rick radle']));
+  const a = await resolveTmsStaffIdForLanternAccount(db, 'admin');
+  const b = await resolveStaffTmsPrincipal(db, staffEconomyKey(accounts.admin));
   if (a === 'Radle' && b.ok && b.tmsStaffId === 'Radle') {
     ok('Games staffEconomyKey and Remember resolver agree on Radle');
   } else bad('Games/Remember principal mismatch', { a, b });
 }
 {
   // Username casing drift: link row still "Rick Radle"; lookup lower/trim.
-  const a = await resolveTmsStaffIdForLanternAccount(db, 'rick radle');
-  if (a === 'Radle') ok('username casing/trim does not break linked admin');
+  const a = await resolveTmsStaffIdForLanternAccount(db, 'admin');
+  if (a === 'Radle') ok('admin username resolves to linked TMS Radle');
   else bad('casing/trim resolve', a);
 }
 {
@@ -240,7 +240,7 @@ function makeEnv() {
 }
 
 const env = makeEnv();
-const adminCookie = await cookieFor(accounts['rick radle']);
+const adminCookie = await cookieFor(accounts.admin);
 const bridgeCalls = [];
 const origFetch = globalThis.fetch;
 globalThis.fetch = async (url, opts) => {

@@ -72,12 +72,12 @@ function makeDb(state) {
   state.links = state.links || {
     Radle: [
       { lantern_username: 'rick.radle', is_primary: 1, display_name: 'Rick Radle', email: null, role: 'teacher', is_active: 1 },
-      { lantern_username: 'Rick Radle', is_primary: 0, display_name: 'Rick Radle', email: 'rick.radle@trinidad.k12.co.us', role: 'admin', is_active: 1 },
+      { lantern_username: 'admin', is_primary: 0, display_name: 'Web Admin', email: 'rick.radle@trinidad.k12.co.us', role: 'admin', is_active: 1 },
     ],
   };
   state.accounts = state.accounts || {
     'rick.radle': { username: 'rick.radle', display_name: 'Rick Radle', email: null, role: 'teacher', is_active: 1 },
-    'Rick Radle': { username: 'Rick Radle', display_name: 'Rick Radle', email: 'rick.radle@trinidad.k12.co.us', role: 'admin', is_active: 1 },
+    admin: { username: 'admin', display_name: 'Web Admin', email: 'rick.radle@trinidad.k12.co.us', role: 'admin', is_active: 1 },
   };
 
   function prepare(sql) {

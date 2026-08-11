@@ -50,7 +50,7 @@ export const REAL_STAFF_ROSTER = [
     display: 'Rick Radle',
     username: 'rick.radle',
     email: `rick.radle@${EMAIL_DOMAIN}`,
-    notes: 'Primary admin username is "Rick Radle"; expected login alias rick.radle may already exist as a separate row.',
+    notes: 'Privileged admin login is "admin" (display Web Admin); teacher twin rick.radle remains a separate row.',
   },
   { first: 'Sara', last: 'Wilson', display: 'Sara Wilson', username: 'sara.wilson', email: `sara.wilson@${EMAIL_DOMAIN}` },
   { first: 'Shanda', last: 'Vasquez', display: 'Shanda Vasquez', username: 'shanda.vasquez', email: `shanda.vasquez@${EMAIL_DOMAIN}` },
@@ -163,7 +163,7 @@ export function matchTmsStaff(person, tmsRows) {
 
 /**
  * Choose Lantern match without inventing merges.
- * Rick special-case: prefer username "Rick Radle" (primary admin) over rick.radle teacher clone.
+ * Rick special-case: prefer privileged admin username "admin" over rick.radle teacher twin.
  */
 export function matchLanternAccount(person, lanternRows) {
   const rows = (lanternRows || []).filter((r) => {
@@ -172,13 +172,13 @@ export function matchLanternAccount(person, lanternRows) {
   });
 
   if (normName(person.first) === 'rick' && normName(person.last) === 'radle') {
-    const primary = rows.find((r) => String(r.username) === 'Rick Radle');
+    const primary = rows.find((r) => String(r.username) === 'admin');
     if (primary) {
-      const alias = rows.find((r) => normName(r.username) === 'rick.radle' && String(r.username) !== 'Rick Radle');
+      const alias = rows.find((r) => normName(r.username) === 'rick.radle' && String(r.username) !== 'admin');
       return {
         row: primary,
         conflictNotes: alias
-          ? [`Separate Lantern username "rick.radle" (staff_id=${alias.staff_id}, role=${alias.role}) exists — not merged; primary admin stays "Rick Radle".`]
+          ? [`Separate Lantern username "rick.radle" (staff_id=${alias.staff_id}, role=${alias.role}) exists — not merged; privileged admin stays "admin".`]
           : [],
       };
     }
@@ -230,24 +230,25 @@ export function planPerson(person, lanternRows, tmsRows, links) {
     action = 'CONFLICT';
   } else if (lanternMatch.row) {
     const row = lanternMatch.row;
-    const needFirst = !row.first_name || normName(row.first_name) !== normName(person.first);
-    const needLast = !row.last_name || normName(row.last_name) !== normName(person.last);
+    const isPrivilegedAdmin = String(row.username) === 'admin';
+    const needFirst = !isPrivilegedAdmin && (!row.first_name || normName(row.first_name) !== normName(person.first));
+    const needLast = !isPrivilegedAdmin && (!row.last_name || normName(row.last_name) !== normName(person.last));
     const needDisplay =
       person.display && normName(row.display_name) !== normName(person.display) &&
-      // Never rename Rick admin display away from Rick Radle via Jackie-style override; for Rick display is same.
-      !(String(row.username) === 'Rick Radle');
+      // Never rename privileged admin display away from Web Admin via Jackie-style override.
+      !isPrivilegedAdmin;
     // For matched rows, keep display_name if already set and names will compose the same; Jackie display is intentional.
     const wantDisplay = person.display;
     const composed = `${person.first} ${person.last}`.trim();
     const displayTarget = wantDisplay || composed;
     const needDisp =
-      String(row.username) === 'Rick Radle'
+      isPrivilegedAdmin
         ? false
         : normName(row.display_name) !== normName(displayTarget);
     const needEmail = !row.email || normName(row.email) !== normName(person.email);
     // Username rename is never applied automatically.
-    if (normName(row.username) !== normName(person.username) && String(row.username) === 'Rick Radle') {
-      notes.push('Username left as "Rick Radle" (expected rick.radle not applied — preserves sessions/TMS link).');
+    if (normName(row.username) !== normName(person.username) && isPrivilegedAdmin) {
+      notes.push('Username left as "admin" (expected rick.radle not applied — preserves sessions/TMS link).');
     } else if (normName(row.username) !== normName(person.username)) {
       notes.push(`Existing username "${row.username}" differs from expected "${person.username}" — username not renamed.`);
     }
@@ -281,8 +282,8 @@ export function planPerson(person, lanternRows, tmsRows, links) {
     const lanternUser = lanternMatch.row ? String(lanternMatch.row.username) : person.username;
     // For CREATE, link username will be expected username after create.
     const finalUser = action === 'CREATE' ? person.username : lanternUser;
-    // Rick stays linked as Rick Radle
-    const linkUser = String(lanternMatch.row && String(lanternMatch.row.username) === 'Rick Radle' ? 'Rick Radle' : finalUser);
+    // Privileged Rick admin stays linked as admin
+    const linkUser = String(lanternMatch.row && String(lanternMatch.row.username) === 'admin' ? 'admin' : finalUser);
     if (existingLink) {
       if (
         String(existingLink.tms_staff_id) === String(tmsMatch.row.teacher_id) &&
@@ -359,12 +360,10 @@ export function buildApplySql(plans) {
     } else if (p.action === 'UPDATE' && p.lantern) {
       const u = String(p.lantern.username);
       // Preserve role, password, must_change_password, staff_id, is_active.
-      if (u === 'Rick Radle') {
+      if (u === 'admin') {
         stmts.push(
           `UPDATE lantern_pilot_accounts
-           SET first_name = ${sqlStr(person.first)},
-               last_name = ${sqlStr(person.last)},
-               email = ${sqlStr(person.email)},
+           SET email = ${sqlStr(person.email)},
                updated_at = datetime('now')
            WHERE username = ${sqlStr(u)};`
         );
@@ -383,8 +382,8 @@ export function buildApplySql(plans) {
 
     if (p.linkAction === 'create' && p.linkTarget) {
       const linkUser =
-        p.lantern && String(p.lantern.username) === 'Rick Radle'
-          ? 'Rick Radle'
+        p.lantern && String(p.lantern.username) === 'admin'
+          ? 'admin'
           : p.action === 'CREATE'
             ? person.username
             : String(p.lantern.username);

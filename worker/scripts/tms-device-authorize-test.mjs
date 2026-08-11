@@ -59,8 +59,8 @@ async function cookieFor(account) {
 
 function account(overrides) {
   return {
-    username: 'Rick Radle',
-    display_name: 'Rick Radle',
+    username: 'admin',
+    display_name: 'Web Admin',
     role: 'admin',
     student_character_name: null,
     teacher_id: null,
@@ -223,10 +223,10 @@ async function testMustChangePasswordRedirect() {
 }
 
 async function testLinkedTeacherMintsAndRedirects() {
-  const teacher = account({ username: 'Rick Radle', role: 'admin' });
+  const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
-    accounts: { 'rick radle': teacher },
-    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+    accounts: { admin: teacher },
+    identityLinksByUsername: { admin: 'Radle' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint((call) => {
@@ -234,10 +234,10 @@ async function testLinkedTeacherMintsAndRedirects() {
     const body = JSON.parse(call.opts.body);
     if (auth !== `Bearer ${TEST_BRIDGE_SECRET}`) throw new Error('mint must use bridge Bearer secret');
     if (body.password || body.password_hash) throw new Error('must never send password to TMS');
-    if (body.tms_staff_id !== 'Radle' || body.lantern_username !== 'Rick Radle') {
+    if (body.tms_staff_id !== 'Radle' || body.lantern_username !== 'admin') {
       throw new Error('mint payload identity mismatch');
     }
-    return { body: { ok: true, code: 'opaque-device-code-ABC', tms_staff_id: 'Radle', teacher_name: 'Rick Radle' } };
+    return { body: { ok: true, code: 'opaque-device-code-ABC', tms_staff_id: 'Radle', teacher_name: 'Web Admin' } };
   }, async (getCall) => {
     const res = await authorize(env, cookie, 'https://tmsnuggets.pages.dev/index.html');
     const loc = res.headers.get('Location') || '';
@@ -259,10 +259,10 @@ async function testLinkedTeacherMintsAndRedirects() {
 }
 
 async function testAdminCanVerifySimilarly() {
-  const admin = account({ username: 'Rick Radle', role: 'admin' });
+  const admin = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
-    accounts: { 'rick radle': admin },
-    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+    accounts: { admin: admin },
+    identityLinksByUsername: { admin: 'Radle' },
   });
   const cookie = await cookieFor(admin);
   await withMockedMint(() => ({ body: { ok: true, code: 'admin-code-1', tms_staff_id: 'Radle' } }), async () => {
@@ -279,7 +279,7 @@ async function testTeacherRickAlsoResolvesToRadle() {
   const env = makeEnv({
     accounts: { 'rick.radle': teacher },
     identityLinksByUsername: {
-      'Rick Radle': 'Radle',
+      admin: 'Radle',
       'rick.radle': 'Radle',
     },
   });
@@ -301,10 +301,10 @@ async function testTeacherRickAlsoResolvesToRadle() {
 }
 
 async function testUnsafeReturnSanitized() {
-  const teacher = account({ username: 'Rick Radle', role: 'admin' });
+  const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
-    accounts: { 'rick radle': teacher },
-    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+    accounts: { admin: teacher },
+    identityLinksByUsername: { admin: 'Radle' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint(() => ({ body: { ok: true, code: 'safe-code' } }), async () => {
@@ -318,10 +318,10 @@ async function testUnsafeReturnSanitized() {
 }
 
 async function testCanonicalLogHostReturnAccepted() {
-  const teacher = account({ username: 'Rick Radle', role: 'admin' });
+  const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
-    accounts: { 'rick radle': teacher },
-    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+    accounts: { admin: teacher },
+    identityLinksByUsername: { admin: 'Radle' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint(() => ({ body: { ok: true, code: 'log-host-code' } }), async () => {

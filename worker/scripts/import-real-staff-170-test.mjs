@@ -47,7 +47,7 @@ const importSrc = fs.readFileSync(path.join(root, 'worker/scripts/import-real-st
 assert(/NULL, NULL, NULL, NULL, NULL/.test(importSrc) && /password_hash, password_salt/.test(importSrc), 'import creates NULL password hashes');
 
 const lantern = [
-  { username: 'Rick Radle', display_name: 'Rick Radle', first_name: null, last_name: null, staff_id: 1, role: 'admin', email: null },
+  { username: 'admin', display_name: 'Web Admin', first_name: 'Web', last_name: 'Admin', staff_id: 1, role: 'admin', email: null },
   { username: 'rick.radle', display_name: 'Rick Radle', first_name: 'Rick', last_name: 'Radle', staff_id: 4, role: 'teacher', email: null },
   { username: 'alyssa.glorioso', display_name: 'Alyssa Glorioso', first_name: 'Alyssa', last_name: 'Glorioso', staff_id: 6, role: 'teacher', email: null },
 ];
@@ -58,12 +58,12 @@ const tms = [
   { teacher_id: 'BWilson', teacher_name: 'Becky Wilson', teacher_email: 'rebecca.wilson@trinidad.k12.co.us' },
   { teacher_id: 'Gumlich', teacher_name: 'Vinny Gumlich', teacher_email: 'vincent.gumlich@trinidad.k12.co.us' },
 ];
-const links = [{ tms_staff_id: 'Radle', lantern_username: 'Rick Radle' }];
+const links = [{ tms_staff_id: 'Radle', lantern_username: 'admin' }];
 
 const rick = REAL_STAFF_ROSTER.find((p) => p.display === 'Rick Radle');
 const rickPlan = planPerson(rick, lantern, tms, links);
-assert(rickPlan.lantern && rickPlan.lantern.username === 'Rick Radle', 'Rick matches primary admin');
-assert(rickPlan.action === 'UPDATE', 'Rick UPDATE names/email only');
+assert(rickPlan.lantern && rickPlan.lantern.username === 'admin', 'Rick matches privileged admin');
+assert(rickPlan.action === 'UPDATE', 'Rick UPDATE email only when needed');
 assert(rickPlan.linkAction === 'unchanged', 'Rick TMS link preserved');
 
 const ashleigh = REAL_STAFF_ROSTER.find((p) => p.username === 'ashleigh.ackerman');
@@ -80,7 +80,7 @@ const vinPlan = planPerson(vincent, lantern, tms, links);
 assert(vinPlan.tms.status === 'exact' && vinPlan.tms.row.teacher_id === 'Gumlich', 'Vincent links by exact email');
 
 const sql = buildApplySql([rickPlan, ashPlan, rebPlan, vinPlan]);
-assert(/UPDATE lantern_pilot_accounts/.test(sql) && /Rick Radle/.test(sql), 'SQL updates Rick');
+assert(/UPDATE lantern_pilot_accounts/.test(sql) && /admin/.test(sql), 'SQL updates admin');
 assert(!/password_hash\s*=/.test(sql), 'SQL never rewrites password_hash');
 assert(/password_hash, password_salt[\s\S]*NULL, NULL/.test(sql), 'CREATE leaves passwords NULL');
 assert(!/INSERT INTO tms_identity_links[\s\S]*Radle/.test(sql), 'does not duplicate Rick link');
@@ -90,7 +90,7 @@ assert(validateStaffEmail('rick.radle@trinidad.k12.co.us').ok, 'validate ok emai
 assert(!validateStaffEmail('not-an-email').ok, 'validate rejects junk');
 assert(validateStaffEmail('').value === null, 'empty email clears');
 
-assert(matchLanternAccount(rick, lantern).row.username === 'Rick Radle', 'match prefers Rick Radle admin');
+assert(matchLanternAccount(rick, lantern).row.username === 'admin', 'match prefers admin privileged account');
 assert(matchTmsStaff(ashleigh, tms).status === 'none', 'no fuzzy TMS name match');
 
 console.log('\nimport-real-staff-170-test:', pass, 'PASS', fail, 'FAIL');

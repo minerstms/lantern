@@ -46,8 +46,8 @@ async function cookieFor(account) {
 
 function account(overrides) {
   return {
-    username: 'Rick Radle',
-    display_name: 'Rick Radle',
+    username: 'admin',
+    display_name: 'Web Admin',
     role: 'admin',
     teacher_id: null,
     mtss_student_id: null,
@@ -172,10 +172,10 @@ async function testUnlinkedTeacher() {
 }
 
 async function testMustChangePasswordBeforeRemember() {
-  const teacher = account({ username: 'Rick Radle', role: 'admin', must_change_password: 1 });
+  const teacher = account({ username: 'admin', role: 'admin', must_change_password: 1 });
   const env = makeEnv({
-    accounts: { 'rick radle': teacher },
-    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+    accounts: { admin: teacher },
+    identityLinksByUsername: { admin: 'Radle' },
   });
   const cookie = await cookieFor(teacher);
   const res = await linkStatus(env, cookie);
@@ -192,10 +192,10 @@ async function testMustChangePasswordBeforeRemember() {
 }
 
 async function testLinkedAuthorizePreservesIntent() {
-  const teacher = account({ username: 'Rick Radle', role: 'admin' });
+  const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
-    accounts: { 'rick radle': teacher },
-    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+    accounts: { admin: teacher },
+    identityLinksByUsername: { admin: 'Radle' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint(async (getCall) => {

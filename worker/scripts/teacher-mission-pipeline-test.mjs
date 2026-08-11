@@ -207,7 +207,7 @@ async function call(account, method, urlStr, body) {
   return { status: res.status, json };
 }
 
-const rick = { username: 'Rick Radle', display_name: 'Rick Radle', role: 'admin', teacher_id: null };
+const rick = { username: 'admin', display_name: 'Web Admin', role: 'admin', teacher_id: null };
 const teacher1 = { username: 'teacher1', display_name: 'Ms. Carter', role: 'teacher', teacher_id: 'teacher1' };
 const teacher2 = { username: 'teacher2', display_name: 'Mr. Lee', role: 'teacher', teacher_id: 'teacher2' };
 const lucas = { username: '20889', display_name: 'Lucas', role: 'student', teacher_id: null };
@@ -223,7 +223,7 @@ const seedSubmissions = [
 // ---------------------------------------------------------------------------
 // 1. sessionTeacherId / teacherOwnsMission unit behavior
 // ---------------------------------------------------------------------------
-if (sessionTeacherId(rick) === 'Rick Radle') {
+if (sessionTeacherId(rick) === 'admin') {
   ok('sessionTeacherId gives admin a stable identity (own username) instead of empty string');
 } else bad('sessionTeacherId admin identity', sessionTeacherId(rick));
 
@@ -297,7 +297,7 @@ async function runCreateTests() {
   call.db = makeMissionsDb({ missions: [], submissions: [] });
 
   const createdByAdmin = await call(rick, 'POST', 'https://x/api/missions', { title: '8-8-26', description: 'test', created_by_teacher_id: '' });
-  if (createdByAdmin.status === 200 && createdByAdmin.json.ok && createdByAdmin.json.mission.created_by_teacher_id === 'Rick Radle') {
+  if (createdByAdmin.status === 200 && createdByAdmin.json.ok && createdByAdmin.json.mission.created_by_teacher_id === 'admin') {
     ok('admin-created mission with no explicit owner gets a real, stable, server-derived owner (Rick\'s own identity), not the orphaned "teacher" placeholder');
   } else bad('admin create owner derivation', createdByAdmin);
 
