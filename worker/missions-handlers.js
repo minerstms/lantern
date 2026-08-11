@@ -10,8 +10,8 @@ import {
 import {
   isAdminRole,
   isSelfMissionSubmission,
-  missionVisibleToParticipant,
-  missionVisibleToStudent,
+  missionEligibleForParticipant,
+  missionInCatalogForParticipant,
   missionEditLockedFieldsPresent,
   missionIsUnusedAndDeletable,
   normalizeParticipantScope,
@@ -220,12 +220,13 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     const rows = await db
       .prepare(
-        // Prompt #103 + #107: active+unarchived; participant_scope filtered in JS.
+        // Prompt #103 + #107 + #211: active+unarchived; catalog visibility filtered in JS
+        // (staff may SEE students-only school missions; completion remains eligibility-gated).
         'SELECT id, teacher_id, teacher_name, title, description, reward_amount, submission_type, audience, participant_scope, target_character_names, featured, active, archived, site_eligible, allows_text, allows_image, allows_video, allows_link, min_characters, created_at FROM lantern_missions WHERE active = 1 AND archived = 0 ORDER BY featured DESC, created_at DESC'
       )
       .all();
     let list = (rows.results || []).map((r) => missionRowToJson(r));
-    list = list.filter((m) => missionVisibleToParticipant(m, identity));
+    list = list.filter((m) => missionInCatalogForParticipant(m, identity));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -237,9 +238,12 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
     }
-    try {
-      await ensureFirstGameMissionCompletion(db, env, identity.characterName, null);
-    } catch (_) {}
+    // Prompt #211 — do not auto-complete / reward first-game against staff: keys.
+    if (identity.participantKind === 'student') {
+      try {
+        await ensureFirstGameMissionCompletion(db, env, identity.characterName, null);
+      } catch (_) {}
+    }
     const progress = await getMissionProgressForCharacter(db, identity.characterName, new Date());
     return jsonResponse(progress, 200, cors);
   }
@@ -250,6 +254,13 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    const dailyMission = await loadFullMission(db, WAVE2_MISSION_IDS.DAILY_CHECKIN);
+    if (!dailyMission || dailyMission.active === 0 || !!dailyMission.archived) {
+      return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
+    }
+    if (!missionEligibleForParticipant(dailyMission, identity)) {
+      return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }
     const text = await request.text();
     let body;
@@ -662,7 +673,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     // mission_id that a student already has cached client-side; Pause (active=0) already blocked
     // this, Archive must too.
     if (mission.active === 0 || !!mission.archived) return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
-    if (!missionVisibleToParticipant(mission, identity)) {
+    if (!missionEligibleForParticipant(mission, identity)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }
     // Prompt #165 — Daily Check-In / First Game use dedicated event endpoints, not free-form submit.

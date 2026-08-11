@@ -1,30 +1,13 @@
 /**
- * REAL BROWSER TEST — Prompt #97 (session-collision / role-mismatch on /missions).
+ * REAL BROWSER TEST — Prompt #97 / #107 / #211 (session collision + staff catalog on /missions).
  *
- * Proves the fix for the observed production bug: a TMS→Lantern staff SSO sign-in completed in
- * another tab shares the same `lantern_pilot` cookie name/path as the student session, so the
- * browser's single cookie jar entry gets overwritten. An already-open student Missions tab's
- * next request then carries the STAFF/ADMIN identity, and the real server-side missions
- * endpoints (see worker/missions-auth.js resolveStudentMissionIdentity) correctly reject that
- * with 403 forbidden (role check), not a network/server error.
+ * Prompt #107 made teacher/admin valid Missions participants. Prompt #211 requires staff to
+ * SEE the school mission catalog. A mid-session cookie overwrite to staff is therefore NOT a
+ * "sign in as a student" role wall — staff load the catalog (or a genuine fetch warning).
  *
- * Drives the ACTUAL app/missions.html through a normal boot with:
- *   - /api/auth/me mocked to report an AUTHENTICATED session with a non-student role (admin or
- *     teacher) — simulating the overwritten cookie.
- *   - /api/missions/active (and /submissions/character) mocked to return the real 403 shape
- *     ({ ok:false, error:'forbidden' }) a student-only route returns for that role.
- *
- * Asserts:
- *   1. The generic "Some missions couldn't be loaded" warning does NOT appear (this is not a
- *      loading glitch).
- *   2. The Quick-missions fallback grid is NOT rendered as though student data merely failed to
- *      load (no fake partial student experience).
- *   3. An explicit, unmistakable role-mismatch banner appears with role-aware copy and a "Go to
- *      Teacher workspace" action for staff roles.
- *   4. A genuinely expired/absent session (unauthenticated) still redirects to login (Prompt #85
- *      behavior), unchanged by this fix.
- *   5. A genuine transient failure with a still-valid student session still shows the original
- *      generic warning + Quick missions fallback (unchanged regression baseline).
+ * Still asserts:
+ *   - Unauthenticated sessions redirect to login (Prompt #85).
+ *   - Genuine student transient failure still shows the generic warning + Hidden Nugget fallback.
  *
  * Usage: node worker/scripts/mission-role-mismatch-test.mjs [baseUrl]
  * Requires a static file server for app/ at baseUrl (default http://127.0.0.1:8765).
@@ -42,7 +25,45 @@ async function main() {
 
   const browser = await chromium.launch();
   const okJson = (body) => (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
-  const forbiddenJson = (route) => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'forbidden' }) });
+
+  const SAMPLE_CATALOG = [
+    {
+      id: 'perm_thank_you',
+      title: 'Thank a Teacher',
+      description: 'Send a thank-you.',
+      reward_amount: 1,
+      submission_type: 'text',
+      audience: 'school_mission',
+      participant_scope: 'students',
+      featured: 0,
+      active: true,
+      archived: false,
+      allows_text: 1,
+      allows_image: 0,
+      allows_video: 0,
+      allows_link: 0,
+      min_characters: 20,
+      created_at: '2026-08-01T00:00:00.000Z',
+    },
+    {
+      id: 'perm_daily_checkin',
+      title: 'Daily Check-In',
+      description: 'How are you today?',
+      reward_amount: 1,
+      submission_type: 'confirmation',
+      audience: 'school_mission',
+      participant_scope: 'students',
+      featured: 0,
+      active: true,
+      archived: false,
+      allows_text: 0,
+      allows_image: 0,
+      allows_video: 0,
+      allows_link: 0,
+      min_characters: 0,
+      created_at: '2026-08-01T00:00:00.000Z',
+    },
+  ];
 
   async function bootPage(authMeBody, missionsRoute, submissionsRoute) {
     const page = await browser.newPage();
@@ -51,10 +72,6 @@ async function main() {
     page.on('pageerror', (err) => consoleErrors.push(String(err)));
 
     await page.addInitScript(() => { window.LANTERN_AVATAR_API = ''; });
-    // First /api/auth/me call is the page's own boot guard (must report authenticated so the
-    // page actually boots as a "student" session at load time) — the SECOND call (from the
-    // mission-fetch-failure recheck) is what simulates the cookie having been overwritten mid-
-    // session. Route handler swaps after the first call to model that sequence precisely.
     let authCalls = 0;
     await page.route('**/api/auth/me**', (route) => {
       authCalls++;
@@ -69,6 +86,7 @@ async function main() {
     await page.route('**/api/class-access/**', okJson({ ok: true, accessState: 'none', tokenValid: true }));
     await page.route('**/api/missions/active**', missionsRoute);
     await page.route('**/api/missions/submissions/character**', submissionsRoute || okJson({ ok: true, submissions: [] }));
+    await page.route('**/api/missions/progress**', okJson({ ok: true, daily_checkin: { completed_today: false }, thank_you: { completed_today: false }, first_game: { completed: false } }));
     await page.route('**/api/verify/state**', okJson({ ok: true, state: null }));
 
     await page.goto(base + '/missions.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -82,62 +100,57 @@ async function main() {
       const warn = document.getElementById('missionsLibraryWarning');
       const banner = document.getElementById('missionsRoleMismatchBanner');
       const grid = document.getElementById('missionsLibraryGrid');
-      const teacherLink = document.getElementById('missionsRoleMismatchTeacherLink');
+      const titles = grid
+        ? Array.from(grid.querySelectorAll('[data-lantern-card-type]')).map((el) => {
+            const t = el.querySelector('.lanternCardTitle, .lc-title, h3, h2');
+            return (t && t.textContent) || el.textContent || '';
+          })
+        : [];
       return {
         warningVisible: warn ? !warn.hidden : null,
         bannerVisible: banner ? !banner.hidden : null,
         bannerText: (document.getElementById('missionsRoleMismatchMessage') || {}).textContent || '',
-        teacherLinkVisible: teacherLink ? !teacherLink.hidden : null,
         gridCardCount: grid ? grid.querySelectorAll('[data-lantern-card-type]').length : -1,
+        titles: titles.map((t) => String(t).trim().slice(0, 80)),
       };
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Scenario 1: cookie overwritten by an admin staff SSO sign-in — /api/auth/me now reports
-  // authenticated:true, role:'admin'; the real missions endpoints correctly 403 that role.
-  // ---------------------------------------------------------------------------
+  // Scenario 1: cookie overwritten by admin — staff are valid participants and see catalog (#211).
   {
     const { page } = await bootPage(
-      { ok: true, authenticated: true, role: 'admin', username: 'rick_radle', display_name: 'Rick Radle' },
-      forbiddenJson,
-      forbiddenJson
+      { ok: true, authenticated: true, role: 'admin', username: 'admin', display_name: 'Web Admin' },
+      okJson({ ok: true, missions: SAMPLE_CATALOG }),
+      okJson({ ok: true, submissions: [] })
     );
     const state = await bannerState(page);
-    assert(state.warningVisible === false, 'Scenario 1 (admin cookie collision): generic "couldn\'t be loaded" warning does NOT appear');
-    assert(state.bannerVisible === true, 'Scenario 1: explicit role-mismatch banner IS shown');
-    assert(state.gridCardCount === 0, 'Scenario 1: Quick-missions fallback grid is NOT rendered (no fake partial student experience): got ' + state.gridCardCount + ' cards');
-    assert(/admin/i.test(state.bannerText), 'Scenario 1: banner copy names the actual current role: "' + state.bannerText + '"');
-    assert(state.teacherLinkVisible === true, 'Scenario 1: "Go to Teacher workspace" action is offered for a staff role');
+    assert(state.bannerVisible === false, 'Scenario 1 (admin): role-mismatch banner is NOT shown for staff participants');
+    assert(state.warningVisible === false, 'Scenario 1: no false load-failure warning when catalog succeeds');
+    assert(state.gridCardCount >= 2, 'Scenario 1: admin sees full catalog cards (not Hidden Nugget alone): got ' + state.gridCardCount);
+    assert(state.titles.some((t) => /Thank a Teacher/i.test(t)), 'Scenario 1: Thank a Teacher visible to admin');
     await page.close();
   }
 
-  // ---------------------------------------------------------------------------
-  // Scenario 2: cookie overwritten by a teacher (non-admin) staff SSO sign-in.
-  // ---------------------------------------------------------------------------
+  // Scenario 2: cookie overwritten by teacher — same catalog visibility.
   {
     const { page } = await bootPage(
-      { ok: true, authenticated: true, role: 'teacher', username: 'mr_lee', display_name: 'Mr. Lee' },
-      forbiddenJson,
-      forbiddenJson
+      { ok: true, authenticated: true, role: 'teacher', username: 'rick.radle', display_name: 'Rick Radle' },
+      okJson({ ok: true, missions: SAMPLE_CATALOG }),
+      okJson({ ok: true, submissions: [] })
     );
     const state = await bannerState(page);
-    assert(state.bannerVisible === true, 'Scenario 2 (teacher cookie collision): explicit role-mismatch banner IS shown');
-    assert(/teacher/i.test(state.bannerText), 'Scenario 2: banner copy names "teacher": "' + state.bannerText + '"');
-    assert(state.teacherLinkVisible === true, 'Scenario 2: "Go to Teacher workspace" action is offered');
+    assert(state.bannerVisible === false, 'Scenario 2 (teacher): role-mismatch banner is NOT shown');
+    assert(state.gridCardCount >= 2, 'Scenario 2: teacher sees catalog cards: got ' + state.gridCardCount);
+    assert(state.titles.some((t) => /Daily Check-In|Thank a Teacher/i.test(t)), 'Scenario 2: representative missions visible to teacher');
     await page.close();
   }
 
-  // ---------------------------------------------------------------------------
-  // Scenario 3: session is genuinely expired/absent (Prompt #85 behavior) — must still redirect
-  // to login, NOT show the role-mismatch banner (there is no "role" for an unauthenticated
-  // session — this must remain a distinct code path from role-mismatch).
-  // ---------------------------------------------------------------------------
+  // Scenario 3: expired session still redirects to login (triggered via failed mission fetch recheck).
   {
     const { page } = await bootPage(
       { ok: true, authenticated: false },
-      forbiddenJson,
-      forbiddenJson
+      (route) => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'forbidden' }) }),
+      (route) => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'forbidden' }) })
     );
     await page.waitForTimeout(500);
     const url = page.url();
@@ -145,10 +158,7 @@ async function main() {
     await page.close();
   }
 
-  // ---------------------------------------------------------------------------
-  // Scenario 4: genuine transient failure (student session still valid) — unchanged baseline:
-  // generic warning + Quick missions fallback, NOT the role-mismatch banner.
-  // ---------------------------------------------------------------------------
+  // Scenario 4: genuine transient failure with a still-valid student session.
   {
     const { page } = await bootPage(
       { ok: true, authenticated: true, role: 'student', username: 'testpilot', display_name: 'Test Pilot' },

@@ -112,8 +112,10 @@ export function normalizeParticipantScope(raw) {
 }
 
 /**
- * Whether an active mission is visible to a participant given participant_scope + audience.
+ * Whether an active mission is eligible for this participant to complete / earn rewards.
  * Historical missions without participant_scope behave as students-only.
+ * Prompt #211 — this is NOT the catalog filter; staff may SEE students-only missions
+ * via missionInCatalogForParticipant without becoming eligible to complete them.
  */
 export function missionVisibleToParticipant(missionRow, identity) {
   if (!identity || !identity.ok) return false;
@@ -126,6 +128,28 @@ export function missionVisibleToParticipant(missionRow, identity) {
   // Staff participants: Staff or Everyone only — never Students-only historical missions.
   if (scope !== 'staff' && scope !== 'everyone') return false;
   return true;
+}
+
+/** Alias — completion/reward eligibility (same rules as missionVisibleToParticipant). */
+export function missionEligibleForParticipant(missionRow, identity) {
+  return missionVisibleToParticipant(missionRow, identity);
+}
+
+/**
+ * Prompt #211 — catalog visibility for Missions page oversight.
+ * Teacher/Admin must SEE the active school mission catalog (including students-only
+ * definitions). Does not grant completion/reward eligibility.
+ */
+export function missionInCatalogForParticipant(missionRow, identity) {
+  if (!identity || !identity.ok) return false;
+  if (identity.participantKind === 'staff') {
+    const aud = String((missionRow && missionRow.audience) || 'school_mission').trim();
+    // Shared school catalog: show regardless of participant_scope (students/staff/everyone).
+    // Targeted / class-scoped missions stay out of the shared oversight catalog.
+    if (aud === 'school_mission') return true;
+    return missionVisibleToParticipant(missionRow, identity);
+  }
+  return missionVisibleToParticipant(missionRow, identity);
 }
 
 /**

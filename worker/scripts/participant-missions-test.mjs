@@ -1,14 +1,16 @@
 /**
  * Prompt #107 — participant mission access, audience scope, self-approval deny (mock D1).
  */
-import { handleMissionsRoutes } from '../missions-handlers.js';
 import {
   isSelfMissionSubmission,
+  missionEligibleForParticipant,
+  missionInCatalogForParticipant,
   missionVisibleToParticipant,
   normalizeParticipantScope,
   resolveParticipantMissionIdentity,
   staffMissionSubmitterKey,
 } from '../missions-auth.js';
+import { handleMissionsRoutes } from '../missions-handlers.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg || 'assertion failed');
@@ -142,7 +144,15 @@ const idAdmin = resolveParticipantMissionIdentity(admin, () => '');
 assert(idAdmin.ok && idAdmin.participantKind === 'staff', 'admin is participant');
 assert(
   !missionVisibleToParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
-  'staff excluded from students-only'
+  'staff excluded from students-only completion'
+);
+assert(
+  missionInCatalogForParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
+  'staff sees students-only school missions in catalog (#211)'
+);
+assert(
+  !missionEligibleForParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
+  'staff not eligible to complete students-only'
 );
 assert(
   missionVisibleToParticipant({ participant_scope: 'staff', audience: 'school_mission' }, idStaff),
@@ -222,12 +232,13 @@ assert(
   const teacherActive = await activeFor(teacherA);
   assert(teacherActive.ok, 'teacher active ok');
   const tTitles = (teacherActive.missions || []).map((m) => m.title);
-  assert(!tTitles.includes('Students Only Mission'), 'students-only hidden from teacher');
+  assert(tTitles.includes('Students Only Mission'), 'students-only visible to teacher in catalog (#211)');
   assert(tTitles.includes('Staff Mission'), 'staff mission visible to teacher');
   assert(tTitles.includes('Everyone Mission'), 'everyone visible to teacher');
 
   const adminActive = await activeFor(admin);
   assert(adminActive.ok, 'admin active ok');
+  assert((adminActive.missions || []).some((m) => m.title === 'Students Only Mission'), 'admin sees students-only catalog (#211)');
   assert((adminActive.missions || []).some((m) => m.title === 'Staff Mission'), 'admin sees staff mission');
 
   const studentActive = await activeFor(student);
@@ -236,6 +247,25 @@ assert(
   assert(sTitles.includes('Students Only Mission'), 'student sees students mission');
   assert(!sTitles.includes('Staff Mission'), 'student does not see staff-only');
   assert(sTitles.includes('Everyone Mission'), 'student sees everyone');
+
+  // Staff cannot complete students-only even when it appears in catalog
+  const studentsOnly = (teacherActive.missions || []).find((m) => m.title === 'Students Only Mission');
+  assert(studentsOnly, 'students-only mission id');
+  const denySubmitReq = new Request('https://lantern.test/api/missions/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mission_id: studentsOnly.id,
+      submission_type: 'text',
+      submission_content: 'Teacher should not be able to complete a students-only mission even when it is visible in the catalog for oversight under Prompt 211. Padding text so length requirements cannot be the reason this is rejected.',
+    }),
+  });
+  const denySubmitRes = await handleMissionsRoutes(denySubmitReq, new URL(denySubmitReq.url), '/api/missions/submit', env, {}, {
+    ...deps,
+    getPilotAccountFromRequest: async () => teacherA,
+  });
+  const denySubmitData = await denySubmitRes.json();
+  assert(denySubmitRes.status === 403 && denySubmitData.error === 'Mission not available', 'staff cannot complete students-only: ' + JSON.stringify(denySubmitData));
 
   // Staff submit
   const staffMission = (teacherActive.missions || []).find((m) => m.title === 'Staff Mission');
