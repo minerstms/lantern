@@ -114,11 +114,11 @@
   font-size: 17px;
   font-weight: 900;
   line-height: 1.1;
-  max-height: calc(1.1em * 2);
+  max-height: 1.1em;
   text-shadow: 0 2px 8px rgba(0,0,0,.85);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
@@ -126,23 +126,53 @@
 .lanternCanonicalCardMeta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-top: 4px;
   color: rgba(255,255,255,.92);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   text-shadow: 0 1px 6px rgba(0,0,0,.85);
+  min-width: 0;
+  width: 100%;
+}
+.lanternCanonicalCardMeta .identity-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.lanternCanonicalCardMeta .exploreCardAvatarImg {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 .lanternCanonicalCardAuthor,
 .lanternCanonicalCardDate {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 0 0 auto;
+  max-width: 42%;
+}
+.lanternCanonicalCardDesc {
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  opacity: .95;
 }
 .lanternCanonicalCardMetaSeparator {
   flex-shrink: 0;
@@ -208,6 +238,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardMeta .identity-chip,
+.exploreCard--gamesLibrary .lanternCanonicalCardDesc {
+  display: none;
+}
+.exploreCard--gamesLibrary .lanternCanonicalCardAuthor,
+.exploreCard--gamesLibrary .lanternCanonicalCardDate {
+  max-width: none;
 }
 .exploreCard--gamesLibrary .lanternCanonicalCardBadgeLayer {
   display: none;

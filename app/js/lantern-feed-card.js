@@ -14,8 +14,12 @@
   function formatDate(iso) {
     if (!iso) return '';
     try {
+      if (global.LanternCards && typeof global.LanternCards.formatCompactDate === 'function') {
+        return global.LanternCards.formatCompactDate(iso);
+      }
       var d = new Date(iso);
-      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      if (isNaN(d.getTime())) return '';
+      return (d.getMonth() + 1) + '/' + d.getDate() + '/' + String(d.getFullYear()).slice(-2);
     } catch (e) { return ''; }
   }
 

@@ -136,13 +136,28 @@
         if (!res || !res.ok) {
           if (status) status.textContent = 'Could not load feed.';
           state.items = [];
-        } else {
-          state.items = res.items || [];
-          if (status) {
-            status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
-          }
+          renderGrid();
+          return;
         }
-        renderGrid();
+        state.items = res.items || [];
+        if (status) {
+          status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
+        }
+        /* Prompt #158 — resolve canonical author avatars before paint when available. */
+        state.items.forEach(function (it) {
+          if (!it) return;
+          var nm = String(it.authorDisplayName || it.author_name || it.character_name || '').trim();
+          if (nm && !it.character_name) it.character_name = nm;
+          if (nm && !it.author_name) it.author_name = nm;
+        });
+        var attach = global.LanternAvatar && typeof global.LanternAvatar.attachCanonicalAvatarsToItems === 'function'
+          ? global.LanternAvatar.attachCanonicalAvatarsToItems(state.items)
+          : Promise.resolve(state.items);
+        Promise.resolve(attach).then(function () {
+          renderGrid();
+        }).catch(function () {
+          renderGrid();
+        });
       });
     }
 

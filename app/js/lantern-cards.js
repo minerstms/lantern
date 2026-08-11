@@ -73,7 +73,89 @@
   }
 
   function truncateCanonicalTitle(s) {
-    return truncateRailTitleTwoLines(s, 48);
+    /* Prompt #158 — Explore overlay headline is exactly one line (CSS ellipsis). */
+    return truncateRailTitleTwoLines(s, 64);
+  }
+
+  /**
+   * Prompt #158 — Compact author for Explore card overlay line 2: "First L."
+   * No student IDs, usernames-as-ids, roles, or fabricated initials.
+   */
+  function formatCompactAuthor(displayName) {
+    var s = String(displayName || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    if (/^\d{3,}$/.test(s)) return '';
+    s = s
+      .replace(/\s*[·•|]\s*\d{3,}\s*$/g, '')
+      .replace(/\s+\d{6,}\s*$/g, '')
+      .replace(/\s*\(\d{3,}\)\s*$/g, '')
+      .trim();
+    if (!s) return '';
+    var lower = s.toLowerCase();
+    if (lower === 'unknown' || lower === 'anonymous' || lower === 'poll' || lower === 'staff') {
+      if (lower === 'staff') return 'Staff';
+      if (lower === 'anonymous') return 'Anonymous';
+      return lower === 'poll' ? '' : s;
+    }
+    var parts = s.split(' ').filter(Boolean);
+    if (!parts.length) return '';
+    if (parts.length === 1) return parts[0];
+    var first = parts[0];
+    var last = parts[parts.length - 1];
+    var ch = last.charAt(0);
+    if (!/[A-Za-z]/.test(ch)) return first;
+    return first + ' ' + ch.toUpperCase() + '.';
+  }
+
+  /** Prompt #158 — Compact date M/D/YY (no leading zeros, no time). */
+  function formatCompactDate(isoOrDate) {
+    if (isoOrDate == null || isoOrDate === '') return '';
+    try {
+      var d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+      if (isNaN(d.getTime())) return '';
+      var yy = String(d.getFullYear());
+      yy = yy.length >= 2 ? yy.slice(-2) : yy;
+      return (d.getMonth() + 1) + '/' + d.getDate() + '/' + yy;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  var EXPLORE_DESC_JUNK = {
+    mission: 1,
+    'mission submission': 1,
+    'mission completed': 1,
+    'photo submission': 1,
+    photo: 1,
+    photos: 1,
+    post: 1,
+    news: 1,
+    poll: 1,
+    'shout-out': 1,
+    'shout-out!': 1,
+    'tap to vote': 1,
+    article: 1,
+    video: 1,
+    videos: 1,
+  };
+
+  /**
+   * Prompt #158 — Description preview for overlay line 2 (CSS truncates).
+   * Omits empty/junk content-type placeholders; does not invent copy.
+   */
+  function getExploreDescriptionPreview(item) {
+    item = item || {};
+    var raw = String(item.summary != null ? item.summary : (item.body != null ? item.body : (item.description || '')))
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!raw) return '';
+    var key = raw.toLowerCase();
+    if (EXPLORE_DESC_JUNK[key]) return '';
+    if (/^(mission|photo|post|news|poll|article|video)s?$/i.test(raw)) return '';
+    var title = String(item.title || '').replace(/\s+/g, ' ').trim();
+    if (title && raw === title) return '';
+    return raw;
   }
 
   function buildCanonicalImageOnErrorHandler() {
@@ -98,11 +180,43 @@
     var faceUrl = resolveCardFaceImageUrl(model);
     var remoteUrl = faceUrl || resolveCardFaceImageUrlWithFallbacks(model);
     var title = esc(truncateCanonicalTitle(model.title || 'Untitled'));
-    var author = String(model.author || '').trim();
-    var dateMeta = String(model.dateMeta || '').trim();
-    var authorHtml = author ? '<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>' : '';
-    var dateHtml = dateMeta ? '<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>' : '';
-    var sep = (author && dateMeta) ? '<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">•</span>' : '';
+    var exploreOverlay = model.exploreOverlay === true;
+    var authorRaw = String(model.author || '').trim();
+    var author = exploreOverlay ? formatCompactAuthor(authorRaw) : authorRaw;
+    var dateMeta = '';
+    if (exploreOverlay) {
+      dateMeta = formatCompactDate(model.dateIso || model.approvedAt || model.createdAt || model.approved_at || model.created_at)
+        || formatCompactDate(model.dateMeta)
+        || String(model.dateMeta || '').trim();
+      /* Never keep long locale dates or type labels on explore overlay date slot */
+      if (/mission|poll|photo|news|choice/i.test(dateMeta) && !/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateMeta)) {
+        dateMeta = formatCompactDate(model.dateIso || model.approvedAt || model.createdAt) || '';
+      }
+    } else {
+      dateMeta = String(model.dateMeta || '').trim();
+    }
+    var desc = exploreOverlay ? String(model.descriptionPreview || '').replace(/\s+/g, ' ').trim() : '';
+    var avatarHtml = '';
+    if (exploreOverlay) {
+      avatarHtml = buildExploreAuthorAvatarHtml({
+        character_name: model.character_name || model.author_name || authorRaw,
+        author_name: model.author_name || authorRaw,
+        _canonicalAvatar: model._canonicalAvatar,
+        frame: model.frame,
+        avatar: model.avatar,
+      });
+    }
+    var metaParts = [];
+    if (avatarHtml) metaParts.push(avatarHtml);
+    if (author) metaParts.push('<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>');
+    if (dateMeta) {
+      if (metaParts.length) metaParts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
+      metaParts.push('<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>');
+    }
+    if (desc) {
+      if (metaParts.length) metaParts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
+      metaParts.push('<span class="lanternCanonicalCardDesc">' + esc(desc) + '</span>');
+    }
     var badgeLayer = '';
     if (model.typeBadge) {
       badgeLayer += '<span class="lanternCanonicalCardTypeBadge">' + esc(String(model.typeBadge)) + '</span>';
@@ -120,7 +234,7 @@
           '<div class="lanternCanonicalCardGradient"></div>' +
           '<div class="lanternCanonicalCardCaption">' +
             '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>' +
-            '<div class="lanternCanonicalCardMeta">' + authorHtml + sep + dateHtml + '</div>' +
+            (metaParts.length ? '<div class="lanternCanonicalCardMeta">' + metaParts.join('') + '</div>' : '') +
           '</div>' +
         '</div>' +
         (badgeLayer ? '<div class="lanternCanonicalCardBadgeLayer">' + badgeLayer + '</div>' : '') +
@@ -134,23 +248,27 @@
 
   function normalizeFeedItemToFaceModel(item) {
     item = item || {};
-    var dateMeta = '';
-    try {
-      var iso = item.approvedAt || item.createdAt || item.created_at || item.approved_at;
-      if (iso) {
-        var d = new Date(iso);
-        if (!isNaN(d.getTime())) dateMeta = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-      }
-    } catch (e) {}
-    var slot = item.contentSlot || {};
-    if (item.type === 'mission' && slot.missionId) dateMeta = (dateMeta ? dateMeta + ' · ' : '') + 'Mission';
-    if (item.type === 'game_score' && slot.score) dateMeta = (dateMeta ? dateMeta + ' · ' : '') + String(slot.score);
+    var iso = item.approvedAt || item.createdAt || item.created_at || item.approved_at || null;
+    var authorRaw = String(item.authorDisplayName || item.display_name || item.author_name || item.character_name || '').trim();
+    var desc = getExploreDescriptionPreview({
+      title: item.title,
+      summary: item.summary,
+      body: item.body,
+      description: item.description,
+      type: item.type,
+    });
     return {
       id: item.id,
       type: item.type || 'news',
       title: item.title || 'Untitled',
-      author: item.authorDisplayName || item.display_name || item.author_name || '',
-      dateMeta: dateMeta,
+      author: authorRaw,
+      character_name: String(item.character_name || authorRaw || '').trim(),
+      author_name: String(item.author_name || authorRaw || '').trim(),
+      _canonicalAvatar: item._canonicalAvatar,
+      dateIso: iso,
+      dateMeta: formatCompactDate(iso),
+      descriptionPreview: desc,
+      exploreOverlay: true,
       thumbnailUrl: item.thumbnailUrl,
       imageUrl: item.imageUrl || item.image_url,
       url: item.url,
@@ -713,23 +831,26 @@
     options = options || {};
     var isMissionCard = (p.id && String(p.id).indexOf('mission_') === 0);
     var authorRaw = String(p.display_name || p.character_name || p.author_name || '').trim() || 'Anonymous';
-    var time = '';
-    try {
-      var dt = new Date(p.created_at || p.approved_at || '');
-      if (!isNaN(dt.getTime())) time = dt.toLocaleDateString();
-    } catch (e) {}
-    var metaLine = '';
-    if ((p.card_meta || '').trim()) metaLine = truncateMeta(String(p.card_meta).trim(), 40);
-    var createdBy = ((p.type === 'create' || p.type === 'image' || p.type === 'video' || p.type === 'link') && (p.created_by_teacher_name || '').trim())
-      ? truncateMeta('Created by: ' + String(p.created_by_teacher_name || 'Teacher').trim(), 40) : '';
-    var dateMeta = [metaLine, createdBy, time].filter(Boolean).join(' · ') || time;
+    var iso = p.approved_at || p.created_at || '';
+    var desc = getExploreDescriptionPreview({
+      title: p.title,
+      summary: p.summary || p.card_meta || '',
+      body: p.body || p.caption || '',
+      type: p.type,
+    });
     var stateBadge = p.teacher_pick ? '🏆' : (p.teacher_featured ? '🌟' : '');
     var model = {
       id: p.id,
       type: p.type || 'link',
       title: p.title || 'Untitled',
       author: authorRaw,
-      dateMeta: dateMeta,
+      character_name: String(p.character_name || authorRaw || '').trim(),
+      author_name: String(p.author_name || authorRaw || '').trim(),
+      _canonicalAvatar: p._canonicalAvatar,
+      dateIso: iso,
+      dateMeta: formatCompactDate(iso),
+      descriptionPreview: desc,
+      exploreOverlay: true,
       thumbnailUrl: resolveCardFaceImageUrl(p),
       imageUrl: String(p.image_url || p.imageUrl || '').trim(),
       url: String(p.url || '').trim(),
@@ -743,22 +864,27 @@
   }
 
   function specNewsRailCard(n, escFn, authorLabelText, isActive) {
-    var e = escFn || esc;
-    var dateStr = '';
-    try {
-      var dt = new Date(n.approved_at || n.created_at || '');
-      if (!isNaN(dt.getTime())) dateStr = dt.toLocaleDateString();
-    } catch (err) {}
+    var iso = n.approved_at || n.created_at || '';
     var mediaItem = normalizeNewsMediaItemForExplore(n);
     var displayNm = String((n.author_name || '').trim() || authorLabelText || 'Anonymous');
-    var cat = String((n.category || '').trim());
-    var dateMeta = [cat, dateStr].filter(Boolean).join(' · ');
+    var desc = getExploreDescriptionPreview({
+      title: n.title,
+      summary: n.summary || '',
+      body: n.body || '',
+      type: 'news',
+    });
     return compactFaceSpec({
       id: n.id,
       type: 'news',
       title: n.title || 'Untitled',
       author: displayNm,
-      dateMeta: dateMeta,
+      character_name: displayNm,
+      author_name: displayNm,
+      _canonicalAvatar: n._canonicalAvatar,
+      dateIso: iso,
+      dateMeta: formatCompactDate(iso),
+      descriptionPreview: desc,
+      exploreOverlay: true,
       thumbnailUrl: resolveCardFaceImageUrl(Object.assign({}, mediaItem, { type: 'news' })),
       imageUrl: mediaItem.image_url,
       fallbackType: 'news',
@@ -789,19 +915,33 @@
   function specPollRailCard(poll, options) {
     options = options || {};
     var p = poll || {};
-    var nch = p.choices ? p.choices.length : 0;
-    var rawPollMeta = (p.card_meta && String(p.card_meta).trim()) || (options.returnedMeta && String(options.returnedMeta).trim());
-    var dateMeta = rawPollMeta
-      ? truncateMeta(String(rawPollMeta).trim(), 40)
-      : (nch + ' choice' + (nch !== 1 ? 's' : '') + ' · Poll');
-    var pollAuthorRaw = String((p.author_name || p.display_name || p.character_name || '').trim() || 'Poll');
+    var choicePreview = (p.choices || [])
+      .map(function (c) { return String(c || '').trim(); })
+      .filter(Boolean)
+      .slice(0, 4)
+      .join(' · ');
+    var iso = p.approved_at || p.created_at || '';
+    var pollAuthorRaw = String((p.author_name || p.display_name || p.character_name || '').trim());
+    if (pollAuthorRaw.toLowerCase() === 'poll') pollAuthorRaw = '';
+    var desc = getExploreDescriptionPreview({
+      title: p.question || 'Poll',
+      summary: (p.card_meta && String(p.card_meta).trim()) || choicePreview || '',
+      body: choicePreview,
+      type: 'poll',
+    });
     var activeCls = options.isActive ? ' studioScrollerCardActive' : '';
     return compactFaceSpec({
       id: p.id,
       type: 'poll',
       title: p.question || 'Poll',
       author: pollAuthorRaw,
-      dateMeta: dateMeta,
+      character_name: pollAuthorRaw,
+      author_name: pollAuthorRaw,
+      _canonicalAvatar: p._canonicalAvatar,
+      dateIso: iso,
+      dateMeta: formatCompactDate(iso),
+      descriptionPreview: desc,
+      exploreOverlay: true,
       thumbnailUrl: resolveCardFaceImageUrl({ question: p.question, title: p.question, image_url: p.image_url, type: 'poll' }),
       image_url: p.image_url,
       fallbackType: 'poll',
@@ -1227,6 +1367,9 @@
     CARD_CONTRACT_VERSION: CARD_CONTRACT_VERSION,
     esc: esc,
     railIdentityFirstName: railIdentityFirstName,
+    formatCompactAuthor: formatCompactAuthor,
+    formatCompactDate: formatCompactDate,
+    getExploreDescriptionPreview: getExploreDescriptionPreview,
     TYPE_ICONS: TYPE_ICONS,
     TYPE_BADGES: TYPE_BADGES,
     SHOUT_OUT_DISPLAY_NAME: SHOUT_OUT_DISPLAY_NAME,

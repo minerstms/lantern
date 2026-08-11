@@ -30,21 +30,21 @@ else {
   else bad('font-size', block.match(/font-size:[^;]+/)?.[0]);
   if (/line-height:\s*1\.1/.test(block)) ok('canonical title line-height 1.1');
   else bad('line-height');
-  if (/-webkit-line-clamp:\s*2/.test(block) && /line-clamp:\s*2/.test(block)) ok('two-line clamp');
+  if (/-webkit-line-clamp:\s*1/.test(block) && /line-clamp:\s*1/.test(block)) ok('one-line clamp (Prompt #158)');
   else bad('line-clamp');
-  if (/max-height:\s*calc\(1\.1em \* 2\)/.test(block)) ok('title max-height caps two lines');
+  if (/max-height:\s*1\.1em/.test(block) || /max-height:\s*calc\(1\.1em\)/.test(block)) ok('title max-height caps one line');
   else bad('max-height');
 }
 
 const cardW = 280;
 const cardH = Math.round((280 * 9) / 16);
 const overlayMax = cardH * 0.46;
-const titleH = 17 * 1.1 * 2;
-const metaH = 16 * 1.2;
+const titleH = 17 * 1.1 * 1;
+const metaH = 14 * 1.2;
 const captionPad = 10;
 const metaGap = 4;
 const stack = titleH + metaGap + metaH + captionPad;
-if (stack <= overlayMax + 2) ok('two-line title + meta fits overlay budget (' + stack.toFixed(1) + 'px ≤ ' + overlayMax.toFixed(1) + 'px)');
+if (stack <= overlayMax + 2) ok('one-line title + meta fits overlay budget (' + stack.toFixed(1) + 'px ≤ ' + overlayMax.toFixed(1) + 'px)');
 else bad('overlay budget', stack + ' vs ' + overlayMax);
 
 if (/#lockerPanelItems[\s\S]*\.lanternCanonicalCardTitle[\s\S]*font-size:\s*22px/.test(cardsCss)) {
