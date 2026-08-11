@@ -66,6 +66,53 @@
   text-align: right;
 }
 
+/* Prompt #185 — Locker My Lantern: one compact row (title | count | Filters) */
+.feedHeadingControls--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 12px;
+  flex-wrap: nowrap;
+}
+
+.feedHeadingControls--inline .feedItemCount,
+.feedHeadingControls--inline .feedStatus {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.feedHeading--lockerCompact {
+  margin: 0 0 var(--lantern-space-sm, 12px);
+}
+
+.feedHeading--lockerCompact .feedHeadingRow {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.feedHeading--lockerCompact .feedPageTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.feedHeading--lockerCompact .feedFiltersToggle {
+  padding: 8px 12px;
+}
+
+@media (max-width: 420px) {
+  .feedHeading--lockerCompact .feedHeadingRow {
+    gap: 6px 8px;
+  }
+  .feedHeadingControls--inline {
+    gap: 6px 8px;
+  }
+  .feedHeading--lockerCompact .feedFiltersToggle {
+    padding: 8px 10px;
+  }
+}
+
 .feedMetaRow {
   display: flex;
   justify-content: space-between;

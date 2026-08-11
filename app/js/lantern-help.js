@@ -125,6 +125,20 @@
 
   function init() {
     if (typeof document === 'undefined' || !document.body) return;
+    /* Prompt #185 — Help Mode is no longer a standard header control.
+       Mount the toggle only when an explicit #lanternHelpSlot exists (none in canonical nav).
+       Keep LANTERN_HELP API + glossary infrastructure; do not float a body-level toggle. */
+    var slot = document.getElementById('lanternHelpSlot');
+    if (!slot) {
+      global.LANTERN_HELP = {
+        isOn: isHelpModeOn,
+        setOn: setHelpMode,
+        getText: getHelpText,
+        positionPanel: positionHelpPanel,
+      };
+      return;
+    }
+
     var style = document.createElement('style');
     style.textContent = [
       '.lanternAppBar .lanternHelpToggleWrap,.appHeader .lanternHelpToggleWrap{ position: static !important; top: auto !important; right: auto !important; z-index: auto !important; }',
@@ -146,8 +160,7 @@
     document.head.appendChild(style);
 
     var toggleWrap = createHelpToggle();
-    var slot = document.getElementById('lanternHelpSlot');
-    if (slot) slot.appendChild(toggleWrap); else document.body.appendChild(toggleWrap);
+    slot.appendChild(toggleWrap);
 
     var panel = createHelpPanel();
     document.body.appendChild(panel);

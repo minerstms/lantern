@@ -32,7 +32,11 @@ assert(!/device-pairing/i.test(helpJs), 'No device-pairing ceremony in Help Mode
 assert(!/Store tab/i.test(helpJs), 'No Store tab instruction');
 assert(!/Teacher → Rewards Panel/.test(helpJs), 'Old Teacher → Rewards Panel path removed');
 assert(helpJs.includes('behavior_logger'), 'Behavior Logger help keys present for shared HELP_TEXTS');
-assert(exploreHtml.includes('lantern-help.js'), 'Explore loads Help Mode');
+assert(exploreHtml.includes('lantern-help.js'), 'Explore still loads Help Mode script (infra retained)');
+assert(
+  /no longer a standard header control|Mount the toggle only when an explicit #lanternHelpSlot/.test(helpJs),
+  'Help Mode header control retired unless explicit slot exists'
+);
 assert(exploreHtml.includes('data-help="explore"'), 'Explore has contextual help surface');
 assert(teacherHtml.includes('data-help="teacher_nuggets"'), 'Teacher Tools Nuggets help');
 assert(teacherHtml.includes('data-help="teacher_review"'), 'Teacher Tools Review Queue help');

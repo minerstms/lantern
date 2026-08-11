@@ -85,20 +85,22 @@ function hasExploreCompactFeedHeading(html) {
 }
 
 function hasLockerCompactFeedHeading(html) {
+  // Prompt #185 — one compact row: My Lantern | count | Filters (no helper / meta row).
   return (
-    html.includes('class="feedHeading"') &&
+    html.includes('feedHeading--lockerCompact') &&
     html.includes('class="feedHeadingRow"') &&
-    /class="feedMetaRow(\s|")/.test(html) &&
-    /class="feedHeadingRow"[\s\S]*?feedPageTitle[\s\S]*?feedFiltersToggle/.test(html) &&
-    /class="feedMetaRow[\s\S]*?id="feedStatus"/.test(html) &&
-    !html.includes('feedFiltersHost')
+    html.includes('feedHeadingControls--inline') &&
+    /feedHeadingControls--inline[\s\S]*?id="feedStatus"[\s\S]*?feedFiltersToggle/.test(html) &&
+    !/feedMetaRow/.test(html) &&
+    !html.includes('feedFiltersHost') &&
+    !/Your relationship with Lantern content/.test(html)
   );
 }
 
 if (hasExploreCompactFeedHeading(exploreHtml)) ok('Explore compact single-row feed heading (#169)');
 else bad('Explore compact feed heading markup');
 
-if (hasLockerCompactFeedHeading(lockerHtml)) ok('Locker compact two-row feed heading');
+if (hasLockerCompactFeedHeading(lockerHtml)) ok('Locker compact one-row My Lantern heading (#185)');
 else bad('Locker compact feed heading markup');
 
 if (!exploreHtml.includes('feedResultsHost') || !/feedResultsHost[\s\S]*?feedGrid/.test(exploreHtml)) {

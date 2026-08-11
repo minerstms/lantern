@@ -160,14 +160,13 @@
     <main class="lanternExploreSurface lanternLockerSurface" data-surface-context="locker">
       <div class="lanternExplorePageContainer">
       <section id="lockerProfileHeader" class="lockerProfileHeader" aria-label="Locker profile"></section>
-      <header class="feedHeading" aria-label="Feed controls">
+      <header class="feedHeading feedHeading--lockerCompact" aria-label="Feed controls">
         <div class="feedHeadingRow">
           <h1 class="feedPageTitle">My Lantern</h1>
-          <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
-        </div>
-        <div class="feedMetaRow">
-          <p class="feedPageSub">Your relationship with Lantern content — filtered to you.</p>
-          <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
+          <div class="feedHeadingControls feedHeadingControls--inline">
+            <div id="feedStatus" class="feedStatus feedItemCount" aria-live="polite"></div>
+            <button type="button" id="feedFiltersToggle" class="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>
+          </div>
         </div>
         <div id="feedFiltersPanel" class="feedFiltersPanel" hidden>
           <div id="lockerRelationshipSection" class="feedFiltersSection lockerRelationshipSection">

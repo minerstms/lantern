@@ -145,22 +145,15 @@
     var current = getCurrentPage();
     var contextText = getPageContext();
     var homeLink = '<a href="explore.html" class="lanternAppBarHomeLink" id="lanternHomeLink">Lantern</a>';
-    var helpSlot = '<div class="lanternHelpSlot" id="lanternHelpSlot"></div>';
     var left = '<div class="lanternAppBarLeft"><div class="lanternAppBarBrandMenu">' + homeLink + buildLanternChevronMenuWrap(current) + '</div></div>';
     var ctxClass = 'lanternAppBarContext' + (contextText ? '' : ' lanternAppBarContext--empty');
     var context = '<div class="' + ctxClass + '" id="lanternAppBarContext">' + (contextText || '') + '</div>';
     var searchWrap = '<div class="lanternAppBarSearchWrap" id="lanternExploreSearchWrap"><span class="lanternAppBarSearchTrigger" id="lanternExploreSearchTrigger" role="button" tabindex="0" aria-label="Search">&#128269;</span><input type="text" class="lanternAppBarSearchInput" id="lanternExploreSearch" placeholder="Search Lantern..." aria-label="Search Lantern"></div>';
+    // Prompt #185 — keep Needs Attention bell; remove header avatar + Help Mode slot (desktop + phone).
     var bellBtn = '<button type="button" class="lanternAppBarIconBtn" id="lanternExploreBell" style="display:none" aria-hidden="true" aria-label="Needs attention">&#128276;</button>';
-    var avatarDropdown = '<div class="lanternAppBarDropdown lanternAppBarAvatarDropdown" id="lanternExploreAvatarDropdown" role="menu" hidden>' +
-      '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink">Locker</a>' +
-      '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink">My Missions</a>' +
-      '<a href="locker.html#profileNeedsAttention" role="menuitem" class="lanternAppBarDropdownLink">Needs Attention</a>' +
-      '<a href="#" role="menuitem" class="lanternAppBarDropdownLink">Settings</a>' +
-      '<button type="button" role="menuitem" class="lanternAppBarDropdownLogout lanternAppBarDropdownLogout--avatar" id="lanternAvatarLogoutBtn" hidden>Log out</button></div>';
-    var avatarBtn = '<div class="lanternAppBarAvatarWrap" id="lanternExploreAvatarBtn" aria-haspopup="true" aria-expanded="false" tabindex="0">&#128100;</div>';
-    var right = '<div class="lanternAppBarRight">' + bellBtn + '<div class="lanternAppBarMenuWrap">' + avatarBtn + avatarDropdown + '</div></div>';
+    var right = '<div class="lanternAppBarRight">' + bellBtn + '</div>';
     return '<div class="lanternAppBar lanternAppBarExplore" id="lanternAppBar">' +
-      '<div class="lanternAppBarInner">' + left + context + searchWrap + right + helpSlot + '</div></div>';
+      '<div class="lanternAppBarInner">' + left + context + searchWrap + right + '</div></div>';
   }
 
   function buildBar() {
@@ -216,10 +209,6 @@
       '@media (max-width: 420px){ .lanternAppBarBrandMenu .lanternAppBarDropdown{ left: 0; right: auto; max-width: min(320px, calc(100vw - 16px)); } }',
       '.lanternNavBadge{ display: inline-block; min-width: 20px; padding: 2px 6px; margin-left: 6px; font-size: 12px; font-weight: 800; background: ' + NAV.columbiaBlue + '; color: ' + NAV.navy + '; border-radius: 10px; }',
       '.lanternNavBadge:empty{ display: none; }',
-      '.lanternHelpSlot{ display: flex; align-items: center; flex-shrink: 0; }',
-      '.lanternAppBar .lanternHelpToggleWrap{ position: static; }',
-      '.lanternAppBar .lanternHelpToggle{ padding: 4px 8px; font-size: 16px; font-weight: 700; border: none; border-radius: 0; background: transparent; color: rgba(255,255,255,.85); cursor: pointer; }',
-      '.lanternAppBar .lanternHelpToggle:hover{ color: ' + NAV.columbiaBlue + '; }',
       '/* Header + in-page: same max width (~320px); do not flex-grow to full row. */',
       '.lanternAppBar .lanternAppBarSearchWrap{ flex: 0 1 var(--lantern-appbar-search-max); min-width: 0; max-width: var(--lantern-appbar-search-max); margin: 0 12px; display: flex; align-items: center; gap: 0; transition: max-width .2s ease; }',
       '.lanternAppBar .lanternAppBarSearchTrigger{ display: none; }',
@@ -232,24 +221,17 @@
       '.lanternAppBarIconBtn{ background: transparent; border: none; color: ' + NAV.white + '; font-size: 22px; cursor: pointer; padding: 6px 10px; border-radius: 8px; line-height: 1; font-family: inherit; }',
       '.lanternAppBarIconBtn:hover{ background: rgba(255,255,255,.1); color: ' + NAV.columbiaBlue + '; }',
       '.lanternAppBarBell--inactive{ visibility: hidden; opacity: 0; pointer-events: none; }',
-      '.lanternAppBarAvatarWrap{ width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.2); color: ' + NAV.white + '; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; user-select: none; }',
-      '.lanternAppBarAvatarWrap:hover{ background: rgba(255,255,255,.3); color: ' + NAV.columbiaBlue + '; }',
-      '.lanternAppBarAvatarDropdown{ left: auto; right: 0; min-width: 180px; }',
-      '.lanternAppBarExplore .lanternHelpSlot .lanternHelpToggle{ padding: 4px 10px; font-size: 14px; font-weight: 700; border-radius: 999px; background: rgba(255,255,255,.06); }',
-      '.lanternAppBarExplore .lanternHelpSlot .lanternHelpToggle:hover{ background: rgba(255,255,255,.12); }',
       '@media (max-width: 900px){ .lanternAppBar .lanternAppBarSearchWrap{ max-width: var(--lantern-appbar-search-max); } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: var(--lantern-appbar-search-max); } }',
-      '@media (max-width: 768px){ .lanternAppBarExplore .lanternAppBarInner{ flex-wrap: nowrap; } .lanternAppBarExplore .lanternHelpSlot{ flex-shrink: 0; } }',
-      '@media (max-width: 560px){ .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } }',
-      '@media (max-width: 480px){ .lanternAppBar .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; } .lanternAppBar .lanternAppBarSearchTrigger{ display: flex; align-items: center; justify-content: center; width: 44px; height: 36px; flex-shrink: 0; cursor: pointer; font-size: 20px; color: rgba(255,255,255,.9); } .lanternAppBar .lanternAppBarSearchTrigger:hover{ color: ' + NAV.columbiaBlue + '; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ width: 0; min-width: 0; padding: 0 8px; font-size: 14px; opacity: 0; pointer-events: none; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded{ max-width: 220px; flex: 1; min-width: 0; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchInput{ width: 100%; min-width: 80px; padding: 6px 12px; opacity: 1; pointer-events: auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchTrigger{ display: none; } }',
+      '@media (max-width: 768px){ .lanternAppBarExplore .lanternAppBarInner{ flex-wrap: nowrap; gap: 10px; } .lanternAppBar .lanternAppBarSearchWrap{ margin: 0 6px; } }',
+      '@media (max-width: 560px){ .lanternAppBarInner{ gap: 8px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; margin: 0 4px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } .lanternAppBarBrandMenu .lanternAppBarHomeLink{ font-size: 16px; padding: 8px 10px 8px 12px; } }',
+      '@media (max-width: 480px){ .lanternAppBarInner{ gap: 6px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; margin: 0; } .lanternAppBar .lanternAppBarSearchTrigger{ display: flex; align-items: center; justify-content: center; width: 44px; height: 36px; flex-shrink: 0; cursor: pointer; font-size: 20px; color: rgba(255,255,255,.9); } .lanternAppBar .lanternAppBarSearchTrigger:hover{ color: ' + NAV.columbiaBlue + '; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ width: 0; min-width: 0; padding: 0 8px; font-size: 14px; opacity: 0; pointer-events: none; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded{ max-width: min(220px, calc(100vw - 150px)); flex: 1; min-width: 0; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchInput{ width: 100%; min-width: 80px; padding: 6px 12px; opacity: 1; pointer-events: auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchTrigger{ display: none; } }',
     ].join('\n');
     document.head.appendChild(s);
   }
 
   function showAuthenticatedLogoutControls() {
     var mainSection = document.getElementById('lanternNavLogoutSection');
-    var avatarBtn = document.getElementById('lanternAvatarLogoutBtn');
     if (mainSection) mainSection.removeAttribute('hidden');
-    if (avatarBtn) avatarBtn.removeAttribute('hidden');
   }
 
   function wireLogoutButton(btn, closeDropdownFn) {
@@ -315,43 +297,7 @@
   }
 
   function wireInteractiveChrome() {
-    var avatarBtn = document.getElementById('lanternExploreAvatarBtn');
-    var avatarDropdown = document.getElementById('lanternExploreAvatarDropdown');
-    if (avatarBtn && avatarDropdown) {
-      function openAvatar() { avatarDropdown.classList.add('is-open'); avatarDropdown.removeAttribute('hidden'); avatarBtn.setAttribute('aria-expanded', 'true'); }
-      function closeAvatar() { avatarDropdown.classList.remove('is-open'); avatarDropdown.setAttribute('hidden', ''); avatarBtn.setAttribute('aria-expanded', 'false'); }
-      function toggleAvatar() { if (avatarDropdown.classList.contains('is-open')) closeAvatar(); else openAvatar(); }
-      avatarBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleAvatar(); });
-      document.addEventListener('click', function (e) {
-        if (avatarDropdown && !avatarDropdown.contains(e.target) && avatarBtn && !avatarBtn.contains(e.target)) closeAvatar();
-      });
-      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAvatar(); });
-      wireLogoutButton(document.getElementById('lanternAvatarLogoutBtn'), closeAvatar);
-      try {
-        var auth = global.LanternAuth || global.LanternPilotAuth;
-        var adopted = auth && typeof auth.adoptedFromPilotMe === 'function' ? auth.adoptedFromPilotMe() : null;
-        var name = adopted && adopted.name;
-        var emoji = (adopted && adopted.avatar) ? adopted.avatar : '';
-        if (!emoji && name && global.LanternAvatar && global.LanternAvatar.getLegacyEmojiForCharacter) {
-          emoji = global.LanternAvatar.getLegacyEmojiForCharacter(name);
-        }
-        if (name && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function') {
-          global.LanternAvatar.getCanonicalAvatar(name, emoji || undefined).then(function (r) {
-            if (!avatarBtn) return;
-            if (r.imageUrl) {
-              var img = document.createElement('img');
-              img.src = r.imageUrl;
-              img.alt = '';
-              img.style.cssText = 'width:32px;height:32px;object-fit:cover;border-radius:50%;';
-              avatarBtn.innerHTML = '';
-              avatarBtn.appendChild(img);
-            } else {
-              avatarBtn.textContent = r.emoji;
-            }
-          });
-        }
-      } catch (e) {}
-    }
+    // Prompt #185 — header avatar menu removed; Locker / Missions / Log out remain in Lantern ▾.
     wireBellClick();
     var searchWrap = document.getElementById('lanternExploreSearchWrap');
     var searchTrigger = document.getElementById('lanternExploreSearchTrigger');
