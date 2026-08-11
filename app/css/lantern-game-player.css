@@ -155,6 +155,44 @@
   display: none !important;
 }
 
+.lanternGamePlayerPregameCost {
+  margin: 0;
+  text-align: center;
+  max-width: 36rem;
+  font-size: clamp(18px, 3.2vw, 22px);
+  line-height: 1.35;
+  color: rgba(234, 240, 255, 0.88);
+  font-weight: 700;
+}
+
+.lanternGamePlayerPregameCost[hidden] {
+  display: none !important;
+}
+
+.lanternGamePlayerPregameStatus {
+  margin: 0;
+  text-align: center;
+  max-width: 36rem;
+  font-size: clamp(18px, 3.4vw, 22px);
+  line-height: 1.35;
+  font-weight: 800;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 196, 86, 0.45);
+  background: rgba(120, 70, 10, 0.45);
+  color: #ffe7b0;
+}
+
+.lanternGamePlayerPregameStatus[hidden] {
+  display: none !important;
+}
+
+.lanternGamePlayerPregameStatus.is-error {
+  border-color: rgba(255, 120, 120, 0.5);
+  background: rgba(110, 24, 24, 0.5);
+  color: #ffd0d0;
+}
+
 .lanternGamePlayerStartBtn {
   margin-top: 0.35rem;
   min-height: 56px;

@@ -45,9 +45,13 @@ if (!gamesHtml.match(/applyFalseStartPenalty[\s\S]{0,400}spendOnGame/)) {
   ok('Reaction Tap false-start penalty no longer uses the legacy local-wallet spendOnGame() path');
 } else bad('Reaction Tap false start still uses legacy spendOnGame');
 
-if (gamesHtml.match(/applyFalseStartPenalty[\s\S]{0,400}callEconomyTransact\(adopted\.name, -1, 'game_false_start'/)) {
-  ok('Reaction Tap false-start penalty routes through the shared TMS-authoritative callEconomyTransact with an idempotency run_id');
-} else bad('Reaction Tap false start not routed through TMS economy');
+// Prompt #159: false start is visual-only — the paid game_play already spent exactly 1 Nugget.
+if (
+  gamesHtml.includes('false start ends the paid attempt visually only') &&
+  !gamesHtml.match(/applyFalseStartPenalty[\s\S]{0,400}callEconomyTransact/)
+) {
+  ok('Reaction Tap false start does not charge an extra Nugget (visual-only after paid Start)');
+} else bad('Reaction Tap false start should not route an extra economy charge');
 
 if (gamesHtml.includes("id=\"reactionPlayAgainBtn\"") && gamesHtml.includes("playAgainBtn.addEventListener('click', startReactionRound)")) {
   ok('Reaction Tap has an explicit Play Again control wired to a fresh paid round');

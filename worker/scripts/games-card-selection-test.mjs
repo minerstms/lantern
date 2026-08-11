@@ -36,7 +36,7 @@ if (/playBtn\.disabled\s*=\s*false/.test(gamesHtml) && !/playBtn\.disabled\s*=\s
   ok('balance refresh does not disable off-DOM play triggers');
 } else bad('play trigger disable on balance');
 
-if (gamesHtml.includes('done(false)') && playerJs.includes('ok === false')) {
+if ((gamesHtml.includes('done(false)') || gamesHtml.includes('done(false,')) && playerJs.includes('ok === false')) {
   ok('failed Start charge re-enables Start (done(false))');
 } else bad('Start failure re-enable');
 
@@ -64,6 +64,7 @@ async function browserChecks() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.addInitScript(() => {
       window.LANTERN_AVATAR_API = '';
+      window.__lanternEconomyTransactHits = 0;
     });
     await page.route('**/api/auth/me**', okJson({
       ok: true,
@@ -84,7 +85,16 @@ async function browserChecks() {
       available,
       character_name: 'testpilot',
     }));
-    await page.route('**/api/economy/transact**', okJson({ ok: false, error: 'insufficient', available }));
+    await page.route('**/api/economy/transact**', async (route) => {
+      await page.evaluate(() => {
+        window.__lanternEconomyTransactHits = (window.__lanternEconomyTransactHits || 0) + 1;
+      });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: 'insufficient', available }),
+      });
+    });
     await page.route('**/api/leaderboards**', okJson({ ok: true, entries: [] }));
     await page.route('**/api/games/**', okJson({ ok: true, characters: [] }));
     await page.route('**/api/feed/**', okJson({ ok: true, items: [] }));
@@ -122,21 +132,32 @@ async function browserChecks() {
       ok('zero-balance Reaction card opens pregame (no silent no-op)');
     } else bad('zero-balance Reaction selection', JSON.stringify(r));
 
-    // Start should not spend; should toast and stay on pregame with Start re-enabled
+    // Start should not spend; stay on pregame with Start re-enabled + persistent status (#163)
     await page.click('#lanternGamePlayerStartBtn');
     await page.waitForTimeout(700);
-    const afterStart = await page.evaluate(() => ({
-      phase: window.LanternGamePlayer && window.LanternGamePlayer.getPhase(),
-      startDisabled: document.getElementById('lanternGamePlayerStartBtn').disabled,
-      startText: document.getElementById('lanternGamePlayerStartBtn').textContent,
-      toast: (document.getElementById('toast') || {}).textContent || '',
-    }));
+    const afterStart = await page.evaluate(() => {
+      const status = document.getElementById('lanternGamePlayerPregameStatus');
+      const cost = document.getElementById('lanternGamePlayerPregameCost');
+      return {
+        phase: window.LanternGamePlayer && window.LanternGamePlayer.getPhase(),
+        startDisabled: document.getElementById('lanternGamePlayerStartBtn').disabled,
+        startText: document.getElementById('lanternGamePlayerStartBtn').textContent,
+        toast: (document.getElementById('toast') || {}).textContent || '',
+        statusText: (status && status.textContent) || '',
+        statusHidden: !status || status.hidden,
+        costText: (cost && cost.textContent) || '',
+        transactHits: window.__lanternEconomyTransactHits || 0,
+      };
+    });
     if (
       afterStart.phase === 'pregame' &&
       afterStart.startDisabled === false &&
-      /Nugget/i.test(afterStart.toast)
+      afterStart.startText === 'Start' &&
+      afterStart.transactHits === 0 &&
+      !afterStart.statusHidden &&
+      /You need 1 Nugget to play/i.test(afterStart.statusText)
     ) {
-      ok('zero-balance Start fails safely without leaving pregame / stuck Starting…');
+      ok('zero-balance Start shows persistent insufficient message (no silent flash-back)');
     } else bad('zero-balance Start gate', JSON.stringify(afterStart));
     await page.close();
   }

@@ -133,11 +133,15 @@
     spendInFlight = true;
     setPlayStarting(true);
 
-    function finish(ok, err) {
+    function finish(ok, err, extra) {
       spendInFlight = false;
       setPlayStarting(false);
       if (ok && typeof onSuccess === 'function') onSuccess();
-      return { ok: !!ok, error: err || null };
+      var out = { ok: !!ok, error: err || null, cost: cost };
+      if (extra && typeof extra === 'object') {
+        if (extra.available != null) out.available = extra.available;
+      }
+      return out;
     }
 
     return fetchMyWallet().then(function (wallet) {
@@ -147,8 +151,9 @@
         return finish(false, 'wallet_error');
       }
       if (!affordable) {
-        toast('Not enough Nuggets. You have ' + wallet.available + ' available.');
-        return finish(false, 'insufficient');
+        // Prompt #163 — insufficient balance is valid; do not call economy/transact.
+        toast('You need 1 Nugget to play.');
+        return finish(false, 'insufficient', { available: wallet.available });
       }
       return transactGamePlay(gameName, cost, runId).then(function (tRes) {
         if (tRes && tRes.ok) {
@@ -157,13 +162,13 @@
             return finish(true);
           });
         }
-        if (tRes && tRes.error === 'insufficient') {
+        if (tRes && (tRes.error === 'insufficient' || tRes.code === 'insufficient_balance')) {
           refreshWalletDisplays();
           var avail = tRes.available != null ? tRes.available : wallet.available;
-          toast('Not enough Nuggets. You have ' + avail + ' available.');
-          return finish(false, 'insufficient');
+          toast('You need 1 Nugget to play.');
+          return finish(false, 'insufficient', { available: avail });
         }
-        toast('Couldn\'t start game. Try again.');
+        toast('Couldn\'t start the game. Try again.');
         return finish(false, tRes && tRes.error ? tRes.error : 'transact_failed');
       });
     }).catch(function () {

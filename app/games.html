@@ -867,6 +867,8 @@
         </div>
         <h3 id="lanternGamePlayerPregameTitle" class="lanternGamePlayerPregameTitle">Game</h3>
         <p id="lanternGamePlayerPregameDesc" class="lanternGamePlayerPregameDesc" hidden></p>
+        <p id="lanternGamePlayerPregameCost" class="lanternGamePlayerPregameCost" hidden></p>
+        <p id="lanternGamePlayerPregameStatus" class="lanternGamePlayerPregameStatus" role="status" aria-live="polite" hidden></p>
         <button type="button" id="lanternGamePlayerStartBtn" class="lanternGamePlayerStartBtn">Start</button>
       </div>
       <div id="lanternGamePlayerStage" class="lanternGamePlayerStage"></div>
@@ -1118,12 +1120,18 @@
               done(true);
               showGameFn();
             } catch (err) {
-              if (window.LanternGamePlayer) window.LanternGamePlayer.close({ skipExit: true, force: true });
-              toast('Couldn\'t start game. Try again.');
+              // Charge already succeeded — do not invent a refund; close safely and explain.
+              if (window.LanternGamePlayer) {
+                if (typeof window.LanternGamePlayer.setPregameStatus === 'function') {
+                  window.LanternGamePlayer.setPregameStatus('Couldn\'t start the game. Try again.', 'error');
+                }
+                window.LanternGamePlayer.close({ skipExit: true, force: true });
+              }
+              toast('Couldn\'t start the game. Try again.');
             }
           }).then(function(res){
-            // Charge failed (insufficient / wallet) — keep pregame open; re-enable Start.
-            if (!res || !res.ok) done(false);
+            // Charge failed (insufficient / wallet) — keep pregame open; re-enable Start with reason.
+            if (!res || !res.ok) done(false, res || { error: 'transact_failed' });
           });
         }
       });

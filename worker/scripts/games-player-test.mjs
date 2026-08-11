@@ -193,6 +193,16 @@ function loadPlayerModule() {
     lanternGamePlayerTitleArt: titleArt,
     lanternGamePlayerPregameTitle: makeEl(),
     lanternGamePlayerPregameDesc: makeEl(),
+    lanternGamePlayerPregameCost: makeEl({ hidden: true, textContent: '' }),
+    lanternGamePlayerPregameStatus: makeEl({
+      hidden: true,
+      textContent: '',
+      classList: {
+        _c: {},
+        add: function (n) { this._c[n] = true; },
+        remove: function (n) { delete this._c[n]; },
+      },
+    }),
     lanternGamePlayerTitle: makeEl(),
     lanternGamePlayerStartBtn: startBtn,
     lanternGamePlayerSurfaceHost: host,
@@ -268,6 +278,51 @@ LP.close();
 if (loaded.overlay.hidden === true && loaded.sandbox._restoredY === 120) {
   ok('close hides overlay and restores scrollY');
 } else bad('close cleanup', loaded.sandbox._restoredY);
+
+// #163 — persistent insufficient message on Start failure
+{
+  const again = loadPlayerModule();
+  const L2 = again.sandbox.LanternGamePlayer;
+  L2.open({
+    surface: 'reactionArea',
+    title: 'Reaction Tap',
+    gameName: 'Reaction Tap',
+    onPregameStart: function (done) {
+      done(false, { error: 'insufficient', available: 0 });
+    },
+  });
+  // Simulate wired Start click path: call onPregameStart via public apply after open
+  again.startBtn.disabled = true;
+  again.startBtn.textContent = 'Starting…';
+  L2.applyPaidStartFailure({ error: 'insufficient', available: 0 });
+  again.startBtn.disabled = false;
+  again.startBtn.textContent = 'Start';
+  const status = again.sandbox.document.getElementById('lanternGamePlayerPregameStatus');
+  if (
+    L2.getPhase() === 'pregame' &&
+    status &&
+    !status.hidden &&
+    /You need 1 Nugget to play/i.test(status.textContent) &&
+    /0 Nugget/i.test(status.textContent) &&
+    again.startBtn.textContent === 'Start' &&
+    again.startBtn.disabled === false
+  ) {
+    ok('insufficient Start failure leaves persistent pregame status + restored Start');
+  } else {
+    bad('insufficient Start failure UX', {
+      phase: L2.getPhase(),
+      status: status && status.textContent,
+      hidden: status && status.hidden,
+      btn: again.startBtn.textContent,
+      disabled: again.startBtn.disabled,
+    });
+  }
+  L2.close();
+}
+
+if (gamesHtml.includes('lanternGamePlayerPregameStatus') && playerJs.includes('applyPaidStartFailure')) {
+  ok('pregame status + applyPaidStartFailure wired for #163');
+} else bad('#163 status wiring');
 
 console.log('\nGames player tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

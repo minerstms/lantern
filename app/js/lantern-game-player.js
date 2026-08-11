@@ -115,6 +115,64 @@
     state.mount.next = null;
   }
 
+  function setPregameCost(text) {
+    var costEl = el('lanternGamePlayerPregameCost');
+    if (!costEl) return;
+    var msg = text != null ? String(text).trim() : '';
+    if (!msg) {
+      costEl.textContent = '';
+      costEl.hidden = true;
+      costEl.setAttribute('hidden', '');
+      return;
+    }
+    costEl.textContent = msg;
+    costEl.hidden = false;
+    costEl.removeAttribute('hidden');
+  }
+
+  function setPregameStatus(text, kind) {
+    var statusEl = el('lanternGamePlayerPregameStatus');
+    if (!statusEl) return;
+    var msg = text != null ? String(text).trim() : '';
+    statusEl.classList.remove('is-error');
+    if (!msg) {
+      statusEl.textContent = '';
+      statusEl.hidden = true;
+      statusEl.setAttribute('hidden', '');
+      return;
+    }
+    statusEl.textContent = msg;
+    if (kind === 'error' || kind === 'insufficient') statusEl.classList.add('is-error');
+    statusEl.hidden = false;
+    statusEl.removeAttribute('hidden');
+  }
+
+  function clearPregameMessages() {
+    setPregameStatus('');
+  }
+
+  function refreshPregameCostHint(gameName) {
+    var paid = global.LanternGamesPaidStart;
+    var cost = 1;
+    if (paid && typeof paid.playCostForGame === 'function') {
+      cost = paid.playCostForGame(gameName || (state.gameMeta && state.gameMeta.title) || '') || 1;
+    }
+    setPregameCost(cost + ' Nugget = 1 Play');
+    if (!paid || typeof paid.checkAffordable !== 'function') return;
+    paid.checkAffordable(gameName || (state.gameMeta && state.gameMeta.title) || '').then(function (info) {
+      if (!state.open || state.phase !== 'pregame') return;
+      if (!info || !info.ok || info.available == null) {
+        setPregameCost(cost + ' Nugget = 1 Play');
+        return;
+      }
+      var avail = Number(info.available);
+      setPregameCost(cost + ' Nugget = 1 Play. You currently have ' + avail + ' Nugget' + (avail === 1 ? '' : 's') + '.');
+      if (info.affordable === false) {
+        setPregameStatus('You need 1 Nugget to play.', 'insufficient');
+      }
+    }).catch(function () {});
+  }
+
   function setPregameVisible(show) {
     var pre = pregameEl();
     var stage = stageEl();
@@ -249,23 +307,55 @@
       startBtn.disabled = true;
       startBtn.textContent = 'Starting…';
     }
+    // Clear prior failure while a genuine request is pending.
+    clearPregameMessages();
     var starter = state.onPregameStart;
     if (typeof starter === 'function') {
       try {
-        starter(function (ok) {
-          // done(false) = charge/preflight failed; stay on pregame.
+        starter(function (ok, detail) {
+          // done(false) = charge/preflight failed; stay on pregame with explanation.
           if (ok === false) {
             resetStartButton();
+            applyPaidStartFailure(detail || {});
             return;
           }
+          clearPregameMessages();
           if (!beginGameplay()) resetStartButton();
         });
       } catch (e) {
         resetStartButton();
+        setPregameStatus('Couldn\'t start the game. Try again.', 'error');
       }
       return;
     }
     beginGameplay();
+  }
+
+  function applyPaidStartFailure(detail) {
+    detail = detail || {};
+    var err = String(detail.error || '').trim();
+    var available = detail.available;
+    if (err === 'insufficient') {
+      var msg = 'You need 1 Nugget to play.';
+      if (available != null && Number.isFinite(Number(available))) {
+        msg += ' You currently have ' + Number(available) + ' Nugget' + (Number(available) === 1 ? '' : 's') + '.';
+      }
+      setPregameStatus(msg, 'insufficient');
+      return;
+    }
+    if (err === 'wallet_error' || err === 'economy_unavailable' || err === 'transact_failed' || err === 'network') {
+      setPregameStatus('Couldn\'t start the game. Try again.', 'error');
+      return;
+    }
+    if (err === 'no_character') {
+      setPregameStatus('Choose a character in Locker (Overview) to play.', 'error');
+      return;
+    }
+    if (err === 'in_flight') {
+      setPregameStatus('Start is already in progress. Wait a moment.', 'error');
+      return;
+    }
+    setPregameStatus('Couldn\'t start the game. Try again.', 'error');
   }
 
   /**
@@ -311,6 +401,8 @@
       state.phase = 'pregame';
       setPregameVisible(true);
       showTitleArtChip(false);
+      clearPregameMessages();
+      refreshPregameCostHint(state.gameMeta && (state.gameMeta.title || (state.gameMeta.game && state.gameMeta.game.name)));
       var startBtn = el('lanternGamePlayerStartBtn');
       if (startBtn) {
         startBtn.disabled = false;
@@ -401,6 +493,10 @@
     open: open,
     close: close,
     beginGameplay: beginGameplay,
+    setPregameStatus: setPregameStatus,
+    setPregameCost: setPregameCost,
+    clearPregameMessages: clearPregameMessages,
+    applyPaidStartFailure: applyPaidStartFailure,
     isOpen: function () {
       return state.open;
     },

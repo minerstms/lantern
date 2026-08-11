@@ -122,6 +122,10 @@ if (paidStartJs.includes('Could not check your Nugget balance')) {
   ok('malformed wallet shows load error not insufficient');
 } else bad('wallet error message');
 
+if (paidStartJs.includes('You need 1 Nugget to play.')) {
+  ok('insufficient balance uses explicit product wording (#163)');
+} else bad('insufficient wording');
+
 if (paidStartJs.includes('delta: -cost') && paidStartJs.includes("kind: 'game_play'")) {
   ok('transaction delta equals negative play_cost');
 } else bad('transact payload');
@@ -129,6 +133,10 @@ if (paidStartJs.includes('delta: -cost') && paidStartJs.includes("kind: 'game_pl
 if (gamesHtml.includes('tryPlay') && gamesHtml.includes('LanternGamesPaidStart.startPaidGame')) {
   ok('tryPlay delegates to shared startPaidGame');
 } else bad('tryPlay delegation');
+
+if (gamesHtml.includes('done(false, res') || gamesHtml.includes('done(false, res ||')) {
+  ok('tryPlay forwards failure detail for persistent pregame status');
+} else bad('tryPlay failure detail forward');
 
 console.log('\nGames paid-start tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);
