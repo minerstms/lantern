@@ -44,7 +44,7 @@ assert(staffNav.includes("label: 'Reports'"), 'lantern-staff-nav: Reports privil
 assert(staffNav.includes("label: 'System'"), 'lantern-staff-nav: System privileged label');
 assert(staffNav.includes('buildPrivilegedSectionHtml'), 'lantern-staff-nav: buildPrivilegedSectionHtml');
 assert(/\/teacher\.html/.test(staffNav), 'Teacher Tools route includes /teacher.html');
-assert(/tms-device-authorize/.test(staffNav) && /tmsnuggets\.pages\.dev/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
+assert(/tms-device-authorize/.test(staffNav) && /log\.tmslantern\.org/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
 
 assert(lanternNav.includes('LanternStaffNav.buildMenuSectionsHtml'), 'lantern-nav.js uses shared full menu builder');
 assert(lanternNav.includes('--lantern-nav-text-inset'), 'lantern-nav.js shares text-inset alignment variable');

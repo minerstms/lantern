@@ -84,6 +84,8 @@ const PRODUCTION_PAGES_ORIGIN = 'https://lantern-42i.pages.dev';
 
 const ALLOWED_ORIGINS = [
   ...(PRODUCTION_PAGES_ORIGIN ? [PRODUCTION_PAGES_ORIGIN] : []),
+  'https://tmslantern.org',
+  'https://www.tmslantern.org',
   'http://localhost:8787',
   'http://localhost:5173',
   'http://localhost:3000',
@@ -101,7 +103,10 @@ function isLanternPagesOrigin(origin) {
     const u = new URL(o);
     if (u.protocol !== 'https:') return false;
     return (
-      u.hostname === 'lantern-42i.pages.dev' || u.hostname.endsWith('.lantern-42i.pages.dev')
+      u.hostname === 'tmslantern.org' ||
+      u.hostname === 'www.tmslantern.org' ||
+      u.hostname === 'lantern-42i.pages.dev' ||
+      u.hostname.endsWith('.lantern-42i.pages.dev')
     );
   } catch (_) {
     return false;
@@ -1061,10 +1066,12 @@ function getTmsNuggetsApiBaseUrl(env) {
 }
 
 /**
- * Prompt #139 — allow only known TMS Nuggets Behavior origins for device-authorize return.
+ * Prompt #139/#182 — allow only known Behavior Logger origins for device-authorize return.
+ * Canonical public hostname: log.tmslantern.org (Pages hostname retained for compatibility).
  */
 function sanitizeTmsDeviceAuthorizeReturn(raw) {
-  const DEFAULT_TARGET = 'https://tmsnuggets.pages.dev/index.html';
+  const DEFAULT_TARGET = 'https://log.tmslantern.org/index.html';
+  const ALLOWED_HOSTS = ['log.tmslantern.org', 'tmsnuggets.pages.dev'];
   const s = String(raw || '').trim();
   if (!s) return DEFAULT_TARGET;
   let u;
@@ -1075,7 +1082,7 @@ function sanitizeTmsDeviceAuthorizeReturn(raw) {
   }
   const host = String(u.hostname || '').toLowerCase();
   const local = host === 'localhost' || host === '127.0.0.1';
-  if (host !== 'tmsnuggets.pages.dev' && !local) return DEFAULT_TARGET;
+  if (ALLOWED_HOSTS.indexOf(host) === -1 && !local) return DEFAULT_TARGET;
   if (u.protocol !== 'https:' && !(local && (u.protocol === 'http:' || u.protocol === 'https:'))) {
     return DEFAULT_TARGET;
   }
@@ -1178,23 +1185,23 @@ async function mintTmsDeviceStaffHandoff(env, tmsStaffId, lanternUsername) {
 
 function tmsDeviceAuthorizeFailurePage(errorCode, cors) {
   const messages = {
-    not_authenticated: 'Sign in to Lantern to verify for TMS Nuggets.',
-    must_change_password: 'You must change your Lantern password before verifying for TMS.',
-    lantern_account_not_staff: 'Staff access required. Student accounts cannot verify for TMS staff.',
+    not_authenticated: 'Sign in to Lantern to verify for Behavior Logger.',
+    must_change_password: 'You must change your Lantern password before verifying for Behavior Logger.',
+    lantern_account_not_staff: 'Staff access required. Student accounts cannot verify for Behavior Logger.',
     lantern_account_not_linked:
-      'Your Lantern account is not linked to a TMS staff record. Contact Admin.',
+      'Your Lantern account is not linked to a Behavior Logger staff record. Contact Admin.',
     lantern_account_disabled: 'Staff account is inactive.',
     bridge_not_configured: 'Staff verification is temporarily unavailable. Contact Admin.',
-    mint_failed: 'Could not start TMS verification. Try again.',
-    mint_request_failed: 'Could not reach TMS verification. Try again.',
-    staff_not_found: 'Linked TMS staff record was not found. Contact Admin.',
+    mint_failed: 'Could not start Behavior Logger verification. Try again.',
+    mint_request_failed: 'Could not reach Behavior Logger verification. Try again.',
+    staff_not_found: 'Linked Behavior Logger staff record was not found. Contact Admin.',
   };
   const msg = messages[errorCode] || 'Cannot verify staff identity; contact Admin.';
   const html =
-    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>TMS verification</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
-    '<h1 style="font-size:28px;">Could not verify for TMS</h1><p style="font-size:20px;">' +
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Behavior Logger verification</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
+    '<h1 style="font-size:28px;">Could not verify for Behavior Logger</h1><p style="font-size:20px;">' +
     msg +
-    '</p><p style="font-size:18px;"><a href="/login.html">Sign in to Lantern</a> · <a href="https://tmsnuggets.pages.dev/index.html">Return to TMS Nuggets</a></p></body></html>';
+    '</p><p style="font-size:18px;"><a href="/login.html">Sign in to Lantern</a> · <a href="https://log.tmslantern.org/index.html">Return to Behavior Logger</a></p></body></html>';
   return new Response(html, {
     status: 401,
     headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
@@ -1481,26 +1488,26 @@ async function handleTmsNuggetsRoutes(request, url, path, env, cors) {
 /** Fixed, non-interpolated messages only -- `reason` is always one of our own error codes, never raw user input. */
 function tmsExchangeFailurePage(reason, cors) {
   const MESSAGES = {
-    missing_code: 'This Lantern sign-in link is missing its code. Please try again from TMS Nuggets.',
+    missing_code: 'This Lantern sign-in link is missing its code. Please try again from Behavior Logger.',
     session_not_configured: 'Lantern sign-in is not available right now. Please try again later.',
     bridge_not_configured: 'Lantern sign-in is not available right now. Please try again later.',
-    redeem_request_failed: 'Could not reach TMS Nuggets to verify your sign-in. Please try again.',
-    redeem_bad_response: 'Could not verify your sign-in with TMS Nuggets. Please try again.',
-    unauthorized: 'This Lantern sign-in link could not be verified. Please try again from TMS Nuggets.',
-    invalid_or_expired_code: 'This Lantern sign-in link has expired or was already used. Please try again from TMS Nuggets.',
-    lantern_account_not_linked: 'Your TMS Nuggets staff account is not yet linked to a Lantern account. Ask a Lantern admin to link it.',
+    redeem_request_failed: 'Could not reach Behavior Logger to verify your sign-in. Please try again.',
+    redeem_bad_response: 'Could not verify your sign-in with Behavior Logger. Please try again.',
+    unauthorized: 'This Lantern sign-in link could not be verified. Please try again from Behavior Logger.',
+    invalid_or_expired_code: 'This Lantern sign-in link has expired or was already used. Please try again from Behavior Logger.',
+    lantern_account_not_linked: 'Your Behavior Logger staff account is not yet linked to a Lantern account. Ask a Lantern admin to link it.',
     lantern_account_disabled: 'This Lantern account is disabled. Ask a Lantern admin for help.',
     lantern_account_not_staff: 'This Lantern account is not a teacher/admin account.',
     must_change_password: 'Please sign in to Lantern directly once to set your password, then try again.',
   };
-  const message = MESSAGES[reason] || 'Sign-in failed. Please try again from TMS Nuggets.';
+  const message = MESSAGES[reason] || 'Sign-in failed. Please try again from Behavior Logger.';
   const html =
     '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>Lantern sign-in</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:2rem auto;' +
     'padding:1rem;font-size:18px;line-height:1.5;color:#1f2937;} a{color:#1e40af;font-weight:600;}</style></head>' +
     '<body><h1>Lantern sign-in</h1><p>' +
     message +
-    '</p><p><a href="https://tmsnuggets.pages.dev/index.html">Return to TMS Nuggets</a></p></body></html>';
+    '</p><p><a href="https://log.tmslantern.org/index.html">Return to Behavior Logger</a></p></body></html>';
   return new Response(html, {
     status: 401,
     headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },

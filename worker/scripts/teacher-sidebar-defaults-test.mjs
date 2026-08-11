@@ -121,7 +121,7 @@ const phoneIdx = html.indexOf('Phone App Download');
 if (phoneIdx > hallwayIdx && hallwayIdx > 0) ok('Phone App Download appears after Hallway TV (bottom of sidebar)');
 else bad('Phone App Download placement', { hallwayIdx, phoneIdx });
 
-if (/id="teacherPhoneAppDownloadLink"/.test(html) && /intent=install/.test(html) && /tmsnuggets\.pages\.dev/.test(html)) {
+if (/id="teacherPhoneAppDownloadLink"/.test(html) && /intent=install/.test(html) && /log\.tmslantern\.org/.test(html)) {
   ok('Phone App Download routes to existing TMS PWA install intent');
 } else bad('Phone App Download route/intent missing');
 

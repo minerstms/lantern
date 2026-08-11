@@ -6,7 +6,7 @@
   var SS_DECLINED = 'lantern_remember_device_declined';
   var LS_REMEMBERED_HINT = 'lantern_tms_device_remembered_v1';
   var TMS_BEHAVIOR =
-    'https://tmsnuggets.pages.dev/index.html';
+    'https://log.tmslantern.org/index.html';
   var AUTHORIZE = '/api/auth/tms-device-authorize';
 
   function apiBase() {
@@ -102,7 +102,7 @@
     wrap.innerHTML =
       '<div style="max-width:460px;width:100%;background:#0b1220;color:#eaf0ff;border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:22px 20px 18px;box-shadow:0 18px 50px rgba(0,0,0,.45);">' +
       '<h2 id="lanternRememberDeviceTitle" style="margin:0 0 12px;font-size:28px;font-weight:900;">Remember this device?</h2>' +
-      '<p style="margin:0 0 10px;font-size:22px;line-height:1.45;color:#b9c6ea;">Stay signed in on this device so you can open Lantern and TMS Nuggets without verifying again.</p>' +
+      '<p style="margin:0 0 10px;font-size:22px;line-height:1.45;color:#b9c6ea;">Stay signed in on this device so you can open Lantern and Behavior Logger without verifying again.</p>' +
       '<p style="margin:0 0 18px;font-size:18px;line-height:1.4;color:#b9c6ea;opacity:.9;">Only choose Yes on a device you regularly use.</p>' +
       '<p id="lanternRememberDeviceMsg" style="display:none;margin:0 0 12px;font-size:18px;color:#ffcc66;"></p>' +
       '<button type="button" id="lanternRememberDeviceYes" style="width:100%;margin-bottom:10px;padding:14px 16px;border-radius:14px;border:1px solid rgba(90,167,255,.55);background:rgba(90,167,255,.28);color:#eaf0ff;font-size:24px;font-weight:800;cursor:pointer;">Yes, remember this device</button>' +
@@ -205,7 +205,7 @@
       }
       if (!body.linked) {
         global.alert(
-          'Your Lantern account is not yet linked to TMS Nuggets. Contact an administrator.'
+          'Your Lantern account is not yet linked to Behavior Logger. Contact an administrator.'
         );
         return;
       }

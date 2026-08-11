@@ -185,7 +185,7 @@ async function testUnlinkedStaffRejected() {
     const res = await authorize(env, cookie, 'https://tmsnuggets.pages.dev/index.html');
     const html = await res.text();
     if (res.status !== 401 || getCall()) return bad('unlinked staff must fail closed without mint', { status: res.status, call: getCall() });
-    if (!/not linked to a TMS staff record/i.test(html)) return bad('unlinked copy missing', html.slice(0, 300));
+    if (!/not linked to a Behavior Logger staff record/i.test(html)) return bad('unlinked copy missing', html.slice(0, 300));
     ok('unlinked Lantern staff → clear not-linked failure; no mint');
   });
 }
@@ -284,10 +284,30 @@ async function testUnsafeReturnSanitized() {
   await withMockedMint(() => ({ body: { ok: true, code: 'safe-code' } }), async () => {
     const res = await authorize(env, cookie, 'https://evil.example/steal');
     const loc = res.headers.get('Location') || '';
-    if (!loc.startsWith('https://tmsnuggets.pages.dev/index.html') || loc.includes('evil.example')) {
+    if (!loc.startsWith('https://log.tmslantern.org/index.html') || loc.includes('evil.example')) {
       return bad('unsafe return must be sanitized to TMS Behavior', loc);
     }
-    ok('unsafe return URL sanitized to TMS Nuggets Behavior origin');
+    ok('unsafe return URL sanitized to log.tmslantern.org');
+  });
+}
+
+async function testCanonicalLogHostReturnAccepted() {
+  const teacher = account({ username: 'Rick Radle', role: 'admin' });
+  const env = makeEnv({
+    accounts: { 'rick radle': teacher },
+    identityLinksByUsername: { 'Rick Radle': 'Radle' },
+  });
+  const cookie = await cookieFor(teacher);
+  await withMockedMint(() => ({ body: { ok: true, code: 'log-host-code' } }), async () => {
+    const res = await authorize(env, cookie, 'https://log.tmslantern.org/index.html?intent=remember');
+    const loc = res.headers.get('Location') || '';
+    if (res.status !== 302 || !loc.startsWith('https://log.tmslantern.org/index.html')) {
+      return bad('canonical log.tmslantern.org return must be accepted', { status: res.status, loc });
+    }
+    if (!loc.includes('intent=remember') || !loc.includes('lantern_staff_code=log-host-code')) {
+      return bad('canonical return must preserve intent + staff code', loc);
+    }
+    ok('canonical log.tmslantern.org return accepted');
   });
 }
 
@@ -317,6 +337,7 @@ await testMustChangePasswordRedirect();
 await testLinkedTeacherMintsAndRedirects();
 await testAdminCanVerifySimilarly();
 await testUnsafeReturnSanitized();
+await testCanonicalLogHostReturnAccepted();
 await testBridgeSecretNotInClientSurfaces();
 
 console.log('\ntms-device-authorize-test:', pass, 'PASS', fail, 'FAIL');

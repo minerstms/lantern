@@ -48,7 +48,7 @@
       if (kind === 'store_redeem') return note || 'Store purchase';
       if (kind === 'daily_hunt') return 'Daily nugget hunt';
       if (source === 'MISSION' || kind === 'mission') return note || 'Mission reward';
-      if (source.indexOf('MTSS') >= 0 || source.indexOf('NUGGET') >= 0) return note || 'TMS Nuggets award';
+      if (source.indexOf('MTSS') >= 0 || source.indexOf('NUGGET') >= 0) return note || 'Behavior Logger award';
       if (note) return note;
       if (kind) return kind.replace(/_/g, ' ');
       if (source) return source.replace(/_/g, ' ');

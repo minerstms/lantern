@@ -111,7 +111,7 @@ async function main() {
 
     const behaviorHref = await behaviorLink.getAttribute('href');
     assert(
-      /tms-device-authorize/.test(behaviorHref || '') && /tmsnuggets\.pages\.dev/.test(decodeURIComponent(behaviorHref || '')),
+      /tms-device-authorize/.test(behaviorHref || '') && /log\.tmslantern\.org/.test(decodeURIComponent(behaviorHref || '')),
       'Behavior Logger uses authorize handoff to TMS: ' + behaviorHref
     );
     assert(/teacher\.html/.test(await teacherLink.getAttribute('href') || ''), 'Teacher Tools points at teacher.html');

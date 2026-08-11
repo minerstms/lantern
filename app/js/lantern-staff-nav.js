@@ -7,8 +7,8 @@
 (function (global) {
   'use strict';
 
-  var LANTERN_ORIGIN = 'https://lantern-42i.pages.dev';
-  var TMS_ORIGIN = 'https://tmsnuggets.pages.dev';
+  var LANTERN_ORIGIN = 'https://tmslantern.org';
+  var TMS_ORIGIN = 'https://log.tmslantern.org';
 
   /** Shared text inset: trigger "Lantern" and dropdown item text share this left padding. */
   var MENU_TEXT_INSET = '14px';
