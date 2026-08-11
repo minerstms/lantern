@@ -77,14 +77,18 @@ export async function personKeysForAccount(db, account) {
   return out;
 }
 
-export async function searchPeople(db, queryRaw, limitRaw) {
+export async function searchPeople(db, queryRaw, limitRaw, opts) {
   const q = trimStr(queryRaw);
   const limit = Math.max(1, Math.min(40, Number(limitRaw) || 20));
+  const kind = trimStr(opts && opts.kind).toLowerCase();
+  const wantStudents = kind !== 'staff';
+  const wantStaff = kind !== 'student';
   if (!db) return { ok: false, error: 'DB not configured', students: [], staff: [] };
   if (q.length < 1) return { ok: true, students: [], staff: [] };
 
   const like = '%' + q.replace(/%/g, '') + '%';
   const students = [];
+  if (wantStudents) {
   try {
     const rows = await db
       .prepare(
@@ -132,9 +136,11 @@ export async function searchPeople(db, queryRaw, limitRaw) {
   } catch (_) {
     /* identities table optional */
   }
+  }
 
   const staff = [];
   const staffSeen = new Set();
+  if (wantStaff) {
   try {
     const linked = await db
       .prepare(
@@ -177,7 +183,8 @@ export async function searchPeople(db, queryRaw, limitRaw) {
       });
     }
   } catch (_) {}
-
+  }
+  if (wantStaff) {
   try {
     const unlinked = await db
       .prepare(
@@ -218,6 +225,7 @@ export async function searchPeople(db, queryRaw, limitRaw) {
       });
     }
   } catch (_) {}
+  }
 
   return { ok: true, students: students.slice(0, limit), staff: staff.slice(0, limit) };
 }

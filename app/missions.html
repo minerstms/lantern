@@ -502,6 +502,17 @@
       }
       return Promise.resolve({ ok: false, error: 'api_unavailable' });
     }
+    function callSendThankYou(recipientToken, message){
+      if (missionsApiBase != null) {
+        return fetch(missionsApiBase + '/api/missions/thank-you', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipient_token: recipientToken || '', message: message || '' })
+        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, message: "Your thank-you couldn't be sent. Please try again." }; });
+      }
+      return Promise.resolve({ ok: false, error: 'api_unavailable', message: "Your thank-you couldn't be sent. Please try again." });
+    }
     function callGetMissionProgress(){
       if (missionsApiBase != null) {
         return fetch(missionsApiBase + '/api/missions/progress', { credentials: 'include', cache: 'no-store' })
@@ -524,7 +535,8 @@
       grade: 'perm_grade_reflection',
       photo: 'tmission_1773676581540_qzl0kx',
       poll: 'perm_create_a_poll',
-      shout: 'perm_shoutout_someone'
+      shout: 'perm_shoutout_someone',
+      thankYou: 'perm_thank_you'
     };
     var DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
 
@@ -562,6 +574,98 @@
       wrap.appendChild(card);
       wrap.addEventListener('click', function(e){ if (e.target === wrap) wrap.remove(); });
       document.body.appendChild(wrap);
+    }
+
+    /**
+     * Prompt #204 — Thank a Teacher compose modal (staff picker + message + send).
+     */
+    function openThankYouComposer(onDone){
+      var existing = document.getElementById('thankYouComposer');
+      if (existing) existing.remove();
+      var wrap = document.createElement('div');
+      wrap.id = 'thankYouComposer';
+      wrap.setAttribute('role', 'dialog');
+      wrap.setAttribute('aria-label', 'Thank a Teacher');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;';
+      var card = document.createElement('div');
+      card.style.cssText = 'background:#142038;color:#eaf0ff;border-radius:12px;padding:20px;max-width:520px;width:100%;font-size:22px;margin:24px 0;';
+      card.innerHTML =
+        '<div style="font-weight:800;margin-bottom:6px;">Thank a Teacher</div>' +
+        '<div style="margin-bottom:14px;opacity:.9;font-size:20px;">Choose a staff member and write your thank-you.</div>' +
+        '<div id="thankYouPeopleHost" style="margin-bottom:14px;"></div>' +
+        '<label for="thankYouMessage" style="display:block;font-weight:800;margin:0 0 8px;">Your message</label>' +
+        '<textarea id="thankYouMessage" rows="5" maxlength="1000" placeholder="Write your thank-you…" style="width:100%;box-sizing:border-box;font-size:22px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.22);color:#eaf0ff;font-family:inherit;resize:vertical;"></textarea>' +
+        '<div id="thankYouStatus" style="min-height:1.3em;margin:10px 0;font-size:18px;font-weight:700;color:#b9c6ea;"></div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;"></div>';
+      var btnRow = card.lastElementChild;
+      var sendBtn = document.createElement('button');
+      sendBtn.type = 'button';
+      sendBtn.textContent = 'Send Thank You';
+      sendBtn.style.cssText = 'font-size:22px;font-weight:800;padding:12px 16px;border-radius:10px;border:0;background:#5aa7ff;color:#0b1220;cursor:pointer;';
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.style.cssText = 'font-size:18px;padding:10px 12px;border-radius:8px;border:0;background:transparent;color:#9eb0d0;cursor:pointer;';
+      btnRow.appendChild(sendBtn);
+      btnRow.appendChild(cancel);
+      wrap.appendChild(card);
+      document.body.appendChild(wrap);
+
+      var pickerApi = null;
+      var host = document.getElementById('thankYouPeopleHost');
+      if (window.LanternPeoplePicker && typeof window.LanternPeoplePicker.mount === 'function' && host) {
+        pickerApi = window.LanternPeoplePicker.mount(host, {
+          label: 'Staff member',
+          placeholder: 'Search staff…',
+          max: 1,
+          relationship: 'recognized',
+          staffOnly: true,
+          tmsStaffOnly: true,
+          inputId: 'thankYouStaffSearch',
+        });
+      } else if (host) {
+        host.innerHTML = '<div style="font-size:18px;color:#ffcc66;">Staff search is unavailable right now.</div>';
+      }
+
+      function close(){
+        if (pickerApi && pickerApi.destroy) pickerApi.destroy();
+        wrap.remove();
+      }
+      cancel.addEventListener('click', close);
+      wrap.addEventListener('click', function(e){ if (e.target === wrap) close(); });
+
+      var sending = false;
+      sendBtn.addEventListener('click', function(){
+        if (sending) return;
+        var statusEl = document.getElementById('thankYouStatus');
+        var selected = pickerApi && pickerApi.getSelected ? pickerApi.getSelected() : [];
+        var token = selected[0] && selected[0].token ? selected[0].token : '';
+        var message = (document.getElementById('thankYouMessage') && document.getElementById('thankYouMessage').value) || '';
+        if (!token) {
+          if (statusEl) statusEl.textContent = 'Please choose a staff member.';
+          return;
+        }
+        if (String(message || '').trim().length < 10) {
+          if (statusEl) statusEl.textContent = 'Please write a longer thank-you message.';
+          return;
+        }
+        sending = true;
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending…';
+        if (statusEl) statusEl.textContent = '';
+        callSendThankYou(token, message).then(function(res){
+          sending = false;
+          if (!res || !res.ok) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send Thank You';
+            if (statusEl) statusEl.textContent = (res && res.message) || "Your thank-you couldn't be sent. Please try again.";
+            return;
+          }
+          close();
+          toast('Thank you sent! +1 Nugget');
+          if (typeof onDone === 'function') onDone(res);
+        });
+      });
     }
 
     function toast(msg){
@@ -1100,6 +1204,7 @@
       submissions = submissions || [];
       progress = progress || {};
       var dailyClaimed = !!(progress.daily_checkin && progress.daily_checkin.completed_today);
+      var thankYouClaimed = !!(progress.thank_you && progress.thank_you.completed_today);
       var hiddenDone = !!missions.hidden_nugget;
       var firstGameDone = !!(progress.first_game && progress.first_game.completed) || !!missions.first_game;
       var subByMission = {};
@@ -1111,24 +1216,7 @@
       var items = [];
       function pushQuick(o){ items.push(o); }
 
-      /* Prompt #165 — Thank-You still deferred (Wave 3). Grade Reflection is D1-backed. */
-      pushQuick({
-        id: 'quick_thank_you',
-        kind: 'quick',
-        typeFilter: 'reflection',
-        typeBadge: '',
-        icon: '💌',
-        title: 'Thank-You Letter',
-        description: 'This mission is being rebuilt for real classrooms and is not available yet.',
-        reward: null,
-        status: 'available',
-        statusLabel: 'Learn more →',
-        created_at: '',
-        featured: true,
-        onActivate: function(){
-          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Thank-You Letter', 'Not available yet', 'This mission is being rebuilt so a real teacher can see and review your letter. Check back soon.');
-        },
-      });
+      /* Prompt #204 — Thank-You stub retired; canonical perm_thank_you is D1-backed below. */
 
       pushQuick({
         id: 'quick_hidden_nugget',
@@ -1192,6 +1280,40 @@
                   }
                 });
               });
+            },
+          });
+          return;
+        }
+
+        if (mid === WAVE2_MISSION.thankYou) {
+          status = thankYouClaimed ? 'completed' : 'available';
+          statusLabel = thankYouClaimed ? '✅ Completed today' : 'Send thank-you →';
+          stateBadge = thankYouClaimed ? 'COMPLETED' : '';
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'reflection',
+            typeBadge: '',
+            stateBadge: stateBadge,
+            icon: '💌',
+            title: m.title || 'Thank a Teacher',
+            description: thankYouClaimed
+              ? 'You already sent a thank-you today. Come back tomorrow.'
+              : ((m.description || '').trim() || 'Choose a staff member, write a thank-you, and send it.'),
+            reward: 1,
+            status: status,
+            statusLabel: statusLabel,
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            raw: m,
+            submission: sub,
+            onActivate: function(){
+              if (thankYouClaimed) {
+                if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Thank a Teacher', 'Completed today', 'Come back tomorrow to thank someone else.');
+                return;
+              }
+              openThankYouComposer(function(){ loadMissions(); });
             },
           });
           return;
@@ -1802,6 +1924,7 @@
 
     /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */
   </script>
+  <script src="js/lantern-people-picker.js"></script>
   <script src="js/lantern-canonical-enforce.js"></script>
 </body>
 </html>

@@ -231,6 +231,7 @@
       var seq = ++reqSeq;
       if (statusEl) statusEl.textContent = 'Searching…';
       var url = apiBase() + '/api/people/search?q=' + encodeURIComponent(query) + '&limit=20';
+      if (opt.staffOnly || opt.kind === 'staff') url += '&kind=staff';
       fetch(url, { credentials: 'include' })
         .then(function (r) {
           return r.json().catch(function () {
@@ -245,7 +246,14 @@
             return;
           }
           if (statusEl) statusEl.textContent = '';
-          renderResults(data.students || [], data.staff || []);
+          var students = opt.staffOnly || opt.kind === 'staff' ? [] : data.students || [];
+          var staff = data.staff || [];
+          if (opt.tmsStaffOnly) {
+            staff = staff.filter(function (p) {
+              return p && String(p.token || '').indexOf('staff_tms:') === 0;
+            });
+          }
+          renderResults(students, staff);
         })
         .catch(function () {
           if (seq !== reqSeq) return;

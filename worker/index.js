@@ -5203,7 +5203,8 @@ async function handlePeopleRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/people/search') {
     const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
     const limit = url.searchParams.get('limit');
-    const result = await searchPeople(db, q, limit);
+    const kind = (url.searchParams.get('kind') || url.searchParams.get('kinds') || '').trim();
+    const result = await searchPeople(db, q, limit, { kind });
     if (!result.ok) return jsonResponse(result, 503, cors);
     return jsonResponse(
       {

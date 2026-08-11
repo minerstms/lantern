@@ -141,10 +141,13 @@ if (buildFnMatch) {
       photo: 'tmission_1773676581540_qzl0kx',
       poll: 'perm_create_a_poll',
       shout: 'perm_shoutout_someone',
+      thankYou: 'perm_thank_you',
     },
     DAILY_CHECKIN_CHOICES: ['Ready', 'Okay', 'Tired', 'Need a reset'],
     openDailyCheckInPicker: function () {},
+    openThankYouComposer: function () {},
     callClaimDailyCheckIn: function () { return Promise.resolve({ ok: true }); },
+    callSendThankYou: function () { return Promise.resolve({ ok: true }); },
     loadMissions: function () {},
     openMissionSubmitModal: function () {},
     console,
@@ -183,7 +186,7 @@ if (buildFnMatch) {
     const avail = items.filter((i) => i.status === 'available').length;
     const prog = items.filter((i) => i.status === 'in_progress').length;
     const done = items.filter((i) => i.status === 'completed').length;
-    if (avail >= 2 && prog === 2 && done >= 1) {
+    if (avail >= 1 && prog === 2 && done >= 1) {
       ok('status derivation: pending/returned → in_progress, accepted → completed');
     } else bad('status derivation counts', { avail, prog, done, total: items.length });
     // Prompt #73 Defect 2: pending/in_progress missions carry a STARTED stateBadge (with a

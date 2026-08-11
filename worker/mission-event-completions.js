@@ -13,6 +13,8 @@ export const WAVE2_MISSION_IDS = {
   FIRST_PHOTO: 'tmission_1773676581540_qzl0kx',
   CREATE_POLL: 'perm_create_a_poll',
   SHOUTOUT: 'perm_shoutout_someone',
+  /** Prompt #204 — Thank a Teacher (direct email; daily cadence). */
+  THANK_YOU: 'perm_thank_you',
 };
 
 export const DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
@@ -35,6 +37,10 @@ export function eventKeyCreatePoll(characterName) {
 
 export function eventKeyShoutout(characterName) {
   return `shoutout:${String(characterName || '').trim()}`;
+}
+
+export function eventKeyThankYou(characterName, dayYYYYMMDD) {
+  return `thank_you:${String(characterName || '').trim()}:${String(dayYYYYMMDD || '').trim()}`;
 }
 
 /** Deterministic submission id derived from event_key (safe for D1 TEXT PK). */
@@ -419,6 +425,7 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
     first_photo: { completed: false },
     create_poll: { completed: false },
     shoutout: { completed: false },
+    thank_you: { completed_today: false, day },
   };
   if (!key) return out;
 
@@ -459,6 +466,10 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
   await onceDone(WAVE2_MISSION_IDS.FIRST_PHOTO, 'first_photo');
   await onceDone(WAVE2_MISSION_IDS.CREATE_POLL, 'create_poll');
   await onceDone(WAVE2_MISSION_IDS.SHOUTOUT, 'shoutout');
+
+  const thankKey = eventKeyThankYou(key, day);
+  const thankDone = await findCompletionByEventKey(db, thankKey);
+  if (thankDone) out.thank_you.completed_today = true;
 
   return out;
 }

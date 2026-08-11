@@ -93,9 +93,10 @@ async function main() {
     const activeCards = await cardTitles(page);
     const findCard = (title) => activeCards.find((c) => c.title.indexOf(title) !== -1);
 
-    const quickTitles = ['Thank-You Letter', 'Hidden Nugget'];
+    const quickTitles = ['Hidden Nugget'];
     const quickPresent = quickTitles.filter((t) => !!findCard(t));
-    assert(quickPresent.length === 2, 'Deferred Wave-3 quick stubs still present: ' + JSON.stringify(quickPresent));
+    assert(quickPresent.length === 1, 'Hidden Nugget quick stub still present: ' + JSON.stringify(quickPresent));
+    assert(!findCard('Thank-You Letter') || findCard('Thank a Teacher'), 'legacy Thank-You Letter stub not required');
     assert(!!findCard(UNSTARTED.title), 'Active grid shows the eligible unstarted teacher mission');
     assert(!!findCard(PENDING.title), 'Active grid shows the eligible pending (STARTED) teacher mission');
     assert(!!findCard(RETURNED.title), 'Active grid shows the eligible returned (NEEDS CHANGES) teacher mission');
@@ -103,7 +104,7 @@ async function main() {
 
     const activeCountLabel = await page.evaluate(() => document.querySelector('#missionsStatusTabs [data-mission-status="active"]').textContent);
     const activeCountNum = parseInt((activeCountLabel.match(/(\d+)/) || [])[1], 10);
-    assert(activeCountNum === 5, 'Active count is 2 deferred stubs + 3 eligible teacher missions: got "' + activeCountLabel + '"');
+    assert(activeCountNum === 4, 'Active count is 1 quick stub + 3 eligible teacher missions: got "' + activeCountLabel + '"');
     assert(activeCountNum === activeCards.length, 'Active tab count label matches the actual number of rendered cards');
 
     await page.evaluate(() => document.querySelector('#missionsStatusTabs [data-mission-status="completed"]').click());
@@ -138,9 +139,9 @@ async function main() {
     });
 
     const cards = await cardTitles(page);
-    const quickTitles = ['Thank-You Letter', 'Hidden Nugget'];
+    const quickTitles = ['Hidden Nugget'];
     const quickPresent = quickTitles.filter((t) => cards.some((c) => c.title.indexOf(t) !== -1));
-    assert(quickPresent.length === 2, 'Deferred stubs still render/usable when the teacher-mission fetch fails: ' + JSON.stringify(quickPresent));
+    assert(quickPresent.length === 1, 'Hidden Nugget still renders/usable when the teacher-mission fetch fails: ' + JSON.stringify(quickPresent));
     assert(attempts >= 2, 'A failed teacher-mission fetch is retried at least once before giving up (got ' + attempts + ' attempt(s))');
 
     const warningVisible = await page.evaluate(() => {

@@ -309,10 +309,13 @@ function mockEvent() {
         photo: 'tmission_1773676581540_qzl0kx',
         poll: 'perm_create_a_poll',
         shout: 'perm_shoutout_someone',
+        thankYou: 'perm_thank_you',
       },
       DAILY_CHECKIN_CHOICES: ['Ready', 'Okay', 'Tired', 'Need a reset'],
       openDailyCheckInPicker: function () {},
+      openThankYouComposer: function () {},
       callClaimDailyCheckIn: function () { return Promise.resolve({ ok: true }); },
+      callSendThankYou: function () { return Promise.resolve({ ok: true }); },
       loadMissions: function () {},
       openMissionSubmitModal: function () {},
       console,
@@ -336,13 +339,13 @@ function mockEvent() {
     }
   } else bad('buildUnifiedMissionItems not found');
 
-  /* ---------- 6b. Prompt #69/#165: Thank-You stays deferred; Grade Reflection is D1 (no quick stub). ---------- */
+  /* ---------- 6b. Prompt #204: Thank-You stub retired; Grade Reflection remains D1-only. ---------- */
   if (builtItems) {
-    const thankYou = builtItems.find((i) => i.id === 'quick_thank_you');
+    const thankYouStub = builtItems.find((i) => i.id === 'quick_thank_you');
     const gradeRefl = builtItems.find((i) => i.id === 'quick_grade_reflection');
-    if (thankYou && typeof thankYou.onActivate === 'function' && !thankYou.url) {
-      ok('Thank-You Letter no longer navigates to the legacy thanks.html destination');
-    } else bad('Thank-You Letter still has a url (would hit the legacy/broken destination)', thankYou);
+    if (!thankYouStub) {
+      ok('Thank-You quick stub retired (canonical perm_thank_you replaces it)');
+    } else bad('Thank-You quick stub still injected', thankYouStub);
     if (!gradeRefl) {
       ok('Grade Reflection quick stub retired (real D1 mission replaces it)');
     } else bad('Grade Reflection quick stub still injected', gradeRefl);

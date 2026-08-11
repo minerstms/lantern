@@ -36,6 +36,7 @@ import {
   ensureFirstGameMissionCompletion,
   getMissionProgressForCharacter,
 } from './mission-event-completions.js';
+import { sendThankYouMission } from './thank-you-mission.js';
 
 function missionRowToJson(r) {
   let target = parseTargetCharacterNames(r.target_character_names);
@@ -273,6 +274,65 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         timezone: result.timezone,
         nuggets: result.rewarded || result.reward_idempotent ? 1 : 0,
         mission_id: WAVE2_MISSION_IDS.DAILY_CHECKIN,
+      },
+      200,
+      cors
+    );
+  }
+
+  // Prompt #204 — Thank a Teacher: email first, then completion +1 (no review queue).
+  if (request.method === 'POST' && path === '/api/missions/thank-you') {
+    const auth = await requireMissionSession(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
+    if (!identity.ok) {
+      return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await sendThankYouMission(db, env, {
+      account: auth.account,
+      characterName: identity.characterName,
+      recipient_token: body.recipient_token || body.staff_token || body.token,
+      message: body.message,
+      now: new Date(),
+    });
+    if (!result.ok) {
+      const status = result._httpStatus && result._httpStatus >= 400 ? result._httpStatus : 400;
+      const userMessage =
+        result.error === 'mail_send_failed' || result.error === 'mail_request_failed' || result.error === 'mail_bad_response'
+          ? "Your thank-you couldn't be sent. Please try again."
+          : result.error === 'staff_email_missing'
+            ? "Your thank-you couldn't be sent. Please try again."
+            : result.error === 'message_too_short'
+              ? 'Please write a longer thank-you message.'
+              : result.error === 'message_too_long'
+                ? 'Please shorten your thank-you message.'
+                : result.error === 'recipient_required' || result.error === 'recipient_invalid'
+                  ? 'Please choose a staff member.'
+                  : result.error === 'send_in_progress'
+                    ? 'Sending… please wait.'
+                    : result.error === 'students_only'
+                      ? 'Only students can complete this mission.'
+                      : "Your thank-you couldn't be sent. Please try again.";
+      return jsonResponse({ ok: false, error: result.error, message: userMessage }, status, cors);
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        completed: true,
+        idempotent: !!result.idempotent,
+        rewarded: !!result.rewarded,
+        day: result.day,
+        timezone: result.timezone,
+        recipient_label: result.recipient_label,
+        nuggets: 1,
+        mission_id: WAVE2_MISSION_IDS.THANK_YOU,
       },
       200,
       cors
@@ -605,6 +665,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     if (missionId === WAVE2_MISSION_IDS.FIRST_GAME) {
       return jsonResponse({ ok: false, error: 'use_games', message: 'Play a paid game to complete this mission.' }, 400, cors);
+    }
+    if (missionId === WAVE2_MISSION_IDS.THANK_YOU) {
+      return jsonResponse({ ok: false, error: 'use_thank_you', message: 'Use Thank a Teacher to complete this mission.' }, 400, cors);
     }
     const existing = await db
       .prepare(
