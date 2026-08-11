@@ -377,12 +377,21 @@ async function main() {
   assert(!approvalsVisibleDuringModeration, 'Review Queue is not shown while Moderation workspace is active (isolated from everyday review work)');
 
   // ---------------------------------------------------------------------------
-  // Shout-Out! — primary panel defaults open
+  // Shout-Out! — Prompt #212 plain card (workspace title + form; no inner header)
   // ---------------------------------------------------------------------------
   await page.evaluate(() => { location.hash = 'shoutout'; });
   await page.waitForFunction(() => document.getElementById('teacher-shoutout')?.classList.contains('is-active-workspace'), { timeout: 5000 });
-  assert(await page.locator('#teacher-shoutout-card').evaluate((el) => !!el.open), 'Prompt #143 — Shout-Out! primary panel defaults open');
+  assert(await page.locator('#teacher-shoutout-card').evaluate((el) => el.tagName === 'DIV'), 'Prompt #212 — Shout-Out form is a plain card');
   assert(await page.locator('#shoutOutPostBtn').isVisible(), 'Shout-Out Post control is reachable without a second disclosure click');
+  assert(await page.locator('#teacher-shoutout .note-tight').isVisible(), 'Recognize anyone, now. is visible under workspace title');
+  const recognizingLabels = await page.locator('#teacher-shoutout label').evaluateAll((nodes) =>
+    nodes.map((n) => (n.textContent || '').trim()).filter((t) => t === 'Recognizing')
+  );
+  assert(recognizingLabels.length === 1, 'Prompt #212 — exactly one Recognizing label: ' + JSON.stringify(recognizingLabels));
+  const innerShoutHeaders = await page.locator('#teacher-shoutout-card .h, #teacher-shoutout-card summary').evaluateAll((nodes) =>
+    nodes.map((n) => (n.textContent || '').trim()).filter((t) => t === 'Shout-Out!')
+  );
+  assert(innerShoutHeaders.length === 0, 'Prompt #212 — no redundant inner Shout-Out! header in the form card');
 
   // ---------------------------------------------------------------------------
   // Nuggets workspace (formerly "Nuggets & Sales") — retained; Prompt #95 replaced the backing

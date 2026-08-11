@@ -89,7 +89,6 @@ if (/teacherSidebarItem--divider/.test(html) && /Hallway TV/.test(html)) {
 // Primary panels default open
 for (const [id, label] of [
   ['teacher-approvals', 'Review Submissions'],
-  ['teacher-shoutout-card', 'Shout-Out!'],
   ['teacher-moderation', 'Moderation'],
   ['teacher-rewards', 'Nuggets Rewards Panel'],
 ]) {
@@ -97,6 +96,13 @@ for (const [id, label] of [
   if (/\bopen\b/.test(tag) && /data-collapsible-default-open="1"/.test(tag)) {
     ok(label + ' primary panel defaults open');
   } else bad(label + ' missing default-open', tag);
+}
+
+/* Prompt #212 — Shout-Out is always visible (plain card), not a default-open details. */
+{
+  const tag = openingTagForId('teacher-shoutout-card');
+  if (/^<div\b/.test(tag) && !/\bdetails\b/.test(tag)) ok('Shout-Out! form is a plain card (no redundant details header)');
+  else bad('Shout-Out should be plain div.card', tag);
 }
 
 if (/applyWorkspaceDefaultOpen/.test(html)) ok('activateWorkspace applies destination default-open via applyWorkspaceDefaultOpen');

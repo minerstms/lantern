@@ -70,7 +70,6 @@ const requiredPanels = [
   ['#teacherCreateMissionDetails', 'Create New Mission'],
   ['#teacher-rewards', 'Rewards Panel'],
   ['#teacher-moderation', 'Moderation'],
-  ['#teacher-shoutout-card', 'Shout-Out!'],
   ['#individualAccessCard', 'Individual Access'],
   ['#schoolAccessOverrideCard', 'Schoolwide Access'],
   ['#classAccessCard', 'Class Access'],
@@ -130,10 +129,16 @@ if (/closeSiblingTopLevelPanels/.test(sharedJs)) {
 } else bad('accordion helper missing');
 
 if (!/<div class="card" id="teacher-rewards">/.test(html) &&
-    !/<div class="card" id="teacher-moderation">/.test(html) &&
-    !/<div class="card" id="teacher-shoutout-card">/.test(html)) {
-  ok('Rewards / Moderation / Shout-Out no longer permanently expanded div.card');
+    !/<div class="card" id="teacher-moderation">/.test(html)) {
+  ok('Rewards / Moderation no longer permanently expanded div.card');
 } else bad('legacy always-open Teacher tool div.card still present');
+
+/* Prompt #212 — Shout-Out form is a plain card (workspace title is the only Shout-Out! heading). */
+if (/<div class="card" id="teacher-shoutout-card">/.test(html) &&
+    !/<details[^>]*id="teacher-shoutout-card"/.test(html) &&
+    !/<summary[\s\S]*?>[\s\S]*?Shout-Out![\s\S]*?<\/summary>/.test(html.slice(html.indexOf('id="teacher-shoutout"'), html.indexOf('id="teacher-shoutout"') + 2500))) {
+  ok('Prompt #212 — Shout-Out uses plain card without redundant collapsible header');
+} else bad('Shout-Out should be a plain card without inner Shout-Out! summary');
 
 /* Prompt #133 — compact record disclosures */
 if (/lanternMgmtRecord/.test(sharedCss) && /wireRecords/.test(sharedJs)) {
