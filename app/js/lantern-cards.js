@@ -447,7 +447,7 @@
     if (t === 'news') return 'default/default_news.png';
     if (t === 'creation' || t === 'create') return 'default/default_creation.png';
     if (t === 'explain') return 'default/default_explain.png';
-    if (t === 'shoutout') return 'default/default_shoutout.png';
+    if (t === 'shoutout' || t === 'shout_out' || t === 'shout-out' || t === 'recognition') return 'default/default_shoutout.png';
     return 'default/default_creation.png';
   }
 
@@ -574,11 +574,12 @@
 
   function svgSpecForContentType(type) {
     var t = (type || '').toLowerCase();
-    if (t === 'news' || t === 'shoutout') return { a: '#3a4f6e', b: '#1c2838', label: 'News' };
+    if (t === 'news') return { a: '#3a4f6e', b: '#1c2838', label: 'News' };
+    if (t === 'shoutout' || t === 'shout_out' || t === 'shout-out' || t === 'recognition') return { a: '#5a4535', b: '#302418', label: 'Shout-Out!' };
     if (t === 'poll') return { a: '#4a3a5c', b: '#261d32', label: 'Poll' };
     if (t === 'teach' || t === 'explain') return { a: '#2a4d45', b: '#182a24', label: 'Learn' };
     if (t === 'activity' || t === 'mission' || t === 'school') return { a: '#3d4f36', b: '#222818', label: 'School' };
-    if (t === 'recognition' || t === 'spotlight') return { a: '#5a4535', b: '#302418', label: 'Spotlight' };
+    if (t === 'spotlight') return { a: '#5a4535', b: '#302418', label: 'Spotlight' };
     if (t === 'create' || t === 'image' || t === 'video' || t === 'link' || t === 'project' || t === 'webapp' || t === 'creation') return { a: '#2a4f5c', b: '#182830', label: 'Create' };
     return { a: '#2c3a4f', b: '#161d28', label: 'Lantern' };
   }
@@ -959,7 +960,7 @@
     var e = escFn || esc;
     var p = poll || {};
     var fk = String(p.fallback_key || 'poll').trim();
-    var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : fk === 'shoutout' ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
+    var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : (fk === 'shoutout' || fk === 'shout_out' || fk === 'shout-out') ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
     var imgUrl = String(p.image_url || '').trim();
     if (!imgUrl) imgUrl = getDefaultImageUrl(typeForDefault);
     var q = e(p.question || '');

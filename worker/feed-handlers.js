@@ -92,6 +92,7 @@ function normalizeFeedItemRow(row, origin, source) {
   const tags = parseTags(row.tags);
   let thumbnailUrl = null;
   let imageUrl = null;
+  let videoUrl = null;
   if (row.image_r2_key) {
     thumbnailUrl = newsImageUrl(origin, row.image_r2_key);
     imageUrl = row.full_image_r2_key ? newsImageUrl(origin, row.full_image_r2_key) : thumbnailUrl;
@@ -101,6 +102,11 @@ function normalizeFeedItemRow(row, origin, source) {
     imageUrl = row.direct_image_url;
   } else if (row.video_r2_key) {
     thumbnailUrl = null;
+  }
+  if (row.video_r2_key) {
+    videoUrl = `${origin}/api/news/video?key=${encodeURIComponent(row.video_r2_key)}`;
+  } else if (row.videoUrl) {
+    videoUrl = row.videoUrl;
   }
   return {
     id: row.id,
@@ -120,6 +126,7 @@ function normalizeFeedItemRow(row, origin, source) {
     status: String(row.status || 'approved').toLowerCase(),
     thumbnailUrl,
     imageUrl,
+    videoUrl,
     detailUrl: null,
     tags,
     reactionCounts: {},
@@ -156,7 +163,11 @@ function normalizeNewsRow(row, origin) {
     submitted_at: row.created_at,
     approved_at: row.reviewed_at || row.created_at,
     approved_by: null,
-    extra_json: JSON.stringify({ linkUrl: row.link_url || null, newsId: row.id }),
+    extra_json: JSON.stringify({
+      linkUrl: row.link_url || null,
+      newsId: row.id,
+      videoUrl: row.video_r2_key ? `${origin}/api/news/video?key=${encodeURIComponent(row.video_r2_key)}` : null,
+    }),
   };
   const item = normalizeFeedItemRow(adapted, origin, 'news');
   return item;
@@ -243,9 +254,11 @@ function normalizePollRow(row, origin) {
   return normalizeFeedItemRow(adapted, origin, 'poll');
 }
 
-function normalizeShoutOutRow(row, origin) {
+export function normalizeShoutOutRow(row, origin) {
   const recipient = String(row.character_name || '').trim();
   const message = String(row.message || '').trim();
+  const linkUrl = String(row.link_url || '').trim() || null;
+  const videoKey = String(row.video_r2_key || '').trim() || null;
   const adapted = {
     id: `shout_out:${row.id}`,
     type: 'shout_out',
@@ -255,6 +268,9 @@ function normalizeShoutOutRow(row, origin) {
     author_id: row.created_by_teacher_id || null,
     author_display_name: row.created_by_teacher_name || 'Staff',
     author_role: 'teacher',
+    image_r2_key: row.image_r2_key || null,
+    full_image_r2_key: row.full_image_r2_key || null,
+    video_r2_key: videoKey,
     tags: row.category ? JSON.stringify([row.category]) : '[]',
     status: 'approved',
     slideshow_eligible: 0,
@@ -268,6 +284,8 @@ function normalizeShoutOutRow(row, origin) {
       recipient: recipient || null,
       recognitionId: row.id,
       category: row.category || null,
+      linkUrl: linkUrl,
+      videoUrl: videoKey && origin ? `${origin}/api/news/video?key=${encodeURIComponent(videoKey)}` : null,
     }),
   };
   return normalizeFeedItemRow(adapted, origin || '', 'shout_out');
@@ -337,12 +355,23 @@ async function fetchApprovedPolls(db, origin, limit) {
 
 async function fetchApprovedShoutOuts(db, origin, limit) {
   const lim = Math.min(100, Math.max(1, limit || 50));
-  const rows = await db
-    .prepare(
-      'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?'
-    )
-    .bind(lim)
-    .all();
+  let rows;
+  try {
+    rows = await db
+      .prepare(
+        'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?'
+      )
+      .bind(lim)
+      .all();
+  } catch (_) {
+    /* Pre-migration 061 rows without media columns. */
+    rows = await db
+      .prepare(
+        'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?'
+      )
+      .bind(lim)
+      .all();
+  }
   // Filter demo recipients (author is staff; persona guard on authorDisplayName would miss this).
   return filterOutDemoPersonas(rows.results || [], 'character_name').map((r) => normalizeShoutOutRow(r, origin));
 }

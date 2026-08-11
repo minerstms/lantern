@@ -6120,13 +6120,46 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     }
     if (!message) return jsonResponse({ ok: false, error: 'Missing message' }, 400, cors);
     const category = (body.category || '').trim() || null;
+    // Prompt #175 — same media contract as student Contribute Shout-Out / news pipeline (one of image|video|link).
+    let imageR2Key = (body.image_r2_key || '').trim() || null;
+    let fullImageR2Key = (body.full_image_r2_key || '').trim() || null;
+    let videoR2Key = (body.video_r2_key || '').trim() || null;
+    let linkUrl = (body.link_url || '').trim() || null;
+    if (imageR2Key && !/^news\//.test(imageR2Key)) imageR2Key = null;
+    if (fullImageR2Key && !/^news\//.test(fullImageR2Key)) fullImageR2Key = null;
+    if (videoR2Key && !/^news\/video\//.test(videoR2Key)) videoR2Key = null;
+    if (linkUrl && !/^https?:\/\//i.test(linkUrl)) linkUrl = null;
+    if (linkUrl) linkUrl = linkUrl.slice(0, 2000);
+    // Mutual exclusion: prefer video, then image, then link (matches student unified field).
+    if (videoR2Key) {
+      imageR2Key = null;
+      fullImageR2Key = null;
+      linkUrl = null;
+    } else if (imageR2Key) {
+      videoR2Key = null;
+      linkUrl = null;
+    } else if (linkUrl) {
+      imageR2Key = null;
+      fullImageR2Key = null;
+      videoR2Key = null;
+    }
     const createdByTeacherId = sessionTeacherId(auth.account) || null;
     const createdByTeacherName = reviewerLabelFromAccount(auth.account);
     const id = 'rec-' + crypto.randomUUID();
     const now = new Date().toISOString();
-    await db.prepare(
-      'INSERT INTO lantern_teacher_recognition (id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, characterName, message, category, now, createdByTeacherId, createdByTeacherName).run();
+    try {
+      await db.prepare(
+        'INSERT INTO lantern_teacher_recognition (id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(id, characterName, message, category, now, createdByTeacherId, createdByTeacherName, imageR2Key, fullImageR2Key, videoR2Key, linkUrl).run();
+    } catch (e) {
+      // Pre-migration fallback: text-only insert if media columns are absent.
+      if (imageR2Key || fullImageR2Key || videoR2Key || linkUrl) {
+        return jsonResponse({ ok: false, error: 'media_schema_required' }, 503, cors);
+      }
+      await db.prepare(
+        'INSERT INTO lantern_teacher_recognition (id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(id, characterName, message, category, now, createdByTeacherId, createdByTeacherName).run();
+    }
     try {
       await awardAchievementsForRecognition(db, characterName, category, message, id);
     } catch (_) {}
@@ -6138,6 +6171,10 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
       category,
       created_at: now,
       created_by_teacher_name: createdByTeacherName,
+      image_r2_key: imageR2Key,
+      full_image_r2_key: fullImageR2Key,
+      video_r2_key: videoR2Key,
+      link_url: linkUrl,
     }, 200, cors);
   }
 
@@ -6147,14 +6184,28 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)));
     const fetchCap = characterName ? Math.min(100, limit + 40) : limit;
     let rows;
-    if (characterName) {
-      rows = await db.prepare(
-        'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition WHERE character_name = ? ORDER BY created_at DESC LIMIT ?'
-      ).bind(characterName, fetchCap).all();
-    } else {
-      rows = await db.prepare(
-        'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?'
-      ).bind(limit).all();
+    const selectMedia = 'id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url';
+    const selectBasic = 'id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name';
+    try {
+      if (characterName) {
+        rows = await db.prepare(
+          `SELECT ${selectMedia} FROM lantern_teacher_recognition WHERE character_name = ? ORDER BY created_at DESC LIMIT ?`
+        ).bind(characterName, fetchCap).all();
+      } else {
+        rows = await db.prepare(
+          `SELECT ${selectMedia} FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?`
+        ).bind(limit).all();
+      }
+    } catch (_) {
+      if (characterName) {
+        rows = await db.prepare(
+          `SELECT ${selectBasic} FROM lantern_teacher_recognition WHERE character_name = ? ORDER BY created_at DESC LIMIT ?`
+        ).bind(characterName, fetchCap).all();
+      } else {
+        rows = await db.prepare(
+          `SELECT ${selectBasic} FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?`
+        ).bind(limit).all();
+      }
     }
     const profiles = await db.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
     const avatarByChar = {};
@@ -6172,6 +6223,11 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
         created_at: r.created_at,
         created_by_teacher_name: r.created_by_teacher_name || '',
         avatar_image: key ? origin + '/api/avatar/image?key=' + encodeURIComponent(key) : null,
+        image_r2_key: r.image_r2_key || null,
+        image_url: r.image_r2_key ? origin + '/api/news/image?key=' + encodeURIComponent(r.image_r2_key) : null,
+        video_r2_key: r.video_r2_key || null,
+        video_url: r.video_r2_key ? origin + '/api/news/video?key=' + encodeURIComponent(r.video_r2_key) : null,
+        link_url: r.link_url || null,
       };
     });
     if (characterName) {

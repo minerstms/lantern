@@ -32,7 +32,7 @@
     teacher_review: 'Review Queue: approve, reject, or return student submissions waiting for your check. Only approved items appear to students.',
     teacher_school_access: 'School Access: Current Access Status, Individual Access (approve student requests), Class Access, Schoolwide Access (admin), and Device Enrollment for shared classroom computers.',
     teacher_missions: 'Missions (Teacher Tools): create and manage missions students complete in Lantern. Mission rewards follow the current Nuggets rules shown when you create or edit a mission.',
-    teacher_shoutout: 'Shout-Out!: post positive recognition for students. This is not a Nugget award — it is recognition only.',
+    teacher_shoutout: 'Shout-Out!: post positive recognition for a student with an optional photo, video, or link. This is not a Nugget award — it is recognition only.',
     teacher_moderation: 'Moderation: hide live posts from public view or restore hidden items. Hidden content stays listed here until you restore it.',
     teacher_hallway_tv: 'Hallway TV opens the Display board in a new tab for hallway screens. It is not in the global Lantern ▼ menu — use this Teacher Tools sidebar link.',
     teacher_phone_app: 'Phone App Download opens TMS Nuggets install guidance on the Behavior Logger origin (Add to Home Screen / Install app). It does not remember or trust this device — that stays a separate step.',

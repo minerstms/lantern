@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-collapsible-list.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
+  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
 
   <style>
     :root{
@@ -2157,6 +2158,11 @@
             <label for="shoutOutCategory">Category (optional)</label>
             <input type="text" id="shoutOutCategory" class="teacherInput" placeholder="e.g. Kindness, Effort" autocomplete="off" style="max-width:240px;" />
           </div>
+          <div class="teacherField">
+            <label for="shoutOutMediaMount">Add photo, video, or link</label>
+            <div id="shoutOutMediaMount" aria-label="Add photo, video, or link"></div>
+            <video id="shoutOutVideoPreviewEl" style="display:none;" preload="metadata" muted playsinline></video>
+          </div>
           <div class="teacherActions">
             <button class="btn good" id="shoutOutPostBtn" type="button">Post Shout-Out!</button>
           </div>
@@ -2410,6 +2416,20 @@
 
   <div class="toast" id="toast"></div>
 
+  <div id="shoutOutCropperModal" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.7);align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
+    <div style="background:var(--panel);border-radius:var(--r);padding:20px;max-width:520px;width:100%;border:1px solid var(--line);">
+      <div style="font-weight:900;font-size:26px;margin-bottom:14px;">Position your photo</div>
+      <div style="max-height:60vh;margin:0 auto 14px;background:#000;border-radius:10px;overflow:hidden;">
+        <img id="shoutOutCropperImg" src="" alt="" style="max-width:100%;display:block;" />
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn good" id="shoutOutCropperUseBtn">Use Photo</button>
+        <button type="button" class="btn" id="shoutOutCropperCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="sfx.js"></script>
   <script src="js/lantern-data.js"></script>
   <script src="js/lantern-avatar.js"></script>
@@ -2417,6 +2437,7 @@
   <script src="js/lantern-broadcast.js"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-media.js"></script>
+  <script src="js/lantern-unified-media-field.js"></script>
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/class-access.js"></script>
@@ -5854,7 +5875,7 @@
       });
     }
 
-    // Prompt #107 — Shout-Out! workspace (Worker recognition API; Student labels; no Nugget award).
+    // Prompt #107/#175 — Shout-Out! workspace (Worker recognition API + student media pipeline parity).
     (function initShoutOutWorkspace(){
       var DEMO_BLOCK = { 'alex adventure':1, 'sam star':1, 'casey cool':1, 'jordan joy':1, 'riley rise':1 };
       var sel = el('shoutOutStudentSelect');
@@ -5869,6 +5890,186 @@
           sel.appendChild(opt);
         });
       }
+
+      var shoutUnifiedField = null;
+      var shoutCroppedImageDataUrl = null;
+      var shoutFullImageDataUrl = null;
+      var shoutVideoFile = null;
+      var shoutLinkUrl = null;
+      var shoutCropperInstance = null;
+      var shoutCropperSourceDataUrl = null;
+
+      function escSo(s){
+        return String(s || '').replace(/[&<>"']/g, function(c){
+          return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;';
+        });
+      }
+
+      function clearShoutVideoPreview(){
+        var v = el('shoutOutVideoPreviewEl');
+        if (v && v.src && v.src.indexOf('blob:') === 0) URL.revokeObjectURL(v.src);
+        if (v) v.src = '';
+        shoutVideoFile = null;
+      }
+
+      function clearShoutMediaState(){
+        shoutCroppedImageDataUrl = null;
+        shoutFullImageDataUrl = null;
+        shoutLinkUrl = null;
+        clearShoutVideoPreview();
+      }
+
+      function refreshShoutUnifiedPreview(){
+        if (!shoutUnifiedField) return;
+        if (shoutCroppedImageDataUrl) {
+          shoutUnifiedField.setPreviewHTML(
+            '<div class="lanternUnifiedMediaPreviewInner"><img src="' + escSo(shoutCroppedImageDataUrl) + '" alt="Preview" /></div>' +
+            '<div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="shoutUmReplace">Replace</button><button type="button" class="btn small bad" id="shoutUmRemove">Remove</button></div>'
+          );
+          return;
+        }
+        var vEl = el('shoutOutVideoPreviewEl');
+        if (shoutVideoFile && vEl && vEl.src) {
+          shoutUnifiedField.setPreviewHTML(
+            '<div class="lanternUnifiedMediaPreviewInner"><video controls preload="metadata" style="max-width:100%;max-height:200px;border-radius:12px;border:1px solid var(--line);" src="' + escSo(vEl.src) + '"></video></div>' +
+            '<div class="lanternUnifiedMediaActions"><span style="font-weight:800;">' + escSo(shoutVideoFile.name || 'Video') + '</span> <button type="button" class="btn small" id="shoutUmReplace">Replace</button><button type="button" class="btn small bad" id="shoutUmRemove">Remove</button></div>'
+          );
+          return;
+        }
+        if (shoutLinkUrl) {
+          shoutUnifiedField.setPreviewHTML(
+            '<div class="lanternUnifiedMediaLinkCard"><a href="' + escSo(shoutLinkUrl) + '" target="_blank" rel="noopener noreferrer">' + escSo(shoutLinkUrl) + '</a></div>' +
+            '<div class="lanternUnifiedMediaActions"><button type="button" class="btn small" id="shoutUmReplace">Replace</button><button type="button" class="btn small bad" id="shoutUmRemove">Remove</button></div>'
+          );
+          return;
+        }
+        shoutUnifiedField.clearPreview();
+      }
+
+      function openShoutCropper(dataUrl){
+        var modal = el('shoutOutCropperModal');
+        var imgEl = el('shoutOutCropperImg');
+        if (!modal || !imgEl) {
+          shoutCroppedImageDataUrl = dataUrl;
+          shoutFullImageDataUrl = dataUrl;
+          refreshShoutUnifiedPreview();
+          return;
+        }
+        shoutCropperSourceDataUrl = dataUrl || null;
+        if (shoutCropperInstance) { try { shoutCropperInstance.destroy(); } catch (e) {} shoutCropperInstance = null; }
+        imgEl.src = dataUrl || '';
+        modal.style.display = 'flex';
+        setTimeout(function(){
+          if (typeof window.Cropper === 'undefined') {
+            toast('Crop tool unavailable — using photo as-is.');
+            shoutCroppedImageDataUrl = dataUrl;
+            shoutFullImageDataUrl = dataUrl;
+            modal.style.display = 'none';
+            refreshShoutUnifiedPreview();
+            return;
+          }
+          shoutCropperInstance = new window.Cropper(imgEl, { aspectRatio: NaN, viewMode: 1, dragMode: 'move', autoCropArea: 0.8 });
+        }, 40);
+      }
+
+      function finishShoutCropper(){
+        var modal = el('shoutOutCropperModal');
+        var dataUrl = shoutCropperSourceDataUrl;
+        if (shoutCropperInstance) {
+          try {
+            var thumbCanvas = shoutCropperInstance.getCroppedCanvas({ maxWidth: 800, maxHeight: 600, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+            if (thumbCanvas) dataUrl = thumbCanvas.toDataURL('image/png');
+          } catch (e) {}
+          try { shoutCropperInstance.destroy(); } catch (e2) {}
+          shoutCropperInstance = null;
+        }
+        if (modal) modal.style.display = 'none';
+        shoutCroppedImageDataUrl = dataUrl || null;
+        shoutFullImageDataUrl = shoutCropperSourceDataUrl || dataUrl || null;
+        shoutCropperSourceDataUrl = null;
+        refreshShoutUnifiedPreview();
+      }
+
+      function handleShoutImageFile(file){
+        if (!file || !file.type.match(/^image\/(png|jpeg|jpg|webp|gif)$/)) { toast('Please choose an image (PNG, JPEG, WebP, or GIF).'); return; }
+        if (shoutUnifiedField) shoutUnifiedField.clearPreview();
+        clearShoutVideoPreview();
+        shoutLinkUrl = null;
+        shoutCroppedImageDataUrl = null;
+        shoutFullImageDataUrl = null;
+        var reader = new FileReader();
+        reader.onload = function(){ openShoutCropper(reader.result); };
+        reader.readAsDataURL(file);
+      }
+
+      function handleShoutVideoFile(file){
+        if (!file || !file.type.match(/^video\/(mp4|webm)$/)) { toast('Please choose an MP4 or WebM video.'); return; }
+        if (file.size > 25 * 1024 * 1024) { toast('Video too large. Max 25MB.'); return; }
+        shoutCroppedImageDataUrl = null;
+        shoutFullImageDataUrl = null;
+        shoutLinkUrl = null;
+        clearShoutVideoPreview();
+        shoutVideoFile = file;
+        var v = el('shoutOutVideoPreviewEl');
+        if (v) v.src = URL.createObjectURL(file);
+        refreshShoutUnifiedPreview();
+      }
+
+      function mountShoutUnifiedMedia(){
+        var mount = el('shoutOutMediaMount');
+        if (!mount || !window.LanternUnifiedMediaField) return;
+        if (shoutUnifiedField) { try { shoutUnifiedField.destroy(); } catch (e) {} shoutUnifiedField = null; }
+        mount.innerHTML = '';
+        shoutUnifiedField = window.LanternUnifiedMediaField.mount(mount, {
+          allowImage: true,
+          allowVideo: true,
+          allowLink: true,
+          emptyHelper: 'Click here, then paste, drag a file, or choose one.',
+          focusedHelper: 'Ready — paste a picture, short video, or link.',
+          onImageFile: handleShoutImageFile,
+          onVideoFile: handleShoutVideoFile,
+          onLinkUrl: function(u){
+            var vv = window.LanternMedia && LanternMedia.isValidLinkUrl ? LanternMedia.isValidLinkUrl(u) : '';
+            if (!vv) return;
+            shoutLinkUrl = vv;
+            shoutCroppedImageDataUrl = null;
+            shoutFullImageDataUrl = null;
+            clearShoutVideoPreview();
+            refreshShoutUnifiedPreview();
+          },
+          onClear: function(){
+            clearShoutMediaState();
+          }
+        });
+        if (!mount._shoutUmDelegated) {
+          mount._shoutUmDelegated = true;
+          mount.addEventListener('click', function(ev){
+            if (ev.target.id === 'shoutUmRemove' && shoutUnifiedField) shoutUnifiedField.clearPreview();
+            if (ev.target.id === 'shoutUmReplace' && shoutUnifiedField) { shoutUnifiedField.clearPreview(); shoutUnifiedField.openFilePicker(); }
+          });
+        }
+        refreshShoutUnifiedPreview();
+      }
+
+      function uploadNewsImage(dataUrl, mimeType, fileName){
+        return fetch(avatarApiBase + '/api/news/upload-image', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl || '', mime_type: mimeType || 'image/png', file_name: fileName || 'image.png' })
+        }).then(function(r){ return r.json().then(function(d){ return r.ok && d && d.image_r2_key ? Object.assign({ ok: true }, d) : { ok: false, error: (d && d.error) || 'Image upload failed' }; }); })
+          .catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+      }
+      function uploadNewsVideo(dataUrl, mimeType, fileName){
+        return fetch(avatarApiBase + '/api/news/upload-video', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ video: dataUrl || '', mime_type: mimeType || 'video/mp4', file_name: fileName || 'video.mp4' })
+        }).then(function(r){ return r.json().then(function(d){ return r.ok && d && d.video_r2_key ? Object.assign({ ok: true }, d) : { ok: false, error: (d && d.error) || 'Video upload failed' }; }); })
+          .catch(function(e){ return { ok: false, error: String(e && e.message || e) }; });
+      }
+
       function renderShoutOutList(list){
         var box = el('shoutOutListEl');
         var count = el('shoutOutCount');
@@ -5882,7 +6083,8 @@
         list.forEach(function(r){
           var row = document.createElement('div');
           row.className = 'curatePostRow';
-          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(r.character_name || '') + (r.category ? ' · ' + esc(r.category) : '') + '</div><div class="curatePostTitle">' + esc((r.message || '').slice(0, 250)) + '</div><div class="approvalQueueMeta">' + esc(r.created_by_teacher_name || '') + '</div></div>';
+          var mediaHint = r.image_url ? ' · Photo' : (r.video_url ? ' · Video' : (r.link_url ? ' · Link' : ''));
+          row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(r.character_name || '') + (r.category ? ' · ' + esc(r.category) : '') + esc(mediaHint) + '</div><div class="curatePostTitle">' + esc((r.message || '').slice(0, 250)) + '</div><div class="approvalQueueMeta">' + esc(r.created_by_teacher_name || '') + '</div></div>';
           box.appendChild(row);
         });
       }
@@ -5894,6 +6096,18 @@
           if (res && res.ok && Array.isArray(res.recognition)) renderShoutOutList(res.recognition);
         } catch (_) {}
       }
+
+      if (el('shoutOutCropperUseBtn')) el('shoutOutCropperUseBtn').addEventListener('click', finishShoutCropper);
+      if (el('shoutOutCropperCancelBtn')) {
+        el('shoutOutCropperCancelBtn').addEventListener('click', function(){
+          if (shoutCropperInstance) { try { shoutCropperInstance.destroy(); } catch (e) {} shoutCropperInstance = null; }
+          shoutCropperSourceDataUrl = null;
+          if (el('shoutOutCropperModal')) el('shoutOutCropperModal').style.display = 'none';
+        });
+      }
+
+      mountShoutUnifiedMedia();
+
       if (el('shoutOutPostBtn')) {
         el('shoutOutPostBtn').addEventListener('click', async function(){
           if (avatarApiBase === null){ toast('Shout-Out requires Lantern API'); return; }
@@ -5906,29 +6120,55 @@
           var btn = el('shoutOutPostBtn');
           btn.disabled = true;
           try {
+            var payload = {
+              character_name: student,
+              message: message,
+              category: category || undefined
+            };
+            if (shoutVideoFile) {
+              btn.textContent = 'Uploading video…';
+              var reader = new FileReader();
+              var dataUrl = await new Promise(function(resolve, reject){ reader.onload = function(){ resolve(reader.result); }; reader.onerror = reject; reader.readAsDataURL(shoutVideoFile); });
+              var uploadRes = await uploadNewsVideo(dataUrl, shoutVideoFile.type || 'video/mp4', shoutVideoFile.name || 'video.mp4');
+              if (!uploadRes || !uploadRes.ok) { toast((uploadRes && uploadRes.error) || 'Video upload failed'); btn.disabled = false; btn.textContent = 'Post Shout-Out!'; return; }
+              payload.video_r2_key = uploadRes.video_r2_key;
+            } else if (shoutCroppedImageDataUrl) {
+              btn.textContent = 'Uploading photo…';
+              var thumbRes = await uploadNewsImage(shoutCroppedImageDataUrl, 'image/png', 'image.png');
+              if (!thumbRes || !thumbRes.ok) { toast((thumbRes && thumbRes.error) || 'Image upload failed'); btn.disabled = false; btn.textContent = 'Post Shout-Out!'; return; }
+              payload.image_r2_key = thumbRes.image_r2_key;
+              if (shoutFullImageDataUrl) {
+                var fullRes = await uploadNewsImage(shoutFullImageDataUrl, 'image/png', 'full.png');
+                if (fullRes && fullRes.ok && fullRes.image_r2_key) payload.full_image_r2_key = fullRes.image_r2_key;
+              }
+            } else if (shoutLinkUrl) {
+              var mediaPayload = window.LanternMedia && window.LanternMedia.normalizeMediaPayload
+                ? window.LanternMedia.normalizeMediaPayload({ link_url: shoutLinkUrl })
+                : {};
+              if (mediaPayload.link_url) payload.link_url = mediaPayload.link_url;
+            }
+
+            btn.textContent = 'Posting…';
             var raw = await fetch(avatarApiBase + '/api/recognition/create', {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                character_name: student,
-                message: message,
-                category: category || undefined,
-                created_by_teacher_id: approvalStaffId,
-                created_by_teacher_name: 'Teacher'
-              })
+              body: JSON.stringify(payload)
             });
             var res = await raw.json().catch(function(){ return { ok: false }; });
-            if (!res || !res.ok){ toast((res && res.error) || 'Failed to post shout-out'); btn.disabled = false; return; }
+            if (!res || !res.ok){ toast((res && res.error) || 'Failed to post shout-out'); btn.disabled = false; btn.textContent = 'Post Shout-Out!'; return; }
             toast('Shout-Out posted');
             if (el('shoutOutMessage')) el('shoutOutMessage').value = '';
             if (el('shoutOutCategory')) el('shoutOutCategory').value = '';
             if (el('shoutOutStudentSelect')) el('shoutOutStudentSelect').value = '';
+            clearShoutMediaState();
+            if (shoutUnifiedField) shoutUnifiedField.clearPreview();
             await refreshShoutOuts();
           } catch (_) {
             toast('Could not contact recognition service');
           }
           btn.disabled = false;
+          btn.textContent = 'Post Shout-Out!';
         });
       }
       refreshShoutOuts();
