@@ -67,14 +67,11 @@
     { id: 'all', label: 'All' },
     { id: 'news', label: 'News' },
     { id: 'mission', label: 'Missions' },
-    { id: 'game_score', label: 'Game Scores' },
-    { id: 'leaderboard', label: 'Leaderboards' },
-    { id: 'achievement', label: 'Achievements' },
+    { id: 'poll', label: 'Polls' },
     { id: 'shout_out', label: 'Shout-Outs' },
     { id: 'photo', label: 'Photos' },
     { id: 'video', label: 'Videos' },
     { id: 'article', label: 'Articles' },
-    { id: 'trivia', label: 'Trivia' },
   ];
 
   var REACTIONS = [

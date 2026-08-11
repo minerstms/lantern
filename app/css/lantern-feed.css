@@ -51,6 +51,12 @@
   margin-top: 6px;
 }
 
+.feedMetaRow--statusOnly {
+  justify-content: flex-end;
+  margin-top: 4px;
+  min-height: 0;
+}
+
 .feedPageTitle {
   font-size: 32px;
   font-weight: 900;

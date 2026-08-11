@@ -8,6 +8,7 @@ import { filterOutDemoPersonas } from './demo-persona-guard.js';
 export const FEED_TYPES = {
   news: 'News',
   mission: 'Mission',
+  poll: 'Poll',
   game_score: 'Game Score',
   leaderboard: 'Leaderboard',
   achievement: 'Achievement',
@@ -17,6 +18,18 @@ export const FEED_TYPES = {
   article: 'Article',
   trivia: 'Trivia',
 };
+
+/** Explore filter bar order (Prompt #154). Game/system types remain in FEED_TYPES for data compatibility but are UI-archived. */
+export const EXPLORE_FEED_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'news', label: 'News' },
+  { id: 'mission', label: 'Missions' },
+  { id: 'poll', label: 'Polls' },
+  { id: 'shout_out', label: 'Shout-Outs' },
+  { id: 'photo', label: 'Photos' },
+  { id: 'video', label: 'Videos' },
+  { id: 'article', label: 'Articles' },
+];
 
 export const FEED_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'hidden'];
 
@@ -187,6 +200,78 @@ function normalizeMissionRow(row, origin) {
   return normalizeFeedItemRow(adapted, origin, 'mission');
 }
 
+function normalizePollRow(row, origin) {
+  let choices = [];
+  try {
+    choices = JSON.parse(row.choices_json || '[]');
+  } catch (_) {
+    choices = [];
+  }
+  if (!Array.isArray(choices)) choices = [];
+  const question = String(row.question || '').trim() || 'Poll';
+  const choicePreview = choices
+    .map((c) => String(c || '').trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(' · ');
+  const adapted = {
+    id: `poll:${row.id}`,
+    type: 'poll',
+    title: question,
+    body: choicePreview,
+    summary: choicePreview || 'Tap to vote',
+    author_id: null,
+    author_display_name: row.character_name || 'Poll',
+    author_role: 'student',
+    direct_image_url: row.image_url || null,
+    tags: '[]',
+    status: 'approved',
+    slideshow_eligible: 0,
+    featured_eligible: 0,
+    home_eligible: 1,
+    created_at: row.created_at,
+    submitted_at: row.created_at,
+    approved_at: row.approved_at || row.created_at,
+    approved_by: null,
+    extra_json: JSON.stringify({
+      pollId: row.id,
+      choices: choices,
+      imageUrl: row.image_url || null,
+    }),
+  };
+  return normalizeFeedItemRow(adapted, origin, 'poll');
+}
+
+function normalizeShoutOutRow(row, origin) {
+  const recipient = String(row.character_name || '').trim();
+  const message = String(row.message || '').trim();
+  const adapted = {
+    id: `shout_out:${row.id}`,
+    type: 'shout_out',
+    title: message || 'Shout-Out!',
+    body: recipient ? 'For ' + recipient : message,
+    summary: message ? message.slice(0, 280) : 'Shout-Out!',
+    author_id: row.created_by_teacher_id || null,
+    author_display_name: row.created_by_teacher_name || 'Staff',
+    author_role: 'teacher',
+    tags: row.category ? JSON.stringify([row.category]) : '[]',
+    status: 'approved',
+    slideshow_eligible: 0,
+    featured_eligible: 0,
+    home_eligible: 1,
+    created_at: row.created_at,
+    submitted_at: row.created_at,
+    approved_at: row.created_at,
+    approved_by: row.created_by_teacher_name || null,
+    extra_json: JSON.stringify({
+      recipient: recipient || null,
+      recognitionId: row.id,
+      category: row.category || null,
+    }),
+  };
+  return normalizeFeedItemRow(adapted, origin || '', 'shout_out');
+}
+
 async function fetchApprovedFeedItems(db, origin) {
   const rows = await db.prepare(
     "SELECT * FROM lantern_feed_items WHERE LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY approved_at DESC, created_at DESC"
@@ -228,17 +313,55 @@ async function fetchApprovedMissions(db, origin, limit) {
   );
 }
 
+async function fetchApprovedPolls(db, origin, limit) {
+  const lim = Math.min(100, Math.max(1, limit || 50));
+  let rows;
+  try {
+    rows = await db
+      .prepare(
+        'SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?'
+      )
+      .bind(lim)
+      .all();
+  } catch (_) {
+    rows = await db
+      .prepare(
+        'SELECT id, mission_submission_id, question, choices_json, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?'
+      )
+      .bind(lim)
+      .all();
+  }
+  return filterOutDemoPersonas(rows.results || [], 'character_name').map((r) => normalizePollRow(r, origin));
+}
+
+async function fetchApprovedShoutOuts(db, origin, limit) {
+  const lim = Math.min(100, Math.max(1, limit || 50));
+  const rows = await db
+    .prepare(
+      'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?'
+    )
+    .bind(lim)
+    .all();
+  // Filter demo recipients (author is staff; persona guard on authorDisplayName would miss this).
+  return filterOutDemoPersonas(rows.results || [], 'character_name').map((r) => normalizeShoutOutRow(r, origin));
+}
+
 export async function collectApprovedFeed(db, origin, opts) {
   const limit = opts && opts.limit ? opts.limit : 200;
-  const [feedItems, newsItems, missionItems] = await Promise.all([
+  const [feedItems, newsItems, missionItems, pollItems, shoutItems] = await Promise.all([
     fetchApprovedFeedItems(db, origin),
     fetchApprovedNews(db, origin),
     fetchApprovedMissions(db, origin, limit),
+    fetchApprovedPolls(db, origin, limit),
+    fetchApprovedShoutOuts(db, origin, limit),
   ]);
   // Prompt #97: known demo/fake personas (created while building the app) have real, approved
-  // rows in production across all three sources here — filter them from this unified public
+  // rows in production across feed sources here — filter them from this unified public
   // Explore feed rather than deleting the historical rows. See worker/demo-persona-guard.js.
-  return filterOutDemoPersonas([...feedItems, ...newsItems, ...missionItems], 'authorDisplayName');
+  return filterOutDemoPersonas(
+    [...feedItems, ...newsItems, ...missionItems, ...pollItems, ...shoutItems],
+    'authorDisplayName'
+  );
 }
 
 export function filterFeedItems(items, params) {
@@ -247,12 +370,15 @@ export function filterFeedItems(items, params) {
   if (typeFilter && typeFilter !== 'all') {
     const map = {
       missions: 'mission',
+      polls: 'poll',
+      poll: 'poll',
       'game scores': 'game_score',
       game_scores: 'game_score',
       leaderboards: 'leaderboard',
       achievements: 'achievement',
       'shout-outs': 'shout_out',
       shout_outs: 'shout_out',
+      shoutouts: 'shout_out',
       photos: 'photo',
       videos: 'video',
       articles: 'article',
@@ -260,7 +386,8 @@ export function filterFeedItems(items, params) {
       news: 'news',
     };
     const t = map[typeFilter] || typeFilter.replace(/-/g, '_');
-    out = out.filter((it) => it.type === t || (t === 'news' && (it.type === 'news' || it.type === 'article')));
+    // Prompt #154 — each visible filter maps to its own canonical type (News ≠ Articles).
+    out = out.filter((it) => it.type === t);
   }
   const search = (params.search || '').trim().toLowerCase();
   if (search) {

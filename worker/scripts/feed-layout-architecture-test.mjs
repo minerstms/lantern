@@ -76,9 +76,9 @@ function hasCompactFeedHeading(html) {
   return (
     html.includes('class="feedHeading"') &&
     html.includes('class="feedHeadingRow"') &&
-    html.includes('class="feedMetaRow"') &&
+    /class="feedMetaRow(\s|")/.test(html) &&
     /class="feedHeadingRow"[\s\S]*?feedPageTitle[\s\S]*?feedFiltersToggle/.test(html) &&
-    /class="feedMetaRow"[\s\S]*?feedPageSub[\s\S]*?id="feedStatus"/.test(html) &&
+    /class="feedMetaRow[\s\S]*?id="feedStatus"/.test(html) &&
     !html.includes('feedFiltersHost')
   );
 }

@@ -238,6 +238,8 @@ function makeFeedDb(missionSubmissionRows, missionTitles) {
           if (s.includes('FROM lantern_mission_submissions')) return { results: missionSubmissionRows };
           if (s.includes('FROM lantern_feed_items')) return { results: [] };
           if (s.includes('FROM lantern_news_submissions')) return { results: [] };
+          if (s.includes('FROM lantern_polls')) return { results: [] };
+          if (s.includes('FROM lantern_teacher_recognition')) return { results: [] };
           if (s.includes('FROM lantern_missions')) {
             const ids = api._binds || [];
             return {
