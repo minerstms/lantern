@@ -4561,9 +4561,37 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: authz.error }, authz.code || 403, cors);
     }
     const kind = String(body.kind || '').trim() || 'misc';
-    const source = String(body.source || '').trim() || '';
-    const note = String(body.note || '').trim() || '';
-    const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+    let source = String(body.source || '').trim() || '';
+    let note = String(body.note || '').trim() || '';
+    let meta = body.meta && typeof body.meta === 'object' ? { ...body.meta } : {};
+
+    // Prompt #172 — Nugget Adjustment (admin_adjustment): admin-only (or economy secret),
+    // required reason, and server-derived actor metadata (never trust client initiated_by).
+    if (kind === 'admin_adjustment') {
+      const configured = (env.LANTERN_ECONOMY_SECRET || '').trim();
+      const provided = getEconomyTransactSecretFromRequest(request);
+      const secretOk = !!(configured && provided && timingSafeEqualStrings(configured, provided));
+      const role = pilotAccount ? String(pilotAccount.role || '').trim().toLowerCase() : '';
+      if (!secretOk && role !== 'admin') {
+        return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+      }
+      if (!note) {
+        return jsonResponse({ ok: false, error: 'reason_required' }, 400, cors);
+      }
+      const actorUsername = pilotAccount
+        ? String(pilotAccount.username || '').trim() || 'admin'
+        : 'economy_secret';
+      const actorDisplay = pilotAccount
+        ? (String(pilotAccount.display_name || '').trim() || actorUsername)
+        : 'economy_secret';
+      meta.initiated_by = actorUsername;
+      meta.initiated_by_display = actorDisplay;
+      meta.context = 'admin_panel';
+      meta.actor_role = role || 'secret';
+      if (!source) source = 'ADMIN_PANEL';
+      // Keep reason first; append actor so TMS history remains attributable without raw JSON.
+      note = note + ' — by ' + actorDisplay + (actorUsername && actorUsername !== actorDisplay ? ' (' + actorUsername + ')' : '');
+    }
 
     if (kind === 'cosmetic') {
       const cosmeticId = String(meta.cosmetic_id || meta.item_id || '').trim();

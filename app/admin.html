@@ -108,6 +108,12 @@
     .walletTxList table { font-size: 18px; }
     .walletKeyLine { font-size: 20px; color: var(--muted); margin: 8px 0 12px; word-break: break-all; }
     .walletKeyLine code { color: var(--ink); font-size: 19px; }
+    .nuggetAdjQuickRow { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 10px; }
+    .nuggetAdjQuickRow .btn { margin: 0; }
+    .nuggetAdjQuickRow .btn.is-selected { border-color: rgba(56,208,124,.7); background: rgba(56,208,124,.22); }
+    .nuggetAdjDirRow { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 8px 0 12px; font-weight: 800; }
+    .nuggetAdjDirRow label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .nuggetAdjPreview { margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(90,167,255,.35); background: rgba(90,167,255,.08); font-weight: 800; font-size: 20px; line-height: 1.4; }
     .marqueeSpeedRow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
     .marqueeSpeedRow input[type="range"] { flex: 1; min-width: 220px; max-width: 420px; margin: 0; }
     .marqueeSpeedRow input[type="number"] { width: 120px; max-width: 120px; margin: 0; }
@@ -389,29 +395,45 @@
 
   <details class="card teacherCollapsibleList" id="walletAdjustmentCard">
     <summary class="cardHd teacherCollapsibleListHd">
-      <div class="teacherCollapsibleListTitle"><div class="h">Wallet Adjustment</div></div>
+      <div class="teacherCollapsibleListTitle"><div class="h">Nugget Adjustment</div></div>
     </summary>
     <div class="cardBd teacherCollapsibleListBd">
-    <p class="acctPanelHint">Edge-case nugget corrections only. Each change is logged in the economy ledger. Use a clear reason — it is stored with the transaction.</p>
-    <label for="walletAdjStudent">Student account (wallet target)</label>
+    <p class="acctPanelHint">Admin-only corrections and testing credits on the authoritative TMS Nuggets ledger. Creates a transaction (never overwrites a balance). Self-adjustment is allowed and audited.</p>
+    <label for="walletAdjSearch">Search account</label>
+    <input type="search" id="walletAdjSearch" placeholder="Name, username, student ID, role…" autocomplete="off" aria-describedby="walletAdjHint" />
+    <label for="walletAdjStudent" style="margin-top:10px;display:block;">Target account</label>
     <select id="walletAdjStudent" aria-describedby="walletAdjHint">
-      <option value="">— Select student —</option>
+      <option value="">— Select account —</option>
     </select>
-    <p id="walletAdjHint" class="pendingMeta" style="margin-top:8px;">Wallet key matches the student’s economy identity (MTSS ID if set, else student character, else login ID).</p>
-    <p id="walletAdjResolvedKey" class="walletKeyLine" style="display:none;">Wallet key: <code id="walletAdjKeyDisplay"></code></p>
+    <p id="walletAdjHint" class="pendingMeta" style="margin-top:8px;">Students use TMS student ID when linked. Staff/admins use their linked TMS staff Nugget account. Demo/fake identities without a real ledger are omitted when inactive.</p>
+    <p id="walletAdjTargetLabel" class="pendingMeta" style="display:none;margin-top:10px;font-weight:900;color:var(--ink);font-size:22px;"></p>
+    <p id="walletAdjResolvedKey" class="walletKeyLine" style="display:none;">Economy key: <code id="walletAdjKeyDisplay"></code></p>
     <p id="walletAdjBalance" class="pendingMeta" style="display:none;" aria-live="polite"></p>
-    <label for="walletAdjDelta">Add / Remove Nuggets</label>
-    <input id="walletAdjDelta" type="number" step="1" placeholder="e.g. 10 or -5" />
-    <p class="pendingMeta" style="margin-top:4px;">Positive adds nuggets; negative removes. Removal cannot exceed the student’s current balance.</p>
-    <label for="walletAdjReason">Reason <span style="color:var(--bad);">(required)</span></label>
-    <textarea id="walletAdjReason" rows="3" maxlength="2000" placeholder="Why is this adjustment needed? (visible in transaction history)"></textarea>
+    <p style="font-weight:800;margin:12px 0 4px;">Adjustment</p>
+    <div class="nuggetAdjQuickRow" id="walletAdjQuickRow" role="group" aria-label="Quick amounts">
+      <button type="button" class="btn" data-nugget-adj-amt="1">+1</button>
+      <button type="button" class="btn" data-nugget-adj-amt="5">+5</button>
+      <button type="button" class="btn" data-nugget-adj-amt="10">+10</button>
+      <button type="button" class="btn" data-nugget-adj-amt="25">+25</button>
+      <button type="button" class="btn" data-nugget-adj-amt="custom" id="walletAdjCustomPickBtn">Custom</button>
+    </div>
+    <div class="nuggetAdjDirRow" role="radiogroup" aria-label="Direction">
+      <label><input type="radio" name="walletAdjDirection" value="credit" checked> Add</label>
+      <label><input type="radio" name="walletAdjDirection" value="debit"> Remove</label>
+    </div>
+    <label for="walletAdjDelta">Custom amount (whole Nuggets)</label>
+    <input id="walletAdjDelta" type="number" min="1" step="1" placeholder="e.g. 7" />
+    <p class="pendingMeta" style="margin-top:4px;">Removal cannot go below 0. Amount is always a positive count; Add/Remove sets the direction.</p>
+    <div id="walletAdjPreview" class="nuggetAdjPreview" style="display:none;" aria-live="polite"></div>
+    <label for="walletAdjReason" style="margin-top:12px;display:block;">Reason <span style="color:var(--bad);">(required)</span></label>
+    <textarea id="walletAdjReason" rows="3" maxlength="2000" placeholder="e.g. Game testing, Student reward correction, Event prize"></textarea>
     <div class="acctPanelActions" style="margin-top:14px;">
-      <button type="button" class="btn good" id="walletAdjSubmit">Apply adjustment</button>
+      <button type="button" class="btn good" id="walletAdjSubmit">Apply Adjustment</button>
       <button type="button" class="btn" id="walletAdjRefreshBalance">Refresh balance</button>
     </div>
     <div id="walletAdjMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
     <div id="walletAdjRecentWrap" style="display:none;">
-      <p class="pendingMeta" style="margin-top:16px;margin-bottom:6px;">Recent transactions (same as student-facing history)</p>
+      <p class="pendingMeta" style="margin-top:16px;margin-bottom:6px;">Recent TMS ledger activity for this account</p>
       <div id="walletAdjRecent" class="walletTxList"></div>
     </div>
     </div>
@@ -517,15 +539,47 @@
         }
       }).catch(function(){});
     }
-    /** Same resolution as worker pilotEconomyCharacterName for student rows. */
+    /** Student economy key (MTSS id preferred). Staff/admin use staff:<username>. */
     function walletEconomyCharacterName(u) {
-      if (!u || String(u.role || '').trim().toLowerCase() !== 'student') return '';
-      var mid = u.mtss_student_id != null && String(u.mtss_student_id).trim() !== '' ? String(u.mtss_student_id).trim() : '';
-      if (mid) return mid;
-      var scn = u.student_character_name != null && String(u.student_character_name).trim() !== '' ? String(u.student_character_name).trim() : '';
-      if (scn) return scn;
+      if (!u) return '';
+      var role = String(u.role || '').trim().toLowerCase();
+      if (role === 'student') {
+        var mid = u.mtss_student_id != null && String(u.mtss_student_id).trim() !== '' ? String(u.mtss_student_id).trim() : '';
+        if (mid) return mid;
+        var scn = u.student_character_name != null && String(u.student_character_name).trim() !== '' ? String(u.student_character_name).trim() : '';
+        if (scn) return scn;
+        return String(u.username || '').trim();
+      }
+      if (role === 'teacher' || role === 'admin') {
+        var un = String(u.username || '').trim();
+        return un ? ('staff:' + un) : '';
+      }
+      return '';
+    }
+    function accountIsActive(u) {
+      return !(u && (u.is_active === 0 || u.is_active === '0' || u.is_active === false));
+    }
+    function nuggetAdjDisplayName(u) {
+      if (!u) return '';
+      var first = u.first_name != null ? String(u.first_name).trim() : '';
+      var last = u.last_name != null ? String(u.last_name).trim() : '';
+      if (first && last) return (first + ' ' + last).trim();
+      var dn = u.display_name != null ? String(u.display_name).trim() : '';
+      if (dn) return dn;
       return String(u.username || '').trim();
     }
+    function nuggetAdjOptionLabel(u) {
+      var role = String(u.role || '').trim().toLowerCase();
+      var name = nuggetAdjDisplayName(u);
+      if (role === 'student') {
+        var sid = u.mtss_student_id != null ? String(u.mtss_student_id).trim() : '';
+        return name + (sid ? ' · ID ' + sid : '') + ' · student';
+      }
+      return name + ' · ' + role;
+    }
+    var walletAdjLastBalance = null;
+    var walletAdjPendingIdempotencyKey = '';
+    var walletAdjQuickAmt = 1;
     function formatStaffIdLabel(staffId) {
       if (staffId == null || staffId === '') return '—';
       var n = Number(staffId);
@@ -913,30 +967,46 @@
       el.textContent = text;
     }
 
-    function getSelectedWalletStudent() {
+    function getSelectedWalletTarget() {
       var sel = document.getElementById('walletAdjStudent');
       var username = sel && sel.value ? String(sel.value).trim() : '';
       if (!username) return null;
       var u = (lastUsersList || []).find(function(x){ return String(x.username || '') === username; });
-      if (!u || String(u.role || '').trim().toLowerCase() !== 'student') return null;
+      if (!u || !accountIsActive(u)) return null;
       var key = walletEconomyCharacterName(u);
       if (!key) return null;
-      return { user: u, wallet_key: key };
+      return { user: u, wallet_key: key, label: nuggetAdjOptionLabel(u), display_name: nuggetAdjDisplayName(u) };
     }
 
     function populateWalletStudentSelect() {
       var sel = document.getElementById('walletAdjStudent');
       if (!sel) return;
       var prev = sel.value;
-      sel.innerHTML = '<option value="">— Select student —</option>';
+      var q = (document.getElementById('walletAdjSearch') && document.getElementById('walletAdjSearch').value || '').trim().toLowerCase();
+      sel.innerHTML = '<option value="">— Select account —</option>';
       var count = 0;
-      (lastUsersList || []).forEach(function(u){
-        if (String(u.role || '').trim().toLowerCase() !== 'student') return;
-        if (!walletEconomyCharacterName(u)) return;
+      var rows = (lastUsersList || []).filter(function(u){
+        if (!accountIsActive(u)) return false;
+        if (!walletEconomyCharacterName(u)) return false;
+        if (!q) return true;
+        var hay = [
+          u.username, u.display_name, u.first_name, u.last_name, u.role,
+          u.mtss_student_id, u.student_character_name, u.teacher_id
+        ].map(function(x){ return x != null ? String(x) : ''; }).join(' ').toLowerCase();
+        return hay.indexOf(q) !== -1;
+      }).sort(function(a, b){
+        var ra = String(a.role || '').toLowerCase();
+        var rb = String(b.role || '').toLowerCase();
+        var order = { admin: 0, teacher: 1, student: 2 };
+        var da = order[ra] != null ? order[ra] : 9;
+        var db = order[rb] != null ? order[rb] : 9;
+        if (da !== db) return da - db;
+        return nuggetAdjDisplayName(a).localeCompare(nuggetAdjDisplayName(b));
+      });
+      rows.forEach(function(u){
         var opt = document.createElement('option');
         opt.value = String(u.username || '');
-        var dn = u.display_name != null ? String(u.display_name).trim() : '';
-        opt.textContent = String(u.username || '') + (dn ? ' — ' + dn : '');
+        opt.textContent = nuggetAdjOptionLabel(u);
         sel.appendChild(opt);
         count++;
       });
@@ -944,10 +1014,20 @@
       if (count === 0) {
         var o = document.createElement('option');
         o.value = '';
-        o.textContent = 'No student accounts';
+        o.textContent = q ? 'No matching accounts' : 'No active accounts';
         o.disabled = true;
         sel.appendChild(o);
       }
+    }
+
+    function formatNuggetAdjKindLabel(t) {
+      var kind = String(t && t.kind || '').trim();
+      var delta = Number(t && t.delta) || 0;
+      var sign = delta > 0 ? '+' : '';
+      if (kind === 'admin_adjustment') return 'Admin adjustment ' + sign + delta;
+      if (kind === 'tms_earn') return 'Earn ' + sign + delta;
+      if (kind === 'tms_redeem') return 'Redeem ' + sign + delta;
+      return (kind || 'tx') + ' ' + sign + delta;
     }
 
     function renderWalletRecent(transactions) {
@@ -961,25 +1041,82 @@
         return;
       }
       var rows = list.slice(0, 12).map(function(t){
-        var delta = Number(t.delta) || 0;
-        var sign = delta > 0 ? '+' : '';
-        return '<tr><td>' + esc(t.created_at || '') + '</td><td>' + sign + delta + '</td><td>' + esc(t.kind || '') + '</td><td>' + esc(t.source || '') + '</td><td>' + esc((t.note || '').slice(0, 80)) + '</td></tr>';
+        var note = String(t.note || '').trim();
+        var reasonLine = note ? ('Reason: ' + note.slice(0, 120)) : '';
+        return '<tr><td>' + esc(t.created_at || '') + '</td><td>' + esc(formatNuggetAdjKindLabel(t)) + '</td><td>' + esc(t.source || '') + '</td><td>' + esc(reasonLine) + '</td></tr>';
       }).join('');
-      host.innerHTML = '<table><thead><tr><th>When</th><th>Δ</th><th>Kind</th><th>Source</th><th>Note</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      host.innerHTML = '<table><thead><tr><th>When</th><th>Adjustment</th><th>Source</th><th>Detail</th></tr></thead><tbody>' + rows + '</tbody></table>';
       wrap.style.display = 'block';
     }
 
+    function getWalletAdjSignedDelta() {
+      var dirEls = document.querySelectorAll('input[name="walletAdjDirection"]');
+      var dir = 'credit';
+      Array.prototype.forEach.call(dirEls, function(el){ if (el.checked) dir = el.value; });
+      var amount = Math.floor(Number(document.getElementById('walletAdjDelta').value));
+      if (!isFinite(amount) || amount < 1) return null;
+      return dir === 'debit' ? -amount : amount;
+    }
+
+    function updateWalletAdjPreview() {
+      var preview = document.getElementById('walletAdjPreview');
+      var picked = getSelectedWalletTarget();
+      if (!preview) return;
+      if (!picked || walletAdjLastBalance == null || !isFinite(Number(walletAdjLastBalance))) {
+        preview.style.display = 'none';
+        preview.textContent = '';
+        return;
+      }
+      var delta = getWalletAdjSignedDelta();
+      if (delta == null) {
+        preview.style.display = 'none';
+        preview.textContent = '';
+        return;
+      }
+      var current = Number(walletAdjLastBalance);
+      var next = current + delta;
+      preview.style.display = 'block';
+      preview.textContent = 'Target: ' + picked.display_name +
+        ' · Current: ' + current +
+        ' · Adjustment: ' + (delta > 0 ? '+' : '') + delta +
+        ' · Expected: ' + next + ' Nuggets';
+    }
+
+    function setWalletAdjQuickSelection(amt) {
+      walletAdjQuickAmt = amt;
+      Array.prototype.forEach.call(document.querySelectorAll('#walletAdjQuickRow [data-nugget-adj-amt]'), function(btn){
+        var v = btn.getAttribute('data-nugget-adj-amt');
+        btn.classList.toggle('is-selected', String(v) === String(amt));
+      });
+      var deltaEl = document.getElementById('walletAdjDelta');
+      if (!deltaEl) return;
+      if (amt === 'custom') {
+        try { deltaEl.focus(); } catch (e) {}
+      } else {
+        deltaEl.value = String(amt);
+      }
+      updateWalletAdjPreview();
+    }
+
     function loadWalletBalanceForSelection() {
-      var picked = getSelectedWalletStudent();
+      var picked = getSelectedWalletTarget();
       var keyEl = document.getElementById('walletAdjResolvedKey');
       var keyDisp = document.getElementById('walletAdjKeyDisplay');
       var balEl = document.getElementById('walletAdjBalance');
+      var labelEl = document.getElementById('walletAdjTargetLabel');
       if (!keyEl || !keyDisp || !balEl) return;
+      walletAdjLastBalance = null;
       if (!picked) {
         keyEl.style.display = 'none';
         balEl.style.display = 'none';
+        if (labelEl) { labelEl.style.display = 'none'; labelEl.textContent = ''; }
         document.getElementById('walletAdjRecentWrap').style.display = 'none';
+        updateWalletAdjPreview();
         return;
+      }
+      if (labelEl) {
+        labelEl.style.display = 'block';
+        labelEl.textContent = picked.display_name;
       }
       keyDisp.textContent = picked.wallet_key;
       keyEl.style.display = 'block';
@@ -989,73 +1126,144 @@
         .then(function(r){ return r.json().then(function(j){ return { okHttp: r.ok, body: j }; }); })
         .then(function(w){
           if (!w || !w.body || !w.body.ok) {
-            balEl.textContent = (w && w.body && w.body.error) ? 'Could not load balance: ' + w.body.error : 'Could not load balance.';
+            var err = w && w.body && w.body.error ? String(w.body.error) : '';
+            if (err === 'tms_identity_not_linked') {
+              balEl.textContent = 'Nugget account needs TMS Staff Link before adjustments.';
+            } else {
+              balEl.textContent = err ? ('Could not load balance: ' + err) : 'Could not load balance.';
+            }
+            walletAdjLastBalance = null;
             renderWalletRecent([]);
+            updateWalletAdjPreview();
             return;
           }
-          var b = w.body.balance != null ? Number(w.body.balance) : 0;
-          balEl.textContent = 'Current balance: ' + b + ' nuggets (available). Earned: ' + (w.body.earned != null ? w.body.earned : '—') + ' · Spent: ' + (w.body.spent != null ? w.body.spent : '—');
+          var b = w.body.available != null ? Number(w.body.available) : (w.body.balance != null ? Number(w.body.balance) : 0);
+          walletAdjLastBalance = b;
+          var auth = w.body.economy_authority ? String(w.body.economy_authority) : '';
+          balEl.textContent = 'Current balance: ' + b + ' Nuggets' +
+            (auth.indexOf('tms') === 0 ? ' (TMS authoritative)' : '') +
+            '. Earned: ' + (w.body.earned != null ? w.body.earned : '—') +
+            ' · Spent: ' + (w.body.spent != null ? w.body.spent : '—');
           renderWalletRecent(w.body.recent_transactions || []);
+          updateWalletAdjPreview();
         })
         .catch(function(){
           balEl.textContent = 'Could not load balance (network).';
+          walletAdjLastBalance = null;
+          updateWalletAdjPreview();
         });
     }
 
     document.getElementById('walletAdjStudent').addEventListener('change', function(){
       showWalletAdjMsg('', '');
+      walletAdjPendingIdempotencyKey = '';
       loadWalletBalanceForSelection();
+    });
+    var walletAdjSearchEl = document.getElementById('walletAdjSearch');
+    if (walletAdjSearchEl) {
+      walletAdjSearchEl.addEventListener('input', function(){
+        populateWalletStudentSelect();
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#walletAdjQuickRow [data-nugget-adj-amt]'), function(btn){
+      btn.addEventListener('click', function(){
+        setWalletAdjQuickSelection(btn.getAttribute('data-nugget-adj-amt'));
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="walletAdjDirection"]'), function(el){
+      el.addEventListener('change', updateWalletAdjPreview);
+    });
+    document.getElementById('walletAdjDelta').addEventListener('input', function(){
+      walletAdjQuickAmt = 'custom';
+      Array.prototype.forEach.call(document.querySelectorAll('#walletAdjQuickRow [data-nugget-adj-amt]'), function(btn){
+        btn.classList.toggle('is-selected', btn.getAttribute('data-nugget-adj-amt') === 'custom');
+      });
+      updateWalletAdjPreview();
     });
     document.getElementById('walletAdjRefreshBalance').addEventListener('click', function(){
       showWalletAdjMsg('', '');
       loadWalletBalanceForSelection();
     });
     document.getElementById('walletAdjSubmit').addEventListener('click', function(){
-      var picked = getSelectedWalletStudent();
+      var picked = getSelectedWalletTarget();
       var reason = (document.getElementById('walletAdjReason').value || '').trim();
-      var deltaRaw = document.getElementById('walletAdjDelta').value;
-      var delta = Math.floor(Number(deltaRaw));
+      var delta = getWalletAdjSignedDelta();
       if (!picked) {
-        showWalletAdjMsg('Select a student account first.', 'err');
+        showWalletAdjMsg('Select an account first.', 'err');
         return;
       }
       if (!reason) {
         showWalletAdjMsg('Reason is required.', 'err');
         return;
       }
-      if (!isFinite(delta) || delta === 0) {
-        showWalletAdjMsg('Enter a non-zero whole number for Add / Remove Nuggets.', 'err');
+      if (delta == null || delta === 0) {
+        showWalletAdjMsg('Enter a whole-number amount of at least 1 Nugget.', 'err');
         return;
+      }
+      if (walletAdjLastBalance != null && delta < 0 && Number(walletAdjLastBalance) + delta < 0) {
+        showWalletAdjMsg('Cannot remove more Nuggets than the current balance (' + walletAdjLastBalance + ').', 'err');
+        return;
+      }
+      var expected = walletAdjLastBalance != null ? (Number(walletAdjLastBalance) + delta) : null;
+      var confirmNeeded = Math.abs(delta) >= 25;
+      if (confirmNeeded) {
+        var lines = [
+          'Apply Nugget Adjustment?',
+          'Target: ' + picked.display_name,
+          'Current balance: ' + (walletAdjLastBalance != null ? walletAdjLastBalance : '?'),
+          'Adjustment: ' + (delta > 0 ? '+' : '') + delta,
+          expected != null ? ('Expected new balance: ' + expected) : '',
+          'Reason: ' + reason
+        ].filter(Boolean).join('\n');
+        if (!window.confirm(lines)) return;
       }
       var btn = document.getElementById('walletAdjSubmit');
       if (btn) btn.disabled = true;
-      var meta = {
-        initiated_by: adminSessionMeta.username || 'admin',
-        initiated_by_display: adminSessionMeta.display_name || '',
-        context: 'admin_panel',
-      };
+      if (!walletAdjPendingIdempotencyKey) {
+        walletAdjPendingIdempotencyKey = (window.crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : ('adj-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+      }
+      var idem = walletAdjPendingIdempotencyKey;
       postEconomyTransact({
         character_name: picked.wallet_key,
         delta: delta,
         kind: 'admin_adjustment',
         source: 'ADMIN_PANEL',
         note: reason,
-        meta: meta,
+        meta: {
+          context: 'admin_panel',
+          idempotency_key: idem,
+          target_username: String(picked.user.username || ''),
+          target_role: String(picked.user.role || ''),
+        },
       }).then(function(res){
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
-          showWalletAdjMsg('Applied. New balance: ' + (res.body.balance_after != null ? res.body.balance_after : '?') + ' nuggets.', 'ok');
-          document.getElementById('walletAdjDelta').value = '';
+          var verb = delta > 0 ? 'Added' : 'Removed';
+          var amt = Math.abs(delta);
+          showWalletAdjMsg(verb + ' ' + amt + ' Nugget' + (amt === 1 ? '' : 's') + ' ' + (delta > 0 ? 'to' : 'from') + ' ' + picked.display_name +
+            (res.body.balance_after != null ? '. New balance: ' + res.body.balance_after + '.' : '.') +
+            (res.body.idempotent ? ' (duplicate request ignored)' : ''), 'ok');
           document.getElementById('walletAdjReason').value = '';
+          walletAdjPendingIdempotencyKey = '';
           loadWalletBalanceForSelection();
           return;
         }
         var err = res && res.body && res.body.error ? String(res.body.error) : 'Request failed';
-        if (err === 'insufficient') {
+        var code = res && res.body && res.body.code ? String(res.body.code) : '';
+        if (err === 'insufficient' || code === 'insufficient_balance' || err === 'insufficient_balance') {
           var avail = res.body && res.body.available != null ? res.body.available : '';
-          var need = res.body && res.body.need != null ? res.body.need : '';
-          showWalletAdjMsg('Insufficient balance to remove that many nuggets. Available: ' + avail + ', needed: ' + need + '.', 'err');
+          showWalletAdjMsg('Insufficient balance to remove that many Nuggets' + (avail !== '' ? ' (available: ' + avail + ')' : '') + '.', 'err');
           loadWalletBalanceForSelection();
+          return;
+        }
+        if (err === 'reason_required') {
+          showWalletAdjMsg('Reason is required.', 'err');
+          return;
+        }
+        if (err === 'tms_identity_not_linked') {
+          showWalletAdjMsg('This staff account needs a TMS Staff Link before Nugget adjustments.', 'err');
           return;
         }
         if (err === 'forbidden' || err === 'not_authenticated') {
@@ -1069,6 +1277,7 @@
         if (btn) btn.disabled = false;
       });
     });
+    setWalletAdjQuickSelection(1);
 
     function parkAdminEditor(panel) {
       var park = document.getElementById('adminEditorPark');

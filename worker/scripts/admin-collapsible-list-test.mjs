@@ -39,7 +39,7 @@ const requiredPanels = [
   ['adminStudentsCard', 'Students'],
   ['adminStaffCard', 'Staff & Admin'],
   ['tmsStaffLinksCard', 'TMS Staff Links'],
-  ['walletAdjustmentCard', 'Wallet Adjustment'],
+  ['walletAdjustmentCard', 'Nugget Adjustment'],
   ['feedModerationCard', 'Feed visibility'],
   ['marqueeSpeedCard', 'Marquee speed'],
   ['adminPendingApprovalsCard', 'Pending approvals'],
