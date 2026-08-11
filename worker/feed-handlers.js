@@ -78,7 +78,28 @@ function newsImageUrl(origin, key) {
   return `${origin}/api/news/image?key=${encodeURIComponent(key)}`;
 }
 
-function inferNewsType(row) {
+/**
+ * Prompt #177 — peer Contribute Shout-Outs are stored as news rows without a type column.
+ * Detect the same body/title signals used by recognition Spotlight merge so media never
+ * reclassifies primary Explore type away from shout_out.
+ */
+export function isPeerShoutOutNewsSubmission(row) {
+  if (!row) return false;
+  const body = String(row.body || '');
+  const title = String(row.title || '').trim();
+  if (/^Shout-out\b/i.test(body.trim())) return true;
+  if (/Recognizing:\s*/i.test(body)) return true;
+  if (/^Shout-out:\s*/i.test(title)) return true;
+  return false;
+}
+
+/**
+ * Primary Explore type for news submissions.
+ * Shout-Out identity wins over attached photo/video/link (Prompt #177).
+ * Standalone media posts still classify as photo/video/article/news.
+ */
+export function inferNewsType(row) {
+  if (isPeerShoutOutNewsSubmission(row)) return 'shout_out';
   if (row.video_r2_key) return 'video';
   if (row.image_r2_key) return 'photo';
   const cat = String(row.category || '').trim().toLowerCase();
@@ -140,7 +161,7 @@ function normalizeFeedItemRow(row, origin, source) {
   };
 }
 
-function normalizeNewsRow(row, origin) {
+export function normalizeNewsRow(row, origin) {
   const type = inferNewsType(row);
   const adapted = {
     id: `news:${row.id}`,

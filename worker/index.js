@@ -15,7 +15,7 @@ import {
   validateStaffEmail,
   validateStaffNamePart,
 } from './admin-account-utils.js';
-import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem } from './feed-handlers.js';
+import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { handleMissionsRoutes } from './missions-handlers.js';
@@ -5299,14 +5299,22 @@ async function handleApprovalsRoutes(request, url, path, env) {
         'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ? WHERE id = ?'
       ).bind('approved', now, staffId || null, staffName, approval.item_id).run();
       try {
-        const newsRow = await db.prepare('SELECT author_name, category, image_r2_key FROM lantern_news_submissions WHERE id = ?').bind(approval.item_id).first();
+        const newsRow = await db
+          .prepare('SELECT author_name, category, image_r2_key, body, title FROM lantern_news_submissions WHERE id = ?')
+          .bind(approval.item_id)
+          .first();
         if (newsRow && newsRow.author_name) {
           await awardAchievementsForNewsApproved(db, newsRow.author_name, approval.item_id);
-          const cat = String(newsRow.category || '').trim().toLowerCase();
-          const hasImage = !!(newsRow.image_r2_key && String(newsRow.image_r2_key).trim());
-          // Prompt #165 — only explicit Photo category news counts as First Photo Share.
-          if (cat === 'photo' && hasImage) {
-            await ensureContentApprovedMissionCompletion(db, env, 'photo', newsRow.author_name, approval.item_id);
+          // Prompt #177 — peer Shout-Out news (with or without media) completes Shout-Out Someone.
+          if (isPeerShoutOutNewsSubmission(newsRow)) {
+            await ensureContentApprovedMissionCompletion(db, env, 'shoutout', newsRow.author_name, approval.item_id);
+          } else {
+            const cat = String(newsRow.category || '').trim().toLowerCase();
+            const hasImage = !!(newsRow.image_r2_key && String(newsRow.image_r2_key).trim());
+            // Prompt #165 — only explicit Photo category news counts as First Photo Share.
+            if (cat === 'photo' && hasImage) {
+              await ensureContentApprovedMissionCompletion(db, env, 'photo', newsRow.author_name, approval.item_id);
+            }
           }
         }
       } catch (_) {}
