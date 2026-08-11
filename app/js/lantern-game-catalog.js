@@ -175,6 +175,15 @@
     return n === 1 ? 'Play for 1 Nugget' : 'Play for ' + n + ' Nuggets';
   }
 
+  /** Canonical artwork URL for cards + selected-game hero (same field). */
+  function artworkUrl(gameOrIdOrName) {
+    var g = gameOrIdOrName;
+    if (!g || typeof g === 'string') {
+      g = getGameById(gameOrIdOrName) || getGameByName(gameOrIdOrName);
+    }
+    return g && g.image ? String(g.image) : '';
+  }
+
   function leaderboardGames() {
     return GAMES.filter(function (g) {
       return g.leaderboard && g.status === 'playable';
@@ -190,6 +199,7 @@
     playCostLabel: playCostLabel,
     playCostCardMeta: playCostCardMeta,
     playActionLabel: playActionLabel,
+    artworkUrl: artworkUrl,
     leaderboardGames: leaderboardGames,
     TYPE_LABELS: TYPE_LABELS,
     PERIOD_MAP: {

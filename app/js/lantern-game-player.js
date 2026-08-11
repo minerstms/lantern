@@ -1,17 +1,21 @@
 /**
- * Shared fullscreen Game Player — mounts existing game surfaces after paid start.
+ * Shared fullscreen Game Player — pregame hero from canonical catalog artwork, then mounts game surface.
+ * Prompt #149: same game.image used on cards is the selected-game hero source of truth.
  */
 (function (global) {
   'use strict';
 
   var state = {
     open: false,
+    phase: 'closed', // closed | pregame | playing
     scrollY: 0,
     surface: null,
     mount: { parent: null, next: null },
     onExit: null,
+    onPregameStart: null,
     returnFocus: null,
     escapeHandler: null,
+    gameMeta: null,
   };
 
   function el(id) {
@@ -26,6 +30,10 @@
     return el('lanternGamePlayerStage');
   }
 
+  function pregameEl() {
+    return el('lanternGamePlayerPregame');
+  }
+
   function surfaceHostEl() {
     return el('lanternGamePlayerSurfaceHost');
   }
@@ -35,6 +43,36 @@
     if (typeof surface === 'string') return el(surface);
     if (surface.nodeType === 1) return surface;
     return null;
+  }
+
+  /** Resolve catalog entry + canonical artwork (same field as Games cards). */
+  function resolveGameMeta(opts) {
+    opts = opts || {};
+    var cat = global.LANTERN_GAME_CATALOG;
+    var game = null;
+    if (cat) {
+      if (opts.gameId && typeof cat.getGameById === 'function') game = cat.getGameById(opts.gameId);
+      if (!game && opts.gameName && typeof cat.getGameByName === 'function') game = cat.getGameByName(opts.gameName);
+      if (!game && opts.title && typeof cat.getGameByName === 'function') game = cat.getGameByName(opts.title);
+    }
+    var artwork = '';
+    if (opts.artworkUrl) artwork = String(opts.artworkUrl);
+    else if (game && game.image) artwork = String(game.image);
+    var title = (opts.title || (game && game.name) || 'Game').trim();
+    var description = '';
+    if (opts.description != null) description = String(opts.description);
+    else if (game && game.description) description = String(game.description);
+    // Arcade / hunt / memory need max play area — large hero is pregame-only.
+    // Trivia keeps the same rule for consistency (shared collapse, compact topbar chip).
+    var heroDuringGameplay = opts.heroDuringGameplay === true;
+    if (game && game.heroDuringGameplay === true) heroDuringGameplay = true;
+    return {
+      game: game,
+      title: title,
+      description: description,
+      artworkUrl: artwork,
+      heroDuringGameplay: heroDuringGameplay,
+    };
   }
 
   function lockScroll() {
@@ -77,6 +115,90 @@
     state.mount.next = null;
   }
 
+  function setPregameVisible(show) {
+    var pre = pregameEl();
+    var stage = stageEl();
+    var overlay = overlayEl();
+    if (pre) {
+      if (show) {
+        pre.hidden = false;
+        pre.removeAttribute('hidden');
+      } else {
+        pre.hidden = true;
+        pre.setAttribute('hidden', '');
+      }
+    }
+    if (stage) {
+      if (show) {
+        stage.hidden = true;
+        stage.setAttribute('hidden', '');
+      } else {
+        stage.hidden = false;
+        stage.removeAttribute('hidden');
+      }
+    }
+    if (overlay) {
+      if (show) overlay.classList.add('lantern-game-player--pregame');
+      else overlay.classList.remove('lantern-game-player--pregame');
+      if (!show) overlay.classList.add('lantern-game-player--playing');
+      else overlay.classList.remove('lantern-game-player--playing');
+    }
+  }
+
+  function paintHero(meta) {
+    var heroImg = el('lanternGamePlayerHeroImg');
+    var titleArt = el('lanternGamePlayerTitleArt');
+    var preTitle = el('lanternGamePlayerPregameTitle');
+    var preDesc = el('lanternGamePlayerPregameDesc');
+    var titleEl = el('lanternGamePlayerTitle');
+    var url = meta && meta.artworkUrl ? meta.artworkUrl : '';
+    var title = (meta && meta.title) || 'Game';
+
+    if (titleEl) titleEl.textContent = title;
+    if (preTitle) preTitle.textContent = title;
+    if (preDesc) {
+      preDesc.textContent = (meta && meta.description) || '';
+      preDesc.hidden = !preDesc.textContent;
+    }
+
+    if (heroImg) {
+      if (url) {
+        heroImg.src = url;
+        heroImg.alt = '';
+        heroImg.hidden = false;
+        heroImg.removeAttribute('hidden');
+      } else {
+        heroImg.removeAttribute('src');
+        heroImg.hidden = true;
+        heroImg.setAttribute('hidden', '');
+      }
+    }
+
+    if (titleArt) {
+      if (url) {
+        titleArt.src = url;
+        titleArt.alt = '';
+      } else {
+        titleArt.removeAttribute('src');
+      }
+      // Compact chip only during gameplay; hidden in pregame (large hero owns identity).
+      titleArt.hidden = true;
+      titleArt.setAttribute('hidden', '');
+    }
+  }
+
+  function showTitleArtChip(show) {
+    var titleArt = el('lanternGamePlayerTitleArt');
+    if (!titleArt || !titleArt.getAttribute('src')) return;
+    if (show) {
+      titleArt.hidden = false;
+      titleArt.removeAttribute('hidden');
+    } else {
+      titleArt.hidden = true;
+      titleArt.setAttribute('hidden', '');
+    }
+  }
+
   function bindEscape() {
     unbindEscape();
     state.escapeHandler = function (e) {
@@ -95,6 +217,67 @@
     }
   }
 
+  function beginGameplay() {
+    if (!state.open || state.phase === 'playing') return false;
+    var surface = state.surface;
+    if (!surface) return false;
+    setPregameVisible(false);
+    reparentToStage(surface);
+    state.phase = 'playing';
+    // Compact identity chip during play (does not consume playable stage height).
+    showTitleArtChip(true);
+    var startBtn = el('lanternGamePlayerStartBtn');
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start';
+    }
+    return true;
+  }
+
+  function onStartClick() {
+    if (!state.open || state.phase !== 'pregame') return;
+    var startBtn = el('lanternGamePlayerStartBtn');
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Starting…';
+    }
+    var starter = state.onPregameStart;
+    if (typeof starter === 'function') {
+      try {
+        starter(function () {
+          if (!beginGameplay()) {
+            if (startBtn) {
+              startBtn.disabled = false;
+              startBtn.textContent = 'Start';
+            }
+          }
+        });
+      } catch (e) {
+        if (startBtn) {
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start';
+        }
+      }
+      return;
+    }
+    beginGameplay();
+  }
+
+  /**
+   * @param {{
+   *   title?: string,
+   *   gameName?: string,
+   *   gameId?: string,
+   *   description?: string,
+   *   artworkUrl?: string,
+   *   surface: string|Element,
+   *   onExit?: function,
+   *   returnFocus?: Element,
+   *   onPregameStart?: function(done: function): void,
+   *   skipPregame?: boolean,
+   *   heroDuringGameplay?: boolean
+   * }} opts
+   */
   function open(opts) {
     opts = opts || {};
     var overlay = overlayEl();
@@ -106,21 +289,37 @@
     if (state.open) close({ silent: true });
 
     state.onExit = typeof opts.onExit === 'function' ? opts.onExit : null;
+    state.onPregameStart = typeof opts.onPregameStart === 'function' ? opts.onPregameStart : null;
     state.returnFocus = opts.returnFocus || null;
     state.surface = surface;
+    state.gameMeta = resolveGameMeta(opts);
 
-    var titleEl = el('lanternGamePlayerTitle');
-    if (titleEl) titleEl.textContent = opts.title || 'Game';
-
-    reparentToStage(surface);
+    paintHero(state.gameMeta);
     lockScroll();
     overlay.hidden = false;
     overlay.setAttribute('aria-hidden', 'false');
     state.open = true;
     bindEscape();
 
-    var exitBtn = el('lanternGamePlayerExit');
-    if (exitBtn) exitBtn.focus();
+    var usePregame = !opts.skipPregame && pregameEl();
+    if (usePregame) {
+      state.phase = 'pregame';
+      setPregameVisible(true);
+      showTitleArtChip(false);
+      var startBtn = el('lanternGamePlayerStartBtn');
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start';
+        startBtn.focus();
+      }
+    } else {
+      state.phase = 'playing';
+      setPregameVisible(false);
+      reparentToStage(surface);
+      showTitleArtChip(!!(state.gameMeta && state.gameMeta.artworkUrl));
+      var exitBtn = el('lanternGamePlayerExit');
+      if (exitBtn) exitBtn.focus();
+    }
 
     return true;
   }
@@ -143,15 +342,22 @@
     if (overlay) {
       overlay.hidden = true;
       overlay.setAttribute('aria-hidden', 'true');
+      overlay.classList.remove('lantern-game-player--pregame');
+      overlay.classList.remove('lantern-game-player--playing');
     }
+    setPregameVisible(false);
+    showTitleArtChip(false);
 
     if (state.open) unlockScroll();
     unbindEscape();
 
     var focusTarget = state.returnFocus;
     state.open = false;
+    state.phase = 'closed';
     state.surface = null;
     state.onExit = null;
+    state.onPregameStart = null;
+    state.gameMeta = null;
 
     if (focusTarget && typeof focusTarget.focus === 'function') {
       try {
@@ -161,17 +367,23 @@
     state.returnFocus = null;
   }
 
-  function wireExitButton() {
+  function wireControls() {
     var exitBtn = el('lanternGamePlayerExit');
-    if (!exitBtn || exitBtn._lanternGamePlayerWired) return;
-    exitBtn._lanternGamePlayerWired = true;
-    exitBtn.addEventListener('click', function () {
-      close();
-    });
+    if (exitBtn && !exitBtn._lanternGamePlayerWired) {
+      exitBtn._lanternGamePlayerWired = true;
+      exitBtn.addEventListener('click', function () {
+        close();
+      });
+    }
+    var startBtn = el('lanternGamePlayerStartBtn');
+    if (startBtn && !startBtn._lanternGamePlayerWired) {
+      startBtn._lanternGamePlayerWired = true;
+      startBtn.addEventListener('click', onStartClick);
+    }
   }
 
   function init() {
-    wireExitButton();
+    wireControls();
   }
 
   if (global.document && global.document.readyState === 'loading') {
@@ -183,8 +395,13 @@
   global.LanternGamePlayer = {
     open: open,
     close: close,
+    beginGameplay: beginGameplay,
     isOpen: function () {
       return state.open;
     },
+    getPhase: function () {
+      return state.phase;
+    },
+    resolveGameMeta: resolveGameMeta,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

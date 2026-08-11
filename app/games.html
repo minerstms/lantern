@@ -856,8 +856,19 @@
   <div id="lanternGamePlayerOverlay" class="lanternGamePlayerOverlay" hidden aria-hidden="true">
     <div class="lanternGamePlayer" role="dialog" aria-modal="true" aria-labelledby="lanternGamePlayerTitle">
       <div class="lanternGamePlayerTopbar">
-        <h2 id="lanternGamePlayerTitle" class="lanternGamePlayerTitle">Game</h2>
+        <div class="lanternGamePlayerTitleWrap">
+          <img id="lanternGamePlayerTitleArt" class="lanternGamePlayerTitleArt" alt="" hidden>
+          <h2 id="lanternGamePlayerTitle" class="lanternGamePlayerTitle">Game</h2>
+        </div>
         <button type="button" id="lanternGamePlayerExit" class="lanternGamePlayerExit" aria-label="Exit Game">× Exit Game</button>
+      </div>
+      <div id="lanternGamePlayerPregame" class="lanternGamePlayerPregame" hidden>
+        <div class="lanternGamePlayerHero">
+          <img id="lanternGamePlayerHeroImg" class="lanternGamePlayerHeroImg" alt="" hidden>
+        </div>
+        <h3 id="lanternGamePlayerPregameTitle" class="lanternGamePlayerPregameTitle">Game</h3>
+        <p id="lanternGamePlayerPregameDesc" class="lanternGamePlayerPregameDesc" hidden></p>
+        <button type="button" id="lanternGamePlayerStartBtn" class="lanternGamePlayerStartBtn">Start</button>
       </div>
       <div id="lanternGamePlayerStage" class="lanternGamePlayerStage"></div>
     </div>
@@ -1085,31 +1096,36 @@
 
     function tryPlay(gameName, showGameFn, playerOpts){
       playerOpts = playerOpts || {};
-      if (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.startPaidGame === 'function') {
-        window.LanternGamesPaidStart.startPaidGame(gameName, function(){
-          var opened = false;
-          if (window.LanternGamePlayer && playerOpts.surface) {
-            opened = window.LanternGamePlayer.open({
-              title: playerOpts.title || gameName,
-              surface: playerOpts.surface,
-              onExit: playerOpts.onExit,
-              returnFocus: playerOpts.returnFocus || null
-            });
-          }
-          if (playerOpts.surface && !opened) {
-            toast('Couldn\'t start game. Try again.');
-            return;
-          }
-          try {
-            showGameFn();
-          } catch (err) {
-            if (window.LanternGamePlayer) window.LanternGamePlayer.close({ skipExit: true, force: true });
-            toast('Couldn\'t start game. Try again.');
-          }
-        });
+      if (!window.LanternGamePlayer || !playerOpts.surface) {
+        toast('Couldn\'t start game. Try again.');
         return;
       }
-      toast('Couldn\'t start game. Try again.');
+      if (!window.LanternGamesPaidStart || typeof window.LanternGamesPaidStart.startPaidGame !== 'function') {
+        toast('Couldn\'t start game. Try again.');
+        return;
+      }
+      // Prompt #149 — open shared pregame hero (canonical catalog artwork) first; charge on Start.
+      var opened = window.LanternGamePlayer.open({
+        title: playerOpts.title || gameName,
+        gameName: gameName,
+        surface: playerOpts.surface,
+        onExit: playerOpts.onExit,
+        returnFocus: playerOpts.returnFocus || null,
+        onPregameStart: function(done){
+          window.LanternGamesPaidStart.startPaidGame(gameName, function(){
+            try {
+              done();
+              showGameFn();
+            } catch (err) {
+              if (window.LanternGamePlayer) window.LanternGamePlayer.close({ skipExit: true, force: true });
+              toast('Couldn\'t start game. Try again.');
+            }
+          });
+        }
+      });
+      if (!opened) {
+        toast('Couldn\'t start game. Try again.');
+      }
     }
 
     function closeGamePlayerAfterResult(resetFn){

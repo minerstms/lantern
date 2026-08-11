@@ -43,6 +43,24 @@
   background: rgba(15, 27, 51, 0.95);
 }
 
+.lanternGamePlayerTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.lanternGamePlayerTitleArt {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.25);
+}
+
 .lanternGamePlayerTitle {
   margin: 0;
   font-size: clamp(20px, 4vw, 28px);
@@ -72,6 +90,105 @@
   outline-offset: 2px;
 }
 
+/* Prompt #149 — selected-game pregame hero (canonical catalog artwork) */
+.lanternGamePlayerPregame {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1rem 1.25rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lanternGamePlayerPregame[hidden] {
+  display: none !important;
+}
+
+.lanternGamePlayerHero {
+  width: 100%;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.28));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.lanternGamePlayerHeroImg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(52vh, 420px);
+  object-fit: contain;
+  object-position: center;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.lanternGamePlayerPregameTitle {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(26px, 5vw, 34px);
+  font-weight: 1000;
+  line-height: 1.15;
+  letter-spacing: 0.2px;
+}
+
+.lanternGamePlayerPregameDesc {
+  margin: 0;
+  text-align: center;
+  max-width: 36rem;
+  font-size: clamp(18px, 3.4vw, 22px);
+  line-height: 1.35;
+  color: rgba(234, 240, 255, 0.82);
+  font-weight: 600;
+}
+
+.lanternGamePlayerPregameDesc[hidden] {
+  display: none !important;
+}
+
+.lanternGamePlayerStartBtn {
+  margin-top: 0.35rem;
+  min-height: 56px;
+  min-width: min(100%, 280px);
+  padding: 0.7rem 1.4rem;
+  border-radius: 14px;
+  border: 2px solid rgba(90, 167, 255, 0.55);
+  background: linear-gradient(180deg, #2a78ef, #1554b0);
+  color: #fff;
+  font-weight: 900;
+  font-size: clamp(22px, 4vw, 26px);
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.lanternGamePlayerStartBtn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.lanternGamePlayerStartBtn:focus-visible {
+  outline: 2px solid #5aa7ff;
+  outline-offset: 3px;
+}
+
+.lantern-game-player--pregame .lanternGamePlayerStage[hidden] {
+  display: none !important;
+}
+
+.lantern-game-player--playing .lanternGamePlayerPregame {
+  display: none !important;
+}
+
 .lanternGamePlayerStage {
   flex: 1 1 auto;
   min-height: 0;
@@ -86,6 +203,10 @@
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.lanternGamePlayerStage[hidden] {
+  display: none !important;
 }
 
 .lanternGamePlayerSurfaceHost {
@@ -223,6 +344,19 @@ body.lantern-game-player-active .lanternHelpToggleWrap {
 
   .lanternGamePlayerTopbar {
     padding: 0.5rem 0.65rem;
+  }
+
+  .lanternGamePlayerPregame {
+    padding: 0.75rem 0.75rem 1rem;
+  }
+
+  .lanternGamePlayerHeroImg {
+    max-height: min(42vh, 320px);
+  }
+
+  .lanternGamePlayerTitleArt {
+    width: 30px;
+    height: 30px;
   }
 }
 

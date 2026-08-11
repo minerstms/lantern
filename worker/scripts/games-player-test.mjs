@@ -45,10 +45,23 @@ if (tryPlayBlock && tryPlayBlock[0].includes('LanternGamesPaidStart.startPaidGam
 
 if (
   tryPlayBlock &&
-  tryPlayBlock[0].indexOf('LanternGamePlayer.open') > tryPlayBlock[0].indexOf('startPaidGame')
+  tryPlayBlock[0].includes('LanternGamePlayer.open') &&
+  /onPregameStart:\s*function[\s\S]*LanternGamesPaidStart\.startPaidGame/.test(tryPlayBlock[0])
 ) {
-  ok('player opens inside paid-start success callback (charge before player)');
-} else bad('player open order vs charge');
+  ok('player pregame opens before charge; Start triggers startPaidGame');
+} else bad('player open order vs charge (pregame → Start → charge)');
+
+if (gamesHtml.includes('id="lanternGamePlayerPregame"') && gamesHtml.includes('id="lanternGamePlayerHeroImg"')) {
+  ok('Game Player pregame hero DOM present');
+} else bad('pregame hero DOM');
+
+if (playerJs.includes('resolveGameMeta') && playerJs.includes('onPregameStart') && playerJs.includes('artworkUrl')) {
+  ok('Game Player resolves canonical catalog artwork for pregame hero');
+} else bad('canonical artwork resolution');
+
+if (playerCss.includes('lanternGamePlayerHero') && playerCss.includes('object-fit: contain')) {
+  ok('pregame hero CSS uses non-stretching object-fit');
+} else bad('pregame hero CSS');
 
 if (
   gamesHtml.includes('failGamePlayerStart') &&
@@ -142,24 +155,55 @@ function loadPlayerModule() {
     classList: { _c: new Set(), add: function (c) { this._c.add(c); }, remove: function (c) { this._c.delete(c); }, contains: function (c) { return this._c.has(c); } },
     style: {},
   };
-  const overlay = { hidden: true, setAttribute: function () {}, removeAttribute: function () {} };
-  const stage = { appendChild: function () {} };
-  const host = { appendChild: function () {} };
-  const surface = { parentNode: host, nextSibling: null, classList: { add: function () {}, remove: function () {} }, style: {}, removeAttribute: function () {} };
-  const exitBtn = { focus: function () {}, addEventListener: function () {} };
+  function makeEl(extra) {
+    return Object.assign({
+      hidden: true,
+      textContent: '',
+      src: '',
+      disabled: false,
+      classList: { add: function () {}, remove: function () {} },
+      setAttribute: function () {},
+      removeAttribute: function () {},
+      getAttribute: function () { return null; },
+      focus: function () {},
+      addEventListener: function () {},
+      appendChild: function () {},
+    }, extra || {});
+  }
+  const overlay = makeEl({ hidden: true });
+  const stage = makeEl({ appendChild: function (n) { stage._mounted = n; } });
+  const pregame = makeEl({ hidden: true });
+  const heroImg = makeEl({ hidden: true });
+  const titleArt = makeEl({ hidden: true, getAttribute: function (k) { return k === 'src' ? titleArt.src : null; } });
+  const startBtn = makeEl({ disabled: false, textContent: 'Start' });
+  const host = makeEl();
+  const surface = {
+    parentNode: host,
+    nextSibling: null,
+    classList: { add: function () {}, remove: function () {} },
+    style: {},
+    removeAttribute: function () {},
+  };
+  const exitBtn = makeEl();
+  const els = {
+    lanternGamePlayerOverlay: overlay,
+    lanternGamePlayerStage: stage,
+    lanternGamePlayerPregame: pregame,
+    lanternGamePlayerHeroImg: heroImg,
+    lanternGamePlayerTitleArt: titleArt,
+    lanternGamePlayerPregameTitle: makeEl(),
+    lanternGamePlayerPregameDesc: makeEl(),
+    lanternGamePlayerTitle: makeEl(),
+    lanternGamePlayerStartBtn: startBtn,
+    lanternGamePlayerSurfaceHost: host,
+    lanternGamePlayerExit: exitBtn,
+    reactionArea: surface,
+  };
   const sandbox = {
     window: {},
     globalThis: {},
     document: {
-      getElementById: function (id) {
-        if (id === 'lanternGamePlayerOverlay') return overlay;
-        if (id === 'lanternGamePlayerStage') return stage;
-        if (id === 'lanternGamePlayerSurfaceHost') return host;
-        if (id === 'lanternGamePlayerExit') return exitBtn;
-        if (id === 'lanternGamePlayerTitle') return { textContent: '' };
-        if (id === 'reactionArea') return surface;
-        return null;
-      },
+      getElementById: function (id) { return els[id] || null; },
       body: body,
       documentElement: { scrollTop: 0 },
       addEventListener: function (ev, fn) { listeners.push({ ev, fn }); },
@@ -168,20 +212,57 @@ function loadPlayerModule() {
     },
     scrollY: 120,
     scrollTo: function (_x, y) { sandbox._restoredY = y; },
+    LANTERN_GAME_CATALOG: null,
   };
   sandbox.window = sandbox.globalThis = sandbox;
+  vm.runInNewContext(catalogJs, sandbox);
   vm.runInNewContext(playerJs, sandbox);
-  return { sandbox, overlay, surface, listeners };
+  return { sandbox, overlay, surface, stage, pregame, heroImg, titleArt, startBtn, listeners };
 }
 
 const loaded = loadPlayerModule();
 const LP = loaded.sandbox.LanternGamePlayer;
-if (LP && LP.open({ surface: 'reactionArea', title: 'Reaction Tap' })) {
-  ok('LanternGamePlayer.open mounts surface');
+let pregameStarted = false;
+if (
+  LP &&
+  LP.open({
+    surface: 'reactionArea',
+    title: 'Reaction Tap',
+    gameName: 'Reaction Tap',
+    onPregameStart: function (done) {
+      pregameStarted = true;
+      done();
+    },
+  })
+) {
+  ok('LanternGamePlayer.open enters pregame');
 } else bad('LanternGamePlayer.open');
 
 if (loaded.overlay.hidden === false) ok('open reveals overlay');
 else bad('overlay hidden state on open');
+
+if (LP.getPhase() === 'pregame' && loaded.pregame.hidden === false && !loaded.stage._mounted) {
+  ok('pregame phase shows hero shell before mounting gameplay surface');
+} else bad('pregame phase', LP.getPhase());
+
+const expectedArt = loaded.sandbox.LANTERN_GAME_CATALOG.artworkUrl('Reaction Tap');
+if (expectedArt && loaded.heroImg.src === expectedArt && loaded.heroImg.hidden === false) {
+  ok('pregame hero uses canonical catalog artwork (same as card)');
+} else bad('pregame hero artwork', { src: loaded.heroImg.src, expectedArt });
+
+loaded.startBtn.addEventListener = function () {};
+if (typeof LP.beginGameplay === 'function') {
+  // Drive Start path via public beginGameplay after simulating charge callback
+  pregameStarted = true;
+  LP.beginGameplay();
+}
+if (LP.getPhase() === 'playing' && loaded.stage._mounted === loaded.surface && loaded.pregame.hidden === true) {
+  ok('Start/beginGameplay collapses pregame and mounts playable surface');
+} else bad('gameplay transition', LP.getPhase());
+
+if (loaded.titleArt.hidden === false && loaded.titleArt.src === expectedArt) {
+  ok('compact title-art chip retains canonical artwork during gameplay');
+} else bad('gameplay title art chip');
 
 LP.close();
 if (loaded.overlay.hidden === true && loaded.sandbox._restoredY === 120) {
