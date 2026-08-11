@@ -234,6 +234,14 @@
     return true;
   }
 
+  function resetStartButton() {
+    var startBtn = el('lanternGamePlayerStartBtn');
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start';
+    }
+  }
+
   function onStartClick() {
     if (!state.open || state.phase !== 'pregame') return;
     var startBtn = el('lanternGamePlayerStartBtn');
@@ -244,19 +252,16 @@
     var starter = state.onPregameStart;
     if (typeof starter === 'function') {
       try {
-        starter(function () {
-          if (!beginGameplay()) {
-            if (startBtn) {
-              startBtn.disabled = false;
-              startBtn.textContent = 'Start';
-            }
+        starter(function (ok) {
+          // done(false) = charge/preflight failed; stay on pregame.
+          if (ok === false) {
+            resetStartButton();
+            return;
           }
+          if (!beginGameplay()) resetStartButton();
         });
       } catch (e) {
-        if (startBtn) {
-          startBtn.disabled = false;
-          startBtn.textContent = 'Start';
-        }
+        resetStartButton();
       }
       return;
     }

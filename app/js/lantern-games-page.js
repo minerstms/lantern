@@ -519,20 +519,35 @@
     if (!container || container._gamesLibProxyWired) return;
     container._gamesLibProxyWired = true;
     function proxyPlay(card) {
-      if (!card || card.getAttribute('data-game-id') && catalog().getGameById(card.getAttribute('data-game-id')) && catalog().getGameById(card.getAttribute('data-game-id')).status !== 'playable') {
+      if (!card) return;
+      var gameId = (card.getAttribute('data-game-id') || '').trim();
+      var cat = catalog();
+      var game = gameId && cat && typeof cat.getGameById === 'function' ? cat.getGameById(gameId) : null;
+      if (game && game.status !== 'playable') {
         toast('This game is coming soon.');
+        return;
+      }
+      // Prompt #151 — card selection opens the game (pregame). Do not block on trigger
+      // `.disabled` (legacy balance gate); Nugget spend is enforced later on Start.
+      if (global.LanternGamesPaidStart && global.LanternGamesPaidStart.isInFlight && global.LanternGamesPaidStart.isInFlight()) {
+        toast('Game is starting…');
         return;
       }
       var pid = (card.getAttribute('data-games-proxy-play') || '').trim();
       var target = pid && el(pid);
-      if (!target) return;
-      if (target.disabled || (global.LanternGamesPaidStart && global.LanternGamesPaidStart.isInFlight && global.LanternGamesPaidStart.isInFlight())) {
-        if (global.LanternGamesPaidStart && global.LanternGamesPaidStart.isInFlight && global.LanternGamesPaidStart.isInFlight()) {
-          toast('Game is starting…');
-        }
+      if (!target) {
+        toast('Couldn\'t open game. Try again.');
         return;
       }
-      target.click();
+      // Programmatic click must work even if a stale disabled attribute remains on the
+      // off-DOM trigger (disabled buttons swallow HTMLElement.click()).
+      var wasDisabled = !!target.disabled;
+      if (wasDisabled) target.disabled = false;
+      try {
+        target.click();
+      } finally {
+        if (wasDisabled) target.disabled = true;
+      }
     }
     container.addEventListener('click', function (e) {
       if (e.target.closest('.exploreCardReportBtn')) return;
@@ -601,7 +616,17 @@
         e.preventDefault();
         var pid = game.playBtnId;
         var target = pid && el(pid);
-        if (target) target.click();
+        if (!target) {
+          toast('Couldn\'t open game. Try again.');
+          return;
+        }
+        var wasDisabled = !!target.disabled;
+        if (wasDisabled) target.disabled = false;
+        try {
+          target.click();
+        } finally {
+          if (wasDisabled) target.disabled = true;
+        }
       }
     });
     global.addEventListener('resize', function () {

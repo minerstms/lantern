@@ -1080,12 +1080,14 @@
           }
         }
         if (n != null) {
+          // Prompt #151 — do not disable off-DOM play triggers on low balance.
+          // Card click selects/opens pregame; Start enforces 1 Nugget spend.
           ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
             var lockEl = el(g + 'Locked');
             var playBtn = el(g + 'PlayBtn');
             var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
             if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
-            if (playBtn) playBtn.disabled = n < minCost;
+            if (playBtn) playBtn.disabled = false;
           });
         }
         if (window.LanternGamesPage && typeof window.LanternGamesPage.refreshWalletDisplay === 'function') {
@@ -1114,12 +1116,15 @@
         onPregameStart: function(done){
           window.LanternGamesPaidStart.startPaidGame(gameName, function(){
             try {
-              done();
+              done(true);
               showGameFn();
             } catch (err) {
               if (window.LanternGamePlayer) window.LanternGamePlayer.close({ skipExit: true, force: true });
               toast('Couldn\'t start game. Try again.');
             }
+          }).then(function(res){
+            // Charge failed (insufficient / wallet) — keep pregame open; re-enable Start.
+            if (!res || !res.ok) done(false);
           });
         }
       });
