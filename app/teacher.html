@@ -96,7 +96,7 @@
     .teacherIdentityRow{
       display:flex;
       align-items:baseline;
-      justify-content:flex-start;
+      justify-content:center;
       gap:10px;
       flex-wrap:wrap;
       margin:0;
@@ -781,9 +781,6 @@
       font-size: 22px;
     }
 
-    .teacherPageShell{
-      margin-bottom: 10px;
-    }
     .teacherJumpNav{
       display: flex;
       flex-wrap: wrap;
@@ -939,14 +936,26 @@
     /* ===== Prompt #77 — Teacher workspace shell (sidebar + one active workspace) ===== */
     /* Teacher only: break out of the shared narrow centered column (lantern-header.css .wrap.lanternContent
        max-width) — this rule is scoped to .teacherShellWrap so no other page is affected. */
-    .wrap.lanternContent.teacherShellWrap{ max-width: none; }
+    .wrap.lanternContent.teacherShellWrap{
+      max-width: none;
+      --teacher-workspace-max: 1680px;
+    }
+    /* Prompt #147 — identity header shares the same centered max-width rail as sidebar+main. */
+    .teacherPageShell{
+      max-width: var(--teacher-workspace-max);
+      width: 100%;
+      margin: 0 auto 10px;
+      box-sizing: border-box;
+    }
     .teacherAppShell{
       display: grid;
       grid-template-columns: 240px minmax(0, 1fr);
       gap: var(--lantern-space-lg, 20px);
       align-items: start;
-      max-width: 1680px;
+      max-width: var(--teacher-workspace-max);
+      width: 100%;
       margin: 0 auto;
+      box-sizing: border-box;
     }
     .teacherMobileMenuBtn{ display: none; }
     .teacherSidebarScrim{ display: none; }
