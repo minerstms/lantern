@@ -39,6 +39,10 @@ const navBlock = (staffNav.match(/NAVIGATION_ITEMS\s*=\s*\[[\s\S]*?\];/) || ['']
 const navOrder = [...navBlock.matchAll(/label:\s*'([^']+)'/g)].map((m) => m[1]);
 assert(JSON.stringify(navOrder) === JSON.stringify(EXPECTED_NAV), 'lantern-staff-nav NAVIGATION label order exact', JSON.stringify(navOrder));
 
+assert(staffNav.includes('PRIVILEGED_NAV_ITEMS'), 'lantern-staff-nav: PRIVILEGED_NAV_ITEMS (#153)');
+assert(staffNav.includes("label: 'Reports'"), 'lantern-staff-nav: Reports privileged label');
+assert(staffNav.includes("label: 'System'"), 'lantern-staff-nav: System privileged label');
+assert(staffNav.includes('buildPrivilegedSectionHtml'), 'lantern-staff-nav: buildPrivilegedSectionHtml');
 assert(/\/teacher\.html/.test(staffNav), 'Teacher Tools route includes /teacher.html');
 assert(/tms-device-authorize/.test(staffNav) && /tmsnuggets\.pages\.dev/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
 

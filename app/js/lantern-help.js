@@ -26,7 +26,15 @@
     games: 'Play mini games here. Each game costs 1 nugget. You can earn more nuggets in the Daily Nugget Hunt.',
     culture_games: 'Culture games: handbook trivia, local history, and similar activities on this row. Tap a card to play. Most games cost 1 nugget like the arcade row above.',
     news: 'Read school news and submit your own articles. Student reporters and staff can write. Articles need approval before they appear.',
-    teacher: 'Teachers use this page to approve student work, read thank-you letters, and create missions. The Rewards Panel explains how teacher nugget rewards relate to the student Store. Students do not use this page.',
+    teacher: 'Teacher Tools: staff workspace for Nuggets, Overview, Review Queue, School Access, Missions, Shout-Out!, Moderation, and Hallway TV. Students do not use this page.',
+    teacher_nuggets: 'Nuggets: manage student Nugget rewards and manual redemptions for real roster students. Students spend Nuggets in Locker → Store.',
+    teacher_overview: 'Overview: quick counts and shortcuts into Review Queue and Missions for your Teacher Tools workspaces.',
+    teacher_review: 'Review Queue: approve, reject, or return student submissions waiting for your check. Only approved items appear to students.',
+    teacher_school_access: 'School Access: manage which students can use Lantern for your school or classes. Follow the on-screen steps for your school’s setup.',
+    teacher_missions: 'Missions (Teacher Tools): create and manage missions students complete in Lantern. Mission rewards follow the current Nuggets rules shown when you create or edit a mission.',
+    teacher_shoutout: 'Shout-Out!: post positive recognition for students. This is not a Nugget award — it is recognition only.',
+    teacher_moderation: 'Moderation: hide live posts from public view or restore hidden items. Hidden content stays listed here until you restore it.',
+    teacher_hallway_tv: 'Hallway TV opens the Display board in a new tab for hallway screens. It is not in the global Lantern ▼ menu — use this Teacher Tools sidebar link.',
     missions: 'Missions are tasks you can complete to create, reflect, practice, and sometimes earn Nuggets. Active shows everything you can still work on (including ones you already started or need to fix); Completed shows finished missions. Tap a mission to open it and submit your work.',
     mission_spotlight: 'Missions: one highlighted task you can start today from the active mission list.',
     achievements: 'These are badges you earn when you do things like share your first post, find the daily nugget, or get a teacher pick.',
@@ -34,12 +42,12 @@
     content_tabs: 'Filter your creations by type: All, Image, Link, Video, Web App, or Project.',
     pin_post: 'Pin a post to keep it at the top of your creations in Locker → Overview. Only you see your pinned posts there.',
     reactions: 'Like, favorite, or fire a post to show you enjoyed it. These are positive reactions only.',
-    redeem_nuggets: 'Teachers record manual sales in Teacher → Rewards Panel (Manual sale). Students spend nuggets in Locker → Store on cosmetics and unlocks.',
-    store_wallet: 'Your nugget totals (Available, Earned, Spent) for your signed-in account. The wallet refreshes when you open Store and when you tap Refresh balance.',
+    redeem_nuggets: 'Staff record manual Nugget redemptions in Teacher Tools → Nuggets (Manual sale). Students spend Nuggets in Locker → Store on cosmetics and unlocks.',
+    store_wallet: 'Your nugget totals (Available, Earned, Spent) for your signed-in account. The wallet refreshes when you open Locker → Store and when you tap Refresh balance.',
     nugget_history: 'Your personal Nugget activity — awards, purchases, and other wallet changes. Only you can see this history.',
-    teacher_manual_sale: 'Pick a student, enter a Nugget amount, optionally add a sale note, and tap Record Sale. This deducts nuggets from that student’s wallet through the same ledger as store redemptions.',
+    teacher_manual_sale: 'Pick a student, enter a Nugget amount, optionally add a sale note, and record the sale. This deducts Nuggets from that student’s wallet through the same ledger as store redemptions.',
     cosmetics: 'Buy cosmetics like frames, backgrounds, and badges in Locker → Store. Equip them in Edit Profile on Locker → Overview.',
-    display_page: 'The Display page shows approved work on a big screen, like in a hallway. It rotates through teacher picks, news, and achievements.',
+    display_page: 'Hallway TV / Display shows approved work on a big screen. Open it from Teacher Tools → Hallway TV — it is not a global Lantern ▼ destination.',
     filter_chips: 'Tap a chip to filter what you see (when this row is on the page).',
     feed_tabs: 'On the Games page: this row jumps to Lantern, News, Missions, or stays on Games. The home feed (Lantern) has no filter row — scroll through all sections.',
     back_to_profile: 'Go back to Locker.',
@@ -48,10 +56,16 @@
     mission_image: 'Add what the mission asks for in this one box: photo, video, or link. Click inside, then paste, drag, or choose a file from your device.',
     submission_celebration: 'After you submit news as a student, you get a short fireworks celebration, then an optional typing game. Nuggets in your school wallet usually come when a teacher approves your article.',
     school_survival: 'Mini Games: handbook and local picture activities. Tap answers to learn why; scores are not saved to your account.',
-    approvals_queue: 'Items waiting for your review: news articles and avatar uploads. Use Approve, Reject, or Return. Approving can grant nuggets (see Rewards Panel). Only approved items appear to students.',
+    approvals_queue: 'Items waiting for your review: news articles and avatar uploads. Use Approve, Reject, or Return. Approving can grant Nuggets (see Teacher Tools → Nuggets). Only approved items appear to students.',
     moderation: 'Moderation: hide live posts from public view or restore hidden items. Hidden content stays listed here until you restore it. Flagged items may need review.',
-    rewards_panel: 'Teachers grant and manage nugget rewards here through Approvals, Create Mission, and Manual sale below. Students spend nuggets only in Locker → Store — that Store is the student catalog, not a teacher tool.',
+    rewards_panel: 'Teacher Tools → Nuggets: grant and manage Nugget rewards through Approvals, Create Mission, and Manual sale. Students spend Nuggets only in Locker → Store — that Store is the student catalog, not a staff tool.',
     verify_page: 'Verify & Simulate: QA tools for seeing how content flows through approvals to Locker and Lantern rails. Simulation is not real authentication — use the routing matrix card for code-backed paths.',
+    behavior_logger: 'Behavior Logger: log a Concern, Neutral, or Positive note for a student. Use Lantern ▼ for Teacher Tools and other Lantern pages. Help Mode explains each control when you hover.',
+    behavior_student: 'Search or type a student name. Student is optional for some logs, but Positive awards need a roster student with a school ID.',
+    behavior_note: 'A note is required before you can log. Do not put unnecessary private details in notes — follow your school’s record expectations.',
+    behavior_concern: 'Log Concern: saves a concern note for the selected student (or without a student if your workflow allows). After save, the form clears for the next entry.',
+    behavior_neutral: 'Log Neutral: saves a neutral note. After save, the form clears for the next entry.',
+    behavior_positive: 'Log Positive: saves a positive note and, when a roster student with a school ID is selected, sends a Nugget reward to Lantern. After save, the form clears.',
   };
 
   function isHelpModeOn() {
@@ -89,7 +103,7 @@
   function positionHelpPanel() {
     var panel = document.getElementById('lanternHelpPanel');
     if (!panel) return;
-    var header = document.getElementById('lanternHeader');
+    var header = document.getElementById('lanternHeader') || document.querySelector('.appHeader');
     var gap = 10;
     var bottomMargin = 16;
     var rightInset = 12;
@@ -112,7 +126,7 @@
     if (typeof document === 'undefined' || !document.body) return;
     var style = document.createElement('style');
     style.textContent = [
-      '.lanternAppBar .lanternHelpToggleWrap{ position: static !important; top: auto !important; right: auto !important; z-index: auto !important; }',
+      '.lanternAppBar .lanternHelpToggleWrap,.appHeader .lanternHelpToggleWrap{ position: static !important; top: auto !important; right: auto !important; z-index: auto !important; }',
       '.lanternHelpToggleWrap{ position: fixed; top: 12px; right: 12px; z-index: 9998; }',
       '.lanternHelpToggle{ padding: 6px 10px; font-size: 18px; font-weight: 700; border: none; border-radius: 0; background: transparent; color: rgba(234,240,255,.9); cursor: pointer; transition: color .2s ease; }',
       '.lanternHelpToggle:hover{ color: #9dd4f0; }',

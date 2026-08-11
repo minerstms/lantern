@@ -1,7 +1,8 @@
 /**
- * Prompt #145/#146/#152 — Canonical Lantern ▼ menu contract (NAVIGATION + STAFF).
+ * Prompt #145/#146/#152/#153 — Canonical Lantern ▼ menu contract (NAVIGATION + STAFF + privileged tools).
  * Mirrored in TMS public/lantern-staff-nav.js — keep labels/order/ids/routes identical.
  * Explore Lantern ▼ is source of truth. Display Board / Hallway TV stay out of the GLOBAL dropdown.
+ * Reports/System appear only when caps are provided and allow (#153); Explore omits them by default.
  */
 (function (global) {
   'use strict';
@@ -24,6 +25,28 @@
   var STAFF_NAV_ITEMS = [
     { id: 'teacher', dataPage: 'teacher', label: 'Teacher Tools' },
     { id: 'behavior', dataPage: 'behavior', label: 'Behavior Logger' },
+  ];
+
+  /** Privileged TMS tools — capability-gated (same rules as TMS device-auth applyCapabilityNav). */
+  var PRIVILEGED_NAV_ITEMS = [
+    {
+      id: 'reports',
+      dataPage: 'reports',
+      label: 'Reports',
+      path: 'admin.html#reports',
+      canShow: function (caps) {
+        return !!(caps && (caps.report_maker || caps.behavior_admin));
+      },
+    },
+    {
+      id: 'system',
+      dataPage: 'system',
+      label: 'System',
+      path: 'admin.html#system',
+      canShow: function (caps) {
+        return !!(caps && caps.system_admin);
+      },
+    },
   ];
 
   function behaviorAuthorizeHref() {
@@ -49,6 +72,12 @@
     if (id === 'behavior') {
       return ctx === 'tms' ? 'index.html' : behaviorAuthorizeHref();
     }
+    for (i = 0; i < PRIVILEGED_NAV_ITEMS.length; i++) {
+      if (PRIVILEGED_NAV_ITEMS[i].id === id) {
+        var p = PRIVILEGED_NAV_ITEMS[i].path;
+        return ctx === 'tms' ? p : TMS_ORIGIN + '/' + p;
+      }
+    }
     return '#';
   }
 
@@ -60,6 +89,10 @@
       if (keys[i] === current) return true;
     }
     return false;
+  }
+
+  function normalizeCaps(caps) {
+    return caps && typeof caps === 'object' ? caps : null;
   }
 
   function buildNavigationSectionLinksHtml(current, ctx) {
@@ -116,11 +149,53 @@
     }).join('');
   }
 
+  function visiblePrivilegedItems(caps) {
+    caps = normalizeCaps(caps);
+    return PRIVILEGED_NAV_ITEMS.filter(function (item) {
+      return item.canShow(caps);
+    });
+  }
+
+  function buildPrivilegedSectionHtml(current, ctx, caps) {
+    ctx = ctx || 'lantern';
+    current = String(current || '');
+    var items = visiblePrivilegedItems(caps);
+    if (!items.length) return '';
+    var links = items
+      .map(function (item) {
+        var href = hrefFor(item.id, ctx);
+        var active = current === item.dataPage || current === item.id;
+        return (
+          '<a href="' +
+          href +
+          '" role="menuitem" class="lanternAppBarDropdownLink' +
+          (active ? ' is-active' : '') +
+          '" data-page="' +
+          item.dataPage +
+          '" data-privileged-nav="' +
+          item.id +
+          '">' +
+          item.label +
+          '</a>'
+        );
+      })
+      .join('');
+    return (
+      '<div class="lanternAppBarDropdownSection lanternAppBarDropdownSection--tools" id="lanternAppBarPrivilegedSection">' +
+      '<div class="lanternAppBarDropdownGroupLabel">ADMIN / TOOLS</div>' +
+      links +
+      '</div>'
+    );
+  }
+
   /**
-   * Full Explore-canonical dropdown body sections (NAVIGATION + STAFF).
+   * Full Explore-canonical dropdown body sections (NAVIGATION + STAFF [+ privileged when caps]).
    * Caller may wrap with outer dropdown shell + logout section.
+   * @param {string} current
+   * @param {'lantern'|'tms'} ctx
+   * @param {object|null} [caps] optional TMS capabilities — omit/null hides Reports/System
    */
-  function buildMenuSectionsHtml(current, ctx) {
+  function buildMenuSectionsHtml(current, ctx, caps) {
     ctx = ctx || 'lantern';
     return (
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
@@ -128,7 +203,8 @@
       '</div>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
       buildStaffSectionLinksHtml(current, ctx) +
-      '</div>'
+      '</div>' +
+      buildPrivilegedSectionHtml(current, ctx, caps)
     );
   }
 
@@ -144,9 +220,15 @@
     });
   }
 
-  /** Full menu label order for regression (no section headers / logout). */
+  /** Full menu label order for regression (no section headers / logout / privileged). */
   function fullMenuLabelsInOrder() {
     return navigationLabelsInOrder().concat(labelsInOrder());
+  }
+
+  function privilegedLabelsInOrder(caps) {
+    return visiblePrivilegedItems(caps).map(function (i) {
+      return i.label;
+    });
   }
 
   global.LanternStaffNav = {
@@ -155,13 +237,16 @@
     MENU_TEXT_INSET: MENU_TEXT_INSET,
     NAVIGATION_ITEMS: NAVIGATION_ITEMS,
     ITEMS: STAFF_NAV_ITEMS,
+    PRIVILEGED_NAV_ITEMS: PRIVILEGED_NAV_ITEMS,
     labelsInOrder: labelsInOrder,
     navigationLabelsInOrder: navigationLabelsInOrder,
     fullMenuLabelsInOrder: fullMenuLabelsInOrder,
+    privilegedLabelsInOrder: privilegedLabelsInOrder,
     hrefFor: hrefFor,
     behaviorAuthorizeHref: behaviorAuthorizeHref,
     buildNavigationSectionLinksHtml: buildNavigationSectionLinksHtml,
     buildStaffSectionLinksHtml: buildStaffSectionLinksHtml,
+    buildPrivilegedSectionHtml: buildPrivilegedSectionHtml,
     buildMenuSectionsHtml: buildMenuSectionsHtml,
   };
 })(typeof window !== 'undefined' ? window : self);
