@@ -21,10 +21,12 @@
     { id: 'missions', dataPage: 'missions', label: 'Missions', path: '/missions.html' },
   ];
 
-  /** Exact STAFF order for Prompt #146 (no Display Board). */
+  /** Exact STAFF order for Prompt #146/#199 (no Display Board). Admin is role-gated. */
   var STAFF_NAV_ITEMS = [
     { id: 'teacher', dataPage: 'teacher', label: 'Teacher Tools' },
     { id: 'behavior', dataPage: 'behavior', label: 'Behavior Logger' },
+    // Prompt #199 — Lantern Admin page; same gate as /admin (role === 'admin' only).
+    { id: 'admin', dataPage: 'admin', label: 'Admin', adminOnly: true },
   ];
 
   /** Privileged TMS tools — capability-gated (same rules as TMS device-auth applyCapabilityNav). */
@@ -54,6 +56,23 @@
     return '/api/auth/tms-device-authorize?return=' + encodeURIComponent(ret);
   }
 
+  function normalizeRole(role) {
+    return String(role || '').trim().toLowerCase();
+  }
+
+  /** Prompt #199 — matches app/admin.html: only Lantern role admin may enter /admin. */
+  function canShowStaffItem(item, role) {
+    if (!item) return false;
+    if (item.adminOnly) return normalizeRole(role) === 'admin';
+    return true;
+  }
+
+  function visibleStaffItems(role) {
+    return STAFF_NAV_ITEMS.filter(function (item) {
+      return canShowStaffItem(item, role);
+    });
+  }
+
   /**
    * @param {string} id
    * @param {'lantern'|'tms'} ctx
@@ -72,6 +91,10 @@
     }
     if (id === 'behavior') {
       return ctx === 'tms' ? 'index.html' : behaviorAuthorizeHref();
+    }
+    if (id === 'admin') {
+      // Prompt #199 — canonical Lantern Admin front door.
+      return ctx === 'tms' ? LANTERN_ORIGIN + '/admin' : '/admin';
     }
     for (i = 0; i < PRIVILEGED_NAV_ITEMS.length; i++) {
       if (PRIVILEGED_NAV_ITEMS[i].id === id) {
@@ -122,13 +145,14 @@
 
   /**
    * STAFF section link markup (no wrapping section).
-   * @param {string} current page key (teacher|behavior|…)
+   * @param {string} current page key (teacher|behavior|admin|…)
    * @param {'lantern'|'tms'} ctx
+   * @param {string} [role] Lantern pilot role — Admin item only when role === 'admin'
    */
-  function buildStaffSectionLinksHtml(current, ctx) {
+  function buildStaffSectionLinksHtml(current, ctx, role) {
     ctx = ctx || 'lantern';
     current = String(current || '');
-    return STAFF_NAV_ITEMS.map(function (item) {
+    return visibleStaffItems(role).map(function (item) {
       var href = hrefFor(item.id, ctx);
       var active = current === item.dataPage || current === item.id;
       var attrs = '';
@@ -195,22 +219,33 @@
    * @param {string} current
    * @param {'lantern'|'tms'} ctx
    * @param {object|null} [caps] optional TMS capabilities — omit/null hides Reports/System
+   * @param {string} [role] optional Lantern role — Admin STAFF item only when 'admin'
    */
-  function buildMenuSectionsHtml(current, ctx, caps) {
+  function buildMenuSectionsHtml(current, ctx, caps, role) {
     ctx = ctx || 'lantern';
     return (
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
       buildNavigationSectionLinksHtml(current, ctx) +
       '</div>' +
       '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
-      buildStaffSectionLinksHtml(current, ctx) +
+      buildStaffSectionLinksHtml(current, ctx, role) +
       '</div>' +
       buildPrivilegedSectionHtml(current, ctx, caps)
     );
   }
 
+  /** Always-visible STAFF labels (excludes role-gated Admin). */
   function labelsInOrder() {
-    return STAFF_NAV_ITEMS.map(function (i) {
+    return STAFF_NAV_ITEMS.filter(function (i) {
+      return !i.adminOnly;
+    }).map(function (i) {
+      return i.label;
+    });
+  }
+
+  /** STAFF labels for a given Lantern role (includes Admin when role is admin). */
+  function staffLabelsInOrder(role) {
+    return visibleStaffItems(role).map(function (i) {
       return i.label;
     });
   }
@@ -222,8 +257,8 @@
   }
 
   /** Full menu label order for regression (no section headers / logout / privileged). */
-  function fullMenuLabelsInOrder() {
-    return navigationLabelsInOrder().concat(labelsInOrder());
+  function fullMenuLabelsInOrder(role) {
+    return navigationLabelsInOrder().concat(staffLabelsInOrder(role));
   }
 
   function privilegedLabelsInOrder(caps) {
@@ -240,9 +275,11 @@
     ITEMS: STAFF_NAV_ITEMS,
     PRIVILEGED_NAV_ITEMS: PRIVILEGED_NAV_ITEMS,
     labelsInOrder: labelsInOrder,
+    staffLabelsInOrder: staffLabelsInOrder,
     navigationLabelsInOrder: navigationLabelsInOrder,
     fullMenuLabelsInOrder: fullMenuLabelsInOrder,
     privilegedLabelsInOrder: privilegedLabelsInOrder,
+    canShowStaffItem: canShowStaffItem,
     hrefFor: hrefFor,
     behaviorAuthorizeHref: behaviorAuthorizeHref,
     buildNavigationSectionLinksHtml: buildNavigationSectionLinksHtml,

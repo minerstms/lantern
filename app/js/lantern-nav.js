@@ -19,7 +19,8 @@
     if (/games\.html/.test(path) || /\/games\/?$/.test(path)) return 'games';
     if (/locker\.html/.test(path) || /\/locker\/?$/.test(path)) return 'locker';
     if (/explore\.html/.test(path) || /\/explore\/?$/.test(path)) return 'explore';
-    if (/teacher\.html/.test(path)) return 'teacher';
+    if (/teacher\.html/.test(path) || /\/teacher\/?$/.test(path)) return 'teacher';
+    if (/admin\.html/.test(path) || /\/admin\/?$/.test(path)) return 'admin';
     if (/display\.html/.test(path)) return 'display';
     if (/staff\.html/.test(path)) return 'staff';
     if (/contribute\.html/.test(path)) return 'contribute';
@@ -357,6 +358,41 @@
     return fetchProfileNeedsAttentionCount().then(applyBellCount).catch(function () { applyBellCount(0); });
   }
 
+  function wireBehaviorNavClicks(dropdown) {
+    if (!dropdown) return;
+    Array.prototype.forEach.call(dropdown.querySelectorAll('[data-lantern-behavior-nav="1"]'), function (a) {
+      if (a.getAttribute('data-lantern-behavior-wired') === '1') return;
+      a.setAttribute('data-lantern-behavior-wired', '1');
+      a.addEventListener('click', function (ev) {
+        if (global.LanternRememberDevice && typeof global.LanternRememberDevice.handleBehaviorNavClick === 'function') {
+          global.LanternRememberDevice.handleBehaviorNavClick(ev);
+        }
+      });
+    });
+  }
+
+  /**
+   * Prompt #199 — refresh STAFF links after /api/auth/me so Admin appears only for role=admin
+   * (same gate as app/admin.html). Does not change auth or broaden access.
+   */
+  function applyStaffNavForRole(role) {
+    var dd = document.getElementById('lanternMenuDropdown');
+    if (!dd || !global.LanternStaffNav || typeof global.LanternStaffNav.buildStaffSectionLinksHtml !== 'function') {
+      return;
+    }
+    var sections = dd.querySelectorAll('.lanternAppBarDropdownSection');
+    var staffSec = null;
+    Array.prototype.forEach.call(sections, function (sec) {
+      var label = sec.querySelector('.lanternAppBarDropdownGroupLabel');
+      if (label && String(label.textContent || '').trim() === 'STAFF') staffSec = sec;
+    });
+    if (!staffSec) return;
+    staffSec.innerHTML =
+      '<div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
+      global.LanternStaffNav.buildStaffSectionLinksHtml(getCurrentPage(), 'lantern', role);
+    wireBehaviorNavClicks(dd);
+  }
+
   function init() {
     if (typeof document === 'undefined' || !document.body) return;
     /* Prompt #116 — Display (page-marquee-only): do not mount Lantern nav/search/avatar/help. */
@@ -387,13 +423,7 @@
       e.stopPropagation();
       toggle();
     });
-    Array.prototype.forEach.call(dropdown.querySelectorAll('[data-lantern-behavior-nav="1"]'), function (a) {
-      a.addEventListener('click', function (ev) {
-        if (global.LanternRememberDevice && typeof global.LanternRememberDevice.handleBehaviorNavClick === 'function') {
-          global.LanternRememberDevice.handleBehaviorNavClick(ev);
-        }
-      });
-    });
+    wireBehaviorNavClicks(dropdown);
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') close();
       if (e.key === 'm' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -412,7 +442,14 @@
     refreshNeedsAttentionBellFromApi();
     try {
       var cachedMe = global.LANTERN_PILOT_ME && global.LANTERN_PILOT_ME.ok ? global.LANTERN_PILOT_ME : null;
-      if (cachedMe && cachedMe.authenticated !== false) applySignedInHeaderIdentity(cachedMe);
+      if (cachedMe && cachedMe.authenticated !== false) {
+        applySignedInHeaderIdentity(cachedMe);
+        var cachedRole =
+          global.LanternAuth && typeof global.LanternAuth.normalizeRole === 'function'
+            ? global.LanternAuth.normalizeRole(cachedMe.role)
+            : String(cachedMe.role || '').trim().toLowerCase();
+        if (cachedRole === 'admin') applyStaffNavForRole('admin');
+      }
     } catch (eCache) {}
     (function pilotSessionShellGate(){
       if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return;
@@ -436,11 +473,14 @@
           global.LanternAuth && typeof global.LanternAuth.normalizeRole === 'function'
             ? global.LanternAuth.normalizeRole(data.role)
             : String(data.role || '').trim().toLowerCase();
-        if (role !== 'student') return;
-        var dd = document.getElementById('lanternMenuDropdown');
-        if (!dd) return;
-        var secs = dd.querySelectorAll('.lanternAppBarDropdownSection');
-        if (secs.length >= 2) secs[1].style.display = 'none';
+        if (role === 'student') {
+          var dd = document.getElementById('lanternMenuDropdown');
+          if (!dd) return;
+          var secs = dd.querySelectorAll('.lanternAppBarDropdownSection');
+          if (secs.length >= 2) secs[1].style.display = 'none';
+          return;
+        }
+        applyStaffNavForRole(role);
       }).catch(function(){});
     })();
     document.addEventListener('lantern-needs-attention-count', function (e) {

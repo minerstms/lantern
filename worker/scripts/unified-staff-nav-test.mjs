@@ -130,6 +130,50 @@ async function main() {
   }
 
   {
+    // Prompt #199 — admin role sees Admin under STAFF → /admin; teacher/student do not.
+    const page = await browser.newPage();
+    await page.route('**/api/auth/me**', okJson({
+      ok: true, authenticated: true, role: 'admin', username: 'Rick Radle', display_name: 'Rick Radle',
+      teacher_id: null, must_change_password: false,
+    }));
+    await page.route('**/api/missions/teacher**', okJson({ ok: true, missions: [] }));
+    await page.route('**/api/missions/submissions/teacher**', okJson({ ok: true, submissions: [] }));
+    await page.route('**/api/missions/submissions/approved**', okJson({ ok: true, submissions: [] }));
+    await page.route('**/api/missions/submissions/hidden**', okJson({ ok: true, submissions: [] }));
+    await page.route('**/api/avatar/pending**', okJson({ ok: true, pending: [] }));
+    await page.route('**/api/news/approved**', okJson({ ok: true, news: [] }));
+    await page.route('**/api/news/hidden**', okJson({ ok: true, news: [] }));
+    await page.route('**/api/moderation/flagged**', okJson({ ok: true, flags: [] }));
+    await page.route('**/api/class-access/session/status**', okJson({ ok: true, active: false }));
+    await page.route('**/api/verify/state**', okJson({ ok: true, state: null }));
+    await page.route('**/api/approvals/pending**', okJson({ ok: true, pending: [] }));
+    await page.route('**/api/approvals/history**', okJson({ ok: true, history: [] }));
+    await page.route('**/api/recognition/list**', okJson({ ok: true, recognition: [] }));
+    await page.route('**/api/economy/balance**', okJson({ ok: true, earned: 0, spent: 0, available: 0 }));
+    await page.route('**/api/store/bootstrap**', okJson({ ok: true, students: [] }));
+    await page.route('**/api/tms-nuggets/students/search**', okJson({ ok: true, students: [] }));
+
+    await page.goto(base + '/teacher.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForFunction(() => !document.documentElement.classList.contains('lantern-pilot-auth-pending'), { timeout: 15000 });
+    await page.waitForSelector('#lanternMenuTrigger', { timeout: 15000 });
+    await page.click('#lanternMenuTrigger');
+    await page.waitForSelector('#lanternMenuDropdown.is-open, #lanternMenuDropdown:not([hidden])', { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => {
+      const a = document.querySelector('#lanternMenuDropdown a[data-page="admin"]');
+      return !!(a && /Admin/.test(a.textContent || ''));
+    }, { timeout: 8000 }).catch(() => {});
+
+    const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
+    const staffLabels = (await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) => t.trim());
+    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Behavior Logger', 'Admin']), 'Admin-capable STAFF order: ' + JSON.stringify(staffLabels));
+    const adminLink = page.locator('#lanternMenuDropdown a[data-page="admin"]');
+    assert(await adminLink.count() === 1, 'Admin menuitem present for role=admin');
+    assert((await adminLink.getAttribute('href')) === '/admin', 'Admin points to /admin');
+    assert(!(await page.locator('#lanternMenuDropdown').innerText()).match(/Display Board|Hallway TV/i), 'Admin menu still omits Hallway TV / Display Board');
+    await page.close();
+  }
+
+  {
     const page = await browser.newPage();
     await page.route('**/api/auth/me**', okJson({
       ok: true, authenticated: true, role: 'student', username: 'testpilot', display_name: 'Test Pilot',
