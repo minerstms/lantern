@@ -34,10 +34,9 @@
     html,body{ height: 100%; }
     body{
       margin:0;
-      background:
-        radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11,36,79,0) 55%),
-        radial-gradient(900px 500px at 20% 30%, rgba(46,105,214,.18) 0%, rgba(46,105,214,0) 60%),
-        linear-gradient(180deg, #070b12, #05070b);
+      /* Prompt #156 — reuse lantern-header.css --lantern-page-bg (Play stack) */
+      background: var(--lantern-page-bg);
+      background-color: var(--lantern-page-bg-color, #05070b);
       background-attachment: fixed;
       background-repeat: no-repeat;
       background-position: center;

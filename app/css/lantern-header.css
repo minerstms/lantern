@@ -31,6 +31,31 @@
   --lantern-card-width: 280px;
   --lantern-card-aspect-ratio: 16 / 9;
   --lantern-rail-card-outer-width: var(--lantern-card-width);
+
+  /*
+   * Prompt #156 — canonical ordinary Lantern page background.
+   * Source of truth: Play (`games.html`) / Teacher / store-panel radial stack
+   * (Locker already resolves to this stack via lantern-store-panel.css load order).
+   * Do not invent alternate navy/black fills on ordinary shells; reuse these tokens.
+   * Exceptions: Display/Hallway TV page-local bg, game canvases, locker cosmetic skins.
+   */
+  --lantern-page-bg-color: #05070b;
+  --lantern-page-bg:
+    radial-gradient(1200px 600px at 50% 0%, #0b244f 0%, rgba(11, 36, 79, 0) 55%),
+    radial-gradient(900px 500px at 20% 30%, rgba(46, 105, 214, 0.18) 0%, rgba(46, 105, 214, 0) 60%),
+    linear-gradient(180deg, #070b12, #05070b);
+}
+
+/* Canonical page shell fill — full viewport; pages may override only for intentional exceptions. */
+html {
+  background-color: var(--lantern-page-bg-color);
+}
+body {
+  background: var(--lantern-page-bg);
+  background-color: var(--lantern-page-bg-color);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-position: center;
 }
 
 #lanternHeader {
