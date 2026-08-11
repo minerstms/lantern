@@ -10,7 +10,7 @@
   min-height: 48px;
   box-sizing: border-box;
   padding: 8px 0;
-  background: #0f2744;
+  background: var(--lantern-chrome-bg, #0f2744);
   border-bottom: 2px solid rgba(255,255,255,.18);
   overflow: hidden;
 }

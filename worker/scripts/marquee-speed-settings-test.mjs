@@ -363,6 +363,29 @@ function testCanonicalHeaderShellOnNormalPages() {
   ok('normal Lantern pages use the full canonical Explore header shell (ticker + app bar)');
 }
 
+function testOpaqueStickyChrome() {
+  const css = fs.readFileSync(path.join(root, 'app/css/lantern-header.css'), 'utf8');
+  if (!/--lantern-chrome-bg:\s*#0f2744/.test(css)) {
+    return bad('lantern-header.css missing opaque --lantern-chrome-bg token');
+  }
+  if (!/#lanternHeader\s*\{[^}]*background(?:-color)?:\s*var\(--lantern-chrome-bg\)/.test(css)) {
+    return bad('#lanternHeader must use opaque --lantern-chrome-bg');
+  }
+  if (!/#lanternHeader > #lanternAppBarRoot\s*\{[^}]*background(?:-color)?:\s*var\(--lantern-chrome-bg\)/.test(css)) {
+    return bad('#lanternAppBarRoot must use opaque chrome background');
+  }
+  if (!/#lanternHeader\s*\{[^}]*z-index:\s*10000/.test(css)) {
+    return bad('#lanternHeader z-index must remain 10000 (dropdowns above)');
+  }
+  const ticker = fs.readFileSync(path.join(root, 'app/css/lantern-ticker.css'), 'utf8');
+  if (!/\.lanternTicker\{[\s\S]*?background:\s*var\(--lantern-chrome-bg,\s*#0f2744\)/.test(ticker)) {
+    return bad('ticker must stay solid chrome background');
+  }
+  const nav = fs.readFileSync(path.join(root, 'app/js/lantern-nav.js'), 'utf8');
+  if (!/z-index: 10001/.test(nav)) return bad('dropdown z-index 10001 must remain above header');
+  ok('18–21. sticky header chrome opaque; marquee solid; dropdown z-index preserved');
+}
+
 function testDisplayMarqueeOnlyException() {
   const html = fs.readFileSync(path.join(root, 'app/display.html'), 'utf8');
   if (!/page-has-ticker/.test(html) || !/page-marquee-only/.test(html)) {
@@ -516,6 +539,7 @@ testAdminHasMarqueeSpeedControl();
 testMarqueeBuildsFromUnifiedSlidesOnly();
 testNoLocalStorageDemoSlidesInProductionMarquee();
 testCanonicalHeaderShellOnNormalPages();
+testOpaqueStickyChrome();
 testDisplayMarqueeOnlyException();
 testBehaviorHasNoLanternHeaderInRepo();
 testAuthStubPagesOmitLanternHeader();

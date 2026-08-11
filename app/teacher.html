@@ -1044,7 +1044,9 @@
       overflow-y: auto;
       border: 1px solid var(--line);
       border-radius: var(--r);
-      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      /* Prompt #174 — opaque Teacher panel fill (no page content bleed on mobile drawer). */
+      background: var(--panel);
+      background-color: var(--panel);
       padding: 10px;
       /* Contained shadow — avoid page-wide horizontal seam look beside long sidebar lists. */
       box-shadow: 0 8px 18px rgba(0,0,0,.18);
@@ -1361,6 +1363,10 @@
         transform: translateX(-105%);
         transition: transform .22s ease;
         padding-top: calc(var(--lantern-header-h-ticker) + 14px);
+        /* Prompt #174 — keep mobile drawer fully opaque above page content. */
+        background: var(--panel);
+        background-color: var(--panel);
+        opacity: 1;
       }
       .teacherSidebar.is-open{ transform: translateX(0); }
       .teacherSidebarScrim{

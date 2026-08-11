@@ -130,6 +130,19 @@ const staffNav = fs.readFileSync(staffNavPath, 'utf8');
 if (!/Phone App Download/.test(staffNav)) ok('Phone App Download absent from global LanternStaffNav');
 else bad('Phone App Download must not be in global dropdown');
 
+// Prompt #174 — opaque mobile Teacher sidebar + no translucent bleed fill
+const sidebarCssMatch = html.match(/\.teacherSidebar\{[\s\S]*?box-shadow:[^}]+\}/);
+const sidebarCss = sidebarCssMatch ? sidebarCssMatch[0] : '';
+if (/background:\s*var\(--panel\)/.test(sidebarCss) && /background-color:\s*var\(--panel\)/.test(sidebarCss)) {
+  ok('17. Teacher sidebar uses opaque --panel background');
+} else bad('Teacher sidebar must use opaque --panel', sidebarCss.slice(0, 200));
+if (!/rgba\(255,255,255,\s*\.0[25]\)/.test(sidebarCss)) {
+  ok('17b. Teacher sidebar no longer uses translucent white gradient');
+} else bad('Teacher sidebar still translucent', sidebarCss.slice(0, 200));
+if (/@media \(max-width: 900px\)[\s\S]*\.teacherSidebar\{[\s\S]*z-index:\s*5000/.test(html)) {
+  ok('17c. mobile sidebar z-index remains below header (5000)');
+} else bad('mobile sidebar z-index contract broken');
+
 if (/lanternMgmtRecord/.test(html) || /wireRecords/.test(html) || /LanternCollapsibleList/.test(html)) {
   ok('record-level disclosure system still referenced');
 } else bad('record disclosure system missing');
