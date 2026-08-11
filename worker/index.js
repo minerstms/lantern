@@ -217,6 +217,9 @@ export default {
         path === '/api/news/hide' ||
         path === '/api/news/restore' ||
         path === '/api/news/hidden' ||
+        path === '/api/polls/hide' ||
+        path === '/api/polls/restore' ||
+        path === '/api/polls/hidden' ||
         path.startsWith('/api/missions') ||
         path.startsWith('/api/feed') ||
         path.startsWith('/api/trivia') ||
@@ -6274,16 +6277,85 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, id: contribId, status: 'pending', message: 'Resubmitted for teacher approval.' }, 200, cors);
   }
 
+  // Prompt #213 — admin hide/restore for published polls (Feed visibility).
+  if (request.method === 'POST' && path === '/api/polls/hide') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
+    let body;
+    try { body = JSON.parse(await request.text() || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
+    const id = parseModerationBodyId(body);
+    const hiddenBy = adminAuditLabel(gate.account);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
+    const row = await db.prepare('SELECT id, approved_at FROM lantern_polls WHERE id = ?').bind(id).first();
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
+    const now = new Date().toISOString();
+    try {
+      await db.prepare('UPDATE lantern_polls SET hidden_at = ?, hidden_by = ? WHERE id = ?').bind(now, hiddenBy, id).run();
+    } catch (e) {
+      return jsonResponse({ ok: false, error: 'Poll hide requires DB migration 067 (hidden_at on lantern_polls)' }, 503, pilotCors);
+    }
+    return jsonResponse({ ok: true, id, hidden_at: now }, 200, pilotCors);
+  }
+
+  if (request.method === 'POST' && path === '/api/polls/restore') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
+    let body;
+    try { body = JSON.parse(await request.text() || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors); }
+    const id = parseModerationBodyId(body);
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, pilotCors);
+    const row = await db.prepare('SELECT id FROM lantern_polls WHERE id = ?').bind(id).first();
+    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, pilotCors);
+    try {
+      await db.prepare('UPDATE lantern_polls SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+    } catch (e) {
+      return jsonResponse({ ok: false, error: 'Poll restore requires DB migration 067 (hidden_at on lantern_polls)' }, 503, pilotCors);
+    }
+    return jsonResponse({ ok: true, id }, 200, pilotCors);
+  }
+
+  if (request.method === 'GET' && path === '/api/polls/hidden') {
+    const pilotCors = corsForPilot(request);
+    const gate = await requireAdminPilotSession(request, env, pilotCors);
+    if (gate.response) return gate.response;
+    let rows;
+    try {
+      rows = await db.prepare(
+        "SELECT id, question, character_name, created_at, approved_at, hidden_at, hidden_by FROM lantern_polls WHERE hidden_at IS NOT NULL AND hidden_at != '' ORDER BY hidden_at DESC"
+      ).all();
+    } catch (e) {
+      return jsonResponse({ ok: false, error: 'Poll hide requires DB migration 067 (hidden_at on lantern_polls)' }, 503, pilotCors);
+    }
+    const list = (rows.results || []).map((r) => ({
+      id: r.id,
+      question: r.question || '',
+      character_name: r.character_name || '',
+      created_at: r.created_at || '',
+      approved_at: r.approved_at || null,
+      hidden_at: r.hidden_at || null,
+      hidden_by: r.hidden_by || null,
+    }));
+    return jsonResponse({ ok: true, polls: list }, 200, pilotCors);
+  }
+
   if (request.method === 'GET' && path === '/api/polls') {
     let rows;
     try {
       rows = await db.prepare(
-        'SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT 50'
+        "SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '') ORDER BY approved_at DESC LIMIT 50"
       ).all();
     } catch (e) {
-      rows = await db.prepare(
-        'SELECT id, mission_submission_id, question, choices_json, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT 50'
-      ).all();
+      try {
+        rows = await db.prepare(
+          'SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT 50'
+        ).all();
+      } catch (e2) {
+        rows = await db.prepare(
+          'SELECT id, mission_submission_id, question, choices_json, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT 50'
+        ).all();
+      }
     }
     const list = (rows.results || []).map(r => {
       let choices = [];
@@ -6303,12 +6375,21 @@ async function handlePollsRoutes(request, url, path, env, cors) {
   const pollIdMatch = path.match(/^\/api\/polls\/([^/]+)$/);
   if (request.method === 'GET' && pollIdMatch) {
     const pollId = pollIdMatch[1];
+    if (pollId === 'hide' || pollId === 'restore' || pollId === 'hidden' || pollId === 'contribute' || pollId === 'contributions' || pollId === 'returned' || pollId === 'resubmit' || pollId === 'vote') {
+      return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
+    }
     const characterName = (url.searchParams.get('character_name') || '').trim();
     let row;
     try {
-      row = await db.prepare('SELECT id, question, choices_json, image_url, character_name, created_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
+      row = await db.prepare(
+        "SELECT id, question, choices_json, image_url, character_name, created_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')"
+      ).bind(pollId).first();
     } catch (e) {
-      row = await db.prepare('SELECT id, question, choices_json, character_name, created_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
+      try {
+        row = await db.prepare('SELECT id, question, choices_json, image_url, character_name, created_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
+      } catch (e2) {
+        row = await db.prepare('SELECT id, question, choices_json, character_name, created_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
+      }
     }
     if (!row) return jsonResponse({ ok: false, error: 'Poll not found' }, 404, cors);
     let choices = [];
@@ -6351,7 +6432,14 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     }
     const characterName = identityAuth.characterName;
 
-    const poll = await db.prepare('SELECT id, choices_json FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
+    let poll;
+    try {
+      poll = await db.prepare(
+        "SELECT id, choices_json FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')"
+      ).bind(pollId).first();
+    } catch (e) {
+      poll = await db.prepare('SELECT id, choices_json FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL').bind(pollId).first();
+    }
     if (!poll) return jsonResponse({ ok: false, error: 'Poll not found' }, 404, cors);
     let choices = [];
     try { choices = JSON.parse(poll.choices_json || '[]'); } catch (_) {}

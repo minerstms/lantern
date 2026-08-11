@@ -357,19 +357,29 @@ async function fetchApprovedPolls(db, origin, limit) {
   const lim = Math.min(100, Math.max(1, limit || 50));
   let rows;
   try {
+    // Prompt #213 — exclude hidden polls (hidden_at) while keeping rows + votes recoverable.
     rows = await db
       .prepare(
-        'SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?'
+        "SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '') ORDER BY approved_at DESC LIMIT ?"
       )
       .bind(lim)
       .all();
   } catch (_) {
-    rows = await db
-      .prepare(
-        'SELECT id, mission_submission_id, question, choices_json, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?'
-      )
-      .bind(lim)
-      .all();
+    try {
+      rows = await db
+        .prepare(
+          'SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?'
+        )
+        .bind(lim)
+        .all();
+    } catch (__) {
+      rows = await db
+        .prepare(
+          'SELECT id, mission_submission_id, question, choices_json, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?'
+        )
+        .bind(lim)
+        .all();
+    }
   }
   return filterOutDemoPersonas(rows.results || [], 'character_name').map((r) => normalizePollRow(r, origin));
 }

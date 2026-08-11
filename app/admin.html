@@ -615,7 +615,7 @@
       <div class="teacherCollapsibleListMeta"><span class="pill accent" id="adminFeedSummaryPill">0 live / 0 hidden</span></div>
     </summary>
     <div class="cardBd teacherCollapsibleListBd">
-    <p class="acctPanelHint">Hide approved news or mission posts from Lantern and other student-facing feeds without deleting them. Rows stay in the database; use Unhide to restore.</p>
+    <p class="acctPanelHint">Hide approved news, mission posts, or polls from Lantern and other student-facing feeds without deleting them. Rows stay in the database; use Unhide to restore.</p>
     <div id="feedModMsg" role="status" aria-live="polite" style="display:none;"></div>
     <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="adminFeedLivePanel">
       <summary class="teacherCollapsibleListHd">
@@ -2278,13 +2278,17 @@
       Promise.all([
         fetch(api + '/api/news/approved', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, news: [] }; }),
         fetch(api + '/api/missions/submissions/approved?limit=40', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, submissions: [] }; }),
+        fetch(api + '/api/polls', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, polls: [] }; }),
         fetch(api + '/api/news/hidden', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
         fetch(api + '/api/missions/submissions/hidden?limit=50', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
+        fetch(api + '/api/polls/hidden', { credentials: 'include' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'network' }; }),
       ]).then(function (arr) {
         var newsRes = arr[0] || {};
         var missRes = arr[1] || {};
-        var hidNewsRes = arr[2] || {};
-        var hidMissRes = arr[3] || {};
+        var pollRes = arr[2] || {};
+        var hidNewsRes = arr[3] || {};
+        var hidMissRes = arr[4] || {};
+        var hidPollRes = arr[5] || {};
         if (hidNewsRes && hidNewsRes.error === 'network') {
           showFeedModMsg('Could not load hidden news (network or sign-in).', 'err');
         } else if (hidNewsRes && !hidNewsRes.ok && hidNewsRes.error === 'forbidden') {
@@ -2294,20 +2298,22 @@
         }
         var liveNews = (newsRes && newsRes.news) || [];
         var liveMiss = (missRes && missRes.submissions) || [];
+        var livePolls = (pollRes && pollRes.polls) || [];
         var hiddenNews = (hidNewsRes && hidNewsRes.news) || [];
         var hiddenMiss = (hidMissRes && hidMissRes.submissions) || [];
+        var hiddenPolls = (hidPollRes && hidPollRes.polls) || [];
         var livePill = document.getElementById('adminFeedLiveCountPill');
         var hidPill = document.getElementById('adminFeedHiddenCountPill');
-        var liveCount = liveNews.length + liveMiss.length;
-        var hidCount = hiddenNews.length + hiddenMiss.length;
+        var liveCount = liveNews.length + liveMiss.length + livePolls.length;
+        var hidCount = hiddenNews.length + hiddenMiss.length + hiddenPolls.length;
         if (livePill) livePill.textContent = String(liveCount);
         if (hidPill) hidPill.textContent = String(hidCount);
         var summaryPill = document.getElementById('adminFeedSummaryPill');
         if (summaryPill) summaryPill.textContent = liveCount + ' live / ' + hidCount + ' hidden';
 
         liveEl.innerHTML = '';
-        if (liveNews.length === 0 && liveMiss.length === 0) {
-          liveEl.innerHTML = '<p class="pendingMeta">No approved news or mission posts in the public feed lists.</p>';
+        if (liveNews.length === 0 && liveMiss.length === 0 && livePolls.length === 0) {
+          liveEl.innerHTML = '<p class="pendingMeta">No approved news, mission posts, or polls in the public feed lists.</p>';
         } else {
           liveNews.forEach(function (n) {
             var div = document.createElement('div');
@@ -2384,6 +2390,47 @@
             actions.appendChild(hb);
             liveEl.appendChild(div);
           });
+          livePolls.forEach(function (p) {
+            var div = document.createElement('div');
+            div.className = 'pendingRow';
+            div.innerHTML =
+              '<div style="flex:1;min-width:0;"><strong>Poll</strong> — ' +
+              esc(p.question || 'Untitled poll') +
+              '<div class="pendingMeta">' +
+              esc(p.character_name || '') +
+              '</div></div><div class="pendingRowActions"></div>';
+            var actions = div.querySelector('.pendingRowActions');
+            var hb = document.createElement('button');
+            hb.type = 'button';
+            hb.className = 'btn bad';
+            hb.textContent = 'Hide';
+            hb.addEventListener('click', function () {
+              hb.disabled = true;
+              var hideEndpoint = '/api/polls/hide';
+              var payload = { id: String(p.id != null ? p.id : '') };
+              postAdminJson(hideEndpoint, payload).then(function (res) {
+                if (res && res.blocked) {
+                  adminFeedVisibilityLog('hide', hideEndpoint, payload.id, 'poll', { blocked: true });
+                  showFeedModMsg('Sign-in update required. Refresh the page if prompted.', 'err');
+                  return;
+                }
+                adminFeedVisibilityLog('hide', hideEndpoint, payload.id, 'poll', res && res.body ? res.body : res);
+                if (res && res.okHttp && res.body && res.body.ok) {
+                  showFeedModMsg('Poll hidden from student feeds.', 'ok');
+                  loadFeedModeration();
+                } else {
+                  showFeedModMsg((res && res.body && res.body.error) || 'Hide failed', 'err');
+                }
+              }).catch(function () {
+                adminFeedVisibilityLog('hide', hideEndpoint, payload.id, 'poll', { error: 'network' });
+                showFeedModMsg('Network error.', 'err');
+              }).finally(function () {
+                hb.disabled = false;
+              });
+            });
+            actions.appendChild(hb);
+            liveEl.appendChild(div);
+          });
         }
 
         hidEl.innerHTML = '';
@@ -2394,6 +2441,9 @@
         (hiddenMiss || []).forEach(function (s) {
           hidCombined.push({ kind: 'mission', row: s });
         });
+        (hiddenPolls || []).forEach(function (p) {
+          hidCombined.push({ kind: 'poll', row: p });
+        });
         if (hidCombined.length === 0) {
           hidEl.innerHTML = '<p class="pendingMeta">Nothing hidden.</p>';
         } else {
@@ -2403,11 +2453,15 @@
             var title =
               item.kind === 'news'
                 ? esc(item.row.title || 'Untitled')
-                : esc((item.row.mission_title || 'Mission') + ' — ' + (item.row.character_name || ''));
+                : item.kind === 'poll'
+                  ? esc(item.row.question || 'Untitled poll')
+                  : esc((item.row.mission_title || 'Mission') + ' — ' + (item.row.character_name || ''));
             var meta =
               item.kind === 'news'
                 ? 'News · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '')
-                : 'Mission · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '');
+                : item.kind === 'poll'
+                  ? 'Poll · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '')
+                  : 'Mission · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '');
             div.innerHTML =
               '<div style="flex:1;min-width:0;">' +
               title +
@@ -2421,7 +2475,12 @@
             ub.textContent = 'Unhide';
             ub.addEventListener('click', function () {
               ub.disabled = true;
-              var path = item.kind === 'news' ? '/api/news/restore' : '/api/missions/submissions/restore';
+              var path =
+                item.kind === 'news'
+                  ? '/api/news/restore'
+                  : item.kind === 'poll'
+                    ? '/api/polls/restore'
+                    : '/api/missions/submissions/restore';
               var body = { id: String(item.row.id != null ? item.row.id : '') };
               postAdminJson(path, body).then(function (res) {
                 if (res && res.blocked) {

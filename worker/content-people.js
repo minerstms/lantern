@@ -483,6 +483,7 @@ export async function feedIdsRelatedToPersonKeys(db, personKeyRows) {
             .prepare(
               `SELECT id FROM lantern_polls
                WHERE mission_submission_id = ? AND approved_at IS NOT NULL
+                 AND (hidden_at IS NULL OR hidden_at = '')
                LIMIT 1`
             )
             .bind('contrib:' + cid)
