@@ -2088,18 +2088,15 @@
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
-    <!-- Prompt #107 — standalone Shout-Out! workspace (not inside Missions). Uses Worker recognition API; no Nugget award. -->
+    <!-- Prompt #107/#212 — Shout-Out! workspace. Page title is teacherWorkspaceTitle; no inner duplicate header. -->
     <section id="teacher-shoutout" class="teacherMissionsSection" data-workspace="shoutout" aria-labelledby="teacherShoutOutHeading">
       <h2 id="teacherShoutOutHeading" class="visuallyHidden">Shout-Out!</h2>
-      <details class="card teacherCollapsibleList" id="teacher-shoutout-card" open data-collapsible-default-open="1">
-        <summary class="cardHd teacherCollapsibleListHd">
-          <div class="teacherCollapsibleListTitle"><div class="h">Shout-Out!</div></div>
-        </summary>
-        <div class="cardBd teacherCollapsibleListBd">
+      <div class="card" id="teacher-shoutout-card">
+        <div class="cardBd">
           <p class="note note-tight">Recognize anyone, now.</p>
           <div class="teacherField">
-            <label for="teacherShoutPeopleSearch">Recognizing</label>
-            <div id="teacherShoutPeopleMount" aria-label="Recognizing"></div>
+            <!-- Prompt #212 — single Recognizing label comes from LanternPeoplePicker.mount -->
+            <div id="teacherShoutPeopleMount"></div>
           </div>
           <div class="teacherField">
             <label for="shoutOutMessage">Message (max 250 characters)</label>
@@ -2124,7 +2121,7 @@
             </div>
           </details>
         </div>
-      </details>
+      </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </section>
 
@@ -2248,7 +2245,7 @@
         return;
       }
       if (name === 'shoutout') {
-        setPanelOpen('teacher-shoutout-card', true);
+        /* Prompt #212 — shout-out form is a plain card (not a details accordion). */
         return;
       }
       if (name === 'moderation') {
