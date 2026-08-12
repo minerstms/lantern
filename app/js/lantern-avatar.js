@@ -8,6 +8,7 @@
  * IDENTITY-BEARING SURFACES: Do not read custom_avatar, avatar_image, author_avatar_url, etc.
  * for rendering. Use getCanonicalAvatar(character_name) or attachCanonicalAvatarsToItems().
  * The account key is character_name (same query param as /api/avatar/status).
+ * Prompt #218 — prefer immutable authorAvatarKey / authorId (e.g. rick.radle), not display labels.
  */
 (function (global) {
   var DEFAULT_EMOJI = '🌟';
@@ -97,42 +98,62 @@
     return DEFAULT_EMOJI;
   }
 
+  /** Prompt #218 — durable Locker avatar key first; never prefer "Rick R." / display labels. */
+  function avatarLookupKeysFromItem(p) {
+    if (!p || typeof p !== 'object') return [];
+    var keys = [];
+    function push(v) {
+      var s = String(v || '').trim();
+      if (!s) return;
+      if (keys.indexOf(s) < 0) keys.push(s);
+    }
+    push(p.authorAvatarKey);
+    push(p.author_avatar_key);
+    push(p.authorId);
+    push(p.author_id);
+    push(p.actor_id);
+    push(p[CANONICAL_IDENTITY_KEY]);
+    push(p.author_name);
+    push(p.authorDisplayName);
+    return keys;
+  }
+
   function accountKeyFromItem(p) {
-    if (!p || typeof p !== 'object') return '';
-    return String(p[CANONICAL_IDENTITY_KEY] || p.author_name || p.authorDisplayName || '').trim();
+    var keys = avatarLookupKeysFromItem(p);
+    return keys.length ? keys[0] : '';
   }
 
   /**
-   * Pick best resolved avatar: prefer an approved image; prefer account key (character_name) when both have images.
+   * Pick best resolved avatar: prefer an approved image; prefer durable account key when both have images.
    */
   function mergeCanonicalAvatarForItem(map, p) {
-    var kChar = String(p.character_name || '').trim();
-    var kAuth = String(p.author_name || p.authorDisplayName || '').trim();
-    var a = kChar && map[kChar] ? map[kChar] : null;
-    var b = kAuth && kAuth !== kChar && map[kAuth] ? map[kAuth] : null;
-    if (!a && !b) return null;
-    var imgA = a && a.imageUrl && String(a.imageUrl).trim();
-    var imgB = b && b.imageUrl && String(b.imageUrl).trim();
-    if (imgA) return a;
-    if (imgB) return b;
-    return a || b;
+    var keys = avatarLookupKeysFromItem(p);
+    var bestImg = null;
+    var bestAny = null;
+    var i;
+    for (i = 0; i < keys.length; i++) {
+      var hit = map[keys[i]];
+      if (!hit) continue;
+      if (!bestAny) bestAny = hit;
+      if (hit.imageUrl && String(hit.imageUrl).trim()) {
+        bestImg = hit;
+        break;
+      }
+    }
+    return bestImg || bestAny || null;
   }
 
   /**
    * Mutates each item: sets _canonicalAvatar = { imageUrl, emoji } for identity-bearing rows.
-   * Fetches both character_name and author_name when both differ so Worker responses keyed by
-   * internal id OR public display name both resolve (Contribute rail + opened preview parity with Locker).
+   * Prompt #218 — fetch authorAvatarKey / authorId before display-name aliases.
    */
   function attachCanonicalAvatarsToItems(items) {
     var list = Array.isArray(items) ? items : [];
     var names = [];
     list.forEach(function (p) {
-      var k1 = String(p.character_name || '').trim();
-      var k2 = String(p.author_name || '').trim();
-      var k3 = String(p.authorDisplayName || '').trim();
-      if (k1 && names.indexOf(k1) < 0) names.push(k1);
-      if (k2 && names.indexOf(k2) < 0) names.push(k2);
-      if (k3 && names.indexOf(k3) < 0) names.push(k3);
+      avatarLookupKeysFromItem(p).forEach(function (k) {
+        if (names.indexOf(k) < 0) names.push(k);
+      });
     });
     var req = names.map(function (n) {
       return { characterName: n, legacyEmoji: getLegacyEmojiForCharacter(n) };
@@ -152,6 +173,7 @@
     getLegacyEmojiForCharacter: getLegacyEmojiForCharacter,
     attachCanonicalAvatarsToItems: attachCanonicalAvatarsToItems,
     accountKeyFromItem: accountKeyFromItem,
+    avatarLookupKeysFromItem: avatarLookupKeysFromItem,
     CANONICAL_IDENTITY_KEY: CANONICAL_IDENTITY_KEY,
     DEFAULT_EMOJI: DEFAULT_EMOJI
   };

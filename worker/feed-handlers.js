@@ -5,6 +5,7 @@
 import { extractMissionSubmissionMedia } from './missions-auth.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
+import { attachAuthorAvatarKeys, loadPilotAvatarKeyIndex } from './author-avatar-key.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -429,20 +430,23 @@ async function fetchApprovedShoutOuts(db, origin, limit) {
 
 export async function collectApprovedFeed(db, origin, opts) {
   const limit = opts && opts.limit ? opts.limit : 200;
-  const [feedItems, newsItems, missionItems, pollItems, shoutItems] = await Promise.all([
+  const [feedItems, newsItems, missionItems, pollItems, shoutItems, avatarIndex] = await Promise.all([
     fetchApprovedFeedItems(db, origin),
     fetchApprovedNews(db, origin),
     fetchApprovedMissions(db, origin, limit),
     fetchApprovedPolls(db, origin, limit),
     fetchApprovedShoutOuts(db, origin, limit),
+    loadPilotAvatarKeyIndex(db),
   ]);
   // Prompt #97: known demo/fake personas (created while building the app) have real, approved
   // rows in production across feed sources here — filter them from this unified public
   // Explore feed rather than deleting the historical rows. See worker/demo-persona-guard.js.
-  return filterOutDemoPersonas(
+  const items = filterOutDemoPersonas(
     [...feedItems, ...newsItems, ...missionItems, ...pollItems, ...shoutItems],
     'authorDisplayName'
   );
+  // Prompt #218 — attach Locker avatar profile keys (username / student economy id), not display labels.
+  return attachAuthorAvatarKeys(items, avatarIndex);
 }
 
 export function filterFeedItems(items, params) {

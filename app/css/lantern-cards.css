@@ -84,7 +84,8 @@
   right: 0;
   bottom: 0;
   z-index: 2;
-  max-height: 46%;
+  /* Prompt #218 — room for title + 28px LLHC author avatar without bottom clip */
+  max-height: 58%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -106,10 +107,11 @@
 .lanternCanonicalCardCaption {
   position: relative;
   z-index: 1;
-  /* Prompt #217 — keep LLHC avatar/meta clearly inset from card edges (not edge-touching). */
-  padding: 0 14px 12px 14px;
+  /* Prompt #218 — nestle LLHC avatar with ~12–14px edge breathing room; full 28px circle visible */
+  padding: 0 14px 14px 12px;
   padding-right: 44px;
   box-sizing: border-box;
+  overflow: visible;
 }
 .lanternCanonicalCardTitle {
   margin: 0;
@@ -130,16 +132,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 5px;
+  margin-top: 6px;
   color: rgba(255,255,255,.92);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   text-shadow: 0 1px 6px rgba(0,0,0,.85);
   min-width: 0;
   width: 100%;
+  min-height: var(--lantern-content-author-avatar-size, 28px);
 }
 .lanternCanonicalCardMeta .identity-chip {
   flex: 0 0 auto;
@@ -153,12 +157,14 @@
   overflow: hidden;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(255,255,255,.28);
+  align-self: center;
 }
 .lanternCanonicalCardMeta .exploreCardAvatarImg {
   width: var(--lantern-content-author-avatar-size, 28px);
   height: var(--lantern-content-author-avatar-size, 28px);
   border-radius: 50%;
   object-fit: cover;
+  object-position: center;
   display: block;
 }
 .lanternCanonicalCardAuthor,

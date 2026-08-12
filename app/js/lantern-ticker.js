@@ -99,29 +99,45 @@
     (slides || []).forEach(function (s) {
       var m = s.meta || {};
       if (m.character_name) addName(m.character_name, m.avatar);
+      if (m.author_avatar_key) addName(m.author_avatar_key, m.avatar);
+      if (m.actor_id) addName(m.actor_id, m.avatar);
     });
     (recognitionList || []).forEach(function (r) {
       if (r.character_name) addName(r.character_name);
+      if (r.created_by_teacher_id) addName(r.created_by_teacher_id);
     });
     (newsList || []).forEach(function (n) {
-      var an = String(n.author_name || (n.meta && n.meta.character_name) || '').trim();
-      if (an) addName(an, n.meta && n.meta.avatar);
+      var ak = String(n.author_avatar_key || n.actor_id || n.author_name || (n.meta && n.meta.character_name) || '').trim();
+      if (ak) addName(ak, n.meta && n.meta.avatar);
+      if (n.author_name) addName(n.author_name, n.meta && n.meta.avatar);
     });
     if (req.length === 0) return Promise.resolve();
     return LA.getCanonicalAvatarMap(req).then(function (map) {
+      function pick(keys) {
+        var i;
+        for (i = 0; i < keys.length; i++) {
+          var k = String(keys[i] || '').trim();
+          if (k && map[k] && map[k].imageUrl && String(map[k].imageUrl).trim()) return map[k];
+        }
+        for (i = 0; i < keys.length; i++) {
+          var k2 = String(keys[i] || '').trim();
+          if (k2 && map[k2]) return map[k2];
+        }
+        return null;
+      }
       (slides || []).forEach(function (s) {
         s.meta = s.meta || {};
-        var cn = String(s.meta.character_name || '').trim();
-        if (cn && map[cn]) s.meta._canonicalAvatar = map[cn];
+        var hit = pick([s.meta.author_avatar_key, s.meta.actor_id, s.meta.character_name]);
+        if (hit) s.meta._canonicalAvatar = hit;
       });
       (recognitionList || []).forEach(function (r) {
-        var cn = String(r.character_name || '').trim();
-        if (cn && map[cn]) r._canonicalAvatar = map[cn];
+        var hit = pick([r.created_by_teacher_id, r.character_name]);
+        if (hit) r._canonicalAvatar = hit;
       });
       (newsList || []).forEach(function (n) {
         n.meta = n.meta || {};
-        var an = String(n.author_name || n.meta.character_name || '').trim();
-        if (an && map[an]) n.meta._canonicalAvatar = map[an];
+        var hit = pick([n.author_avatar_key, n.actor_id, n.author_name, n.meta.character_name]);
+        if (hit) n.meta._canonicalAvatar = hit;
       });
     });
   }
@@ -386,6 +402,7 @@
           if (!t || seenNews[t.toLowerCase()]) return;
           seenNews[t.toLowerCase()] = true;
           var author = String(n.author_name || (n.meta && n.meta.character_name) || '').trim();
+          var avatarKey = String(n.author_avatar_key || n.actor_id || author || '').trim();
           slides.push({
             type: 'student_news',
             title: t,
@@ -393,7 +410,9 @@
             image: null,
             actor_name: author,
             meta: {
-              character_name: author,
+              character_name: avatarKey,
+              actor_id: n.actor_id || null,
+              author_avatar_key: avatarKey || null,
               avatar: (n.meta && n.meta.avatar) || '📰',
               body_preview: String(n.body || '').slice(0, 100)
             },

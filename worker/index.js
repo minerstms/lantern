@@ -15,6 +15,7 @@ import {
   validateStaffNamePart,
 } from './admin-account-utils.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
+import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar-key.js';
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { handleMissionsRoutes } from './missions-handlers.js';
@@ -5710,11 +5711,19 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     // the historical rows. See worker/demo-persona-guard.js.
     const rawResults = filterOutDemoPersonas(rows.results || [], 'author_name');
     console.log('[GET /api/news/approved] row count:', rawResults.length);
+    // Prompt #218 — expose actor_id + Locker avatar key so ticker/LLHC do not look up display names.
+    const avatarIndex = await loadPilotAvatarKeyIndex(db);
     const list = rawResults.map(r => ({
       id: r.id,
       title: r.title,
       body: r.body,
       category: r.category != null && String(r.category).trim() !== '' ? String(r.category).trim() : null,
+      actor_id: r.actor_id != null && String(r.actor_id).trim() ? String(r.actor_id).trim() : null,
+      author_avatar_key: resolveAuthorAvatarKey(avatarIndex, {
+        actor_id: r.actor_id,
+        author_name: r.author_name,
+        character_name: r.actor_id,
+      }) || null,
       author_name: r.author_name,
       author_type: r.author_type,
       image_r2_key: r.image_r2_key,

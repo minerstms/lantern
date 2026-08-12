@@ -278,6 +278,9 @@
     var iso = item.approvedAt || item.createdAt || item.created_at || item.approved_at || null;
     var authorRaw = String(item.authorDisplayName || item.display_name || item.author_name || item.character_name || '').trim();
     var slot = item.contentSlot || {};
+    var avatarAccountKey = String(
+      item.authorAvatarKey || item.author_avatar_key || item.authorId || item.author_id || item.actor_id || item.character_name || authorRaw || ''
+    ).trim();
     var isGameAchievement =
       type === 'game_score' || type === 'achievement' || type === 'leaderboard' ||
       !!slot.gameAchievement;
@@ -318,8 +321,10 @@
       type: item.type || 'news',
       title: isGameAchievement ? headline : (item.title || 'Untitled'),
       author: authorRaw,
-      character_name: String(item.character_name || authorRaw || '').trim(),
+      character_name: avatarAccountKey,
       author_name: String(item.author_name || authorRaw || '').trim(),
+      authorAvatarKey: avatarAccountKey,
+      authorId: item.authorId || item.author_id || item.actor_id || null,
       _canonicalAvatar: item._canonicalAvatar,
       dateIso: iso,
       dateMeta: formatCompactDate(iso),

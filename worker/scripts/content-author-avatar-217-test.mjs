@@ -23,7 +23,7 @@ assert(/--lantern-content-author-avatar-size:\s*28px/.test(cardsCss), '1. shared
 assert(/var\(--lantern-content-author-avatar-size/.test(tickerCss), '2. ticker avatar uses shared size token');
 assert(/var\(--lantern-content-author-avatar-size/.test(cardsCss), '3. LLHC avatar uses shared size token');
 assert(!/\.lanternCanonicalCardMeta\s+\.exploreCardAvatarImg[\s\S]{0,80}15px/.test(cardsCss), '4. LLHC no longer stuck at 15px');
-assert(/padding:\s*0\s+14px\s+12px\s+14px/.test(cardsCss), '5. LLHC caption inset from edges');
+assert(/padding:\s*0\s+14px\s+14px\s+12px/.test(cardsCss), '5. LLHC caption inset from edges');
 
 assert(/avatarEmoji[\s\S]{0,200}🌟/.test(tickerJs) && /lanternTickerItemAvatar--emoji/.test(tickerJs), '6. ticker always renders second avatar slot with fallback');
 

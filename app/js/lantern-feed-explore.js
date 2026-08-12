@@ -144,12 +144,16 @@
         if (status && context === 'locker') {
           status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
         }
-        /* Prompt #158 — resolve canonical author avatars before paint when available. */
+        /* Prompt #158 / #218 — resolve canonical author avatars before paint.
+           Prefer durable authorAvatarKey / authorId (rick.radle), not display "Rick Radle". */
         state.items.forEach(function (it) {
           if (!it) return;
-          var nm = String(it.authorDisplayName || it.author_name || it.character_name || '').trim();
-          if (nm && !it.character_name) it.character_name = nm;
-          if (nm && !it.author_name) it.author_name = nm;
+          var avatarKey = String(it.authorAvatarKey || it.author_avatar_key || it.authorId || it.author_id || it.actor_id || '').trim();
+          var displayNm = String(it.authorDisplayName || it.author_name || '').trim();
+          if (avatarKey) it.character_name = avatarKey;
+          else if (displayNm && !it.character_name) it.character_name = displayNm;
+          if (displayNm) it.author_name = displayNm;
+          else if (!it.author_name && it.character_name) it.author_name = String(it.character_name).trim();
         });
         var attach = global.LanternAvatar && typeof global.LanternAvatar.attachCanonicalAvatarsToItems === 'function'
           ? global.LanternAvatar.attachCanonicalAvatarsToItems(state.items)

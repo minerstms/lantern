@@ -189,8 +189,9 @@ assert(/-webkit-line-clamp:\s*1/.test(cardsCss) && /line-clamp:\s*1/.test(cardsC
 assert(/lanternCanonicalCardDesc/.test(cardsCss) && /text-overflow:\s*ellipsis/.test(cardsCss), '11b. description CSS ellipsis');
 assert(
   /--lantern-content-author-avatar-size:\s*28px/.test(cardsCss) &&
-    /\.lanternCanonicalCardMeta\s+\.exploreCardAvatarImg[\s\S]{0,120}var\(--lantern-content-author-avatar-size/.test(cardsCss),
-  '11c. LLHC overlay avatar matches shared 28px author-avatar token'
+    /\.lanternCanonicalCardMeta\s+\.exploreCardAvatarImg[\s\S]{0,120}var\(--lantern-content-author-avatar-size/.test(cardsCss) &&
+    /max-height:\s*58%/.test(cardsCss),
+  '11c. LLHC overlay avatar matches shared 28px token and fits overlay'
 );
 
 const gameSpec = LC.specGameHubRailCard({
