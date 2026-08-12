@@ -11,6 +11,12 @@ export function isTeacherLike(role) {
   return r === 'teacher' || r === 'admin';
 }
 
+/** Prompt #13 — teacher / admin / staff are staff-side mission participants (bypass student review). */
+export function isStaffSideParticipantRole(role) {
+  const r = normalizeRole(role);
+  return r === 'teacher' || r === 'admin' || r === 'staff';
+}
+
 export function isAdminRole(role) {
   return normalizeRole(role) === 'admin';
 }
@@ -89,7 +95,7 @@ export function resolveParticipantMissionIdentity(account, pilotEconomyCharacter
     }
     return { ok: true, characterName, participantKind: 'student', session_scoped: true };
   }
-  if (isTeacherLike(account.role)) {
+  if (isStaffSideParticipantRole(account.role)) {
     const characterName = staffMissionSubmitterKey(account);
     if (!characterName) {
       return { ok: false, code: 400, error: 'account_link_missing' };

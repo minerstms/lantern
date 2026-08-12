@@ -3192,7 +3192,21 @@
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: id })
-        }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
+        }).then(function(r){
+          return r.json().then(function(j){
+            j = j && typeof j === 'object' ? j : { ok: false, error: 'Bad response' };
+            if (!r.ok) {
+              j.ok = false;
+              if (!j.error) j.error = 'Request failed';
+            }
+            // Prompt #13 — never treat partial finalize as Approved success.
+            if (j.ok && j.explore_ready === false) {
+              j.ok = false;
+              j.error = j.error || 'Publication did not complete';
+            }
+            return j;
+          }).catch(function(){ return { ok: false, error: 'Bad response' }; });
+        }).catch(function(){ return { ok: false, error: 'Network error' }; });
       }
       var run = createRun ? createRun() : null;
       if (!run) return Promise.resolve({ ok: false });
@@ -3811,17 +3825,47 @@
       var html = '';
       var actionsHtml = '';
       if (type === 'mission') {
+        var missionUserLabel =
+          (item.submitter_public_label && String(item.submitter_public_label).trim()) ||
+          (window.LanternCards && typeof window.LanternCards.formatExploreAuthorLabel === 'function'
+            ? window.LanternCards.formatExploreAuthorLabel({
+                author: item.character_name,
+                authorRole: item.submitter_kind === 'staff' ? 'staff' : 'student',
+                authorPublicLabel: item.submitter_public_label || '',
+              })
+            : '') ||
+          '—';
+        if (/^staff:/i.test(String(missionUserLabel))) missionUserLabel = '—';
+        var missionCreatorLabel =
+          (item.created_by_teacher_public_label && String(item.created_by_teacher_public_label).trim()) ||
+          (item.created_by_teacher_name && String(item.created_by_teacher_name).trim()) ||
+          'Teacher';
+        if (/^staff:/i.test(String(missionCreatorLabel))) missionCreatorLabel = 'Teacher';
+        var missionRewardN = Number(item.mission_reward) || 1;
+        var missionRewardLabel = '+' + missionRewardN + ' Nugget' + (missionRewardN !== 1 ? 's' : '');
         metaRows.push(['Type', 'Mission']);
-        metaRows.push(['Student', item.character_name || '—']);
-        metaRows.push(['Created by', item.created_by_teacher_name || 'Teacher']);
-        var reviewerLabel = (typeof getApprovalStaffId === 'function' && getApprovalStaffId()) ? ((typeof TEACHER_PERSONAS !== 'undefined' && TEACHER_PERSONAS) ? (TEACHER_PERSONAS.find(function(p){ return p.teacher_id === getApprovalStaffId(); }) || {}).displayName || getApprovalStaffId() : getApprovalStaffId()) : 'You';
-        metaRows.push(['Reviewer', reviewerLabel]);
+        metaRows.push(['User', missionUserLabel]);
+        metaRows.push(['Created by', missionCreatorLabel]);
         firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
-        firstMetaName = item.character_name || '—';
+        firstMetaName = missionUserLabel;
         metaRows.push(['Mission', item.mission_title || '—']);
-        metaRows.push(['Reward', '+' + (item.mission_reward || 1) + ' nugget' + ((item.mission_reward || 1) !== 1 ? 's' : '')]);
+        metaRows.push(['Reward', missionRewardLabel]);
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        html = '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow"><span class="reviewMetaLabel">Type:</span> Mission</div>' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(item.character_name || '—') + '</span></div>' + metaRows.slice(2).map(function(r){ return '<div class="reviewMetaRow"><span class="reviewMetaLabel">' + esc(r[0]) + ':</span>' + esc(r[1]) + '</div>'; }).join('') + '</div><div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Response</p>';
+        html =
+          '<div class="reviewPanelMetaBlock">' +
+          '<div class="reviewMetaRow"><span class="reviewMetaLabel">Type:</span> Mission</div>' +
+          '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' +
+          smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) +
+          '<span><span class="reviewMetaLabel">User:</span> ' +
+          esc(missionUserLabel) +
+          '</span></div>' +
+          metaRows
+            .slice(2)
+            .map(function (r) {
+              return '<div class="reviewMetaRow"><span class="reviewMetaLabel">' + esc(r[0]) + ':</span>' + esc(r[1]) + '</div>';
+            })
+            .join('') +
+          '</div><div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Response</p>';
         var missionMedia = window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia ? window.LanternMedia.normalizeMissionItemForMedia(item) : {};
         var teacherMissionMedia = window.LanternMedia && window.LanternMedia.renderMedia ? window.LanternMedia.renderMedia(missionMedia, { esc: esc, variant: 'teacher' }) : { imageHtml: '', videoHtml: '', linkHtml: '' };
         var oneMissionMedia = (teacherMissionMedia && (teacherMissionMedia.imageHtml || teacherMissionMedia.videoHtml || teacherMissionMedia.linkHtml)) ? (teacherMissionMedia.imageHtml || teacherMissionMedia.videoHtml || teacherMissionMedia.linkHtml) : '';
@@ -3993,10 +4037,10 @@
           else if (type === 'grade_reflection') res = await callApproveGradeReflection(item.id);
           else if (type === 'submission') res = await callApproveSubmission(item.id, 3, false);
           approveBtn.disabled = false;
-          if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; }
+          if (!res || !res.ok){ toast((res && (res.message || res.error)) || 'Failed'); return; }
           toast('Approved');
           closeReview();
-          refresh();
+          await refresh();
         };
         if (!approvalOv){
           await doApprove();

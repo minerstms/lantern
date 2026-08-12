@@ -37,6 +37,12 @@ import {
   getMissionProgressForCharacter,
 } from './mission-event-completions.js';
 import { sendThankYouMission } from './thank-you-mission.js';
+import { isStaffEconomyKey } from './staff-economy.js';
+import {
+  loadStaffPublicNameIndex,
+  resolveMissionCreatorPublicLabel,
+  resolveMissionSubmitterPublicLabel,
+} from './staff-public-name.js';
 
 /** Prompt #210 — shared SELECT list including optional Mission Card Image. */
 const MISSION_SELECT_COLS =
@@ -236,6 +242,112 @@ async function handlePollAndBugSideEffects(db, row, now) {
     } catch (_) {}
   }
   return { ok: true };
+}
+
+/**
+ * Prompt #13 — canonical mission finalization shared by:
+ *   A) staff/admin immediate submit
+ *   B) teacher Approve of a student pending submission
+ *
+ * Order: accept + reward (idempotent) → verify accepted → side effects → Explore-ready.
+ * Explore mission cards are sourced from status='accepted' (no separate feed insert).
+ * Success means accepted + explore_ready; do not claim Approved if accept/reward fails.
+ */
+export async function finalizeMissionSubmission(db, env, opts) {
+  const submissionRow = opts && opts.submissionRow;
+  const id = String((submissionRow && submissionRow.id) || opts.submissionId || '').trim();
+  if (!id || !db) {
+    return { ok: false, code: 400, error: 'missing_submission' };
+  }
+  const reviewerLabel = String((opts && opts.reviewerLabel) || 'Teacher').trim() || 'Teacher';
+  const rewardAmount = opts && opts.rewardAmount != null ? opts.rewardAmount : 1;
+
+  let row = submissionRow;
+  if (!row || !row.character_name || row.submission_type == null) {
+    row = await db
+      .prepare(
+        'SELECT id, mission_id, character_name, status, submission_type, submission_content FROM lantern_mission_submissions WHERE id = ?'
+      )
+      .bind(id)
+      .first();
+  }
+  if (!row) {
+    return { ok: false, code: 404, error: 'Not found' };
+  }
+
+  const result = await approveMissionWithReward(db, {
+    submissionId: id,
+    recipientCharacterName: row.character_name,
+    rewardAmount,
+    reviewerLabel,
+    env,
+  });
+  if (!result.ok) {
+    return result;
+  }
+
+  const verified = await db
+    .prepare(
+      'SELECT id, mission_id, character_name, status, submission_type, submission_content, reviewed_at FROM lantern_mission_submissions WHERE id = ?'
+    )
+    .bind(id)
+    .first();
+  if (!verified || String(verified.status || '').trim().toLowerCase() !== 'accepted') {
+    return {
+      ok: false,
+      code: 500,
+      error: 'finalize_not_accepted',
+      message: 'Submission was not accepted; Explore publication did not complete.',
+    };
+  }
+
+  const firstTimeApproval = !result.idempotent;
+  if (firstTimeApproval) {
+    const now = new Date().toISOString();
+    try {
+      await awardAchievementsForMissionAccepted(db, result.character_name, id);
+      const txId = missionRewardTxId(id);
+      await awardAchievementsForEconomyTransact(db, result.character_name, 'teacher_mission', txId, 'Teacher mission approved');
+      if (result.nuggets > 0) {
+        await awardAchievementsAfterPositiveCredit(db, result.character_name, txId, result.nuggets);
+      }
+    } catch (_) {}
+    const side = await handlePollAndBugSideEffects(db, verified, now);
+    if (!side.ok) {
+      return {
+        ok: false,
+        code: 503,
+        error: side.error || 'publish_side_effects_failed',
+        accepted_without_publish: true,
+        character_name: result.character_name,
+        nuggets: result.nuggets,
+      };
+    }
+  }
+
+  try {
+    const mid = String(verified.mission_id || row.mission_id || '');
+    if (mid === WAVE2_MISSION_IDS.CREATE_POLL) {
+      await ensureContentApprovedMissionCompletion(db, env, 'poll', verified.character_name, id);
+    } else if (mid === WAVE2_MISSION_IDS.SHOUTOUT) {
+      await ensureContentApprovedMissionCompletion(db, env, 'shoutout', verified.character_name, id);
+    } else if (mid === WAVE2_MISSION_IDS.FIRST_PHOTO) {
+      await ensureContentApprovedMissionCompletion(db, env, 'photo', verified.character_name, id);
+    }
+  } catch (_) {}
+
+  return {
+    ok: true,
+    status: 'accepted',
+    published: true,
+    explore_ready: true,
+    character_name: result.character_name,
+    nuggets: Number(result.nuggets) || 0,
+    rewarded: !!result.rewarded,
+    reward_skipped: !!result.reward_skipped,
+    idempotent: !!result.idempotent,
+    reward_idempotent: !!result.reward_idempotent,
+  };
 }
 
 export async function handleMissionsRoutes(request, url, path, env, cors, deps) {
@@ -859,6 +971,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     // Prompt #8 — active manual missions remain redoable after prior accept/reject.
     // Usability ≠ reward eligibility: a new pending row is allowed; Nugget cadence is enforced on approve.
+    // Prompt #13 — staff-side participants finalize immediately (no student review queue).
+    const staffImmediate = identity.participantKind === 'staff';
     const existing = await db
       .prepare(
         'SELECT id, status FROM lantern_mission_submissions WHERE mission_id = ? AND character_name = ? ORDER BY created_at DESC LIMIT 1'
@@ -869,6 +983,54 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (existing) {
       const est = String(existing.status || '').trim();
       if (est === 'pending') {
+        if (staffImmediate) {
+          const pendingRow = await db
+            .prepare(
+              'SELECT id, mission_id, character_name, status, submission_type, submission_content FROM lantern_mission_submissions WHERE id = ?'
+            )
+            .bind(existing.id)
+            .first();
+          const finExisting = await finalizeMissionSubmission(db, env, {
+            submissionRow: pendingRow,
+            rewardAmount: 1,
+            reviewerLabel: 'system',
+          });
+          if (!finExisting.ok) {
+            return jsonResponse(
+              {
+                ok: false,
+                error: finExisting.error || 'finalize_failed',
+                message: finExisting.message || 'Could not finalize mission submission.',
+                accepted_without_publish: !!finExisting.accepted_without_publish,
+              },
+              finExisting.code || 500,
+              cors
+            );
+          }
+          return jsonResponse(
+            {
+              ok: true,
+              id: existing.id,
+              status: 'accepted',
+              finalized: true,
+              immediate: true,
+              explore_ready: true,
+              redo: false,
+              nuggets: finExisting.nuggets,
+              reward_amount: finExisting.nuggets,
+              reward_applied: !finExisting.reward_skipped && (finExisting.nuggets || 0) > 0,
+              reward_skipped: !!finExisting.reward_skipped,
+              mission: {
+                id: mission.id,
+                title: mission.title,
+                reward_amount: mission.reward_amount,
+                submission_type: mission.submission_type,
+              },
+            },
+            200,
+            cors
+          );
+        }
         return jsonResponse({ ok: false, error: 'submission_pending', submission_id: existing.id }, 409, cors);
       }
       if (est === 'returned') {
@@ -896,10 +1058,68 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     try {
       await awardAchievementsForMissionSubmit(db, characterName, id);
     } catch (_) {}
+
+    if (staffImmediate) {
+      const fin = await finalizeMissionSubmission(db, env, {
+        submissionRow: {
+          id,
+          mission_id: missionId,
+          character_name: characterName,
+          status: 'pending',
+          submission_type: validated.submissionType,
+          submission_content: validated.content,
+        },
+        rewardAmount: 1,
+        reviewerLabel: 'system',
+      });
+      if (!fin.ok) {
+        try {
+          await db
+            .prepare('DELETE FROM lantern_mission_submissions WHERE id = ? AND status = ?')
+            .bind(id, 'pending')
+            .run();
+        } catch (_) {}
+        return jsonResponse(
+          {
+            ok: false,
+            error: fin.error || 'finalize_failed',
+            message: fin.message || 'Could not finalize mission submission.',
+            accepted_without_publish: !!fin.accepted_without_publish,
+          },
+          fin.code || 500,
+          cors
+        );
+      }
+      return jsonResponse(
+        {
+          ok: true,
+          id,
+          status: 'accepted',
+          finalized: true,
+          immediate: true,
+          explore_ready: true,
+          redo: redoOfPrior,
+          nuggets: fin.nuggets,
+          reward_amount: fin.nuggets,
+          reward_applied: !fin.reward_skipped && (fin.nuggets || 0) > 0,
+          reward_skipped: !!fin.reward_skipped,
+          mission: {
+            id: mission.id,
+            title: mission.title,
+            reward_amount: mission.reward_amount,
+            submission_type: mission.submission_type,
+          },
+        },
+        200,
+        cors
+      );
+    }
+
     return jsonResponse(
       {
         ok: true,
         id,
+        status: 'pending',
         redo: redoOfPrior,
         mission: {
           id: mission.id,
@@ -942,6 +1162,19 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       )
       .bind(...missionIds, 'pending')
       .all();
+    // Prompt #13 — auto-finalize any staff leftover pending rows so they never sit in Review Submissions.
+    const rawPending = subRows.results || [];
+    for (const s of rawPending) {
+      if (!isStaffEconomyKey(s.character_name)) continue;
+      try {
+        await finalizeMissionSubmission(db, env, {
+          submissionRow: s,
+          rewardAmount: 1,
+          reviewerLabel: 'system',
+        });
+      } catch (_) {}
+    }
+    const studentPending = rawPending.filter((s) => !isStaffEconomyKey(s.character_name));
     const byMission = {};
     (missionRows.results || []).forEach((m) => {
       byMission[m.id] = {
@@ -951,14 +1184,63 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         teacher_name: m.teacher_name || 'Teacher',
       };
     });
-    const list = (subRows.results || []).map((s) => {
+    const staffNameIndex = await loadStaffPublicNameIndex(db);
+    const studentKeys = [
+      ...new Set(
+        studentPending
+          .map((s) => String(s.character_name || '').trim())
+          .filter((n) => n && !isStaffEconomyKey(n))
+      ),
+    ];
+    const studentDisplayByKey = Object.create(null);
+    if (studentKeys.length > 0) {
+      try {
+        const ph = studentKeys.map(() => '?').join(',');
+        const nameRows = await db
+          .prepare(
+            'SELECT mtss_student_id, student_character_name, display_name, username FROM lantern_pilot_accounts WHERE mtss_student_id IN (' +
+              ph +
+              ') OR student_character_name IN (' +
+              ph +
+              ') OR username IN (' +
+              ph +
+              ')'
+          )
+          .bind(...studentKeys, ...studentKeys, ...studentKeys)
+          .all();
+        (nameRows.results || []).forEach((r) => {
+          const dn =
+            (r.display_name && String(r.display_name).trim()) ||
+            (r.student_character_name && String(r.student_character_name).trim()) ||
+            '';
+          if (!dn) return;
+          [r.mtss_student_id, r.student_character_name, r.username].forEach((k) => {
+            const key = k != null ? String(k).trim() : '';
+            if (key) studentDisplayByKey[key] = dn;
+          });
+        });
+      } catch (_) {}
+    }
+    const list = studentPending.map((s) => {
       const m = byMission[s.mission_id] || {};
       const content = s.submission_content || '';
       const media = extractMissionSubmissionMedia(s.submission_type, content);
+      const submitterPublic = resolveMissionSubmitterPublicLabel(
+        staffNameIndex,
+        s.character_name,
+        studentDisplayByKey[String(s.character_name || '').trim()] || ''
+      );
+      const creatorPublic = resolveMissionCreatorPublicLabel(
+        staffNameIndex,
+        m.teacher_id || '',
+        m.teacher_name || 'Teacher'
+      );
       return {
         id: s.id,
         mission_id: s.mission_id,
         character_name: s.character_name,
+        submitter_public_label: submitterPublic || '',
+        submitter_kind: 'student',
         submission_type: s.submission_type,
         submission_content: content,
         status: s.status,
@@ -967,6 +1249,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         mission_reward: m.reward_amount != null ? m.reward_amount : 1,
         created_by_teacher_id: m.teacher_id || '',
         created_by_teacher_name: m.teacher_name || 'Teacher',
+        created_by_teacher_public_label: creatorPublic || m.teacher_name || 'Teacher',
         caption: media.caption || undefined,
         image_url: media.image_url || undefined,
         video_url: media.video_url || undefined,
@@ -1172,56 +1455,38 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!mission || !teacherOwnsMission(auth.account, mission.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized to approve this submission' }, 403, cors);
     }
-    // Prompt #107 — staff may participate, but never self-approve / self-reward.
+    // Prompt #107 — staff may participate, but never self-approve / self-reward via the review queue.
     if (isSelfMissionSubmission(auth.account, row.character_name)) {
       return jsonResponse({ ok: false, error: 'self_approval_forbidden', message: 'You cannot approve or reward your own mission submission.' }, 403, cors);
     }
     // Prompt #159: approval always awards exactly +1 Nugget (do not trust mission row / client).
     const reward = 1;
     const reviewer = reviewerLabelFromAccount(auth.account);
-    const result = await approveMissionWithReward(db, {
-      submissionId: id,
-      recipientCharacterName: row.character_name,
+    const result = await finalizeMissionSubmission(db, env, {
+      submissionRow: row,
       rewardAmount: reward,
       reviewerLabel: reviewer,
-      env,
     });
     if (!result.ok) {
-      return jsonResponse({ ok: false, error: result.error, accepted_without_reward: !!result.accepted_without_reward }, result.code || 500, cors);
+      return jsonResponse(
+        {
+          ok: false,
+          error: result.error,
+          message: result.message || undefined,
+          accepted_without_reward: !!result.accepted_without_reward,
+          accepted_without_publish: !!result.accepted_without_publish,
+        },
+        result.code || 500,
+        cors
+      );
     }
-    const firstTimeApproval = !result.idempotent;
-    if (firstTimeApproval) {
-      const now = new Date().toISOString();
-      try {
-        await awardAchievementsForMissionAccepted(db, result.character_name, id);
-        const txId = missionRewardTxId(id);
-        await awardAchievementsForEconomyTransact(db, result.character_name, 'teacher_mission', txId, 'Teacher mission approved');
-        if (result.nuggets > 0) {
-          await awardAchievementsAfterPositiveCredit(db, result.character_name, txId, result.nuggets);
-        }
-      } catch (_) {}
-      const side = await handlePollAndBugSideEffects(db, row, now);
-      if (!side.ok) {
-        return jsonResponse(side, 503, cors);
-      }
-    }
-    // Prompt #165 — once-ever action completion markers (idempotent; no second reward when
-    // an accepted submission already exists for this mission+student).
-    try {
-      const mid = String(row.mission_id || '');
-      if (mid === WAVE2_MISSION_IDS.CREATE_POLL) {
-        await ensureContentApprovedMissionCompletion(db, env, 'poll', row.character_name, id);
-      } else if (mid === WAVE2_MISSION_IDS.SHOUTOUT) {
-        await ensureContentApprovedMissionCompletion(db, env, 'shoutout', row.character_name, id);
-      } else if (mid === WAVE2_MISSION_IDS.FIRST_PHOTO) {
-        await ensureContentApprovedMissionCompletion(db, env, 'photo', row.character_name, id);
-      }
-    } catch (_) {}
     const nuggetsPaid = Number(result.nuggets) || 0;
     return jsonResponse(
       {
         ok: true,
         status: 'accepted',
+        published: true,
+        explore_ready: true,
         nuggets: nuggetsPaid,
         reward_amount: nuggetsPaid,
         character_name: result.character_name,

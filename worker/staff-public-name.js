@@ -147,14 +147,82 @@ export async function loadStaffPublicNameIndex(db) {
  * Students: return '' so client applies First L. compact formatter.
  * Staff: return public override / honorific format / safe full name.
  */
+/**
+ * Prompt #158/#13 — student "First L." compact label (same rules as client formatCompactAuthor).
+ * Never invent initials from numeric student ids.
+ */
+export function formatCompactPersonName(displayName) {
+  let s = trimStr(displayName).replace(/\s+/g, ' ');
+  if (!s) return '';
+  if (/^\d{3,}$/.test(s)) return '';
+  s = s
+    .replace(/\s*[·•|]\s*\d{3,}\s*$/g, '')
+    .replace(/\s+\d{6,}\s*$/g, '')
+    .replace(/\s*\(\d{3,}\)\s*$/g, '')
+    .trim();
+  if (!s) return '';
+  const low = s.toLowerCase();
+  if (low === 'unknown' || low === 'anonymous' || low === 'poll' || low === 'staff') {
+    if (low === 'staff') return 'Staff';
+    if (low === 'anonymous') return 'Anonymous';
+    return low === 'poll' ? '' : s;
+  }
+  const parts = s.split(' ').filter(Boolean);
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0];
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  const ch = last.charAt(0);
+  if (!/[A-Za-z]/.test(ch)) return first;
+  return first + ' ' + ch.toUpperCase() + '.';
+}
+
+/**
+ * Prompt #13 — never surface staff:<username> / internal keys in user-facing review UI.
+ * Staff → formatPublicStaffName; students → First L. from display name when available.
+ */
+export function resolveMissionSubmitterPublicLabel(index, characterName, studentDisplayName) {
+  const key = trimStr(characterName);
+  if (!key) return '';
+  const idx = index || buildStaffPublicNameIndex([]);
+  const low = key.toLowerCase();
+  if (low.startsWith('staff:')) {
+    const u = key.slice(6).trim();
+    const row = u ? idx.byUsername[lower(u)] : null;
+    if (row) return formatPublicStaffName(row);
+    return '';
+  }
+  if (low.startsWith('staff_id:')) return '';
+  return formatCompactPersonName(studentDisplayName || key);
+}
+
+export function resolveMissionCreatorPublicLabel(index, teacherId, teacherName) {
+  const idx = index || buildStaffPublicNameIndex([]);
+  const tid = trimStr(teacherId);
+  if (tid && idx.byUsername[lower(tid)]) {
+    return formatPublicStaffName(idx.byUsername[lower(tid)]);
+  }
+  const name = trimStr(teacherName);
+  if (!name) return '';
+  // Prefer staff formatting when the raw name already looks honorific; else leave as stored mission creator label.
+  if (/^(Mr\.|Miss|Ms\.|Mrs\.|SRO)\s+\S/i.test(name)) return name;
+  return name;
+}
+
 export function resolveAuthorPublicLabel(index, fields) {
   const idx = index || buildStaffPublicNameIndex([]);
   const role = lower(fields && (fields.authorRole || fields.author_role || fields.author_type));
-  const authorId = trimStr(fields && (fields.authorId || fields.author_id || fields.actor_id));
+  let authorId = trimStr(fields && (fields.authorId || fields.author_id || fields.actor_id));
   const display = trimStr(fields && (fields.authorDisplayName || fields.author_display_name || fields.author_name));
+
+  // Prompt #13 — mission feed rows may carry staff:<username> as author id/display.
+  if (authorId.toLowerCase().startsWith('staff:')) authorId = authorId.slice(6).trim();
+  let lookupDisplay = display;
+  if (lookupDisplay.toLowerCase().startsWith('staff:')) lookupDisplay = lookupDisplay.slice(6).trim();
 
   let row = null;
   if (authorId && idx.byUsername[lower(authorId)]) row = idx.byUsername[lower(authorId)];
+  if (!row && lookupDisplay && idx.byUsername[lower(lookupDisplay)]) row = idx.byUsername[lower(lookupDisplay)];
 
   if (row) {
     const rRole = lower(row.role);
@@ -163,6 +231,8 @@ export function resolveAuthorPublicLabel(index, fields) {
   }
 
   if (role === 'teacher' || role === 'admin' || role === 'staff') {
+    // Never leak internal staff: keys into Explore author labels.
+    if (display.toLowerCase().startsWith('staff:')) return '';
     return display || '';
   }
   return '';

@@ -314,6 +314,23 @@ export async function approveMissionWithReward(db, opts) {
   );
 
   if (!credit.ok && revertOnRewardFailure !== false) {
+    // Prompt #13 — staff without a TMS principal link are reward-ineligible: keep acceptance
+    // published (+0) rather than reverting into the student review queue.
+    if (
+      credit.error === 'tms_identity_not_linked' &&
+      isStaffEconomyKey(recipientCharacterName || row.character_name)
+    ) {
+      return {
+        ok: true,
+        idempotent: false,
+        character_name: recipientCharacterName || row.character_name,
+        nuggets: 0,
+        rewarded: false,
+        reward_skipped: true,
+        reward_skip_reason: 'tms_identity_not_linked',
+        reward_idempotent: true,
+      };
+    }
     const rev = await db
       .prepare(
         'UPDATE lantern_mission_submissions SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ? AND status = ?'

@@ -9,6 +9,7 @@ import { ensureContentApprovedMissionCompletion } from './mission-event-completi
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import { attachAuthorAvatarKeys, loadPilotAvatarKeyIndex } from './author-avatar-key.js';
 import { attachAuthorPublicLabels, loadStaffPublicNameIndex } from './staff-public-name.js';
+import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -215,15 +216,17 @@ function normalizeMissionRow(row, origin) {
     ? `${String(origin || '').replace(/\/$/, '')}/api/news/image?key=${encodeURIComponent(cardKey)}`
     : null;
   const imageForCard = media.image_url || missionCardUrl || null;
+  const staffUser = parseStaffEconomyKey(row.character_name);
   const adapted = {
     id: `mission:${row.id}`,
     type: 'mission',
     title: missionTitle || 'Mission Submission',
     body: bodyText,
     summary: bodyText ? bodyText.slice(0, 280) : (media.image_url ? 'Photo submission' : 'Mission completed'),
-    author_id: null,
-    author_display_name: row.character_name,
-    author_role: 'student',
+    // Prompt #13 — staff mission authors resolve via public staff formatter (not staff: keys).
+    author_id: staffUser || null,
+    author_display_name: staffUser ? staffUser : row.character_name,
+    author_role: (staffUser || isStaffEconomyKey(row.character_name)) ? 'staff' : 'student',
     direct_image_url: imageForCard,
     video_r2_key: null,
     tags: '[]',

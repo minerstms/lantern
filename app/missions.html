@@ -729,6 +729,7 @@
     var currentMissionForSubmit = null;
     var currentResubmitId = null;
     var currentMissionIsRedo = false;
+    var missionsParticipantIsStaff = false;
     var missionVideoUploadedUrl = '';
     var currentMissionMinChars = 0;
     var currentMissionRequiresImage = false;
@@ -1225,6 +1226,11 @@
 
     var FERPA_STUDENT_SUBMIT_MESSAGE = 'Submitted! Your teacher will review it.';
     function missionSubmitSuccessToast(res){
+      if (res && res.finalized) {
+        if (res.reward_skipped || res.redo) return 'Mission completed. Reward already earned for this mission.';
+        if ((Number(res.nuggets) || 0) > 0) return 'Mission completed! +' + (Number(res.nuggets) || 1) + ' Nugget';
+        return 'Mission completed!';
+      }
       if (res && res.redo) return 'Submitted successfully. Reward already earned for this mission.';
       if (currentMissionIsRedo) return 'Submitted successfully. Reward already earned for this mission.';
       return FERPA_STUDENT_SUBMIT_MESSAGE;
@@ -1525,7 +1531,7 @@
           stateBadge = 'COMPLETED';
         } else if (st === 'pending') {
           status = 'in_progress';
-          statusLabel = 'Waiting for teacher';
+          statusLabel = missionsParticipantIsStaff ? 'Finish publishing' : 'Waiting for teacher';
           stateBadge = 'STARTED';
         } else if (st === 'returned') {
           status = 'in_progress';
@@ -1572,6 +1578,24 @@
               return;
             }
             if (st === 'pending') {
+              if (missionsParticipantIsStaff) {
+                setMissionSubmitBusy(true);
+                callSubmitMissionCompletion(m.id, getCharacterNameForApi() || '', (sub && sub.submission_type) || m.submission_type || 'text', (sub && sub.submission_content) || '')
+                  .then(function(res){
+                    setMissionSubmitBusy(false);
+                    if (!res || !res.ok) {
+                      toast((res && (res.message || res.error)) || 'Could not publish mission.');
+                      return;
+                    }
+                    toast(missionSubmitSuccessToast(res));
+                    loadMissions();
+                  })
+                  .catch(function(){
+                    setMissionSubmitBusy(false);
+                    toast('Could not publish mission. Please try again.');
+                  });
+                return;
+              }
               if (window.LanternCardUI) {
                 var capPending = '';
                 var mmPending = (sub && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
@@ -1952,7 +1976,8 @@
           ? auth.normalizeRole(data.role)
           : String(data.role || '').trim().toLowerCase();
         // Prompt #107 — student, teacher, and admin are all Lantern participants on /missions.
-        if (role === 'student' || role === 'teacher' || role === 'admin') {
+        if (role === 'student' || role === 'teacher' || role === 'admin' || role === 'staff') {
+          missionsParticipantIsStaff = role === 'teacher' || role === 'admin' || role === 'staff';
           return { ok: true, role: role };
         }
         return { ok: false, reason: 'role_mismatch', role: role };

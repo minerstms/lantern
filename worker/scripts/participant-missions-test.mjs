@@ -58,10 +58,33 @@ function makeDb() {
           }
           if (s.includes('FROM lantern_mission_submissions WHERE mission_id') && s.includes('character_name')) {
             const [mid, cname] = this._binds;
+            let latest = null;
             for (const sub of submissions.values()) {
-              if (sub.mission_id === mid && sub.character_name === cname) return sub;
+              if (sub.mission_id === mid && sub.character_name === cname) {
+                if (!latest || String(sub.created_at || '') > String(latest.created_at || '')) latest = sub;
+              }
+            }
+            return latest;
+          }
+          if (s.includes("status = 'accepted' AND id !=")) {
+            const [mid, cname, exclude] = this._binds;
+            for (const sub of submissions.values()) {
+              if (
+                sub.mission_id === mid &&
+                sub.character_name === cname &&
+                sub.status === 'accepted' &&
+                sub.id !== exclude
+              ) {
+                return sub;
+              }
             }
             return null;
+          }
+          if (s.includes('FROM lantern_transactions WHERE id')) {
+            return null;
+          }
+          if (s.includes('FROM lantern_wallets')) {
+            return { balance: 0 };
           }
           if (s.includes('COUNT(*) AS n FROM lantern_mission_submissions WHERE mission_id')) {
             const mid = this._binds[0];
@@ -90,9 +113,30 @@ function makeDb() {
             submissions.set(id, { id, mission_id, character_name, submission_type, submission_content, status, created_at });
             return { meta: { changes: 1 } };
           }
+          if (s.includes('UPDATE lantern_mission_submissions SET status')) {
+            const [status, reviewer, reviewedAt, id, expect] = this._binds;
+            const row = submissions.get(id);
+            if (!row || String(row.status) !== String(expect)) return { meta: { changes: 0 } };
+            row.status = status;
+            row.reviewed_by = reviewer;
+            row.reviewed_at = reviewedAt;
+            return { meta: { changes: 1 } };
+          }
+          if (s.includes('DELETE FROM lantern_mission_submissions')) {
+            const [id, expect] = this._binds;
+            const row = submissions.get(id);
+            if (row && String(row.status) === String(expect)) submissions.delete(id);
+            return { meta: { changes: 1 } };
+          }
+          if (s.startsWith('INSERT INTO lantern_transactions') || s.includes('INSERT INTO lantern_wallets')) {
+            return { meta: { changes: 1 } };
+          }
           return { meta: { changes: 1 } };
         },
       };
+    },
+    async batch(stmts) {
+      for (const st of stmts) await st.run();
     },
   };
 }
@@ -266,6 +310,7 @@ assert(
   });
   const allowSubmitData = await allowSubmitRes.json();
   assert(allowSubmitData.ok, 'staff can complete students-scope: ' + JSON.stringify(allowSubmitData));
+  assert(allowSubmitData.finalized === true && allowSubmitData.status === 'accepted', 'staff submit finalizes immediately');
 
   // Staff submit on staff-scoped mission still works
   const staffMission = (teacherActive.missions || []).find((m) => m.title === 'Staff Mission');
@@ -285,12 +330,14 @@ assert(
   });
   const submitData = await submitRes.json();
   assert(submitData.ok, 'staff submit ok: ' + JSON.stringify(submitData));
+  assert(submitData.finalized === true && submitData.explore_ready === true, 'staff staff-mission explore_ready');
   // Find submission on staff mission (second submit by teachera)
   let submission = null;
   for (const s of submissions.values()) {
     if (s.character_name === 'staff:teachera' && s.mission_id === staffMission.id) submission = s;
   }
   assert(submission, 'submission keyed staff:teachera on staff mission');
+  assert(submission.status === 'accepted', 'staff submission accepted without review queue');
 
   // Self-approve denied
   const selfApprove = new Request('https://lantern.test/api/missions/submissions/approve', {
@@ -304,6 +351,23 @@ assert(
   });
   const selfData = await selfRes.json();
   assert(selfRes.status === 403 && selfData.error === 'self_approval_forbidden', 'self approve denied');
+
+  // Student still queues as pending
+  const studentSubmitReq = new Request('https://lantern.test/api/missions/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mission_id: studentsOnly.id,
+      submission_type: 'text',
+      submission_content: 'Student written response with enough characters for the default minimum length requirement here. Adding more words so we clear the two hundred character floor for ordinary student mission submissions under Prompt 13 review.',
+    }),
+  });
+  const studentSubmitRes = await handleMissionsRoutes(studentSubmitReq, new URL(studentSubmitReq.url), '/api/missions/submit', env, {}, {
+    ...deps,
+    getPilotAccountFromRequest: async () => student,
+  });
+  const studentSubmitData = await studentSubmitRes.json();
+  assert(studentSubmitData.ok && studentSubmitData.status === 'pending', 'student submission still queues');
 }
 
 console.log('PASS — participant missions #107/#10 focused tests');
