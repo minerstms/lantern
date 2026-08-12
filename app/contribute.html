@@ -1517,6 +1517,23 @@
         w.appendChild(inp);
       }
     }
+    /** Snapshot current choice field values (including blanks) before a count change. */
+    function snapshotPollOptionValues(){
+      var w = el('pollOptionsWrap');
+      if (!w) return [];
+      return Array.prototype.map.call(w.querySelectorAll('.pollOptInput'), function(inp){
+        return inp.value != null ? String(inp.value) : '';
+      });
+    }
+    /** Restore surviving choice text after rebuildPollOptionInputs (Add / Remove last). */
+    function restorePollOptionValues(prior){
+      var w = el('pollOptionsWrap');
+      if (!w || !prior || !prior.length) return;
+      var inputs = w.querySelectorAll('.pollOptInput');
+      for (var i = 0; i < inputs.length && i < prior.length; i++){
+        inputs[i].value = prior[i];
+      }
+    }
     function getPollChoices(){
       var w = el('pollOptionsWrap');
       if (!w) return [];
@@ -1685,13 +1702,17 @@
     el('pollAddOptionBtn').addEventListener('click', function(){
       var n = el('pollOptionsWrap').querySelectorAll('.pollOptInput').length;
       if (n >= 5){ toast('Maximum 5 choices.'); return; }
+      var prior = snapshotPollOptionValues();
       rebuildPollOptionInputs(n + 1);
+      restorePollOptionValues(prior);
       updateStudioAll();
     });
     el('pollRemoveOptionBtn').addEventListener('click', function(){
       var n = el('pollOptionsWrap').querySelectorAll('.pollOptInput').length;
       if (n <= 2){ toast('Need at least 2 choices.'); return; }
+      var prior = snapshotPollOptionValues();
       rebuildPollOptionInputs(n - 1);
+      restorePollOptionValues(prior);
       updateStudioAll();
     });
     if (el('pollQuestion')) el('pollQuestion').addEventListener('input', updateStudioAll);
