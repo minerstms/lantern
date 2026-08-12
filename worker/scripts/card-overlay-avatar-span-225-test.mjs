@@ -54,10 +54,16 @@ vm.createContext(sandbox);
 vm.runInContext(cardsJs, sandbox);
 const LC = sandbox.LanternCards;
 
-assert(/--lantern-card-overlay-avatar-size:\s*44px/.test(cardsCss), '1. overlay avatar token ~44px');
+assert(/--lantern-card-overlay-avatar-size:\s*40px/.test(cardsCss), '1. overlay avatar token ~40px (Prompt #4 compact)');
 assert(/lanternCanonicalCardMetaGrid/.test(cardsCss), '2. meta grid CSS present');
 assert(/grid-row:\s*1\s*\/\s*span\s*2/.test(cardsCss), '3. avatar spans rows 2+3');
 assert(/padding-right:\s*44px/.test(cardsCss), '4. flag clearance padding preserved');
+assert(/max-height:\s*42%/.test(cardsCss), '4b. overlay max-height ~bottom third');
+assert(/gap:\s*2px/.test(cardsCss.match(/\.lanternCanonicalCardCaption\s*\{[^}]+\}/)?.[0] || ''), '4c. caption gap tightened');
+assert(!/--lantern-card-overlay-avatar-size:\s*44px/.test(cardsCss), '4d. prior 44px avatar size removed');
+assert(/font-size:\s*18px/.test(cardsCss.match(/\.lanternCanonicalCardTitle\s*\{[^}]+\}/)?.[0] || ''), '4e. title font size preserved');
+assert(/font-size:\s*13px/.test(cardsCss.match(/\.lanternCanonicalCardMeta,\s*\n\.lanternCanonicalCardMetaRow\s*\{[^}]+\}/)?.[0] || cardsCss), '4f. meta font size preserved');
+assert(/font-size:\s*12px/.test(cardsCss.match(/\.lanternCanonicalCardDesc,\s*\n\.lanternCanonicalCardDescRow\s*\{[^}]+\}/)?.[0] || cardsCss), '4g. desc font size preserved');
 
 const shout = LC.normalizeFeedItemToFaceModel({
   id: 'shout_out:1',

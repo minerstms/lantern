@@ -37,8 +37,8 @@
   --lantern-card-identity-initials-size: calc(var(--lantern-card-identity-avatar-size) * 0.47);
   /* Prompt #217 — shared author-avatar size for top ticker + card LLHC metadata chip */
   --lantern-content-author-avatar-size: 28px;
-  /* Prompt #225 — Explore/Create card overlay portrait spanning Rows 2+3 (~two compact meta lines) */
-  --lantern-card-overlay-avatar-size: 44px;
+  /* Prompt #225/#4 — Explore/Create overlay portrait spanning Rows 2+3 (compact bottom-third stack) */
+  --lantern-card-overlay-avatar-size: 40px;
 }
 
 /* ===== CONTRACT V2 — ONE COMPACT PRODUCTION CARD FACE ===== */
@@ -90,8 +90,8 @@
   right: 0;
   bottom: 0;
   z-index: 2;
-  /* Prompt #218 — room for title + 28px LLHC author avatar without bottom clip */
-  max-height: 58%;
+  /* Prompt #4 — keep three-row stack in roughly the lower third (was 58% / half-card feel) */
+  max-height: 42%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -103,24 +103,24 @@
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.88) 0%,
-    rgba(0, 0, 0, 0.62) 38%,
-    rgba(0, 0, 0, 0.18) 68%,
-    rgba(0, 0, 0, 0) 100%
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.58) 28%,
+    rgba(0, 0, 0, 0.16) 55%,
+    rgba(0, 0, 0, 0) 78%
   );
   pointer-events: none;
 }
 .lanternCanonicalCardCaption {
   position: relative;
   z-index: 1;
-  /* Prompt #218/#222/#225 — nestle LLHC two-row avatar; three-row caption stack */
-  padding: 0 14px 12px 10px;
+  /* Prompt #4 — tighter nestle; still clear of border + LRHC flag */
+  padding: 0 12px 6px 8px;
   padding-right: 44px;
   box-sizing: border-box;
   overflow: visible;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 2px;
   align-items: stretch;
 }
 .lanternCanonicalCardTitle {
@@ -138,13 +138,13 @@
   overflow: hidden;
   word-break: break-word;
 }
-/* Prompt #225 — Rows 2+3: one avatar column spanning both text rows */
+/* Prompt #225/#4 — Rows 2+3: one avatar column spanning both text rows */
 .lanternCanonicalCardMetaGrid {
   display: grid;
-  grid-template-columns: var(--lantern-card-overlay-avatar-size, 44px) minmax(0, 1fr);
+  grid-template-columns: var(--lantern-card-overlay-avatar-size, 40px) minmax(0, 1fr);
   grid-template-rows: auto auto;
-  column-gap: 8px;
-  row-gap: 2px;
+  column-gap: 6px;
+  row-gap: 1px;
   align-items: center;
   min-width: 0;
   width: 100%;
@@ -161,8 +161,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--lantern-card-overlay-avatar-size, 44px);
-  height: var(--lantern-card-overlay-avatar-size, 44px);
+  width: var(--lantern-card-overlay-avatar-size, 40px);
+  height: var(--lantern-card-overlay-avatar-size, 40px);
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -203,7 +203,7 @@
   color: rgba(255,255,255,.92);
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.15;
   white-space: nowrap;
   overflow-x: hidden;
   overflow-y: visible;
@@ -251,7 +251,7 @@
   white-space: nowrap;
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.15;
   color: rgba(255,255,255,.9);
   opacity: .95;
   text-shadow: 0 1px 6px rgba(0,0,0,.85);
