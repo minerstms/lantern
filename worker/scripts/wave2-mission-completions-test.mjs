@@ -237,7 +237,8 @@ else bad('event key', ek);
 {
   const db = makeDb({});
   const p1 = await ensureContentApprovedMissionCompletion(db, null, 'poll', 'zane', 'poll-1');
-  if (p1.ok && p1.rewarded) ok('approved poll completes Create a Poll once');
+  // Prompt #224 — Create a Poll progress is once-ever; Nugget comes from daily content_reward.
+  if (p1.ok && p1.completed && !p1.rewarded) ok('approved poll completes Create a Poll once without mission Nugget');
   else bad('poll first', p1);
   const p2 = await ensureContentApprovedMissionCompletion(db, null, 'poll', 'zane', 'poll-2');
   if (p2.ok && !p2.rewarded) ok('second approved poll does not re-reward');
@@ -247,7 +248,7 @@ else bad('event key', ek);
 {
   const db = makeDb({});
   const s1 = await ensureContentApprovedMissionCompletion(db, null, 'shoutout', 'alex', 'feed-shout');
-  if (s1.ok && s1.rewarded) ok('approved shout-out completes mission once');
+  if (s1.ok && s1.completed && !s1.rewarded) ok('approved shout-out completes mission once without mission Nugget');
   else bad('shout first', s1);
   const s2 = await ensureContentApprovedMissionCompletion(db, null, 'shoutout', 'alex', 'feed-shout-2');
   if (s2.ok && !s2.rewarded) ok('subsequent shout-out is idempotent');

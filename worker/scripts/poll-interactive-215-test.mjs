@@ -150,8 +150,14 @@ function makeEnv(state) {
       },
       async run() {
         if (s.includes('INSERT INTO lantern_poll_votes')) {
+          if (state.votes.some((v) => v.poll_id === binds[1] && v.character_name === binds[2])) {
+            throw new Error('UNIQUE constraint failed: lantern_poll_votes.poll_id, lantern_poll_votes.character_name');
+          }
           state.votes.push({ id: binds[0], poll_id: binds[1], character_name: binds[2], choice_index: binds[3] });
         } else if (s.includes('INSERT INTO lantern_poll_voter_rewards')) {
+          if (state.voterRewards.some((v) => v.poll_id === binds[1] && v.character_name === binds[2])) {
+            throw new Error('UNIQUE constraint failed: lantern_poll_voter_rewards.poll_id, lantern_poll_voter_rewards.character_name');
+          }
           state.voterRewards.push({ id: binds[0], poll_id: binds[1], character_name: binds[2] });
         } else if (s.includes('INSERT INTO lantern_transactions')) {
           state.transactions.push({ id: binds[0], character_name: binds[1], delta: binds[2], kind: binds[3] });
@@ -278,7 +284,20 @@ await withMockedBridge((call) => {
   {
     const { status, json } = await postVote(env, cookie1, { poll_id: 'poll_a', choice_index: 2 });
     assert(status === 400 && /Already voted/i.test(json.error || ''), 'F. duplicate rejected');
+    assert(json.already_voted === true && json.voted_choice_index === 1, 'F. locked choice preserved (no rewrite)');
+    assert(Array.isArray(json.results), 'F. results returned on replay');
     assert(state.votes.filter((v) => v.poll_id === 'poll_a' && v.character_name === '20889').length === 1, 'F. still one vote');
+  }
+
+  // F2 — concurrent UNIQUE path (skip pre-check by clearing then double-insert race simulation)
+  {
+    state.votes = state.votes.filter((v) => !(v.poll_id === 'poll_a' && v.character_name === '20889'));
+    state.voterRewards = state.voterRewards.filter((v) => !(v.poll_id === 'poll_a' && v.character_name === '20889'));
+    const first = await postVote(env, cookie1, { poll_id: 'poll_a', choice_index: 0 });
+    assert(first.status === 200 && first.json.ok, 'F2. first vote ok');
+    const second = await postVote(env, cookie1, { poll_id: 'poll_a', choice_index: 3 });
+    assert(second.status === 400 && second.json.already_voted && second.json.voted_choice_index === 0, 'F2. second choice blocked');
+    assert(state.votes.filter((v) => v.poll_id === 'poll_a' && v.character_name === '20889').length === 1, 'F2. still one row');
   }
 
   // G — invalid option

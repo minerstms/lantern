@@ -236,7 +236,7 @@ async function main() {
     } else bad('demo persona fallback wallet credit', { status, json, walletBal });
   });
 
-  // 4. Teacher/admin may still cast a vote on behalf of an explicit character (existing convention).
+  // 4. Teacher/admin vote uses session staff economy key (Prompt #107) — never client-supplied student id.
   await withMockedBridge((call) => {
     if (call.url.endsWith('/economy/transact')) {
       return { body: { ok: true, student_id: call.body.student_id, student_name: call.body.student_id, delta: 1, earned: 1, spent: 0, available: 1 } };
@@ -259,8 +259,8 @@ async function main() {
     const cookie = await cookieFor(teacherAccount);
     const { status, json } = await postVote(env, cookie, { poll_id: 'poll_4', character_name: '30001', choice_index: 0 });
     const vote = state.votes.find((v) => v.poll_id === 'poll_4');
-    if (status === 200 && json.ok && vote && vote.character_name === '30001') {
-      ok('teacher/admin session can still vote on behalf of an explicit character_name');
+    if (status === 200 && json.ok && vote && vote.character_name === 'staff:ms_carter') {
+      ok('teacher session vote uses staff economy key; ignores client character_name');
     } else bad('teacher explicit character_name vote', { status, json, vote });
   });
 

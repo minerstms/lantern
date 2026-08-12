@@ -51,6 +51,7 @@ import {
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
+import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
   ACCESS_REQUEST_PENDING_TTL_SEC,
@@ -6146,6 +6147,15 @@ async function handleApprovalsRoutes(request, url, path, env) {
         }
         try {
           if (pc.character_name) {
+            // Prompt #224 — first student Poll publish today may +1; mission progress is once-ever without Nugget.
+            try {
+              await awardStudentDailyContentCreationReward(db, env, {
+                type: 'poll',
+                characterName: pc.character_name,
+                authorType: 'student',
+                sourceRef: pc.id,
+              });
+            } catch (_) {}
             await ensureContentApprovedMissionCompletion(db, env, 'poll', pc.character_name, pc.id);
           }
         } catch (_) {}
@@ -6166,13 +6176,22 @@ async function handleApprovalsRoutes(request, url, path, env) {
       ).bind('approved', now, staffId || null, staffName, approval.item_id).run();
       try {
         const newsRow = await db
-          .prepare('SELECT author_name, category, image_r2_key, body, title FROM lantern_news_submissions WHERE id = ?')
+          .prepare('SELECT author_name, author_type, category, image_r2_key, body, title FROM lantern_news_submissions WHERE id = ?')
           .bind(approval.item_id)
           .first();
         if (newsRow && newsRow.author_name) {
           await awardAchievementsForNewsApproved(db, newsRow.author_name, approval.item_id);
+          const authorType = String(newsRow.author_type || 'student').trim().toLowerCase();
           // Prompt #177 — peer Shout-Out news (with or without media) completes Shout-Out Someone.
           if (isPeerShoutOutNewsSubmission(newsRow)) {
+            try {
+              await awardStudentDailyContentCreationReward(db, env, {
+                type: 'shoutout',
+                characterName: newsRow.author_name,
+                authorType,
+                sourceRef: approval.item_id,
+              });
+            } catch (_) {}
             await ensureContentApprovedMissionCompletion(db, env, 'shoutout', newsRow.author_name, approval.item_id);
           } else {
             const cat = String(newsRow.category || '').trim().toLowerCase();
@@ -6180,6 +6199,16 @@ async function handleApprovalsRoutes(request, url, path, env) {
             // Prompt #165 — only explicit Photo category news counts as First Photo Share.
             if (cat === 'photo' && hasImage) {
               await ensureContentApprovedMissionCompletion(db, env, 'photo', newsRow.author_name, approval.item_id);
+            } else {
+              // Prompt #224 — first student News/Update publish today may +1 Nugget.
+              try {
+                await awardStudentDailyContentCreationReward(db, env, {
+                  type: 'news',
+                  characterName: newsRow.author_name,
+                  authorType,
+                  sourceRef: approval.item_id,
+                });
+              } catch (_) {}
             }
           }
         }
@@ -6431,6 +6460,8 @@ async function handlePollsRoutes(request, url, path, env, cors) {
         await awardAchievementsForPollContribute(db, characterName, contribId);
       } catch (_) {}
       try {
+        // Staff immediate publish (#211): no student daily content_reward.
+        // Create-a-Poll mission progress may still mark; Nugget skipped (#224 skipReward).
         await ensureContentApprovedMissionCompletion(db, env, 'poll', characterName, contribId);
       } catch (_) {}
       return jsonResponse({
@@ -6787,11 +6818,58 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     let choices = [];
     try { choices = JSON.parse(poll.choices_json || '[]'); } catch (_) {}
     if (choiceIndex < 0 || choiceIndex >= choices.length) return jsonResponse({ ok: false, error: 'Invalid choice' }, 400, cors);
-    const existing = await db.prepare('SELECT id FROM lantern_poll_votes WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first();
-    if (existing) return jsonResponse({ ok: false, error: 'Already voted' }, 400, cors);
+    const existing = await db.prepare('SELECT id, choice_index FROM lantern_poll_votes WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first();
+    if (existing) {
+      const lockedChoice = Math.floor(Number(existing.choice_index));
+      const voteRows = await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ?').bind(pollId).all();
+      const counts = {};
+      (voteRows.results || []).forEach(v => { counts[v.choice_index] = (counts[v.choice_index] || 0) + 1; });
+      const total = (voteRows.results || []).length;
+      const results = choices.map((c, i) => ({
+        choice: c,
+        count: counts[i] || 0,
+        percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0,
+        is_yours: i === lockedChoice,
+      }));
+      return jsonResponse({
+        ok: false,
+        error: 'Already voted',
+        already_voted: true,
+        voted_choice_index: lockedChoice,
+        results,
+        voter_nuggets: 0,
+      }, 400, cors);
+    }
     const now = new Date().toISOString();
     const voteId = 'pv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-    await db.prepare('INSERT INTO lantern_poll_votes (id, poll_id, character_name, choice_index, created_at) VALUES (?, ?, ?, ?, ?)').bind(voteId, pollId, characterName, choiceIndex, now).run();
+    try {
+      await db.prepare('INSERT INTO lantern_poll_votes (id, poll_id, character_name, choice_index, created_at) VALUES (?, ?, ?, ?, ?)').bind(voteId, pollId, characterName, choiceIndex, now).run();
+    } catch (e) {
+      // Concurrent duplicate: UNIQUE(poll_id, character_name) — return locked vote, never insert again.
+      if (e && /UNIQUE/i.test(String(e.message || e))) {
+        const again = await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first();
+        const lockedChoice = again != null ? Math.floor(Number(again.choice_index)) : choiceIndex;
+        const voteRows = await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ?').bind(pollId).all();
+        const counts = {};
+        (voteRows.results || []).forEach(v => { counts[v.choice_index] = (counts[v.choice_index] || 0) + 1; });
+        const total = (voteRows.results || []).length;
+        const results = choices.map((c, i) => ({
+          choice: c,
+          count: counts[i] || 0,
+          percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0,
+          is_yours: i === lockedChoice,
+        }));
+        return jsonResponse({
+          ok: false,
+          error: 'Already voted',
+          already_voted: true,
+          voted_choice_index: lockedChoice,
+          results,
+          voter_nuggets: 0,
+        }, 400, cors);
+      }
+      throw e;
+    }
     let voterNuggets = 0;
     const rewardRow = await db.prepare('SELECT id FROM lantern_poll_voter_rewards WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first();
     if (!rewardRow) {
@@ -6825,7 +6903,11 @@ async function handlePollsRoutes(request, url, path, env, cors) {
       }
       if (voterNuggets > 0) {
         const rewardId = 'pvr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-        await db.prepare('INSERT INTO lantern_poll_voter_rewards (id, poll_id, character_name, created_at) VALUES (?, ?, ?, ?)').bind(rewardId, pollId, characterName, now2).run();
+        try {
+          await db.prepare('INSERT INTO lantern_poll_voter_rewards (id, poll_id, character_name, created_at) VALUES (?, ?, ?, ?)').bind(rewardId, pollId, characterName, now2).run();
+        } catch (e) {
+          if (!(e && /UNIQUE/i.test(String(e.message || e)))) throw e;
+        }
       }
     }
     const voteRows = await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ?').bind(pollId).all();

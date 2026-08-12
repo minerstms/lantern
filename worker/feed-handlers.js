@@ -5,6 +5,7 @@
 import { extractMissionSubmissionMedia } from './missions-auth.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
+import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import { attachAuthorAvatarKeys, loadPilotAvatarKeyIndex } from './author-avatar-key.js';
 import { attachAuthorPublicLabels, loadStaffPublicNameIndex } from './staff-public-name.js';
 
@@ -760,12 +761,22 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       "UPDATE lantern_feed_items SET status = 'approved', approved_at = ?, approved_by = ?, private_feedback = NULL, slideshow_eligible = ?, featured_eligible = ?, hidden_at = NULL, hidden_by = NULL WHERE id = ?"
     ).bind(now, approver, slideshow, featured, id).run();
     // Prompt #165 — First Photo Share / Shout-Out Someone action completions from Create feed.
+    // Prompt #224 — Shout-Out daily content-creation Nugget (students only; mission progress separate).
     try {
       const feedType = String(row.type || '').trim();
       const author = String(row.author_display_name || row.author_id || '').trim();
+      const authorRole = String(row.author_role || row.author_type || '').trim().toLowerCase();
       if (author && feedType === 'photo') {
         await ensureContentApprovedMissionCompletion(db, env, 'photo', author, id);
       } else if (author && feedType === 'shout_out') {
+        try {
+          await awardStudentDailyContentCreationReward(db, env, {
+            type: 'shoutout',
+            characterName: author,
+            authorType: authorRole || 'student',
+            sourceRef: id,
+          });
+        } catch (_) {}
         await ensureContentApprovedMissionCompletion(db, env, 'shoutout', author, id);
       }
     } catch (_) {}

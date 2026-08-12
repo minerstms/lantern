@@ -354,6 +354,10 @@ export async function ensureContentApprovedMissionCompletion(db, env, kind, char
   let eventKey;
   let triggerType;
   let note;
+  // Prompt #224 — Create a Poll / Shout-Out Someone remain once-ever mission *progress*
+  // markers, but Nuggets for those creation categories come from the daily content-creation
+  // reward cap (content_reward:{type}:{student}:{YYYY-MM-DD}), not a second mission payout.
+  let skipReward = false;
   if (k === 'photo') {
     missionId = WAVE2_MISSION_IDS.FIRST_PHOTO;
     eventKey = eventKeyFirstPhoto(key);
@@ -364,11 +368,13 @@ export async function ensureContentApprovedMissionCompletion(db, env, kind, char
     eventKey = eventKeyCreatePoll(key);
     triggerType = 'content_approved_poll';
     note = 'Create a Poll';
+    skipReward = true;
   } else if (k === 'shoutout') {
     missionId = WAVE2_MISSION_IDS.SHOUTOUT;
     eventKey = eventKeyShoutout(key);
     triggerType = 'content_approved_shoutout';
     note = 'Shout-Out Someone';
+    skipReward = true;
   } else {
     return { ok: false, error: 'unknown_content_kind' };
   }
@@ -379,6 +385,7 @@ export async function ensureContentApprovedMissionCompletion(db, env, kind, char
     eventKey,
     sourceRef: sourceRef || null,
     cadence: 'once',
+    skipReward,
     note,
     content: `confirmed:${k}:${sourceRef || ''}`.slice(0, 500),
   });
