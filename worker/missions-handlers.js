@@ -843,7 +843,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     // Prompt #103 — archived missions must reject new submissions even via an old/deep-linked
     // mission_id that a student already has cached client-side; Pause (active=0) already blocked
     // this, Archive must too.
-    if (mission.active === 0 || !!mission.archived) return jsonResponse({ ok: false, error: 'Mission is not active' }, 400, cors);
+    if (mission.active === 0 || !!mission.archived) {
+      return jsonResponse({ ok: false, error: 'Mission is not active', message: 'This mission is no longer active.' }, 400, cors);
+    }
     if (!missionEligibleForParticipant(mission, identity)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }
@@ -857,12 +859,15 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (missionId === WAVE2_MISSION_IDS.THANK_YOU) {
       return jsonResponse({ ok: false, error: 'use_thank_you', message: 'Use Thank a Teacher to complete this mission.' }, 400, cors);
     }
+    // Prompt #8 — active manual missions remain redoable after prior accept/reject.
+    // Usability ≠ reward eligibility: a new pending row is allowed; Nugget cadence is enforced on approve.
     const existing = await db
       .prepare(
         'SELECT id, status FROM lantern_mission_submissions WHERE mission_id = ? AND character_name = ? ORDER BY created_at DESC LIMIT 1'
       )
       .bind(missionId, characterName)
       .first();
+    let redoOfPrior = false;
     if (existing) {
       const est = String(existing.status || '').trim();
       if (est === 'pending') {
@@ -872,7 +877,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         return jsonResponse({ ok: false, error: 'use_resubmit', submission_id: existing.id }, 409, cors);
       }
       if (est === 'accepted' || est === 'rejected') {
-        return jsonResponse({ ok: false, error: 'already_submitted' }, 409, cors);
+        redoOfPrior = true;
       }
     }
     const submissionTypeRaw = (body.submission_type || mission.submission_type || 'text').trim();
@@ -897,6 +902,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       {
         ok: true,
         id,
+        redo: redoOfPrior,
         mission: {
           id: mission.id,
           title: mission.title,
@@ -1213,14 +1219,16 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         await ensureContentApprovedMissionCompletion(db, env, 'photo', row.character_name, id);
       }
     } catch (_) {}
+    const nuggetsPaid = Number(result.nuggets) || 0;
     return jsonResponse(
       {
         ok: true,
         status: 'accepted',
-        nuggets: result.nuggets,
-        reward_amount: result.nuggets,
+        nuggets: nuggetsPaid,
+        reward_amount: nuggetsPaid,
         character_name: result.character_name,
-        reward_applied: true,
+        reward_applied: !result.reward_skipped && nuggetsPaid > 0,
+        reward_skipped: !!result.reward_skipped,
         idempotent: !!result.idempotent,
         already_approved: !!result.idempotent,
       },

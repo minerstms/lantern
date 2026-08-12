@@ -301,7 +301,7 @@
             <div class="missionSubmitPreviewCard" id="missionSubmitPreviewCard"></div>
           </div>
           <p id="missionSubmitInlineError" class="missionSubmitInlineError" role="alert" aria-live="assertive"></p>
-          <button class="btn good" id="missionSubmitBtn" type="button" style="width:100%;margin-top:12px;">Submit mission</button>
+          <button class="btn good" id="missionSubmitBtn" type="button" style="width:100%;margin-top:12px;">Do Mission</button>
         </div>
       </div>
     </div>
@@ -708,11 +708,13 @@
 
     function mapMissionSubmitError(res){
       var code = String((res && (res.error || res.message)) || '').trim();
+      var msg = String((res && res.message) || '').trim();
       if (!code) return 'Unable to submit this mission. Please try again.';
       if (code === 'submission_pending') return 'You already submitted this mission. Waiting for teacher review.';
-      if (code === 'already_submitted') return 'This mission is already completed.';
+      if (code === 'already_submitted') return 'This mission was already completed. Try Redo Mission if it is still active.';
       if (code === 'use_resubmit') return 'Please use Resubmit for this mission.';
-      if (code === 'Mission is not active') return 'This mission is not accepting submissions right now.';
+      if (code === 'Mission is not active') return msg || 'This mission is no longer active.';
+      // Reserved for real eligibility/authorization (participant_scope / audience) — not prior completion.
       if (code === 'Mission not available') return 'This mission is not available for your account.';
       if (/min.?char|character/i.test(code)) return code;
       if (/required|empty|valid/i.test(code)) return code;
@@ -726,11 +728,24 @@
 
     var currentMissionForSubmit = null;
     var currentResubmitId = null;
+    var currentMissionIsRedo = false;
     var missionVideoUploadedUrl = '';
     var currentMissionMinChars = 0;
     var currentMissionRequiresImage = false;
     var previousTextareaValue = '';
     var previousInputTimestamp = 0;
+
+    function missionSubmitActionLabel(){
+      if (currentResubmitId) return 'Resubmit mission';
+      if (currentMissionIsRedo) return 'Redo Mission';
+      return 'Do Mission';
+    }
+
+    function missionSubmitTitlePrefix(){
+      if (currentResubmitId) return 'Resubmit: ';
+      if (currentMissionIsRedo) return 'Redo: ';
+      return '';
+    }
 
     var missionApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     var missionUnifiedField = null;
@@ -1179,7 +1194,7 @@
       // can toast/inline-error; only disable while an in-flight submit is running.
       if (submitBtn && !submitBtn._submitting) {
         submitBtn.disabled = false;
-        if (!submitBtn._labelLocked) submitBtn.textContent = currentResubmitId ? 'Resubmit mission' : 'Submit mission';
+        if (!submitBtn._labelLocked) submitBtn.textContent = missionSubmitActionLabel();
       }
       if (currentMissionRequiresImage && !hasImage) {
         if (progressWrap && fillEl && countdownEl) {
@@ -1209,6 +1224,11 @@
     }
 
     var FERPA_STUDENT_SUBMIT_MESSAGE = 'Submitted! Your teacher will review it.';
+    function missionSubmitSuccessToast(res){
+      if (res && res.redo) return 'Submitted successfully. Reward already earned for this mission.';
+      if (currentMissionIsRedo) return 'Submitted successfully. Reward already earned for this mission.';
+      return FERPA_STUDENT_SUBMIT_MESSAGE;
+    }
     var missionDetailScrollY = 0;
     var missionDetailReturnFocus = null;
 
@@ -1226,6 +1246,7 @@
       destroyMissionUnifiedField();
       currentMissionForSubmit = null;
       currentResubmitId = null;
+      currentMissionIsRedo = false;
       if (missionDetailReturnFocus && typeof missionDetailReturnFocus.focus === 'function') {
         try { missionDetailReturnFocus.focus(); } catch (e) {}
       }
@@ -1400,19 +1421,23 @@
         var pollDone = mid === WAVE2_MISSION.poll && ((progress.create_poll && progress.create_poll.completed) || st === 'accepted');
         var shoutDone = mid === WAVE2_MISSION.shout && ((progress.shoutout && progress.shoutout.completed) || st === 'accepted');
 
-        if (mid === WAVE2_MISSION.photo && !photoDone && (!st || st === 'rejected')) {
+        /* Prompt #8 — Create missions stay redoable while active; reward stays once-ever / #224. */
+        if (mid === WAVE2_MISSION.photo && (photoDone || (!st || st === 'rejected'))) {
+          var photoCompleted = !!photoDone;
           items.push({
             id: m.id,
             kind: 'teacher',
             typeFilter: 'create',
             typeBadge: '',
-            stateBadge: '',
+            stateBadge: photoCompleted ? 'COMPLETED' : '',
             icon: '📸',
             title: m.title || 'First Photo Share',
-            description: (m.description || '').trim(),
+            description: photoCompleted
+              ? 'Completed before · Redo available · Reward already earned'
+              : ((m.description || '').trim()),
             reward: 1,
-            status: 'available',
-            statusLabel: 'Create a Photo →',
+            status: photoCompleted ? 'completed' : 'available',
+            statusLabel: photoCompleted ? 'Redo Mission' : 'Do Mission',
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
@@ -1423,20 +1448,22 @@
           return;
         }
 
-        /* Prompt #186 — Create tools are entered from Missions, not via Create “Complete a mission”. */
-        if (mid === WAVE2_MISSION.poll && !pollDone && (!st || st === 'rejected')) {
+        if (mid === WAVE2_MISSION.poll && (pollDone || (!st || st === 'rejected'))) {
+          var pollCompleted = !!pollDone;
           items.push({
             id: m.id,
             kind: 'teacher',
             typeFilter: 'create',
             typeBadge: '',
-            stateBadge: '',
+            stateBadge: pollCompleted ? 'COMPLETED' : '',
             icon: '📊',
             title: m.title || 'Create a Poll',
-            description: (m.description || '').trim(),
+            description: pollCompleted
+              ? 'Completed before · Redo available · Content reward follows daily cap'
+              : ((m.description || '').trim()),
             reward: 1,
-            status: 'available',
-            statusLabel: 'Create a Poll →',
+            status: pollCompleted ? 'completed' : 'available',
+            statusLabel: pollCompleted ? 'Redo Mission' : 'Do Mission',
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
@@ -1447,19 +1474,22 @@
           return;
         }
 
-        if (mid === WAVE2_MISSION.shout && !shoutDone && (!st || st === 'rejected')) {
+        if (mid === WAVE2_MISSION.shout && (shoutDone || (!st || st === 'rejected'))) {
+          var shoutCompleted = !!shoutDone;
           items.push({
             id: m.id,
             kind: 'teacher',
             typeFilter: 'create',
             typeBadge: '',
-            stateBadge: '',
+            stateBadge: shoutCompleted ? 'COMPLETED' : '',
             icon: '📣',
             title: m.title || 'Shout-Out Someone',
-            description: (m.description || '').trim(),
+            description: shoutCompleted
+              ? 'Completed before · Redo available · Content reward follows daily cap'
+              : ((m.description || '').trim()),
             reward: 1,
-            status: 'available',
-            statusLabel: 'Create a Shout-Out →',
+            status: shoutCompleted ? 'completed' : 'available',
+            statusLabel: shoutCompleted ? 'Redo Mission' : 'Do Mission',
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
@@ -1472,11 +1502,11 @@
 
         if (st === 'accepted' || photoDone || pollDone || shoutDone) {
           status = 'completed';
-          statusLabel = '✅ Completed';
+          statusLabel = 'Redo Mission';
           stateBadge = 'COMPLETED';
         } else if (st === 'rejected') {
           status = 'completed';
-          statusLabel = 'Not accepted';
+          statusLabel = 'Redo Mission';
           stateBadge = 'COMPLETED';
         } else if (st === 'pending') {
           status = 'in_progress';
@@ -1486,6 +1516,10 @@
           status = 'in_progress';
           statusLabel = 'Revise & resubmit';
           stateBadge = 'NEEDS CHANGES';
+        } else {
+          status = 'available';
+          statusLabel = 'Do Mission';
+          stateBadge = '';
         }
         var tf = 'teacher';
         var badge = '';
@@ -1493,6 +1527,12 @@
         if (stype === 'poll') tf = 'create';
         else if (stype === 'bug_report') tf = 'create';
         var mmForCard = (sub && typeof window !== 'undefined' && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
+        var completedDesc = (m.description || '').trim();
+        if (status === 'completed' && st === 'accepted') {
+          completedDesc = 'Completed before · Redo available · Reward already earned';
+        } else if (status === 'completed' && st === 'rejected') {
+          completedDesc = 'Not accepted · Redo available';
+        }
         items.push({
           id: m.id,
           kind: 'teacher',
@@ -1501,7 +1541,7 @@
           stateBadge: stateBadge,
           icon: '🧠',
           title: m.title || 'Mission',
-          description: (m.description || '').trim(),
+          description: status === 'completed' ? completedDesc : (m.description || '').trim(),
           reward: 1,
           status: status,
           statusLabel: statusLabel,
@@ -1513,11 +1553,7 @@
           submission: sub,
           onActivate: function(){
             if (status === 'completed') {
-              if (window.LanternCardUI) {
-                var cap = (m.description || '').trim();
-                if (sub && sub.status === 'returned' && sub.returned_reason) cap += '\n\nTeacher feedback:\n' + sub.returned_reason;
-                window.LanternCardUI.openTextDetail(m.title || 'Mission', statusLabel, cap || 'Mission complete.');
-              }
+              openMissionSubmitModal(m, null, '', { redo: true });
               return;
             }
             if (st === 'pending') {
@@ -1562,9 +1598,10 @@
       }
     }
 
-    function openMissionSubmitModal(m, resubmitId, prefill){
+    function openMissionSubmitModal(m, resubmitId, prefill, opts){
       currentMissionForSubmit = m;
       currentResubmitId = resubmitId || null;
+      currentMissionIsRedo = !!(opts && opts.redo) && !currentResubmitId;
       missionDetailReturnFocus = document.activeElement;
       destroyMissionUnifiedField();
       var titleEl = el('missionDetailTitle');
@@ -1587,8 +1624,11 @@
       var allowsLink = !!(m.allows_link);
       var anyMed = !isPollMission && !isBugMission && (allowsImage || allowsVideo || allowsLink);
       var rew = 1;
-      if (titleEl) titleEl.textContent = (currentResubmitId ? 'Resubmit: ' : '') + (m.title || 'Mission');
-      if (metaEl) metaEl.textContent = typeBadgeForTeacher(m) + ' · 🟡 +1 Nugget';
+      if (titleEl) titleEl.textContent = missionSubmitTitlePrefix() + (m.title || 'Mission');
+      if (metaEl) {
+        metaEl.textContent = typeBadgeForTeacher(m) + ' · 🟡 +1 Nugget';
+        if (currentMissionIsRedo) metaEl.textContent += ' · Reward already earned (redo allowed)';
+      }
       if (descEl) descEl.textContent = (m.description || '').trim();
       if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
       if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';
@@ -1694,7 +1734,7 @@
       btnM._submitting = !!isBusy;
       btnM._labelLocked = !!isBusy;
       btnM.disabled = !!isBusy;
-      btnM.textContent = isBusy ? 'Submitting…' : (currentResubmitId ? 'Resubmit mission' : 'Submit mission');
+      btnM.textContent = isBusy ? 'Submitting…' : missionSubmitActionLabel();
       missionSubmitInFlight = !!isBusy;
     }
 
@@ -1735,7 +1775,7 @@
             toast(errP);
             return;
           }
-          toast(FERPA_STUDENT_SUBMIT_MESSAGE);
+          toast(missionSubmitSuccessToast(resP));
           closeMissionDetailModal();
           loadMissions();
         }).catch(function(){
@@ -1763,7 +1803,7 @@
             toast(errB);
             return;
           }
-          toast(FERPA_STUDENT_SUBMIT_MESSAGE);
+          toast(missionSubmitSuccessToast(resB));
           closeMissionDetailModal();
           loadMissions();
         }).catch(function(){
@@ -1828,7 +1868,7 @@
           toast(err);
           return;
         }
-        toast(FERPA_STUDENT_SUBMIT_MESSAGE);
+        toast(missionSubmitSuccessToast(res));
         closeMissionDetailModal();
         loadMissions();
       }).catch(function(){

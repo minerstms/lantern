@@ -61,10 +61,36 @@ function makeRewardDb(initial) {
       return w ? { balance: w.balance } : null;
     }
 
+    if (s.startsWith('SELECT id, status, character_name, mission_id FROM lantern_mission_submissions WHERE id =')) {
+      const id = binds[0];
+      const row = state.submissions[id];
+      return row
+        ? { id: row.id, status: row.status, character_name: row.character_name, mission_id: row.mission_id || '' }
+        : null;
+    }
+
     if (s.startsWith('SELECT id, status, character_name FROM lantern_mission_submissions WHERE id =')) {
       const id = binds[0];
       const row = state.submissions[id];
       return row ? { id: row.id, status: row.status, character_name: row.character_name } : null;
+    }
+
+    if (
+      s.startsWith(
+        "SELECT id, created_at FROM lantern_mission_submissions WHERE mission_id = ? AND character_name = ? AND status = 'accepted' AND id != ?"
+      ) ||
+      s.includes("status = 'accepted' AND id != ?")
+    ) {
+      const [missionId, characterName, excludeId] = binds;
+      const found = Object.values(state.submissions).find(
+        (row) =>
+          row &&
+          String(row.mission_id || '') === String(missionId) &&
+          String(row.character_name || '') === String(characterName) &&
+          String(row.status || '') === 'accepted' &&
+          String(row.id) !== String(excludeId)
+      );
+      return found ? { id: found.id, created_at: found.created_at || '' } : null;
     }
 
     if (s.startsWith('SELECT status FROM lantern_mission_submissions WHERE id =')) {

@@ -150,8 +150,33 @@ export async function creditMissionApprovalReward(db, characterName, submissionI
 }
 
 /**
+ * Prompt #8 — prior accepted submission for the same mission+participant (excludes `excludeId`).
+ * Used so a redo approval can accept content without paying a second once-ever Nugget.
+ */
+export async function findPriorAcceptedMissionSubmission(db, missionId, characterName, excludeId) {
+  const mid = String(missionId || '').trim();
+  const key = String(characterName || '').trim();
+  const exclude = String(excludeId || '').trim();
+  if (!mid || !key) return null;
+  try {
+    return (
+      (await db
+        .prepare(
+          "SELECT id, created_at FROM lantern_mission_submissions WHERE mission_id = ? AND character_name = ? AND status = 'accepted' AND id != ? ORDER BY created_at ASC LIMIT 1"
+        )
+        .bind(mid, key, exclude || '')
+        .first()) || null
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
  * Accept submission (pending → accepted) and credit reward atomically in sequence.
  * Reverts acceptance if reward credit fails.
+ * Prompt #8 — redo submissions remain reviewable; once a prior accepted row exists for the
+ * same mission+participant, acceptance succeeds with +0 (reward cadence already consumed).
  */
 export async function approveMissionWithReward(db, opts) {
   const {
@@ -161,6 +186,7 @@ export async function approveMissionWithReward(db, opts) {
     reviewerLabel,
     revertOnRewardFailure,
     env,
+    skipReward,
   } = opts;
   const creditOpts = { env };
   const id = String(submissionId || '').trim();
@@ -168,15 +194,34 @@ export async function approveMissionWithReward(db, opts) {
   const reviewer = String(reviewerLabel || 'Teacher').trim();
 
   const row = await db
-    .prepare('SELECT id, status, character_name FROM lantern_mission_submissions WHERE id = ?')
+    .prepare('SELECT id, status, character_name, mission_id FROM lantern_mission_submissions WHERE id = ?')
     .bind(id)
     .first();
   if (!row) {
     return { ok: false, code: 404, error: 'Not found' };
   }
 
+  const characterKey = String(row.character_name || recipientCharacterName || '').trim();
+  const missionId = String(row.mission_id || '').trim();
+  let rewardSkipped = !!skipReward;
+  if (!rewardSkipped && missionId && characterKey) {
+    const prior = await findPriorAcceptedMissionSubmission(db, missionId, characterKey, id);
+    if (prior) rewardSkipped = true;
+  }
+
   const status = String(row.status || '').trim();
   if (status === 'accepted') {
+    if (rewardSkipped) {
+      return {
+        ok: true,
+        idempotent: true,
+        character_name: row.character_name,
+        nuggets: 0,
+        rewarded: false,
+        reward_skipped: true,
+        reward_idempotent: true,
+      };
+    }
     const reward = await creditMissionApprovalReward(
       db,
       row.character_name || recipientCharacterName,
@@ -193,6 +238,7 @@ export async function approveMissionWithReward(db, opts) {
       idempotent: true,
       character_name: row.character_name,
       nuggets: reward.delta,
+      rewarded: !reward.idempotent,
       reward_idempotent: !!reward.idempotent,
     };
   }
@@ -212,6 +258,17 @@ export async function approveMissionWithReward(db, opts) {
   if (changes === 0) {
     const again = await db.prepare('SELECT status, character_name FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
     if (again && String(again.status) === 'accepted') {
+      if (rewardSkipped) {
+        return {
+          ok: true,
+          idempotent: true,
+          character_name: again.character_name,
+          nuggets: 0,
+          rewarded: false,
+          reward_skipped: true,
+          reward_idempotent: true,
+        };
+      }
       const reward = await creditMissionApprovalReward(
         db,
         again.character_name || recipientCharacterName,
@@ -228,10 +285,23 @@ export async function approveMissionWithReward(db, opts) {
         idempotent: true,
         character_name: again.character_name,
         nuggets: reward.delta,
+        rewarded: !reward.idempotent,
         reward_idempotent: !!reward.idempotent,
       };
     }
     return { ok: false, code: 409, error: 'approval_conflict' };
+  }
+
+  if (rewardSkipped) {
+    return {
+      ok: true,
+      idempotent: false,
+      character_name: recipientCharacterName || row.character_name,
+      nuggets: 0,
+      rewarded: false,
+      reward_skipped: true,
+      reward_idempotent: true,
+    };
   }
 
   const credit = await creditMissionApprovalReward(
@@ -276,6 +346,7 @@ export async function approveMissionWithReward(db, opts) {
     character_name: recipientCharacterName || row.character_name,
     nuggets: credit.delta,
     balance_after: credit.balance_after,
+    rewarded: !credit.idempotent,
     reward_idempotent: !!credit.idempotent,
   };
 }
