@@ -2182,8 +2182,22 @@
         body: previewBody,
         category: category,
         author_name: authorName,
-        character_name: authorType === 'student' ? getAdoptedAccountKey() : '',
+        character_name: authorType === 'student'
+          ? getAdoptedAccountKey()
+          : (function () {
+              try {
+                return (window.LANTERN_PILOT_ME && window.LANTERN_PILOT_ME.username) ? String(window.LANTERN_PILOT_ME.username).trim() : '';
+              } catch (eKey) { return ''; }
+            })(),
+        author_avatar_key: authorType === 'student'
+          ? getAdoptedAccountKey()
+          : (function () {
+              try {
+                return (window.LANTERN_PILOT_ME && window.LANTERN_PILOT_ME.username) ? String(window.LANTERN_PILOT_ME.username).trim() : '';
+              } catch (eKey2) { return ''; }
+            })(),
         author_type: authorType,
+        type: ct === 'shoutout' ? 'shout_out' : 'news',
         created_at: nowIso,
         approved_at: nowIso,
         image_url: imageUrl,

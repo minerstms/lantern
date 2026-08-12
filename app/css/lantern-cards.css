@@ -111,19 +111,23 @@
 .lanternCanonicalCardCaption {
   position: relative;
   z-index: 1;
-  /* Prompt #218 — nestle LLHC avatar with ~12–14px edge breathing room; full 28px circle visible */
+  /* Prompt #218/#222 — nestle LLHC avatar; three-row caption stack */
   padding: 0 14px 14px 12px;
   padding-right: 44px;
   box-sizing: border-box;
   overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
 }
 .lanternCanonicalCardTitle {
   margin: 0;
   color: #fff;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 900;
-  line-height: 1.1;
-  max-height: 1.1em;
+  line-height: 1.12;
+  max-height: 1.12em;
   text-shadow: 0 2px 8px rgba(0,0,0,.85);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -132,13 +136,14 @@
   overflow: hidden;
   word-break: break-word;
 }
-.lanternCanonicalCardMeta {
+.lanternCanonicalCardMeta,
+.lanternCanonicalCardMetaRow {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 0;
   color: rgba(255,255,255,.92);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -177,16 +182,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 0 0 auto;
-  max-width: 42%;
+  max-width: 46%;
 }
-.lanternCanonicalCardDesc {
+.lanternCanonicalCardDesc,
+.lanternCanonicalCardDescRow {
   min-width: 0;
-  flex: 1 1 auto;
+  width: 100%;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1.25;
+  color: rgba(255,255,255,.9);
   opacity: .95;
+  text-shadow: 0 1px 6px rgba(0,0,0,.85);
 }
 .lanternCanonicalCardMetaSeparator {
   flex-shrink: 0;
@@ -205,14 +216,20 @@
 }
 .lanternCanonicalCardTypeBadge,
 .lanternCanonicalCardStateBadge {
-  display: inline-block;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
   font-weight: 900;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: rgba(0,0,0,.55);
+  line-height: 1;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.58);
   color: #fff;
   text-shadow: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
 }
 /* Missions library cards (Prompt #80/#121): type/category chips are gone from artwork.
    Progress/state chips (STARTED / COMPLETED / NEEDS CHANGES) stay upper-right only. */
@@ -264,10 +281,17 @@
 .exploreCard--gamesLibrary .lanternCanonicalCardBadgeLayer {
   display: none;
 }
-/* Prompt #123 — Explore feed cards (.feedExploreCard from LANTERN_FEED_CARD): no ULHC/URHC
-   type/category/status corner badges over artwork. Missions/Games library badges unchanged. */
-.exploreCard.feedExploreCard .lanternCanonicalCardBadgeLayer,
-.exploreCard.feedExploreCard .lanternCanonicalCardTypeBadge,
+/* Prompt #222 — Explore feed cards show ULHC type icon badges; state badges stay hidden. */
+.exploreCard.feedExploreCard .lanternCanonicalCardBadgeLayer {
+  display: flex !important;
+  top: 8px;
+  left: 8px;
+  right: 44px;
+  justify-content: flex-start;
+}
+.exploreCard.feedExploreCard .lanternCanonicalCardTypeBadge {
+  display: inline-flex !important;
+}
 .exploreCard.feedExploreCard .lanternCanonicalCardStateBadge,
 .exploreCard.feedExploreCard .exploreCardTypeBadge {
   display: none !important;

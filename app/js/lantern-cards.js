@@ -5,22 +5,66 @@
 (function (global) {
   'use strict';
 
-  var TYPE_ICONS = { image: '📷', link: '🔗', video: '🎬', webapp: '📱', project: '📂', poll: '📊', teach: '🧠', create: '🛠', news: '📢', shoutout: '⭐' };
-  /** Top-right type badges: always icon + short label (single format for all standard cards). */
+  var TYPE_ICONS = {
+    image: '📷',
+    link: '🔗',
+    video: '🎬',
+    webapp: '📱',
+    project: '📂',
+    poll: '📊',
+    teach: '🧠',
+    create: '🛠',
+    news: '📰',
+    shoutout: '📣',
+    shout_out: '📣',
+    article: '📰',
+    photo: '📰'
+  };
+  /** Top-right / legacy type badges: icon + short label. */
   /** Prompt #118 — shoutout display name is "Shout-Out!" (value key stays shoutout). */
   var SHOUT_OUT_DISPLAY_NAME = 'Shout-Out!';
   var TYPE_BADGES = {
     poll: '📊 Poll',
     teach: '🧠 Teach',
     create: '🛠 Create',
-    news: '📢 News',
-    shoutout: '⭐ ' + SHOUT_OUT_DISPLAY_NAME,
+    news: '📰 News',
+    shoutout: '📣 ' + SHOUT_OUT_DISPLAY_NAME,
+    shout_out: '📣 ' + SHOUT_OUT_DISPLAY_NAME,
     image: '📷 Image',
     video: '🎬 Video',
     link: '🔗 Link',
     project: '📂 Project',
-    webapp: '📱 App'
+    webapp: '📱 App',
+    article: '📰 News',
+    photo: '📰 News'
   };
+
+  /**
+   * Prompt #222 — ULHC content-type icon badge (icon-only; aria-label for a11y).
+   * Locked vocabulary: Shout-Out 📣 · News 📰 · Poll 📊.
+   * Mission/game/achievement keep existing distinct treatment (no invented icons here).
+   */
+  function resolveUlhcTypeBadge(modelOrType) {
+    var type = '';
+    if (modelOrType && typeof modelOrType === 'object') {
+      type = String(modelOrType.type || modelOrType.fallbackType || '').toLowerCase();
+    } else {
+      type = String(modelOrType || '').toLowerCase();
+    }
+    if (type === 'shoutout' || type === 'shout_out' || type === 'shout-out' || type === 'recognition') {
+      return { icon: '📣', label: 'Shout-Out' };
+    }
+    if (type === 'poll') return { icon: '📊', label: 'Poll' };
+    if (type === 'news' || type === 'article' || type === 'photo' || type === 'video' || type === 'image') {
+      return { icon: '📰', label: 'News' };
+    }
+    return null;
+  }
+
+  function contentTypeTickerIcon(type) {
+    var b = resolveUlhcTypeBadge(type);
+    return b ? b.icon : '';
+  }
 
   var CARD_MODE = { RAIL: 'rail', OPENED: 'opened', DETAIL: 'detail' };
   /** Contract v2 — fixed 280px 16:9 landscape canonical face. */
@@ -201,12 +245,35 @@
     return '';
   }
 
+  /** Prompt #222 — Shout-Out Row 3: recognized party — message preview (no "Recognizing:" prefix). */
+  function shoutOutCompactRow3Preview(item) {
+    item = item || {};
+    var party = shoutOutRecognizedPartyLabel(item);
+    var blob = String(item.body != null ? item.body : (item.summary != null ? item.summary : (item.description || '')));
+    var msgBlob = blob
+      .replace(/Recognizing:\s*[^\n\r]+/gi, ' ')
+      .replace(/^\s*For\s+[^\n\r]+/i, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    var msg = getExploreDescriptionPreview({
+      title: item.title,
+      summary: msgBlob,
+      body: msgBlob,
+      description: msgBlob,
+      type: item.type,
+    });
+    if (party && msg) return party + ' — ' + msg;
+    if (party) return party;
+    return msg || '';
+  }
+
   function buildCanonicalImageOnErrorHandler() {
     return 'var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;return;}el.onerror=null;el.src=u;';
   }
 
   /**
    * ONE compact production card-face compositor (contract v2).
+   * Prompt #222 — canonical 3-row overlay: headline · author+date · context/preview + ULHC type icon.
    * @param {object} model — normalized face fields
    * @param {object} shellOpts — report/nav/class attrs
    */
@@ -242,26 +309,33 @@
     var avatarHtml = '';
     if (exploreOverlay) {
       avatarHtml = buildExploreAuthorAvatarHtml({
-        character_name: model.character_name || model.author_name || authorRaw,
+        character_name: model.character_name || model.authorAvatarKey || model.author_name || authorRaw,
         author_name: model.author_name || authorRaw,
+        authorAvatarKey: model.authorAvatarKey,
         _canonicalAvatar: model._canonicalAvatar,
         frame: model.frame,
         avatar: model.avatar,
       });
     }
-    var metaParts = [];
-    if (avatarHtml) metaParts.push(avatarHtml);
-    if (author) metaParts.push('<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>');
+    var row2Parts = [];
+    if (avatarHtml) row2Parts.push(avatarHtml);
+    if (author) row2Parts.push('<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>');
     if (dateMeta) {
-      if (metaParts.length) metaParts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
-      metaParts.push('<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>');
-    }
-    if (desc) {
-      if (metaParts.length) metaParts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
-      metaParts.push('<span class="lanternCanonicalCardDesc">' + esc(desc) + '</span>');
+      if (row2Parts.length) row2Parts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
+      row2Parts.push('<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>');
     }
     var badgeLayer = '';
-    if (model.typeBadge) {
+    var ulhc = exploreOverlay ? resolveUlhcTypeBadge(model) : null;
+    if (ulhc) {
+      badgeLayer +=
+        '<span class="lanternCanonicalCardTypeBadge" role="img" aria-label="' +
+        esc(ulhc.label) +
+        '" title="' +
+        esc(ulhc.label) +
+        '">' +
+        ulhc.icon +
+        '</span>';
+    } else if (model.typeBadge) {
       badgeLayer += '<span class="lanternCanonicalCardTypeBadge">' + esc(String(model.typeBadge)) + '</span>';
     }
     if (model.stateBadge) {
@@ -269,6 +343,14 @@
     }
     var imgBlock = '<img class="lanternCanonicalCardImage" src="' + esc(remoteUrl) + '" alt="" loading="lazy" decoding="async" data-lc-t="' + esc(typeSvg) + '" data-lc-u="' + esc(uniSvg) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
     var fallbackBlock = '<div class="lanternCanonicalCardFallback" hidden style="background:linear-gradient(135deg,' + svgSpecForContentType(fbType).a + ',' + svgSpecForContentType(fbType).b + ');" aria-hidden="true"></div>';
+    var captionInner =
+      '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>' +
+      (row2Parts.length
+        ? '<div class="lanternCanonicalCardMeta lanternCanonicalCardMetaRow">' + row2Parts.join('') + '</div>'
+        : '') +
+      (desc
+        ? '<div class="lanternCanonicalCardDesc lanternCanonicalCardDescRow">' + esc(desc) + '</div>'
+        : '');
     var inner =
       '<div class="lanternCanonicalCardFrame">' +
         imgBlock +
@@ -276,8 +358,7 @@
         '<div class="lanternCanonicalCardOverlay" aria-hidden="true">' +
           '<div class="lanternCanonicalCardGradient"></div>' +
           '<div class="lanternCanonicalCardCaption">' +
-            '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>' +
-            (metaParts.length ? '<div class="lanternCanonicalCardMeta">' + metaParts.join('') + '</div>' : '') +
+            captionInner +
           '</div>' +
         '</div>' +
         (badgeLayer ? '<div class="lanternCanonicalCardBadgeLayer">' + badgeLayer + '</div>' : '') +
@@ -327,9 +408,9 @@
     var desc = isGameAchievement
       ? scoreLine
       : (type === 'poll'
-        ? ''
+        ? 'Tap to vote'
         : (isShout
-          ? shoutOutRecognizedPartyLabel(item)
+          ? shoutOutCompactRow3Preview(item)
           : getExploreDescriptionPreview({
               title: item.title,
               summary: item.summary,
@@ -359,8 +440,7 @@
       imageUrl: isGameAchievement ? (gameArtUrl || item.imageUrl || item.image_url) : (item.imageUrl || item.image_url),
       url: item.url,
       fallbackType: isGameAchievement ? 'create' : (item.type || 'news'),
-      /* Prompt #123 — Explore /api/feed rail faces: no ULHC/URHC type/category corner badges.
-         Missions/Games pages pass their own typeBadge/stateBadge via dedicated specs. */
+      /* Prompt #222 — ULHC type icon resolved in buildCanonicalCardFaceHtml via resolveUlhcTypeBadge. */
       typeBadge: '',
       stateBadge: '',
       reportType: 'feed_item',
@@ -1455,6 +1535,9 @@
     formatCompactDate: formatCompactDate,
     getExploreDescriptionPreview: getExploreDescriptionPreview,
     shoutOutRecognizedPartyLabel: shoutOutRecognizedPartyLabel,
+    shoutOutCompactRow3Preview: shoutOutCompactRow3Preview,
+    resolveUlhcTypeBadge: resolveUlhcTypeBadge,
+    contentTypeTickerIcon: contentTypeTickerIcon,
     TYPE_ICONS: TYPE_ICONS,
     TYPE_BADGES: TYPE_BADGES,
     SHOUT_OUT_DISPLAY_NAME: SHOUT_OUT_DISPLAY_NAME,

@@ -162,8 +162,27 @@
         ? '⭐'
         : type === 'teacher_pick' || type === 'featured_creation' || type === 'achievement'
           ? '🏆'
-          : type === 'student_news'
-            ? '📰'
+          : type === 'student_news' || type === 'news' || type === 'shout_out' || type === 'poll'
+            ? (function () {
+                var slideType = type === 'student_news' ? String((s && s.contentType) || meta.content_type || meta.news_type || '').toLowerCase() : type;
+                if (!slideType && type === 'student_news') {
+                  var bodyPrev = String(meta.body_preview || '').trim();
+                  var cat = String(meta.category || '').toLowerCase();
+                  if (cat.indexOf('shout') >= 0 || /^Shout-out/i.test(bodyPrev) || /Recognizing:/i.test(bodyPrev)) {
+                    slideType = 'shout_out';
+                  } else if (cat.indexOf('poll') >= 0) {
+                    slideType = 'poll';
+                  } else {
+                    slideType = 'news';
+                  }
+                }
+                if (global.LanternCards && typeof global.LanternCards.contentTypeTickerIcon === 'function') {
+                  return global.LanternCards.contentTypeTickerIcon(slideType) || '📰';
+                }
+                if (slideType === 'shout_out' || slideType === 'shoutout') return '📣';
+                if (slideType === 'poll') return '📊';
+                return '📰';
+              })()
             : '✨';
 
     if (type === 'teacher_recognition') {
@@ -412,18 +431,27 @@
           }
           var avatarKey = String(n.author_avatar_key || n.actor_id || '').trim();
           if (!avatarKey) avatarKey = String(n.author_name || '').trim();
+          var newsType = 'news';
+          var cat = String(n.category || '').toLowerCase();
+          var bodyPrev = String(n.body || '').slice(0, 120);
+          if (cat.indexOf('shout') >= 0 || /^Shout-out/i.test(bodyPrev) || /Recognizing:/i.test(bodyPrev)) {
+            newsType = 'shout_out';
+          }
           slides.push({
             type: 'student_news',
+            contentType: newsType,
             title: t,
-            subtitle: author ? 'News · ' + author : 'News',
+            subtitle: author ? ((newsType === 'shout_out' ? 'Shout-Out' : 'News') + ' · ' + author) : (newsType === 'shout_out' ? 'Shout-Out' : 'News'),
             image: null,
             actor_name: author,
             meta: {
               character_name: avatarKey,
               actor_id: n.actor_id || null,
               author_avatar_key: avatarKey || null,
-              avatar: (n.meta && n.meta.avatar) || '📰',
-              body_preview: String(n.body || '').slice(0, 100)
+              content_type: newsType,
+              category: n.category || '',
+              avatar: (n.meta && n.meta.avatar) || (newsType === 'shout_out' ? '📣' : '📰'),
+              body_preview: bodyPrev
             },
             created_at: n.approved_at || n.created_at || ''
           });

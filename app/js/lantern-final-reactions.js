@@ -1,14 +1,15 @@
 /**
  * Lantern — immutable finalized feed reactions (five positive choices, lock-in once).
+ * Prompt #222 — no permanent Lock In; compact confirmation after selecting a reaction.
  */
 (function (global) {
   'use strict';
 
   var FINAL_VOCAB = [
-    { type: 'heart', emoji: '❤️', label: 'Heart' },
+    { type: 'heart', emoji: '❤️', label: 'Love' },
     { type: 'star', emoji: '⭐', label: 'Star' },
-    { type: 'lightbulb', emoji: '💡', label: 'Lightbulb' },
-    { type: 'teamwork', emoji: '🤝', label: 'Teamwork' },
+    { type: 'lightbulb', emoji: '💡', label: 'Idea' },
+    { type: 'teamwork', emoji: '🤝', label: 'Handshake' },
     { type: 'fire', emoji: '🔥', label: 'Fire' }
   ];
 
@@ -128,6 +129,17 @@
     });
   }
 
+  function confirmPopoverHtml() {
+    return (
+      '<div class="lanternFinalRxConfirm" hidden role="dialog" aria-label="Confirm reaction">' +
+        '<div class="lanternFinalRxConfirmActions">' +
+          '<button type="button" class="lanternFinalRxConfirmOk">Lock it in!</button>' +
+          '<button type="button" class="lanternFinalRxConfirmCancel">Choose another.</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
   function renderPreviewPanel(container) {
     var draft = null;
     var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft lanternFinalRxPanel--preview" data-final-rx-preview="1">';
@@ -137,11 +149,15 @@
       html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + esc(v.type) + '" aria-label="' + esc(v.label) + '" aria-pressed="false">' + v.emoji + '</button>';
     });
     html += '</div>';
-    html += '<button type="button" class="lanternFinalRxLockBtn" disabled>Lock In</button>';
+    html += confirmPopoverHtml();
     html += '</div>';
     container.innerHTML = html;
+    var panel = container.querySelector('.lanternFinalRxPanel');
     var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
-    var lockBtn = container.querySelector('.lanternFinalRxLockBtn');
+    var confirmBox = container.querySelector('.lanternFinalRxConfirm');
+    var confirmOk = container.querySelector('.lanternFinalRxConfirmOk');
+    var confirmCancel = container.querySelector('.lanternFinalRxConfirmCancel');
+
     function syncDraftUi() {
       choiceBtns.forEach(function (btn) {
         var t = btn.getAttribute('data-rx-type');
@@ -149,19 +165,35 @@
         btn.classList.toggle('lanternFinalRxChoice--on', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
-      if (lockBtn) lockBtn.disabled = !draft;
+      if (confirmBox) confirmBox.hidden = !draft;
     }
+
     choiceBtns.forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         var t = btn.getAttribute('data-rx-type');
-        draft = draft === t ? null : t;
+        draft = t;
         syncDraftUi();
       });
     });
-    if (lockBtn) {
-      lockBtn.addEventListener('click', function (e) {
+    if (confirmCancel) {
+      confirmCancel.addEventListener('click', function (e) {
         e.preventDefault();
+        draft = null;
+        syncDraftUi();
+      });
+    }
+    if (confirmOk) {
+      confirmOk.addEventListener('click', function (e) {
+        e.preventDefault();
+      });
+    }
+    if (panel) {
+      panel.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && draft) {
+          draft = null;
+          syncDraftUi();
+        }
       });
     }
     syncDraftUi();
@@ -226,6 +258,7 @@
 
   function renderDraft(container, itemType, itemId, opts) {
     var draft = null;
+    var submitting = false;
     var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft">';
     html += '<h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
     html += '<div class="lanternFinalRxChoices" data-final-rx-choices="1">';
@@ -233,22 +266,30 @@
       html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + esc(v.type) + '" aria-label="' + esc(v.label) + '" aria-pressed="false">' + v.emoji + '</button>';
     });
     html += '</div>';
-    html += '<button type="button" class="lanternFinalRxLockBtn" disabled>Lock In</button>';
-    html += '<div class="lanternFinalRxConfirm" hidden>';
-    html += '<p class="lanternFinalRxConfirmText"></p>';
-    html += '<div class="lanternFinalRxConfirmActions">';
-    html += '<button type="button" class="lanternFinalRxConfirmCancel">Cancel</button>';
-    html += '<button type="button" class="lanternFinalRxConfirmOk">Lock In</button>';
-    html += '</div></div>';
+    html += confirmPopoverHtml();
     html += '</div>';
     container.innerHTML = html;
 
+    var panel = container.querySelector('.lanternFinalRxPanel');
     var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
-    var lockBtn = container.querySelector('.lanternFinalRxLockBtn');
     var confirmBox = container.querySelector('.lanternFinalRxConfirm');
-    var confirmText = container.querySelector('.lanternFinalRxConfirmText');
     var confirmOk = container.querySelector('.lanternFinalRxConfirmOk');
     var confirmCancel = container.querySelector('.lanternFinalRxConfirmCancel');
+
+    function clearError() {
+      var errEl = container.querySelector('.lanternFinalRxError');
+      if (errEl) errEl.remove();
+    }
+
+    function showError(msg) {
+      clearError();
+      var errEl = global.document.createElement('p');
+      errEl.className = 'lanternFinalRxError';
+      errEl.setAttribute('role', 'alert');
+      errEl.textContent = msg || 'Could not lock in response.';
+      var host = container.querySelector('.lanternFinalRxPanel') || container;
+      host.appendChild(errEl);
+    }
 
     function syncDraftUi() {
       choiceBtns.forEach(function (btn) {
@@ -256,39 +297,46 @@
         var on = t === draft;
         btn.classList.toggle('lanternFinalRxChoice--on', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.disabled = !!submitting;
       });
-      if (lockBtn) lockBtn.disabled = !draft;
+      if (confirmBox) confirmBox.hidden = !draft || submitting;
+      if (confirmOk) confirmOk.disabled = !draft || submitting;
+      if (confirmCancel) confirmCancel.disabled = submitting;
+    }
+
+    function clearTentative() {
+      draft = null;
+      syncDraftUi();
     }
 
     choiceBtns.forEach(function (btn) {
       btn.addEventListener('click', function () {
+        if (submitting) return;
+        clearError();
         var t = btn.getAttribute('data-rx-type');
-        draft = draft === t ? null : t;
+        // Prompt #222 — selecting a reaction opens/keeps confirmation; switching updates tentative choice.
+        draft = t;
         syncDraftUi();
-        if (confirmBox) confirmBox.hidden = true;
       });
     });
 
-    if (lockBtn) {
-      lockBtn.addEventListener('click', function () {
-        if (!draft || !confirmBox || !confirmText) return;
-        confirmText.textContent = 'Lock in ' + emojiForType(draft) + '? You won\u2019t be able to change this response later.';
-        confirmBox.hidden = false;
-      });
-    }
-
     if (confirmCancel) {
       confirmCancel.addEventListener('click', function () {
-        if (confirmBox) confirmBox.hidden = true;
+        if (submitting) return;
+        clearError();
+        clearTentative();
       });
     }
 
     if (confirmOk) {
       confirmOk.addEventListener('click', function () {
-        if (!draft) return;
-        confirmOk.disabled = true;
-        finalizeReaction(itemType, itemId, draft).then(function (res) {
-          confirmOk.disabled = false;
+        if (!draft || submitting) return;
+        clearError();
+        submitting = true;
+        syncDraftUi();
+        var chosen = draft;
+        finalizeReaction(itemType, itemId, chosen).then(function (res) {
+          submitting = false;
           if (res && res.ok && res.finalized) {
             if (typeof opts.onFinalized === 'function') opts.onFinalized(res);
             renderLocked(container, res);
@@ -300,16 +348,20 @@
             });
             return;
           }
-          if (confirmBox) confirmBox.hidden = true;
+          // Failure: do not lock, do not reveal percentages, restore interactive state.
+          draft = chosen;
+          syncDraftUi();
           var errMsg = (res && res.error) ? String(res.error) : 'Could not lock in response.';
-          var errEl = container.querySelector('.lanternFinalRxError');
-          if (!errEl) {
-            errEl = global.document.createElement('p');
-            errEl.className = 'lanternFinalRxError';
-            container.querySelector('.lanternFinalRxPanel').appendChild(errEl);
-          }
-          errEl.textContent = errMsg;
+          showError(errMsg);
         });
+      });
+    }
+
+    if (panel) {
+      panel.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && draft && !submitting) {
+          clearTentative();
+        }
       });
     }
 

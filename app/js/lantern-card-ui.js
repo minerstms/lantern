@@ -991,26 +991,41 @@
     var typeLabel = cat || (ct === 'shoutout' ? (LC && LC.SHOUT_OUT_DISPLAY_NAME) || (TB.shoutout || 'Shout-Out!') : (TB.news || 'News'));
     var media = LC && LC.normalizeNewsMediaItemForExplore ? LC.normalizeNewsMediaItemForExplore(n) : n;
     var iso = n.approved_at || n.created_at || new Date().toISOString();
+    var feedType = ct === 'shoutout' || String(n.type || '').toLowerCase() === 'shout_out' ? 'shout_out' : inferStudioFeedTypeFromDraft({
+      type: 'news',
+      imageUrl: media.image_url,
+      videoUrl: media.video_url,
+      linkUrl: media.link_url
+    });
+    var avatarKey = String(n.author_avatar_key || n.authorAvatarKey || n.character_name || n.actor_id || '').trim();
     return {
       id: String(n.id || 'preview-draft'),
-      type: inferStudioFeedTypeFromDraft({
-        type: 'news',
-        imageUrl: media.image_url,
-        videoUrl: media.video_url,
-        linkUrl: media.link_url
-      }),
+      type: feedType,
       typeLabel: typeLabel,
       title: n.title || (ct === 'shoutout' ? ((LC && LC.SHOUT_OUT_DISPLAY_NAME) || 'Shout-Out!') : 'Untitled'),
       body: n.body || '',
       summary: n.body || '',
       authorDisplayName: String(n.author_name || 'Anonymous').trim(),
+      authorPublicLabel: n.author_public_label || n.authorPublicLabel || '',
       authorRole: n.author_type || 'student',
+      authorAvatarKey: avatarKey,
+      authorId: avatarKey || null,
+      character_name: avatarKey,
+      _canonicalAvatar: n._canonicalAvatar,
       createdAt: iso,
       approvedAt: iso,
       imageUrl: media.image_url || '',
       thumbnailUrl: media.image_url || '',
       videoUrl: media.video_url || '',
-      contentSlot: { linkUrl: media.link_url || '', photoCredit: n.photo_credit || '' }
+      contentSlot: {
+        linkUrl: media.link_url || '',
+        photoCredit: n.photo_credit || '',
+        recipient: (function () {
+          if (ct !== 'shoutout' && feedType !== 'shout_out') return '';
+          var m = String(n.body || '').match(/Recognizing:\s*([^\n\r]+)/i);
+          return m && m[1] ? String(m[1]).trim() : '';
+        })()
+      }
     };
   }
 

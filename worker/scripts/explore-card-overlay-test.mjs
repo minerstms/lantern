@@ -160,7 +160,8 @@ const shoutHtml = LC.buildCanonicalCardFaceHtml(shoutModel);
 assert(/Mrs\. Glorioso Rules!/.test(shoutHtml), '10d. shout-out headline');
 assert(/lanternCanonicalCardDesc/.test(shoutHtml) && /Mrs\. Glorioso/.test(shoutHtml), '10e. shout-out compact meta = recognized party');
 assert(!/Recognizing:/.test(shoutHtml), '10e2. Recognizing: prefix omitted from compact card');
-assert(!/Thanks for always helping/.test(shoutHtml), '10e3. shout message not used as compact meta');
+assert(/—/.test(shoutHtml) || /Mrs\. Glorioso/.test(shoutHtml), '10e3. shout row3 party present');
+assert(/📣/.test(shoutHtml) && /aria-label="Shout-Out"/.test(shoutHtml), '222-ulhc shout badge');
 
 const shoutFree = LC.normalizeFeedItemToFaceModel({
   id: 'shout_out:2',
@@ -171,8 +172,9 @@ const shoutFree = LC.normalizeFeedItemToFaceModel({
   authorDisplayName: 'Rick Radle',
   approvedAt: '2026-08-11T00:00:00.000Z',
 });
-assert(shoutFree.descriptionPreview === 'Volleyball Coaches', '10f. free-text recognition label only');
+assert(/Volleyball Coaches/.test(shoutFree.descriptionPreview || ''), '10f. free-text recognition label only');
 assert(!/^Recognizing:/i.test(shoutFree.descriptionPreview || ''), '10f2. no Recognizing: in descriptionPreview');
+assert(/Great season/.test(shoutFree.descriptionPreview || '') || /—/.test(shoutFree.descriptionPreview || ''), '10f3. party + message when available');
 
 // Prompt #220 — staff honorific authors on Explore cards
 assert(typeof LC.formatExploreAuthorLabel === 'function', '220a. formatExploreAuthorLabel exported');
@@ -215,7 +217,8 @@ const shoutMissing = LC.normalizeFeedItemToFaceModel({
   authorDisplayName: 'Rick Radle',
   approvedAt: '2026-08-11T00:00:00.000Z',
 });
-assert(shoutMissing.descriptionPreview === '', '10g. missing recognition omits compact segment');
+assert(/Just a message/.test(shoutMissing.descriptionPreview || ''), '10g. missing recognition still shows message preview');
+assert(!/Recognizing:/.test(shoutMissing.descriptionPreview || ''), '10g2. no Recognizing: when party missing');
 
 assert(/-webkit-line-clamp:\s*1/.test(cardsCss) && /line-clamp:\s*1/.test(cardsCss), '11. CSS one-line title clamp');
 assert(/lanternCanonicalCardDesc/.test(cardsCss) && /text-overflow:\s*ellipsis/.test(cardsCss), '11b. description CSS ellipsis');
