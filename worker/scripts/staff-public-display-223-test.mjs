@@ -100,6 +100,30 @@ const webAdmin = {
 assert(isSystemWebAdminAccount(webAdmin) === true, '7a. Web Admin detected');
 assert(formatPublicStaffName(webAdmin) === 'Web Admin', '7b. override does not replace Web Admin');
 
+const sroBlank = {
+  username: 'mike.martinez',
+  first_name: 'Mike',
+  last_name: 'Martinez',
+  display_name: 'Mike Martinez',
+  honorific: 'SRO',
+  public_display_name: null,
+  role: 'staff',
+};
+assert(formatPublicStaffName(sroBlank) === 'SRO Martinez', '7c. SRO + last → SRO Martinez');
+
+const sroNamed = {
+  username: 'mike.martinez',
+  first_name: 'Mike',
+  last_name: 'Martinez',
+  display_name: 'Mike Martinez',
+  honorific: 'SRO',
+  public_display_name: 'SRO Mike',
+  role: 'staff',
+};
+assert(formatPublicStaffName(sroNamed) === 'SRO Mike', '7d. SRO Mike override wins');
+assert(formatPublicStaffName(sroNamed) !== 'SRO SRO Mike', '7e. no SRO SRO Mike');
+assert(privacySafeStaffLabel(sroNamed) === 'SRO Mike', '7f. people label uses SRO Mike');
+
 const idx = buildStaffPublicNameIndex([tom, rick, deana, webAdmin]);
 assert(resolveAuthorPublicLabel(idx, { authorId: 'tom.romero', authorRole: 'teacher' }) === 'Mr. Tom', '8a. feed Tom');
 assert(resolveAuthorPublicLabel(idx, { authorId: 'rick.radle', authorRole: 'teacher' }) === 'Mr. Radle', '8b. feed Rick');

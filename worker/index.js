@@ -2009,7 +2009,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       if (!lnCheck.ok) {
         return jsonResponse({ ok: false, error: lnCheck.error, max: lnCheck.max }, 400, cors);
       }
-      // Prompt #220 — new staff require an explicit honorific (Mr./Miss/Ms./Mrs.).
+      // Prompt #220/#2 — new staff require an explicit honorific (Mr./Miss/Ms./Mrs./SRO).
       const honCheck = validateStaffHonorific(body.honorific, { required: true });
       if (!honCheck.ok) {
         return jsonResponse({ ok: false, error: honCheck.error }, 400, cors);

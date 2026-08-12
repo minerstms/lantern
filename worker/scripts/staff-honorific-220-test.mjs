@@ -42,17 +42,22 @@ const cardsJs = fs.readFileSync(path.join(root, 'app/js/lantern-cards.js'), 'utf
 const thankYou = fs.readFileSync(path.join(root, 'worker/thank-you-mission.js'), 'utf8');
 
 assert(/ADD COLUMN honorific TEXT/.test(migrate), '1. additive honorific migration');
-assert(STAFF_HONORIFICS.join(',') === 'Mr.,Miss,Ms.,Mrs.', '2. allowed honorifics exact');
+assert(STAFF_HONORIFICS.join(',') === 'Mr.,Miss,Ms.,Mrs.,SRO', '2. allowed honorifics exact');
 
 assert(validateStaffHonorific('Mr.', { required: true }).ok === true, '3a. Mr. accepted');
 assert(validateStaffHonorific('Miss', { required: true }).value === 'Miss', '3b. Miss accepted');
 assert(validateStaffHonorific('Ms.', { required: true }).ok === true, '3c. Ms. accepted');
 assert(validateStaffHonorific('Mrs.', { required: true }).ok === true, '3d. Mrs. accepted');
+assert(validateStaffHonorific('SRO', { required: true }).ok === true, '3d2. SRO accepted');
+assert(validateStaffHonorific('SRO', { required: true }).value === 'SRO', '3d3. SRO stored exact');
+assert(validateStaffHonorific('S.R.O.', { required: true }).ok === false, '3d4. S.R.O. rejected');
+assert(validateStaffHonorific('Officer', { required: true }).ok === false, '3d5. Officer rejected');
 assert(validateStaffHonorific('Dr.', { required: true }).ok === false, '3e. Dr. rejected');
 assert(validateStaffHonorific('Coach', { required: false }).ok === false, '3f. Coach rejected');
 assert(validateStaffHonorific('', { required: false }).value === null, '3g. empty optional → null');
 assert(validateStaffHonorific('', { required: true }).error === 'honorific_required', '3h. empty required fails');
 assert(validateStaffHonorific('  Ms.  ', { required: true }).value === 'Ms.', '3i. trim');
+assert(validateStaffHonorific('  SRO  ', { required: true }).value === 'SRO', '3j. SRO trim');
 
 const rick = {
   username: 'rick.radle',
@@ -74,6 +79,31 @@ const deana = {
   role: 'teacher',
 };
 assert(formatPublicStaffName(deana) === 'Ms. Pachelli', '5. Deana → Ms. Pachelli');
+
+const sroMike = {
+  username: 'mike.martinez',
+  first_name: 'Mike',
+  last_name: 'Martinez',
+  display_name: 'Mike Martinez',
+  honorific: 'SRO',
+  public_display_name: null,
+  role: 'staff',
+};
+assert(formatPublicStaffName(sroMike) === 'SRO Martinez', '5b. blank Display Name + SRO → SRO Martinez');
+assert(privacySafeStaffLabel(sroMike) === 'SRO Martinez', '5c. people picker SRO Martinez');
+
+const sroOverride = {
+  username: 'mike.martinez',
+  first_name: 'Mike',
+  last_name: 'Martinez',
+  display_name: 'Mike Martinez',
+  honorific: 'SRO',
+  public_display_name: 'SRO Mike',
+  role: 'staff',
+};
+assert(formatPublicStaffName(sroOverride) === 'SRO Mike', '5d. Display Name SRO Mike overrides');
+assert(formatPublicStaffName(sroOverride) !== 'SRO Martinez', '5e. override not honorific+last');
+assert(formatPublicStaffName(sroOverride) !== 'SRO SRO Mike', '5f. no doubled SRO prefix');
 
 const missing = {
   username: 'jane.doe',
@@ -102,12 +132,13 @@ assert(staffNeedsHonorific(webAdmin) === false, '7c. Web Admin does not Needs Ti
 
 assert(privacySafeStudentLabel({ display_name: 'Lucas R.', identity_display: 'Lucas R.' }) === 'Lucas R.', '8. student label unchanged');
 
-const idx = buildStaffPublicNameIndex([rick, deana, webAdmin, missing]);
+const idx = buildStaffPublicNameIndex([rick, deana, webAdmin, missing, sroMike]);
 assert(resolveAuthorPublicLabel(idx, { authorId: 'rick.radle', authorRole: 'teacher' }) === 'Mr. Radle', '9a. feed author Rick');
 assert(resolveAuthorPublicLabel(idx, { actor_id: 'deana.pachelli', author_type: 'teacher' }) === 'Ms. Pachelli', '9b. feed author Deana');
 assert(resolveAuthorPublicLabel(idx, { actor_id: 'admin', author_type: 'admin' }) === 'Web Admin', '9c. feed author admin');
 assert(resolveAuthorPublicLabel(idx, { authorId: 'jane.doe', authorRole: 'teacher' }) === 'Jane Doe', '9d. missing honorific fallback');
 assert(resolveAuthorPublicLabel(idx, { authorRole: 'student', authorDisplayName: 'Lucas Radle' }) === '', '9e. student → client compact');
+assert(resolveAuthorPublicLabel(idx, { authorId: 'mike.martinez', authorRole: 'staff' }) === 'SRO Martinez', '9f. feed author SRO');
 
 const items = [
   { authorId: 'rick.radle', authorRole: 'teacher', authorDisplayName: 'Rick Radle' },
@@ -127,12 +158,15 @@ assert(dup[1].label === 'Ms. Wilson · Admin', '11b. duplicate admin role');
 assert(dup[2].label === 'Mr. Radle', '11c. unique label unchanged');
 
 assert(/editUserHonorific/.test(adminHtml) && /nu_honorific/.test(adminHtml), '12. Admin create+edit honorific dropdowns');
+assert(/option value="SRO">SRO<\/option>/.test(adminHtml), '12b. Admin dropdown includes SRO');
 assert(/Needs Title/.test(adminHtml) && /Honorific not set/.test(adminHtml), '13. Needs Title / Honorific not set UX');
 assert(/validateStaffHonorific\(body\.honorific,\s*\{\s*required:\s*true\s*\}\)/.test(worker), '14. Worker create requires honorific');
 assert(/propagateHonorificToLinkedAccounts/.test(worker), '15. person-level honorific propagate');
 assert(/author_public_label/.test(worker) || /authorPublicLabel/.test(fs.readFileSync(path.join(root, 'worker/feed-handlers.js'), 'utf8')), '16. feed/news public label');
 assert(/formatExploreAuthorLabel/.test(cardsJs), '17. client explore author formatter');
+assert(/Mr\\\.\\|Miss\|Ms\\\.\\|Mrs\\\.\\|SRO/.test(cardsJs), '17b. client honorific regex includes SRO');
 assert(/primary_honorific|honorific/.test(thankYou), '18. Thank-a-Teacher uses honorific');
+assert(/COALESCE\(p\.honorific/.test(fs.readFileSync(path.join(root, 'worker/content-people.js'), 'utf8')), '18b. People search matches honorific + last');
 
 // Client formatter via vm (same pattern as explore-card-overlay-test)
 const sandbox = {
@@ -163,6 +197,8 @@ assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'Mr. Radle' }) === 'Mr. 
 assert(LC.formatExploreAuthorLabel({ author: 'Rick Radle', authorRole: 'teacher' }) === 'Rick Radle', '20b. staff missing title keeps full name');
 assert(LC.formatCompactAuthor('Lucas Radle') === 'Lucas R.', '20c. student compact First L.');
 assert(LC.formatExploreAuthorLabel({ author: 'Lucas Radle', authorRole: 'student' }) === 'Lucas R.', '20d. student explore uses First L.');
+assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'SRO Martinez' }) === 'SRO Martinez', '20e. SRO public label passthrough');
+assert(LC.formatExploreAuthorLabel({ author: 'SRO Martinez', authorRole: 'staff' }) === 'SRO Martinez', '20f. raw SRO Martinez kept');
 
 const staffFace = LC.normalizeFeedItemToFaceModel({
   id: 'news:staff',
@@ -176,6 +212,19 @@ const staffFace = LC.normalizeFeedItemToFaceModel({
 const staffHtml = LC.buildCanonicalCardFaceHtml(staffFace);
 assert(/Mr\. Radle/.test(staffHtml), '21a. Explore card shows Mr. Radle');
 assert(!/Rick R\./.test(staffHtml), '21b. Explore card does not compact staff to Rick R.');
+
+const sroFace = LC.normalizeFeedItemToFaceModel({
+  id: 'news:sro',
+  type: 'news',
+  title: 'Campus safety tip',
+  authorDisplayName: 'Mike Martinez',
+  authorPublicLabel: 'SRO Martinez',
+  authorRole: 'staff',
+  approvedAt: '2026-08-11T00:00:00.000Z',
+});
+const sroHtml = LC.buildCanonicalCardFaceHtml(sroFace);
+assert(/SRO Martinez/.test(sroHtml), '21c. Explore card shows SRO Martinez');
+assert(!/Mike M\./.test(sroHtml), '21d. Explore card does not compact SRO to Mike M.');
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);

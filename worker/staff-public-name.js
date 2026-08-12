@@ -4,7 +4,7 @@
  * Students remain First L. Free-text recognition unchanged. Web Admin stays Web Admin.
  */
 
-export const STAFF_HONORIFICS = Object.freeze(['Mr.', 'Miss', 'Ms.', 'Mrs.']);
+export const STAFF_HONORIFICS = Object.freeze(['Mr.', 'Miss', 'Ms.', 'Mrs.', 'SRO']);
 export const PUBLIC_DISPLAY_NAME_MAX_LEN = 80;
 
 function trimStr(v) {

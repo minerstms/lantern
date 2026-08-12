@@ -276,7 +276,7 @@
       <p id="editUserDisplay" class="acctPanelHint"></p>
       <p id="editUserStaffId" class="acctPanelHint"></p>
       <p id="editUserNeedsName" class="acctPanelHint" style="display:none;">Needs Name Setup — enter First and Last Name, then Save.</p>
-      <p id="editUserNeedsTitle" class="acctPanelHint" style="display:none;">Needs Title — choose an Honorific (Mr./Miss/Ms./Mrs.), then Save.</p>
+      <p id="editUserNeedsTitle" class="acctPanelHint" style="display:none;">Needs Title — choose an Honorific (Mr./Miss/Ms./Mrs./SRO), then Save.</p>
       <input type="hidden" id="editUserUsername" value="" />
       <label for="editUserFirstName">First Name</label>
       <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
@@ -289,6 +289,7 @@
         <option value="Miss">Miss</option>
         <option value="Ms.">Ms.</option>
         <option value="Mrs.">Mrs.</option>
+        <option value="SRO">SRO</option>
       </select>
       <label for="editUserPublicDisplay">Public Display Name</label>
       <input id="editUserPublicDisplay" type="text" maxlength="80" autocomplete="off" placeholder="Mr. Tom" />
@@ -424,6 +425,7 @@
           <option value="Miss">Miss</option>
           <option value="Ms.">Ms.</option>
           <option value="Mrs.">Mrs.</option>
+          <option value="SRO">SRO</option>
         </select>
         <label for="nu_public_display">Public Display Name (optional)</label>
         <input id="nu_public_display" type="text" maxlength="80" autocomplete="off" placeholder="Mr. Tom" />
@@ -855,7 +857,7 @@
       var last = u.last_name != null ? String(u.last_name).trim() : '';
       return !first || !last;
     }
-    var STAFF_HONORIFICS = { 'Mr.': 1, 'Miss': 1, 'Ms.': 1, 'Mrs.': 1 };
+    var STAFF_HONORIFICS = { 'Mr.': 1, 'Miss': 1, 'Ms.': 1, 'Mrs.': 1, 'SRO': 1 };
     function staffNeedsTitle(u) {
       if (!u || !isStaffRole(u.role)) return false;
       var un = String(u.username || '').trim().toLowerCase();
@@ -1997,7 +1999,7 @@
         return;
       }
       if (honorific && !STAFF_HONORIFICS[honorific]) {
-        showUsersMsg('Honorific must be Mr., Miss, Ms., or Mrs.', 'err');
+        showUsersMsg('Honorific must be Mr., Miss, Ms., Mrs., or SRO.', 'err');
         return;
       }
       if (publicDisplay.length > 80) {
@@ -2496,7 +2498,7 @@
       }
       var honorific = (document.getElementById('nu_honorific') && document.getElementById('nu_honorific').value || '').trim();
       if (!honorific || !STAFF_HONORIFICS[honorific]) {
-        showUsersMsg('Honorific is required (Mr., Miss, Ms., or Mrs.).', 'err');
+        showUsersMsg('Honorific is required (Mr., Miss, Ms., Mrs., or SRO).', 'err');
         return;
       }
       var publicDisplay = (document.getElementById('nu_public_display') && document.getElementById('nu_public_display').value || '').trim();

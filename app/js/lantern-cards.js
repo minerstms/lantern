@@ -163,7 +163,7 @@
     if (publicLabel) return publicLabel;
     var role = String(model.authorRole || model.author_role || model.authorType || model.author_type || '').trim().toLowerCase();
     var raw = String(model.author || model.authorDisplayName || '').trim();
-    if (/^(Mr\.|Miss|Ms\.|Mrs\.)\s+\S/i.test(raw)) return raw;
+    if (/^(Mr\.|Miss|Ms\.|Mrs\.|SRO)\s+\S/i.test(raw)) return raw;
     if (role === 'teacher' || role === 'admin' || role === 'staff') return raw;
     return formatCompactAuthor(raw);
   }
