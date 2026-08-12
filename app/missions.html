@@ -1313,6 +1313,9 @@
         stateBadge: hiddenDone ? 'COMPLETED' : '',
         statusLabel: hiddenDone ? '✅ Completed' : 'How it works →',
         created_at: '',
+        imageUrl: (window.LanternCards && typeof window.LanternCards.builtInMissionCoverUrl === 'function')
+          ? (window.LanternCards.builtInMissionCoverUrl('quick_hidden_nugget') || '')
+          : '',
         onActivate: function(){
           if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.');
         },

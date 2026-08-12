@@ -645,7 +645,7 @@
   var MISSION_FALLBACK_COVER_URL = 'assets/mission-card.png';
 
   /**
-   * Prompt #11 — built-in / standard mission artwork by stable mission id.
+   * Prompt #11/#15 — built-in / standard mission artwork by stable mission id.
    * Priority (unchanged): submission media → teacher Mission Card Image → built-in map → generic mission-card.
    * No Reaction Tap mission exists; reaction-tap-card.png remains game catalog art only.
    */
@@ -654,6 +654,17 @@
     perm_daily_checkin: 'assets/daily-check-in.png',
     tmission_1773760134919_yy72fc: 'assets/interview-family.png',
     perm_first_game: 'assets/first-game-played.png',
+    tmission_1773676581540_qzl0kx: 'assets/first-photo.png',
+    perm_show_something_cool: 'assets/something-cool.png',
+    tmission_1773763739628_hhzqrr: 'assets/stem-today.png',
+    perm_teach_us_something: 'assets/teach-us.png',
+    quick_hidden_nugget: 'assets/hidden-nugget.png',
+    perm_create_a_poll: 'assets/make-poll.png',
+    perm_explain_something: 'assets/explain-something.png',
+    perm_grade_reflection: 'assets/grade-reflection.png',
+    tmission_1773626540637_abm6oh: 'assets/help-someone.png',
+    tmission_1773860977399_p9ilb3: 'assets/random-kindness.png',
+    perm_report_good_news: 'assets/good-news.png',
     perm_thank_you: 'assets/thank-you-letter.png',
     perm_shoutout_someone: 'assets/shout-out-card.png',
   };
