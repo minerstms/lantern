@@ -241,7 +241,7 @@ function normalizeMissionRow(row, origin) {
   return normalizeFeedItemRow(adapted, origin, 'mission');
 }
 
-function normalizePollRow(row, origin) {
+export function normalizePollRow(row, origin) {
   let choices = [];
   try {
     choices = JSON.parse(row.choices_json || '[]');
@@ -250,17 +250,14 @@ function normalizePollRow(row, origin) {
   }
   if (!Array.isArray(choices)) choices = [];
   const question = String(row.question || '').trim() || 'Poll';
-  const choicePreview = choices
-    .map((c) => String(c || '').trim())
-    .filter(Boolean)
-    .slice(0, 4)
-    .join(' · ');
+  // Prompt #215 — do NOT flatten MC choices into body/summary (Explore was showing them as
+  // paragraph text and opening the generic content modal). Choices live in contentSlot only.
   const adapted = {
     id: `poll:${row.id}`,
     type: 'poll',
     title: question,
-    body: choicePreview,
-    summary: choicePreview || 'Tap to vote',
+    body: '',
+    summary: 'Tap to vote',
     author_id: null,
     author_display_name: row.character_name || 'Poll',
     author_role: 'student',

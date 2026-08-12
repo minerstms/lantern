@@ -1107,15 +1107,35 @@
         var k = auth.sessionEconomyKey();
         if (k) return k;
       }
+      if (auth && typeof auth.getCachedPilotMe === 'function') {
+        var me = auth.getCachedPilotMe();
+        if (me && me.authenticated) {
+          var role = String(me.role || '').trim().toLowerCase();
+          if (role === 'teacher' || role === 'admin' || role === 'staff') {
+            return String(me.username || me.display_name || '').trim();
+          }
+          if (auth.sessionEconomyKey) {
+            var sk = auth.sessionEconomyKey(me);
+            if (sk) return sk;
+          }
+        }
+      }
     } catch (e) {}
     return '';
   }
 
-  function buildPollResultsBarsHtml(results) {
+  function buildPollResultsBarsHtml(results, votedChoiceIndex) {
     var total = (results || []).reduce(function (s, r) { return s + (r.count || 0); }, 0);
-    var html = '<p style="font-size:20px;color:var(--muted);margin-bottom:12px;">You voted · ' + total + ' total vote' + (total !== 1 ? 's' : '') + '</p>';
-    (results || []).forEach(function (r) {
-      html += '<div class="pollResultRow"><div class="pollResultLabel"><span>' + esc(r.choice || '') + '</span><span>' + (r.percentage || 0) + '% · ' + (r.count || 0) + ' vote' + ((r.count || 0) !== 1 ? 's' : '') + '</span></div><div class="pollBarTrack"><div class="pollBarFill" style="width:' + (r.percentage || 0) + '%;"></div></div></div>';
+    var yoursIdx = votedChoiceIndex != null && !isNaN(Number(votedChoiceIndex)) ? Math.floor(Number(votedChoiceIndex)) : -1;
+    var html = '<p class="pollResultsSummary">You voted · ' + total + ' total vote' + (total !== 1 ? 's' : '') + '</p>';
+    (results || []).forEach(function (r, i) {
+      var isYours = !!(r && r.is_yours) || (yoursIdx >= 0 && i === yoursIdx);
+      html +=
+        '<div class="pollResultRow' + (isYours ? ' pollResultRow--yours' : '') + '">' +
+        '<div class="pollResultLabel"><span>' + esc(r.choice || '') +
+        (isYours ? ' <em class="pollYourChoiceMark">Your choice</em>' : '') +
+        '</span><span>' + (r.percentage || 0) + '%</span></div>' +
+        '<div class="pollBarTrack"><div class="pollBarFill" style="width:' + (r.percentage || 0) + '%;"></div></div></div>';
     });
     return html;
   }
@@ -1275,64 +1295,120 @@
     });
     a.appendChild(rep);
 
+    // Prompt #215 — Poll voting is primary; do not mount generic reactions in place of MC UI.
     r.innerHTML = '';
+
+    var votedIdx = res.voted_choice_index != null ? Math.floor(Number(res.voted_choice_index)) : null;
 
     if (hasVoted && results && results.length && choicesEl && resultsEl && nuggetEl) {
       choicesEl.innerHTML = '';
-      resultsEl.innerHTML = buildPollResultsBarsHtml(results);
+      resultsEl.innerHTML = buildPollResultsBarsHtml(results, votedIdx);
       resultsEl.style.display = 'block';
       nuggetEl.style.display = 'none';
     } else if (choicesEl && resultsEl && nuggetEl) {
       resultsEl.style.display = 'none';
       nuggetEl.style.display = 'none';
       choicesEl.innerHTML = '';
+      var selectedIdx = null;
+      var lockBtn = null;
+      var group = global.document.createElement('div');
+      group.className = 'pollChoiceGroup';
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-label', 'Poll choices');
+
+      function syncChoiceSelection() {
+        var buttons = group.querySelectorAll('.pollChoiceBtn');
+        for (var bi = 0; bi < buttons.length; bi++) {
+          var on = selectedIdx === bi;
+          buttons[bi].classList.toggle('is-selected', on);
+          buttons[bi].setAttribute('aria-checked', on ? 'true' : 'false');
+        }
+        if (lockBtn) {
+          lockBtn.disabled = selectedIdx == null;
+        }
+      }
+
       (p.choices || []).forEach(function (choice, idx) {
         var btn = global.document.createElement('button');
         btn.type = 'button';
         btn.className = 'pollChoiceBtn';
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-checked', 'false');
         btn.textContent = choice || ('Choice ' + (idx + 1));
         btn.addEventListener('click', function () {
-          if (!characterName) {
-            try {
-              global.alert('Select a student in Locker → Overview to vote.');
-            } catch (e3) {}
-            return;
+          if (selectedIdx === idx) {
+            selectedIdx = null;
+          } else {
+            selectedIdx = idx;
           }
-          btn.disabled = true;
-          global.fetch(apiBase + '/api/polls/vote', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ poll_id: pollId, character_name: characterName, choice_index: idx })
-          })
-            .then(function (r) { return r.json(); })
-            .then(function (voteRes) {
-              if (!voteRes || !voteRes.ok) {
-                btn.disabled = false;
-                try {
-                  global.alert(voteRes && voteRes.error ? voteRes.error : 'Vote failed');
-                } catch (e4) {}
-                return;
-              }
-              var c2 = modalRoot.querySelector('#lanternPollDetailChoices');
-              var r2 = modalRoot.querySelector('#lanternPollDetailResults');
-              var n2 = modalRoot.querySelector('#lanternPollDetailNugget');
-              if (c2) c2.innerHTML = '';
-              if (r2) {
-                r2.innerHTML = buildPollResultsBarsHtml(voteRes.results || []);
-                r2.style.display = 'block';
-              }
-              if (n2) {
-                if (voteRes.voter_nuggets) n2.textContent = '+1 nugget for participating!';
-                n2.style.display = voteRes.voter_nuggets ? 'block' : 'none';
-              }
-            })
-            .catch(function () {
-              btn.disabled = false;
-            });
+          syncChoiceSelection();
         });
-        choicesEl.appendChild(btn);
+        group.appendChild(btn);
       });
+      choicesEl.appendChild(group);
+
+      lockBtn = global.document.createElement('button');
+      lockBtn.type = 'button';
+      lockBtn.className = 'btn good pollLockInBtn';
+      lockBtn.textContent = 'Lock In';
+      lockBtn.disabled = true;
+      lockBtn.addEventListener('click', function () {
+        if (selectedIdx == null || lockBtn._busy) return;
+        if (!characterName) {
+          try {
+            global.alert('Sign in to vote on this poll.');
+          } catch (e3) {}
+          return;
+        }
+        lockBtn._busy = true;
+        lockBtn.disabled = true;
+        lockBtn.textContent = 'Saving…';
+        var choiceButtons = group.querySelectorAll('.pollChoiceBtn');
+        for (var di = 0; di < choiceButtons.length; di++) choiceButtons[di].disabled = true;
+        global.fetch(apiBase + '/api/polls/vote', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ poll_id: pollId, choice_index: selectedIdx })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (voteRes) {
+            if (!voteRes || !voteRes.ok) {
+              lockBtn._busy = false;
+              lockBtn.textContent = 'Lock In';
+              lockBtn.disabled = selectedIdx == null;
+              for (var ei = 0; ei < choiceButtons.length; ei++) choiceButtons[ei].disabled = false;
+              try {
+                global.alert(voteRes && voteRes.error ? voteRes.error : 'Vote failed');
+              } catch (e4) {}
+              return;
+            }
+            var c2 = modalRoot.querySelector('#lanternPollDetailChoices');
+            var r2 = modalRoot.querySelector('#lanternPollDetailResults');
+            var n2 = modalRoot.querySelector('#lanternPollDetailNugget');
+            if (c2) c2.innerHTML = '';
+            if (lockBtn && lockBtn.parentNode) lockBtn.parentNode.removeChild(lockBtn);
+            if (r2) {
+              r2.innerHTML = buildPollResultsBarsHtml(voteRes.results || [], voteRes.voted_choice_index);
+              r2.style.display = 'block';
+            }
+            if (n2) {
+              if (voteRes.voter_nuggets) n2.textContent = '+1 nugget for participating!';
+              n2.style.display = voteRes.voter_nuggets ? 'block' : 'none';
+            }
+          })
+          .catch(function () {
+            lockBtn._busy = false;
+            lockBtn.textContent = 'Lock In';
+            lockBtn.disabled = selectedIdx == null;
+            for (var fi = 0; fi < choiceButtons.length; fi++) choiceButtons[fi].disabled = false;
+            try {
+              global.alert('Unable to save your vote. Please try again.');
+            } catch (e5) {}
+          });
+      });
+      choicesEl.appendChild(lockBtn);
+      syncChoiceSelection();
     }
   }
 
@@ -1370,7 +1446,7 @@
       fillPollDetailModal(modal, { pollId: pollId, apiBase: '', characterName: characterName, fetchRes: { ok: false, error: 'no_api' } });
       return;
     }
-    global.fetch(apiBase + '/api/polls/' + encodeURIComponent(pollId) + (characterName ? '?character_name=' + encodeURIComponent(characterName) : ''))
+    global.fetch(apiBase + '/api/polls/' + encodeURIComponent(pollId), { credentials: 'include', cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!modal.parentNode) return;
@@ -1646,9 +1722,27 @@
     }
   }
 
+  function resolveFeedPollId(item) {
+    if (!item) return '';
+    var slot = item.contentSlot || {};
+    if (slot.pollId != null && String(slot.pollId).trim()) return String(slot.pollId).trim();
+    var id = String(item.id || '').trim();
+    if (id.indexOf('poll:') === 0) return id.slice(5);
+    return '';
+  }
+
   function openFeedItem(item, opts) {
     opts = opts || {};
     if (!item) return;
+    // Prompt #215 — Explore polls must open the interactive vote UI, not the generic content modal.
+    var type = String(item.type || '').toLowerCase();
+    if (type === 'poll') {
+      var pollId = resolveFeedPollId(item);
+      if (pollId) {
+        openPoll(pollId, opts);
+        return;
+      }
+    }
     var el = ensureOverlay();
     var modal = el.querySelector('.lanternCardDetailModal');
     if (!modal) return;

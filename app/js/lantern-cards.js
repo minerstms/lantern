@@ -273,13 +273,15 @@
 
     var desc = isGameAchievement
       ? scoreLine
-      : getExploreDescriptionPreview({
-          title: item.title,
-          summary: item.summary,
-          body: item.body,
-          description: item.description,
-          type: item.type,
-        });
+      : (type === 'poll'
+        ? ''
+        : getExploreDescriptionPreview({
+            title: item.title,
+            summary: item.summary,
+            body: item.body,
+            description: item.description,
+            type: item.type,
+          }));
 
     return {
       id: item.id,
@@ -941,18 +943,14 @@
   function specPollRailCard(poll, options) {
     options = options || {};
     var p = poll || {};
-    var choicePreview = (p.choices || [])
-      .map(function (c) { return String(c || '').trim(); })
-      .filter(Boolean)
-      .slice(0, 4)
-      .join(' · ');
     var iso = p.approved_at || p.created_at || '';
     var pollAuthorRaw = String((p.author_name || p.display_name || p.character_name || '').trim());
     if (pollAuthorRaw.toLowerCase() === 'poll') pollAuthorRaw = '';
+    // Prompt #215 — compact rail/card: question + art only; do not flatten choices into description.
     var desc = getExploreDescriptionPreview({
       title: p.question || 'Poll',
-      summary: (p.card_meta && String(p.card_meta).trim()) || choicePreview || '',
-      body: choicePreview,
+      summary: (p.card_meta && String(p.card_meta).trim()) || '',
+      body: '',
       type: 'poll',
     });
     var activeCls = options.isActive ? ' studioScrollerCardActive' : '';

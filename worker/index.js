@@ -6616,7 +6616,6 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     if (pollId === 'hide' || pollId === 'restore' || pollId === 'hidden' || pollId === 'contribute' || pollId === 'contributions' || pollId === 'returned' || pollId === 'resubmit' || pollId === 'vote') {
       return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
     }
-    const characterName = (url.searchParams.get('character_name') || '').trim();
     let row;
     try {
       row = await db.prepare(
@@ -6632,20 +6631,38 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     if (!row) return jsonResponse({ ok: false, error: 'Poll not found' }, 404, cors);
     let choices = [];
     try { choices = JSON.parse(row.choices_json || '[]'); } catch (_) {}
-    const voteRow = characterName ? await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first() : null;
+    if (!Array.isArray(choices)) choices = [];
+    // Prompt #215 — voter identity + result privacy from authenticated session only.
+    // Do NOT trust ?character_name= to unlock aggregate results for an unvoted viewer.
+    const pilotAccount = await getPilotAccountFromRequest(request, env);
+    let characterName = '';
+    if (pilotAccount) {
+      const identity = resolveEconomyGamePlayTransact(pilotAccount, null, pilotEconomyCharacterName);
+      if (identity && identity.ok) characterName = String(identity.characterName || '').trim();
+    }
+    const voteRow = characterName
+      ? await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ? AND character_name = ?').bind(pollId, characterName).first()
+      : null;
     const hasVoted = !!voteRow;
+    const votedChoiceIndex = hasVoted ? Math.floor(Number(voteRow.choice_index)) : null;
     let results = null;
     if (hasVoted) {
       const voteRows = await db.prepare('SELECT choice_index FROM lantern_poll_votes WHERE poll_id = ?').bind(pollId).all();
       const counts = {};
       (voteRows.results || []).forEach(v => { counts[v.choice_index] = (counts[v.choice_index] || 0) + 1; });
       const total = (voteRows.results || []).length;
-      results = choices.map((c, i) => ({ choice: c, count: counts[i] || 0, percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0 }));
+      results = choices.map((c, i) => ({
+        choice: c,
+        count: counts[i] || 0,
+        percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0,
+        is_yours: votedChoiceIndex === i,
+      }));
     }
     return jsonResponse({
       ok: true,
       poll: { id: row.id, question: row.question, choices, image_url: row.image_url || null, character_name: row.character_name, created_at: row.created_at },
       has_voted: hasVoted,
+      voted_choice_index: hasVoted ? votedChoiceIndex : null,
       results,
     }, 200, cors);
   }
@@ -6727,7 +6744,12 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     const counts = {};
     (voteRows.results || []).forEach(v => { counts[v.choice_index] = (counts[v.choice_index] || 0) + 1; });
     const total = (voteRows.results || []).length;
-    const results = choices.map((c, i) => ({ choice: c, count: counts[i] || 0, percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0 }));
+    const results = choices.map((c, i) => ({
+      choice: c,
+      count: counts[i] || 0,
+      percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0,
+      is_yours: i === choiceIndex,
+    }));
     return jsonResponse({ ok: true, results, voted_choice_index: choiceIndex, voter_nuggets: voterNuggets }, 200, cors);
   }
 
