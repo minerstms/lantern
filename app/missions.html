@@ -104,8 +104,12 @@
     textarea, input[type=url]{ width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); font-size: 22px; font-family: inherit; }
     label{ display: block; font-weight: 800; margin-bottom: 8px; font-size: 22px; }
     .quickMissionLink{ display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
-    .toastWrap{ position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10002; display: none; padding: 12px 20px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-size: 22px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+    /* Prompt #214 — toast must sit ABOVE .missionDetailOverlay (z-index 10100) or Submit feedback is invisible while the modal is open. */
+    .toastWrap{ position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10250; display: none; padding: 12px 20px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-size: 22px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
     .toastWrap.show{ display: block; }
+    .missionSubmitInlineError{ display:none; margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,120,120,.55); background:rgba(180,40,40,.22); color:var(--ink); font-weight:800; font-size:22px; line-height:1.35; }
+    .missionSubmitInlineError.is-visible{ display:block; }
+    #missionSubmitBtn:disabled{ opacity:0.72; cursor:wait; }
     .missionSubmitProgressWrap{ margin-top: 10px; }
     .missionSubmitProgressBar{ height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; width: 100%; }
     .missionSubmitProgressFill{ height: 100%; border-radius: 999px; transition: width .25s ease; }
@@ -296,6 +300,7 @@
             <div class="missionSubmitPreviewLabel">Preview</div>
             <div class="missionSubmitPreviewCard" id="missionSubmitPreviewCard"></div>
           </div>
+          <p id="missionSubmitInlineError" class="missionSubmitInlineError" role="alert" aria-live="assertive"></p>
           <button class="btn good" id="missionSubmitBtn" type="button" style="width:100%;margin-top:12px;">Submit mission</button>
         </div>
       </div>
@@ -668,14 +673,51 @@
       });
     }
 
-    function toast(msg){
+    function toast(msg, ms){
       var toastEl = el('toastEl');
       if (!toastEl) return;
       toastEl.textContent = msg || '';
       toastEl.classList.add('show');
       toastEl.style.display = 'block';
       clearTimeout(toastEl._t);
-      toastEl._t = setTimeout(function(){ toastEl.classList.remove('show'); toastEl.style.display = 'none'; }, 2400);
+      toastEl._t = setTimeout(function(){ toastEl.classList.remove('show'); toastEl.style.display = 'none'; }, ms != null ? ms : 3200);
+    }
+
+    function setMissionSubmitInlineError(msg){
+      var errEl = el('missionSubmitInlineError');
+      if (!errEl) return;
+      var text = String(msg || '').trim();
+      if (!text) {
+        errEl.textContent = '';
+        errEl.classList.remove('is-visible');
+        return;
+      }
+      errEl.textContent = text;
+      errEl.classList.add('is-visible');
+    }
+
+    /** Prompt #214 — only treat explicitly set src (attr) as evidence; bare .src can be the page URL. */
+    function getMissionSubmitImageEvidenceUrl(){
+      var imageVal = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      if (imageVal) return imageVal;
+      var up = el('missionSubmitImageUploadPreviewImg');
+      var attr = up && up.getAttribute('src');
+      if (attr && String(attr).trim()) return String(attr).trim();
+      return '';
+    }
+
+    function mapMissionSubmitError(res){
+      var code = String((res && (res.error || res.message)) || '').trim();
+      if (!code) return 'Unable to submit this mission. Please try again.';
+      if (code === 'submission_pending') return 'You already submitted this mission. Waiting for teacher review.';
+      if (code === 'already_submitted') return 'This mission is already completed.';
+      if (code === 'use_resubmit') return 'Please use Resubmit for this mission.';
+      if (code === 'Mission is not active') return 'This mission is not accepting submissions right now.';
+      if (code === 'Mission not available') return 'This mission is not available for your account.';
+      if (/min.?char|character/i.test(code)) return code;
+      if (/required|empty|valid/i.test(code)) return code;
+      if (code.length <= 120 && !/^[a-z0-9_]+$/i.test(code)) return code;
+      return 'Unable to submit this mission. Please try again.';
     }
 
     function esc(s){
@@ -984,8 +1026,7 @@
       var m = currentMissionForSubmit;
       var missionTitle = (m && m.title) ? m.title : 'Mission';
       var content = (el('missionSubmitContent') && el('missionSubmitContent').value || '').trim();
-      var imageUrl = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
-      if (!imageUrl && el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src) imageUrl = el('missionSubmitImageUploadPreviewImg').src;
+      var imageUrl = getMissionSubmitImageEvidenceUrl();
       var videoUrl = (missionVideoUploadedUrl || (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim()) || '';
       var linkUrl = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
       var isEmpty = !content && !imageUrl && !videoUrl && !linkUrl;
@@ -1128,24 +1169,30 @@
       var countdownEl = el('missionSubmitCountdown');
       var submitBtn = el('missionSubmitBtn');
       var minReq = currentMissionMinChars;
-      var imageUrlEl = el('missionSubmitImageUrl');
-      var hasImage = (imageUrlEl && (imageUrlEl.value || '').trim().length > 0);
+      var imageUrl = getMissionSubmitImageEvidenceUrl();
+      var hasImage = imageUrl.length > 0;
+      var hasVideo = !!(missionVideoUploadedUrl || (el('missionSubmitVideoUrl') && (el('missionSubmitVideoUrl').value || '').trim()));
+      var hasLink = !!(el('missionSubmitUrl') && (el('missionSubmitUrl').value || '').trim());
+      var len = (contentEl && contentEl.value || '').trim().length;
+      var textMet = minReq <= 0 ? len > 0 : len >= minReq;
+      // Prompt #214 — never silently leave Submit dead. Keep the button clickable so validation
+      // can toast/inline-error; only disable while an in-flight submit is running.
+      if (submitBtn && !submitBtn._submitting) {
+        submitBtn.disabled = false;
+        if (!submitBtn._labelLocked) submitBtn.textContent = currentResubmitId ? 'Resubmit mission' : 'Submit mission';
+      }
       if (currentMissionRequiresImage && !hasImage) {
-        if (submitBtn) submitBtn.disabled = true;
         if (progressWrap && fillEl && countdownEl) {
-          var len = (contentEl && contentEl.value || '').trim().length;
-          var remaining = Math.max(0, minReq - len);
-          var pct = minReq > 0 ? Math.min(100, Math.floor((len / minReq) * 100)) : 100;
-          if (fillEl) { fillEl.style.width = pct + '%'; fillEl.className = 'missionSubmitProgressFill ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral')); }
-          if (countdownEl) { countdownEl.textContent = remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : ''); countdownEl.className = 'missionSubmitCountdown ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral')); }
+          var remainingImg = Math.max(0, minReq - len);
+          var pctImg = minReq > 0 ? Math.min(100, Math.floor((len / minReq) * 100)) : 100;
+          if (fillEl) { fillEl.style.width = pctImg + '%'; fillEl.className = 'missionSubmitProgressFill ' + (pctImg >= 100 ? 'met' : (pctImg >= 75 ? 'amber' : 'neutral')); }
+          if (countdownEl) { countdownEl.textContent = remainingImg + ' / ' + minReq + ' remaining' + (remainingImg <= 0 ? ' ✓' : ''); countdownEl.className = 'missionSubmitCountdown ' + (pctImg >= 100 ? 'met' : (pctImg >= 75 ? 'amber' : 'neutral')); }
         }
         return;
       }
       if (!progressWrap || progressWrap.style.display === 'none' || minReq <= 0){
-        if (submitBtn) submitBtn.disabled = false;
         return;
       }
-      var len = (contentEl && contentEl.value || '').trim().length;
       var remaining = Math.max(0, minReq - len);
       var pct = minReq > 0 ? Math.min(100, Math.floor((len / minReq) * 100)) : 100;
       var barEl = el('missionSubmitProgressBar');
@@ -1155,10 +1202,10 @@
         fillEl.className = 'missionSubmitProgressFill ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral'));
       }
       if (countdownEl) {
-        countdownEl.textContent = remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : '');
-        countdownEl.className = 'missionSubmitCountdown ' + (pct >= 100 ? 'met' : (pct >= 75 ? 'amber' : 'neutral'));
+        var mediaHint = (!textMet && (hasImage || hasVideo || hasLink)) ? ' (or use media)' : '';
+        countdownEl.textContent = remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : '') + mediaHint;
+        countdownEl.className = 'missionSubmitCountdown ' + (pct >= 100 || hasImage || hasVideo || hasLink ? 'met' : (pct >= 75 ? 'amber' : 'neutral'));
       }
-      if (submitBtn) submitBtn.disabled = remaining > 0;
     }
 
     var FERPA_STUDENT_SUBMIT_MESSAGE = 'Submitted! Your teacher will review it.';
@@ -1585,6 +1632,9 @@
       if (imageUrlEl && imageUrlEl.value) updateMissionImagePreview();
       var previewWrap = el('missionSubmitPreviewWrap');
       if (previewWrap) previewWrap.style.display = 'block';
+      setMissionSubmitInlineError('');
+      missionSubmitInFlight = false;
+      setMissionSubmitBusy(false);
       updateMissionSubmitPreview();
       updateMissionSubmitProgress();
       openMissionDetailModal();
@@ -1636,49 +1686,91 @@
       });
     }
 
+    var missionSubmitInFlight = false;
+
+    function setMissionSubmitBusy(isBusy){
+      var btnM = el('missionSubmitBtn');
+      if (!btnM) return;
+      btnM._submitting = !!isBusy;
+      btnM._labelLocked = !!isBusy;
+      btnM.disabled = !!isBusy;
+      btnM.textContent = isBusy ? 'Submitting…' : (currentResubmitId ? 'Resubmit mission' : 'Submit mission');
+      missionSubmitInFlight = !!isBusy;
+    }
+
     function submitCurrentMission(){
       var adopted = getAdopted();
-      if (!adopted || !adopted.name){ toast('Sign in to submit missions.'); return; }
-      if (!currentMissionForSubmit){ toast('No mission selected'); return; }
+      if (!adopted || !adopted.name){
+        setMissionSubmitInlineError('Sign in to submit missions.');
+        toast('Sign in to submit missions.');
+        return;
+      }
+      if (!currentMissionForSubmit){
+        setMissionSubmitInlineError('No mission selected.');
+        toast('No mission selected');
+        return;
+      }
+      if (missionSubmitInFlight) return;
       var m = currentMissionForSubmit;
       var btnM = el('missionSubmitBtn');
+      setMissionSubmitInlineError('');
       var mst = String(m.submission_type || '').trim();
       if (mst === 'poll'){
         var pq = (el('missionSubmitPollQuestion') && el('missionSubmitPollQuestion').value || '').trim();
         var pch = [1,2,3,4].map(function(i){ return (el('missionSubmitPollChoice' + i) && el('missionSubmitPollChoice' + i).value || '').trim(); }).filter(Boolean);
         var pimg = (el('missionSubmitPollImageUrl') && el('missionSubmitPollImageUrl').value || '').trim();
-        if (!pq){ toast('Enter your poll question.'); return; }
-        if (pch.length < 2 || pch.length > 4){ toast('Enter 2 to 4 answer choices.'); return; }
-        if (!pimg){ toast('Add a poll image URL or pick from the library.'); return; }
+        if (!pq){ setMissionSubmitInlineError('Enter your poll question.'); toast('Enter your poll question.'); return; }
+        if (pch.length < 2 || pch.length > 4){ setMissionSubmitInlineError('Enter 2 to 4 answer choices.'); toast('Enter 2 to 4 answer choices.'); return; }
+        if (!pimg){ setMissionSubmitInlineError('Add a poll image URL or pick from the library.'); toast('Add a poll image URL or pick from the library.'); return; }
         var pollPayload = JSON.stringify({ question: pq.slice(0, 500), choices: pch.map(function(c){ return c.slice(0, 200); }), image_url: pimg.slice(0, 500) });
-        btnM.disabled = true;
+        setMissionSubmitBusy(true);
         var resPP = currentResubmitId
           ? callResubmitMissionSubmission(currentResubmitId, pollPayload)
           : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, 'poll', pollPayload);
         Promise.resolve(resPP).then(function(resP){
-          btnM.disabled = false;
-          if (!resP || !resP.ok){ toast((resP && resP.error) || 'Failed'); return; }
+          setMissionSubmitBusy(false);
+          if (!resP || !resP.ok){
+            var errP = mapMissionSubmitError(resP);
+            setMissionSubmitInlineError(errP);
+            toast(errP);
+            return;
+          }
           toast(FERPA_STUDENT_SUBMIT_MESSAGE);
           closeMissionDetailModal();
           loadMissions();
+        }).catch(function(){
+          setMissionSubmitBusy(false);
+          var errNet = 'Unable to submit this mission. Please try again.';
+          setMissionSubmitInlineError(errNet);
+          toast(errNet);
         });
         return;
       }
       if (mst === 'bug_report'){
         var bdesc = (el('missionSubmitBugReportDesc') && el('missionSubmitBugReportDesc').value || '').trim();
         var bimg = (el('missionSubmitBugReportScreenshot') && el('missionSubmitBugReportScreenshot').value || '').trim();
-        if (!bdesc){ toast('Description is required.'); return; }
+        if (!bdesc){ setMissionSubmitInlineError('Description is required.'); toast('Description is required.'); return; }
         var bugPayload = JSON.stringify({ description: bdesc.slice(0, 2000), image_url: bimg ? bimg.slice(0, 500) : '' });
-        btnM.disabled = true;
+        setMissionSubmitBusy(true);
         Promise.resolve(currentResubmitId
           ? callResubmitMissionSubmission(currentResubmitId, bugPayload)
           : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, 'bug_report', bugPayload)
         ).then(function(resB){
-          btnM.disabled = false;
-          if (!resB || !resB.ok){ toast((resB && resB.error) || 'Failed'); return; }
+          setMissionSubmitBusy(false);
+          if (!resB || !resB.ok){
+            var errB = mapMissionSubmitError(resB);
+            setMissionSubmitInlineError(errB);
+            toast(errB);
+            return;
+          }
           toast(FERPA_STUDENT_SUBMIT_MESSAGE);
           closeMissionDetailModal();
           loadMissions();
+        }).catch(function(){
+          setMissionSubmitBusy(false);
+          var errNetB = 'Unable to submit this mission. Please try again.';
+          setMissionSubmitInlineError(errNetB);
+          toast(errNetB);
         });
         return;
       }
@@ -1687,17 +1779,27 @@
       var allowsVideo = !!(m.allows_video);
       var allowsLink = !!(m.allows_link);
       var textVal = (el('missionSubmitContent') && el('missionSubmitContent').value || '').trim();
-      var imageVal = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
+      var imageVal = getMissionSubmitImageEvidenceUrl();
       var videoVal = (el('missionSubmitVideoUrl') && el('missionSubmitVideoUrl').value || '').trim();
       var linkVal = (el('missionSubmitUrl') && el('missionSubmitUrl').value || '').trim();
       var minChars = currentMissionMinChars;
       var validText = allowsText && (minChars <= 0 ? textVal.length > 0 : textVal.length >= minChars);
-      var validImage = allowsImage && (imageVal.length > 0 || (el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src));
+      var validImage = allowsImage && imageVal.length > 0;
       var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
       var validLink = allowsLink && linkVal.length > 0;
       if (!(validText || validImage || validVideo || validLink)) {
-        if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) toast('Minimum ' + minChars + ' characters required.');
-        else toast('Please add a valid submission before sending.');
+        var needMsg = 'Please add a valid submission before sending.';
+        if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) {
+          needMsg = 'Minimum ' + minChars + ' characters required.';
+        } else if (allowsText && allowsImage) {
+          needMsg = 'Add your message and/or photo, then submit.';
+        } else if (allowsText) {
+          needMsg = minChars > 0
+            ? ('Write at least ' + minChars + ' characters, then submit.')
+            : 'Write your response, then submit.';
+        }
+        setMissionSubmitInlineError(needMsg);
+        toast(needMsg);
         return;
       }
       var type = 'text';
@@ -1714,16 +1816,26 @@
       else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }
       else if (allowsLink && linkVal){ type = 'link'; content = linkVal; }
       if (m.submission_type === 'confirmation') type = 'confirmation';
-      btnM.disabled = true;
+      setMissionSubmitBusy(true);
       Promise.resolve(currentResubmitId
         ? callResubmitMissionSubmission(currentResubmitId, content)
         : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, type, content)
       ).then(function(res){
-        btnM.disabled = false;
-        if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; }
+        setMissionSubmitBusy(false);
+        if (!res || !res.ok){
+          var err = mapMissionSubmitError(res);
+          setMissionSubmitInlineError(err);
+          toast(err);
+          return;
+        }
         toast(FERPA_STUDENT_SUBMIT_MESSAGE);
         closeMissionDetailModal();
         loadMissions();
+      }).catch(function(){
+        setMissionSubmitBusy(false);
+        var errNet = 'Unable to submit this mission. Please try again.';
+        setMissionSubmitInlineError(errNet);
+        toast(errNet);
       });
     }
 
