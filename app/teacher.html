@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-collapsible-list.css">
+  <link rel="stylesheet" href="css/lantern-power-list.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260812-openedmodal9">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
 
@@ -1508,8 +1509,7 @@
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview" data-help="teacher_overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Submissions</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="schoolaccess" data-help="teacher_school_access"><span class="teacherSidebarIcon" aria-hidden="true">🔐</span><span class="teacherSidebarLabel">Lantern Access</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="missions" data-help="teacher_missions"><span class="teacherSidebarIcon" aria-hidden="true">🎯</span><span class="teacherSidebarLabel">Missions</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="shoutout" data-help="teacher_shoutout"><span class="teacherSidebarIcon" aria-hidden="true">📣</span><span class="teacherSidebarLabel">Shout-Out!</span></button>
+          <!-- Prompt #118/#119 — Missions & Shout-Out! creation live under Lantern → Create; workspaces/routes retained for deep links & Overview. -->
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation" data-help="teacher_moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
           <a href="display.html" target="_blank" rel="noopener" class="teacherSidebarItem teacherSidebarItem--divider" data-help="teacher_hallway_tv"><span class="teacherSidebarIcon" aria-hidden="true">📺</span><span class="teacherSidebarLabel">Hallway TV</span></a>
           <a href="https://log.tmslantern.org/index.html?intent=install" class="teacherSidebarItem" id="teacherPhoneAppDownloadLink" data-help="teacher_phone_app"><span class="teacherSidebarIcon" aria-hidden="true">📱</span><span class="teacherSidebarLabel">Phone App Download</span></a>
@@ -1979,36 +1979,14 @@
     <details class="card teacherCollapsibleList" id="teacher-moderation" data-workspace="moderation" open data-collapsible-default-open="1" data-help="moderation">
       <summary class="cardHd teacherCollapsibleListHd">
         <div class="teacherCollapsibleListTitle"><div class="h">Moderation</div></div>
-      </summary>
-      <div class="cardBd teacherCollapsibleListBd">
-        <div class="approvalsToolbar" style="margin-bottom:10px;">
+        <div class="teacherCollapsibleListMeta">
           <button class="btn small" id="moderationRefreshBtn" type="button">Refresh</button>
         </div>
-        <p class="note note-tight">Hide from public view or restore. Hidden items stay available here.</p>
-        <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationLivePanel">
-          <summary class="teacherCollapsibleListHd">
-            <div class="teacherCollapsibleListTitle"><div class="h">Remove from view (live content)</div></div>
-          </summary>
-          <div class="teacherCollapsibleListBd">
-            <div id="moderationLiveEl" class="teacherCollapsibleListScroll" style="padding:10px;"></div>
-          </div>
-        </details>
-        <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationHiddenPanel">
-          <summary class="teacherCollapsibleListHd">
-            <div class="teacherCollapsibleListTitle"><div class="h">Hidden content (restore)</div></div>
-          </summary>
-          <div class="teacherCollapsibleListBd">
-            <div id="moderationHiddenEl" class="teacherCollapsibleListScroll" style="padding:10px;"></div>
-          </div>
-        </details>
-        <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="moderationFlaggedPanel">
-          <summary class="teacherCollapsibleListHd">
-            <div class="teacherCollapsibleListTitle"><div class="h">Flagged for review</div></div>
-          </summary>
-          <div class="teacherCollapsibleListBd">
-            <div id="moderationFlaggedEl" class="teacherCollapsibleListScroll" style="padding:10px;"></div>
-          </div>
-        </details>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
+        <p class="note note-tight">Search, sort, and expand a row for Hide / Restore. Reported items are quarantined from student feeds until restored. Content is not deleted.</p>
+        <!-- Prompt #119 — canonical Power Scroller (no nested tiny list scrollbar). -->
+        <div id="moderationPowerListMount" class="moderationPowerListMount"></div>
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </details>
@@ -2253,6 +2231,8 @@
   </div>
 
   <script src="js/lantern-collapsible-list.js"></script>
+  <script src="js/lantern-power-list.js"></script>
+  <script src="js/lantern-moderation-list.js"></script>
   <script>
   /**
    * Prompt #77 — Teacher workspace shell: sidebar routing, mobile drawer, Review Queue
@@ -4475,311 +4455,62 @@
       } catch (e) {}
     }
 
+    var moderationPowerUi = null;
+    function ensureModerationPowerList(){
+      var mount = el('moderationPowerListMount');
+      if (!mount || !window.LanternModerationList || !window.LanternPowerList) return null;
+      if (moderationPowerUi) return moderationPowerUi;
+      moderationPowerUi = window.LanternModerationList.mount({
+        mount: mount,
+        apiBase: avatarApiBase || '',
+        getStaffName: function(){
+          return (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? approvalStaffId : 'Teacher';
+        },
+        isAdmin: function(){
+          return !!(typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin);
+        },
+        toast: function(msg){ toast(msg); },
+        debugLog: moderationDebugLog,
+        onChanged: function(){ loadModerationData(); }
+      });
+      return moderationPowerUi;
+    }
+
     function loadModerationData(){
       if (avatarApiBase === null) return;
-      var staffName = (typeof approvalStaffId !== 'undefined' && approvalStaffId) ? approvalStaffId : 'Teacher';
       var base = avatarApiBase;
       var isAdmin = typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin;
       var cred = moderationFetchCred;
       var chain = [
         fetch(base + '/api/news/approved', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.news) || []; }).catch(function(){ return []; }),
-        fetch(base + '/api/missions/submissions/approved?limit=20', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/missions/submissions/approved?limit=40', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.submissions) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/polls', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.polls) || []; }).catch(function(){ return []; }),
+        fetch(base + '/api/moderation/flagged?limit=50', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.flags) || []; }).catch(function(){ return []; })
       ];
       if (isAdmin) {
         chain.push(fetch(base + '/api/news/hidden', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.news) ? res.news : []; }).catch(function(){ return []; }));
-        chain.push(fetch(base + '/api/missions/submissions/hidden?limit=20', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function(){ return []; }));
+        chain.push(fetch(base + '/api/missions/submissions/hidden?limit=50', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function(){ return []; }));
+        chain.push(fetch(base + '/api/polls/hidden', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.ok && res.polls) ? res.polls : []; }).catch(function(){ return []; }));
       }
-      chain.push(fetch(base + '/api/moderation/flagged?limit=30', cred).then(function(r){ return r.json(); }).then(function(res){ return (res && res.flags) || []; }).catch(function(){ return []; }));
       Promise.all(chain).then(function(arr){
-        var liveNews = arr[0], liveMissions = arr[1];
-        var hiddenNews = isAdmin ? arr[2] : [];
-        var hiddenMissions = isAdmin ? arr[3] : [];
-        var flagged = isAdmin ? arr[4] : arr[2];
-        var liveItems = [];
-        (liveNews || []).slice(0, 15).forEach(function(n){ liveItems.push({ type: 'news', id: n.id, title: n.title || 'Untitled', author: n.author_name || '', full: n }); });
-        (liveMissions || []).slice(0, 15).forEach(function(s){ liveItems.push({ type: 'mission', id: s.id, title: (s.mission_title || 'Mission') + ' — ' + (s.character_name || ''), author: s.character_name || '', full: s }); });
-        var hiddenItems = [];
-        (hiddenNews || []).forEach(function(n){ hiddenItems.push({ type: 'news', id: n.id, title: n.title || 'Untitled', hidden_by: n.hidden_by, hidden_at: n.hidden_at, full: n }); });
-        (hiddenMissions || []).forEach(function(s){ hiddenItems.push({ type: 'mission', id: s.id, title: (s.mission_title || '') + ' — ' + (s.character_name || ''), hidden_by: s.hidden_by, hidden_at: s.hidden_at, full: s }); });
-        var flaggedWithFull = (flagged || []).map(function(f){
-          var fullItem = null;
-          if (f.item_type === 'news') {
-            var found = (liveNews || []).concat(hiddenNews || []).filter(function(n){ return String(n.id) === String(f.item_id); })[0];
-            if (found) fullItem = found;
-          } else if (f.item_type === 'mission') {
-            var found = (liveMissions || []).concat(hiddenMissions || []).filter(function(s){ return String(s.id) === String(f.item_id); })[0];
-            if (found) fullItem = found;
-          }
-          return { flag: f, fullItem: fullItem };
-        });
-        renderModerationLive(liveItems, staffName);
-        renderModerationHidden(hiddenItems, staffName);
-        renderModerationFlagged(flaggedWithFull, staffName);
-      });
-    }
-    function renderModerationLive(items, staffName){
-      var container = el('moderationLiveEl');
-      if (!container) return;
-      if (!items.length){ container.innerHTML = '<div class="placeholderRow">No live approved content to list.</div>'; return; }
-      container.innerHTML = '';
-      items.forEach(function(it){
-        var row = document.createElement('div');
-        row.className = 'approvalQueueRow moderationRowClickable';
-        row.style.marginBottom = '8px';
-        row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueTitle">' + esc(it.title) + '</div><div class="approvalQueueMeta">' + esc(it.author) + ' · ' + (it.type === 'news' ? 'News' : 'Mission') + '</div></div><div class="curatePostActions"></div>';
-        var leftEl = row.querySelector('.approvalQueueLeft');
-        var actions = row.querySelector('.curatePostActions');
-        leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'live', staffName, it.type); });
-        var viewBtn = document.createElement('button');
-        viewBtn.className = 'btn small';
-        viewBtn.textContent = 'View';
-        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'live', staffName, it.type); });
-        actions.appendChild(viewBtn);
-        if (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) {
-          var hideBtn = document.createElement('button');
-          hideBtn.className = 'btn bad small';
-          hideBtn.textContent = 'Remove from view';
-          hideBtn.addEventListener('click', function(e){ e.stopPropagation();
-            hideBtn.disabled = true;
-            var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
-            var body = { id: it.id, hidden_by: staffName };
-            fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
-              hideBtn.disabled = false;
-              moderationDebugLog('hide', url, it.id, it.type, res);
-              if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
-            });
-          });
-          actions.appendChild(hideBtn);
-        }
-        container.appendChild(row);
-      });
-    }
-    function renderModerationHidden(hiddenItems, staffName){
-      var container = el('moderationHiddenEl');
-      if (!container) return;
-      if (!hiddenItems.length){ container.innerHTML = '<div class="placeholderRow">No hidden content.</div>'; return; }
-      container.innerHTML = '';
-      hiddenItems.forEach(function(it){
-        var row = document.createElement('div');
-        row.className = 'approvalQueueRow moderationRowClickable';
-        row.style.marginBottom = '8px';
-        row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueTitle">' + esc(it.title) + '</div><div class="approvalQueueMeta">' + esc(it.removal_label || (('Hidden by ' + (it.hidden_by || '')) + ' · ' + (it.hidden_at ? formatNewsDate(it.hidden_at) : ''))) + '</div></div><div class="curatePostActions"></div>';
-        var leftEl = row.querySelector('.approvalQueueLeft');
-        var actions = row.querySelector('.curatePostActions');
-        leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'hidden', staffName, it.type); });
-        var viewBtn = document.createElement('button');
-        viewBtn.className = 'btn small';
-        viewBtn.textContent = 'View';
-        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(it.full, 'hidden', staffName, it.type); });
-        actions.appendChild(viewBtn);
-        if (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) {
-          var restoreBtn = document.createElement('button');
-          restoreBtn.className = 'btn good small';
-          restoreBtn.textContent = 'Restore';
-          restoreBtn.addEventListener('click', function(e){ e.stopPropagation();
-            restoreBtn.disabled = true;
-            var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
-            fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
-              restoreBtn.disabled = false;
-              moderationDebugLog('restore', url, it.id, it.type, res);
-              if (res.ok){ toast('Restored'); loadModerationData(); } else { toast(res.error || 'Failed'); }
-            });
-          });
-          actions.appendChild(restoreBtn);
-        }
-        container.appendChild(row);
-      });
-    }
-    function renderModerationFlagged(flaggedWithFull, staffName){
-      var container = el('moderationFlaggedEl');
-      if (!container) return;
-      if (!flaggedWithFull || !flaggedWithFull.length){ container.innerHTML = '<div class="placeholderRow">No flags.</div>'; return; }
-      container.innerHTML = '';
-      function restoreUrlForFlagType(itemType){
-        var t = String(itemType || '').toLowerCase();
-        if (t === 'news' || t === 'shoutout') return avatarApiBase + '/api/news/restore';
-        if (t === 'poll') return avatarApiBase + '/api/polls/restore';
-        if (t === 'mission' || t === 'mission_submission') return avatarApiBase + '/api/missions/submissions/restore';
-        if (t === 'feed' || t === 'feed_item') return avatarApiBase + '/api/feed/restore';
-        return '';
-      }
-      function hideUrlForFlagType(itemType){
-        var t = String(itemType || '').toLowerCase();
-        if (t === 'news' || t === 'shoutout') return avatarApiBase + '/api/news/hide';
-        if (t === 'poll') return avatarApiBase + '/api/polls/hide';
-        if (t === 'mission' || t === 'mission_submission') return avatarApiBase + '/api/missions/submissions/hide';
-        if (t === 'feed' || t === 'feed_item') return avatarApiBase + '/api/feed/hide';
-        return '';
-      }
-      flaggedWithFull.forEach(function(o){
-        var f = o.flag;
-        var fullItem = o.fullItem;
-        var statusLabel = f.status_label || (f.quarantine_pending ? 'REPORTED — HIDDEN PENDING REVIEW' : 'Reported');
-        var row = document.createElement('div');
-        row.className = 'approvalQueueRow moderationRowClickable';
-        row.style.marginBottom = '8px';
-        row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueType">' + esc(f.item_type || '') + ' #' + (f.item_id || '').slice(0, 12) + '</div><div class="approvalQueueMeta">' + esc(statusLabel) + (f.reported_by ? ' · Reported by ' + esc(f.reported_by) : '') + (f.reason ? ' · ' + esc(f.reason) : '') + '</div></div><div class="curatePostActions"></div>';
-        var leftEl = row.querySelector('.approvalQueueLeft');
-        var actions = row.querySelector('.curatePostActions');
-        var previewType = (f.item_type === 'news' || f.item_type === 'shoutout') ? 'news' : (f.item_type === 'poll' ? 'poll' : 'mission');
-        leftEl.addEventListener('click', function(){ openModerationPreview(fullItem || f, 'flagged', staffName, previewType); });
-        var viewBtn = document.createElement('button');
-        viewBtn.className = 'btn small';
-        viewBtn.textContent = 'View';
-        viewBtn.addEventListener('click', function(e){ e.stopPropagation(); openModerationPreview(fullItem || f, 'flagged', staffName, previewType); });
-        actions.appendChild(viewBtn);
-        if (typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin) {
-          if (f.quarantine_pending) {
-            var restoreBtn = document.createElement('button');
-            restoreBtn.className = 'btn good small';
-            restoreBtn.textContent = 'Restore';
-            restoreBtn.addEventListener('click', function(e){ e.stopPropagation();
-              var url = restoreUrlForFlagType(f.item_type);
-              if (!url) { toast('Restore unavailable for this type'); return; }
-              restoreBtn.disabled = true;
-              fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: f.item_id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
-                restoreBtn.disabled = false;
-                moderationDebugLog('restore_flagged', url, f.item_id, f.item_type, res);
-                if (res.ok){ toast('Restored to Explore'); loadModerationData(); } else { toast(res.error || 'Failed'); }
-              });
-            });
-            actions.appendChild(restoreBtn);
-          } else {
-            var hideBtn = document.createElement('button');
-            hideBtn.className = 'btn bad small';
-            hideBtn.textContent = 'Keep hidden';
-            hideBtn.addEventListener('click', function(e){ e.stopPropagation();
-              hideBtn.disabled = true;
-              var url = hideUrlForFlagType(f.item_type);
-              if (!url) { hideBtn.disabled = false; toast('Hide unavailable for this type'); return; }
-              var body = { id: f.item_id, hidden_by: staffName };
-              fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; }).then(function(res){
-                hideBtn.disabled = false;
-                moderationDebugLog('hide_flagged', url, f.item_id, f.item_type, res);
-                if (res.ok){ toast('Removed from view'); loadModerationData(); } else { toast(res.error || 'Failed'); }
-              });
-            });
-            actions.appendChild(hideBtn);
-          }
-        }
-        container.appendChild(row);
+        var payload = {
+          liveNews: arr[0] || [],
+          liveMissions: arr[1] || [],
+          livePolls: arr[2] || [],
+          flags: arr[3] || [],
+          hiddenNews: isAdmin ? (arr[4] || []) : [],
+          hiddenMissions: isAdmin ? (arr[5] || []) : [],
+          hiddenPolls: isAdmin ? (arr[6] || []) : []
+        };
+        var ui = ensureModerationPowerList();
+        if (ui) ui.setFromPayload(payload);
       });
     }
 
-    var moderationPreviewCurrent = null;
-    function openModerationPreview(item, context, staffName, explicitType){
-      if (!item) return;
-      var resolvedType =
-        explicitType || item.item_type || (item.mission_id ? 'mission' : 'news');
-      moderationPreviewCurrent = {
-        item: item,
-        context: context,
-        staffName: staffName,
-        type: resolvedType,
-        id: item.item_id != null ? item.item_id : item.id
-      };
-      var contentEl = el('moderationPreviewContent');
-      var actionsEl = el('moderationPreviewActions');
-      if (!contentEl || !actionsEl) return;
-      var isFlagOnly = (context === 'flagged' && item.item_type != null && item.item_id != null && item.author_name === undefined && item.mission_title === undefined);
-      if (isFlagOnly){
-        contentEl.innerHTML = '<p class="note">Flagged item (content not in list)</p>';
-      } else if (item.author_name !== undefined || item.title !== undefined){
-        var n = item;
-        var dateStr = '';
-        try { var dt = new Date(n.approved_at || n.created_at || ''); if (!isNaN(dt.getTime())) dateStr = dt.toLocaleDateString(); } catch(e){}
-        if (!window.LanternCards || !window.LanternCards.specOpenedNews || !window.LanternCards.createStudentCard) {
-          window.LanternCanonicalFailClosed('LanternCards.specOpenedNews + createStudentCard required for news moderation preview');
-        }
-        var ab = n.author_type === 'teacher' ? 'Teacher Contributor' : n.author_type === 'staff' ? 'Staff' : n.author_type === 'admin' ? 'Admin' : 'Student Reporter';
-        contentEl.innerHTML = '';
-        function mountNewsPreviewCard(row){
-          var newsPrev = window.LanternCards.createStudentCard(window.LanternCards.specOpenedNews({
-            esc: esc,
-            title: n.title || 'Untitled',
-            category: n.category || '',
-            authorName: n.author_name || '',
-            authorType: n.author_type || 'student',
-            dateStr: dateStr,
-            badgeText: ab,
-            bodyHtml: esc(n.body || '').replace(/\n/g, '<br>'),
-            reportId: n.id || '',
-            _canonicalAvatar: row && row._canonicalAvatar,
-            newsMediaItem: n
-          }));
-          if (newsPrev) contentEl.appendChild(newsPrev);
-          window.LanternCards.enhanceReportControlsIn(contentEl);
-        }
-        var stuKey = (n.author_type === 'student' || !n.author_type) ? String(n.author_name || n.character_name || '').trim() : '';
-        if (stuKey && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
-          var row = { character_name: stuKey, author_name: stuKey };
-          window.LanternAvatar.attachCanonicalAvatarsToItems([row]).then(function(){ mountNewsPreviewCard(row); });
-        } else {
-          mountNewsPreviewCard(null);
-        }
-      } else {
-        var s = item;
-        var missionMedia = window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia ? window.LanternMedia.normalizeMissionItemForMedia(s) : {};
-        var imageUrlM = String(missionMedia.image_url || '').trim();
-        var videoUrlM = String(missionMedia.video_url || '').trim();
-        var linkUrlM = String(missionMedia.link_url || '').trim();
-        var st = String(s.submission_type || '').toLowerCase();
-        if (st === 'image_url' && s.submission_content && !imageUrlM) imageUrlM = String(s.submission_content).trim();
-        if (st === 'link' && s.submission_content && !linkUrlM) linkUrlM = String(s.submission_content).trim();
-        var draftType = imageUrlM ? 'image' : videoUrlM ? 'video' : linkUrlM ? 'link' : 'create';
-        var bodyText = (s.submission_content && st !== 'image_url' && st !== 'link') ? String(s.submission_content) : (s.caption || '');
-        if (!window.LanternCards || !window.LanternCards.specOpenedMissionDraft || !window.LanternCards.createStudentCard) {
-          window.LanternCanonicalFailClosed('LanternCards.specOpenedMissionDraft + createStudentCard required for mission moderation preview');
-        }
-        contentEl.innerHTML = '';
-        var missPrev = window.LanternCards.createStudentCard(window.LanternCards.specOpenedMissionDraft(s.mission_title || 'Mission', draftType, imageUrlM, videoUrlM, linkUrlM, bodyText, ''));
-        if (missPrev) contentEl.appendChild(missPrev);
-        window.LanternCards.enhanceReportControlsIn(contentEl);
-      }
-      actionsEl.innerHTML = '';
-      var closeBtn = document.createElement('button');
-      closeBtn.className = 'btn small';
-      closeBtn.textContent = 'Close';
-      closeBtn.addEventListener('click', closeModerationPreview);
-      actionsEl.appendChild(closeBtn);
-      if ((context === 'live' || context === 'flagged') && typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin){
-        var removeBtn = document.createElement('button');
-        removeBtn.className = 'btn bad small';
-        removeBtn.textContent = 'Remove from view';
-        removeBtn.addEventListener('click', async function(){
-          if (!moderationPreviewCurrent) return;
-          var it = moderationPreviewCurrent;
-          var url = it.type === 'news' ? (avatarApiBase + '/api/news/hide') : (avatarApiBase + '/api/missions/submissions/hide');
-          var body = { id: it.id, hidden_by: it.staffName };
-          var res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; });
-          moderationDebugLog('hide_preview', url, it.id, it.type, res);
-          if (res.ok){ toast('Removed from view'); closeModerationPreview(); loadModerationData(); } else { toast(res.error || 'Failed'); }
-        });
-        actionsEl.appendChild(removeBtn);
-      }
-      if (context === 'hidden' && typeof window.pilotIsAdmin !== 'undefined' && window.pilotIsAdmin){
-        var restoreBtn = document.createElement('button');
-        restoreBtn.className = 'btn good small';
-        restoreBtn.textContent = 'Restore';
-        restoreBtn.addEventListener('click', async function(){
-          if (!moderationPreviewCurrent) return;
-          var it = moderationPreviewCurrent;
-          var url = it.type === 'news' ? (avatarApiBase + '/api/news/restore') : (avatarApiBase + '/api/missions/submissions/restore');
-          var res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'network' }; });
-          moderationDebugLog('restore_preview', url, it.id, it.type, res);
-          if (res.ok){ toast('Restored'); closeModerationPreview(); loadModerationData(); } else { toast(res.error || 'Failed'); }
-        });
-        actionsEl.appendChild(restoreBtn);
-      }
-      var overlay = el('moderationPreviewOverlay');
-      if (overlay) overlay.classList.add('is-open');
-    }
     function closeModerationPreview(){
       var overlay = el('moderationPreviewOverlay');
       if (overlay) overlay.classList.remove('is-open');
-      moderationPreviewCurrent = null;
     }
-
     function getAuthorLabel(type){
       if (type === 'student') return 'Student Reporter';
       if (type === 'teacher') return 'Teacher Contributor';

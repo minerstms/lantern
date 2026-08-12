@@ -151,7 +151,12 @@ assert(/not_authenticated/.test(indexSrc) && /resolveReportTargetIds|quarantineR
 assert(!/This item type is not reportable through the server yet/.test(cardUi), 'J no unsupported toast copy');
 assert(/apiItemType = 'poll'/.test(cardUi) && /mission_submission/.test(cardUi) && /feed_item/.test(cardUi), 'J frontend maps poll/mission/feed');
 assert(/credentials:\s*'include'/.test(cardUi) && /removeReportedContentFromUi/.test(cardUi), 'J credentials + UI removal');
-assert(/REPORTED — HIDDEN PENDING REVIEW/.test(teacher) && /Restore/.test(teacher), 'moderation shows reported+restore');
+const moderationList = fs.readFileSync(path.join(root, 'app/js/lantern-moderation-list.js'), 'utf8');
+assert(
+  (/REPORTED — HIDDEN PENDING REVIEW/.test(teacher) || /REPORTED — HIDDEN PENDING REVIEW/.test(moderationList)) &&
+    (/Restore/.test(teacher) || /Restore/.test(moderationList)),
+  'moderation shows reported+restore'
+);
 assert(/\/api\/feed\/restore/.test(fs.readFileSync(path.join(root, 'worker/feed-handlers.js'), 'utf8')), 'feed restore endpoint');
 assert(/reportType: ''/.test(cards) || /catalog mission cards are not user posts/.test(cards), 'catalog mission no Report');
 assert(/item\.type === 'poll'/.test(feedCard) || /mission_submission/.test(feedCard), 'feed card report types');
