@@ -206,14 +206,17 @@
   }
 
   function itemToHtml(it) {
+    // Prompt #217 — second icon is always the content author avatar (real image or neutral fallback).
     var avatar = '';
     if (it.avatarUrl && String(it.avatarUrl).trim()) {
       avatar =
-        '<img src="' + esc(it.avatarUrl) + '" alt="" class="lanternTickerItemAvatar" onerror="this.style.display=\'none\'">';
-    } else if (it.avatarEmoji && String(it.avatarEmoji).trim()) {
+        '<img src="' + esc(it.avatarUrl) + '" alt="" class="lanternTickerItemAvatar" onerror="this.style.display=\'none\';this.nextElementSibling&&(this.nextElementSibling.style.display=\'inline-flex\')">' +
+        '<span class="lanternTickerItemAvatar lanternTickerItemAvatar--emoji" aria-hidden="true" style="display:none">🌟</span>';
+    } else {
+      var em = (it.avatarEmoji && String(it.avatarEmoji).trim()) ? String(it.avatarEmoji).trim() : '🌟';
       avatar =
         '<span class="lanternTickerItemAvatar lanternTickerItemAvatar--emoji" aria-hidden="true">' +
-        esc(String(it.avatarEmoji).trim()) +
+        esc(em) +
         '</span>';
     }
     var iconHtml = it.icon || '✨';

@@ -99,7 +99,7 @@
 
   function accountKeyFromItem(p) {
     if (!p || typeof p !== 'object') return '';
-    return String(p[CANONICAL_IDENTITY_KEY] || p.author_name || '').trim();
+    return String(p[CANONICAL_IDENTITY_KEY] || p.author_name || p.authorDisplayName || '').trim();
   }
 
   /**
@@ -107,7 +107,7 @@
    */
   function mergeCanonicalAvatarForItem(map, p) {
     var kChar = String(p.character_name || '').trim();
-    var kAuth = String(p.author_name || '').trim();
+    var kAuth = String(p.author_name || p.authorDisplayName || '').trim();
     var a = kChar && map[kChar] ? map[kChar] : null;
     var b = kAuth && kAuth !== kChar && map[kAuth] ? map[kAuth] : null;
     if (!a && !b) return null;
@@ -129,8 +129,10 @@
     list.forEach(function (p) {
       var k1 = String(p.character_name || '').trim();
       var k2 = String(p.author_name || '').trim();
+      var k3 = String(p.authorDisplayName || '').trim();
       if (k1 && names.indexOf(k1) < 0) names.push(k1);
       if (k2 && names.indexOf(k2) < 0) names.push(k2);
+      if (k3 && names.indexOf(k3) < 0) names.push(k3);
     });
     var req = names.map(function (n) {
       return { characterName: n, legacyEmoji: getLegacyEmojiForCharacter(n) };

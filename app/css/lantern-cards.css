@@ -31,6 +31,8 @@
   --lantern-card-identity-name-size: 22px;
   /* Initials / monogram inside the avatar circle — scales if --lantern-card-identity-avatar-size changes */
   --lantern-card-identity-initials-size: calc(var(--lantern-card-identity-avatar-size) * 0.47);
+  /* Prompt #217 — shared author-avatar size for top ticker + card LLHC metadata chip */
+  --lantern-content-author-avatar-size: 28px;
 }
 
 /* ===== CONTRACT V2 — ONE COMPACT PRODUCTION CARD FACE ===== */
@@ -104,7 +106,8 @@
 .lanternCanonicalCardCaption {
   position: relative;
   z-index: 1;
-  padding: 0 12px 10px;
+  /* Prompt #217 — keep LLHC avatar/meta clearly inset from card edges (not edge-touching). */
+  padding: 0 14px 12px 14px;
   padding-right: 44px;
   box-sizing: border-box;
 }
@@ -126,8 +129,8 @@
 .lanternCanonicalCardMeta {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 5px;
   color: rgba(255,255,255,.92);
   font-size: 14px;
   font-weight: 700;
@@ -143,16 +146,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 15px;
-  height: 15px;
+  width: var(--lantern-content-author-avatar-size, 28px);
+  height: var(--lantern-content-author-avatar-size, 28px);
   margin: 0;
   padding: 0;
   overflow: hidden;
   border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.28);
 }
 .lanternCanonicalCardMeta .exploreCardAvatarImg {
-  width: 15px;
-  height: 15px;
+  width: var(--lantern-content-author-avatar-size, 28px);
+  height: var(--lantern-content-author-avatar-size, 28px);
   border-radius: 50%;
   object-fit: cover;
   display: block;

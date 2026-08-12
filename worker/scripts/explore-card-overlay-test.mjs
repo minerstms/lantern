@@ -151,16 +151,47 @@ const shoutModel = LC.normalizeFeedItemToFaceModel({
   type: 'shout_out',
   title: 'Mrs. Glorioso Rules!',
   summary: 'Thanks for always helping our class learn and grow.',
+  body: 'Recognizing: Mrs. Glorioso\n\nThanks for always helping our class learn and grow.',
   authorDisplayName: 'Rick Radle',
   approvedAt: '2026-08-06T00:00:00.000Z',
+  contentSlot: { recipient: 'Mrs. Glorioso' },
 });
 const shoutHtml = LC.buildCanonicalCardFaceHtml(shoutModel);
 assert(/Mrs\. Glorioso Rules!/.test(shoutHtml), '10d. shout-out headline');
-assert(/Thanks for always helping/.test(shoutHtml), '10e. shout-out description');
+assert(/lanternCanonicalCardDesc/.test(shoutHtml) && /Mrs\. Glorioso/.test(shoutHtml), '10e. shout-out compact meta = recognized party');
+assert(!/Recognizing:/.test(shoutHtml), '10e2. Recognizing: prefix omitted from compact card');
+assert(!/Thanks for always helping/.test(shoutHtml), '10e3. shout message not used as compact meta');
+
+const shoutFree = LC.normalizeFeedItemToFaceModel({
+  id: 'shout_out:2',
+  type: 'shout_out',
+  title: 'Team shout',
+  summary: 'Recognizing: Volleyball Coaches\n\nGreat season!',
+  body: 'Recognizing: Volleyball Coaches\n\nGreat season!',
+  authorDisplayName: 'Rick Radle',
+  approvedAt: '2026-08-11T00:00:00.000Z',
+});
+assert(shoutFree.descriptionPreview === 'Volleyball Coaches', '10f. free-text recognition label only');
+assert(!/^Recognizing:/i.test(shoutFree.descriptionPreview || ''), '10f2. no Recognizing: in descriptionPreview');
+
+const shoutMissing = LC.normalizeFeedItemToFaceModel({
+  id: 'shout_out:3',
+  type: 'shout_out',
+  title: 'Empty recognition',
+  summary: 'Just a message with no recognition line.',
+  body: 'Just a message with no recognition line.',
+  authorDisplayName: 'Rick Radle',
+  approvedAt: '2026-08-11T00:00:00.000Z',
+});
+assert(shoutMissing.descriptionPreview === '', '10g. missing recognition omits compact segment');
 
 assert(/-webkit-line-clamp:\s*1/.test(cardsCss) && /line-clamp:\s*1/.test(cardsCss), '11. CSS one-line title clamp');
 assert(/lanternCanonicalCardDesc/.test(cardsCss) && /text-overflow:\s*ellipsis/.test(cardsCss), '11b. description CSS ellipsis');
-assert(/\.lanternCanonicalCardMeta\s+\.exploreCardAvatarImg[\s\S]{0,80}15px/.test(cardsCss), '11c. tiny overlay avatar size');
+assert(
+  /--lantern-content-author-avatar-size:\s*28px/.test(cardsCss) &&
+    /\.lanternCanonicalCardMeta\s+\.exploreCardAvatarImg[\s\S]{0,120}var\(--lantern-content-author-avatar-size/.test(cardsCss),
+  '11c. LLHC overlay avatar matches shared 28px author-avatar token'
+);
 
 const gameSpec = LC.specGameHubRailCard({
   title: 'Nugget Hunt',

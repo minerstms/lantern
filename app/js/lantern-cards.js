@@ -158,6 +158,32 @@
     return raw;
   }
 
+  /**
+   * Prompt #217 — Shout-Out compact card meta shows the recognized party only
+   * (no literal "Recognizing:" / "For " field label). Author ≠ recognized party.
+   * Prefer contentSlot.recipient; else parse body/summary. Omit when missing.
+   */
+  function shoutOutRecognizedPartyLabel(item) {
+    item = item || {};
+    var slot = item.contentSlot || {};
+    var fromSlot = String(slot.recipient || slot.recognition_label || slot.recognized || '').trim();
+    if (fromSlot && !/^(undefined|null)$/i.test(fromSlot)) {
+      return fromSlot.replace(/^(Recognizing|For)\s*:\s*/i, '').replace(/^For\s+/i, '').trim();
+    }
+    var blob = String(item.body != null ? item.body : (item.summary != null ? item.summary : (item.description || '')));
+    var m = blob.match(/Recognizing:\s*([^\n\r]+)/i);
+    if (m && m[1]) {
+      var party = String(m[1]).replace(/\s+/g, ' ').trim();
+      if (party && !/^(undefined|null)$/i.test(party)) return party;
+    }
+    var forM = blob.match(/^\s*For\s+([^\n\r]+)/i);
+    if (forM && forM[1]) {
+      var forParty = String(forM[1]).replace(/\s+/g, ' ').trim();
+      if (forParty && !/^(undefined|null)$/i.test(forParty)) return forParty;
+    }
+    return '';
+  }
+
   function buildCanonicalImageOnErrorHandler() {
     return 'var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;return;}el.onerror=null;el.src=u;';
   }
@@ -271,17 +297,21 @@
       scoreLine = String(slot.scoreDisplay || slot.score || slot.result || slot.achievement || item.summary || item.body || '').trim();
     }
 
+    var isShout =
+      type === 'shoutout' || type === 'shout_out' || type === 'shout-out' || type === 'recognition';
     var desc = isGameAchievement
       ? scoreLine
       : (type === 'poll'
         ? ''
-        : getExploreDescriptionPreview({
-            title: item.title,
-            summary: item.summary,
-            body: item.body,
-            description: item.description,
-            type: item.type,
-          }));
+        : (isShout
+          ? shoutOutRecognizedPartyLabel(item)
+          : getExploreDescriptionPreview({
+              title: item.title,
+              summary: item.summary,
+              body: item.body,
+              description: item.description,
+              type: item.type,
+            })));
 
     return {
       id: item.id,
@@ -1394,6 +1424,7 @@
     formatCompactAuthor: formatCompactAuthor,
     formatCompactDate: formatCompactDate,
     getExploreDescriptionPreview: getExploreDescriptionPreview,
+    shoutOutRecognizedPartyLabel: shoutOutRecognizedPartyLabel,
     TYPE_ICONS: TYPE_ICONS,
     TYPE_BADGES: TYPE_BADGES,
     SHOUT_OUT_DISPLAY_NAME: SHOUT_OUT_DISPLAY_NAME,
