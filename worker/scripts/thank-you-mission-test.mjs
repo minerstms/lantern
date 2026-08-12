@@ -64,17 +64,18 @@ if (!/openThankYouComposer/.test(missionsHtml) || !/\/api\/missions\/thank-you/.
   bad('missions UI missing thank-you composer/API');
 } else ok('missions UI wires thank-you composer');
 
-// Prompt #187 — Thank a Teacher card uses built-in desk letter artwork (not generic mission-card).
+// Prompt #187/#11 — Thank a Teacher card uses built-in desk letter artwork via shared LanternCards map.
 const thankYouArt = fileURLToPath(new URL('../../app/assets/thank-you-letter.png', import.meta.url));
 const rootThankYouArt = fileURLToPath(new URL('../../assets/thank-you-letter.png', import.meta.url));
 if (fs.existsSync(thankYouArt) && fs.existsSync(rootThankYouArt)) ok('thank-you-letter.png present in assets + app/assets');
 else bad('thank-you-letter.png missing', { thankYouArt: fs.existsSync(thankYouArt), rootThankYouArt: fs.existsSync(rootThankYouArt) });
+const cardsJs = fs.readFileSync(fileURLToPath(new URL('../../app/js/lantern-cards.js', import.meta.url)), 'utf8');
 if (
-  /mid === WAVE2_MISSION\.thankYou/.test(missionsHtml) &&
-  /imageUrl:\s*\(m\.card_image_url && String\(m\.card_image_url\)\.trim\(\)\) \|\| 'assets\/thank-you-letter\.png'/.test(missionsHtml)
+  /perm_thank_you:\s*'assets\/thank-you-letter\.png'/.test(cardsJs) &&
+  /missionLibraryCoverUrl/.test(missionsHtml)
 ) {
   ok('Thank a Teacher (perm_thank_you) wired to thank-you-letter artwork');
-} else bad('Thank a Teacher artwork wiring missing from missions.html');
+} else bad('Thank a Teacher artwork wiring missing');
 if (!/mid === WAVE2_MISSION\.thankYou[\s\S]{0,1200}assets\/mission-card\.png/.test(missionsHtml)) {
   ok('Thank a Teacher branch does not hardcode generic mission-card cover');
 } else bad('Thank a Teacher still points at mission-card.png');

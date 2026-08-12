@@ -110,7 +110,9 @@
     var primary = resolveCardFaceImageUrl(p);
     if (primary) return primary;
     var type = String((p && (p.fallbackType || p.type)) || '').toLowerCase();
-    if (type === 'mission') return MISSION_FALLBACK_COVER_URL;
+    if (type === 'mission') {
+      return missionCoverFallbackUrl((p && (p.missionId || p.mission_id || p.id)) || '');
+    }
     var topicUrl = getTopicLibraryImageUrl(p);
     if (topicUrl) return topicUrl;
     return getDefaultImageUrl(p.fallbackType || p.type || 'creation');
@@ -283,10 +285,12 @@
     shellOpts = shellOpts || {};
     var fbType = model.fallbackType || model.type || 'creation';
     // Mission cards: if a REAL image URL was set but fails to actually load at runtime (e.g. a
-    // stale/broken reference), gracefully recover to the official Mission cover art rather than
+    // stale/broken reference), gracefully recover to built-in / official Mission cover art rather than
     // a generic gradient placeholder — presentation only, never asserted as the real photo, and
     // never used by Teacher Review (which has its own separate, truthful media handling).
-    var typeSvg = fbType === 'mission' ? MISSION_FALLBACK_COVER_URL : svgTypeFallbackDataUri(fbType);
+    var typeSvg = fbType === 'mission'
+      ? missionCoverFallbackUrl(model.missionId || model.mission_id || model.id)
+      : svgTypeFallbackDataUri(fbType);
     var uniSvg = svgUniversalLanternDataUri();
     var faceUrl = resolveCardFaceImageUrl(model);
     var remoteUrl = faceUrl || resolveCardFaceImageUrlWithFallbacks(model);
@@ -432,8 +436,28 @@
               type: item.type,
             })));
 
+    var missionId = String(
+      slot.missionId || slot.mission_id || item.missionId || item.mission_id || ''
+    ).trim();
+    var missionImageUrl = isGameAchievement
+      ? (gameArtUrl || item.imageUrl || item.image_url)
+      : (item.imageUrl || item.image_url);
+    var missionThumb = isGameAchievement ? (gameArtUrl || item.thumbnailUrl) : item.thumbnailUrl;
+    if (!isGameAchievement && type === 'mission' && !resolveCardFaceImageUrl({
+      imageUrl: missionImageUrl,
+      thumbnailUrl: missionThumb,
+      type: 'mission',
+    })) {
+      var builtInCover = builtInMissionCoverUrl(missionId);
+      if (builtInCover) {
+        missionImageUrl = builtInCover;
+        missionThumb = builtInCover;
+      }
+    }
+
     return {
       id: item.id,
+      missionId: missionId || undefined,
       type: item.type || 'news',
       title: isGameAchievement ? headline : (item.title || 'Untitled'),
       author: authorRaw,
@@ -449,8 +473,8 @@
       descriptionPreview: desc,
       exploreOverlay: true,
       gameAchievementOverlay: !!isGameAchievement,
-      thumbnailUrl: isGameAchievement ? (gameArtUrl || item.thumbnailUrl) : item.thumbnailUrl,
-      imageUrl: isGameAchievement ? (gameArtUrl || item.imageUrl || item.image_url) : (item.imageUrl || item.image_url),
+      thumbnailUrl: missionThumb,
+      imageUrl: missionImageUrl,
       url: item.url,
       fallbackType: isGameAchievement ? 'create' : (item.type || 'news'),
       /* Prompt #222 — ULHC type icon resolved in buildCanonicalCardFaceHtml via resolveUlhcTypeBadge. */
@@ -620,6 +644,31 @@
    */
   var MISSION_FALLBACK_COVER_URL = 'assets/mission-card.png';
 
+  /**
+   * Prompt #11 — built-in / standard mission artwork by stable mission id.
+   * Priority (unchanged): submission media → teacher Mission Card Image → built-in map → generic mission-card.
+   * No Reaction Tap mission exists; reaction-tap-card.png remains game catalog art only.
+   */
+  var BUILT_IN_MISSION_COVER_BY_ID = {
+    perm_create_something: 'assets/create-something.png',
+    perm_daily_checkin: 'assets/daily-check-in.png',
+    tmission_1773760134919_yy72fc: 'assets/interview-family.png',
+    perm_first_game: 'assets/first-game-played.png',
+    perm_thank_you: 'assets/thank-you-letter.png',
+    perm_shoutout_someone: 'assets/shout-out-card.png',
+  };
+
+  function builtInMissionCoverUrl(missionId) {
+    var id = String(missionId || '').trim();
+    if (!id) return '';
+    return BUILT_IN_MISSION_COVER_BY_ID[id] || '';
+  }
+
+  /** Fallback cover for a mission face: specific built-in art when known, else generic mission-card. */
+  function missionCoverFallbackUrl(missionId) {
+    return builtInMissionCoverUrl(missionId) || MISSION_FALLBACK_COVER_URL;
+  }
+
   function getDefaultImageKey(type) {
     var t = (type || '').toLowerCase();
     if (t === 'poll') return 'default/default_poll.png';
@@ -745,7 +794,9 @@
     var resolved = resolveCardFaceImageUrl(p);
     if (resolved) return resolved;
     var type = String((p && (p.fallbackType || p.type || p.mission_type)) || '').toLowerCase();
-    if (type === 'mission') return MISSION_FALLBACK_COVER_URL;
+    if (type === 'mission') {
+      return missionCoverFallbackUrl((p && (p.missionId || p.mission_id || p.id)) || '');
+    }
     var topicUrl = getTopicLibraryImageUrl(p);
     if (topicUrl) return topicUrl;
     return getDefaultImageUrl(p.fallbackType || p.type || p.mission_type || 'creation');
@@ -1563,6 +1614,9 @@
     getCardImageUrl: getCardImageUrl,
     getDefaultImageUrl: getDefaultImageUrl,
     MISSION_FALLBACK_COVER_URL: MISSION_FALLBACK_COVER_URL,
+    BUILT_IN_MISSION_COVER_BY_ID: BUILT_IN_MISSION_COVER_BY_ID,
+    builtInMissionCoverUrl: builtInMissionCoverUrl,
+    missionCoverFallbackUrl: missionCoverFallbackUrl,
     getDefaultAvatarImageUrl: getDefaultAvatarImageUrl,
     buildExploreAuthorAvatarHtml: buildExploreAuthorAvatarHtml,
     accountKeyFromCardModel: accountKeyFromCardModel,

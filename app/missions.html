@@ -1275,6 +1275,14 @@
       var thankYouClaimed = !!(progress.thank_you && progress.thank_you.completed_today);
       var hiddenDone = !!missions.hidden_nugget;
       var firstGameDone = !!(progress.first_game && progress.first_game.completed) || !!missions.first_game;
+      function missionLibraryCoverUrl(m) {
+        var card = m && m.card_image_url ? String(m.card_image_url).trim() : '';
+        if (card) return card;
+        if (window.LanternCards && typeof window.LanternCards.builtInMissionCoverUrl === 'function') {
+          return window.LanternCards.builtInMissionCoverUrl(m && m.id) || '';
+        }
+        return '';
+      }
       var subByMission = {};
       submissions.forEach(function(s){
         var mid = s.mission_id;
@@ -1331,6 +1339,7 @@
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
+            imageUrl: missionLibraryCoverUrl(m),
             raw: m,
             submission: sub,
             onActivate: function(){
@@ -1374,8 +1383,8 @@
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
-            /* Prompt #187 — built-in desk letter art; teacher Mission Card Image still wins if set. */
-            imageUrl: (m.card_image_url && String(m.card_image_url).trim()) || 'assets/thank-you-letter.png',
+            /* Prompt #11 — built-in desk letter art via shared LanternCards map; teacher card image still wins. */
+            imageUrl: missionLibraryCoverUrl(m),
             raw: m,
             submission: sub,
             onActivate: function(){
@@ -1410,6 +1419,7 @@
             featured: !!m.featured,
             created_at: m.created_at || '',
             url: fgDone ? '' : 'games.html',
+            imageUrl: missionLibraryCoverUrl(m),
             raw: m,
             submission: sub,
             onActivate: fgDone ? function(){
@@ -1444,6 +1454,7 @@
             featured: !!m.featured,
             created_at: m.created_at || '',
             url: 'contribute.html?type=photo',
+            imageUrl: missionLibraryCoverUrl(m),
             raw: m,
             submission: sub,
           });
@@ -1470,6 +1481,7 @@
             featured: !!m.featured,
             created_at: m.created_at || '',
             url: 'contribute.html?type=poll',
+            imageUrl: missionLibraryCoverUrl(m),
             raw: m,
             submission: sub,
           });
@@ -1496,6 +1508,7 @@
             featured: !!m.featured,
             created_at: m.created_at || '',
             url: 'contribute.html?type=shoutout',
+            imageUrl: missionLibraryCoverUrl(m),
             raw: m,
             submission: sub,
           });
@@ -1550,7 +1563,7 @@
           audience: m.audience || '',
           featured: !!m.featured,
           created_at: m.created_at || '',
-          imageUrl: (mmForCard.image_url || (m && m.card_image_url) || '').trim(),
+          imageUrl: (mmForCard.image_url || missionLibraryCoverUrl(m) || '').trim(),
           raw: m,
           submission: sub,
           onActivate: function(){
@@ -1574,10 +1587,10 @@
         });
       });
 
-      // Prompt #210 — Mission Card Image fills library cards when no stronger submission photo.
+      // Prompt #210/#11 — Mission Card Image, then built-in standard art, when no submission photo.
       items.forEach(function(it){
         if (it.imageUrl) return;
-        if (it.raw && it.raw.card_image_url) it.imageUrl = String(it.raw.card_image_url).trim();
+        if (it.raw) it.imageUrl = missionLibraryCoverUrl(it.raw);
       });
 
       return items;
