@@ -64,6 +64,15 @@ import {
   isAuthorRemovalLabel,
 } from './content-author-remove.js';
 import {
+  normalizeReportItemType,
+  resolveReportTargetIds,
+  quarantineReportedContent,
+  reportQuarantineAuditLabel,
+  reporterIdentityFromAccount,
+  isReportQuarantineLabel,
+  reportStatusLabel,
+} from './content-report-quarantine.js';
+import {
   loadMediaPublicityMap,
   setStudentMediaPublicityRestriction,
   listRestrictedStudentsForStaff,
@@ -265,6 +274,8 @@ export default {
         path === '/api/polls/hidden' ||
         path === '/api/content/remove' ||
         path === '/api/content/withdraw' ||
+        path.startsWith('/api/report') ||
+        path.startsWith('/api/moderation') ||
         path.startsWith('/api/missions') ||
         path.startsWith('/api/feed') ||
         path.startsWith('/api/trivia') ||
@@ -430,10 +441,11 @@ export default {
     }
     if (path.startsWith('/api/report') || path.startsWith('/api/moderation')) {
       try {
-        return await handleModerationRoutes(request, url, path, env, cors);
+        // Prompt #117 — credentialed report + staff flagged list (corsForPilot).
+        return await handleModerationRoutes(request, url, path, env, corsForPilot(request));
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
     }
     if (path.startsWith('/api/verify')) {
@@ -6621,48 +6633,139 @@ async function handleApprovalsRoutes(request, url, path, env) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, approvalsCors);
 }
 
-/** Moderation: report/flag (user) and flagged list (teacher) */
+/** Moderation: report/flag (authenticated user) + flagged list (staff). Prompt #117. */
 async function handleModerationRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
 
   if (request.method === 'POST' && path === '/api/report') {
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+    }
     const text = await request.text();
     let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const itemType = (body.item_type || '').trim();
-    const itemId = (body.item_id || '').trim();
-    const reportedBy = (body.reported_by || '').trim();
-    const reason = (body.reason || '').trim().slice(0, 500);
-    if (!itemType || !itemId) return jsonResponse({ ok: false, error: 'Missing item_type or item_id' }, 400, cors);
-    if (!reportedBy) return jsonResponse({ ok: false, error: 'Missing reported_by' }, 400, cors);
-    const allowedTypes = ['news', 'mission_submission'];
-    if (!allowedTypes.includes(itemType)) return jsonResponse({ ok: false, error: 'Invalid item_type' }, 400, cors);
-    const id = 'flag-' + crypto.randomUUID();
-    const now = new Date().toISOString();
     try {
-      await db.prepare(
-        'INSERT INTO lantern_content_flags (id, item_type, item_id, reported_by, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(id, itemType, itemId, reportedBy, reason || null, now).run();
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const norm = resolveReportTargetIds(body.item_type || body.type || '', body.item_id || body.id || '');
+    const itemId = norm ? norm.itemId : '';
+    const reason = String(body.reason || '').trim().slice(0, 500);
+    if (!norm) return jsonResponse({ ok: false, error: 'Invalid item_type' }, 400, cors);
+    if (!itemId) return jsonResponse({ ok: false, error: 'Missing item_type or item_id' }, 400, cors);
+
+    const reportedBy = reporterIdentityFromAccount(account, pilotEconomyCharacterName);
+    if (!reportedBy) return jsonResponse({ ok: false, error: 'Missing reported_by' }, 400, cors);
+
+    const now = new Date().toISOString();
+    const audit = reportQuarantineAuditLabel(account);
+    const hide = await quarantineReportedContent(db, norm.hideKind, itemId, audit, now);
+    if (!hide.ok) {
+      return jsonResponse({ ok: false, error: hide.error || 'quarantine_failed' }, hide.code || 400, cors);
+    }
+
+    const id = 'flag-' + crypto.randomUUID();
+    try {
+      await db
+        .prepare(
+          'INSERT INTO lantern_content_flags (id, item_type, item_id, reported_by, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        )
+        .bind(id, norm.canonical, itemId, reportedBy, reason || null, now)
+        .run();
     } catch (e) {
       return jsonResponse({ ok: false, error: 'Report failed' }, 500, cors);
     }
-    return jsonResponse({ ok: true, id, created_at: now }, 200, cors);
+    return jsonResponse(
+      {
+        ok: true,
+        id,
+        created_at: now,
+        item_type: norm.canonical,
+        item_id: itemId,
+        quarantined: true,
+        already_hidden: !!hide.already_hidden,
+        hidden_at: hide.hidden_at || now,
+        status_label: reportStatusLabel(hide.hidden_by || audit) || 'REPORTED — HIDDEN PENDING REVIEW',
+      },
+      200,
+      cors
+    );
   }
 
   if (request.method === 'GET' && path === '/api/moderation/flagged') {
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    if (!isTeacherLike(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
-    const rows = await db.prepare(
-      'SELECT id, item_type, item_id, reported_by, reason, created_at FROM lantern_content_flags ORDER BY created_at DESC LIMIT ?'
-    ).bind(limit).all();
-    const list = (rows.results || []).map(r => ({
-      id: r.id,
-      item_type: r.item_type,
-      item_id: r.item_id,
-      reported_by: r.reported_by,
-      reason: r.reason,
-      created_at: r.created_at,
-    }));
+    const rows = await db
+      .prepare(
+        'SELECT id, item_type, item_id, reported_by, reason, created_at FROM lantern_content_flags ORDER BY created_at DESC LIMIT ?'
+      )
+      .bind(limit)
+      .all();
+    const list = [];
+    for (const r of rows.results || []) {
+      const norm = normalizeReportItemType(r.item_type);
+      let hiddenAt = null;
+      let hiddenBy = null;
+      if (norm && r.item_id) {
+        try {
+          if (norm.hideKind === 'news') {
+            const row = await db
+              .prepare('SELECT hidden_at, hidden_by FROM lantern_news_submissions WHERE id = ?')
+              .bind(r.item_id)
+              .first();
+            hiddenAt = row && row.hidden_at;
+            hiddenBy = row && row.hidden_by;
+          } else if (norm.hideKind === 'poll') {
+            const row = await db
+              .prepare('SELECT hidden_at, hidden_by FROM lantern_polls WHERE id = ?')
+              .bind(r.item_id)
+              .first();
+            hiddenAt = row && row.hidden_at;
+            hiddenBy = row && row.hidden_by;
+          } else if (norm.hideKind === 'mission') {
+            const row = await db
+              .prepare('SELECT hidden_at, hidden_by FROM lantern_mission_submissions WHERE id = ?')
+              .bind(r.item_id)
+              .first();
+            hiddenAt = row && row.hidden_at;
+            hiddenBy = row && row.hidden_by;
+          } else if (norm.hideKind === 'feed') {
+            const row = await db
+              .prepare('SELECT hidden_at, hidden_by, status FROM lantern_feed_items WHERE id = ?')
+              .bind(r.item_id)
+              .first();
+            hiddenAt = row && row.hidden_at;
+            hiddenBy = row && row.hidden_by;
+            if (!hiddenAt && row && String(row.status || '').toLowerCase() === 'hidden') {
+              hiddenAt = r.created_at;
+            }
+          }
+        } catch (_) {}
+      }
+      const pendingReview = !!(hiddenAt && String(hiddenAt).trim());
+      list.push({
+        id: r.id,
+        item_type: r.item_type,
+        item_id: r.item_id,
+        reported_by: r.reported_by,
+        reason: r.reason,
+        created_at: r.created_at,
+        hidden_at: hiddenAt || null,
+        hidden_by: hiddenBy || null,
+        quarantine_pending: pendingReview,
+        status_label: pendingReview
+          ? reportStatusLabel(hiddenBy) || 'REPORTED — HIDDEN PENDING REVIEW'
+          : 'Reported',
+        report_quarantine: isReportQuarantineLabel(hiddenBy),
+      });
+    }
     return jsonResponse({ ok: true, flags: list }, 200, cors);
   }
 

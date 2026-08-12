@@ -848,6 +848,25 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     return feedJson({ ok: true, id, status: 'hidden' }, 200, cors);
   }
 
+  // Prompt #117 — restore student-facing visibility after report quarantine / staff hide.
+  if (request.method === 'POST' && path === '/api/feed/restore') {
+    const auth = await requireTeacher(request, env, cors, deps);
+    if (auth.response) return auth.response;
+    const body = await parseJsonBody(request);
+    if (!body) return feedJson({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    const id = String(body.id || '').trim();
+    if (!id) return feedJson({ ok: false, error: 'Missing id' }, 400, cors);
+    const row = await db.prepare('SELECT id, status FROM lantern_feed_items WHERE id = ?').bind(id).first();
+    if (!row) return feedJson({ ok: false, error: 'Not found' }, 404, cors);
+    await db
+      .prepare(
+        "UPDATE lantern_feed_items SET status = 'approved', hidden_at = NULL, hidden_by = NULL WHERE id = ?"
+      )
+      .bind(id)
+      .run();
+    return feedJson({ ok: true, id, status: 'approved' }, 200, cors);
+  }
+
   if (request.method === 'POST' && path === '/api/feed/metadata') {
     const auth = await requireTeacher(request, env, cors, deps);
     if (auth.response) return auth.response;

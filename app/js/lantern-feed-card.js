@@ -167,11 +167,11 @@
       typeBadge: '',
       stateBadge: '',
     };
-    model.reportType = 'feed_item';
+    model.reportType = item.type === 'poll' ? 'poll' : item.type === 'mission' ? 'mission_submission' : item.type === 'news' || item.type === 'shoutout' ? 'news' : 'feed_item';
     model.reportId = item.id != null ? String(item.id) : '';
     var spec = cards.compactFaceSpec(model, {
       lanternCardType: item.type || 'news',
-      reportType: 'feed_item',
+      reportType: model.reportType,
       reportId: model.reportId,
       classNames: 'feedExploreCard',
     });

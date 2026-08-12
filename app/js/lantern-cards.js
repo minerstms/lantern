@@ -480,7 +480,7 @@
       /* Prompt #222 — ULHC type icon resolved in buildCanonicalCardFaceHtml via resolveUlhcTypeBadge. */
       typeBadge: '',
       stateBadge: '',
-      reportType: 'feed_item',
+      reportType: item.type === 'poll' ? 'poll' : item.type === 'mission' ? 'mission_submission' : item.type === 'news' || item.type === 'shoutout' ? 'news' : 'feed_item',
       reportId: item.id != null ? String(item.id) : '',
     };
   }
@@ -1260,8 +1260,9 @@
     }, {
       classNames: 'missionSpotlightCard',
       lanternCardType: 'mission',
-      reportType: 'mission',
-      reportId: mid
+      // Prompt #117 — catalog mission cards are not user posts; do not expose Report.
+      reportType: '',
+      reportId: ''
     });
   }
 

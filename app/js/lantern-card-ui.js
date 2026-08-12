@@ -1882,12 +1882,16 @@
     }
     var reason = cat + (extra ? ': ' + extra : '');
 
+    // Prompt #117 — every Report-capable Explore type maps to a server-supported item_type.
     var apiItemType = null;
-    if (type === 'news') apiItemType = 'news';
-    else if (type === 'mission_submission') apiItemType = 'mission_submission';
+    var t = String(type || '').toLowerCase();
+    if (t === 'news' || t === 'shoutout' || t === 'shout-out' || t === 'shout_out') apiItemType = 'news';
+    else if (t === 'poll' || t === 'polls') apiItemType = 'poll';
+    else if (t === 'mission_submission' || t === 'mission' || t === 'missions') apiItemType = 'mission_submission';
+    else if (t === 'feed_item' || t === 'feed' || t === 'creation' || t === 'article' || t === 'post') apiItemType = 'feed_item';
 
     if (!apiItemType) {
-      toastReport('This item type is not reportable through the server yet.');
+      toastReport('Report unavailable for this item.');
       closeReportModal();
       return;
     }
@@ -1898,36 +1902,59 @@
     }
 
     var apiBase = (typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-    var reportedBy = '';
-    try {
-      var auth = global.LanternAuth || global.LanternPilotAuth;
-      if (auth && typeof auth.sessionEconomyKey === 'function') {
-        reportedBy = auth.sessionEconomyKey() || '';
-      }
-    } catch (e) {}
     if (apiBase === null) {
       toastReport('Reporting is not available (API not configured).');
       closeReportModal();
       return;
     }
-    if (!reportedBy) {
-        toastReport('Adopt a character in Locker (Overview) to submit a report.');
+    var me = null;
+    try {
+      me = global.LANTERN_PILOT_ME && global.LANTERN_PILOT_ME.ok ? global.LANTERN_PILOT_ME : null;
+    } catch (eMe) {}
+    if (!me || me.authenticated === false) {
+      toastReport('Sign in to submit a report.');
       closeReportModal();
       return;
+    }
+
+    // Explore feed ids may be prefixed (poll:…, mission:…, news:…).
+    var resolvedType = apiItemType;
+    var resolvedId = itemId;
+    var pref = String(itemId || '').match(/^(news|poll|mission|feed):(.+)$/i);
+    if (pref) {
+      var kind = pref[1].toLowerCase();
+      resolvedId = String(pref[2] || '').trim();
+      if (kind === 'poll') resolvedType = 'poll';
+      else if (kind === 'mission') resolvedType = 'mission_submission';
+      else if (kind === 'news') resolvedType = 'news';
+      else if (kind === 'feed') resolvedType = 'feed_item';
     }
 
     var btn = el.querySelector('#lanternReportModalSubmit');
     if (btn) btn.disabled = true;
     global.fetch(apiBase + '/api/report', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_type: apiItemType, item_id: itemId, reported_by: reportedBy, reason: reason })
-    }).then(function (r) { return r.json(); }).then(function (res) {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ item_type: resolvedType, item_id: resolvedId, reason: reason })
+    }).then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { http: r, j: j }; }); }).then(function (pack) {
       var el2 = ensureReportOverlay();
       var btn2 = el2.querySelector('#lanternReportModalSubmit');
       if (btn2) btn2.disabled = false;
-      if (res && res.ok) toastReport('Report submitted. Staff will review.');
-      else toastReport((res && res.error) ? String(res.error) : 'Report failed.');
+      var res = pack && pack.j;
+      if (res && res.ok) {
+        toastReport('Report submitted. This post was removed pending staff review.');
+        removeReportedContentFromUi(resolvedType, itemId);
+        removeReportedContentFromUi(resolvedType, resolvedId);
+        try { closeDetail(); } catch (eClose) {}
+        closeReportModal();
+        return;
+      }
+      if (pack && pack.http && pack.http.status === 401) {
+        toastReport('Sign in to submit a report.');
+      } else {
+        toastReport((res && res.error) ? String(res.error) : 'Report failed.');
+      }
       closeReportModal();
     }).catch(function () {
       var el3 = ensureReportOverlay();
@@ -1936,6 +1963,24 @@
       toastReport('Report failed.');
       closeReportModal();
     });
+  }
+
+  /** Prompt #117 — drop reported card(s) from Explore without full reload. */
+  function removeReportedContentFromUi(itemType, itemId) {
+    var id = String(itemId || '').trim();
+    if (!id || !global.document) return;
+    try {
+      var nodes = global.document.querySelectorAll('[data-report-id="' + id.replace(/"/g, '') + '"]');
+      Array.prototype.forEach.call(nodes, function (node) {
+        var wrap = node.closest && (node.closest('.exploreCardOuterWrap') || node.closest('.exploreCard') || node);
+        if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      });
+    } catch (e) {}
+    try {
+      if (global.LanternFeed && typeof global.LanternFeed.removeItemById === 'function') {
+        global.LanternFeed.removeItemById(id);
+      }
+    } catch (e2) {}
   }
 
   function openReportModal(opts) {
