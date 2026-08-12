@@ -5978,11 +5978,14 @@
       var teacherShoutPeoplePicker = null;
       var shoutPeopleMount = el('teacherShoutPeopleMount');
       if (window.LanternPeoplePicker && shoutPeopleMount) {
+        // Prompt #213 — Recognizing: canonical person OR free-text group/label.
         teacherShoutPeoplePicker = window.LanternPeoplePicker.mount(shoutPeopleMount, {
           label: 'Recognizing',
-          placeholder: 'Search students or staff...',
+          placeholder: 'Search a person or type a group name…',
           relationship: 'recognized',
           max: 1,
+          allowFreeText: true,
+          freeTextMax: 100,
           inputId: 'teacherShoutPeopleSearch'
         });
       }
@@ -6207,21 +6210,27 @@
       if (el('shoutOutPostBtn')) {
         el('shoutOutPostBtn').addEventListener('click', async function(){
           if (avatarApiBase === null){ toast('Shout-Out requires Lantern API'); return; }
-          var peoplePayload = teacherShoutPeoplePicker && teacherShoutPeoplePicker.getPeoplePayload
-            ? teacherShoutPeoplePicker.getPeoplePayload()
-            : [];
-          var selected = teacherShoutPeoplePicker && teacherShoutPeoplePicker.getSelected
-            ? teacherShoutPeoplePicker.getSelected()
-            : [];
+          var shoutRec = teacherShoutPeoplePicker && teacherShoutPeoplePicker.getRecognitionState
+            ? teacherShoutPeoplePicker.getRecognitionState()
+            : null;
+          var peoplePayload = (shoutRec && Array.isArray(shoutRec.people)) ? shoutRec.people : [];
+          var recognitionLabel = shoutRec && shoutRec.label ? String(shoutRec.label).trim() : '';
           var message = (el('shoutOutMessage') && el('shoutOutMessage').value || '').trim();
-          if (!peoplePayload.length || !selected.length){ toast('Select who you are recognizing'); return; }
-          if (DEMO_BLOCK[String(selected[0].label || '').toLowerCase()]){ toast('That person is not available'); return; }
+          if (!shoutRec || shoutRec.mode === 'empty' || !recognitionLabel) {
+            toast('Enter who you are recognizing (a person or a group name)');
+            return;
+          }
+          if (shoutRec.mode === 'person' && DEMO_BLOCK[String(recognitionLabel || '').toLowerCase()]) {
+            toast('That person is not available');
+            return;
+          }
           if (!message){ toast('Write a message'); return; }
           var btn = el('shoutOutPostBtn');
           btn.disabled = true;
           try {
             var payload = {
               people: peoplePayload,
+              recognition_label: recognitionLabel,
               message: message,
               category: null
             };

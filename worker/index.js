@@ -27,6 +27,7 @@ import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, reso
 import {
   searchPeople,
   normalizePeoplePayload,
+  normalizeShoutOutRecognition,
   replaceContentPeople,
   copyContentPeople,
   listContentPeople,
@@ -5619,18 +5620,25 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     if (linkUrl) linkUrl = linkUrl.slice(0, 2000);
     const category = (body.category != null && String(body.category).trim() !== '') ? String(body.category).trim().slice(0, 200) : null;
     const isShoutOut = String(category || '').trim().toLowerCase() === 'student spotlight';
-    const peopleNorm = await normalizePeoplePayload(db, body.people, {
-      requireRecognizedOne: isShoutOut,
-    });
-    if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
+    let peopleNorm;
+    let shoutRecognitionLabel = '';
+    if (isShoutOut) {
+      // Prompt #213 — Recognizing may be a canonical person OR free-text group/label.
+      const shoutRec = await normalizeShoutOutRecognition(db, body.people, body.recognition_label);
+      if (!shoutRec.ok) return jsonResponse({ ok: false, error: shoutRec.error }, 400, cors);
+      peopleNorm = { ok: true, people: shoutRec.people };
+      shoutRecognitionLabel = shoutRec.recognition_label;
+    } else {
+      peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: false });
+      if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
+    }
     if (!title) return jsonResponse({ ok: false, error: 'Missing title' }, 400, cors);
     if (!authorName) return jsonResponse({ ok: false, error: 'Missing author_name' }, 400, cors);
     let articleBodyFinal = articleBody;
-    if (isShoutOut && peopleNorm.people[0] && peopleNorm.people[0].display_label) {
-      const label = peopleNorm.people[0].display_label;
-      // Keep Recognizing: prefix for Explore/mission detectors; identity is relational.
+    if (isShoutOut && shoutRecognitionLabel) {
+      // Keep Recognizing: prefix for Explore/mission detectors; person identity is relational when present.
       if (!/^Recognizing:\s*/i.test(articleBodyFinal)) {
-        articleBodyFinal = 'Recognizing: ' + label + '\n\n' + articleBodyFinal;
+        articleBodyFinal = 'Recognizing: ' + shoutRecognitionLabel + '\n\n' + articleBodyFinal;
       }
     }
     const id = 'news-' + crypto.randomUUID();
@@ -7026,13 +7034,12 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    // Prompt #190 — Recognizing via canonical People picker (not free-text / demo roster select).
-    const peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: true });
-    if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
-    const recognized = peopleNorm.people[0];
-    const characterName = String(recognized.display_label || '').trim();
+    // Prompt #213 — Recognizing via canonical People picker OR free-text group/label.
+    const shoutRec = await normalizeShoutOutRecognition(db, body.people, body.recognition_label);
+    if (!shoutRec.ok) return jsonResponse({ ok: false, error: shoutRec.error }, 400, cors);
+    const characterName = String(shoutRec.recognition_label || '').trim();
     const message = (body.message || '').trim().slice(0, 250);
-    if (!characterName) return jsonResponse({ ok: false, error: 'Missing recognized person' }, 400, cors);
+    if (!characterName) return jsonResponse({ ok: false, error: 'Missing recognized person or recognition text' }, 400, cors);
     if (isKnownDemoPersonaName(characterName)) {
       return jsonResponse({ ok: false, error: 'demo_persona_not_allowed' }, 400, cors);
     }
@@ -7079,7 +7086,7 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
       ).bind(id, characterName, message, category, now, createdByTeacherId, createdByTeacherName).run();
     }
     try {
-      await replaceContentPeople(db, 'recognition', id, peopleNorm.people, auth.account.username);
+      await replaceContentPeople(db, 'recognition', id, shoutRec.people, auth.account.username);
     } catch (_) {
       return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
     }
@@ -7098,7 +7105,8 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
       full_image_r2_key: fullImageR2Key,
       video_r2_key: videoR2Key,
       link_url: linkUrl,
-      people: publicPeopleForReview(peopleNorm.people),
+      recognition_mode: shoutRec.mode,
+      people: publicPeopleForReview(shoutRec.people),
     }, 200, cors);
   }
 

@@ -1885,11 +1885,14 @@
       var shoutMount = el('contributeShoutPeopleMount');
       var peopleMount = el('contributePeopleMount');
       if (window.LanternPeoplePicker && shoutMount) {
+        // Prompt #213 — Recognizing: canonical person OR free-text group/label.
         window.__lanternShoutPeoplePicker = window.LanternPeoplePicker.mount(shoutMount, {
           label: 'Recognizing',
-          placeholder: 'Search students or staff...',
+          placeholder: 'Search a person or type a group name…',
           relationship: 'recognized',
           max: 1,
+          allowFreeText: true,
+          freeTextMax: 100,
           inputId: 'contributeShoutPeopleSearch',
           onChange: function(){ updateStudioAll(); }
         });
@@ -2162,10 +2165,13 @@
       var nowIso = new Date().toISOString();
       var previewBody = body;
       if (ct === 'shoutout') {
-        var shoutSel = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getSelected && window.__lanternShoutPeoplePicker.getSelected()) || [];
-        if (shoutSel[0] && shoutSel[0].label) {
-          previewBody = 'Recognizing: ' + shoutSel[0].label + (body ? ('\n\n' + body) : '');
-          if (!title) headline = 'Shout-Out!: ' + shoutSel[0].label;
+        var shoutRecPreview = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getRecognitionState)
+          ? window.__lanternShoutPeoplePicker.getRecognitionState()
+          : null;
+        var shoutLabel = shoutRecPreview && shoutRecPreview.label ? String(shoutRecPreview.label).trim() : '';
+        if (shoutLabel) {
+          previewBody = 'Recognizing: ' + shoutLabel + (body ? ('\n\n' + body) : '');
+          if (!title) headline = 'Shout-Out!: ' + shoutLabel;
         }
       }
       var newsDraft = {
@@ -2386,23 +2392,29 @@
       var category = (el('contributeDerivedCategory') && el('contributeDerivedCategory').value || 'School News').trim() || 'School News';
       var authorType = resolveSessionAuthorType();
       var photoCredit = (el('newsPhotoCredit') && el('newsPhotoCredit').value) ? (el('newsPhotoCredit').value || '').trim() : '';
+      var recognitionLabelPayload = '';
       if (ct === 'shoutout'){
-        var shoutPeople = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getSelected && window.__lanternShoutPeoplePicker.getSelected()) || [];
-        if (!shoutPeople.length || !shoutPeople[0].token){ toast('Select who you are recognizing'); return; }
+        var shoutRec = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getRecognitionState)
+          ? window.__lanternShoutPeoplePicker.getRecognitionState()
+          : null;
+        if (!shoutRec || shoutRec.mode === 'empty' || !String(shoutRec.label || '').trim()) {
+          toast('Enter who you are recognizing (a person or a group name)');
+          return;
+        }
         if (!bodyRaw){ toast('Write your shout-out message'); return; }
+        recognitionLabelPayload = String(shoutRec.label || '').trim();
       }
       var title = titleRaw;
       var body = bodyRaw;
       var peoplePayload = null;
       if (ct === 'shoutout'){
-        var shoutPeople2 = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getSelected && window.__lanternShoutPeoplePicker.getSelected()) || [];
-        var recLabel = (shoutPeople2[0] && shoutPeople2[0].label) || '';
         body = bodyRaw;
         category = 'Student Spotlight';
-        if (!title) title = 'Shout-Out!: ' + recLabel;
-        peoplePayload = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getPeoplePayload)
-          ? window.__lanternShoutPeoplePicker.getPeoplePayload()
-          : [];
+        if (!title) title = 'Shout-Out!: ' + recognitionLabelPayload;
+        var shoutRec2 = (window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.getRecognitionState)
+          ? window.__lanternShoutPeoplePicker.getRecognitionState()
+          : null;
+        peoplePayload = (shoutRec2 && Array.isArray(shoutRec2.people)) ? shoutRec2.people : [];
       } else if (ct === 'post') {
         peoplePayload = (window.__lanternPeoplePicker && window.__lanternPeoplePicker.getPeoplePayload)
           ? window.__lanternPeoplePicker.getPeoplePayload()
@@ -2435,7 +2447,10 @@
       setPostSubmitBusy(true, isPostFlow ? 'Preparing…' : undefined);
       var payload = { title: title, body: body, category: category, author_name: authorName, author_type: authorType, photo_credit: photoCredit };
       if (peoplePayload && peoplePayload.length) payload.people = peoplePayload;
-      if (ct === 'shoutout' && peoplePayload) payload.people = peoplePayload;
+      if (ct === 'shoutout') {
+        if (recognitionLabelPayload) payload.recognition_label = recognitionLabelPayload;
+        payload.people = peoplePayload || [];
+      }
       if (newsVideoFile) {
         if (isPostFlow) btn.textContent = 'Uploading video…';
         var reader = new FileReader();

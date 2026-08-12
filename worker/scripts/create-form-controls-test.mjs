@@ -48,7 +48,7 @@ assert(
 assert(/id="newsPhotoCredit"/.test(html), '9. Photo credit field present');
 assert(/id="newsTitle"[^>]*class="studioHeadlineInput"/.test(html), '10. Title/Headline uses studioHeadlineInput class');
 assert(/id="pollQuestion"[^>]*class="studioHeadlineInput"/.test(html), '11. Poll question uses same headline class (shared ordinary type)');
-assert(/id="shoutRecipient"/.test(html), '12. Shout-Out recipient field present');
+assert(/id="contributeShoutPeopleMount"/.test(html), '12. Shout-Out Recognizing people mount present');
 assert(/id="pollOptionsWrap"/.test(html), '13. Poll options host present');
 
 const typeSelect = html.match(/id="contributeTypeSelect"[\s\S]*?<\/select>/);

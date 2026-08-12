@@ -369,6 +369,46 @@ export async function normalizePeoplePayload(db, peopleRaw, opts) {
   return { ok: true, people: out };
 }
 
+/** Prompt #213 — max length for custom Recognizing free-text (group/team/label). */
+export const RECOGNITION_LABEL_MAX = 100;
+
+export function normalizeRecognitionLabel(raw) {
+  return trimStr(raw).slice(0, RECOGNITION_LABEL_MAX);
+}
+
+/**
+ * Prompt #213 — Shout-Out Recognizing: canonical person OR custom display text.
+ * Never invents person_key from free text. Invalid person tokens are rejected (no silent fake relationships).
+ * @returns {{ ok: true, mode: 'person'|'custom', people: object[], recognition_label: string } | { ok: false, error: string }}
+ */
+export async function normalizeShoutOutRecognition(db, peopleRaw, recognitionLabelRaw) {
+  const list = Array.isArray(peopleRaw) ? peopleRaw : [];
+  const typedLabel = normalizeRecognitionLabel(recognitionLabelRaw);
+
+  if (list.length > 0) {
+    const peopleNorm = await normalizePeoplePayload(db, list, { requireRecognizedOne: true });
+    if (!peopleNorm.ok) return peopleNorm;
+    const label = normalizeRecognitionLabel(peopleNorm.people[0].display_label) || typedLabel;
+    if (!label) return { ok: false, error: 'Shout-Out requires Recognizing (person or text)' };
+    return {
+      ok: true,
+      mode: 'person',
+      people: peopleNorm.people,
+      recognition_label: label,
+    };
+  }
+
+  if (!typedLabel) {
+    return { ok: false, error: 'Shout-Out requires Recognizing (person or text)' };
+  }
+  return {
+    ok: true,
+    mode: 'custom',
+    people: [],
+    recognition_label: typedLabel,
+  };
+}
+
 export async function replaceContentPeople(db, contentKind, contentId, people, createdByUsername) {
   const kind = trimStr(contentKind);
   const cid = trimStr(contentId);

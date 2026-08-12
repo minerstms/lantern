@@ -62,6 +62,8 @@
    * @param {number} [opt.max]
    * @param {'recognized'|'tagged'} [opt.relationship]
    * @param {boolean} [opt.required]
+   * @param {boolean} [opt.allowFreeText] — Prompt #213: typed label OK without selecting a person
+   * @param {number} [opt.freeTextMax] — max length for free-text recognition (default 100)
    * @param {function} [opt.onChange]
    */
   function mount(container, opt) {
@@ -70,6 +72,8 @@
     opt = opt || {};
     var max = opt.max != null ? Math.max(1, Number(opt.max) || 1) : MAX_TAGS;
     var relationship = opt.relationship === 'recognized' ? 'recognized' : 'tagged';
+    var allowFreeText = !!opt.allowFreeText;
+    var freeTextMax = opt.freeTextMax != null ? Math.max(1, Number(opt.freeTextMax) || 100) : 100;
     var selected = [];
     var debounceTimer = null;
     var reqSeq = 0;
@@ -78,14 +82,17 @@
     container.innerHTML = '';
     var root = document.createElement('div');
     root.className = 'lanternPeoplePicker';
+    var defaultPh = allowFreeText
+      ? 'Search a person or type a group name…'
+      : 'Search students or staff...';
     root.innerHTML =
       '<label class="lanternPeoplePickerLabel" for="' + esc((opt.inputId || 'lanternPeopleSearch') ) + '">' +
       esc(opt.label || (relationship === 'recognized' ? 'Recognizing' : 'People')) +
       '</label>' +
       '<div class="lanternPeopleChips" hidden></div>' +
       '<input type="search" class="lanternPeopleSearch" id="' + esc(opt.inputId || 'lanternPeopleSearch') +
-      '" placeholder="' + esc(opt.placeholder || 'Search students or staff...') +
-      '" autocomplete="off" enterkeyhint="search" />' +
+      '" placeholder="' + esc(opt.placeholder || defaultPh) +
+      '" autocomplete="off" enterkeyhint="search" maxlength="' + (allowFreeText ? freeTextMax : 200) + '" />' +
       '<div class="lanternPeopleResults" hidden role="listbox" aria-label="People search results"></div>' +
       '<div class="lanternPeopleStatus" aria-live="polite"></div>';
     container.appendChild(root);
@@ -96,7 +103,7 @@
     var statusEl = root.querySelector('.lanternPeopleStatus');
 
     function notify() {
-      if (typeof opt.onChange === 'function') opt.onChange(getPeoplePayload());
+      if (typeof opt.onChange === 'function') opt.onChange(getPeoplePayload(), getRecognitionState());
     }
 
     function getPeoplePayload() {
@@ -107,6 +114,30 @@
 
     function getSelected() {
       return selected.slice();
+    }
+
+    function typedLabel() {
+      return String(input && input.value || '').trim().slice(0, freeTextMax);
+    }
+
+    /** Prompt #213 — person selection OR free-text recognition label. */
+    function getRecognitionState() {
+      if (selected.length && selected[0] && selected[0].token) {
+        return {
+          mode: 'person',
+          label: String(selected[0].label || '').trim().slice(0, freeTextMax),
+          people: getPeoplePayload(),
+        };
+      }
+      var label = typedLabel();
+      if (allowFreeText && label) {
+        return { mode: 'custom', label: label, people: [] };
+      }
+      return { mode: 'empty', label: '', people: [] };
+    }
+
+    function getRecognitionLabel() {
+      return getRecognitionState().label;
     }
 
     function clear() {
@@ -146,6 +177,20 @@
       open = false;
       resultsEl.hidden = true;
       resultsEl.innerHTML = '';
+    }
+
+    function updateFreeTextStatus() {
+      if (!allowFreeText || !statusEl) return;
+      if (selected.length) {
+        statusEl.textContent = '';
+        return;
+      }
+      var label = typedLabel();
+      if (label) {
+        statusEl.textContent = 'Will recognize “' + label + '” as typed text (not linked to a People profile).';
+      } else {
+        statusEl.textContent = '';
+      }
     }
 
     function addPerson(person) {
@@ -204,7 +249,9 @@
         });
       }
       if (!html) {
-        html = '<div class="lanternPeopleEmpty">No matches</div>';
+        html = allowFreeText
+          ? '<div class="lanternPeopleEmpty">No person matches — you can still submit the typed name/group.</div>'
+          : '<div class="lanternPeopleEmpty">No matches</div>';
       }
       resultsEl.innerHTML = html;
       resultsEl.hidden = false;
@@ -225,7 +272,7 @@
       var query = String(q || '').trim();
       if (query.length < 1) {
         hideResults();
-        if (statusEl) statusEl.textContent = '';
+        updateFreeTextStatus();
         return;
       }
       var seq = ++reqSeq;
@@ -254,6 +301,7 @@
             });
           }
           renderResults(students, staff);
+          updateFreeTextStatus();
         })
         .catch(function () {
           if (seq !== reqSeq) return;
@@ -264,9 +312,27 @@
 
     input.addEventListener('input', function () {
       var v = input.value;
+      // Prompt #213 — editing typed text after a person chip clears the stale canonical selection.
+      if (selected.length && allowFreeText) {
+        var selLabel = String(selected[0].label || '').trim();
+        var cur = String(v || '').trim();
+        if (cur !== selLabel) {
+          selected = [];
+          renderChips();
+        }
+      } else if (selected.length && max === 1 && relationship === 'recognized') {
+        var selLabel2 = String(selected[0].label || '').trim();
+        var cur2 = String(v || '').trim();
+        if (cur2 && cur2 !== selLabel2) {
+          selected = [];
+          renderChips();
+        }
+      }
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function () {
         search(v);
+        updateFreeTextStatus();
+        notify();
       }, DEBOUNCE_MS);
     });
 
@@ -290,6 +356,8 @@
     return {
       getPeoplePayload: getPeoplePayload,
       getSelected: getSelected,
+      getRecognitionState: getRecognitionState,
+      getRecognitionLabel: getRecognitionLabel,
       clear: clear,
       setMax: function (n) {
         max = Math.max(1, Number(n) || 1);
@@ -309,5 +377,6 @@
   global.LanternPeoplePicker = {
     mount: mount,
     MAX_TAGS: MAX_TAGS,
+    RECOGNITION_LABEL_MAX: 100,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
