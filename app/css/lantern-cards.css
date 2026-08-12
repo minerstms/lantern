@@ -368,6 +368,72 @@
   bottom: 6px;
   z-index: 4;
 }
+
+/* Prompt #226 — author overflow (⋯) in opened modal header */
+.lanternCardDetailHeader {
+  position: relative;
+}
+.lanternCardDetailAuthorActions {
+  position: absolute;
+  top: 0;
+  right: 44px;
+  z-index: 5;
+  pointer-events: auto;
+}
+.lanternAuthorOverflow {
+  position: relative;
+  display: inline-flex;
+}
+.lanternAuthorOverflowToggle {
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(0,0,0,.45);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 8px;
+}
+.lanternAuthorOverflowMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(12, 18, 32, 0.96);
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  z-index: 6;
+}
+.lanternAuthorOverflowItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.lanternAuthorOverflowItem:hover,
+.lanternAuthorOverflowItem:focus {
+  background: rgba(255,255,255,.1);
+}
+@media (max-width: 390px) {
+  .lanternCardDetailAuthorActions {
+    right: 40px;
+  }
+  .lanternAuthorOverflowMenu {
+    min-width: 180px;
+  }
+}
 .lanternDetailSurface {
   max-width: var(--lantern-opened-content-max-width);
 }

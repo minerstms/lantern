@@ -4343,7 +4343,7 @@
         var row = document.createElement('div');
         row.className = 'approvalQueueRow moderationRowClickable';
         row.style.marginBottom = '8px';
-        row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueTitle">' + esc(it.title) + '</div><div class="approvalQueueMeta">Hidden by ' + esc(it.hidden_by || '') + ' · ' + (it.hidden_at ? formatNewsDate(it.hidden_at) : '') + '</div></div><div class="curatePostActions"></div>';
+        row.innerHTML = '<div class="approvalQueueLeft" style="flex:1;"><div class="approvalQueueTitle">' + esc(it.title) + '</div><div class="approvalQueueMeta">' + esc(it.removal_label || (('Hidden by ' + (it.hidden_by || '')) + ' · ' + (it.hidden_at ? formatNewsDate(it.hidden_at) : ''))) + '</div></div><div class="curatePostActions"></div>';
         var leftEl = row.querySelector('.approvalQueueLeft');
         var actions = row.querySelector('.curatePostActions');
         leftEl.addEventListener('click', function(){ openModerationPreview(it.full, 'hidden', staffName, it.type); });

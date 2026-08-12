@@ -53,6 +53,14 @@ import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUnti
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import {
+  authorRemovePublishedContent,
+  authorWithdrawPendingContent,
+  parseContentRemoveTarget,
+  removalStatusLabel,
+  isAuthorRemovalLabel,
+} from './content-author-remove.js';
+import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
+import {
   ACCESS_DEVICE_COOKIE_NAME,
   ACCESS_REQUEST_PENDING_TTL_SEC,
   ACCESS_REQUEST_ALLOWED_GRANT_MINUTES,
@@ -237,6 +245,8 @@ export default {
         path === '/api/polls/hide' ||
         path === '/api/polls/restore' ||
         path === '/api/polls/hidden' ||
+        path === '/api/content/remove' ||
+        path === '/api/content/withdraw' ||
         path.startsWith('/api/missions') ||
         path.startsWith('/api/feed') ||
         path.startsWith('/api/trivia') ||
@@ -5838,6 +5848,74 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, id, hidden_at: now }, 200, pilotCors);
   }
 
+  // Prompt #226 — author soft-remove (published) + withdraw (pending). Reuses hidden_at/hidden_by.
+  if (request.method === 'POST' && path === '/api/content/remove') {
+    const pilotCors = corsForPilot(request);
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, pilotCors);
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, pilotCors);
+    }
+    let body;
+    try { body = JSON.parse(await request.text() || '{}'); } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors);
+    }
+    const parsed = parseContentRemoveTarget(body.item_type || body.type, body.item_id || body.id);
+    const result = await authorRemovePublishedContent(db, {
+      itemType: parsed.itemType,
+      itemId: parsed.itemId,
+      account,
+      pilotEconomyCharacterName,
+      authorKeyFromAccount: feedAuthorKeyFromAccount,
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error }, result.code || 400, pilotCors);
+    }
+    return jsonResponse({
+      ok: true,
+      id: result.id,
+      item_type: result.item_type,
+      hidden_at: result.hidden_at,
+      hidden_by: result.hidden_by,
+      removal_label: result.removal_label || 'Removed by author',
+      already_removed: !!result.already_removed,
+      idempotent: !!result.idempotent,
+    }, 200, pilotCors);
+  }
+
+  if (request.method === 'POST' && path === '/api/content/withdraw') {
+    const pilotCors = corsForPilot(request);
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, pilotCors);
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, pilotCors);
+    }
+    let body;
+    try { body = JSON.parse(await request.text() || '{}'); } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, pilotCors);
+    }
+    const itemType = String(body.item_type || body.type || '').trim().toLowerCase();
+    const itemId = String(body.item_id || body.id || '').trim();
+    const result = await authorWithdrawPendingContent(db, {
+      itemType,
+      itemId,
+      account,
+      pilotEconomyCharacterName,
+      authorKeyFromAccount: feedAuthorKeyFromAccount,
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error }, result.code || 400, pilotCors);
+    }
+    return jsonResponse({
+      ok: true,
+      id: result.id,
+      item_type: result.item_type,
+      status: result.status,
+      already_withdrawn: !!result.already_withdrawn,
+      idempotent: !!result.idempotent,
+    }, 200, pilotCors);
+  }
+
   if (request.method === 'POST' && path === '/api/news/restore') {
     const pilotCors = corsForPilot(request);
     const gate = await requireAdminPilotSession(request, env, pilotCors);
@@ -5871,6 +5949,8 @@ async function handleNewsRoutes(request, url, path, env, cors) {
       reviewed_at: r.reviewed_at,
       hidden_at: r.hidden_at,
       hidden_by: r.hidden_by,
+      removal_label: removalStatusLabel(r.hidden_by),
+      removed_by_author: isAuthorRemovalLabel(r.hidden_by),
     }));
     return jsonResponse({ ok: true, news: list }, 200, pilotCors);
   }
@@ -6693,6 +6773,8 @@ async function handlePollsRoutes(request, url, path, env, cors) {
       approved_at: r.approved_at || null,
       hidden_at: r.hidden_at || null,
       hidden_by: r.hidden_by || null,
+      removal_label: removalStatusLabel(r.hidden_by),
+      removed_by_author: isAuthorRemovalLabel(r.hidden_by),
     }));
     return jsonResponse({ ok: true, polls: list }, 200, pilotCors);
   }

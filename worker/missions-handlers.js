@@ -1094,6 +1094,18 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       reviewed_at: s.reviewed_at,
       hidden_at: s.hidden_at,
       hidden_by: s.hidden_by,
+      removal_label: String(s.hidden_by || '')
+        .trim()
+        .toLowerCase()
+        .startsWith('author:')
+        ? 'Removed by author'
+        : s.hidden_by
+          ? 'Hidden by ' + s.hidden_by
+          : 'Hidden',
+      removed_by_author: String(s.hidden_by || '')
+        .trim()
+        .toLowerCase()
+        .startsWith('author:'),
       mission_title: (byMission[s.mission_id] || {}).title || '',
     }));
     return jsonResponse({ ok: true, submissions: list }, 200, pilotCors);

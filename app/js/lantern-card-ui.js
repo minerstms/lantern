@@ -306,6 +306,225 @@
     return el;
   }
 
+  function ensureAuthorActionsNode(modalRoot) {
+    if (!modalRoot) return null;
+    var sc = modalRoot.querySelector('.lanternSurfaceContent');
+    if (!sc) return null;
+    var el = sc.querySelector('#lanternCardDetailAuthorActions');
+    if (el) return el;
+    el = global.document.createElement('div');
+    el.id = 'lanternCardDetailAuthorActions';
+    el.className = 'lanternCardDetailAuthorActions';
+    el.setAttribute('aria-hidden', 'true');
+    var hdr = sc.querySelector('.lanternCardDetailHeader');
+    if (hdr) hdr.appendChild(el);
+    else {
+      var adm = sc.querySelector('#lanternCardDetailAdminModeration');
+      if (adm) sc.insertBefore(el, adm);
+      else sc.appendChild(el);
+    }
+    return el;
+  }
+
+  function viewerOwnershipKeys() {
+    var me = global.LANTERN_PILOT_ME && global.LANTERN_PILOT_ME.ok ? global.LANTERN_PILOT_ME : null;
+    if (!me) return [];
+    var out = [];
+    var seen = {};
+    function add(v) {
+      var s = v != null ? String(v).trim().toLowerCase() : '';
+      if (!s || seen[s]) return;
+      seen[s] = true;
+      out.push(s);
+    }
+    add(me.username);
+    add(me.student_character_name);
+    add(me.mtss_student_id);
+    add(me.economy_character_name);
+    add(me.display_name);
+    add(me.first_name && me.last_name ? String(me.first_name).trim() + ' ' + String(me.last_name).trim() : '');
+    var auth = global.LanternAuth;
+    if (auth && typeof auth.sessionEconomyKey === 'function') add(auth.sessionEconomyKey(me));
+    var u = String(me.username || '').trim();
+    if (u) {
+      add('staff:' + u);
+      if (me.staff_id) add('staff_id:' + String(me.staff_id).trim());
+    }
+    return out;
+  }
+
+  function viewerOwnsAuthorFields(fields) {
+    fields = fields || {};
+    var keys = viewerOwnershipKeys();
+    if (!keys.length) return false;
+    var candidates = [
+      fields.authorId,
+      fields.author_id,
+      fields.actor_id,
+      fields.authorDisplayName,
+      fields.author_display_name,
+      fields.author_name,
+      fields.author,
+      fields.character_name,
+      fields.authorAvatarKey,
+      fields.author_avatar_key,
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var s = candidates[i] != null ? String(candidates[i]).trim().toLowerCase() : '';
+      if (s && keys.indexOf(s) >= 0) return true;
+    }
+    return false;
+  }
+
+  function resolveAuthorRemoveTarget(itemOrType, maybeId) {
+    if (itemOrType && typeof itemOrType === 'object') {
+      var item = itemOrType;
+      var id = String(item.id || item.newsId || item.pollId || '').trim();
+      var type = String(item.type || item.itemType || '').trim().toLowerCase();
+      if (item.contentSlot && item.contentSlot.pollId) id = String(item.contentSlot.pollId).trim();
+      if (item.contentSlot && item.contentSlot.newsId) id = String(item.contentSlot.newsId).trim();
+      if (id.indexOf('news:') === 0) return { item_type: 'news', item_id: id.slice(5) };
+      if (id.indexOf('mission:') === 0) return { item_type: 'mission', item_id: id.slice(8) };
+      if (id.indexOf('poll:') === 0) return { item_type: 'poll', item_id: id.slice(5) };
+      if (type === 'poll') return { item_type: 'poll', item_id: id };
+      if (type === 'mission') return { item_type: 'mission', item_id: id };
+      if (type === 'game_score' || type === 'achievement' || type === 'leaderboard') {
+        return { item_type: 'feed', item_id: id };
+      }
+      if (
+        type === 'news' ||
+        type === 'shout_out' ||
+        type === 'photo' ||
+        type === 'video' ||
+        type === 'article' ||
+        id.indexOf('news-') === 0
+      ) {
+        return { item_type: 'news', item_id: id.replace(/^news:/, '') };
+      }
+      return { item_type: 'feed', item_id: id };
+    }
+    return {
+      item_type: String(itemOrType || '').trim().toLowerCase(),
+      item_id: String(maybeId || '').trim(),
+    };
+  }
+
+  function postAuthorContentRemove(target) {
+    var apiBase = '';
+    if (typeof global.LANTERN_AVATAR_API === 'string') apiBase = global.LANTERN_AVATAR_API;
+    var url = (apiBase || '') + '/api/content/remove';
+    return global
+      .fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ item_type: target.item_type, item_id: target.item_id }),
+      })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (global.LanternAuth && typeof global.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+            if (global.LanternAuth.redirectIfPasswordChangeRequired(r, j)) return { blocked: true };
+          }
+          return { okHttp: r.ok, body: j };
+        });
+      })
+      .catch(function (err) {
+        return {
+          okHttp: false,
+          body: { ok: false, error: 'network', detail: err && err.message ? String(err.message) : '' },
+        };
+      });
+  }
+
+  /**
+   * Prompt #226 — author overflow: Remove from Lantern (soft-hide).
+   * spec: { show, target: {item_type,item_id}, pendingWithdraw?: {item_type,item_id} }
+   */
+  function fillAuthorActions(modalRoot, spec) {
+    spec = spec || {};
+    var node = ensureAuthorActionsNode(modalRoot);
+    if (!node) return;
+    node.innerHTML = '';
+    if (!spec.show || !spec.target || !spec.target.item_id) {
+      node.style.display = 'none';
+      node.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    node.style.display = 'block';
+    node.setAttribute('aria-hidden', 'false');
+
+    var wrap = global.document.createElement('div');
+    wrap.className = 'lanternAuthorOverflow';
+    var toggle = global.document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'lanternAuthorOverflowToggle';
+    toggle.setAttribute('aria-label', 'Post actions');
+    toggle.setAttribute('aria-haspopup', 'true');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.textContent = '⋯';
+    var menu = global.document.createElement('div');
+    menu.className = 'lanternAuthorOverflowMenu';
+    menu.hidden = true;
+    var removeBtn = global.document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'lanternAuthorOverflowItem';
+    removeBtn.textContent = 'Remove from Lantern';
+    menu.appendChild(removeBtn);
+    wrap.appendChild(toggle);
+    wrap.appendChild(menu);
+    node.appendChild(wrap);
+
+    function closeMenu() {
+      menu.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    toggle.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var open = menu.hidden;
+      menu.hidden = !open;
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    removeBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeMenu();
+      var confirmed = false;
+      try {
+        confirmed = global.confirm('Remove this post from Lantern?\n\nIt will no longer be visible to others.');
+      } catch (e0) {
+        confirmed = false;
+      }
+      if (!confirmed) return;
+      removeBtn.disabled = true;
+      toggle.disabled = true;
+      postAuthorContentRemove(spec.target).then(function (res) {
+        if (res && res.blocked) {
+          removeBtn.disabled = false;
+          toggle.disabled = false;
+          return;
+        }
+        var body = res && res.body ? res.body : {};
+        if (res && res.okHttp && body && body.ok) {
+          showAdminExploreToast('Removed from Lantern', false);
+          closeDetail();
+          if (typeof global.refreshExploreExplore === 'function') global.refreshExploreExplore();
+          try {
+            if (global.document && typeof global.document.dispatchEvent === 'function') {
+              global.document.dispatchEvent(new global.CustomEvent('lantern:content-removed', { detail: body }));
+            }
+          } catch (e1) {}
+        } else {
+          removeBtn.disabled = false;
+          toggle.disabled = false;
+          var errMsg = (body && body.error) ? String(body.error) : 'Could not remove';
+          showAdminExploreToast('Remove failed: ' + errMsg, true);
+        }
+      });
+    });
+  }
+
   /**
    * spec: { removable, itemType, endpoint?, id?, body?, detail? }
    */
@@ -614,6 +833,22 @@
         detail: 'No post id — cannot target hide API.',
       });
     }
+    var ownsCreation = !previewId && viewerOwnsAuthorFields({
+      author_name: p.author_name || p.authorDisplayName || p.display_name || p.author,
+      character_name: p.character_name,
+      authorId: p.authorId || p.author_id,
+      authorAvatarKey: p.authorAvatarKey,
+    });
+    var creationTarget = null;
+    if (ownsCreation && postId && postId.indexOf('mission_') === 0) {
+      creationTarget = { item_type: 'mission', item_id: postId.replace(/^mission_/, '') };
+    } else if (ownsCreation && postId) {
+      creationTarget = resolveAuthorRemoveTarget(p);
+    }
+    fillAuthorActions(modalRoot, {
+      show: !!(ownsCreation && creationTarget && creationTarget.item_id),
+      target: creationTarget,
+    });
     var oldEx = modalRoot.querySelector('.lanternCardDetailProfileExtras');
     if (oldEx) oldEx.remove();
     if (opts.profilePostExtras && typeof opts.profilePostExtras.mount === 'function') {
@@ -856,6 +1091,16 @@
             : 'Not removable in this context.',
       });
     }
+    var ownsNews = !previewDraft && viewerOwnsAuthorFields({
+      author_name: n.author_name || n.authorDisplayName || n.author,
+      actor_id: n.actor_id || n.authorId || n.author_id,
+      authorAvatarKey: n.authorAvatarKey || n.author_avatar_key,
+      character_name: n.character_name,
+    });
+    fillAuthorActions(modalRoot, {
+      show: !!(ownsNews && newsRemovable),
+      target: ownsNews && newsRemovable ? { item_type: 'news', item_id: String(itemId).replace(/^news:/, '') } : null,
+    });
   }
 
   function openNews(n, opts) {
@@ -1221,10 +1466,21 @@
 
     function pollAdminFooter() {
       fillAdminModeration(modalRoot, {
-        removable: false,
+        removable: !!(pollId && !opts.previewDraft),
         itemType: 'poll',
+        endpoint: '/api/polls/hide',
         id: pollId,
-        detail: 'Polls have no admin hide endpoint in the worker yet.',
+        body: { id: pollId },
+        detail: !pollId ? 'No poll id.' : null,
+      });
+      var ownsPoll = !opts.previewDraft && viewerOwnsAuthorFields({
+        character_name: (res && res.poll && res.poll.character_name) || opts.character_name || opts.author,
+        author_name: (res && res.poll && res.poll.character_name) || opts.author,
+        authorDisplayName: opts.authorDisplayName,
+      });
+      fillAuthorActions(modalRoot, {
+        show: !!(ownsPoll && pollId),
+        target: ownsPoll && pollId ? { item_type: 'poll', item_id: pollId } : null,
       });
     }
 
@@ -1772,6 +2028,54 @@
 
     /* Prompt #219 — full-image opens via LRHC expand icon on the artwork (no bottom text button). */
     a.innerHTML = '';
+
+    var feedTarget = !isStudioPreview ? resolveAuthorRemoveTarget(item) : null;
+    var ownsFeed = !isStudioPreview && viewerOwnsAuthorFields({
+      authorId: item.authorId || item.author_id,
+      authorDisplayName: item.authorDisplayName || item.author_display_name,
+      author_name: item.author_name,
+      character_name: item.character_name,
+      authorAvatarKey: item.authorAvatarKey || item.author_avatar_key,
+    });
+    fillAuthorActions(modalRoot, {
+      show: !!(ownsFeed && feedTarget && feedTarget.item_id),
+      target: feedTarget,
+    });
+
+    // Admin hide for news/mission-backed Explore cards
+    if (!isStudioPreview && feedTarget && feedTarget.item_type === 'news') {
+      fillAdminModeration(modalRoot, {
+        removable: true,
+        itemType: 'approved_news',
+        endpoint: '/api/news/hide',
+        id: feedTarget.item_id,
+        body: { id: feedTarget.item_id },
+      });
+    } else if (!isStudioPreview && feedTarget && feedTarget.item_type === 'mission') {
+      fillAdminModeration(modalRoot, {
+        removable: true,
+        itemType: 'mission_submission',
+        endpoint: '/api/missions/submissions/hide',
+        id: feedTarget.item_id,
+        body: { id: feedTarget.item_id },
+      });
+    } else if (!isStudioPreview && feedTarget && feedTarget.item_type === 'poll') {
+      fillAdminModeration(modalRoot, {
+        removable: true,
+        itemType: 'poll',
+        endpoint: '/api/polls/hide',
+        id: feedTarget.item_id,
+        body: { id: feedTarget.item_id },
+      });
+    } else if (!isStudioPreview && feedTarget && feedTarget.item_type === 'feed') {
+      fillAdminModeration(modalRoot, {
+        removable: true,
+        itemType: 'feed_item',
+        endpoint: '/api/feed/hide',
+        id: feedTarget.item_id,
+        body: { id: feedTarget.item_id },
+      });
+    }
   }
 
   function resolveFeedPollId(item) {
@@ -1831,6 +2135,10 @@
     mountPollOpenedInto: mountPollOpenedInto,
     mountStudioNewsOpenedInto: mountStudioNewsOpenedInto,
     mountStudioCreationOpenedInto: mountStudioCreationOpenedInto,
-    mountStudioPollOpenedInto: mountStudioPollOpenedInto
+    mountStudioPollOpenedInto: mountStudioPollOpenedInto,
+    /* Prompt #226 */
+    fillAuthorActions: fillAuthorActions,
+    resolveAuthorRemoveTarget: resolveAuthorRemoveTarget,
+    postAuthorContentRemove: postAuthorContentRemove,
   };
 })(typeof window !== 'undefined' ? window : this);

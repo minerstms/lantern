@@ -65,6 +65,8 @@ function authorKeyFromAccount(account, pilotEconomyCharacterName) {
   return String(account.display_name || account.username || '').trim();
 }
 
+export { authorKeyFromAccount };
+
 function parseTags(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map(String);

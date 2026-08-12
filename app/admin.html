@@ -2793,10 +2793,10 @@
                   : esc((item.row.mission_title || 'Mission') + ' — ' + (item.row.character_name || ''));
             var meta =
               item.kind === 'news'
-                ? 'News · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '')
+                ? 'News · ' + esc(item.row.removal_label || ('hidden ' + (item.row.hidden_at || '') + ' · ' + (item.row.hidden_by || '')))
                 : item.kind === 'poll'
-                  ? 'Poll · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '')
-                  : 'Mission · hidden ' + esc(item.row.hidden_at || '') + ' · ' + esc(item.row.hidden_by || '');
+                  ? 'Poll · ' + esc(item.row.removal_label || ('hidden ' + (item.row.hidden_at || '') + ' · ' + (item.row.hidden_by || '')))
+                  : 'Mission · ' + esc(item.row.removal_label || ('hidden ' + (item.row.hidden_at || '') + ' · ' + (item.row.hidden_by || '')));
             div.innerHTML =
               '<div style="flex:1;min-width:0;">' +
               title +
