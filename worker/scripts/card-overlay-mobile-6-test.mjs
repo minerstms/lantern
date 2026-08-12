@@ -26,9 +26,9 @@ function bad(label, detail) { fail++; console.error('FAIL', label, detail != nul
 function assert(cond, label, detail) { if (cond) ok(label); else bad(label, detail); }
 
 /* Desktop baseline (outside mobile media query) */
-assert(/--lantern-card-overlay-avatar-size:\s*36px/.test(cardsCss), '1. desktop avatar token remains 36px');
-assert(/max-height:\s*38%/.test(cardsCss), '2. desktop overlay max-height 38% preserved');
-assert(/Barlow Condensed/.test(cardsCss), '3. Barlow Condensed preserved');
+assert(/--lantern-card-overlay-avatar-size:\s*32px/.test(cardsCss), '1. desktop avatar token remains 32px');
+assert(/max-height:\s*40%/.test(cardsCss), '2. desktop overlay max-height ~bottom third');
+assert(/Archivo Narrow/.test(cardsCss), '3. Archivo Narrow preserved');
 assert(/grid-row:\s*1\s*\/\s*span\s*2/.test(cardsCss), '4. avatar span Rows 2+3 preserved');
 assert(!/overflow-x:\s*hidden;\s*\r?\n\s*overflow-y:\s*visible/.test(
   (cardsCss.match(/\.lanternCanonicalCardMeta,\s*\n\.lanternCanonicalCardMetaRow\s*\{[^}]+\}/) || [''])[0]
@@ -37,7 +37,7 @@ assert(!/overflow-x:\s*hidden;\s*\r?\n\s*overflow-y:\s*visible/.test(
 const mobileMq = cardsCss.match(/@media\s*\(\s*max-width:\s*480px\s*\)\s*\{([\s\S]*?)\n\}/);
 assert(!!mobileMq, '6. mobile max-width 480px media query present');
 const mob = mobileMq ? mobileMq[1] : '';
-assert(/--lantern-card-overlay-avatar-size:\s*32px/.test(mob), '7. mobile avatar ~32px');
+assert(/--lantern-card-overlay-avatar-size:\s*28px/.test(mob), '7. mobile avatar ~28px');
 assert(/max-height:\s*50%/.test(mob), '8. mobile overlay room increased (prevent Row 3 clip)');
 assert(/display:\s*grid\s*!important/.test(mob), '9. mobile MetaGrid forced to grid');
 assert(/grid-row:\s*1\s*\/\s*span\s*2/.test(mob), '10. mobile avatar spans Rows 2+3');
@@ -45,13 +45,13 @@ assert(/lanternCanonicalCardMetaRow/.test(mob) && /grid-row:\s*1/.test(mob), '11
 assert(/lanternCanonicalCardDescRow/.test(mob) && /grid-row:\s*2/.test(mob), '12. mobile Row 3 grid placement');
 assert(/display:\s*block\s*!important/.test(mob), '13. mobile DescRow stays block (no merge)');
 assert(/text-size-adjust:\s*100%/.test(mob), '14. mobile text-size-adjust locks inflation');
-assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(mob), '15. mobile keeps Barlow token');
+assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(mob), '15. mobile keeps overlay font token');
 assert(/padding-right:\s*44px/.test(mob), '16. mobile flag clearance preserved');
 
 assert(/\/css\/\*/.test(headers) && /Cache-Control:\s*no-cache/.test(headers), '17. CSS revalidate in _headers');
-assert(/lantern-cards\.css\?v=20260812-cardoverlay6/.test(explore), '18. Explore cache-busts card CSS');
-assert(/lantern-cards\.css\?v=20260812-cardoverlay6/.test(contribute), '19. Create cache-busts card CSS');
-assert(/lantern-cards\.css\?v=20260812-cardoverlay6/.test(locker), '20. My Lantern cache-busts card CSS');
+assert(/lantern-cards\.css\?v=20260812-cardoverlay7/.test(explore), '18. Explore cache-busts card CSS');
+assert(/lantern-cards\.css\?v=20260812-cardoverlay7/.test(contribute), '19. Create cache-busts card CSS');
+assert(/lantern-cards\.css\?v=20260812-cardoverlay7/.test(locker), '20. My Lantern cache-busts card CSS');
 
 const sandbox = {
   console,

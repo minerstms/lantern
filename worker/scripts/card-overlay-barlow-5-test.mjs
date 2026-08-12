@@ -1,5 +1,6 @@
 /**
- * Prompt #5 — Barlow Condensed on all 3 overlay rows; no ▲/▼ scroll chrome; avatar ~36px.
+ * Prompt #5/#7 — overlay typography contract (Archivo Narrow superseded Barlow Condensed).
+ * Retained filename for continuity with Prompt #5 regressions.
  * Usage: node worker/scripts/card-overlay-barlow-5-test.mjs
  */
 import fs from 'node:fs';
@@ -18,18 +19,9 @@ const profileApp = fs.existsSync(path.join(root, 'app/js/lantern-profile-app.js'
 
 let pass = 0;
 let fail = 0;
-function ok(label) {
-  pass++;
-  console.log('PASS', label);
-}
-function bad(label, detail) {
-  fail++;
-  console.error('FAIL', label, detail != null ? detail : '');
-}
-function assert(cond, label, detail) {
-  if (cond) ok(label);
-  else bad(label, detail);
-}
+function ok(label) { pass++; console.log('PASS', label); }
+function bad(label, detail) { fail++; console.error('FAIL', label, detail != null ? detail : ''); }
+function assert(cond, label, detail) { if (cond) ok(label); else bad(label, detail); }
 
 function cssBlock(selector) {
   const re = new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]+)\\}');
@@ -38,22 +30,21 @@ function cssBlock(selector) {
 }
 
 assert(
-  /@import url\("https:\/\/fonts\.googleapis\.com\/css2\?family=Barlow\+Condensed:wght@600;700&display=swap"\)/.test(cardsCss),
-  '1. Barlow Condensed loaded (600+700 only)'
+  /@import url\("https:\/\/fonts\.googleapis\.com\/css2\?family=Archivo\+Narrow:wght@600;700&display=swap"\)/.test(cardsCss),
+  '1. Archivo Narrow loaded (600+700 only)'
 );
 assert(
-  /--lantern-card-overlay-font:\s*"Barlow Condensed",\s*"Arial Narrow",\s*Arial,\s*sans-serif/.test(cardsCss),
+  /--lantern-card-overlay-font:\s*"Archivo Narrow",\s*"Arial Narrow",\s*Arial,\s*sans-serif/.test(cardsCss),
   '2. overlay font token + fallback stack'
 );
-assert(/--lantern-card-overlay-avatar-size:\s*36px/.test(cardsCss), '3. avatar token ~36px');
+assert(/--lantern-card-overlay-avatar-size:\s*32px/.test(cardsCss), '3. avatar token ~32px');
 assert(!/--lantern-card-overlay-avatar-size:\s*40px/.test(cardsCss), '4. prior 40px avatar removed');
 assert(!/--lantern-card-overlay-avatar-size:\s*44px/.test(cardsCss), '5. prior 44px avatar removed');
+assert(!/Barlow Condensed|Barlow\+Condensed/.test(cardsCss), '5b. Barlow Condensed removed from overlay');
 
 const title = cssBlock('.lanternCanonicalCardTitle');
 const caption = cssBlock('.lanternCanonicalCardCaption');
-const meta = cssBlock('.lanternCanonicalCardMeta,\n.lanternCanonicalCardMetaRow')
-  || (cardsCss.match(/\.lanternCanonicalCardMeta,\s*\n\.lanternCanonicalCardMetaRow\s*\{([^}]+)\}/) || [])[1]
-  || '';
+const meta = (cardsCss.match(/\.lanternCanonicalCardMeta,\s*\n\.lanternCanonicalCardMetaRow\s*\{([^}]+)\}/) || [])[1] || '';
 const desc = (cardsCss.match(/\.lanternCanonicalCardDesc,\s*\n\.lanternCanonicalCardDescRow\s*\{([^}]+)\}/) || [])[1] || '';
 const overlay = cssBlock('.lanternCanonicalCardOverlay');
 const grid = cssBlock('.lanternCanonicalCardMetaGrid');
@@ -62,7 +53,7 @@ assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(title), '6. Row 
 assert(/font-size:\s*18px/.test(title), '7. Row 1 remains larger (18px)');
 assert(/font-weight:\s*700/.test(title), '8. Row 1 weight 700');
 assert(/-webkit-line-clamp:\s*1/.test(title) && /line-clamp:\s*1/.test(title), '9. headline clamp preserved');
-assert(/line-height:\s*1\.05/.test(title), '10. Row 1 compact line-height');
+assert(/line-height:\s*1\.2/.test(title), '10. Row 1 descender-safe line-height');
 
 assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(caption), '11. caption inherits overlay font');
 assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(meta), '12. Row 2 uses same family');
@@ -71,15 +62,15 @@ assert(/font-weight:\s*600/.test(meta), '14. Row 2 weight 600');
 assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(desc), '15. Row 3 uses same family');
 assert(/font-size:\s*13px/.test(desc), '16. Row 3 size 13px (same as Row 2)');
 assert(/font-weight:\s*600/.test(desc), '17. Row 3 weight 600');
-assert(/line-height:\s*1\.05/.test(meta) && /line-height:\s*1\.05/.test(desc), '18. Rows 2/3 compact line-height');
+assert(/line-height:\s*1\.1/.test(meta) && /line-height:\s*1\.1/.test(desc), '18. Rows 2/3 compact line-height');
 assert(
   /font-size:\s*13px/.test(meta) && /font-size:\s*13px/.test(desc) && /font-family:\s*var\(--lantern-card-overlay-font\)/.test(meta) && /font-family:\s*var\(--lantern-card-overlay-font\)/.test(desc),
   '18b. Rows 2/3 same family + same size'
 );
 
-assert(/max-height:\s*38%/.test(overlay), '19. overlay max-height approaches bottom third');
+assert(/max-height:\s*40%/.test(overlay), '19. overlay max-height approaches bottom third');
 assert(/justify-content:\s*flex-end/.test(overlay), '20. overlay bottom-anchored');
-assert(/gap:\s*1px/.test(caption), '21. caption gap tightened');
+assert(/title-meta-gap|gap:\s*var\(--lantern-card-overlay-title-meta-gap/.test(caption), '21. caption title-meta gap');
 assert(/padding:\s*0\s+10px\s+4px\s+6px/.test(caption), '22. caption padding compressed');
 assert(/padding-right:\s*44px/.test(caption), '23. flag clearance preserved');
 assert(/row-gap:\s*0/.test(grid), '24. meta grid row-gap 0');
@@ -148,7 +139,7 @@ assert(/lanternAuthorOverflow|lanternCardDetail|report|flag/i.test(cardsCss) || 
 assert(/normalizeFeedItemToFaceModel/.test(feedCard), '38. Explore shares compositor');
 assert(/materializeFeedPostCard|LanternCards/.test(contribute), '39. Create shares cards');
 assert(!profileApp || /materializeFeedPostCard/.test(profileApp), '40. My Lantern shares cards');
-assert(/Barlow Condensed/.test(cardsCss) && !/font-weight:\s*900/.test(title), '41. headline no longer ultra-wide 900 system weight');
+assert(/Archivo Narrow/.test(cardsCss) && !/font-weight:\s*900/.test(title), '41. headline not ultra-wide 900 system weight');
 
 console.log('\ncard-overlay-barlow-5-test: ' + pass + ' PASS ' + fail + ' FAIL');
 if (fail) process.exit(1);

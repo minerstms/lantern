@@ -224,11 +224,11 @@ assert(/-webkit-line-clamp:\s*1/.test(cardsCss) && /line-clamp:\s*1/.test(cardsC
 assert(/lanternCanonicalCardDesc/.test(cardsCss) && /text-overflow:\s*ellipsis/.test(cardsCss), '11b. description CSS ellipsis');
 assert(
   /--lantern-content-author-avatar-size:\s*28px/.test(cardsCss) &&
-    /--lantern-card-overlay-avatar-size:\s*36px/.test(cardsCss) &&
+    /--lantern-card-overlay-avatar-size:\s*32px/.test(cardsCss) &&
     /grid-row:\s*1\s*\/\s*span\s*2/.test(cardsCss) &&
-    /max-height:\s*38%/.test(cardsCss) &&
-    /Barlow Condensed/.test(cardsCss),
-  '11c. LLHC overlay avatar 36px spans Rows 2+3; ticker chip 28px; overlay ~bottom third; Barlow'
+    /max-height:\s*40%/.test(cardsCss) &&
+    /Archivo Narrow/.test(cardsCss),
+  '11c. LLHC overlay avatar 32px spans Rows 2+3; ticker chip 28px; overlay ~bottom third; Archivo'
 );
 
 const gameSpec = LC.specGameHubRailCard({

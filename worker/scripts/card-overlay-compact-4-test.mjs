@@ -37,23 +37,23 @@ function cssBlock(selector) {
   return m ? m[1] : '';
 }
 
-assert(/--lantern-card-overlay-avatar-size:\s*36px/.test(cardsCss), '1. avatar token 36px');
+assert(/--lantern-card-overlay-avatar-size:\s*32px/.test(cardsCss), '1. avatar token 32px');
 assert(!/--lantern-card-overlay-avatar-size:\s*44px/.test(cardsCss), '2. prior 44px removed');
 assert(/grid-row:\s*1\s*\/\s*span\s*2/.test(cardsCss), '3. avatar still spans Rows 2+3');
 
 const overlay = cssBlock('.lanternCanonicalCardOverlay');
-assert(/max-height:\s*38%/.test(overlay), '4. overlay max-height 38%');
+assert(/max-height:\s*40%/.test(overlay), '4. overlay max-height 40%');
 assert(/justify-content:\s*flex-end/.test(overlay), '5. overlay bottom-anchored');
 
 const caption = cssBlock('.lanternCanonicalCardCaption');
-assert(/gap:\s*1px/.test(caption), '6. caption gap 1px');
+assert(/title-meta-gap|gap:\s*var\(--lantern-card-overlay-title-meta-gap/.test(caption), '6. caption title-meta gap');
 assert(/padding:\s*0\s+10px\s+4px\s+6px/.test(caption) || /4px/.test(caption), '7. bottom padding reduced');
 assert(/padding-right:\s*44px/.test(caption), '8. flag clearance preserved');
 
 const title = cssBlock('.lanternCanonicalCardTitle');
 assert(/font-size:\s*18px/.test(title), '9. title font-size preserved');
-assert(/font-weight:\s*700/.test(title), '10. title weight Barlow 700');
-assert(/Barlow Condensed/.test(cardsCss), '10b. Barlow Condensed loaded');
+assert(/font-weight:\s*700/.test(title), '10. title weight 700');
+assert(/Archivo Narrow/.test(cardsCss) && !/Barlow Condensed/.test(cardsCss), '10b. Archivo Narrow loaded');
 
 const meta = cssBlock('.lanternCanonicalCardMetaRow') || cssBlock('.lanternCanonicalCardMeta');
 assert(/font-size:\s*13px/.test(cardsCss), '11. meta font-size 13px preserved');

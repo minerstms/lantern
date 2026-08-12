@@ -8,8 +8,8 @@
  * No row-specific card width, media min-height, or scroller gap/padding on those pages.
  */
 
-/* Prompt #5 — Barlow Condensed for canonical 3-row overlay (weights actually used). */
-@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap");
+/* Prompt #7 — Archivo Narrow for canonical 3-row overlay (weights actually used). */
+@import url("https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&display=swap");
 
 :root{
   /* Contract v2 — fixed 280px 16:9 landscape compact faces */
@@ -40,10 +40,12 @@
   --lantern-card-identity-initials-size: calc(var(--lantern-card-identity-avatar-size) * 0.47);
   /* Prompt #217 — shared author-avatar size for top ticker + card LLHC metadata chip */
   --lantern-content-author-avatar-size: 28px;
-  /* Prompt #225/#4/#5 — compact LLHC portrait spanning Rows 2+3 */
-  --lantern-card-overlay-avatar-size: 36px;
-  /* Prompt #5 — one family for all three overlay text rows */
-  --lantern-card-overlay-font: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  /* Prompt #7 — compact LLHC portrait spanning Rows 2+3 (desktop ~32px) */
+  --lantern-card-overlay-avatar-size: 32px;
+  /* Prompt #7 — one family for all three overlay text rows */
+  --lantern-card-overlay-font: "Archivo Narrow", "Arial Narrow", Arial, sans-serif;
+  /* Prompt #7 — title→meta separation (descender clearance; not zero) */
+  --lantern-card-overlay-title-meta-gap: 3px;
 }
 
 /* ===== CONTRACT V2 — ONE COMPACT PRODUCTION CARD FACE ===== */
@@ -95,8 +97,8 @@
   right: 0;
   bottom: 0;
   z-index: 2;
-  /* Prompt #5 — three-row stack in roughly the lower third */
-  max-height: 38%;
+  /* Prompt #7 — keep three-row stack near lower third without clipping title descenders */
+  max-height: 40%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -118,25 +120,27 @@
 .lanternCanonicalCardCaption {
   position: relative;
   z-index: 1;
-  /* Prompt #5 — tight nestle; flag clearance preserved */
+  /* Prompt #7 — nestle + real title→meta gap (descender safety) */
   padding: 0 10px 4px 6px;
   padding-right: 44px;
   box-sizing: border-box;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--lantern-card-overlay-title-meta-gap, 3px);
   align-items: stretch;
   font-family: var(--lantern-card-overlay-font);
 }
 .lanternCanonicalCardTitle {
   margin: 0;
+  padding: 0;
   color: #fff;
   font-family: var(--lantern-card-overlay-font);
   font-size: 18px;
   font-weight: 700;
-  line-height: 1.05;
-  max-height: 1.05em;
+  /* Prompt #7 — line box tall enough for g/y/p/q/j; never share ink with avatar */
+  line-height: 1.2;
+  max-height: 1.2em;
   letter-spacing: 0.01em;
   text-shadow: 0 2px 8px rgba(0,0,0,.85);
   display: -webkit-box;
@@ -145,17 +149,26 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
 }
-/* Prompt #225/#5 — Rows 2+3: one avatar column spanning both text rows */
+/* Prompt #225/#7 — Rows 2+3: one avatar column spanning both text rows; entirely BELOW Row 1 */
 .lanternCanonicalCardMetaGrid {
   display: grid;
-  grid-template-columns: var(--lantern-card-overlay-avatar-size, 36px) minmax(0, 1fr);
+  grid-template-columns: var(--lantern-card-overlay-avatar-size, 32px) minmax(0, 1fr);
   grid-template-rows: auto auto;
   column-gap: 6px;
   row-gap: 0;
-  align-items: center;
+  align-items: start;
   min-width: 0;
   width: 100%;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  /* Structural floor under headline — meta/avatar cannot paint into Row 1 */
+  margin-top: 0;
 }
 .lanternCanonicalCardMetaGrid--noAvatar {
   grid-template-columns: minmax(0, 1fr);
@@ -163,14 +176,14 @@
 .lanternCanonicalCardMetaGrid > .identity-chip {
   grid-column: 1;
   grid-row: 1 / span 2;
-  align-self: center;
+  align-self: start;
   justify-self: start;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--lantern-card-overlay-avatar-size, 36px);
-  height: var(--lantern-card-overlay-avatar-size, 36px);
+  width: var(--lantern-card-overlay-avatar-size, 32px);
+  height: var(--lantern-card-overlay-avatar-size, 32px);
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -212,7 +225,7 @@
   font-family: var(--lantern-card-overlay-font);
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1.1;
   white-space: nowrap;
   /* Prompt #5 — never mix overflow-x:hidden + overflow-y:visible (browsers force auto → ▲/▼ scroll buttons) */
   overflow: hidden;
@@ -261,7 +274,7 @@
   font-family: var(--lantern-card-overlay-font);
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1.1;
   color: rgba(255,255,255,.9);
   opacity: .95;
   text-shadow: 0 1px 6px rgba(0,0,0,.85);
@@ -271,18 +284,13 @@
   opacity: .75;
 }
 /*
- * Prompt #6 — phone viewports must keep the same 3-row MetaGrid anatomy as desktop.
- * Root causes addressed:
- * 1) overlay max-height:38% was at the clipping edge (~60px); iOS text inflation / metric
- *    variance clipped Row 3 (and sometimes the spanning avatar), reading as a 2-line card.
- * 2) CSS for MetaGrid could stay stale on phones (_headers previously skipped /css), so
- *    identity-chip sat outside .lanternCanonicalCardMeta and lost sized chip rules → tiny
- *    fallback glyph (⭐/🌟) beside a single nowrap meta band that looked “merged.”
+ * Prompt #6/#7 — phone viewports keep 3-row MetaGrid; smaller avatar; descender-safe title gap.
  * Desktop geometry tokens stay at :root defaults; only narrow viewports override.
  */
 @media (max-width: 480px) {
   :root {
-    --lantern-card-overlay-avatar-size: 32px;
+    --lantern-card-overlay-avatar-size: 28px;
+    --lantern-card-overlay-title-meta-gap: 3px;
   }
   .lanternCanonicalCardOverlay {
     max-height: 50%;
@@ -291,7 +299,7 @@
   .lanternCanonicalCardCaption {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    gap: 1px;
+    gap: var(--lantern-card-overlay-title-meta-gap, 3px);
     padding: 0 10px 4px 6px;
     padding-right: 44px;
     overflow: hidden;
@@ -305,18 +313,21 @@
     font-family: var(--lantern-card-overlay-font);
     font-size: 17px;
     font-weight: 700;
-    line-height: 1.05;
-    max-height: 1.05em;
+    line-height: 1.2;
+    max-height: 1.2em;
+    flex: 0 0 auto;
   }
   .lanternCanonicalCardMetaGrid {
     display: grid !important;
-    grid-template-columns: var(--lantern-card-overlay-avatar-size, 32px) minmax(0, 1fr);
+    grid-template-columns: var(--lantern-card-overlay-avatar-size, 28px) minmax(0, 1fr);
     grid-template-rows: auto auto;
     column-gap: 6px;
     row-gap: 0;
-    align-items: center;
+    align-items: start;
     min-width: 0;
     width: 100%;
+    overflow: hidden;
+    flex: 0 0 auto;
   }
   .lanternCanonicalCardMetaGrid--noAvatar {
     grid-template-columns: minmax(0, 1fr);
@@ -325,10 +336,10 @@
     display: inline-flex !important;
     grid-column: 1;
     grid-row: 1 / span 2;
-    align-self: center;
+    align-self: start;
     justify-self: start;
-    width: var(--lantern-card-overlay-avatar-size, 32px);
-    height: var(--lantern-card-overlay-avatar-size, 32px);
+    width: var(--lantern-card-overlay-avatar-size, 28px);
+    height: var(--lantern-card-overlay-avatar-size, 28px);
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -368,7 +379,7 @@
     font-family: var(--lantern-card-overlay-font);
     font-size: 12px;
     font-weight: 600;
-    line-height: 1.05;
+    line-height: 1.1;
   }
 }
 .lanternCanonicalCardBadgeLayer {
