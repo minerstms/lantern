@@ -39,6 +39,20 @@ export function eventKeyShoutout(characterName) {
   return `shoutout:${String(characterName || '').trim()}`;
 }
 
+/**
+ * Prompt #102 — system event-completion rows (Create-a-Poll progress, First Game, Daily Check-In,
+ * etc.) are durable mission history markers, not public Explore content. They use
+ * submission_type=confirmation + reviewed_by=system (see completeMissionByEvent inserts).
+ * Explore must not surface them as generic mission cards alongside the real poll/photo/etc.
+ */
+export function isSystemMissionEventMarkerSubmission(row) {
+  if (!row || typeof row !== 'object') return false;
+  const st = String(row.submission_type || '').trim().toLowerCase();
+  const by = String(row.reviewed_by || '').trim().toLowerCase();
+  if (st === 'confirmation' && by === 'system') return true;
+  return false;
+}
+
 export function eventKeyThankYou(characterName, dayYYYYMMDD) {
   return `thank_you:${String(characterName || '').trim()}:${String(dayYYYYMMDD || '').trim()}`;
 }

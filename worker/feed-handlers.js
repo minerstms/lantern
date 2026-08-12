@@ -5,7 +5,7 @@
 import { extractMissionSubmissionMedia } from './missions-auth.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { filterFeedItemsForHallwayTv } from './media-publicity.js';
-import { ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
+import { ensureContentApprovedMissionCompletion, isSystemMissionEventMarkerSubmission } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import { attachAuthorAvatarKeys, loadPilotAvatarKeyIndex } from './author-avatar-key.js';
 import { attachAuthorPublicLabels, loadStaffPublicNameIndex } from './staff-public-name.js';
@@ -342,10 +342,27 @@ async function fetchApprovedNews(db, origin) {
 
 async function fetchApprovedMissions(db, origin, limit) {
   const lim = Math.min(200, Math.max(1, limit || 100));
-  const rows = await db.prepare(
-    "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC LIMIT ?"
-  ).bind(lim).all();
-  const results = rows.results || [];
+  // Prompt #102 — exclude system event-completion markers (confirmation + reviewed_by=system).
+  // Those rows track Create-a-Poll / First Game / Daily Check-In progress; Explore already
+  // shows the real poll (or other public artifact). Fetch a slightly larger window then filter
+  // in case older D1 builds lack reviewed_by in the WHERE clause path.
+  let rows;
+  try {
+    rows = await db
+      .prepare(
+        "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') AND NOT (LOWER(TRIM(COALESCE(submission_type, ''))) = 'confirmation' AND LOWER(TRIM(COALESCE(reviewed_by, ''))) = 'system') ORDER BY reviewed_at DESC, created_at DESC LIMIT ?"
+      )
+      .bind(lim)
+      .all();
+  } catch (_) {
+    rows = await db
+      .prepare(
+        "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC LIMIT ?"
+      )
+      .bind(lim)
+      .all();
+  }
+  const results = (rows.results || []).filter((r) => !isSystemMissionEventMarkerSubmission(r));
   // Same authoritative join used by teacher/approved-submission APIs: mission_id → lantern_missions.title.
   const missionIds = [...new Set(results.map((r) => r.mission_id).filter(Boolean))];
   const byMission = {};
