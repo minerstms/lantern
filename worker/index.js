@@ -35,6 +35,10 @@ import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
 import {
+  canonicalLanternStaffDisplayName,
+  ensureBlCompatIdentityForLanternStaff,
+} from './tms-compat-provision.js';
+import {
   searchPeople,
   normalizePeoplePayload,
   normalizeShoutOutRecognition,
@@ -1256,7 +1260,7 @@ async function redeemTmsLanternHandoff(env, code) {
 /**
  * Prompt #139 — ask TMS to mint a tms_device audience handoff for linked staff device verify.
  */
-async function mintTmsDeviceStaffHandoff(env, tmsStaffId, lanternUsername) {
+async function mintTmsDeviceStaffHandoff(env, tmsStaffId, lanternUsername, lanternDisplayName) {
   const secret = (env.TMS_LANTERN_BRIDGE_SECRET || '').trim();
   if (!secret) return { ok: false, error: 'bridge_not_configured' };
   const base = getTmsNuggetsApiBaseUrl(env);
@@ -1268,6 +1272,8 @@ async function mintTmsDeviceStaffHandoff(env, tmsStaffId, lanternUsername) {
       body: JSON.stringify({
         tms_staff_id: String(tmsStaffId || ''),
         lantern_username: String(lanternUsername || ''),
+        // Prompt #111 — current BL session display comes from Lantern, not MTSS teacher_name.
+        lantern_display_name: String(lanternDisplayName || '').trim(),
       }),
     });
   } catch (_) {
@@ -1908,7 +1914,12 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     const tmsStaffId = await getTmsStaffIdForLanternAccount(db, account.username);
     if (!tmsStaffId) return tmsDeviceAuthorizeFailurePage('lantern_account_not_linked', cors);
 
-    const minted = await mintTmsDeviceStaffHandoff(env, tmsStaffId, account.username);
+    const minted = await mintTmsDeviceStaffHandoff(
+      env,
+      tmsStaffId,
+      account.username,
+      canonicalLanternStaffDisplayName(account)
+    );
     if (!minted.ok) {
       if (minted.error === 'bridge_not_configured') return tmsDeviceAuthorizeFailurePage('bridge_not_configured', cors);
       if (minted.error === 'staff_not_found') return tmsDeviceAuthorizeFailurePage('staff_not_found', cors);
@@ -2158,6 +2169,36 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         email,
       },
     };
+    // Prompt #111 — new ordinary staff: auto provision BL compatibility identity (idempotent).
+    // Cross-DB: Lantern row already committed; BL provision failure does not roll back the account.
+    if (isStaffAccountRole(role) && staffId) {
+      try {
+        const blCompat = await ensureBlCompatIdentityForLanternStaff(
+          env,
+          db,
+          created || {
+            username: u,
+            staff_id: staffId,
+            display_name: displayName,
+            first_name: firstName,
+            last_name: lastName,
+            email,
+            role,
+            is_active: 1,
+          },
+          { createdBy: adminUsername }
+        );
+        payload.bl_compat = {
+          ok: !!blCompat.ok,
+          tms_staff_id: blCompat.tms_staff_id || null,
+          created: !!blCompat.created,
+          linked: !!blCompat.linked,
+          error: blCompat.ok ? null : blCompat.error || 'bl_compat_failed',
+        };
+      } catch (_) {
+        payload.bl_compat = { ok: false, error: 'bl_compat_exception' };
+      }
+    }
     if (generatedTempPassword) {
       payload.temporary_password = generatedTempPassword;
       payload.must_change_password = true;
@@ -2220,7 +2261,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const existing = await db
       .prepare(
-        `SELECT username, role, staff_id, first_name, last_name, honorific, public_display_name, display_name, email FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+        `SELECT username, role, staff_id, first_name, last_name, honorific, public_display_name, display_name, email, is_active FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
       )
       .bind(u)
       .first();
@@ -2228,6 +2269,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'not_found' }, 404, cors);
     }
     const targetUser = String(existing.username);
+    const priorActive = existing.is_active != null ? Number(existing.is_active) : 1;
+    let becameActive = false;
+    let becameStaff = false;
     const newPassword = body.password != null ? String(body.password) : '';
     const adminUsername = String(account.username || '').trim() || 'admin';
     if (newPassword && newPassword.length >= 8) {
@@ -2352,6 +2396,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       await db.prepare(`UPDATE lantern_pilot_accounts SET role = ?, updated_at = datetime('now') WHERE username = ?`).bind(role, targetUser).run();
       // Promote student → staff: allocate Staff ID if missing. Demote → clear staff_id on row (alloc row keeps ID reserved).
       if (isStaffAccountRole(role)) {
+        if (!isStaffAccountRole(existing.role)) becameStaff = true;
         const cur = await db
           .prepare(`SELECT staff_id FROM lantern_pilot_accounts WHERE username = ?`)
           .bind(targetUser)
@@ -2390,13 +2435,33 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .run();
     }
     if (body.is_active !== undefined) {
+      const nextActive = body.is_active ? 1 : 0;
+      if (nextActive === 1 && priorActive === 0) becameActive = true;
       await db
         .prepare(`UPDATE lantern_pilot_accounts SET is_active = ?, updated_at = datetime('now') WHERE username = ?`)
-        .bind(body.is_active ? 1 : 0, targetUser)
+        .bind(nextActive, targetUser)
         .run();
     }
     const updated = await fetchAdminUserRow(db, targetUser);
-    return jsonResponse({ ok: true, user: updated || { username: targetUser } }, 200, cors);
+    const responsePayload = { ok: true, user: updated || { username: targetUser } };
+    // Prompt #111 — activate or promote-to-staff: ensure BL compat link (idempotent; never for students).
+    if (updated && isStaffAccountRole(updated.role) && (becameActive || becameStaff)) {
+      try {
+        const blCompat = await ensureBlCompatIdentityForLanternStaff(env, db, updated, {
+          createdBy: adminUsername,
+        });
+        responsePayload.bl_compat = {
+          ok: !!blCompat.ok,
+          tms_staff_id: blCompat.tms_staff_id || null,
+          created: !!blCompat.created,
+          linked: !!blCompat.linked,
+          error: blCompat.ok ? null : blCompat.error || 'bl_compat_failed',
+        };
+      } catch (_) {
+        responsePayload.bl_compat = { ok: false, error: 'bl_compat_exception' };
+      }
+    }
+    return jsonResponse(responsePayload, 200, cors);
   }
 
   // Prompt #211 — System Admin set/replace avatar for any account (0 Nuggets; no economy path).

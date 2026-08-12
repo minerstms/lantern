@@ -142,25 +142,62 @@ function makeEnv(state) {
           return state.lastInsert;
         }
         if (s.includes('INSERT INTO lantern_pilot_accounts')) {
-          const [
-            username,
+          // Prompt #220/#111 — bind order includes honorific, public_display_name, staff_id, email, role, …
+          let username,
             display_name,
             first_name,
             last_name,
+            honorific,
+            public_display_name,
             staff_id,
+            email,
             role,
             password_hash,
             password_salt,
             student_character_name,
             teacher_id,
-            mtss_student_id,
-          ] = binds;
+            mtss_student_id;
+          if (s.includes('honorific') && s.includes('public_display_name')) {
+            [
+              username,
+              display_name,
+              first_name,
+              last_name,
+              honorific,
+              public_display_name,
+              staff_id,
+              email,
+              role,
+              password_hash,
+              password_salt,
+              student_character_name,
+              teacher_id,
+              mtss_student_id,
+            ] = binds;
+          } else {
+            [
+              username,
+              display_name,
+              first_name,
+              last_name,
+              staff_id,
+              role,
+              password_hash,
+              password_salt,
+              student_character_name,
+              teacher_id,
+              mtss_student_id,
+            ] = binds;
+          }
           const row = account({
             username,
             display_name,
             first_name,
             last_name,
+            honorific: honorific != null ? honorific : null,
+            public_display_name: public_display_name != null ? public_display_name : null,
             staff_id,
+            email: email != null ? email : null,
             role,
             password_hash,
             password_salt,
@@ -425,7 +462,7 @@ async function runApi() {
       req(
         'POST',
         '/api/admin/users',
-        { username: 'newstaff', first_name: 'Ada', last_name: 'Lovelace', role: 'teacher' },
+        { username: 'newstaff', first_name: 'Ada', last_name: 'Lovelace', honorific: 'Ms.', role: 'teacher' },
         adminCookie
       ),
       env
@@ -454,7 +491,7 @@ async function runApi() {
       req(
         'POST',
         '/api/admin/users',
-        { username: 'evil', first_name: 'Evil', last_name: 'Actor', role: 'teacher', staff_id: 1 },
+        { username: 'evil', first_name: 'Evil', last_name: 'Actor', honorific: 'Mr.', role: 'teacher', staff_id: 1 },
         adminCookie
       ),
       env
@@ -517,7 +554,7 @@ async function runApi() {
   {
     const teacherCookie = await cookieFor(teacher1);
     const res = await worker.fetch(
-      req('POST', '/api/admin/users', { username: 'x', first_name: 'A', last_name: 'B', role: 'teacher' }, teacherCookie),
+      req('POST', '/api/admin/users', { username: 'x', first_name: 'A', last_name: 'B', honorific: 'Mr.', role: 'teacher' }, teacherCookie),
       env
     );
     if (res.status === 403) ok('Admin authorization: teacher forbidden from staff create');
