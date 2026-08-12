@@ -36,10 +36,11 @@
   }
 
   function defaultApiBase() {
-    if (typeof global.LANTERN_AVATAR_API !== 'undefined' && String(global.LANTERN_AVATAR_API).trim()) {
-      return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
+    /* Empty string = same-origin /api (production Pages). Only null/undefined means unavailable. */
+    if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) {
+      return '';
     }
-    return '';
+    return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
   }
 
   function callGetDisplaySlides(createRun) {
@@ -51,10 +52,11 @@
   }
 
   function fetchWorkerLeaderboardForDisplay(base) {
-    if (!base) return Promise.resolve([]);
+    /* base may be '' (same-origin). Only skip when API is truly unset (callers pass ''). */
+    var prefix = base == null ? '' : String(base);
     return Promise.all(
       DISPLAY_LEADERBOARD_GAMES.map(function (gameName) {
-        return fetch(base + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=8')
+        return fetch(prefix + '/api/leaderboards?period=weekly&game_name=' + encodeURIComponent(gameName) + '&limit=8')
           .then(function (r) {
             return r.json();
           })

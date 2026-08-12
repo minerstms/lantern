@@ -9,6 +9,7 @@
  * for rendering. Use getCanonicalAvatar(character_name) or attachCanonicalAvatarsToItems().
  * The account key is character_name (same query param as /api/avatar/status).
  * Prompt #218 — prefer immutable authorAvatarKey / authorId (e.g. rick.radle), not display labels.
+ * Prompt #221 — LANTERN_AVATAR_API === '' means same-origin /api (Pages proxy), NOT "API off".
  */
 (function (global) {
   var DEFAULT_EMOJI = '🌟';
@@ -16,33 +17,51 @@
   /** Single canonical identity key for avatar resolution (Worker + cards + profile). */
   var CANONICAL_IDENTITY_KEY = 'character_name';
 
+  /* Absolute Worker media URLs → same-origin /api paths (matches lantern-media.js). */
+  var LANTERN_WORKER_MEDIA_RE = /^https?:\/\/lantern-api\.mrradle\.workers\.dev(\/api\/[^\s]*)$/i;
+
+  /**
+   * API prefix for /api/*.
+   * - null → API not configured (skip fetch)
+   * - '' → same-origin Pages proxy (production)
+   * - 'https://…' → absolute Worker base
+   */
   function getAvatarApiBase() {
-    var base = (typeof global !== 'undefined' && global.LANTERN_AVATAR_API) ? String(global.LANTERN_AVATAR_API || '').trim() : '';
-    return base ? base.replace(/\/$/, '') : '';
+    if (typeof global === 'undefined' || typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) {
+      return null;
+    }
+    return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
+  }
+
+  function toSameOriginAvatarUrl(url) {
+    var s = String(url || '').trim();
+    if (!s) return s;
+    var m = s.match(LANTERN_WORKER_MEDIA_RE);
+    return m ? m[1] : s;
   }
 
   /**
    * Resolve canonical avatar for a character.
-   * @param {string} characterName - Character identifier (e.g. display name or character_name from verify).
-   * @param {string} [legacyEmoji] - Fallback emoji when no approved image (e.g. from profile.avatar or data-avatar).
-   * @returns {Promise<{ imageUrl: string|null, emoji: string }>} imageUrl when approved avatar exists, else null; emoji for fallback display.
+   * @param {string} characterName - Durable account key (username / student economy id), not "Rick R."
+   * @param {string} [legacyEmoji] - Fallback emoji when no approved image
+   * @returns {Promise<{ imageUrl: string|null, emoji: string }>}
    */
   function getCanonicalAvatar(characterName, legacyEmoji) {
     var name = String(characterName || '').trim();
     var emoji = String(legacyEmoji || '').trim() || DEFAULT_EMOJI;
     var base = getAvatarApiBase();
-    if (!base || !name) {
+    if (base === null || !name) {
       return Promise.resolve({ imageUrl: null, emoji: emoji });
     }
     var url = base + '/api/avatar/status?character_name=' + encodeURIComponent(name);
-    return fetch(url)
+    return fetch(url, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || data.ok === false) return { imageUrl: null, emoji: emoji };
         var st = data.status || {};
         var raw = st.active_image != null ? String(st.active_image).trim() : '';
         if (!raw || raw === 'null' || raw === 'undefined') return { imageUrl: null, emoji: emoji };
-        return { imageUrl: raw, emoji: emoji };
+        return { imageUrl: toSameOriginAvatarUrl(raw), emoji: emoji };
       })
       .catch(function () { return { imageUrl: null, emoji: emoji }; });
   }
@@ -98,7 +117,7 @@
     return DEFAULT_EMOJI;
   }
 
-  /** Prompt #218 — durable Locker avatar key first; never prefer "Rick R." / display labels. */
+  /** Prompt #218/#221 — durable Locker avatar key first; never prefer "Rick R." / display labels. */
   function avatarLookupKeysFromItem(p) {
     if (!p || typeof p !== 'object') return [];
     var keys = [];
@@ -145,7 +164,7 @@
 
   /**
    * Mutates each item: sets _canonicalAvatar = { imageUrl, emoji } for identity-bearing rows.
-   * Prompt #218 — fetch authorAvatarKey / authorId before display-name aliases.
+   * Prompt #218/#221 — fetch authorAvatarKey / authorId before display-name aliases.
    */
   function attachCanonicalAvatarsToItems(items) {
     var list = Array.isArray(items) ? items : [];
@@ -174,6 +193,8 @@
     attachCanonicalAvatarsToItems: attachCanonicalAvatarsToItems,
     accountKeyFromItem: accountKeyFromItem,
     avatarLookupKeysFromItem: avatarLookupKeysFromItem,
+    getAvatarApiBase: getAvatarApiBase,
+    toSameOriginAvatarUrl: toSameOriginAvatarUrl,
     CANONICAL_IDENTITY_KEY: CANONICAL_IDENTITY_KEY,
     DEFAULT_EMOJI: DEFAULT_EMOJI
   };
