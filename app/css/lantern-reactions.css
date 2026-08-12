@@ -300,9 +300,8 @@
   margin-top: 10px;
 }
 .lanternCardDetailViewFullImgWrap {
-  margin-top: 14px;
-  text-align: center;
+  display: none !important;
 }
 .lanternCardDetailViewFullImgBtn {
-  margin-top: 0;
+  display: none !important;
 }

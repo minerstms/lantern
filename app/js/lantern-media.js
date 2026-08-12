@@ -66,11 +66,18 @@
     }
 
     if (variant === 'detail') {
-      /* Opened post surface (Explore/Profile): large media — not rail-sized. Fullscreen is wired in lantern-card-ui.js. */
-      var imgD = fullImageUrl ? '<div class="lanternDetailMedia lanternDetailMedia--img"><div class="newsCardImageWrap"><img class="newsCardImage" src="' + esc(fullImageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' + (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') + '</div></div>' : '';
+      /* Opened post surface (Explore/Profile): large media — not rail-sized. Fullscreen is wired in lantern-card-ui.js.
+         Prompt #219 — image expand control is a compact LRHC icon on the image (not a bottom text button). */
+      var imgD = fullImageUrl
+        ? '<div class="lanternDetailMedia lanternDetailMedia--img"><div class="newsCardImageWrap lanternDetailMediaImageInner">' +
+          '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="View full image" title="View full image">⛶</button>' +
+          '<img class="newsCardImage" src="' + esc(fullImageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' +
+          (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') +
+          '</div></div>'
+        : '';
       var vidD = videoUrl
         ? '<div class="lanternDetailMedia lanternDetailMedia--video"><div class="newsCardVideoWrap lanternDetailMediaVideoInner">' +
-          '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="Full screen video">⛶</button>' +
+          '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="Full screen video" title="Full screen video">⛶</button>' +
           '<video class="newsCardVideo" controls preload="metadata" src="' + esc(videoUrl) + '"></video></div></div>'
         : '';
       var linkD = linkUrl

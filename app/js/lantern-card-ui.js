@@ -75,17 +75,55 @@
     if (!modalRoot) return;
     var host = modalRoot.querySelector('.lanternCardDetailVisual');
     if (!host) return;
+    /* Prompt #219 — promote rail-fallback imgs into detail media wraps so expand + contain sizing apply. */
+    host.querySelectorAll('.lanternCardDetailVisualInner > .lcCardImg, .lanternCardDetailVisualInner .exploreCardVisual img').forEach(function (img) {
+      if (img.closest('.lanternDetailMedia--img')) return;
+      var src = img.currentSrc || img.src || '';
+      if (!src) return;
+      var inner = img.closest('.lanternCardDetailVisualInner') || host;
+      inner.innerHTML =
+        '<div class="lanternDetailMedia lanternDetailMedia--img">' +
+        '<div class="newsCardImageWrap lanternDetailMediaImageInner">' +
+        '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="View full image" title="View full image">⛶</button>' +
+        '<img class="newsCardImage" src="' + esc(src) + '" alt="" />' +
+        '</div></div>';
+    });
+    /* Prompt #219 — ensure every detail image wrap has an LRHC expand control (poll/news injectors too). */
+    host.querySelectorAll('.lanternDetailMedia--img .newsCardImageWrap').forEach(function (wrap) {
+      if (wrap.querySelector('.lanternDetailMediaExpandBtn')) return;
+      var img = wrap.querySelector('img');
+      if (!img) return;
+      wrap.classList.add('lanternDetailMediaImageInner');
+      var btn = global.document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lanternDetailMediaExpandBtn';
+      btn.setAttribute('aria-label', 'View full image');
+      btn.title = 'View full image';
+      btn.textContent = '⛶';
+      wrap.appendChild(btn);
+    });
     host.querySelectorAll('.lanternDetailMedia--img img').forEach(function (img) {
       if (img.closest('a')) return;
       img.style.cursor = 'zoom-in';
+      if (img.dataset.lanternFsWired === '1') return;
+      img.dataset.lanternFsWired = '1';
       img.addEventListener('click', function (e) {
         e.stopPropagation();
         openMediaFullscreen('image', { src: img.currentSrc || img.src });
       });
     });
     host.querySelectorAll('.lanternDetailMediaExpandBtn').forEach(function (btn) {
+      if (btn.dataset.lanternFsWired === '1') return;
+      btn.dataset.lanternFsWired = '1';
       btn.addEventListener('click', function (e) {
+        e.preventDefault();
         e.stopPropagation();
+        var imgWrap = btn.closest('.lanternDetailMedia--img');
+        if (imgWrap) {
+          var img = imgWrap.querySelector('img');
+          if (img) openMediaFullscreen('image', { src: img.currentSrc || img.src });
+          return;
+        }
         var wrap = btn.closest('.lanternDetailMedia--video');
         var vid = wrap && wrap.querySelector('video');
         if (!vid) return;
@@ -1235,8 +1273,10 @@
       v.innerHTML =
         '<div class="lanternCardDetailVisualInner">' +
         '<div class="lanternDetailMedia lanternDetailMedia--img">' +
-        '<div class="newsCardImageWrap"><img class="newsCardImage" src="' + esc(imgUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'" /></div>' +
-        '</div></div>';
+        '<div class="newsCardImageWrap lanternDetailMediaImageInner">' +
+        '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="View full image" title="View full image">⛶</button>' +
+        '<img class="newsCardImage" src="' + esc(imgUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'" />' +
+        '</div></div></div>';
     } else {
       v.innerHTML = '';
     }
@@ -1619,11 +1659,14 @@
 
   function feedItemToMediaModel(item) {
     item = item || {};
+    var slot = item.contentSlot || {};
     return {
       image_url: item.imageUrl || item.thumbnailUrl || '',
       thumbnail_url: item.thumbnailUrl || '',
-      video_url: item.videoUrl || (item.contentSlot && item.contentSlot.videoUrl) || '',
-      link_url: (item.contentSlot && item.contentSlot.linkUrl) || '',
+      full_image_url: item.fullImageUrl || item.full_image_url || slot.fullImageUrl || '',
+      video_url: item.videoUrl || slot.videoUrl || '',
+      link_url: slot.linkUrl || '',
+      photo_credit: slot.photoCredit || '',
       type: item.type || 'article'
     };
   }
@@ -1704,22 +1747,8 @@
       });
     }
 
+    /* Prompt #219 — full-image opens via LRHC expand icon on the artwork (no bottom text button). */
     a.innerHTML = '';
-    var imgSrc = String(item.imageUrl || item.thumbnailUrl || '').trim();
-    if (imgSrc) {
-      var fullBtnWrap = global.document.createElement('div');
-      fullBtnWrap.className = 'lanternCardDetailViewFullImgWrap';
-      var fullBtn = global.document.createElement('button');
-      fullBtn.type = 'button';
-      fullBtn.className = 'btn lanternCardDetailViewFullImgBtn';
-      fullBtn.textContent = 'View full image';
-      fullBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-        openMediaFullscreen('image', { src: imgSrc });
-      });
-      fullBtnWrap.appendChild(fullBtn);
-      r.appendChild(fullBtnWrap);
-    }
   }
 
   function resolveFeedPollId(item) {

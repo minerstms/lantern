@@ -337,8 +337,8 @@ if (
   ok('final reaction UI polish present');
 } else bad('final reaction UI');
 
-if (cardUiJs.includes('lanternCardDetailViewFullImgWrap') && cardUiJs.includes('r.appendChild(fullBtnWrap)')) {
-  ok('View full image below reactions in feed modal');
+if (cardUiJs.includes('lanternDetailMediaExpandBtn') && cardUiJs.includes('View full image') && !cardUiJs.includes('lanternCardDetailViewFullImgWrap')) {
+  ok('View full image is LRHC expand icon (no bottom text button)');
 } else bad('View full image order');
 
 if (cardUiJs.includes('renderFeedItemDetailInto') && cardUiJs.includes('studio-preview')) {

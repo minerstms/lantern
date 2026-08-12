@@ -17,6 +17,10 @@
   --lantern-rail-card-outer-width: var(--lantern-card-width);
   /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
   --lantern-opened-content-max-width: 520px;
+  /* Prompt #219 — opened modal shell width (viewport-safe dialog, not ultrawide stretch). */
+  --lantern-opened-modal-max-width: 560px;
+  --lantern-opened-modal-max-height: min(92dvh, 92vh, 100%);
+  --lantern-opened-image-max-height: min(48dvh, 48vh, 520px);
   /* Contribute Studio desktop canvas — CENTER page-centered at 50vw; side panes edge-anchored. */
   --lantern-studio-center-width: 640px;
   --lantern-studio-center-half: 320px;
@@ -823,9 +827,18 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
     radial-gradient(ellipse 96% 52% at 50% 108%, rgba(0, 0, 0, 0.32), transparent 58%),
     linear-gradient(180deg, #0f1a2f 0%, #0b1628 38%, #0a1424 46%, #070f1a 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  /* Prompt #219 — centered viewport-safe dialog with safe-area margins (not edge-flush). */
+  align-items: center;
+  justify-content: center;
+  padding:
+    max(10px, env(safe-area-inset-top, 0px))
+    max(10px, env(safe-area-inset-right, 0px))
+    max(10px, env(safe-area-inset-bottom, 0px))
+    max(10px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
 }
 
-/* ===== DETAIL OVERLAY (opened post — full-viewport shell + scrollable surface) ===== */
+/* ===== DETAIL OVERLAY (opened post — viewport-fit shell + internal scroll) ===== */
 /* Overlay node uses .lanternCardDetailOverlay.lanternSurfaceShell; inner uses .lanternCardDetailModal.lanternSurface */
 .lanternCardDetailModal{
   position: relative;
@@ -837,10 +850,33 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   box-shadow: none;
   margin: 0;
 }
+#lanternCardDetailOverlay .lanternCardDetailModal{
+  flex: 0 1 auto;
+  width: min(100%, var(--lantern-opened-modal-max-width));
+  max-width: var(--lantern-opened-modal-max-width);
+  max-height: var(--lantern-opened-modal-max-height);
+  height: auto;
+  min-height: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0b1628;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 .lanternCardDetailModal.lanternSurface{
   background: transparent;
   border: none;
   box-shadow: none;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal.lanternSurface{
+  background: #0b1628;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  height: auto;
+  max-height: var(--lantern-opened-modal-max-height);
 }
 .lanternCardDetailModal.lanternCardDetailModal--embedded.lanternSurface{
   background: transparent;
@@ -994,6 +1030,13 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   margin: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+#lanternCardDetailOverlay .lanternCardDetailHeader{
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: linear-gradient(180deg, #0d182c 0%, #0b1628 100%);
+  padding: 10px 4px 10px;
+}
 .lanternCardDetailClose{
   position: static;
   width: 48px;
@@ -1008,21 +1051,47 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   flex-shrink: 0;
 }
 .lanternCardDetailVisual{ border-radius: 14px; overflow: hidden; margin-bottom: 14px; background: rgba(0,0,0,.25); }
-.lanternCardDetailVisualInner .exploreCardVisual{ margin: 0; border-radius: 0; }
+/* Prompt #219 — opened modal must NOT reuse Explore rail 16:9 cover crop as a shallow strip. */
+.lanternCardDetailVisualInner .exploreCardVisual{
+  margin: 0;
+  border-radius: 0;
+  aspect-ratio: auto;
+  max-height: none;
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+.lanternCardDetailVisualInner .exploreCardVisual img,
+.lanternCardDetailVisualInner .exploreCardVisual .lcCardImg,
+.lanternCardDetailVisualInner > .lcCardImg{
+  width: 100%;
+  height: auto !important;
+  max-height: var(--lantern-opened-image-max-height);
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  min-height: 0;
+  background: rgba(0,0,0,.2);
+  border-radius: 12px;
+}
 
 /* Opened-post media (variant=detail in lantern-media.js) — large in-column, not rail-sized. */
 .lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImage{
   width: 100%;
   height: auto;
-  max-height: min(70vh, 560px);
+  max-height: var(--lantern-opened-image-max-height);
   object-fit: contain;
+  object-position: center;
   display: block;
   background: rgba(0,0,0,.2);
   border-radius: 12px;
 }
-.lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImageWrap{
+.lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImageWrap,
+.lanternDetailMediaImageInner{
+  position: relative;
   border-radius: 12px;
   overflow: hidden;
+  display: block;
 }
 .lanternDetailMediaVideoInner{
   position: relative;
@@ -1033,20 +1102,37 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   top: 10px;
   right: 10px;
   z-index: 3;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(0,0,0,.5);
-  color: var(--ink);
-  font-size: 22px;
+  border: 1px solid rgba(255,255,255,.28);
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-size: 20px;
   cursor: pointer;
   font-family: inherit;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+  padding: 0;
+}
+/* Prompt #219 — image expand lives in the image LRHC (video keeps upper-right). */
+.lanternDetailMedia--img .lanternDetailMediaExpandBtn{
+  top: auto;
+  bottom: 10px;
+  right: 10px;
+}
+.lanternDetailMediaExpandBtn:focus-visible{
+  outline: 3px solid rgba(90,167,255,.9);
+  outline-offset: 2px;
 }
 .lanternCardDetailVisualInner .lanternDetailMedia--video .newsCardVideo{
   width: 100%;
-  max-height: min(65vh, 480px);
+  max-height: min(42dvh, 42vh, 480px);
   border-radius: 12px;
   border: 1px solid var(--line);
   display: block;
@@ -1209,11 +1295,23 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
  * Explore opened post — vertical rhythm only (#lanternCardDetailOverlay).
  * Embedded Contribute preview (.lanternCardDetailModal--embedded) is unchanged.
  */
+#lanternCardDetailOverlay .lanternSurfaceContent{
+  padding: 0 16px 22px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
 .lanternCardDetailOverlay .lanternSurfaceContent{
-  padding: 12px 18px 28px;
+  padding: 0 16px 22px;
 }
 .lanternCardDetailOverlay .lanternCardDetailHeader{
-  padding: 0 0 10px;
+  padding: 10px 4px 10px;
 }
 .lanternCardDetailOverlay .lanternCardDetailClose{
   background: rgba(0, 0, 0, 0.44);
@@ -1225,11 +1323,15 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.32);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
 }
 .lanternCardDetailOverlay .lanternDetailMediaExpandBtn{
-  top: 12px;
-  right: 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+.lanternCardDetailOverlay .lanternDetailMedia--img .lanternDetailMediaExpandBtn{
+  top: auto;
+  bottom: 12px;
+  right: 12px;
 }
 .lanternCardDetailOverlay .lanternCardDetailTitle{
   margin: 0 0 6px 0;
@@ -1251,6 +1353,7 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .lanternCardDetailOverlay .lanternCardDetailReactions{
   margin-top: 13px;
   padding-top: 11px;
+  flex-shrink: 0;
 }
 .lanternCardDetailOverlay .lanternCardDetailRxNewsWrap .lanternReactionStatus{
   font-size: 20px;
@@ -1262,6 +1365,34 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .lanternCardDetailOverlay .lanternCardDetailRxNewsWrap .lanternReactionBar{
   gap: 7px;
   padding-top: 2px;
+}
+
+@media (max-width: 420px) {
+  :root {
+    --lantern-opened-modal-max-width: 100%;
+    --lantern-opened-image-max-height: min(40dvh, 40vh, 360px);
+  }
+  #lanternCardDetailOverlay.lanternSurfaceShell {
+    padding:
+      max(6px, env(safe-area-inset-top, 0px))
+      max(6px, env(safe-area-inset-right, 0px))
+      max(6px, env(safe-area-inset-bottom, 0px))
+      max(6px, env(safe-area-inset-left, 0px));
+  }
+  #lanternCardDetailOverlay .lanternCardDetailModal {
+    border-radius: 14px;
+  }
+}
+@media (max-height: 640px) {
+  :root {
+    --lantern-opened-modal-max-height: min(96dvh, 96vh, 100%);
+    --lantern-opened-image-max-height: min(34dvh, 34vh, 280px);
+  }
+}
+@media (min-width: 1600px) {
+  :root {
+    --lantern-opened-modal-max-width: 600px;
+  }
 }
 
 /* ===== STUDIO MOCK SCROLLER (contribute page layout — same compact rail widths as canonical) ===== */
