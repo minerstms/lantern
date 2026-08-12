@@ -107,6 +107,23 @@
     return first + ' ' + ch.toUpperCase() + '.';
   }
 
+  /**
+   * Prompt #220 — Explore/public author label.
+   * Staff with honorific public label → use as-is (Mr. Radle).
+   * Staff without → keep full safe name (do not First L.).
+   * Students → First L.
+   */
+  function formatExploreAuthorLabel(model) {
+    model = model || {};
+    var publicLabel = String(model.authorPublicLabel || model.author_public_label || '').trim();
+    if (publicLabel) return publicLabel;
+    var role = String(model.authorRole || model.author_role || model.authorType || model.author_type || '').trim().toLowerCase();
+    var raw = String(model.author || model.authorDisplayName || '').trim();
+    if (/^(Mr\.|Miss|Ms\.|Mrs\.)\s+\S/i.test(raw)) return raw;
+    if (role === 'teacher' || role === 'admin' || role === 'staff') return raw;
+    return formatCompactAuthor(raw);
+  }
+
   /** Prompt #158 — Compact date M/D/YY (no leading zeros, no time). */
   function formatCompactDate(isoOrDate) {
     if (isoOrDate == null || isoOrDate === '') return '';
@@ -208,7 +225,7 @@
     var title = esc(truncateCanonicalTitle(model.title || 'Untitled'));
     var exploreOverlay = model.exploreOverlay === true;
     var authorRaw = String(model.author || '').trim();
-    var author = exploreOverlay ? formatCompactAuthor(authorRaw) : authorRaw;
+    var author = exploreOverlay ? formatExploreAuthorLabel(model) : authorRaw;
     var dateMeta = '';
     if (exploreOverlay) {
       dateMeta = formatCompactDate(model.dateIso || model.approvedAt || model.createdAt || model.approved_at || model.created_at)
@@ -276,11 +293,16 @@
     item = item || {};
     var type = String(item.type || 'news').toLowerCase();
     var iso = item.approvedAt || item.createdAt || item.created_at || item.approved_at || null;
-    var authorRaw = String(item.authorDisplayName || item.display_name || item.author_name || item.character_name || '').trim();
+    var authorRaw = String(
+      item.authorPublicLabel || item.author_public_label || item.authorDisplayName || item.display_name || item.author_name || item.character_name || ''
+    ).trim();
     var slot = item.contentSlot || {};
     var avatarAccountKey = String(
-      item.authorAvatarKey || item.author_avatar_key || item.authorId || item.author_id || item.actor_id || item.character_name || authorRaw || ''
+      item.authorAvatarKey || item.author_avatar_key || item.authorId || item.author_id || item.actor_id || item.character_name || ''
     ).trim();
+    if (!avatarAccountKey) {
+      avatarAccountKey = String(item.authorDisplayName || item.author_name || authorRaw || '').trim();
+    }
     var isGameAchievement =
       type === 'game_score' || type === 'achievement' || type === 'leaderboard' ||
       !!slot.gameAchievement;
@@ -321,8 +343,10 @@
       type: item.type || 'news',
       title: isGameAchievement ? headline : (item.title || 'Untitled'),
       author: authorRaw,
+      authorPublicLabel: String(item.authorPublicLabel || item.author_public_label || '').trim(),
+      authorRole: String(item.authorRole || item.author_role || item.authorType || item.author_type || '').trim(),
       character_name: avatarAccountKey,
-      author_name: String(item.author_name || authorRaw || '').trim(),
+      author_name: String(item.author_name || item.authorDisplayName || authorRaw || '').trim(),
       authorAvatarKey: avatarAccountKey,
       authorId: item.authorId || item.author_id || item.actor_id || null,
       _canonicalAvatar: item._canonicalAvatar,
@@ -1427,6 +1451,7 @@
     esc: esc,
     railIdentityFirstName: railIdentityFirstName,
     formatCompactAuthor: formatCompactAuthor,
+    formatExploreAuthorLabel: formatExploreAuthorLabel,
     formatCompactDate: formatCompactDate,
     getExploreDescriptionPreview: getExploreDescriptionPreview,
     shoutOutRecognizedPartyLabel: shoutOutRecognizedPartyLabel,

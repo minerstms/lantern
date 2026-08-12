@@ -14,6 +14,12 @@ import {
   validateStaffEmail,
   validateStaffNamePart,
 } from './admin-account-utils.js';
+import {
+  validateStaffHonorific,
+  propagateHonorificToLinkedAccounts,
+  loadStaffPublicNameIndex,
+  resolveAuthorPublicLabel,
+} from './staff-public-name.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
 import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar-key.js';
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
@@ -1942,7 +1948,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const rows = await db
       .prepare(
-        `SELECT username, display_name, first_name, last_name, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
+        `SELECT username, display_name, first_name, last_name, honorific, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
     return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
@@ -1974,6 +1980,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     let lastName = null;
     let staffId = null;
     let email = null;
+    let honorific = null;
     let passwordPlain = String(body.password || '');
     let generatedTempPassword = null;
     let deferCredentials = body.defer_credentials === true || body.uninitialized_password === true;
@@ -1987,8 +1994,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       if (!lnCheck.ok) {
         return jsonResponse({ ok: false, error: lnCheck.error, max: lnCheck.max }, 400, cors);
       }
+      // Prompt #220 — new staff require an explicit honorific (Mr./Miss/Ms./Mrs.).
+      const honCheck = validateStaffHonorific(body.honorific, { required: true });
+      if (!honCheck.ok) {
+        return jsonResponse({ ok: false, error: honCheck.error }, 400, cors);
+      }
       firstName = fnCheck.value;
       lastName = lnCheck.value;
+      honorific = honCheck.value;
       displayName = composeStaffDisplayName(firstName, lastName);
       const dnCheck = validateDisplayName(displayName, { required: true });
       if (!dnCheck.ok) {
@@ -2066,13 +2079,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const ins = await db
       .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, staff_id, email, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, ?, CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END, ?)`
+        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, honorific, staff_id, email, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, ?, CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END, ?)`
       )
       .bind(
         u,
         displayName,
         firstName,
         lastName,
+        honorific,
         staffId,
         email,
         role,
@@ -2089,11 +2103,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!ins.success) {
       return jsonResponse({ ok: false, error: 'insert_failed' }, 500, cors);
     }
+    if (honorific && isStaffAccountRole(role)) {
+      await propagateHonorificToLinkedAccounts(db, u, honorific);
+    }
     const created = await fetchAdminUserRow(db, u);
     const payload = {
       ok: true,
       username: u,
-      user: created || { username: u, staff_id: staffId, display_name: displayName, first_name: firstName, last_name: lastName, email },
+      user: created || { username: u, staff_id: staffId, display_name: displayName, first_name: firstName, last_name: lastName, honorific, email },
     };
     if (generatedTempPassword) {
       payload.temporary_password = generatedTempPassword;
@@ -2157,7 +2174,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const existing = await db
       .prepare(
-        `SELECT username, role, staff_id, first_name, last_name, display_name, email FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+        `SELECT username, role, staff_id, first_name, last_name, honorific, display_name, email FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
       )
       .bind(u)
       .first();
@@ -2253,6 +2270,19 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .prepare(`UPDATE lantern_pilot_accounts SET email = ?, updated_at = datetime('now') WHERE username = ?`)
         .bind(emailCheck.value, targetUser)
         .run();
+    }
+
+    // Prompt #220 — honorific is optional on update (existing staff may remain unset until Admin fills it).
+    if (body.honorific !== undefined && isStaffAccountRole(existing.role)) {
+      const honCheck = validateStaffHonorific(body.honorific, { required: false });
+      if (!honCheck.ok) {
+        return jsonResponse({ ok: false, error: honCheck.error }, 400, cors);
+      }
+      await db
+        .prepare(`UPDATE lantern_pilot_accounts SET honorific = ?, updated_at = datetime('now') WHERE username = ?`)
+        .bind(honCheck.value, targetUser)
+        .run();
+      await propagateHonorificToLinkedAccounts(db, targetUser, honCheck.value);
     }
 
     if (body.role != null) {
@@ -5713,6 +5743,7 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     console.log('[GET /api/news/approved] row count:', rawResults.length);
     // Prompt #218 — expose actor_id + Locker avatar key so ticker/LLHC do not look up display names.
     const avatarIndex = await loadPilotAvatarKeyIndex(db);
+    const staffNameIndex = await loadStaffPublicNameIndex(db);
     const list = rawResults.map(r => ({
       id: r.id,
       title: r.title,
@@ -5725,6 +5756,12 @@ async function handleNewsRoutes(request, url, path, env, cors) {
         character_name: r.actor_id,
       }) || null,
       author_name: r.author_name,
+      author_public_label: resolveAuthorPublicLabel(staffNameIndex, {
+        actor_id: r.actor_id,
+        author_name: r.author_name,
+        author_type: r.author_type,
+        authorRole: r.author_type,
+      }) || null,
       author_type: r.author_type,
       image_r2_key: r.image_r2_key,
       image_url: r.image_r2_key ? origin + '/api/news/image?key=' + encodeURIComponent(r.image_r2_key) : null,

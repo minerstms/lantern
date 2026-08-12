@@ -4,6 +4,7 @@
  */
 
 import { resolveTmsStaffIdForLanternAccount } from './staff-economy.js';
+import { formatPublicStaffName } from './staff-public-name.js';
 
 export const CONTENT_PEOPLE_MAX_TAGS = 40;
 export const CONTENT_PEOPLE_RELATIONSHIPS = new Set(['recognized', 'tagged']);
@@ -47,13 +48,34 @@ export function privacySafeStudentLabel(row) {
 }
 
 export function privacySafeStaffLabel(row) {
-  if (!row) return '';
-  const dn = trimStr(row.display_name);
-  if (dn) return dn;
-  const fn = trimStr(row.first_name);
-  const ln = trimStr(row.last_name);
-  if (fn || ln) return [fn, ln].filter(Boolean).join(' ').trim();
-  return trimStr(row.username);
+  // Prompt #220 — honorific + last name when set; else safe full display name (no guessing).
+  return formatPublicStaffName(row);
+}
+
+function staffRoleDisambiguator(roleRaw) {
+  const r = lower(roleRaw);
+  if (r === 'admin') return 'Admin';
+  if (r === 'teacher' || r === 'staff') return 'Teacher';
+  return '';
+}
+
+/** When two public staff labels collide (e.g. Ms. Wilson), append · Teacher/Admin. */
+export function disambiguateStaffSearchLabels(staffList) {
+  const list = Array.isArray(staffList) ? staffList : [];
+  const counts = Object.create(null);
+  list.forEach((s) => {
+    const k = lower(s && s.label);
+    if (!k) return;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  list.forEach((s) => {
+    if (!s) return;
+    const k = lower(s.label);
+    if (!k || (counts[k] || 0) < 2) return;
+    const bit = staffRoleDisambiguator(s.role_label || s.role);
+    if (bit && String(s.label).indexOf(' · ') < 0) s.label = String(s.label).trim() + ' · ' + bit;
+  });
+  return list;
 }
 
 /**
@@ -149,7 +171,12 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
                 MAX(p.display_name) AS any_display,
                 MAX(p.first_name) AS first_name,
                 MAX(p.last_name) AS last_name,
-                MAX(p.username) AS username
+                MAX(CASE WHEN l.is_primary = 1 THEN p.username ELSE NULL END) AS primary_username,
+                MAX(p.username) AS username,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.honorific ELSE NULL END) AS primary_honorific,
+                MAX(CASE WHEN p.honorific IS NOT NULL AND trim(p.honorific) != '' THEN p.honorific ELSE NULL END) AS any_honorific,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.role ELSE NULL END) AS primary_role,
+                MAX(p.role) AS any_role
          FROM tms_identity_links l
          INNER JOIN lantern_pilot_accounts p
            ON lower(trim(p.username)) = lower(trim(l.lantern_username))
@@ -160,25 +187,31 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
              OR lower(COALESCE(p.first_name, '')) LIKE lower(?)
              OR lower(COALESCE(p.last_name, '')) LIKE lower(?)
              OR lower(COALESCE(p.username, '')) LIKE lower(?)
+             OR lower(COALESCE(p.honorific, '') || ' ' || COALESCE(p.last_name, '')) LIKE lower(?)
            )
          GROUP BY l.tms_staff_id
          ORDER BY lower(COALESCE(primary_display, any_display, username))
          LIMIT ?`
       )
-      .bind(like, like, like, like, limit)
+      .bind(like, like, like, like, like, limit)
       .all();
     for (const r of linked.results || []) {
       const key = trimStr(r.tms_staff_id);
       if (!key || staffSeen.has('tms:' + key.toLowerCase())) continue;
       staffSeen.add('tms:' + key.toLowerCase());
+      const role = r.primary_role || r.any_role;
       staff.push({
         token: 'staff_tms:' + key,
         person_kind: 'staff',
+        role: role,
+        role_label: role,
         label: privacySafeStaffLabel({
           display_name: r.primary_display || r.any_display,
           first_name: r.first_name,
           last_name: r.last_name,
-          username: r.username,
+          username: r.primary_username || r.username,
+          honorific: r.primary_honorific || r.any_honorific,
+          role: role,
         }),
       });
     }
@@ -192,7 +225,9 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
                 p.display_name AS display_name,
                 p.first_name AS first_name,
                 p.last_name AS last_name,
-                p.username AS username
+                p.username AS username,
+                p.honorific AS honorific,
+                p.role AS role
          FROM lantern_pilot_accounts p
          LEFT JOIN tms_identity_links l
            ON lower(trim(l.lantern_username)) = lower(trim(p.username))
@@ -205,11 +240,12 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
              OR lower(COALESCE(p.first_name, '')) LIKE lower(?)
              OR lower(COALESCE(p.last_name, '')) LIKE lower(?)
              OR lower(COALESCE(p.username, '')) LIKE lower(?)
+             OR lower(COALESCE(p.honorific, '') || ' ' || COALESCE(p.last_name, '')) LIKE lower(?)
            )
          ORDER BY lower(COALESCE(p.display_name, p.username))
          LIMIT ?`
       )
-      .bind(like, like, like, like, limit)
+      .bind(like, like, like, like, like, limit)
       .all();
     for (const r of unlinked.results || []) {
       const sid = Number(r.staff_id);
@@ -220,6 +256,8 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
       staff.push({
         token: 'staff_lantern:' + Math.floor(sid),
         person_kind: 'staff',
+        role: r.role,
+        role_label: r.role,
         label: privacySafeStaffLabel(r),
         fallback: 'lantern_staff_id',
       });
@@ -227,6 +265,7 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
   } catch (_) {}
   }
 
+  disambiguateStaffSearchLabels(staff);
   return { ok: true, students: students.slice(0, limit), staff: staff.slice(0, limit) };
 }
 
@@ -263,7 +302,8 @@ async function resolveTokenAgainstDb(db, parsed) {
     const row = await db
       .prepare(
         `SELECT p.staff_id AS staff_id, p.display_name AS display_name, p.first_name AS first_name,
-                p.last_name AS last_name, p.username AS username, l.tms_staff_id AS tms_staff_id
+                p.last_name AS last_name, p.username AS username, p.honorific AS honorific,
+                p.role AS role, l.tms_staff_id AS tms_staff_id
          FROM lantern_pilot_accounts p
          LEFT JOIN tms_identity_links l ON lower(trim(l.lantern_username)) = lower(trim(p.username))
          WHERE p.staff_id = ?
@@ -295,7 +335,12 @@ async function resolveTokenAgainstDb(db, parsed) {
                 MAX(p.display_name) AS any_display,
                 MAX(p.first_name) AS first_name,
                 MAX(p.last_name) AS last_name,
-                MAX(p.username) AS username
+                MAX(CASE WHEN l.is_primary = 1 THEN p.username ELSE NULL END) AS primary_username,
+                MAX(p.username) AS username,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.honorific ELSE NULL END) AS primary_honorific,
+                MAX(CASE WHEN p.honorific IS NOT NULL AND trim(p.honorific) != '' THEN p.honorific ELSE NULL END) AS any_honorific,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.role ELSE NULL END) AS primary_role,
+                MAX(p.role) AS any_role
          FROM tms_identity_links l
          INNER JOIN lantern_pilot_accounts p
            ON lower(trim(p.username)) = lower(trim(l.lantern_username))
@@ -314,7 +359,9 @@ async function resolveTokenAgainstDb(db, parsed) {
         display_name: row.primary_display || row.any_display,
         first_name: row.first_name,
         last_name: row.last_name,
-        username: row.username,
+        username: row.primary_username || row.username,
+        honorific: row.primary_honorific || row.any_honorific,
+        role: row.primary_role || row.any_role,
       }),
     };
   }

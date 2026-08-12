@@ -57,7 +57,12 @@ export async function resolveThankYouStaffRecipient(db, tmsStaffIdRaw) {
                 MAX(p.display_name) AS any_display,
                 MAX(p.first_name) AS first_name,
                 MAX(p.last_name) AS last_name,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.username ELSE NULL END) AS primary_username,
                 MAX(p.username) AS username,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.honorific ELSE NULL END) AS primary_honorific,
+                MAX(CASE WHEN p.honorific IS NOT NULL AND trim(p.honorific) != '' THEN p.honorific ELSE NULL END) AS any_honorific,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.role ELSE NULL END) AS primary_role,
+                MAX(p.role) AS any_role,
                 MAX(CASE WHEN l.is_primary = 1 AND p.email IS NOT NULL AND trim(p.email) != '' THEN p.email ELSE NULL END) AS primary_email,
                 MAX(CASE WHEN p.email IS NOT NULL AND trim(p.email) != '' THEN p.email ELSE NULL END) AS any_email,
                 MAX(CASE WHEN p.is_active IS NULL OR CAST(p.is_active AS INTEGER) = 1 THEN 1 ELSE 0 END) AS any_active
@@ -82,7 +87,9 @@ export async function resolveThankYouStaffRecipient(db, tmsStaffIdRaw) {
     display_name: row.primary_display || row.any_display,
     first_name: row.first_name,
     last_name: row.last_name,
-    username: row.username,
+    username: row.primary_username || row.username,
+    honorific: row.primary_honorific || row.any_honorific,
+    role: row.primary_role || row.any_role,
   });
   if (!label) return { ok: false, error: 'recipient_invalid' };
 

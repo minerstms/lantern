@@ -174,6 +174,24 @@ const shoutFree = LC.normalizeFeedItemToFaceModel({
 assert(shoutFree.descriptionPreview === 'Volleyball Coaches', '10f. free-text recognition label only');
 assert(!/^Recognizing:/i.test(shoutFree.descriptionPreview || ''), '10f2. no Recognizing: in descriptionPreview');
 
+// Prompt #220 — staff honorific authors on Explore cards
+assert(typeof LC.formatExploreAuthorLabel === 'function', '220a. formatExploreAuthorLabel exported');
+assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'Mr. Radle', authorRole: 'teacher' }) === 'Mr. Radle', '220b. Mr. Radle passthrough');
+assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'Ms. Pachelli', authorRole: 'teacher' }) === 'Ms. Pachelli', '220c. Ms. Pachelli passthrough');
+assert(LC.formatExploreAuthorLabel({ author: 'Rick Radle', authorRole: 'teacher' }) === 'Rick Radle', '220d. missing honorific keeps full staff name');
+const staffAuthored = LC.normalizeFeedItemToFaceModel({
+  id: 'news:staff220',
+  type: 'news',
+  title: 'Staff News',
+  authorDisplayName: 'Rick Radle',
+  authorPublicLabel: 'Mr. Radle',
+  authorRole: 'teacher',
+  approvedAt: '2026-08-11T00:00:00.000Z',
+});
+const staffAuthoredHtml = LC.buildCanonicalCardFaceHtml(staffAuthored);
+assert(/Mr\. Radle/.test(staffAuthoredHtml), '220e. compact card shows Mr. Radle');
+assert(!/Rick R\./.test(staffAuthoredHtml), '220f. staff not reduced to First L.');
+
 const shoutMissing = LC.normalizeFeedItemToFaceModel({
   id: 'shout_out:3',
   type: 'shout_out',

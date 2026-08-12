@@ -1704,7 +1704,15 @@
     }
 
     t.textContent = item.title || 'Untitled';
-    var author = String(item.authorDisplayName || 'Anonymous').trim();
+    var author = '';
+    if (global.LanternCards && typeof global.LanternCards.formatExploreAuthorLabel === 'function') {
+      author = global.LanternCards.formatExploreAuthorLabel({
+        author: item.authorDisplayName || item.author_name,
+        authorPublicLabel: item.authorPublicLabel || item.author_public_label,
+        authorRole: item.authorRole || item.author_role || item.authorType || item.author_type
+      });
+    }
+    if (!author) author = String(item.authorPublicLabel || item.author_public_label || item.authorDisplayName || 'Anonymous').trim();
     var dateStr = formatFeedItemDate(item);
     var typeLabel = feedItemTypeBadge(item);
     if (idw) idw.innerHTML = '';

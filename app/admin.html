@@ -276,11 +276,20 @@
       <p id="editUserDisplay" class="acctPanelHint"></p>
       <p id="editUserStaffId" class="acctPanelHint"></p>
       <p id="editUserNeedsName" class="acctPanelHint" style="display:none;">Needs Name Setup — enter First and Last Name, then Save.</p>
+      <p id="editUserNeedsTitle" class="acctPanelHint" style="display:none;">Needs Title — choose an Honorific (Mr./Miss/Ms./Mrs.), then Save.</p>
       <input type="hidden" id="editUserUsername" value="" />
       <label for="editUserFirstName">First Name</label>
       <input id="editUserFirstName" type="text" maxlength="64" autocomplete="off" required />
       <label for="editUserLastName">Last Name</label>
       <input id="editUserLastName" type="text" maxlength="64" autocomplete="off" required />
+      <label for="editUserHonorific">Honorific</label>
+      <select id="editUserHonorific" aria-label="Honorific">
+        <option value="">— Select —</option>
+        <option value="Mr.">Mr.</option>
+        <option value="Miss">Miss</option>
+        <option value="Ms.">Ms.</option>
+        <option value="Mrs.">Mrs.</option>
+      </select>
       <label for="editUserEmail">School email</label>
       <input id="editUserEmail" type="email" maxlength="120" autocomplete="off" placeholder="first.last@trinidad.k12.co.us" />
       <label for="editUserRole">Role</label>
@@ -405,6 +414,14 @@
         <input id="nu_first" type="text" required maxlength="64" autocomplete="off" />
         <label for="nu_last">Last Name</label>
         <input id="nu_last" type="text" required maxlength="64" autocomplete="off" />
+        <label for="nu_honorific">Honorific</label>
+        <select id="nu_honorific" required aria-label="Honorific">
+          <option value="">— Select —</option>
+          <option value="Mr.">Mr.</option>
+          <option value="Miss">Miss</option>
+          <option value="Ms.">Ms.</option>
+          <option value="Mrs.">Mrs.</option>
+        </select>
         <label for="nu_username">Login username</label>
         <input id="nu_username" type="text" required autocomplete="off" />
         <label for="nu_email">School email (optional)</label>
@@ -831,6 +848,15 @@
       var first = u.first_name != null ? String(u.first_name).trim() : '';
       var last = u.last_name != null ? String(u.last_name).trim() : '';
       return !first || !last;
+    }
+    var STAFF_HONORIFICS = { 'Mr.': 1, 'Miss': 1, 'Ms.': 1, 'Mrs.': 1 };
+    function staffNeedsTitle(u) {
+      if (!u || !isStaffRole(u.role)) return false;
+      var un = String(u.username || '').trim().toLowerCase();
+      var dn = String(u.display_name || '').trim().toLowerCase();
+      if (un === 'admin' && (!dn || dn === 'web admin' || dn === 'admin')) return false;
+      var h = u.honorific != null ? String(u.honorific).trim() : '';
+      return !h || !STAFF_HONORIFICS[h];
     }
     function formatStaffDisplayName(u) {
       var first = u && u.first_name != null ? String(u.first_name).trim() : '';
@@ -1879,11 +1905,13 @@
       var disp = document.getElementById('editUserDisplay');
       var staffIdEl = document.getElementById('editUserStaffId');
       var needsEl = document.getElementById('editUserNeedsName');
+      var needsTitleEl = document.getElementById('editUserNeedsTitle');
       var hid = document.getElementById('editUserUsername');
       var roleSel = document.getElementById('editUserRole');
       var actSel = document.getElementById('editUserActive');
       var fnInput = document.getElementById('editUserFirstName');
       var lnInput = document.getElementById('editUserLastName');
+      var honSel = document.getElementById('editUserHonorific');
       var emailInput = document.getElementById('editUserEmail');
       var mcpSel = document.getElementById('editUserMustChangePw');
       if (disp) disp.textContent = 'Login username: ' + user + ' (unchanged)';
@@ -1892,9 +1920,17 @@
       if (needsEl) {
         needsEl.style.display = needs ? 'block' : 'none';
       }
+      var needsTitle = staffNeedsTitle(u);
+      if (needsTitleEl) {
+        needsTitleEl.style.display = needsTitle ? 'block' : 'none';
+      }
       if (hid) hid.value = user;
       if (fnInput) fnInput.value = u.first_name != null ? String(u.first_name).trim() : '';
       if (lnInput) lnInput.value = u.last_name != null ? String(u.last_name).trim() : '';
+      if (honSel) {
+        var hv = u.honorific != null ? String(u.honorific).trim() : '';
+        honSel.value = STAFF_HONORIFICS[hv] ? hv : '';
+      }
       if (emailInput) emailInput.value = u.email != null ? String(u.email).trim() : '';
       if (roleSel) {
         var rv = String(u.role || 'teacher').trim().toLowerCase();
@@ -1931,6 +1967,7 @@
       var username = (document.getElementById('editUserUsername').value || '').trim();
       var firstName = (document.getElementById('editUserFirstName').value || '').trim();
       var lastName = (document.getElementById('editUserLastName').value || '').trim();
+      var honorific = (document.getElementById('editUserHonorific') && document.getElementById('editUserHonorific').value || '').trim();
       var email = (document.getElementById('editUserEmail') && document.getElementById('editUserEmail').value || '').trim();
       var role = (document.getElementById('editUserRole').value || 'teacher').trim();
       var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
@@ -1950,6 +1987,10 @@
         showUsersMsg(lnErr, 'err');
         return;
       }
+      if (honorific && !STAFF_HONORIFICS[honorific]) {
+        showUsersMsg('Honorific must be Mr., Miss, Ms., or Mrs.', 'err');
+        return;
+      }
       var saveBtn = document.getElementById('editUserSave');
       var cancelBtn = document.getElementById('editUserCancel');
       if (saveBtn) saveBtn.disabled = true;
@@ -1958,6 +1999,7 @@
         username: username,
         first_name: firstName,
         last_name: lastName,
+        honorific: honorific || null,
         email: email,
         role: role,
         is_active: act,
@@ -2156,7 +2198,8 @@
         rec.setAttribute('role', 'listitem');
         var active = !(u.is_active === 0 || u.is_active === '0');
         var needsName = staffNeedsNameSetup(u);
-        var activeLabel = !active ? 'Archived' : (needsName ? 'Needs Name Setup' : 'Active');
+        var needsTitle = staffNeedsTitle(u);
+        var activeLabel = !active ? 'Archived' : (needsName ? 'Needs Name Setup' : (needsTitle ? 'Needs Title' : 'Active'));
         var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
         var mcpLabel = mcp ? 'Yes' : 'No';
         var roleLabel = String(u.role || '');
@@ -2164,6 +2207,7 @@
         var blLabel = behaviorLoggerLinkLabel(u);
         var blClass = behaviorLoggerLinkClass(u);
         var existingLink = linkForLanternUsername(u.username);
+        var honLabel = (u.honorific != null && String(u.honorific).trim()) ? String(u.honorific).trim() : 'Honorific not set';
         rec.innerHTML =
           '<summary class="lanternMgmtRecordHd">' +
             '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--staffId">' + esc(formatStaffIdLabel(u.staff_id)) + '</span>' +
@@ -2172,13 +2216,15 @@
             '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--user">' + esc(u.username) + '</span>' +
             '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--role">' + esc(roleLabel || u.role) + '</span>' +
             '<span class="lanternMgmtRecordCol ' + blClass + '">' + esc(blLabel) + '</span>' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--status' + (needsName && active ? ' lanternMgmtRecordCol--muted' : '') + '">' + esc(activeLabel) + '</span>' +
+            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--status' + ((needsName || needsTitle) && active ? ' lanternMgmtRecordCol--muted' : '') + '">' + esc(activeLabel) + '</span>' +
             '<span class="lanternMgmtRecordChev" aria-hidden="true"></span>' +
           '</summary>' +
           '<div class="lanternMgmtRecordBd">' +
             '<p class="lanternMgmtRecordMeta">Must change password: ' + esc(mcpLabel) +
               (u.email ? ' · Email: ' + esc(String(u.email)) : '') +
               (needsName ? ' · Needs Name Setup' : '') +
+              (needsTitle ? ' · Needs Title' : '') +
+              ' · Honorific: ' + esc(honLabel) +
               (u.display_name && needsName ? ' · Current display: ' + esc(String(u.display_name)) : '') +
             '</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
@@ -2432,6 +2478,11 @@
         showUsersMsg(lnErr, 'err');
         return;
       }
+      var honorific = (document.getElementById('nu_honorific') && document.getElementById('nu_honorific').value || '').trim();
+      if (!honorific || !STAFF_HONORIFICS[honorific]) {
+        showUsersMsg('Honorific is required (Mr., Miss, Ms., or Mrs.).', 'err');
+        return;
+      }
       var role = document.getElementById('nu_role').value;
       if (!isStaffRole(role)) {
         showUsersMsg('Staff only creates teacher or admin accounts.', 'err');
@@ -2441,6 +2492,7 @@
         username: document.getElementById('nu_username').value.trim(),
         first_name: firstName,
         last_name: lastName,
+        honorific: honorific,
         role: role
       };
       var email = (document.getElementById('nu_email') && document.getElementById('nu_email').value || '').trim();

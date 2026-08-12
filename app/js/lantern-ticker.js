@@ -403,8 +403,15 @@
           var t = String(n.title || '').trim();
           if (!t || seenNews[t.toLowerCase()]) return;
           seenNews[t.toLowerCase()] = true;
-          var author = String(n.author_name || (n.meta && n.meta.character_name) || '').trim();
-          var avatarKey = String(n.author_avatar_key || n.actor_id || author || '').trim();
+          var author = String(n.author_public_label || n.author_name || (n.meta && n.meta.character_name) || '').trim();
+          if (author && !n.author_public_label && global.LanternCards && typeof global.LanternCards.formatExploreAuthorLabel === 'function') {
+            author = global.LanternCards.formatExploreAuthorLabel({
+              author: author,
+              authorRole: n.author_type || n.author_role || ''
+            }) || author;
+          }
+          var avatarKey = String(n.author_avatar_key || n.actor_id || '').trim();
+          if (!avatarKey) avatarKey = String(n.author_name || '').trim();
           slides.push({
             type: 'student_news',
             title: t,

@@ -190,7 +190,7 @@ export async function fetchAdminUserRow(db, username) {
   if (!db || !username) return null;
   return db
     .prepare(
-      `SELECT username, display_name, first_name, last_name, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      `SELECT username, display_name, first_name, last_name, honorific, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
     )
     .bind(String(username))
     .first();
