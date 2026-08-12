@@ -113,9 +113,11 @@
 
     (opts.filters || []).forEach(function (f) {
       var def =
-        f.options && f.options.length
-          ? f.options[0].value
-          : 'all';
+        f.defaultValue != null
+          ? f.defaultValue
+          : f.options && f.options.length
+            ? f.options[0].value
+            : 'all';
       state.filterValues[f.id] = def;
     });
 
@@ -156,6 +158,11 @@
       filtersWrap.appendChild(sel);
     });
     toolbar.appendChild(filtersWrap);
+
+    // Prompt #121 — optional toolbar actions (Refresh / Add / etc.) without forking the component.
+    if (typeof opts.renderToolbarExtra === 'function') {
+      opts.renderToolbarExtra(toolbar);
+    }
 
     var meta = document.createElement('div');
     meta.className = 'lanternPowerListMeta';

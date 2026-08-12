@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-collapsible-list.css">
+  <link rel="stylesheet" href="css/lantern-power-list.css">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-avatar-cropper.css">
   <style>
@@ -388,28 +389,9 @@
     </summary>
     <div class="cardBd teacherCollapsibleListBd">
     <div id="usersMsg"></div>
-    <div class="rosterToolbar">
-      <label for="staffRosterSearch" class="visuallyHidden">Search staff</label>
-      <input id="staffRosterSearch" type="search" autocomplete="off" placeholder="Search name or username…" />
-      <label for="staffRosterFilter" class="visuallyHidden">Filter staff</label>
-      <select id="staffRosterFilter" aria-label="Filter staff">
-        <option value="active" selected>Active</option>
-        <option value="archived">Archived</option>
-        <option value="needs_link">Needs Link</option>
-        <option value="teacher">Teacher</option>
-        <option value="admin">Admin</option>
-        <option value="all">All</option>
-      </select>
-      <button type="button" class="btn" id="staffRosterRefreshBtn">Refresh</button>
-      <button type="button" class="btn good" id="staffAddOpenBtn">+ Add Staff</button>
-    </div>
-    <div class="teacherCollapsibleListScroll">
-      <div class="lanternMgmtRecordListHd lanternMgmtRecordListHd--staff" aria-hidden="true">
-        <span>Staff ID</span><span>First Name</span><span>Last Name</span><span>Username</span><span>Role</span><span>Behavior Logger Link</span><span>Status</span><span></span>
-      </div>
-      <div id="usersBody" class="lanternMgmtRecordList" role="list"></div>
-      <p id="staffRosterEmpty" class="pendingMeta" style="display:none;">No staff accounts match this filter.</p>
-    </div>
+    <!-- Prompt #121 — Staff roster uses canonical Power Scroller (no nested mini-scroll). -->
+    <div id="staffPowerListMount" class="staffPowerListMount"></div>
+    <p id="staffRosterEmpty" class="pendingMeta" style="display:none;">No staff accounts match this filter.</p>
 
     <div id="staffNeedsAttention" class="staffNeedsAttention" style="display:none;" aria-live="polite">
       <p class="acctPanelHd" style="margin-top:18px;">Needs Attention</p>
@@ -770,6 +752,8 @@
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-collapsible-list.js"></script>
+  <script src="js/lantern-power-list.js"></script>
+  <script src="js/lantern-staff-power-list.js"></script>
   <script src="js/lantern-admin-bl-system.js"></script>
   <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="js/lantern-avatar-cropper.js"></script>
@@ -2129,366 +2113,396 @@
       return r === 'teacher' || r === 'admin';
     }
 
-    function filteredStaffList() {
-      var filterEl = document.getElementById('staffRosterFilter');
-      var searchEl = document.getElementById('staffRosterSearch');
-      var filter = filterEl ? String(filterEl.value || 'active') : 'active';
-      var q = searchEl ? String(searchEl.value || '').trim().toLowerCase() : '';
-      return lastUsersList.filter(function(u) {
-        if (!isStaffRole(u.role)) return false;
-        var active = !(u.is_active === 0 || u.is_active === '0');
-        var linked = !!linkForLanternUsername(u.username);
-        if (filter === 'active' && !active) return false;
-        if (filter === 'archived' && active) return false;
-        if (filter === 'needs_link' && (!active || linked)) return false;
-        if (filter === 'teacher' && String(u.role).toLowerCase() !== 'teacher') return false;
-        if (filter === 'admin' && String(u.role).toLowerCase() !== 'admin') return false;
-        if (!q) return true;
-        var hay = [
-          u.username,
-          u.display_name,
-          u.first_name,
-          u.last_name,
-          formatStaffDisplayName(u),
-          formatStaffIdLabel(u.staff_id),
-          behaviorLoggerLinkLabel(u)
-        ].join(' ').toLowerCase();
-        return hay.indexOf(q) !== -1;
-      });
-    }
+    var staffPowerUi = null;
 
-    function setAccountActive(username, active, onDone) {
-      postAdminJson('/api/admin/users/update', {
-        username: username,
-        is_active: active ? 1 : 0
-      }).then(function(res) {
-        if (res && res.blocked) return;
-        if (res && res.okHttp && res.body && res.body.ok) {
-          if (typeof onDone === 'function') onDone(null, res.body);
-          return;
-        }
-        if (typeof onDone === 'function') onDone((res && res.body && res.body.error) || 'Update failed');
-      }).catch(function() {
-        if (typeof onDone === 'function') onDone('Network error');
-      });
-    }
-
-    function loadUsers(){
-      fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){
-        return r.json().then(function(j){ return { status: r.status, body: j }; });
-      }).then(function(w){
-        if (window.LanternAuth && w.status === 403 && w.body && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
-          if (window.LanternAuth.redirectIfPasswordChangeRequired({ status: w.status }, w.body)) return;
-        }
-        var res = w.body;
-        var tb = document.getElementById('usersBody');
-        var staffPill = document.getElementById('adminStaffCountPill');
-        function setStaffCount(n) {
-          if (staffPill) staffPill.textContent = String(n);
-        }
-        if (tb) tb.innerHTML = '';
-        if (!res || !res.ok || !res.users) {
-          lastUsersList = [];
-          setStaffCount(0);
-          populateWalletStudentSelect();
-          populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
-          renderStaffTable();
-          return;
-        }
-        lastUsersList = res.users.slice();
-        var staffAll = lastUsersList.filter(function(u) { return isStaffRole(u.role); });
-        setStaffCount(staffAll.length);
-        populateWalletStudentSelect();
-        populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
-        renderStaffTable();
-      });
-    }
-
-    function renderStaffTable() {
-      var tb = document.getElementById('usersBody');
-      var empty = document.getElementById('staffRosterEmpty');
-      if (!tb) return;
-      closeEditUserPanel();
-      closeTempPwPanel();
-      closeAdminAvatarPanel();
-      tb.innerHTML = '';
-      var rows = filteredStaffList();
-      if (empty) empty.style.display = rows.length ? 'none' : 'block';
-      rows.forEach(function(u){
-        var rec = document.createElement('details');
-        rec.className = 'lanternMgmtRecord lanternMgmtRecord--staff';
-        rec.setAttribute('data-record-key', String(u.username || ''));
-        rec.setAttribute('role', 'listitem');
+    function buildStaffPowerItems() {
+      var StaffPL = window.LanternStaffPowerList;
+      return lastUsersList.filter(isStaffRole).map(function(u){
         var active = !(u.is_active === 0 || u.is_active === '0');
         var needsName = staffNeedsNameSetup(u);
         var needsTitle = staffNeedsTitle(u);
-        var activeLabel = !active ? 'Archived' : (needsName ? 'Needs Name Setup' : (needsTitle ? 'Needs Title' : 'Active'));
-        var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
-        var mcpLabel = mcp ? 'Yes' : 'No';
         var roleLabel = String(u.role || '');
         if (roleLabel) roleLabel = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);
-        var blLabel = behaviorLoggerLinkLabel(u);
-        var blClass = behaviorLoggerLinkClass(u);
-        var existingLink = linkForLanternUsername(u.username);
-        var honLabel = (u.honorific != null && String(u.honorific).trim()) ? String(u.honorific).trim() : 'Honorific not set';
-        var pdnLabel = (u.public_display_name != null && String(u.public_display_name).trim()) ? String(u.public_display_name).trim() : '';
-        rec.innerHTML =
-          '<summary class="lanternMgmtRecordHd">' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--staffId">' + esc(formatStaffIdLabel(u.staff_id)) + '</span>' +
-            '<span class="lanternMgmtRecordCol">' + esc(staffFirstName(u) || '—') + '</span>' +
-            '<span class="lanternMgmtRecordCol">' + esc(staffLastName(u) || '—') + '</span>' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--user">' + esc(u.username) + '</span>' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--role">' + esc(roleLabel || u.role) + '</span>' +
-            '<span class="lanternMgmtRecordCol ' + blClass + '">' + esc(blLabel) + '</span>' +
-            '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--status' + ((needsName || needsTitle) && active ? ' lanternMgmtRecordCol--muted' : '') + '">' + esc(activeLabel) + '</span>' +
-            '<span class="lanternMgmtRecordChev" aria-hidden="true"></span>' +
-          '</summary>' +
-          '<div class="lanternMgmtRecordBd">' +
-            '<p class="lanternMgmtRecordMeta">Must change password: ' + esc(mcpLabel) +
-              (u.email ? ' · Email: ' + esc(String(u.email)) : '') +
-              (needsName ? ' · Needs Name Setup' : '') +
-              (needsTitle ? ' · Needs Title' : '') +
-              ' · Honorific: ' + esc(honLabel) +
-              (pdnLabel ? ' · Public display: ' + esc(pdnLabel) : '') +
-              (u.display_name && needsName ? ' · Current display: ' + esc(String(u.display_name)) : '') +
-            '</p>' +
-            '<div class="acctActions lanternMgmtRecordActions"></div>' +
-            '<div class="staffBlLinkPanel"></div>' +
-            '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
-          '</div>';
-        var cell = rec.querySelector('.lanternMgmtRecordActions');
-        var blPanel = rec.querySelector('.staffBlLinkPanel');
-        var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
-        var bEdit = document.createElement('button');
-        bEdit.type = 'button';
-        bEdit.className = 'btn';
-        bEdit.textContent = 'Edit';
-        bEdit.addEventListener('click', function(ev){
+        var linked = !!linkForLanternUsername(u.username);
+        return StaffPL.toStaffItem(u, {
+          firstName: staffFirstName(u) || '',
+          lastName: staffLastName(u) || '',
+          displayName: formatStaffDisplayName(u) || u.username,
+          roleLabel: roleLabel,
+          blLinked: linked,
+          blLabel: behaviorLoggerLinkLabel(u),
+          blClass: behaviorLoggerLinkClass(u),
+          needsName: needsName,
+          needsTitle: needsTitle,
+          statusLabel: !active ? 'Archived' : (needsName ? 'Needs Name Setup' : (needsTitle ? 'Needs Title' : 'Active'))
+        });
+      });
+    }
+
+    function fillStaffExpandedDetail(item, detail) {
+      var u = item.user;
+      var active = item.active;
+      var needsName = staffNeedsNameSetup(u);
+      var needsTitle = staffNeedsTitle(u);
+      var mcp = (u.must_change_password === 1 || u.must_change_password === '1' || u.must_change_password === true);
+      var mcpLabel = mcp ? 'Yes' : 'No';
+      var existingLink = linkForLanternUsername(u.username);
+      var honLabel = (u.honorific != null && String(u.honorific).trim()) ? String(u.honorific).trim() : 'Honorific not set';
+      var pdnLabel = (u.public_display_name != null && String(u.public_display_name).trim()) ? String(u.public_display_name).trim() : '';
+
+      var meta = document.createElement('p');
+      meta.className = 'lanternPowerListDetailMeta';
+      meta.textContent = 'Staff ID: ' + formatStaffIdLabel(u.staff_id) +
+        ' · Must change password: ' + mcpLabel +
+        (u.email ? ' · Email: ' + String(u.email) : '') +
+        (needsName ? ' · Needs Name Setup' : '') +
+        (needsTitle ? ' · Needs Title' : '') +
+        ' · Honorific: ' + honLabel +
+        (pdnLabel ? ' · Public display: ' + pdnLabel : '') +
+        (u.display_name && needsName ? ' · Current display: ' + String(u.display_name) : '');
+      detail.appendChild(meta);
+
+      var actions = document.createElement('div');
+      actions.className = 'lanternPowerListActions acctActions';
+      detail.appendChild(actions);
+
+      var editorMount = document.createElement('div');
+      editorMount.className = 'lanternMgmtRecordEditor';
+      editorMount.setAttribute('data-collapsible-editor', '');
+      editorMount.hidden = true;
+      detail.appendChild(editorMount);
+
+      var blPanel = document.createElement('div');
+      blPanel.className = 'staffBlLinkPanel';
+      detail.appendChild(blPanel);
+
+      var bEdit = document.createElement('button');
+      bEdit.type = 'button';
+      bEdit.className = 'btn';
+      bEdit.textContent = 'Edit';
+      bEdit.addEventListener('click', function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        openEditUserPanel(u, editorMount);
+      });
+      actions.appendChild(bEdit);
+
+      var bTemp = document.createElement('button');
+      bTemp.type = 'button';
+      bTemp.className = 'btn good';
+      bTemp.textContent = 'Reset Temporary Password';
+      bTemp.addEventListener('click', function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        openTempPwPanel(u.username, editorMount);
+      });
+      actions.appendChild(bTemp);
+
+      var bAvatar = document.createElement('button');
+      bAvatar.type = 'button';
+      bAvatar.className = 'btn';
+      bAvatar.textContent = 'Manage Avatar';
+      bAvatar.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var label = formatStaffDisplayName(u) || u.username;
+        openAdminAvatarPanel(u.username, label);
+      });
+      actions.appendChild(bAvatar);
+
+      if (active) {
+        var bArch = document.createElement('button');
+        bArch.type = 'button';
+        bArch.className = 'btn';
+        bArch.textContent = 'Archive';
+        bArch.addEventListener('click', function(ev){
           ev.preventDefault();
           ev.stopPropagation();
-          openEditUserPanel(u, editorMount);
+          var selfName = adminSessionMeta.username || '';
+          if (selfName && String(u.username).toLowerCase() === String(selfName).toLowerCase()) {
+            showUsersMsg('Cannot archive the signed-in Admin account from this panel.', 'err');
+            return;
+          }
+          if (!window.confirm('Archive "' + u.username + '"?\n\nThey cannot sign in. Identity, history, and mappings stay. Restore is available later.')) return;
+          bArch.disabled = true;
+          setAccountActive(u.username, false, function(err) {
+            bArch.disabled = false;
+            if (err) { showUsersMsg(err, 'err'); return; }
+            showUsersMsg('Archived ' + u.username + '.', 'ok');
+            loadUsers();
+          });
         });
-        var bTemp = document.createElement('button');
-        bTemp.type = 'button';
-        bTemp.className = 'btn good';
-        bTemp.textContent = 'Reset Temporary Password';
-        bTemp.addEventListener('click', function(ev){
+        actions.appendChild(bArch);
+      } else {
+        var bRest = document.createElement('button');
+        bRest.type = 'button';
+        bRest.className = 'btn good';
+        bRest.textContent = 'Restore';
+        bRest.addEventListener('click', function(ev){
           ev.preventDefault();
           ev.stopPropagation();
-          openTempPwPanel(u.username, editorMount);
+          if (!window.confirm('Restore "' + u.username + '"?\n\nReactivates the same account identity.')) return;
+          bRest.disabled = true;
+          setAccountActive(u.username, true, function(err) {
+            bRest.disabled = false;
+            if (err) { showUsersMsg(err, 'err'); return; }
+            showUsersMsg('Restored ' + u.username + '.', 'ok');
+            loadUsers();
+          });
         });
-        cell.appendChild(bEdit);
-        cell.appendChild(bTemp);
-        var bAvatar = document.createElement('button');
-        bAvatar.type = 'button';
-        bAvatar.className = 'btn';
-        bAvatar.textContent = 'Manage Avatar';
-        bAvatar.addEventListener('click', function(ev) {
+        actions.appendChild(bRest);
+      }
+
+      var blHd = document.createElement('p');
+      blHd.className = 'acctPanelHd';
+      blHd.style.margin = '0 0 6px';
+      blHd.textContent = 'Behavior Logger Link';
+      blPanel.appendChild(blHd);
+      var blHint = document.createElement('p');
+      blHint.className = 'acctPanelHint';
+      blHint.style.margin = '0 0 8px';
+      blHint.textContent = existingLink
+        ? ('Linked to ' + String(existingLink.tms_staff_id || '') + (Number(existingLink.is_primary) === 1 ? ' (Primary SSO)' : ' (Linked)'))
+        : 'Select a Behavior Logger person to link. No fuzzy matching.';
+      blPanel.appendChild(blHint);
+
+      if (!existingLink && active) {
+        var lab = document.createElement('label');
+        lab.textContent = 'Behavior Logger person';
+        var sel = document.createElement('select');
+        sel.setAttribute('aria-label', 'Select Behavior Logger staff');
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = lastTmsStaffDirectory.length ? '— Select person —' : '— Directory unavailable —';
+        sel.appendChild(opt0);
+        lastTmsStaffDirectory.forEach(function(s){
+          var opt = document.createElement('option');
+          opt.value = String(s.tms_staff_id || '');
+          var bits = [s.tms_staff_id, s.teacher_name];
+          if (s.teacher_email) bits.push(s.teacher_email);
+          if (s.role) bits.push(s.role);
+          opt.textContent = bits.filter(Boolean).join(' · ');
+          sel.appendChild(opt);
+        });
+        lab.appendChild(sel);
+        blPanel.appendChild(lab);
+        var linkBtn = document.createElement('button');
+        linkBtn.type = 'button';
+        linkBtn.className = 'btn good';
+        linkBtn.style.marginTop = '10px';
+        linkBtn.textContent = 'Link Behavior Logger identity';
+        linkBtn.addEventListener('click', function(ev){
           ev.preventDefault();
           ev.stopPropagation();
-          var label = formatStaffDisplayName(u) || u.username;
-          openAdminAvatarPanel(u.username, label);
-        });
-        cell.appendChild(bAvatar);
-        if (active) {
-          var bArch = document.createElement('button');
-          bArch.type = 'button';
-          bArch.className = 'btn';
-          bArch.textContent = 'Archive';
-          bArch.addEventListener('click', function(ev){
-            ev.preventDefault();
-            ev.stopPropagation();
-            var selfName = adminSessionMeta.username || '';
-            if (selfName && String(u.username).toLowerCase() === String(selfName).toLowerCase()) {
-              showUsersMsg('Cannot archive the signed-in Admin account from this panel.', 'err');
+          var tmsId = String(sel.value || '').trim();
+          if (!tmsId) {
+            showUsersMsg('Select a Behavior Logger person from the list.', 'err');
+            return;
+          }
+          if (!window.confirm('Link "' + u.username + '" to Behavior Logger identity "' + tmsId + '"?\n\nRoles are not changed by linking.')) return;
+          linkBtn.disabled = true;
+          postAdminJson('/api/admin/tms-identity-links', {
+            tms_staff_id: tmsId,
+            lantern_username: u.username
+          }).then(function(res){
+            if (res && res.blocked) return;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              showUsersMsg('Linked ' + u.username + ' → ' + tmsId + '.', 'ok');
+              loadTmsIdentityLinks();
+              loadTmsStaffDirectory();
               return;
             }
-            if (!window.confirm('Archive "' + u.username + '"?\n\nThey cannot sign in. Identity, history, and mappings stay. Restore is available later.')) return;
-            bArch.disabled = true;
-            setAccountActive(u.username, false, function(err) {
-              bArch.disabled = false;
-              if (err) { showUsersMsg(err, 'err'); return; }
-              showUsersMsg('Archived ' + u.username + '.', 'ok');
-              loadUsers();
-            });
+            showUsersMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
+          }).catch(function(){
+            showUsersMsg('Network error while linking.', 'err');
+          }).finally(function(){
+            linkBtn.disabled = false;
           });
-          cell.appendChild(bArch);
-        } else {
-          var bRest = document.createElement('button');
-          bRest.type = 'button';
-          bRest.className = 'btn good';
-          bRest.textContent = 'Restore';
-          bRest.addEventListener('click', function(ev){
+        });
+        blPanel.appendChild(linkBtn);
+      }
+
+      if (existingLink) {
+        var blActions = document.createElement('div');
+        blActions.className = 'acctActions';
+        blActions.style.marginTop = '8px';
+        if (Number(existingLink.is_primary) !== 1 && existingLink.id) {
+          var primaryBtn = document.createElement('button');
+          primaryBtn.type = 'button';
+          primaryBtn.className = 'btn';
+          primaryBtn.textContent = 'Make Primary';
+          primaryBtn.addEventListener('click', function(ev){
             ev.preventDefault();
             ev.stopPropagation();
-            if (!window.confirm('Restore "' + u.username + '"?\n\nReactivates the same account identity.')) return;
-            bRest.disabled = true;
-            setAccountActive(u.username, true, function(err) {
-              bRest.disabled = false;
-              if (err) { showUsersMsg(err, 'err'); return; }
-              showUsersMsg('Restored ' + u.username + '.', 'ok');
-              loadUsers();
-            });
-          });
-          cell.appendChild(bRest);
-        }
-
-        if (blPanel) {
-          var blHd = document.createElement('p');
-          blHd.className = 'acctPanelHd';
-          blHd.style.margin = '0 0 6px';
-          blHd.textContent = 'Behavior Logger Link';
-          blPanel.appendChild(blHd);
-          var blHint = document.createElement('p');
-          blHint.className = 'acctPanelHint';
-          blHint.style.margin = '0 0 8px';
-          blHint.textContent = existingLink
-            ? ('Linked to ' + String(existingLink.tms_staff_id || '') + (Number(existingLink.is_primary) === 1 ? ' (Primary SSO)' : ' (Linked)'))
-            : 'Select a Behavior Logger person to link. No fuzzy matching.';
-          blPanel.appendChild(blHint);
-
-          if (!existingLink && active) {
-            var lab = document.createElement('label');
-            lab.textContent = 'Behavior Logger person';
-            var sel = document.createElement('select');
-            sel.setAttribute('aria-label', 'Select Behavior Logger staff');
-            var opt0 = document.createElement('option');
-            opt0.value = '';
-            opt0.textContent = lastTmsStaffDirectory.length ? '— Select person —' : '— Directory unavailable —';
-            sel.appendChild(opt0);
-            lastTmsStaffDirectory.forEach(function(s){
-              var opt = document.createElement('option');
-              opt.value = String(s.tms_staff_id || '');
-              var bits = [s.tms_staff_id, s.teacher_name];
-              if (s.teacher_email) bits.push(s.teacher_email);
-              if (s.role) bits.push(s.role);
-              opt.textContent = bits.filter(Boolean).join(' · ');
-              sel.appendChild(opt);
-            });
-            lab.appendChild(sel);
-            blPanel.appendChild(lab);
-            var linkBtn = document.createElement('button');
-            linkBtn.type = 'button';
-            linkBtn.className = 'btn good';
-            linkBtn.style.marginTop = '10px';
-            linkBtn.textContent = 'Link Behavior Logger identity';
-            linkBtn.addEventListener('click', function(ev){
-              ev.preventDefault();
-              ev.stopPropagation();
-              var tmsId = String(sel.value || '').trim();
-              if (!tmsId) {
-                showUsersMsg('Select a Behavior Logger person from the list.', 'err');
+            primaryBtn.disabled = true;
+            postAdminJson('/api/admin/tms-identity-links/primary', { id: Number(existingLink.id) }).then(function(res){
+              if (res && res.blocked) return;
+              if (res && res.okHttp && res.body && res.body.ok) {
+                showUsersMsg('Primary SSO for ' + existingLink.tms_staff_id + ' is now ' + u.username + '.', 'ok');
+                loadTmsIdentityLinks();
                 return;
               }
-              if (!window.confirm('Link "' + u.username + '" to Behavior Logger identity "' + tmsId + '"?\n\nRoles are not changed by linking.')) return;
-              linkBtn.disabled = true;
-              postAdminJson('/api/admin/tms-identity-links', {
-                tms_staff_id: tmsId,
-                lantern_username: u.username
-              }).then(function(res){
-                if (res && res.blocked) return;
-                if (res && res.okHttp && res.body && res.body.ok) {
-                  showUsersMsg('Linked ' + u.username + ' → ' + tmsId + '.', 'ok');
-                  loadTmsIdentityLinks();
-                  loadTmsStaffDirectory();
-                  return;
-                }
-                showUsersMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
-              }).catch(function(){
-                showUsersMsg('Network error while linking.', 'err');
-              }).finally(function(){
-                linkBtn.disabled = false;
-              });
+              showUsersMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
+            }).catch(function(){
+              showUsersMsg('Network error while setting Primary.', 'err');
+            }).finally(function(){
+              primaryBtn.disabled = false;
             });
-            blPanel.appendChild(linkBtn);
-          }
-
-          if (existingLink) {
-            var blActions = document.createElement('div');
-            blActions.className = 'acctActions';
-            blActions.style.marginTop = '8px';
-            if (Number(existingLink.is_primary) !== 1 && existingLink.id) {
-              var primaryBtn = document.createElement('button');
-              primaryBtn.type = 'button';
-              primaryBtn.className = 'btn';
-              primaryBtn.textContent = 'Make Primary';
-              primaryBtn.addEventListener('click', function(ev){
-                ev.preventDefault();
-                ev.stopPropagation();
-                primaryBtn.disabled = true;
-                postAdminJson('/api/admin/tms-identity-links/primary', { id: Number(existingLink.id) }).then(function(res){
-                  if (res && res.blocked) return;
-                  if (res && res.okHttp && res.body && res.body.ok) {
-                    showUsersMsg('Primary SSO for ' + existingLink.tms_staff_id + ' is now ' + u.username + '.', 'ok');
-                    loadTmsIdentityLinks();
-                    return;
-                  }
-                  showUsersMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
-                }).catch(function(){
-                  showUsersMsg('Network error while setting Primary.', 'err');
-                }).finally(function(){
-                  primaryBtn.disabled = false;
-                });
-              });
-              blActions.appendChild(primaryBtn);
-            }
-            var unlinkBtn = document.createElement('button');
-            unlinkBtn.type = 'button';
-            unlinkBtn.className = 'btn bad';
-            unlinkBtn.textContent = 'Unlink';
-            unlinkBtn.addEventListener('click', function(ev){
-              ev.preventDefault();
-              ev.stopPropagation();
-              var tmsId = String(existingLink.tms_staff_id || '');
-              var siblings = linksForTmsStaffId(tmsId).filter(function(x){
-                return String(x.lantern_username || '') !== String(u.username || '');
-              });
-              var payload = existingLink.id ? { id: Number(existingLink.id) } : { lantern_username: u.username };
-              var confirmMsg = 'Unlink Lantern account "' + u.username + '" from Behavior Logger "' + tmsId + '"?\n\nThis removes only this SSO mapping. Accounts and data stay intact.';
-              if (Number(existingLink.is_primary) === 1 && siblings.length > 0) {
-                var names = siblings.map(function(s){ return String(s.lantern_username || ''); }).filter(Boolean);
-                var replacement = window.prompt(
-                  'This is the Primary SSO account. Enter the Lantern username that should become Primary after unlink:\n\n' + names.join('\n'),
-                  names[0] || ''
-                );
-                if (replacement == null) return;
-                replacement = String(replacement || '').trim();
-                if (!replacement) {
-                  showUsersMsg('Replacement Primary username is required.', 'err');
-                  return;
-                }
-                payload.replacement_lantern_username = replacement;
-                confirmMsg = 'Unlink Primary "' + u.username + '" and make "' + replacement + '" Primary for Behavior Logger "' + tmsId + '"?';
-              }
-              if (!window.confirm(confirmMsg)) return;
-              unlinkBtn.disabled = true;
-              deleteAdminJson('/api/admin/tms-identity-links', payload).then(function(res){
-                if (res && res.blocked) return;
-                if (res && res.okHttp && res.body && res.body.ok) {
-                  showUsersMsg('Unlinked ' + u.username + ' from ' + tmsId + '.', 'ok');
-                  loadTmsIdentityLinks();
-                  loadTmsStaffDirectory();
-                  return;
-                }
-                showUsersMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
-              }).catch(function(){
-                showUsersMsg('Network error while unlinking.', 'err');
-              }).finally(function(){
-                unlinkBtn.disabled = false;
-              });
-            });
-            blActions.appendChild(unlinkBtn);
-            blPanel.appendChild(blActions);
-          }
+          });
+          blActions.appendChild(primaryBtn);
         }
-
-        tb.appendChild(rec);
-      });
-      if (window.LanternCollapsibleList && typeof window.LanternCollapsibleList.wireRecords === 'function') {
-        window.LanternCollapsibleList.wireRecords(tb);
+        var unlinkBtn = document.createElement('button');
+        unlinkBtn.type = 'button';
+        unlinkBtn.className = 'btn bad';
+        unlinkBtn.textContent = 'Unlink';
+        unlinkBtn.addEventListener('click', function(ev){
+          ev.preventDefault();
+          ev.stopPropagation();
+          var tmsId = String(existingLink.tms_staff_id || '');
+          var siblings = linksForTmsStaffId(tmsId).filter(function(x){
+            return String(x.lantern_username || '') !== String(u.username || '');
+          });
+          var payload = existingLink.id ? { id: Number(existingLink.id) } : { lantern_username: u.username };
+          var confirmMsg = 'Unlink Lantern account "' + u.username + '" from Behavior Logger "' + tmsId + '"?\n\nThis removes only this SSO mapping. Accounts and data stay intact.';
+          if (Number(existingLink.is_primary) === 1 && siblings.length > 0) {
+            var names = siblings.map(function(s){ return String(s.lantern_username || ''); }).filter(Boolean);
+            var replacement = window.prompt(
+              'This is the Primary SSO account. Enter the Lantern username that should become Primary after unlink:\n\n' + names.join('\n'),
+              names[0] || ''
+            );
+            if (replacement == null) return;
+            replacement = String(replacement || '').trim();
+            if (!replacement) {
+              showUsersMsg('Replacement Primary username is required.', 'err');
+              return;
+            }
+            payload.replacement_lantern_username = replacement;
+            confirmMsg = 'Unlink Primary "' + u.username + '" and make "' + replacement + '" Primary for Behavior Logger "' + tmsId + '"?';
+          }
+          if (!window.confirm(confirmMsg)) return;
+          unlinkBtn.disabled = true;
+          deleteAdminJson('/api/admin/tms-identity-links', payload).then(function(res){
+            if (res && res.blocked) return;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              showUsersMsg('Unlinked ' + u.username + ' from ' + tmsId + '.', 'ok');
+              loadTmsIdentityLinks();
+              loadTmsStaffDirectory();
+              return;
+            }
+            showUsersMsg(tmsLinkErrorMessage(res && res.body, res && res.status), 'err');
+          }).catch(function(){
+            showUsersMsg('Network error while unlinking.', 'err');
+          }).finally(function(){
+            unlinkBtn.disabled = false;
+          });
+        });
+        blActions.appendChild(unlinkBtn);
+        blPanel.appendChild(blActions);
       }
     }
 
+    function ensureStaffPowerList() {
+      var mount = document.getElementById('staffPowerListMount');
+      if (!mount || !window.LanternPowerList || !window.LanternStaffPowerList) return null;
+      if (staffPowerUi) return staffPowerUi;
+      var StaffPL = window.LanternStaffPowerList;
+      staffPowerUi = window.LanternPowerList.create({
+        mount: mount,
+        className: 'lanternPowerList--staff',
+        searchPlaceholder: 'Search staff…',
+        emptyMessage: 'No staff accounts match this filter.',
+        defaultSort: { key: 'name', dir: 'asc' },
+        columns: [
+          { key: 'name', label: 'Name', sortable: true },
+          { key: 'username', label: 'Username', sortable: true },
+          { key: 'role', label: 'Role', sortable: true },
+          { key: 'bl', label: 'Behavior Logger', sortable: true },
+          { key: 'status', label: 'Status', sortable: true }
+        ],
+        filters: [
+          {
+            id: 'status',
+            label: 'Status',
+            defaultValue: 'active',
+            options: [
+              { value: 'active', label: 'Active' },
+              { value: 'archived', label: 'Archived' },
+              { value: 'all', label: 'All statuses' }
+            ]
+          },
+          {
+            id: 'link',
+            label: 'Link',
+            defaultValue: 'all',
+            options: [
+              { value: 'all', label: 'All links' },
+              { value: 'linked', label: 'Linked' },
+              { value: 'needs_link', label: 'Needs Link' }
+            ]
+          },
+          {
+            id: 'role',
+            label: 'Role',
+            defaultValue: 'all',
+            options: [
+              { value: 'all', label: 'All roles' },
+              { value: 'teacher', label: 'Teacher' },
+              { value: 'admin', label: 'Admin' }
+            ]
+          }
+        ],
+        renderToolbarExtra: function(toolbar) {
+          var refresh = document.createElement('button');
+          refresh.type = 'button';
+          refresh.className = 'btn';
+          refresh.id = 'staffRosterRefreshBtn';
+          refresh.textContent = 'Refresh';
+          refresh.addEventListener('click', function(){
+            showUsersMsg('', '');
+            refreshStaffAccountSurfaces();
+          });
+          toolbar.appendChild(refresh);
+          var addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'btn good';
+          addBtn.id = 'staffAddOpenBtn';
+          addBtn.textContent = '+ Add Staff';
+          addBtn.addEventListener('click', function(){
+            openStaffAddPanel();
+          });
+          toolbar.appendChild(addBtn);
+        },
+        getRowId: function(item){ return item.id; },
+        getSortValue: StaffPL.getSortValue,
+        getSearchText: StaffPL.getSearchText,
+        matchFilter: StaffPL.matchFilter,
+        getCellHtml: StaffPL.getCellHtml,
+        getStatus: StaffPL.getStatus,
+        renderExpanded: function(item, detail) {
+          fillStaffExpandedDetail(item, detail);
+        }
+      });
+      return staffPowerUi;
+    }
+
+    function filteredStaffList() {
+      var ui = ensureStaffPowerList();
+      if (ui) return ui.getVisibleItems().map(function(it){ return it.user; });
+      return lastUsersList.filter(isStaffRole);
+    }
+
+    function renderStaffTable() {
+      var empty = document.getElementById('staffRosterEmpty');
+      closeEditUserPanel();
+      closeTempPwPanel();
+      closeAdminAvatarPanel();
+      var ui = ensureStaffPowerList();
+      if (!ui) return;
+      var items = buildStaffPowerItems();
+      ui.setItems(items);
+      var visible = ui.getVisibleItems();
+      if (empty) empty.style.display = visible.length ? 'none' : 'block';
+    }
     document.getElementById('addUserForm').addEventListener('submit', function(e){
       e.preventDefault();
       var firstName = document.getElementById('nu_first').value.trim();
@@ -2565,31 +2579,23 @@
       });
     }
 
-    var staffRosterSearch = document.getElementById('staffRosterSearch');
-    if (staffRosterSearch) staffRosterSearch.addEventListener('input', renderStaffTable);
-    var staffRosterFilter = document.getElementById('staffRosterFilter');
-    if (staffRosterFilter) staffRosterFilter.addEventListener('change', renderStaffTable);
-    var staffRosterRefreshBtn = document.getElementById('staffRosterRefreshBtn');
-    if (staffRosterRefreshBtn) staffRosterRefreshBtn.addEventListener('click', function(){ showUsersMsg('', ''); refreshStaffAccountSurfaces(); });
-    var staffAddOpenBtn = document.getElementById('staffAddOpenBtn');
-    if (staffAddOpenBtn) {
-      staffAddOpenBtn.addEventListener('click', function(){
-        closeEditUserPanel();
-        closeTempPwPanel();
-        var panel = document.getElementById('staffAddPanel');
-        if (!panel) return;
-        panel.hidden = false;
-        panel.style.display = 'block';
-        panel.setAttribute('aria-hidden', 'false');
-        var u = document.getElementById('nu_username');
-        if (u) u.focus();
-      });
+    function openStaffAddPanel() {
+      closeEditUserPanel();
+      closeTempPwPanel();
+      var panel = document.getElementById('staffAddPanel');
+      if (!panel) return;
+      panel.hidden = false;
+      panel.style.display = 'block';
+      panel.setAttribute('aria-hidden', 'false');
+      var u = document.getElementById('nu_username');
+      if (u) u.focus();
     }
+
     var staffAddCancelBtn = document.getElementById('staffAddCancelBtn');
     if (staffAddCancelBtn) {
       staffAddCancelBtn.addEventListener('click', function(){
         var panel = document.getElementById('staffAddPanel');
-        if (panel) { panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); }
+        if (panel) { panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); panel.hidden = true; }
       });
     }
 
