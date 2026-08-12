@@ -1645,7 +1645,12 @@
       if (mountWrap) mountWrap.style.display = t === 'profile_post' ? 'none' : 'block';
       if (sub){
         sub.style.display = 'inline-flex';
-        sub.textContent = t === 'poll' ? 'Submit poll for approval' : 'Submit for approval';
+        if (t === 'poll') {
+          var atPoll = resolveSessionAuthorType();
+          sub.textContent = (atPoll === 'student') ? 'Submit poll for approval' : 'Publish Poll';
+        } else {
+          sub.textContent = 'Submit for approval';
+        }
       }
       var bl = el('newsBodyLabel');
       if (bl) bl.textContent = t === 'shoutout' ? 'Message' : 'Description';
@@ -2280,8 +2285,10 @@
     el('submitNewsBtn').addEventListener('click', async function(){
       var ct = getContributeType();
       if (ct === 'poll'){
+        var authorTypePoll = resolveSessionAuthorType();
+        var isStaffPoll = authorTypePoll === 'teacher' || authorTypePoll === 'staff' || authorTypePoll === 'admin';
         var adPoll = getAdopted();
-        if (!adPoll || !adPoll.name){ toast('Pick a student in Locker → Overview first.'); return; }
+        if (!isStaffPoll && (!adPoll || !adPoll.name)){ toast('Pick a student in Locker → Overview first.'); return; }
         if (newsApiBase === null){ toast('API not configured.'); return; }
         var pq = (el('pollQuestion').value || '').trim();
         var pch = getPollChoices();
@@ -2302,7 +2309,9 @@
         btnP.disabled = true;
         var isResubmit = !!resubmitPollContribId;
         var url = isResubmit ? (newsApiBase + '/api/polls/resubmit') : (newsApiBase + '/api/polls/contribute');
-        var characterNameForApi = getCharacterNameForApi() || adPoll.name;
+        var characterNameForApi = isStaffPoll
+          ? String(resolveSessionAuthorName(authorTypePoll) || '').trim()
+          : (getCharacterNameForApi() || (adPoll && adPoll.name) || '');
         var body = {
           character_name: characterNameForApi,
           question: pq.slice(0, 500),
@@ -2316,6 +2325,7 @@
         if (isResubmit) body.id = resubmitPollContribId;
         var pres = await fetch(url, {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         }).then(function(r){
@@ -2329,9 +2339,12 @@
         }).catch(function(e){ return { ok: false, error: String(e && e.message || e) || 'Network error' }; });
         btnP.disabled = false;
         if (!pres || pres.ok === false){ toast((pres && pres.error) || 'Submit failed'); return; }
-        toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
+        var published = String(pres.status || '').toLowerCase() === 'approved';
+        toast(published ? 'Published!' : FERPA_STUDENT_SUBMIT_MESSAGE, published ? undefined : 5200);
         resubmitPollContribId = null;
-        if (btnP) btnP.textContent = 'Submit poll for approval';
+        if (btnP) {
+          btnP.textContent = isStaffPoll ? 'Publish Poll' : 'Submit poll for approval';
+        }
         resetContributeFormPartial();
         syncContributeTypeUI();
         return;

@@ -179,7 +179,7 @@ async function handlePollAndBugSideEffects(db, row, now) {
       try {
         await db
           .prepare(
-            'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, image_url, created_by_character, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
           )
           .bind(
             pollId,
@@ -187,6 +187,7 @@ async function handlePollAndBugSideEffects(db, row, now) {
             String(pollData.question).trim().slice(0, 500),
             choicesJson,
             pollImageUrl,
+            row.character_name || '',
             row.character_name || '',
             now,
             now
@@ -196,13 +197,14 @@ async function handlePollAndBugSideEffects(db, row, now) {
         try {
           await db
             .prepare(
-              'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+              'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, created_by_character, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             )
             .bind(
               pollId,
               row.id,
               String(pollData.question).trim().slice(0, 500),
               choicesJson,
+              row.character_name || '',
               row.character_name || '',
               now,
               now

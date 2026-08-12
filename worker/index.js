@@ -32,6 +32,11 @@ import {
   listContentPeople,
   publicPeopleForReview,
 } from './content-people.js';
+import {
+  finalizePollContributionPublish,
+  isPollPublisherRole,
+  parsePollChoices,
+} from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
@@ -6018,8 +6023,44 @@ async function handleApprovalsRoutes(request, url, path, env) {
     const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
-    if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
+    const approvalStatus = String(approval.status || '').trim().toLowerCase();
+    if (approvalStatus !== 'pending' && approvalStatus !== 'approved') {
+      return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
+    }
     const now = new Date().toISOString();
+    // Prompt #211 — for poll_contribution, finalize canonical poll BEFORE marking approval approved
+    // (and repair already-approved rows that never got a lantern_polls insert).
+    if (approval.item_type === 'poll_contribution') {
+      try {
+        const pc = await db.prepare(
+          'SELECT id, character_name, question, choices_json, image_url, fallback_key, status FROM lantern_poll_contributions WHERE id = ?'
+        ).bind(approval.item_id).first();
+        if (!pc) return jsonResponse({ ok: false, error: 'Contribution not found' }, 404, approvalsCors);
+        const pub = await finalizePollContributionPublish(db, origin, pc, {
+          now,
+          reviewedBy: staffName,
+        });
+        if (!pub.ok) {
+          return jsonResponse({ ok: false, error: pub.error || 'poll_publish_failed', detail: pub.detail || null }, 503, approvalsCors);
+        }
+        if (approvalStatus === 'pending') {
+          await db.prepare(
+            'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
+          ).bind('approved', now, staffId || null, staffName, null, id).run();
+        }
+        try {
+          if (pc.character_name) {
+            await ensureContentApprovedMissionCompletion(db, env, 'poll', pc.character_name, pc.id);
+          }
+        } catch (_) {}
+        return jsonResponse({ ok: true, id, status: 'approved', poll_id: pub.pollId }, 200, approvalsCors);
+      } catch (e) {
+        return jsonResponse({ ok: false, error: 'poll_publish_failed' }, 503, approvalsCors);
+      }
+    }
+    if (approvalStatus !== 'pending') {
+      return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
+    }
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
     ).bind('approved', now, staffId || null, staffName, null, id).run();
@@ -6057,52 +6098,6 @@ async function handleApprovalsRoutes(request, url, path, env) {
           'INSERT INTO lantern_avatar_profiles (character_name, current_avatar_key, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET current_avatar_key = ?, updated_at = ?'
         ).bind(row.character_name, row.image_key, now, row.image_key, now).run();
       }
-    } else if (approval.item_type === 'poll_contribution') {
-      try {
-        const pc = await db.prepare('SELECT id, character_name, question, choices_json, image_url, fallback_key, status FROM lantern_poll_contributions WHERE id = ?').bind(approval.item_id).first();
-        if (pc && (pc.status || '') === 'pending') {
-          let ch = [];
-          try { ch = JSON.parse(pc.choices_json || '[]'); } catch (_) {}
-          ch = (ch || []).map(c => String(c).trim().slice(0, 200)).filter(Boolean).slice(0, 5);
-          if (ch.length >= 2 && pc.question) {
-            const pollId = 'poll_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-            const choicesJson = JSON.stringify(ch);
-            let pollImageUrl = (pc.image_url && String(pc.image_url).trim().slice(0, 500)) || null;
-            if (!pollImageUrl && pc.fallback_key) {
-              const fk = ['poll', 'news', 'creation', 'generic', 'shoutout', 'explain'].includes(String(pc.fallback_key)) ? String(pc.fallback_key) : 'poll';
-              const DEF = { poll: 'default/default_poll.png', news: 'default/default_news.png', creation: 'default/default_creation.png', generic: 'default/default_generic_stem.png', shoutout: 'default/default_shoutout.png', explain: 'default/default_explain.png' };
-              pollImageUrl = origin + '/api/media/image?key=' + encodeURIComponent(DEF[fk] || DEF.poll);
-            }
-            const subId = 'contrib:' + pc.id;
-            try {
-              await db.prepare(
-                'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-              ).bind(pollId, subId, String(pc.question).trim().slice(0, 500), choicesJson, pollImageUrl, pc.character_name || '', now, now).run();
-            } catch (e2) {
-              // If the image_url column doesn't exist yet, fall back to the older insert shape.
-              // This lets the approve flow keep working while migrations are being rolled out.
-              try {
-                await db.prepare(
-                  'INSERT INTO lantern_polls (id, mission_submission_id, question, choices_json, character_name, created_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-                ).bind(pollId, subId, String(pc.question).trim().slice(0, 500), choicesJson, pc.character_name || '', now, now).run();
-              } catch (e3) {
-                return jsonResponse({ ok: false, error: 'Poll image persistence requires DB migration 034 (add image_url to lantern_polls)' }, 503, approvalsCors);
-              }
-            }
-            await db.prepare(
-              'UPDATE lantern_poll_contributions SET status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
-            ).bind('approved', now, staffName, pc.id).run();
-            try {
-              await copyContentPeople(db, 'poll_contribution', pc.id, 'poll', pollId, staffName);
-            } catch (_) {}
-            try {
-              if (pc.character_name) {
-                await ensureContentApprovedMissionCompletion(db, env, 'poll', pc.character_name, pc.id);
-              }
-            } catch (_) {}
-          }
-        }
-      } catch (e) { /* table missing until migration */ }
     }
     return jsonResponse({ ok: true, id, status: 'approved' }, 200, approvalsCors);
   }
@@ -6251,14 +6246,31 @@ async function handlePollsRoutes(request, url, path, env, cors) {
   if (request.method === 'POST' && path === '/api/polls/contribute') {
     let body;
     try { body = JSON.parse(await request.text() || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const characterName = (body.character_name || '').trim();
+    // Prompt #211 — session identity/role is authoritative (mirror news/create).
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+    }
+    const sessionRole = String(account.role || '').trim().toLowerCase();
+    const staffPublisher = isPollPublisherRole(sessionRole);
+    const clientClaim = String(body.author_type || body.role || '').trim().toLowerCase();
+    if (clientClaim && isPollPublisherRole(clientClaim) && !staffPublisher) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
+    let characterName = '';
+    if (staffPublisher) {
+      characterName = String(account.display_name || account.username || '').trim();
+      if (!characterName) characterName = String(account.username || '').trim();
+    } else {
+      characterName = pilotEconomyCharacterName(account) || String(account.student_character_name || account.username || '').trim();
+    }
+    if (!characterName) return jsonResponse({ ok: false, error: 'character_name required' }, 400, cors);
     const question = (body.question || '').trim().slice(0, 500);
-    let choices = Array.isArray(body.choices) ? body.choices.map(c => String(c).trim().slice(0, 200)).filter(Boolean) : [];
-    choices = choices.slice(0, 5);
+    let choices = parsePollChoices(body.choices);
     const imageUrl = (body.image_url || '').trim().slice(0, 500) || null;
     const fallbackKeyRaw = (body.fallback_key || '').trim();
     const ALLOWED_FB = ['poll', 'news', 'creation', 'generic', 'shoutout', 'explain'];
-    if (!characterName) return jsonResponse({ ok: false, error: 'character_name required' }, 400, cors);
     if (!question) return jsonResponse({ ok: false, error: 'question required' }, 400, cors);
     if (choices.length < 2 || choices.length > 5) return jsonResponse({ ok: false, error: 'Provide 2–5 answer choices' }, 400, cors);
     // Prompt #186 — canonical Poll fallback when no image; do not require style picker.
@@ -6268,22 +6280,72 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     const peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: false });
     if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
     const contribId = 'pcontrib_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-    const approvalId = 'appr_poll_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     const now = new Date().toISOString();
     const choicesJson = JSON.stringify(choices);
     const fb = fallbackResolved;
+    const contribStatus = staffPublisher ? 'approved' : 'pending';
     try {
       await db.prepare(
-        'INSERT INTO lantern_poll_contributions (id, character_name, question, choices_json, image_url, fallback_key, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).bind(contribId, characterName, question, choicesJson, imageUrl, fb, 'pending', now).run();
+        'INSERT INTO lantern_poll_contributions (id, character_name, question, choices_json, image_url, fallback_key, status, created_at, reviewed_at, reviewed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(
+        contribId,
+        characterName,
+        question,
+        choicesJson,
+        imageUrl,
+        fb,
+        contribStatus,
+        now,
+        staffPublisher ? now : null,
+        staffPublisher ? (characterName || 'Teacher') : null
+      ).run();
     } catch (e) {
-      return jsonResponse({ ok: false, error: 'Poll submissions require DB migration 029 (lantern_poll_contributions)' }, 503, cors);
+      // Older schemas may lack reviewed_* on insert — fall back without them.
+      try {
+        await db.prepare(
+          'INSERT INTO lantern_poll_contributions (id, character_name, question, choices_json, image_url, fallback_key, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(contribId, characterName, question, choicesJson, imageUrl, fb, contribStatus, now).run();
+      } catch (e2) {
+        return jsonResponse({ ok: false, error: 'Poll submissions require DB migration 029 (lantern_poll_contributions)' }, 503, cors);
+      }
     }
     try {
-      await replaceContentPeople(db, 'poll_contribution', contribId, peopleNorm.people, characterName);
+      await replaceContentPeople(db, 'poll_contribution', contribId, peopleNorm.people, account.username || characterName);
     } catch (_) {
       return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
     }
+    if (staffPublisher) {
+      const pc = {
+        id: contribId,
+        character_name: characterName,
+        question,
+        choices_json: choicesJson,
+        image_url: imageUrl,
+        fallback_key: fb,
+        status: 'approved',
+      };
+      const pub = await finalizePollContributionPublish(db, origin, pc, {
+        now,
+        reviewedBy: characterName || 'Teacher',
+      });
+      if (!pub.ok) {
+        return jsonResponse({ ok: false, error: pub.error || 'poll_publish_failed', detail: pub.detail || null }, 503, cors);
+      }
+      try {
+        await awardAchievementsForPollContribute(db, characterName, contribId);
+      } catch (_) {}
+      try {
+        await ensureContentApprovedMissionCompletion(db, env, 'poll', characterName, contribId);
+      } catch (_) {}
+      return jsonResponse({
+        ok: true,
+        id: contribId,
+        poll_id: pub.pollId,
+        status: 'approved',
+        message: 'Published.',
+      }, 200, cors);
+    }
+    const approvalId = 'appr_poll_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     await db.prepare(
       'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(approvalId, 'poll_contribution', contribId, 'pending', characterName, characterName, null, now).run();
