@@ -49,9 +49,9 @@ assert(/font-family:\s*var\(--lantern-card-overlay-font\)/.test(mob), '15. mobil
 assert(/padding-right:\s*44px/.test(mob), '16. mobile flag clearance preserved');
 
 assert(/\/css\/\*/.test(headers) && /Cache-Control:\s*no-cache/.test(headers), '17. CSS revalidate in _headers');
-assert(/lantern-cards\.css\?v=20260812-cardoverlay7/.test(explore), '18. Explore cache-busts card CSS');
-assert(/lantern-cards\.css\?v=20260812-cardoverlay7/.test(contribute), '19. Create cache-busts card CSS');
-assert(/lantern-cards\.css\?v=20260812-cardoverlay7/.test(locker), '20. My Lantern cache-busts card CSS');
+assert(/lantern-cards\.css\?v=20260812-openedmodal9/.test(explore), '18. Explore cache-busts card CSS');
+assert(/lantern-cards\.css\?v=20260812-openedmodal9/.test(contribute), '19. Create cache-busts card CSS');
+assert(/lantern-cards\.css\?v=20260812-openedmodal9/.test(locker), '20. My Lantern cache-busts card CSS');
 
 const sandbox = {
   console,

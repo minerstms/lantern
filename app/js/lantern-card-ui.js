@@ -18,6 +18,38 @@
   var escapeWired = false;
   var mediaFsOverlay = null;
 
+  /** Prompt #9 — freeze page scroll while opened-detail dialog is shown (prevents jump/zoom feel). */
+  function lockPageScrollForDetail() {
+    var body = global.document && global.document.body;
+    var html = global.document && global.document.documentElement;
+    if (!body || body.dataset.lanternDetailScrollLock === '1') return;
+    body.dataset.lanternDetailScrollLock = '1';
+    body.dataset.lanternDetailScrollY = String(global.scrollY || (html && html.scrollTop) || 0);
+    body.style.overflow = 'hidden';
+    if (html) html.style.overflow = 'hidden';
+  }
+
+  function unlockPageScrollForDetail() {
+    var body = global.document && global.document.body;
+    var html = global.document && global.document.documentElement;
+    if (!body || body.dataset.lanternDetailScrollLock !== '1') return;
+    var y = parseInt(body.dataset.lanternDetailScrollY || '0', 10) || 0;
+    delete body.dataset.lanternDetailScrollLock;
+    delete body.dataset.lanternDetailScrollY;
+    body.style.overflow = '';
+    if (html) html.style.overflow = '';
+    try {
+      global.scrollTo(0, y);
+    } catch (eScroll) {}
+  }
+
+  function showDetailOverlay(el) {
+    if (!el) return;
+    el.classList.add('show');
+    el.setAttribute('aria-hidden', 'false');
+    lockPageScrollForDetail();
+  }
+
   function closeMediaFullscreen() {
     if (!mediaFsOverlay || !mediaFsOverlay.parentNode) {
       mediaFsOverlay = null;
@@ -213,6 +245,7 @@
     if (!overlay) return;
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
+    unlockPageScrollForDetail();
     var rx = global.document.getElementById('lanternCardDetailReactions');
     if (rx) rx.innerHTML = '';
     var ex = global.document.getElementById('lanternCardDetailProfileExtras');
@@ -869,8 +902,7 @@
     var modal = el.querySelector('.lanternCardDetailModal');
     if (!modal) return;
     fillCreationDetailModal(modal, p, opts);
-    el.classList.add('show');
-    el.setAttribute('aria-hidden', 'false');
+    showDetailOverlay(el);
   }
 
   /** Same strings as explore.html getAuthorLabel — meta line must match production news items. */
@@ -1109,8 +1141,7 @@
     var modal = el.querySelector('.lanternCardDetailModal');
     if (!modal) return;
     fillNewsDetailModal(modal, n, opts);
-    el.classList.add('show');
-    el.setAttribute('aria-hidden', 'false');
+    showDetailOverlay(el);
   }
 
   /** Contribute / embedded: same opened-news DOM as Explore modal, without overlay shell. */
@@ -1750,8 +1781,7 @@
       admPoll.style.display = 'none';
       admPoll.setAttribute('aria-hidden', 'true');
     }
-    el.classList.add('show');
-    el.setAttribute('aria-hidden', 'false');
+    showDetailOverlay(el);
 
     if (apiBase === null) {
       fillPollDetailModal(modal, { pollId: pollId, apiBase: '', characterName: characterName, fetchRes: { ok: false, error: 'no_api' } });
@@ -1785,8 +1815,7 @@
       admTxt.style.display = 'none';
       admTxt.setAttribute('aria-hidden', 'true');
     }
-    el.classList.add('show');
-    el.setAttribute('aria-hidden', 'false');
+    showDetailOverlay(el);
   }
 
   var reportOverlay = null;
@@ -2103,8 +2132,7 @@
     var modal = el.querySelector('.lanternCardDetailModal');
     if (!modal) return;
     fillFeedItemDetailModal(modal, item, opts);
-    el.classList.add('show');
-    el.setAttribute('aria-hidden', 'false');
+    showDetailOverlay(el);
     var lastCard = opts.triggerEl || null;
     el._lanternFeedTriggerEl = lastCard;
     var closeBtn = el.querySelector('.lanternCardDetailClose');
