@@ -4,9 +4,14 @@
 # avatarApiBase truthiness check, or a stale click handler) until the user hard-reloads.
 # Assets are not fingerprinted in this build, so we always revalidate instead of
 # relying on cache-busting filenames.
+# Prompt #6: also revalidate shared card CSS — phones were keeping pre-MetaGrid
+# lantern-cards.css and collapsing the canonical 3-row overlay.
 
 /*.html
   Cache-Control: no-cache
 
 /js/*.js
+  Cache-Control: no-cache
+
+/css/*
   Cache-Control: no-cache

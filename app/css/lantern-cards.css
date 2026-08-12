@@ -270,6 +270,107 @@
   flex-shrink: 0;
   opacity: .75;
 }
+/*
+ * Prompt #6 — phone viewports must keep the same 3-row MetaGrid anatomy as desktop.
+ * Root causes addressed:
+ * 1) overlay max-height:38% was at the clipping edge (~60px); iOS text inflation / metric
+ *    variance clipped Row 3 (and sometimes the spanning avatar), reading as a 2-line card.
+ * 2) CSS for MetaGrid could stay stale on phones (_headers previously skipped /css), so
+ *    identity-chip sat outside .lanternCanonicalCardMeta and lost sized chip rules → tiny
+ *    fallback glyph (⭐/🌟) beside a single nowrap meta band that looked “merged.”
+ * Desktop geometry tokens stay at :root defaults; only narrow viewports override.
+ */
+@media (max-width: 480px) {
+  :root {
+    --lantern-card-overlay-avatar-size: 32px;
+  }
+  .lanternCanonicalCardOverlay {
+    max-height: 50%;
+    overflow: hidden;
+  }
+  .lanternCanonicalCardCaption {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    gap: 1px;
+    padding: 0 10px 4px 6px;
+    padding-right: 44px;
+    overflow: hidden;
+  }
+  .lanternCanonicalCardTitle {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-family: var(--lantern-card-overlay-font);
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.05;
+    max-height: 1.05em;
+  }
+  .lanternCanonicalCardMetaGrid {
+    display: grid !important;
+    grid-template-columns: var(--lantern-card-overlay-avatar-size, 32px) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 6px;
+    row-gap: 0;
+    align-items: center;
+    min-width: 0;
+    width: 100%;
+  }
+  .lanternCanonicalCardMetaGrid--noAvatar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lanternCanonicalCardMetaGrid > .identity-chip {
+    display: inline-flex !important;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+    justify-self: start;
+    width: var(--lantern-card-overlay-avatar-size, 32px);
+    height: var(--lantern-card-overlay-avatar-size, 32px);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+  .lanternCanonicalCardMetaGrid > .identity-chip .exploreCardAvatarImg {
+    display: block !important;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 50%;
+  }
+  .lanternCanonicalCardMetaGrid > .lanternCanonicalCardMetaRow {
+    display: flex !important;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    width: auto;
+    overflow: hidden;
+  }
+  .lanternCanonicalCardMetaGrid > .lanternCanonicalCardDescRow {
+    display: block !important;
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    width: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lanternCanonicalCardMeta,
+  .lanternCanonicalCardMetaRow,
+  .lanternCanonicalCardDesc,
+  .lanternCanonicalCardDescRow {
+    font-family: var(--lantern-card-overlay-font);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.05;
+  }
+}
 .lanternCanonicalCardBadgeLayer {
   position: absolute;
   top: 8px;
