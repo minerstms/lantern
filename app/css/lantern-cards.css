@@ -8,6 +8,9 @@
  * No row-specific card width, media min-height, or scroller gap/padding on those pages.
  */
 
+/* Prompt #5 — Barlow Condensed for canonical 3-row overlay (weights actually used). */
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap");
+
 :root{
   /* Contract v2 — fixed 280px 16:9 landscape compact faces */
   --lantern-card-width: 280px;
@@ -37,8 +40,10 @@
   --lantern-card-identity-initials-size: calc(var(--lantern-card-identity-avatar-size) * 0.47);
   /* Prompt #217 — shared author-avatar size for top ticker + card LLHC metadata chip */
   --lantern-content-author-avatar-size: 28px;
-  /* Prompt #225/#4 — Explore/Create overlay portrait spanning Rows 2+3 (compact bottom-third stack) */
-  --lantern-card-overlay-avatar-size: 40px;
+  /* Prompt #225/#4/#5 — compact LLHC portrait spanning Rows 2+3 */
+  --lantern-card-overlay-avatar-size: 36px;
+  /* Prompt #5 — one family for all three overlay text rows */
+  --lantern-card-overlay-font: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
 }
 
 /* ===== CONTRACT V2 — ONE COMPACT PRODUCTION CARD FACE ===== */
@@ -90,8 +95,8 @@
   right: 0;
   bottom: 0;
   z-index: 2;
-  /* Prompt #4 — keep three-row stack in roughly the lower third (was 58% / half-card feel) */
-  max-height: 42%;
+  /* Prompt #5 — three-row stack in roughly the lower third */
+  max-height: 38%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -103,33 +108,36 @@
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.9) 0%,
-    rgba(0, 0, 0, 0.58) 28%,
-    rgba(0, 0, 0, 0.16) 55%,
-    rgba(0, 0, 0, 0) 78%
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.55) 26%,
+    rgba(0, 0, 0, 0.14) 52%,
+    rgba(0, 0, 0, 0) 72%
   );
   pointer-events: none;
 }
 .lanternCanonicalCardCaption {
   position: relative;
   z-index: 1;
-  /* Prompt #4 — tighter nestle; still clear of border + LRHC flag */
-  padding: 0 12px 6px 8px;
+  /* Prompt #5 — tight nestle; flag clearance preserved */
+  padding: 0 10px 4px 6px;
   padding-right: 44px;
   box-sizing: border-box;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   align-items: stretch;
+  font-family: var(--lantern-card-overlay-font);
 }
 .lanternCanonicalCardTitle {
   margin: 0;
   color: #fff;
+  font-family: var(--lantern-card-overlay-font);
   font-size: 18px;
-  font-weight: 900;
-  line-height: 1.12;
-  max-height: 1.12em;
+  font-weight: 700;
+  line-height: 1.05;
+  max-height: 1.05em;
+  letter-spacing: 0.01em;
   text-shadow: 0 2px 8px rgba(0,0,0,.85);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -138,13 +146,13 @@
   overflow: hidden;
   word-break: break-word;
 }
-/* Prompt #225/#4 — Rows 2+3: one avatar column spanning both text rows */
+/* Prompt #225/#5 — Rows 2+3: one avatar column spanning both text rows */
 .lanternCanonicalCardMetaGrid {
   display: grid;
-  grid-template-columns: var(--lantern-card-overlay-avatar-size, 40px) minmax(0, 1fr);
+  grid-template-columns: var(--lantern-card-overlay-avatar-size, 36px) minmax(0, 1fr);
   grid-template-rows: auto auto;
   column-gap: 6px;
-  row-gap: 1px;
+  row-gap: 0;
   align-items: center;
   min-width: 0;
   width: 100%;
@@ -161,8 +169,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--lantern-card-overlay-avatar-size, 40px);
-  height: var(--lantern-card-overlay-avatar-size, 40px);
+  width: var(--lantern-card-overlay-avatar-size, 36px);
+  height: var(--lantern-card-overlay-avatar-size, 36px);
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -198,15 +206,16 @@
 .lanternCanonicalCardMetaRow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-top: 0;
   color: rgba(255,255,255,.92);
+  font-family: var(--lantern-card-overlay-font);
   font-size: 13px;
-  font-weight: 700;
-  line-height: 1.15;
+  font-weight: 600;
+  line-height: 1.05;
   white-space: nowrap;
-  overflow-x: hidden;
-  overflow-y: visible;
+  /* Prompt #5 — never mix overflow-x:hidden + overflow-y:visible (browsers force auto → ▲/▼ scroll buttons) */
+  overflow: hidden;
   text-shadow: 0 1px 6px rgba(0,0,0,.85);
   min-width: 0;
   width: 100%;
@@ -249,9 +258,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-family: var(--lantern-card-overlay-font);
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.05;
   color: rgba(255,255,255,.9);
   opacity: .95;
   text-shadow: 0 1px 6px rgba(0,0,0,.85);

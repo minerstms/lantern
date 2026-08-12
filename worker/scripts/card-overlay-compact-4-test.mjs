@@ -1,5 +1,5 @@
 /**
- * Prompt #4 — compact canonical card overlay (~bottom third), avatar 40px, 3 rows preserved.
+ * Prompt #4/#5 — compact canonical card overlay (~bottom third), avatar ~36px, 3 rows preserved.
  * Usage: node worker/scripts/card-overlay-compact-4-test.mjs
  */
 import fs from 'node:fs';
@@ -37,29 +37,30 @@ function cssBlock(selector) {
   return m ? m[1] : '';
 }
 
-assert(/--lantern-card-overlay-avatar-size:\s*40px/.test(cardsCss), '1. avatar token 40px');
+assert(/--lantern-card-overlay-avatar-size:\s*36px/.test(cardsCss), '1. avatar token 36px');
 assert(!/--lantern-card-overlay-avatar-size:\s*44px/.test(cardsCss), '2. prior 44px removed');
 assert(/grid-row:\s*1\s*\/\s*span\s*2/.test(cardsCss), '3. avatar still spans Rows 2+3');
 
 const overlay = cssBlock('.lanternCanonicalCardOverlay');
-assert(/max-height:\s*42%/.test(overlay), '4. overlay max-height 42%');
+assert(/max-height:\s*38%/.test(overlay), '4. overlay max-height 38%');
 assert(/justify-content:\s*flex-end/.test(overlay), '5. overlay bottom-anchored');
 
 const caption = cssBlock('.lanternCanonicalCardCaption');
-assert(/gap:\s*2px/.test(caption), '6. caption gap 2px');
-assert(/padding:\s*0\s+12px\s+6px\s+8px/.test(caption) || /6px/.test(caption), '7. bottom padding reduced');
+assert(/gap:\s*1px/.test(caption), '6. caption gap 1px');
+assert(/padding:\s*0\s+10px\s+4px\s+6px/.test(caption) || /4px/.test(caption), '7. bottom padding reduced');
 assert(/padding-right:\s*44px/.test(caption), '8. flag clearance preserved');
 
 const title = cssBlock('.lanternCanonicalCardTitle');
-assert(/font-size:\s*18px/.test(title), '9. title font-size unchanged');
-assert(/font-weight:\s*900/.test(title), '10. title weight unchanged');
+assert(/font-size:\s*18px/.test(title), '9. title font-size preserved');
+assert(/font-weight:\s*700/.test(title), '10. title weight Barlow 700');
+assert(/Barlow Condensed/.test(cardsCss), '10b. Barlow Condensed loaded');
 
 const meta = cssBlock('.lanternCanonicalCardMetaRow') || cssBlock('.lanternCanonicalCardMeta');
 assert(/font-size:\s*13px/.test(cardsCss), '11. meta font-size 13px preserved');
-assert(/font-size:\s*12px/.test(cardsCss) && /lanternCanonicalCardDesc/.test(cardsCss), '12. desc font-size 12px preserved');
+assert(/font-size:\s*13px/.test(cardsCss) && /lanternCanonicalCardDesc/.test(cardsCss), '12. desc font-size matches Row 2 (13px)');
 
 const grid = cssBlock('.lanternCanonicalCardMetaGrid');
-assert(/row-gap:\s*1px/.test(grid), '13. meta grid row-gap tightened');
+assert(/row-gap:\s*0/.test(grid), '13. meta grid row-gap tightened');
 assert(/column-gap:\s*6px/.test(grid), '14. meta grid column-gap tightened');
 
 assert(/lanternCanonicalCardTypeBadge/.test(cardsCss), '15. ULHC type badge CSS present');
