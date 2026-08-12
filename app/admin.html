@@ -290,6 +290,9 @@
         <option value="Ms.">Ms.</option>
         <option value="Mrs.">Mrs.</option>
       </select>
+      <label for="editUserPublicDisplay">Public Display Name</label>
+      <input id="editUserPublicDisplay" type="text" maxlength="80" autocomplete="off" placeholder="Mr. Tom" />
+      <p class="acctPanelHint">Optional. If blank, Lantern uses Honorific + Last Name.</p>
       <label for="editUserEmail">School email</label>
       <input id="editUserEmail" type="email" maxlength="120" autocomplete="off" placeholder="first.last@trinidad.k12.co.us" />
       <label for="editUserRole">Role</label>
@@ -422,6 +425,9 @@
           <option value="Ms.">Ms.</option>
           <option value="Mrs.">Mrs.</option>
         </select>
+        <label for="nu_public_display">Public Display Name (optional)</label>
+        <input id="nu_public_display" type="text" maxlength="80" autocomplete="off" placeholder="Mr. Tom" />
+        <p class="acctPanelHint">If blank, Lantern uses Honorific + Last Name.</p>
         <label for="nu_username">Login username</label>
         <input id="nu_username" type="text" required autocomplete="off" />
         <label for="nu_email">School email (optional)</label>
@@ -1912,6 +1918,7 @@
       var fnInput = document.getElementById('editUserFirstName');
       var lnInput = document.getElementById('editUserLastName');
       var honSel = document.getElementById('editUserHonorific');
+      var pdnInput = document.getElementById('editUserPublicDisplay');
       var emailInput = document.getElementById('editUserEmail');
       var mcpSel = document.getElementById('editUserMustChangePw');
       if (disp) disp.textContent = 'Login username: ' + user + ' (unchanged)';
@@ -1931,6 +1938,7 @@
         var hv = u.honorific != null ? String(u.honorific).trim() : '';
         honSel.value = STAFF_HONORIFICS[hv] ? hv : '';
       }
+      if (pdnInput) pdnInput.value = u.public_display_name != null ? String(u.public_display_name).trim() : '';
       if (emailInput) emailInput.value = u.email != null ? String(u.email).trim() : '';
       if (roleSel) {
         var rv = String(u.role || 'teacher').trim().toLowerCase();
@@ -1968,6 +1976,7 @@
       var firstName = (document.getElementById('editUserFirstName').value || '').trim();
       var lastName = (document.getElementById('editUserLastName').value || '').trim();
       var honorific = (document.getElementById('editUserHonorific') && document.getElementById('editUserHonorific').value || '').trim();
+      var publicDisplay = (document.getElementById('editUserPublicDisplay') && document.getElementById('editUserPublicDisplay').value || '').trim();
       var email = (document.getElementById('editUserEmail') && document.getElementById('editUserEmail').value || '').trim();
       var role = (document.getElementById('editUserRole').value || 'teacher').trim();
       var act = parseInt(document.getElementById('editUserActive').value, 10) ? 1 : 0;
@@ -1991,6 +2000,10 @@
         showUsersMsg('Honorific must be Mr., Miss, Ms., or Mrs.', 'err');
         return;
       }
+      if (publicDisplay.length > 80) {
+        showUsersMsg('Public Display Name must be 80 characters or fewer.', 'err');
+        return;
+      }
       var saveBtn = document.getElementById('editUserSave');
       var cancelBtn = document.getElementById('editUserCancel');
       if (saveBtn) saveBtn.disabled = true;
@@ -2000,6 +2013,7 @@
         first_name: firstName,
         last_name: lastName,
         honorific: honorific || null,
+        public_display_name: publicDisplay || null,
         email: email,
         role: role,
         is_active: act,
@@ -2208,6 +2222,7 @@
         var blClass = behaviorLoggerLinkClass(u);
         var existingLink = linkForLanternUsername(u.username);
         var honLabel = (u.honorific != null && String(u.honorific).trim()) ? String(u.honorific).trim() : 'Honorific not set';
+        var pdnLabel = (u.public_display_name != null && String(u.public_display_name).trim()) ? String(u.public_display_name).trim() : '';
         rec.innerHTML =
           '<summary class="lanternMgmtRecordHd">' +
             '<span class="lanternMgmtRecordCol lanternMgmtRecordCol--staffId">' + esc(formatStaffIdLabel(u.staff_id)) + '</span>' +
@@ -2225,6 +2240,7 @@
               (needsName ? ' · Needs Name Setup' : '') +
               (needsTitle ? ' · Needs Title' : '') +
               ' · Honorific: ' + esc(honLabel) +
+              (pdnLabel ? ' · Public display: ' + esc(pdnLabel) : '') +
               (u.display_name && needsName ? ' · Current display: ' + esc(String(u.display_name)) : '') +
             '</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
@@ -2483,6 +2499,11 @@
         showUsersMsg('Honorific is required (Mr., Miss, Ms., or Mrs.).', 'err');
         return;
       }
+      var publicDisplay = (document.getElementById('nu_public_display') && document.getElementById('nu_public_display').value || '').trim();
+      if (publicDisplay.length > 80) {
+        showUsersMsg('Public Display Name must be 80 characters or fewer.', 'err');
+        return;
+      }
       var role = document.getElementById('nu_role').value;
       if (!isStaffRole(role)) {
         showUsersMsg('Staff only creates teacher or admin accounts.', 'err');
@@ -2495,6 +2516,7 @@
         honorific: honorific,
         role: role
       };
+      if (publicDisplay) body.public_display_name = publicDisplay;
       var email = (document.getElementById('nu_email') && document.getElementById('nu_email').value || '').trim();
       if (email) body.email = email;
       var tid = document.getElementById('nu_teacher_id').value.trim();

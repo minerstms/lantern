@@ -1460,6 +1460,8 @@
       }
       try {
         var me = window.LANTERN_PILOT_ME;
+        // Prompt #223 — content author preview uses public staff label; session header still uses display_name.
+        if (me && me.public_staff_label) return String(me.public_staff_label).trim();
         if (me && me.display_name) return String(me.display_name).trim();
         if (me && me.username) return String(me.username).trim();
       } catch (e2) {}

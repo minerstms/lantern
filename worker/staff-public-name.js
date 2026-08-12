@@ -1,9 +1,11 @@
 /**
- * Prompt #220 — Staff public name = Honorific + Last Name (presentation only).
- * Students remain First L. Free-text recognition unchanged.
+ * Prompt #220/#223 — Staff public names (presentation only).
+ * Priority: public_display_name override → Honorific + Last → safe full name.
+ * Students remain First L. Free-text recognition unchanged. Web Admin stays Web Admin.
  */
 
 export const STAFF_HONORIFICS = Object.freeze(['Mr.', 'Miss', 'Ms.', 'Mrs.']);
+export const PUBLIC_DISPLAY_NAME_MAX_LEN = 80;
 
 function trimStr(v) {
   return v == null ? '' : String(v).trim();
@@ -16,7 +18,7 @@ function lower(v) {
 /**
  * @param {unknown} raw
  * @param {{ required?: boolean }} [opts]
- * @returns {{ ok: true, value: string|null } | { ok: false, error: string }}
+ * @returns {{ ok: true, value: string|null } | { ok: false, error: string, max?: number }}
  */
 export function validateStaffHonorific(raw, opts) {
   const required = !!(opts && opts.required);
@@ -31,6 +33,23 @@ export function validateStaffHonorific(raw, opts) {
   return { ok: true, value };
 }
 
+/**
+ * Optional public display override (exact string; not auto-prefixed with honorific).
+ * Empty → null (use Honorific + Last fallback).
+ */
+export function validateStaffPublicDisplayName(raw) {
+  if (raw == null || raw === undefined) return { ok: true, value: null };
+  const value = String(raw).trim();
+  if (!value) return { ok: true, value: null };
+  if (value.length > PUBLIC_DISPLAY_NAME_MAX_LEN) {
+    return { ok: false, error: 'public_display_name_too_long', max: PUBLIC_DISPLAY_NAME_MAX_LEN };
+  }
+  if (/[\x00-\x1F\x7F]/.test(value)) {
+    return { ok: false, error: 'public_display_name_invalid_chars' };
+  }
+  return { ok: true, value };
+}
+
 export function isSystemWebAdminAccount(row) {
   if (!row) return false;
   const u = lower(row.username);
@@ -41,13 +60,16 @@ export function isSystemWebAdminAccount(row) {
 
 /**
  * Public-facing staff label for student/community surfaces.
- * - Web Admin system account → "Web Admin"
- * - honorific + last_name → "Mr. Radle"
- * - missing honorific → safe full display_name / first+last (no guessing)
+ * 1) public_display_name (exact)
+ * 2) honorific + last_name
+ * 3) safe full display_name / first+last
+ * Web Admin system account → "Web Admin" (session/account identity)
  */
 export function formatPublicStaffName(row) {
   if (!row) return '';
   if (isSystemWebAdminAccount(row)) return 'Web Admin';
+  const override = trimStr(row.public_display_name);
+  if (override) return override;
   const honorific = trimStr(row.honorific);
   const last = trimStr(row.last_name);
   if (honorific && STAFF_HONORIFICS.indexOf(honorific) >= 0 && last) {
@@ -87,25 +109,35 @@ export async function loadStaffPublicNameIndex(db) {
   try {
     const res = await db
       .prepare(
-        `SELECT username, display_name, first_name, last_name, honorific, role, staff_id
+        `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, staff_id
          FROM lantern_pilot_accounts
          WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
       )
       .all();
     return buildStaffPublicNameIndex(res.results || []);
   } catch (_) {
-    // Column may be missing pre-migration — fall back without honorific.
     try {
       const res = await db
         .prepare(
-          `SELECT username, display_name, first_name, last_name, role, staff_id
+          `SELECT username, display_name, first_name, last_name, honorific, role, staff_id
            FROM lantern_pilot_accounts
            WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
         )
         .all();
       return buildStaffPublicNameIndex(res.results || []);
     } catch (e2) {
-      return buildStaffPublicNameIndex([]);
+      try {
+        const res = await db
+          .prepare(
+            `SELECT username, display_name, first_name, last_name, role, staff_id
+             FROM lantern_pilot_accounts
+             WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
+          )
+          .all();
+        return buildStaffPublicNameIndex(res.results || []);
+      } catch (e3) {
+        return buildStaffPublicNameIndex([]);
+      }
     }
   }
 }
@@ -113,7 +145,7 @@ export async function loadStaffPublicNameIndex(db) {
 /**
  * Resolve public author label for a feed/news item.
  * Students: return '' so client applies First L. compact formatter.
- * Staff: return honorific format or safe full name.
+ * Staff: return public override / honorific format / safe full name.
  */
 export function resolveAuthorPublicLabel(index, fields) {
   const idx = index || buildStaffPublicNameIndex([]);
@@ -121,15 +153,8 @@ export function resolveAuthorPublicLabel(index, fields) {
   const authorId = trimStr(fields && (fields.authorId || fields.author_id || fields.actor_id));
   const display = trimStr(fields && (fields.authorDisplayName || fields.author_display_name || fields.author_name));
 
-  if (role === 'student' || (!role && !authorId && display)) {
-    // If we can map authorId to a staff account, treat as staff; else student compact on client.
-  }
-
   let row = null;
   if (authorId && idx.byUsername[lower(authorId)]) row = idx.byUsername[lower(authorId)];
-  if (!row && display) {
-    // Prefer username match only — do not fuzzy-match display strings across accounts.
-  }
 
   if (row) {
     const rRole = lower(row.role);
@@ -138,7 +163,6 @@ export function resolveAuthorPublicLabel(index, fields) {
   }
 
   if (role === 'teacher' || role === 'admin' || role === 'staff') {
-    // Staff content without resolvable pilot row — keep full display name (not First L.).
     return display || '';
   }
   return '';
@@ -155,13 +179,15 @@ export function attachAuthorPublicLabels(items, index) {
 }
 
 /**
- * After honorific save, copy to sibling Lantern accounts sharing the same TMS staff id.
+ * After person-level field save, copy to sibling Lantern accounts sharing the same TMS staff id.
+ * @param {'honorific'|'public_display_name'} column
  */
-export async function propagateHonorificToLinkedAccounts(db, username, honorific) {
+export async function propagateStaffPublicFieldToLinkedAccounts(db, username, column, valueRaw) {
   if (!db) return;
   const u = trimStr(username);
   if (!u) return;
-  const value = honorific == null || honorific === '' ? null : trimStr(honorific);
+  if (column !== 'honorific' && column !== 'public_display_name') return;
+  const value = valueRaw == null || valueRaw === '' ? null : trimStr(valueRaw);
   try {
     const link = await db
       .prepare(
@@ -172,23 +198,30 @@ export async function propagateHonorificToLinkedAccounts(db, username, honorific
     const tms = link && link.tms_staff_id != null ? trimStr(link.tms_staff_id) : '';
     if (!tms) return;
     const siblings = await db
-      .prepare(
-        `SELECT lantern_username FROM tms_identity_links WHERE trim(tms_staff_id) = trim(?)`
-      )
+      .prepare(`SELECT lantern_username FROM tms_identity_links WHERE trim(tms_staff_id) = trim(?)`)
       .bind(tms)
       .all();
     for (const s of siblings.results || []) {
       const su = trimStr(s.lantern_username);
       if (!su || lower(su) === lower(u)) continue;
-      // Do not overwrite intentional Web Admin display identity with person honorific on admin row
-      // when that account is the system admin — still store honorific for person-level consistency
-      // but public formatter keeps "Web Admin" via isSystemWebAdminAccount.
+      // Store on sibling for person-level consistency; Web Admin public formatter still returns "Web Admin".
       await db
-        .prepare(`UPDATE lantern_pilot_accounts SET honorific = ?, updated_at = datetime('now') WHERE lower(trim(username)) = lower(trim(?))`)
+        .prepare(
+          `UPDATE lantern_pilot_accounts SET ${column} = ?, updated_at = datetime('now') WHERE lower(trim(username)) = lower(trim(?))`
+        )
         .bind(value, su)
         .run();
     }
   } catch (_) {
     /* best-effort person-level sync */
   }
+}
+
+/** @deprecated use propagateStaffPublicFieldToLinkedAccounts */
+export async function propagateHonorificToLinkedAccounts(db, username, honorific) {
+  return propagateStaffPublicFieldToLinkedAccounts(db, username, 'honorific', honorific);
+}
+
+export async function propagatePublicDisplayNameToLinkedAccounts(db, username, publicDisplayName) {
+  return propagateStaffPublicFieldToLinkedAccounts(db, username, 'public_display_name', publicDisplayName);
 }

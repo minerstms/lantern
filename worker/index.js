@@ -16,9 +16,12 @@ import {
 } from './admin-account-utils.js';
 import {
   validateStaffHonorific,
+  validateStaffPublicDisplayName,
   propagateHonorificToLinkedAccounts,
+  propagatePublicDisplayNameToLinkedAccounts,
   loadStaffPublicNameIndex,
   resolveAuthorPublicLabel,
+  formatPublicStaffName,
 } from './staff-public-name.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
 import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar-key.js';
@@ -1948,7 +1951,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const rows = await db
       .prepare(
-        `SELECT username, display_name, first_name, last_name, honorific, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
+        `SELECT username, display_name, first_name, last_name, honorific, public_display_name, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
     return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
@@ -1981,6 +1984,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     let staffId = null;
     let email = null;
     let honorific = null;
+    let publicDisplayName = null;
     let passwordPlain = String(body.password || '');
     let generatedTempPassword = null;
     let deferCredentials = body.defer_credentials === true || body.uninitialized_password === true;
@@ -1999,9 +2003,15 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       if (!honCheck.ok) {
         return jsonResponse({ ok: false, error: honCheck.error }, 400, cors);
       }
+      // Prompt #223 — optional public display override (exact; blank → Honorific + Last).
+      const pdnCheck = validateStaffPublicDisplayName(body.public_display_name);
+      if (!pdnCheck.ok) {
+        return jsonResponse({ ok: false, error: pdnCheck.error, max: pdnCheck.max }, 400, cors);
+      }
       firstName = fnCheck.value;
       lastName = lnCheck.value;
       honorific = honCheck.value;
+      publicDisplayName = pdnCheck.value;
       displayName = composeStaffDisplayName(firstName, lastName);
       const dnCheck = validateDisplayName(displayName, { required: true });
       if (!dnCheck.ok) {
@@ -2079,7 +2089,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const ins = await db
       .prepare(
-        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, honorific, staff_id, email, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, ?, CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END, ?)`
+        `INSERT INTO lantern_pilot_accounts (username, display_name, first_name, last_name, honorific, public_display_name, staff_id, email, role, password_hash, password_salt, student_character_name, teacher_id, mtss_student_id, updated_at, is_active, must_change_password, password_reset_at, password_reset_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 1, ?, CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END, ?)`
       )
       .bind(
         u,
@@ -2087,6 +2097,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         firstName,
         lastName,
         honorific,
+        publicDisplayName,
         staffId,
         email,
         role,
@@ -2103,14 +2114,24 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!ins.success) {
       return jsonResponse({ ok: false, error: 'insert_failed' }, 500, cors);
     }
-    if (honorific && isStaffAccountRole(role)) {
-      await propagateHonorificToLinkedAccounts(db, u, honorific);
+    if (isStaffAccountRole(role)) {
+      if (honorific) await propagateHonorificToLinkedAccounts(db, u, honorific);
+      await propagatePublicDisplayNameToLinkedAccounts(db, u, publicDisplayName);
     }
     const created = await fetchAdminUserRow(db, u);
     const payload = {
       ok: true,
       username: u,
-      user: created || { username: u, staff_id: staffId, display_name: displayName, first_name: firstName, last_name: lastName, honorific, email },
+      user: created || {
+        username: u,
+        staff_id: staffId,
+        display_name: displayName,
+        first_name: firstName,
+        last_name: lastName,
+        honorific,
+        public_display_name: publicDisplayName,
+        email,
+      },
     };
     if (generatedTempPassword) {
       payload.temporary_password = generatedTempPassword;
@@ -2174,7 +2195,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const existing = await db
       .prepare(
-        `SELECT username, role, staff_id, first_name, last_name, honorific, display_name, email FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+        `SELECT username, role, staff_id, first_name, last_name, honorific, public_display_name, display_name, email FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
       )
       .bind(u)
       .first();
@@ -2283,6 +2304,19 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         .bind(honCheck.value, targetUser)
         .run();
       await propagateHonorificToLinkedAccounts(db, targetUser, honCheck.value);
+    }
+
+    // Prompt #223 — optional public display override (exact; blank clears to Honorific + Last fallback).
+    if (body.public_display_name !== undefined && isStaffAccountRole(existing.role)) {
+      const pdnCheck = validateStaffPublicDisplayName(body.public_display_name);
+      if (!pdnCheck.ok) {
+        return jsonResponse({ ok: false, error: pdnCheck.error, max: pdnCheck.max }, 400, cors);
+      }
+      await db
+        .prepare(`UPDATE lantern_pilot_accounts SET public_display_name = ?, updated_at = datetime('now') WHERE username = ?`)
+        .bind(pdnCheck.value, targetUser)
+        .run();
+      await propagatePublicDisplayNameToLinkedAccounts(db, targetUser, pdnCheck.value);
     }
 
     if (body.role != null) {
@@ -3389,7 +3423,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     }
     const row = await db
       .prepare(
-        'SELECT username, display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
+        'SELECT username, display_name, first_name, last_name, honorific, public_display_name, role, student_character_name, teacher_id, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))'
       )
       .bind(String(payload.sub))
       .first();
@@ -3402,12 +3436,20 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     }
     const mcp = row.must_change_password != null && Number(row.must_change_password) !== 0;
     const rlow = String(row.role || '').trim().toLowerCase();
+    const isStaffMe = rlow === 'teacher' || rlow === 'admin' || rlow === 'staff';
+    // Prompt #223 — public_staff_label for content previews; display_name remains session/header identity (Web Admin).
+    const publicStaffLabel = isStaffMe ? formatPublicStaffName(row) || null : null;
     return jsonResponse(
       {
         ok: true,
         authenticated: true,
         username: row.username,
         display_name: row.display_name,
+        first_name: row.first_name != null ? row.first_name : null,
+        last_name: row.last_name != null ? row.last_name : null,
+        honorific: row.honorific != null ? row.honorific : null,
+        public_display_name: row.public_display_name != null ? row.public_display_name : null,
+        public_staff_label: publicStaffLabel,
         role: row.role,
         student_character_name: row.student_character_name || null,
         mtss_student_id: row.mtss_student_id || null,

@@ -61,6 +61,8 @@ export async function resolveThankYouStaffRecipient(db, tmsStaffIdRaw) {
                 MAX(p.username) AS username,
                 MAX(CASE WHEN l.is_primary = 1 THEN p.honorific ELSE NULL END) AS primary_honorific,
                 MAX(CASE WHEN p.honorific IS NOT NULL AND trim(p.honorific) != '' THEN p.honorific ELSE NULL END) AS any_honorific,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.public_display_name ELSE NULL END) AS primary_public_display,
+                MAX(CASE WHEN p.public_display_name IS NOT NULL AND trim(p.public_display_name) != '' THEN p.public_display_name ELSE NULL END) AS any_public_display,
                 MAX(CASE WHEN l.is_primary = 1 THEN p.role ELSE NULL END) AS primary_role,
                 MAX(p.role) AS any_role,
                 MAX(CASE WHEN l.is_primary = 1 AND p.email IS NOT NULL AND trim(p.email) != '' THEN p.email ELSE NULL END) AS primary_email,
@@ -89,6 +91,7 @@ export async function resolveThankYouStaffRecipient(db, tmsStaffIdRaw) {
     last_name: row.last_name,
     username: row.primary_username || row.username,
     honorific: row.primary_honorific || row.any_honorific,
+    public_display_name: row.primary_public_display || row.any_public_display,
     role: row.primary_role || row.any_role,
   });
   if (!label) return { ok: false, error: 'recipient_invalid' };

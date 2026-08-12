@@ -175,6 +175,8 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
                 MAX(p.username) AS username,
                 MAX(CASE WHEN l.is_primary = 1 THEN p.honorific ELSE NULL END) AS primary_honorific,
                 MAX(CASE WHEN p.honorific IS NOT NULL AND trim(p.honorific) != '' THEN p.honorific ELSE NULL END) AS any_honorific,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.public_display_name ELSE NULL END) AS primary_public_display,
+                MAX(CASE WHEN p.public_display_name IS NOT NULL AND trim(p.public_display_name) != '' THEN p.public_display_name ELSE NULL END) AS any_public_display,
                 MAX(CASE WHEN l.is_primary = 1 THEN p.role ELSE NULL END) AS primary_role,
                 MAX(p.role) AS any_role
          FROM tms_identity_links l
@@ -188,12 +190,13 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
              OR lower(COALESCE(p.last_name, '')) LIKE lower(?)
              OR lower(COALESCE(p.username, '')) LIKE lower(?)
              OR lower(COALESCE(p.honorific, '') || ' ' || COALESCE(p.last_name, '')) LIKE lower(?)
+             OR lower(COALESCE(p.public_display_name, '')) LIKE lower(?)
            )
          GROUP BY l.tms_staff_id
          ORDER BY lower(COALESCE(primary_display, any_display, username))
          LIMIT ?`
       )
-      .bind(like, like, like, like, like, limit)
+      .bind(like, like, like, like, like, like, limit)
       .all();
     for (const r of linked.results || []) {
       const key = trimStr(r.tms_staff_id);
@@ -211,6 +214,7 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
           last_name: r.last_name,
           username: r.primary_username || r.username,
           honorific: r.primary_honorific || r.any_honorific,
+          public_display_name: r.primary_public_display || r.any_public_display,
           role: role,
         }),
       });
@@ -227,6 +231,7 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
                 p.last_name AS last_name,
                 p.username AS username,
                 p.honorific AS honorific,
+                p.public_display_name AS public_display_name,
                 p.role AS role
          FROM lantern_pilot_accounts p
          LEFT JOIN tms_identity_links l
@@ -241,11 +246,12 @@ export async function searchPeople(db, queryRaw, limitRaw, opts) {
              OR lower(COALESCE(p.last_name, '')) LIKE lower(?)
              OR lower(COALESCE(p.username, '')) LIKE lower(?)
              OR lower(COALESCE(p.honorific, '') || ' ' || COALESCE(p.last_name, '')) LIKE lower(?)
+             OR lower(COALESCE(p.public_display_name, '')) LIKE lower(?)
            )
          ORDER BY lower(COALESCE(p.display_name, p.username))
          LIMIT ?`
       )
-      .bind(like, like, like, like, like, limit)
+      .bind(like, like, like, like, like, like, limit)
       .all();
     for (const r of unlinked.results || []) {
       const sid = Number(r.staff_id);
@@ -303,7 +309,7 @@ async function resolveTokenAgainstDb(db, parsed) {
       .prepare(
         `SELECT p.staff_id AS staff_id, p.display_name AS display_name, p.first_name AS first_name,
                 p.last_name AS last_name, p.username AS username, p.honorific AS honorific,
-                p.role AS role, l.tms_staff_id AS tms_staff_id
+                p.public_display_name AS public_display_name, p.role AS role, l.tms_staff_id AS tms_staff_id
          FROM lantern_pilot_accounts p
          LEFT JOIN tms_identity_links l ON lower(trim(l.lantern_username)) = lower(trim(p.username))
          WHERE p.staff_id = ?
@@ -339,6 +345,8 @@ async function resolveTokenAgainstDb(db, parsed) {
                 MAX(p.username) AS username,
                 MAX(CASE WHEN l.is_primary = 1 THEN p.honorific ELSE NULL END) AS primary_honorific,
                 MAX(CASE WHEN p.honorific IS NOT NULL AND trim(p.honorific) != '' THEN p.honorific ELSE NULL END) AS any_honorific,
+                MAX(CASE WHEN l.is_primary = 1 THEN p.public_display_name ELSE NULL END) AS primary_public_display,
+                MAX(CASE WHEN p.public_display_name IS NOT NULL AND trim(p.public_display_name) != '' THEN p.public_display_name ELSE NULL END) AS any_public_display,
                 MAX(CASE WHEN l.is_primary = 1 THEN p.role ELSE NULL END) AS primary_role,
                 MAX(p.role) AS any_role
          FROM tms_identity_links l
@@ -361,6 +369,7 @@ async function resolveTokenAgainstDb(db, parsed) {
         last_name: row.last_name,
         username: row.primary_username || row.username,
         honorific: row.primary_honorific || row.any_honorific,
+        public_display_name: row.primary_public_display || row.any_public_display,
         role: row.primary_role || row.any_role,
       }),
     };

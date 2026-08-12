@@ -179,6 +179,7 @@ assert(typeof LC.formatExploreAuthorLabel === 'function', '220a. formatExploreAu
 assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'Mr. Radle', authorRole: 'teacher' }) === 'Mr. Radle', '220b. Mr. Radle passthrough');
 assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'Ms. Pachelli', authorRole: 'teacher' }) === 'Ms. Pachelli', '220c. Ms. Pachelli passthrough');
 assert(LC.formatExploreAuthorLabel({ author: 'Rick Radle', authorRole: 'teacher' }) === 'Rick Radle', '220d. missing honorific keeps full staff name');
+assert(LC.formatExploreAuthorLabel({ authorPublicLabel: 'Mr. Tom', authorRole: 'teacher' }) === 'Mr. Tom', '223a. public display override Mr. Tom');
 const staffAuthored = LC.normalizeFeedItemToFaceModel({
   id: 'news:staff220',
   type: 'news',
@@ -191,6 +192,19 @@ const staffAuthored = LC.normalizeFeedItemToFaceModel({
 const staffAuthoredHtml = LC.buildCanonicalCardFaceHtml(staffAuthored);
 assert(/Mr\. Radle/.test(staffAuthoredHtml), '220e. compact card shows Mr. Radle');
 assert(!/Rick R\./.test(staffAuthoredHtml), '220f. staff not reduced to First L.');
+const tomOverride = LC.normalizeFeedItemToFaceModel({
+  id: 'news:staff223',
+  type: 'news',
+  title: 'Staff News Tom',
+  authorDisplayName: 'Tom Romero',
+  authorPublicLabel: 'Mr. Tom',
+  authorRole: 'teacher',
+  authorAvatarKey: 'tom.romero',
+  approvedAt: '2026-08-11T00:00:00.000Z',
+});
+const tomHtml = LC.buildCanonicalCardFaceHtml(tomOverride);
+assert(/Mr\. Tom/.test(tomHtml), '223b. compact card shows Mr. Tom override');
+assert(tomOverride.authorAvatarKey === 'tom.romero', '223c. avatar key independent of display override');
 
 const shoutMissing = LC.normalizeFeedItemToFaceModel({
   id: 'shout_out:3',
