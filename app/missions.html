@@ -710,7 +710,7 @@
       var code = String((res && (res.error || res.message)) || '').trim();
       var msg = String((res && res.message) || '').trim();
       if (!code) return 'Unable to submit this mission. Please try again.';
-      if (code === 'submission_pending') return 'You already submitted this mission. Waiting for teacher review.';
+      if (code === 'submission_pending') return 'You already have a submission awaiting review.';
       if (code === 'already_submitted') return 'This mission was already completed. Try Redo Mission if it is still active.';
       if (code === 'use_resubmit') return 'Please use Resubmit for this mission.';
       if (code === 'Mission is not active') return msg || 'This mission is no longer active.';
@@ -1374,6 +1374,8 @@
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
+            /* Prompt #187 — built-in desk letter art; teacher Mission Card Image still wins if set. */
+            imageUrl: (m.card_image_url && String(m.card_image_url).trim()) || 'assets/thank-you-letter.png',
             raw: m,
             submission: sub,
             onActivate: function(){

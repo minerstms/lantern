@@ -2133,31 +2133,11 @@
           </label>
         </div>
 
-        <div class="teacherFieldGroup">Audience &amp; reward</div>
+        <div class="teacherFieldGroup">Reward</div>
         <div class="teacherFieldRow teacherFieldRow--2">
           <div class="teacherField">
-            <label for="missionAudience">Audience</label>
-            <select id="missionAudience" class="teacherSelect">
-              <option value="my_students">My Students</option>
-              <option value="school_mission" selected>School Mission</option>
-              <option value="selected_students">Selected Students</option>
-            </select>
-            <div id="missionSelectedStudentsWrap" style="display:none;margin-top:10px;">
-              <label class="missionSelectedStudentsLabel">Select students</label>
-              <div id="missionSelectedStudentsList" class="missionSelectedStudentsList"></div>
-            </div>
-          </div>
-          <div class="teacherField">
-            <label for="missionParticipantScope">Who can participate?</label>
-            <select id="missionParticipantScope" class="teacherSelect">
-              <option value="students" selected>Students</option>
-              <option value="staff">Staff</option>
-              <option value="everyone">Everyone</option>
-            </select>
-            <p class="teacherFieldHint">Default is Students. Staff-only and Everyone missions are how teachers/admins join as participants.</p>
-          </div>
-          <div class="teacherField">
             <p class="teacherFieldHint" id="missionRewardHint">Reward: <strong>1 Nugget</strong> (fixed for every ordinary mission).</p>
+            <p class="teacherFieldHint">Active missions are available to every signed-in Lantern account (students, teachers, and admins).</p>
           </div>
         </div>
 
@@ -4909,14 +4889,6 @@
     // (only rendered when the mission has zero submissions) so the two stay visually consistent.
     function missionEditRestrictedFieldsHtml(m){
       return (
-        '<div class="teacherFieldRow teacherFieldRow--2">' +
-          '<div class="teacherField"><label>Audience</label><select class="teacherSelect" data-edit="audience">' +
-            '<option value="my_students"' + (m.audience === 'my_students' ? ' selected' : '') + '>My Students</option>' +
-            '<option value="school_mission"' + (m.audience === 'school_mission' || !m.audience ? ' selected' : '') + '>School Mission</option>' +
-            '<option value="selected_students"' + (m.audience === 'selected_students' ? ' selected' : '') + '>Selected Students</option>' +
-          '</select></div>' +
-          '<div class="teacherField"><label>Selected students (comma-separated)</label><input type="text" class="teacherInput" data-edit="target_character_names" value="' + esc((m.target_character_names || []).join(', ')) + '" /></div>' +
-        '</div>' +
         '<div class="teacherField"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_text"' + (m.allows_text ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Written response</span></label>' +
           '<div style="margin-left:34px;margin-bottom:12px;max-width:160px;"><label>Minimum characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + (m.min_characters != null ? m.min_characters : 200) + '" /></div>' +
@@ -5000,11 +4972,6 @@
         updates.featured = !!wrap.querySelector('[data-edit="featured"]').checked;
         if (cardKeyInput) updates.card_image_r2_key = (cardKeyInput.value || '').trim() || null;
         if (!hasSubmissions) {
-          updates.audience = wrap.querySelector('[data-edit="audience"]').value;
-          if (updates.audience === 'selected_students') {
-            var namesRaw = (wrap.querySelector('[data-edit="target_character_names"]').value || '').trim();
-            updates.target_character_names = namesRaw ? namesRaw.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
-          }
           updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
           updates.allows_image = !!wrap.querySelector('[data-edit="allows_image"]').checked;
           updates.allows_video = !!wrap.querySelector('[data-edit="allows_video"]').checked;
@@ -5926,16 +5893,8 @@
       var type = typeRaw;
       if (typeRaw === 'video') type = 'link';
       if (typeRaw === 'mixed') type = 'text';
-      var audience = (el('missionAudience') && el('missionAudience').value || 'school_mission').trim();
       var featured = !!(el('missionFeatured') && el('missionFeatured').checked);
       if (!title){ toast('Title required'); return; }
-      var targetCharacterNames;
-      if (audience === 'selected_students') {
-        var listEl = document.getElementById('missionSelectedStudentsList');
-        var checked = listEl ? listEl.querySelectorAll('input[name="missionSelectedStudent"]:checked') : [];
-        targetCharacterNames = [].map.call(checked, function(cb){ return (cb.value || '').trim(); }).filter(Boolean);
-        if (targetCharacterNames.length === 0){ toast('Select at least one student'); return; }
-      }
       var btn = el('createMissionBtn');
       var statusEl = el('createMissionStatus');
       var restoreLabel = 'Create Mission';
@@ -5960,9 +5919,8 @@
         var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
         var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
-        // Prompt #78 — site_eligible archived (no reader anywhere); see docs/archive/TEACHER_CREATE_MISSION_OPTION_AUDIT.md.
-        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: audience, participant_scope: (el('missionParticipantScope') && el('missionParticipantScope').value) || 'students', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
-        if (audience === 'selected_students' && targetCharacterNames && targetCharacterNames.length) opts.target_character_names = targetCharacterNames;
+        // Prompt #10/#78 — site_eligible archived; audience/participant_scope normalized server-side to school-wide/everyone.
+        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();
         if (cardKeyCreate) opts.card_image_r2_key = cardKeyCreate;
         var res = await callCreateTeacherMission(opts);

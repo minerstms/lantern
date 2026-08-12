@@ -532,11 +532,12 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     // Client-supplied reward_amount is ignored (was clamp 1–99; DB default still 3 cosmetically).
     const rewardAmount = 1;
     const submissionType = normalizeSubmissionType(body.submission_type, 'text');
-    const audience = ['my_students', 'selected_students', 'school_mission'].includes((body.audience || 'school_mission').trim())
-      ? (body.audience || 'school_mission').trim()
-      : 'school_mission';
-    const participantScope = normalizeParticipantScope(body.participant_scope);
-    const targetNames = audience === 'selected_students' && Array.isArray(body.target_character_names) ? body.target_character_names : null;
+    // Prompt #10 — normal manual missions are school-wide for every authenticated participant.
+    // Preserve audience/participant_scope columns historically, but new creates normalize to
+    // school_mission + everyone so authoring UI cannot imply a gate the server ignores.
+    const audience = 'school_mission';
+    const participantScope = 'everyone';
+    const targetNames = null;
     const featured = !!body.featured;
     const active = body.active !== false;
     const siteEligible = !!body.site_eligible;
@@ -723,20 +724,17 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       bindings.push(body.site_eligible ? 1 : 0);
     }
     if (body.audience !== undefined) {
+      // Prompt #10 — do not reintroduce targeting; normalize historical field to school-wide.
       updates.push('audience = ?');
-      bindings.push(
-        ['my_students', 'selected_students', 'school_mission'].includes(String(body.audience).trim())
-          ? String(body.audience).trim()
-          : 'school_mission'
-      );
+      bindings.push('school_mission');
     }
     if (body.participant_scope !== undefined) {
       updates.push('participant_scope = ?');
-      bindings.push(normalizeParticipantScope(body.participant_scope));
+      bindings.push('everyone');
     }
     if (body.target_character_names !== undefined) {
       updates.push('target_character_names = ?');
-      bindings.push(Array.isArray(body.target_character_names) ? JSON.stringify(body.target_character_names) : null);
+      bindings.push(null);
     }
     if (body.allows_text !== undefined) {
       updates.push('allows_text = ?');

@@ -143,16 +143,16 @@ assert(idStaff.ok && idStaff.participantKind === 'staff', 'teacher is participan
 const idAdmin = resolveParticipantMissionIdentity(admin, () => '');
 assert(idAdmin.ok && idAdmin.participantKind === 'staff', 'admin is participant');
 assert(
-  !missionVisibleToParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
-  'staff excluded from students-only completion'
+  missionVisibleToParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
+  'staff eligible for students-scope completion (#10)'
 );
 assert(
   missionInCatalogForParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
-  'staff sees students-only school missions in catalog (#211)'
+  'staff sees students-only school missions in catalog (#10)'
 );
 assert(
-  !missionEligibleForParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
-  'staff not eligible to complete students-only'
+  missionEligibleForParticipant({ participant_scope: 'students', audience: 'school_mission' }, idStaff),
+  'staff eligible to complete students-scope (#10)'
 );
 assert(
   missionVisibleToParticipant({ participant_scope: 'staff', audience: 'school_mission' }, idStaff),
@@ -245,29 +245,29 @@ assert(
   assert(studentActive.ok, 'student active ok');
   const sTitles = (studentActive.missions || []).map((m) => m.title);
   assert(sTitles.includes('Students Only Mission'), 'student sees students mission');
-  assert(!sTitles.includes('Staff Mission'), 'student does not see staff-only');
+  assert(sTitles.includes('Staff Mission'), 'student sees former staff-only under universal catalog (#10)');
   assert(sTitles.includes('Everyone Mission'), 'student sees everyone');
 
-  // Staff cannot complete students-only even when it appears in catalog
+  // Prompt #10 — staff can complete former students-only missions
   const studentsOnly = (teacherActive.missions || []).find((m) => m.title === 'Students Only Mission');
   assert(studentsOnly, 'students-only mission id');
-  const denySubmitReq = new Request('https://lantern.test/api/missions/submit', {
+  const allowSubmitReq = new Request('https://lantern.test/api/missions/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       mission_id: studentsOnly.id,
       submission_type: 'text',
-      submission_content: 'Teacher should not be able to complete a students-only mission even when it is visible in the catalog for oversight under Prompt 211. Padding text so length requirements cannot be the reason this is rejected.',
+      submission_content: 'Teacher may complete a former students-only mission under Prompt 10 universal eligibility. Padding text so length requirements cannot be the reason this is rejected. More words here ensure we clear the default two hundred character minimum for ordinary written mission submissions.',
     }),
   });
-  const denySubmitRes = await handleMissionsRoutes(denySubmitReq, new URL(denySubmitReq.url), '/api/missions/submit', env, {}, {
+  const allowSubmitRes = await handleMissionsRoutes(allowSubmitReq, new URL(allowSubmitReq.url), '/api/missions/submit', env, {}, {
     ...deps,
     getPilotAccountFromRequest: async () => teacherA,
   });
-  const denySubmitData = await denySubmitRes.json();
-  assert(denySubmitRes.status === 403 && denySubmitData.error === 'Mission not available', 'staff cannot complete students-only: ' + JSON.stringify(denySubmitData));
+  const allowSubmitData = await allowSubmitRes.json();
+  assert(allowSubmitData.ok, 'staff can complete students-scope: ' + JSON.stringify(allowSubmitData));
 
-  // Staff submit
+  // Staff submit on staff-scoped mission still works
   const staffMission = (teacherActive.missions || []).find((m) => m.title === 'Staff Mission');
   assert(staffMission, 'staff mission id');
   const submitReq = new Request('https://lantern.test/api/missions/submit', {
@@ -285,13 +285,12 @@ assert(
   });
   const submitData = await submitRes.json();
   assert(submitData.ok, 'staff submit ok: ' + JSON.stringify(submitData));
-  const subId = submitData.id || submitData.submission_id || [...submissions.keys()].pop();
-  // Find submission
+  // Find submission on staff mission (second submit by teachera)
   let submission = null;
   for (const s of submissions.values()) {
-    if (s.character_name === 'staff:teachera') submission = s;
+    if (s.character_name === 'staff:teachera' && s.mission_id === staffMission.id) submission = s;
   }
-  assert(submission, 'submission keyed staff:teachera');
+  assert(submission, 'submission keyed staff:teachera on staff mission');
 
   // Self-approve denied
   const selfApprove = new Request('https://lantern.test/api/missions/submissions/approve', {
@@ -307,4 +306,4 @@ assert(
   assert(selfRes.status === 403 && selfData.error === 'self_approval_forbidden', 'self approve denied');
 }
 
-console.log('PASS — participant missions #107 focused tests');
+console.log('PASS — participant missions #107/#10 focused tests');

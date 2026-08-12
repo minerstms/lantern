@@ -112,44 +112,33 @@ export function normalizeParticipantScope(raw) {
 }
 
 /**
- * Whether an active mission is eligible for this participant to complete / earn rewards.
- * Historical missions without participant_scope behave as students-only.
- * Prompt #211 — this is NOT the catalog filter; staff may SEE students-only missions
- * via missionInCatalogForParticipant without becoming eligible to complete them.
+ * Whether an active mission is eligible for this participant to open / submit.
+ * Prompt #10 — normal active manual missions are universal for every authenticated
+ * Lantern participant (student / teacher / admin). Historical participant_scope and
+ * audience columns are preserved in D1 but are NOT authorization gates.
+ * Special flows (Thank-a-Teacher send limit, Daily Check-In cadence, First Game event)
+ * keep their own endpoint rules separately from this gate.
  */
 export function missionVisibleToParticipant(missionRow, identity) {
   if (!identity || !identity.ok) return false;
-  const scope = normalizeParticipantScope(missionRow && missionRow.participant_scope);
-  const kind = identity.participantKind === 'staff' ? 'staff' : 'student';
-  if (kind === 'student') {
-    if (scope === 'staff') return false;
-    return missionVisibleToStudent(missionRow, identity.characterName);
-  }
-  // Staff participants: Staff or Everyone only — never Students-only historical missions.
-  if (scope !== 'staff' && scope !== 'everyone') return false;
+  if (!missionRow) return false;
   return true;
 }
 
-/** Alias — completion/reward eligibility (same rules as missionVisibleToParticipant). */
+/** Alias — open/submit eligibility (same rules as missionVisibleToParticipant). */
 export function missionEligibleForParticipant(missionRow, identity) {
   return missionVisibleToParticipant(missionRow, identity);
 }
 
 /**
- * Prompt #211 — catalog visibility for Missions page oversight.
- * Teacher/Admin must SEE the active school mission catalog (including students-only
- * definitions). Does not grant completion/reward eligibility.
+ * Catalog visibility for Missions page.
+ * Prompt #10 — authenticated participants see the active mission catalog without
+ * participant_scope / audience filtering. Inactive/archived rows are excluded upstream.
  */
 export function missionInCatalogForParticipant(missionRow, identity) {
   if (!identity || !identity.ok) return false;
-  if (identity.participantKind === 'staff') {
-    const aud = String((missionRow && missionRow.audience) || 'school_mission').trim();
-    // Shared school catalog: show regardless of participant_scope (students/staff/everyone).
-    // Targeted / class-scoped missions stay out of the shared oversight catalog.
-    if (aud === 'school_mission') return true;
-    return missionVisibleToParticipant(missionRow, identity);
-  }
-  return missionVisibleToParticipant(missionRow, identity);
+  if (!missionRow) return false;
+  return true;
 }
 
 /**
@@ -189,8 +178,9 @@ export function parseTargetCharacterNames(raw) {
 
 /**
  * Whether an active mission is visible to a student by audience rules.
- * my_students: no roster table exists — cannot authorize; hidden from students.
- * (participant_scope is applied separately via missionVisibleToParticipant.)
+ * Prompt #10 — retained for historical callers/tests; eligibility/catalog no longer use this
+ * as an authorization gate for normal manual missions.
+ * my_students: no roster table exists — cannot authorize under the old model.
  */
 export function missionVisibleToStudent(missionRow, studentKey) {
   const key = String(studentKey || '').trim();
