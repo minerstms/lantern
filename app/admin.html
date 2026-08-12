@@ -198,6 +198,7 @@
           <option value="lantern_missing">No Lantern Login</option>
           <option value="linked">Has Lantern Login</option>
           <option value="problems">Problems</option>
+          <option value="media_restricted">Media/Publicity Restricted</option>
           <option value="all">All loaded</option>
         </select>
         <label for="studentsRosterGradeFilter" class="visuallyHidden">Grade</label>
@@ -266,6 +267,12 @@
         <option value="7">7th Grade</option>
         <option value="8">8th Grade</option>
       </select>
+      <label for="studentsEditMediaPublicity">Media/Publicity</label>
+      <select id="studentsEditMediaPublicity" aria-label="Media/Publicity status">
+        <option value="Allowed">Allowed</option>
+        <option value="Restricted">Restricted</option>
+      </select>
+      <p class="acctPanelHint">Restricted students may still use internal Lantern. Identifiable content is excluded from Hallway TV and external hosting (e.g. YouTube).</p>
       <div class="acctPanelActions">
         <button type="button" class="btn good" id="studentsEditIdSaveBtn">Save Changes</button>
         <button type="button" class="btn" id="studentsEditIdCancelBtn">Cancel</button>
@@ -3144,7 +3151,8 @@
         '<span>Lantern Login: <strong>' + (counts.lantern_linked || 0) + '/' + active + '</strong></span>' +
         '<span>No Lantern Login: <strong>' + (counts.lantern_missing || 0) + '</strong></span>' +
         '<span>Login Archived: <strong>' + (counts.lantern_archived || 0) + '</strong></span>' +
-        '<span>Problems: <strong>' + ((counts.lantern_broken || 0) + (counts.lantern_ambiguous || 0)) + '</strong></span>';
+        '<span>Problems: <strong>' + ((counts.lantern_broken || 0) + (counts.lantern_ambiguous || 0)) + '</strong></span>' +
+        '<span>Media/Publicity Restricted: <strong>' + (counts.media_publicity_restricted || 0) + '</strong></span>';
     }
 
     function filteredStudentsRoster() {
@@ -3162,6 +3170,7 @@
         if (filter === 'lantern_missing' && (s.lantern_account !== 'Missing' || !s.student_id || !active)) return false;
         if (filter === 'linked' && s.lantern_account !== 'Linked') return false;
         if (filter === 'problems' && s.lantern_account !== 'Broken' && s.lantern_account !== 'Ambiguous' && s.lantern_account !== 'Linked Archived' && s.locker !== 'Error') return false;
+        if (filter === 'media_restricted' && Number(s.media_publicity_restricted) !== 1) return false;
         if (filter !== 'archived' && filter !== 'all' && !active && !studentsRosterIncludeInactive) return false;
         if (gradeFilter !== 'all') {
           var g = String(s.grade || '').replace(/^grade-/, '').trim();
@@ -3231,6 +3240,10 @@
         var g = String(s.grade || '').replace(/^grade-/, '').trim();
         gradeEl.value = (g === '6' || g === '7' || g === '8') ? g : '6';
       }
+      var mediaEl = document.getElementById('studentsEditMediaPublicity');
+      if (mediaEl) {
+        mediaEl.value = Number(s.media_publicity_restricted) === 1 ? 'Restricted' : 'Allowed';
+      }
       var title = document.getElementById('studentsEditIdTitle');
       var hint = document.getElementById('studentsEditIdHint');
       if (title) title.textContent = 'Edit Student';
@@ -3260,6 +3273,9 @@
         rec.setAttribute('data-record-key', String(s.student_name || s.student_id || ''));
         rec.setAttribute('role', 'listitem');
         var statusLabel = studentCanonicalStatus(s);
+        var mediaBadge = Number(s.media_publicity_restricted) === 1
+          ? ' <span class="rosterStatusChip rosterStatusChip--warn" title="Media/Publicity Restricted">🛡 Restricted</span>'
+          : '';
         var sidLabel = s.student_id ? escapeRosterHtml(s.student_id) : '<span class="rosterStatusChip rosterStatusChip--warn">—</span>';
         var loginLabel = escapeRosterHtml(studentLanternLoginLabel(s));
         var mcpLabel = s.must_change_password ? 'Yes' : '—';
@@ -3272,7 +3288,7 @@
         rec.innerHTML =
           '<summary class="lanternMgmtRecordHd">' +
             '<span class="lanternMgmtRecordCol">' + sidLabel + '</span>' +
-            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(s.first_name || '—') + '</span>' +
+            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(s.first_name || '—') + mediaBadge + '</span>' +
             '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(s.last_name || '—') + '</span>' +
             '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(formatStudentGradeLabel(s.grade)) + '</span>' +
             '<span class="lanternMgmtRecordCol">' + loginLabel + '</span>' +
@@ -3284,10 +3300,11 @@
               'Roster: ' + escapeRosterHtml(s.tms_status || '—') +
               (s.lantern_username ? ' · Login: ' + escapeRosterHtml(s.lantern_username) : '') +
               ' · Lantern state: ' + escapeRosterHtml(s.lantern_account || '—') +
+              ' · Media/Publicity: ' + (Number(s.media_publicity_restricted) === 1 ? '🛡 Restricted' : 'Allowed') +
               ' · Must change password: ' + mcpLabel +
               (inconsistency ? ' · <span class="rosterStatusChip rosterStatusChip--bad">' + escapeRosterHtml(inconsistency) + '</span>' : '') +
             '</p>' +
-            '<p class="acctPanelHint" style="margin:0 0 10px;">Edit opens Student ID, First Name, Last Name, and Grade together. Lantern login and Archive stay as separate actions.</p>' +
+            '<p class="acctPanelHint" style="margin:0 0 10px;">Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Lantern login and Archive stay as separate actions.</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
@@ -3557,25 +3574,44 @@
       };
       var btn = document.getElementById('studentsEditIdSaveBtn');
       if (btn) btn.disabled = true;
+      var mediaEl = document.getElementById('studentsEditMediaPublicity');
+      var mediaStatus = mediaEl ? String(mediaEl.value || 'Allowed').trim() : 'Allowed';
+      var mediaRestricted = mediaStatus === 'Restricted';
       postAdminJson('/api/admin/tms-roster/update', payload).then(function(res) {
         if (res && res.blocked) return;
-        if (res && res.okHttp && res.body && res.body.ok) {
+        if (!(res && res.okHttp && res.body && res.body.ok)) {
+          var msg = (res && res.body && (res.body.message || res.body.error)) || 'Save failed';
+          showStudentsRosterMsg(msg, 'err');
+          return;
+        }
+        var savedName = res.body.student_name || nextName;
+        var savedId = res.body.student_id || next;
+        var savedGrade = res.body.grade || grade;
+        return postAdminJson('/api/admin/students/media-publicity', {
+          student_id: savedId,
+          student_name: savedName,
+          restricted: mediaRestricted
+        }).then(function(mediaRes) {
+          if (mediaRes && mediaRes.blocked) return;
+          if (!(mediaRes && mediaRes.okHttp && mediaRes.body && mediaRes.body.ok)) {
+            showStudentsRosterMsg(
+              'Saved identity for ' + savedName + ', but Media/Publicity update failed: ' +
+                ((mediaRes && mediaRes.body && (mediaRes.body.message || mediaRes.body.error)) || 'error'),
+              'err'
+            );
+            loadStudentsRoster();
+            return;
+          }
+          var mediaMsg = mediaRestricted
+            ? ' Media/Publicity set to Restricted. Hallway TV will stop displaying student-identifying content for this student.'
+            : ' Media/Publicity: Allowed.';
           showStudentsRosterMsg(
-            'Saved ' +
-              (res.body.student_name || nextName) +
-              ' · ID ' +
-              (res.body.student_id || next) +
-              ' · Grade ' +
-              (res.body.grade || grade) +
-              '.',
+            'Saved ' + savedName + ' · ID ' + savedId + ' · Grade ' + savedGrade + '.' + mediaMsg,
             'ok'
           );
           closeStudentsEditPanels();
           loadStudentsRoster();
-          return;
-        }
-        var msg = (res && res.body && (res.body.message || res.body.error)) || 'Save failed';
-        showStudentsRosterMsg(msg, 'err');
+        });
       }).catch(function() {
         showStudentsRosterMsg('Network error while saving student.', 'err');
       }).finally(function() {

@@ -290,6 +290,78 @@
     .approvalRowClickable{ cursor: pointer; }
     .approvalRowClickable:hover{ background: rgba(255,255,255,.06); }
     .approvalRowReviewBtn{ flex-shrink: 0; }
+    /* Prompt #3 — Media/Publicity Restrictions (staff-only Review Submissions) */
+    .mediaPublicityRestrictionsPanel{
+      margin: 0 0 12px;
+      border: 1px solid rgba(255,176,32,.35);
+      border-radius: 12px;
+      background: rgba(255,176,32,.06);
+      padding: 0;
+    }
+    .mediaPublicityRestrictionsSummary{
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 18px;
+    }
+    .mediaPublicityRestrictionsSummary::-webkit-details-marker{ display: none; }
+    .mediaPublicityRestrictionsBody{ padding: 0 12px 12px; }
+    .mediaPublicityRestrictionsList{
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 6px;
+      max-height: 220px;
+      overflow: auto;
+    }
+    .mediaPublicityRestrictionsList li{
+      font-size: 18px;
+      font-weight: 700;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(0,0,0,.18);
+    }
+    .reviewMediaPublicityWarn{
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,176,32,.45);
+      background: rgba(255,176,32,.1);
+      font-size: 18px;
+      line-height: 1.4;
+    }
+    .reviewExternalMediaCheck{
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(90,167,255,.35);
+      background: rgba(90,167,255,.08);
+      font-size: 18px;
+      line-height: 1.4;
+    }
+    .reviewExternalMediaCheck label{
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    .reviewExternalMediaCheck input[type="checkbox"]{
+      width: 22px;
+      height: 22px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 768px){
+      .mediaPublicityRestrictionsList{ max-height: 160px; }
+    }
     /* Pending queue rows only (#teacher-approvals schoolwide / classroom lists via renderApprovalRow) */
     #teacher-approvals .teacherApprovalPendingRow{
       align-items: center;
@@ -1770,6 +1842,17 @@
           <button class="btn" id="refreshBtn" type="button">Refresh</button>
         </div>
         <p class="note note-tight">Open a submission before approving.</p>
+        <details class="mediaPublicityRestrictionsPanel" id="mediaPublicityRestrictionsPanel">
+          <summary class="mediaPublicityRestrictionsSummary" id="mediaPublicityRestrictionsSummary">
+            <span aria-hidden="true">🛡</span>
+            <span>Media/Publicity Restrictions</span>
+            <span class="pill" id="mediaPublicityRestrictionsCount">(0)</span>
+          </summary>
+          <div class="mediaPublicityRestrictionsBody" id="mediaPublicityRestrictionsBody">
+            <p class="note note-tight" id="mediaPublicityRestrictionsEmpty">No Media/Publicity Restrictions on file.</p>
+            <ul class="mediaPublicityRestrictionsList" id="mediaPublicityRestrictionsList" hidden></ul>
+          </div>
+        </details>
         <p class="note" id="approvalsIdentityStrip" style="margin-bottom:10px;display:none;font-weight:800;color:var(--warn);"></p>
         <div class="teacherReviewTabs" role="tablist" aria-label="Review submissions">
           <button type="button" class="teacherReviewTab is-active" id="reviewTabClassroom" data-review-tab="classroom" role="tab" aria-selected="true">My Classroom <span class="approvalsColCount" id="myClassroomCount">(0)</span></button>
@@ -2850,6 +2933,81 @@
         run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: true, pending: [] }); }).getPendingApprovals({ staff_id: sid, filter: filter || 'mine,unassigned', type: typeFilter || '' });
       });
     }
+    function callGetMediaPublicityRestrictions(){
+      if (avatarApiBase === null) return Promise.resolve({ ok: true, count: 0, students: [] });
+      return fetch(avatarApiBase + '/api/approvals/media-publicity-restrictions', { credentials: 'include' })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ return res && res.ok ? res : { ok: false, count: 0, students: [] }; })
+        .catch(function(){ return { ok: false, count: 0, students: [] }; });
+    }
+    function callExternalMediaClear(itemType, itemId){
+      if (avatarApiBase === null) return Promise.resolve({ ok: false, error: 'api_unavailable' });
+      return fetch(avatarApiBase + '/api/approvals/external-media-clear', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ item_type: itemType, item_id: itemId })
+      }).then(function(r){ return r.json().then(function(j){ return { okHttp: r.ok, body: j }; }); })
+        .catch(function(){ return { okHttp: false, body: { ok: false, error: 'network' } }; });
+    }
+    function renderMediaPublicityRestrictions(res){
+      var countEl = el('mediaPublicityRestrictionsCount');
+      var listEl = el('mediaPublicityRestrictionsList');
+      var emptyEl = el('mediaPublicityRestrictionsEmpty');
+      var students = (res && res.students) || [];
+      var count = students.length;
+      if (countEl) countEl.textContent = '(' + count + ')';
+      if (!listEl || !emptyEl) return;
+      listEl.innerHTML = '';
+      if (!count) {
+        emptyEl.hidden = false;
+        emptyEl.style.display = '';
+        listEl.hidden = true;
+        return;
+      }
+      emptyEl.hidden = true;
+      emptyEl.style.display = 'none';
+      listEl.hidden = false;
+      students.forEach(function(s){
+        var li = document.createElement('li');
+        var name = [s.first_name, s.last_name].filter(Boolean).join(' ').trim() || s.student_id || 'Student';
+        var grade = s.grade ? (' · Grade ' + String(s.grade).replace(/^grade-/i, '')) : '';
+        li.textContent = name + grade;
+        listEl.appendChild(li);
+      });
+    }
+    function buildMediaPublicityReviewHtml(mp){
+      if (!mp) return '';
+      var html = '';
+      if (mp.warning) {
+        html += '<div class="reviewMediaPublicityWarn" role="status"><strong>Media/Publicity restriction on file</strong><br>' +
+          esc(mp.warning_message || 'This student may participate in internal Lantern, but identifiable content must not be sent to Hallway TV, YouTube, or other external/public surfaces.') +
+          '</div>';
+        if (mp.known_restricted_people && mp.known_restricted_people.length) {
+          html += '<div class="reviewMediaPublicityWarn" role="alert"><strong>⚠ Media/Publicity conflict</strong><br>' +
+            esc(mp.known_restricted_people.map(function(p){ return (p.label || p.person_key) + ' is associated with this submission and is restricted from external publication.'; }).join(' ')) +
+            '<br>External upload unavailable.</div>';
+        }
+      }
+      if (mp.has_video || mp.requires_external_check) {
+        html += '<div class="reviewExternalMediaCheck"><p style="margin:0 0 8px;font-weight:800;">External Hosting: YouTube Unlisted</p>';
+        if (mp.known_restricted_people && mp.known_restricted_people.length) {
+          html += '<p style="margin:0;">External media clearance unavailable while a restricted student is associated.</p>';
+        } else {
+          html += '<p style="margin:0 0 8px;">Media/Publicity Check:</p>';
+          if (mp.clearance_valid) {
+            html += '<p style="margin:0;">✓ Cleared' + (mp.clearance && mp.clearance.cleared_by ? (' by ' + esc(mp.clearance.cleared_by)) : '') +
+              (mp.clearance && mp.clearance.cleared_at ? (' · ' + esc(mp.clearance.cleared_at)) : '') + '</p>';
+          } else {
+            html += '<label><input type="checkbox" id="reviewExternalMediaClearChk"> <span>I checked this photo/video against the Media/Publicity Restrictions list and confirmed that no restricted student is identifiable in the external version.</span></label>';
+            html += '<p style="margin:8px 0 0;"><button type="button" class="btn small" id="reviewExternalMediaClearBtn">Save external-media clearance</button></p>';
+          }
+          html += '<p style="margin:8px 0 0;">Known restricted student associations: None</p>';
+        }
+        html += '</div>';
+      }
+      return html;
+    }
     function callGetApprovalHistory(limit){
       if (!createRun) return Promise.resolve({ ok: true, history: [] });
       var run = createRun();
@@ -3728,6 +3886,7 @@
         }
         if (item.preview_url) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Card image</p><img class="reviewLargeImg" src="' + esc(item.preview_url) + '" alt="Poll">';
         html += '</div>';
+        html += buildMediaPublicityReviewHtml(item.media_publicity);
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (publish poll)</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'news' || (type === 'approval_item' && item.item_type === 'news')) {
         metaRows.push(['Type', 'News']);
@@ -3750,6 +3909,7 @@
         var oneMedia = teacherMedia.imageHtml || teacherMedia.videoHtml || teacherMedia.linkHtml;
         if (oneMedia) html += oneMedia;
         html += '</div>';
+        html += buildMediaPublicityReviewHtml(item.media_publicity);
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'post') {
         metaRows.push(['Type', 'Post']);
@@ -3800,6 +3960,36 @@
       }
       bd.innerHTML = html;
       if (actionsContainer) actionsContainer.innerHTML = actionsHtml;
+      var clearBtn = el('reviewExternalMediaClearBtn');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function(){
+          var chk = el('reviewExternalMediaClearChk');
+          if (!chk || !chk.checked) {
+            toast('Check the External Media box before saving clearance.');
+            return;
+          }
+          var itype = item.item_type || (type === 'news' ? 'news' : type === 'approval_item' ? item.item_type : '');
+          var iid = item.item_id || item.id || '';
+          if (!itype || !iid) {
+            toast('Missing submission id for clearance.');
+            return;
+          }
+          clearBtn.disabled = true;
+          callExternalMediaClear(itype, iid).then(function(res){
+            clearBtn.disabled = false;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              toast('External-media clearance saved.');
+              if (item.media_publicity) {
+                item.media_publicity.clearance_valid = true;
+                item.media_publicity.clearance = res.body.clearance || null;
+              }
+              openReviewModal(entry, sourceLane);
+              return;
+            }
+            toast((res && res.body && res.body.error) || 'Could not save clearance');
+          });
+        });
+      }
       function closeReview(){ overlay.classList.remove('is-open'); }
       el('reviewPanelClose').onclick = closeReview;
       overlay.onclick = function(ev){ if (ev.target === overlay) closeReview(); };
@@ -4180,6 +4370,12 @@
         approvalPending = (pendRes && pendRes.pending) || [];
         var histRes = await callGetApprovalHistory(50);
         approvalHistory = (histRes && histRes.history) || [];
+        try {
+          var mediaRes = await callGetMediaPublicityRestrictions();
+          renderMediaPublicityRestrictions(mediaRes);
+        } catch (_) {
+          renderMediaPublicityRestrictions({ ok: true, count: 0, students: [] });
+        }
       }
       var res = await callDashboard();
       if (!res.ok){

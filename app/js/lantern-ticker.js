@@ -373,8 +373,16 @@
        slides (seedDemoWorld / demo personas). createRun is retained for call-signature
        compatibility but is not used as a content source. */
     void createRun;
+    var forDisplay =
+      (typeof document !== 'undefined' &&
+        document.body &&
+        document.body.classList &&
+        document.body.classList.contains('page-marquee-only')) ||
+      (typeof location !== 'undefined' && /\/display\.html/i.test(String(location.pathname || '')));
+    var recognitionUrl = base + '/api/recognition/list?limit=50' + (forDisplay ? '&for_display=1' : '');
+    var newsUrl = base + '/api/news/approved' + (forDisplay ? '?for_display=1' : '');
     return Promise.all([
-      fetch(base + '/api/recognition/list?limit=50')
+      fetch(recognitionUrl)
         .then(function (r) {
           return r.json();
         })
@@ -384,7 +392,7 @@
         .catch(function () {
           return [];
         }),
-      fetch(base + '/api/news/approved')
+      fetch(newsUrl)
         .then(function (r) {
           return r.json();
         })

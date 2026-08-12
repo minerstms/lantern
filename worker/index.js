@@ -59,6 +59,20 @@ import {
   removalStatusLabel,
   isAuthorRemovalLabel,
 } from './content-author-remove.js';
+import {
+  loadMediaPublicityMap,
+  setStudentMediaPublicityRestriction,
+  listRestrictedStudentsForStaff,
+  buildReviewMediaPublicitySummary,
+  filterNewsRowsForHallwayTv,
+  filterRecognitionRowsForHallwayTv,
+  recordExternalMediaClearance,
+  computeExternalAssetFingerprint,
+  loadRestrictedStudentIdSet,
+  resolveAuthorStudentCandidates,
+  assertExternalPublicationAllowed,
+  knownRestrictedPeopleFromRows,
+} from './media-publicity.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -2900,12 +2914,16 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       must_change_password: r.must_change_password != null ? Number(r.must_change_password) : 0,
     }));
 
+    const mediaMap = await loadMediaPublicityMap(db);
+
     const students = tmsStudents.map((s) => {
       const name = String(s.student_name || '').trim();
       const sid = String(s.student_id ?? '').trim() || '';
       const names = splitRosterDisplayName(name);
       const status = classifyLanternAccountStatus(sid, studentAccounts);
       const isActive = s.is_active != null ? Number(s.is_active) === 1 : true;
+      const media = sid ? mediaMap[String(sid).trim().toLowerCase()] : null;
+      const restricted = media && Number(media.media_publicity_restricted) === 1;
       return {
         student_name: name,
         first_name: names.first_name,
@@ -2920,6 +2938,10 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         must_change_password: !!status.must_change_password,
         locker: status.locker,
         exact_match_linkable: !!status.exact_match_linkable,
+        media_publicity_restricted: restricted ? 1 : 0,
+        media_publicity_status: restricted ? 'Restricted' : 'Allowed',
+        media_publicity_updated_at: media ? media.media_publicity_updated_at : null,
+        media_publicity_updated_by: media ? media.media_publicity_updated_by : null,
       };
     });
 
@@ -2934,10 +2956,41 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       lantern_broken: activeStudents.filter((s) => s.lantern_account === 'Broken').length,
       lantern_ambiguous: activeStudents.filter((s) => s.lantern_account === 'Ambiguous').length,
       locker_ready: activeStudents.filter((s) => s.locker === 'Ready').length,
+      media_publicity_restricted: activeStudents.filter((s) => Number(s.media_publicity_restricted) === 1).length,
       total_shown: scope.length,
     };
 
     return jsonResponse({ ok: true, students: scope, counts, include_inactive: includeInactive }, 200, cors);
+  }
+
+  // Prompt #3 — Admin sets Media/Publicity Restriction (canonical on lantern_student_identities).
+  if (request.method === 'POST' && path === '/api/admin/students/media-publicity') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const studentId = String(body.student_id ?? '').trim();
+    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required' }, 400, cors);
+    const restrictedRaw = body.restricted != null ? body.restricted : body.media_publicity_restricted;
+    const restricted =
+      restrictedRaw === true ||
+      restrictedRaw === 1 ||
+      restrictedRaw === '1' ||
+      String(restrictedRaw || '').trim().toLowerCase() === 'restricted';
+    const displayName = String(body.student_name || body.display_name || '').trim();
+    const result = await setStudentMediaPublicityRestriction(db, {
+      studentId,
+      restricted,
+      displayName,
+      updatedBy: adminAuditLabel(account),
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error || 'write_failed', detail: result.detail || null }, 503, cors);
+    }
+    return jsonResponse(result, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/admin/tms-roster/set-student-id') {
@@ -5792,7 +5845,15 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     // Prompt #97: known demo/fake personas (created while building the app) have real, approved
     // rows in production — filter them from this production-facing response rather than deleting
     // the historical rows. See worker/demo-persona-guard.js.
-    const rawResults = filterOutDemoPersonas(rows.results || [], 'author_name');
+    let rawResults = filterOutDemoPersonas(rows.results || [], 'author_name');
+    // Prompt #3 — Hallway TV / Display surface only (internal Explore keeps restricted authors).
+    const forDisplay =
+      url.searchParams.get('for_display') === '1' ||
+      url.searchParams.get('for_display') === 'true' ||
+      url.searchParams.get('surface') === 'hallway';
+    if (forDisplay) {
+      rawResults = await filterNewsRowsForHallwayTv(db, rawResults);
+    }
     console.log('[GET /api/news/approved] row count:', rawResults.length);
     // Prompt #218 — expose actor_id + Locker avatar key so ticker/LLHC do not look up display names.
     const avatarIndex = await loadPilotAvatarKeyIndex(db);
@@ -6067,7 +6128,7 @@ async function handleApprovalsRoutes(request, url, path, env) {
       let submitter = a.submitted_by_actor_name || '';
       let preview_url = null;
       if (a.item_type === 'news') {
-        const newsRow = await db.prepare('SELECT id, title, body, author_name, image_r2_key, video_r2_key, link_url, category FROM lantern_news_submissions WHERE id = ?').bind(a.item_id).first();
+        const newsRow = await db.prepare('SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, video_r2_key, link_url, category FROM lantern_news_submissions WHERE id = ?').bind(a.item_id).first();
         if (newsRow) {
           title = newsRow.title || '';
           preview_url = newsRow.image_r2_key ? origin + '/api/news/image?key=' + encodeURIComponent(newsRow.image_r2_key) : null;
@@ -6094,6 +6155,19 @@ async function handleApprovalsRoutes(request, url, path, env) {
             author_name: newsRow.author_name || submitter,
             category: cat,
             people: publicPeopleForReview(peopleRows),
+            media_publicity: await buildReviewMediaPublicitySummary(db, {
+              contentKind: 'news',
+              contentId: a.item_id,
+              peopleRows,
+              authorFields: {
+                actor_id: newsRow.actor_id,
+                author_name: newsRow.author_name,
+                submitted_by_actor_id: a.submitted_by_actor_id,
+              },
+              authorType: newsRow.author_type || 'student',
+              videoKey: newsRow.video_r2_key,
+              imageKey: newsRow.image_r2_key,
+            }),
           });
           continue;
         }
@@ -6104,7 +6178,7 @@ async function handleApprovalsRoutes(request, url, path, env) {
       } else if (a.item_type === 'poll_contribution') {
         let pc = null;
         try {
-          pc = await db.prepare('SELECT question, choices_json, image_url, fallback_key FROM lantern_poll_contributions WHERE id = ?').bind(a.item_id).first();
+          pc = await db.prepare('SELECT question, choices_json, image_url, fallback_key, character_name FROM lantern_poll_contributions WHERE id = ?').bind(a.item_id).first();
         } catch (_) {}
         if (pc) {
           title = pc.question || 'Poll';
@@ -6133,6 +6207,19 @@ async function handleApprovalsRoutes(request, url, path, env) {
             poll_choices: ch,
             poll_question: pc.question || '',
             people: publicPeopleForReview(peopleRows),
+            media_publicity: await buildReviewMediaPublicitySummary(db, {
+              contentKind: 'poll_contribution',
+              contentId: a.item_id,
+              peopleRows,
+              authorFields: {
+                character_name: pc.character_name,
+                author_name: pc.character_name,
+                submitted_by_actor_id: a.submitted_by_actor_id,
+              },
+              authorType: 'student',
+              videoKey: '',
+              imageKey: pc.image_url,
+            }),
           });
           continue;
         }
@@ -6155,6 +6242,82 @@ async function handleApprovalsRoutes(request, url, path, env) {
       });
     }
     return jsonResponse({ ok: true, pending: out }, 200, approvalsCors);
+  }
+
+  // Prompt #3 — staff-only restricted student list for Review Submissions (no parent/waiver notes).
+  if (request.method === 'GET' && path === '/api/approvals/media-publicity-restrictions') {
+    let tmsStudents = [];
+    try {
+      const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: false });
+      if (bridge && bridge.ok && Array.isArray(bridge.students)) tmsStudents = bridge.students;
+    } catch (_) {}
+    const list = await listRestrictedStudentsForStaff(db, tmsStudents);
+    return jsonResponse({ ok: true, count: list.length, students: list }, 200, approvalsCors);
+  }
+
+  // Prompt #3 — durable external-media clearance (YouTube / external hosting gate).
+  if (request.method === 'POST' && path === '/api/approvals/external-media-clear') {
+    let body;
+    try {
+      body = JSON.parse(await request.text() || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, approvalsCors);
+    }
+    const itemType = String(body.item_type || body.content_kind || '').trim().toLowerCase();
+    const itemId = String(body.item_id || body.content_id || body.id || '').trim();
+    if (!itemType || !itemId) {
+      return jsonResponse({ ok: false, error: 'missing_item' }, 400, approvalsCors);
+    }
+    const contentKind = itemType === 'poll' ? 'poll_contribution' : itemType;
+    const restrictedSet = await loadRestrictedStudentIdSet(db);
+    let videoKey = '';
+    let imageKey = '';
+    let peopleRows = [];
+    if (contentKind === 'news') {
+      const row = await db
+        .prepare('SELECT video_r2_key, image_r2_key FROM lantern_news_submissions WHERE id = ?')
+        .bind(itemId)
+        .first();
+      if (!row) return jsonResponse({ ok: false, error: 'not_found' }, 404, approvalsCors);
+      videoKey = row.video_r2_key || '';
+      imageKey = row.image_r2_key || '';
+      peopleRows = await listContentPeople(db, 'news', itemId);
+    } else if (contentKind === 'poll_contribution') {
+      const row = await db
+        .prepare('SELECT image_url FROM lantern_poll_contributions WHERE id = ?')
+        .bind(itemId)
+        .first();
+      if (!row) return jsonResponse({ ok: false, error: 'not_found' }, 404, approvalsCors);
+      imageKey = row.image_url || '';
+      peopleRows = await listContentPeople(db, 'poll_contribution', itemId);
+    } else {
+      return jsonResponse({ ok: false, error: 'unsupported_item_type' }, 400, approvalsCors);
+    }
+    const knownRestricted = knownRestrictedPeopleFromRows(peopleRows, restrictedSet);
+    if (knownRestricted.length) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'known_restricted_student_associated',
+          known_restricted_people: knownRestricted,
+        },
+        403,
+        approvalsCors
+      );
+    }
+    const fingerprint = computeExternalAssetFingerprint({
+      videoKey,
+      imageKey,
+      peopleKeys: peopleRows.map((p) => p.person_key).filter(Boolean),
+    });
+    const saved = await recordExternalMediaClearance(db, {
+      contentKind,
+      contentId: itemId,
+      clearedBy: reviewerLabelFromAccount(account),
+      assetFingerprint: fingerprint,
+    });
+    if (!saved.ok) return jsonResponse({ ok: false, error: saved.error || 'clearance_failed' }, 503, approvalsCors);
+    return jsonResponse({ ok: true, clearance: saved }, 200, approvalsCors);
   }
 
   if (request.method === 'GET' && path === '/api/approvals/history') {
@@ -7436,6 +7599,13 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
         link_url: r.link_url || null,
       };
     });
+    const forDisplay =
+      url.searchParams.get('for_display') === '1' ||
+      url.searchParams.get('for_display') === 'true' ||
+      url.searchParams.get('surface') === 'hallway';
+    if (forDisplay) {
+      list = await filterRecognitionRowsForHallwayTv(db, list);
+    }
     if (characterName) {
       const newsRows = await db.prepare(
         "SELECT id, title, body, author_name, reviewed_at, created_at FROM lantern_news_submissions WHERE status = 'approved' AND (hidden_at IS NULL OR hidden_at = '') AND (body LIKE 'Shout-out%' OR body LIKE '%Recognizing:%') ORDER BY COALESCE(reviewed_at, created_at) DESC LIMIT 80"

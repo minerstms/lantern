@@ -4,6 +4,7 @@
  */
 import { extractMissionSubmissionMedia } from './missions-auth.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
+import { filterFeedItemsForHallwayTv } from './media-publicity.js';
 import { ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import { attachAuthorAvatarKeys, loadPilotAvatarKeyIndex } from './author-avatar-key.js';
@@ -621,6 +622,8 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     let items = await collectApprovedFeed(db, origin, { limit: 50 });
     items = filterFeedItems(items, params);
     items = items.filter((it) => it.slideshowEligible || it.imageUrl || it.thumbnailUrl);
+    // Prompt #3 — slideshow is Hallway TV / Display; exclude media-publicity restricted identities.
+    items = await filterFeedItemsForHallwayTv(db, items);
     return feedJson({ ok: true, items }, 200, cors);
   }
 
