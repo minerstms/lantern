@@ -274,6 +274,7 @@
   /**
    * ONE compact production card-face compositor (contract v2).
    * Prompt #222 — canonical 3-row overlay: headline · author+date · context/preview + ULHC type icon.
+   * Prompt #225 — one author avatar spans Rows 2+3 (meta grid); headline stays full-width Row 1.
    * @param {object} model — normalized face fields
    * @param {object} shellOpts — report/nav/class attrs
    */
@@ -317,13 +318,18 @@
         avatar: model.avatar,
       });
     }
-    var row2Parts = [];
-    if (avatarHtml) row2Parts.push(avatarHtml);
-    if (author) row2Parts.push('<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>');
+    var metaParts = [];
+    if (author) metaParts.push('<span class="lanternCanonicalCardAuthor">' + esc(author) + '</span>');
     if (dateMeta) {
-      if (row2Parts.length) row2Parts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
-      row2Parts.push('<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>');
+      if (metaParts.length) metaParts.push('<span class="lanternCanonicalCardMetaSeparator" aria-hidden="true">·</span>');
+      metaParts.push('<span class="lanternCanonicalCardDate">' + esc(dateMeta) + '</span>');
     }
+    var metaLine = metaParts.length
+      ? '<div class="lanternCanonicalCardMeta lanternCanonicalCardMetaRow">' + metaParts.join('') + '</div>'
+      : '';
+    var descLine = desc
+      ? '<div class="lanternCanonicalCardDesc lanternCanonicalCardDescRow">' + esc(desc) + '</div>'
+      : '';
     var badgeLayer = '';
     var ulhc = exploreOverlay ? resolveUlhcTypeBadge(model) : null;
     if (ulhc) {
@@ -343,14 +349,21 @@
     }
     var imgBlock = '<img class="lanternCanonicalCardImage" src="' + esc(remoteUrl) + '" alt="" loading="lazy" decoding="async" data-lc-t="' + esc(typeSvg) + '" data-lc-u="' + esc(uniSvg) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
     var fallbackBlock = '<div class="lanternCanonicalCardFallback" hidden style="background:linear-gradient(135deg,' + svgSpecForContentType(fbType).a + ',' + svgSpecForContentType(fbType).b + ');" aria-hidden="true"></div>';
-    var captionInner =
-      '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>' +
-      (row2Parts.length
-        ? '<div class="lanternCanonicalCardMeta lanternCanonicalCardMetaRow">' + row2Parts.join('') + '</div>'
-        : '') +
-      (desc
-        ? '<div class="lanternCanonicalCardDesc lanternCanonicalCardDescRow">' + esc(desc) + '</div>'
-        : '');
+    var captionInner = '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>';
+    if (exploreOverlay && (avatarHtml || metaLine || descLine)) {
+      /* Prompt #225 — avatar column spans Rows 2+3; text column holds author/date + context. */
+      captionInner +=
+        '<div class="lanternCanonicalCardMetaGrid' +
+        (avatarHtml ? '' : ' lanternCanonicalCardMetaGrid--noAvatar') +
+        '">' +
+        (avatarHtml || '') +
+        metaLine +
+        descLine +
+        '</div>';
+    } else {
+      if (metaLine) captionInner += metaLine;
+      if (descLine) captionInner += descLine;
+    }
     var inner =
       '<div class="lanternCanonicalCardFrame">' +
         imgBlock +

@@ -113,7 +113,13 @@ assert(/Tap to vote/.test(pollHtml), '19. Poll Row 3 prompt');
 
 assert(/display:\s*flex\s*!important/.test(cardsCss) && /feedExploreCard/.test(cardsCss), '20. Explore ULHC badges enabled in CSS');
 assert(/lanternCanonicalCardDescRow/.test(cardsCss), '21. 3-row CSS present');
+assert(/lanternCanonicalCardMetaGrid/.test(cardsCss) && /grid-row:\s*1\s*\/\s*span\s*2/.test(cardsCss), '21b. #225 avatar spans Rows 2+3');
 assert(/author_avatar_key/.test(contribute) && /LANTERN_PILOT_ME/.test(contribute), '22. Create mock uses real avatar key');
+
+const spanHtml = LC.buildCanonicalCardFaceHtml(shout);
+assert(/lanternCanonicalCardMetaGrid/.test(spanHtml), '22b. MetaGrid in face HTML');
+assert((spanHtml.match(/identity-chip/g) || []).length === 1, '22c. one avatar only');
+assert(!/lanternCanonicalCardMetaRow[\s\S]*identity-chip/.test(spanHtml), '22d. avatar not nested inside MetaRow');
 
 assert(FR && Array.isArray(FR.VOCAB) && FR.VOCAB.length === 5, '23. five reactions preserved');
 assert(!/lanternFinalRxLockBtn/.test(rxJs) || /display:\s*none/.test(rxCss), '24. permanent Lock In hidden/removed');
