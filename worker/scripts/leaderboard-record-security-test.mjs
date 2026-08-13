@@ -228,6 +228,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Orbit Lock',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);

@@ -653,6 +653,66 @@
     }
     .playAgainRow{ display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
 
+    .orbitLockArea{
+      width: 100%;
+      max-width: 100%;
+      gap: 12px;
+      padding: 12px 10px 16px;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(32, 72, 140, 0.45), rgba(7, 11, 22, 0.92) 62%),
+        #070b16;
+      border: 1px solid rgba(90, 167, 255, 0.28);
+    }
+    .orbitLockHud{
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 8px;
+    }
+    .orbitLockStat{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 900;
+    }
+    .orbitLockStatLbl{ font-size: 22px; color: var(--muted); }
+    .orbitLockStatVal{ font-size: 28px; color: var(--ink); letter-spacing: 0.04em; }
+    .orbitLockCanvasWrap{
+      width: min(100%, 72vw, 420px);
+      aspect-ratio: 1 / 1;
+      max-height: min(52vh, 420px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .orbitLockCanvasWrap canvas{
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      border-radius: 50%;
+      touch-action: manipulation;
+    }
+    .orbitLockHint, .orbitLockFeedback{
+      margin: 0;
+      text-align: center;
+      max-width: 36rem;
+      line-height: 1.3;
+    }
+    .orbitLockHint{ font-size: 22px; font-weight: 800; color: var(--muted); }
+    .orbitLockFeedback{ font-size: 24px; font-weight: 900; color: var(--warn); min-height: 1.2em; }
+    @media (min-width: 720px){
+      .orbitLockHud{ flex-direction: row; justify-content: space-between; }
+      .orbitLockStat{ flex-direction: column; align-items: center; gap: 2px; }
+    }
+
     @media (prefers-reduced-motion: reduce){
       .gameArea .tapZone.ready,
       .gameArea .tapZone.falseStart,
@@ -661,7 +721,8 @@
       .gameArea .comboFlash,
       .memCard,
       .memCard.mismatch,
-      .memCard.matched{
+      .memCard.matched,
+      .orbitLockArea canvas{
         animation: none !important;
         transition: none !important;
       }
@@ -789,6 +850,7 @@
       <button type="button" id="clickrushPlayBtn"></button>
       <button type="button" id="memoryPlayBtn"></button>
       <button type="button" id="nuggetHuntPlayBtn"></button>
+      <button type="button" id="orbitLockPlayBtn"></button>
     </div>
 
     </div>
@@ -804,6 +866,29 @@
       <div class="gameLocked" id="memoryLocked" style="display:none;">Need at least 1 nugget to play.</div>
       <div class="gameArea" id="memoryArea" style="display:none;"><div class="memHud" id="memoryHud"><span>Moves: <span class="memHudVal" id="memoryMovesVal">0</span></span><span>Pairs left: <span class="memHudVal" id="memoryPairsVal">6</span></span></div><div class="memGrid" id="memoryGrid"></div><div class="playAgainRow" id="memoryPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="memoryPlayAgainBtn">Play Again</button></div></div>
       <div class="gameLocked" id="nuggetHuntLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameLocked" id="orbitLockLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameArea orbitLockArea" id="orbitLockArea" style="display:none;">
+        <div class="orbitLockHud" id="orbitLockHud">
+          <div class="orbitLockStat">
+            <span class="orbitLockStatLbl">Lives</span>
+            <span class="orbitLockStatVal" id="orbitLockLivesVal">●●●</span>
+          </div>
+          <div class="orbitLockStat">
+            <span class="orbitLockStatLbl">Score</span>
+            <span class="orbitLockStatVal" id="orbitLockScoreVal">0</span>
+          </div>
+          <div class="orbitLockStat">
+            <span class="orbitLockStatLbl">Stage</span>
+            <span class="orbitLockStatVal" id="orbitLockStageVal">1</span>
+          </div>
+        </div>
+        <div class="orbitLockCanvasWrap">
+          <canvas id="orbitLockCanvas" width="320" height="320" aria-label="Orbit ring. Tap when the marker is inside the bright target arc. The inner notch is a Perfect lock."></canvas>
+        </div>
+        <p class="orbitLockHint" id="orbitLockHint">Tap, click, or press Space when the marker is inside the bright arc. The inner notch is Perfect.</p>
+        <p class="orbitLockFeedback" id="orbitLockFeedback" aria-live="polite"></p>
+        <div class="playAgainRow" id="orbitLockPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="orbitLockPlayAgainBtn">Play Again</button></div>
+      </div>
     </div>
     <!-- Nugget Hunt fullscreen overlay -->
     <div class="nuggetHuntOverlay lanternOverlayBelowNav" id="nuggetHuntOverlay">
@@ -891,6 +976,7 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-game-catalog.js"></script>
+  <script src="js/lantern-orbit-lock.js"></script>
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-game-player.js"></script>
@@ -1089,10 +1175,10 @@
         if (n != null) {
           // Prompt #151 — do not disable off-DOM play triggers on low balance.
           // Card click selects/opens pregame; Start enforces 1 Nugget spend.
-          ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+          ['reaction','clickrush','memory','nuggetHunt','orbitLock'].forEach(function(g){
             var lockEl = el(g + 'Locked');
             var playBtn = el(g + 'PlayBtn');
-            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : g === 'orbitLock' ? 'Orbit Lock' : 'Reaction Tap');
             if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
             if (playBtn) playBtn.disabled = false;
           });
@@ -1401,6 +1487,77 @@
 
       playBtn.addEventListener('click', startClickRushRound);
       if (playAgainBtn) playAgainBtn.addEventListener('click', startClickRushRound);
+    })();
+
+    // ---- Orbit Lock: timing lock on a circular orbit (Prompt #156) ----
+    (function(){
+      var playBtn = el('orbitLockPlayBtn');
+      var area = el('orbitLockArea');
+      var playAgainRow = el('orbitLockPlayAgainRow');
+      var playAgainBtn = el('orbitLockPlayAgainBtn');
+      var engine = window.LANTERN_ORBIT_LOCK;
+      var scorePosted = false;
+
+      function sfxOrbitLock(){ playGameTone([720, 960], { dur: 0.08, gap: 0.05, vol: 0.07 }); }
+      function sfxOrbitPerfect(){ playGameTone([880, 1180, 1480], { dur: 0.09, gap: 0.06, vol: 0.08 }); }
+      function sfxOrbitMiss(){ playGameTone([200], { dur: 0.14, vol: 0.05, type: 'triangle' }); }
+      function sfxOrbitOver(){ playGameTone([392, 330, 262], { dur: 0.16, gap: 0.12, vol: 0.07, type: 'triangle' }); }
+
+      function resetOrbitLockGame(){
+        if (engine && typeof engine.stop === 'function') engine.stop();
+        if (playAgainRow) playAgainRow.style.display = 'none';
+        if (area) area.style.display = 'none';
+      }
+
+      function startOrbitLockRound(){
+        if (!engine || typeof engine.mount !== 'function') {
+          toast('Couldn\'t start the game. Try again.');
+          return;
+        }
+        tryPlay('Orbit Lock', function(){
+          scorePosted = false;
+          if (playAgainRow) playAgainRow.style.display = 'none';
+          engine.mount(area, {
+            reducedMotion: prefersReducedMotion,
+            onLock: function(result){
+              if (!result) return;
+              if (result.type === 'perfect') sfxOrbitPerfect();
+              else if (result.type === 'hit') sfxOrbitLock();
+              else if (result.type === 'miss') sfxOrbitMiss();
+              else if (result.type === 'gameover' || result.type === 'complete') sfxOrbitOver();
+            },
+            onGameOver: function(runState){
+              if (playAgainRow) playAgainRow.style.display = 'flex';
+              if (scorePosted) return;
+              scorePosted = true;
+              var adopted = loadAdopted();
+              var pts = runState && Number.isFinite(Number(runState.score)) ? Math.floor(Number(runState.score)) : 0;
+              var stage = runState && runState.stage ? runState.stage : 1;
+              var display = pts + ' pts · stage ' + stage;
+              if (adopted && run && run.recordGameResult) {
+                run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Orbit Lock', meta: { score: pts, score_display: display, stage: stage } });
+              }
+              if (adopted) {
+                postLeaderboardScore('Orbit Lock', adopted.name, pts, display, function(ok){
+                  if (ok) toast('Score recorded on leaderboard.');
+                });
+              }
+            }
+          });
+        }, { surface: area, onExit: resetOrbitLockGame, returnFocus: playBtn });
+      }
+
+      if (playBtn) playBtn.addEventListener('click', startOrbitLockRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startOrbitLockRound);
+
+      // Future Mission launch: games.html?game=orbit-lock. No Orbit Lock mission exists tonight.
+      // Direct play remains ordinary paid play and must not complete trivia missions.
+      try {
+        var params = new URLSearchParams(location.search || '');
+        if (params.get('game') === 'orbit-lock' && playBtn) {
+          setTimeout(function(){ playBtn.click(); }, 0);
+        }
+      } catch (e) {}
     })();
 
     // ---- Memory Match: ready → playing → result → Play Again (Prompt #99 polish pass) ----
