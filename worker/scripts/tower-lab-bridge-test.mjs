@@ -239,6 +239,60 @@ if (
   ok('score adapter posts session identity + Lantern game name to existing leaderboard API');
 } else bad('submitLeaderboardScore', posted);
 
+const fetchCountAfterRealSubmit = fetchCalls.length;
+const previewed = await bridge.recordGameOutcome({
+  previewMode: true,
+  gameId: 'tower',
+  gameName: 'Tower',
+  score: 150,
+  floors: 6,
+  username: 'DONOR_USER',
+  character_name: 'DONOR_USER',
+  nuggets: 999,
+  reward: 50,
+});
+if (
+  previewed.ok &&
+  previewed.skipped === true &&
+  previewed.reason === 'preview_mode' &&
+  previewed.leaderboardPosted === false &&
+  previewed.economyPosted === false &&
+  previewed.missionWritten === false &&
+  previewed.ignoredDonorFields.indexOf('character_name') !== -1 &&
+  previewed.ignoredDonorFields.indexOf('nuggets') !== -1 &&
+  fetchCalls.length === fetchCountAfterRealSubmit
+) {
+  ok('previewMode recordGameOutcome performs no leaderboard/economy/mission fetch');
+} else bad('previewMode recordGameOutcome', previewed);
+
+const previewSubmit = await bridge.submitLeaderboardScore({
+  previewMode: true,
+  gameName: 'Tower',
+  score: 10,
+  nuggets: 999,
+});
+if (
+  previewSubmit.skipped === true &&
+  previewSubmit.leaderboardPosted === false &&
+  fetchCalls.length === fetchCountAfterRealSubmit
+) {
+  ok('previewMode submitLeaderboardScore does not POST');
+} else bad('previewMode submitLeaderboardScore', previewSubmit);
+
+const previewReward = await bridge.maybeGrantQualifyingReward({
+  previewMode: true,
+  nuggets: 999,
+  character_name: 'donor_user',
+});
+if (
+  previewReward.skipped === true &&
+  previewReward.economyPosted === false &&
+  previewReward.missionWritten === false &&
+  fetchCalls.length === fetchCountAfterRealSubmit
+) {
+  ok('previewMode maybeGrantQualifyingReward performs no economy POST');
+} else bad('previewMode maybeGrantQualifyingReward', previewReward);
+
 const noId = await (function () {
   bridgeSandbox.LanternAuth = { adoptedFromPilotMe: function () { return null; } };
   return bridge.submitLeaderboardScore({ gameName: 'Tower', score: 10, character_name: 'DONOR_USER' });
@@ -299,27 +353,81 @@ if (stripped.score === 10 && stripped.username == null && stripped.nuggets == nu
 } else bad('adapter stripForbidden', stripped);
 
 // ---------------------------------------------------------------------------
-// Lab wiring uses Lantern-owned game id and existing record API
+// Lab wiring — hardcoded preview mode, diagnostics, no server writes
 // ---------------------------------------------------------------------------
-if (labHtml.includes("leaderboardKey: 'Tower'") && labHtml.includes('submitLeaderboardScore')) {
-  ok('lab submits with Lantern-owned Tower key');
-} else bad('lab score wiring');
+if (labHtml.includes("var TOWER_LAB_PREVIEW_MODE = true")) {
+  ok('lab hardcodes preview mode true');
+} else bad('lab preview flag');
+
+if (!labHtml.match(/TOWER_LAB_PREVIEW_MODE\s*=\s*[^\n]*location/) && !labHtml.match(/previewMode[^\n]*URLSearchParams/) && !labHtml.match(/searchParams[^\n]*preview/)) {
+  ok('lab preview mode is not a query-string switch');
+} else bad('insecure preview query switch');
+
+if (labHtml.includes('recordGameOutcome') && labHtml.includes('previewMode: TOWER_LAB_PREVIEW_MODE')) {
+  ok('lab routes results through recordGameOutcome with hardcoded previewMode');
+} else bad('lab recordGameOutcome wiring');
+
+if (!labHtml.includes('submitLeaderboardScore(') && !labHtml.includes('/api/leaderboards/record')) {
+  ok('lab page does not call leaderboard POST directly');
+} else bad('lab still posts leaderboard');
+
+if (!labHtml.includes('/api/economy/transact') && !labHtml.includes('startPaidGame') && !labHtml.includes('postEconomyTransact') && !labHtml.includes('awardGameWin')) {
+  ok('lab page performs no economy POST');
+} else bad('lab economy write');
+
+if (!labHtml.includes('completeFirstGame') && !labHtml.includes('awardGameWinWithEconomy')) {
+  ok('lab page performs no mission/first-game write');
+} else bad('lab mission write');
 
 if (labHtml.includes("username: 'DONOR_MUST_BE_IGNORED'") && labHtml.includes('nuggets: 999')) {
-  ok('lab intentionally passes spoofed donor identity/Nuggets to prove the adapter ignores them');
+  ok('lab still passes spoofed donor identity/Nuggets so the bridge can discard them');
 } else bad('lab spoof-ignore wiring');
 
-if (labHtml.includes('maybeGrantQualifyingReward') && labHtml.includes('Nuggets: writes disabled')) {
-  ok('lab Nugget path is present and labeled disabled');
-} else bad('lab nugget disabled copy');
+if (
+  labHtml.includes('id="towerLabPlayer"') &&
+  labHtml.includes('id="towerLabGame"') &&
+  labHtml.includes('id="towerLabBridge"') &&
+  labHtml.includes('id="towerLabState"') &&
+  labHtml.includes('id="towerLabScore"') &&
+  labHtml.includes('id="towerLabFinal"') &&
+  labHtml.includes('id="towerLabFloors"') &&
+  labHtml.includes('id="towerLabEvent"') &&
+  labHtml.includes('PREVIEW MODE — RESULTS NOT SAVED')
+) {
+  ok('lab diagnostic panel has identity, game, bridge, state, scores, floors, event, preview flag');
+} else bad('lab diagnostic fields');
 
-if (bridgeJs.includes('/api/leaderboards/record') && bridgeJs.includes('credentials: \'include\'')) {
-  ok('bridge uses existing leaderboard record endpoint with credentials');
-} else bad('bridge record endpoint');
+if (labHtml.includes("setText('towerLabEvent', 'gameStarted')") && labHtml.includes("setText('towerLabEvent', 'scoreChanged')") && labHtml.includes("setText('towerLabEvent', 'gameEnded')")) {
+  ok('diagnostic UI updates for gameStarted, scoreChanged, and gameEnded');
+} else bad('diagnostic event updates');
+
+if (labHtml.includes("setText('towerLabState', 'Ready')") && labHtml.includes("setText('towerLabState', 'Playing'") && labHtml.includes("setText('towerLabState', 'Ended')")) {
+  ok('diagnostic game state cycles Ready / Playing / Ended');
+} else bad('diagnostic game state');
+
+if (labHtml.includes('studentFriendlyDisplayNameFromAdopted') && !labHtml.includes('mtss_student_id') && !labHtml.includes('PILOT_SESSION')) {
+  ok('lab shows display identity without private IDs or session secrets');
+} else bad('lab identity display');
+
+if (labHtml.includes('src="/games/tower/index.html"') && labHtml.includes('id="towerGameFrame"')) {
+  ok('Tower lab loads same-origin iframe');
+} else bad('lab iframe load');
+
+if (bridgeJs.includes('function submitLeaderboardScore') && bridgeJs.includes('/api/leaderboards/record') && bridgeJs.includes('function recordGameOutcome')) {
+  ok('reusable leaderboard integration remains on the bridge');
+} else bad('bridge leaderboard helpers removed');
 
 if (bridgeJs.includes('kind game_play') && bridgeJs.includes('kind game_win')) {
   ok('bridge documents existing TMS game_play / game_win integration points');
 } else bad('nugget integration comments');
+
+if (gameHtml.includes('overflow:hidden') && labHtml.includes('overflow-x: hidden') && labHtml.includes('min(100%, 420px)') && labHtml.includes('margin: 0 auto')) {
+  ok('lab iframe is centered with overflow clipping prevented');
+} else bad('iframe layout');
+
+if (gameHtml.includes("game.playBgm()") && !gameHtml.match(/game\.load\(function \(\) \{[\s\S]{0,80}playBgm/)) {
+  ok('BGM waits for the Start click (no load-time autoplay)');
+} else bad('audio autoplay');
 
 console.log('\nTower lab bridge tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

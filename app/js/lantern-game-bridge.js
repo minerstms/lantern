@@ -111,29 +111,65 @@
     return true;
   }
 
+  function collectIgnoredDonorFields(opts) {
+    var ignored = [];
+    opts = opts || {};
+    FORBIDDEN_PAYLOAD_KEYS.forEach(function (k) {
+      if (opts[k] != null && opts[k] !== '') ignored.push(k);
+    });
+    return ignored;
+  }
+
+  function previewSkipResult(reason, ignoredDonorFields) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: reason || 'preview_mode',
+      leaderboardPosted: false,
+      economyPosted: false,
+      missionWritten: false,
+      ignoredDonorFields: ignoredDonorFields || [],
+    };
+  }
+
+  /**
+   * Lab/unlinked preview outcome. Hardcoded previewMode from the lab page
+   * (never from a query string) skips every server write while keeping the
+   * reusable submit/reward helpers intact for a later Play merge.
+   */
+  function recordGameOutcome(opts) {
+    opts = opts || {};
+    var ignoredDonorFields = collectIgnoredDonorFields(opts);
+    if (opts.previewMode === true) {
+      return Promise.resolve(previewSkipResult('preview_mode', ignoredDonorFields));
+    }
+    return submitLeaderboardScore(opts);
+  }
+
   /**
    * POST /api/leaderboards/record using the existing Lantern API.
    * game_name comes from Lantern config, not the donor.
    * character_name comes from the session, not the donor.
+   * When opts.previewMode === true, does not fetch (safe lab preview).
    */
   function submitLeaderboardScore(opts) {
     opts = opts || {};
+    var ignoredDonorFields = collectIgnoredDonorFields(opts);
+    if (opts.previewMode === true) {
+      return Promise.resolve(previewSkipResult('preview_mode', ignoredDonorFields));
+    }
     var identity = resolveSessionIdentity();
     if (!identity || !identity.character_name) {
-      return Promise.resolve({ ok: false, error: 'no_session_identity' });
+      return Promise.resolve({ ok: false, error: 'no_session_identity', ignoredDonorFields: ignoredDonorFields });
     }
     var gameName = String(opts.gameName || '').trim();
     if (!gameName) {
-      return Promise.resolve({ ok: false, error: 'missing_lantern_game_name' });
+      return Promise.resolve({ ok: false, error: 'missing_lantern_game_name', ignoredDonorFields: ignoredDonorFields });
     }
     var score = numeric(opts.score, NaN);
     if (!Number.isFinite(score)) {
-      return Promise.resolve({ ok: false, error: 'invalid_score' });
+      return Promise.resolve({ ok: false, error: 'invalid_score', ignoredDonorFields: ignoredDonorFields });
     }
-    var ignoredDonorFields = [];
-    FORBIDDEN_PAYLOAD_KEYS.forEach(function (k) {
-      if (opts[k] != null && opts[k] !== '') ignoredDonorFields.push(k);
-    });
     var body = {
       game_name: gameName,
       character_name: identity.character_name,
@@ -147,7 +183,7 @@
     };
     var url = apiBase() + '/api/leaderboards/record';
     if (typeof global.fetch !== 'function') {
-      return Promise.resolve({ ok: false, error: 'fetch_unavailable', ignoredDonorFields: ignoredDonorFields });
+      return Promise.resolve({ ok: false, error: 'fetch_unavailable', ignoredDonorFields: ignoredDonorFields, leaderboardPosted: false });
     }
     return global
       .fetch(url, {
@@ -187,15 +223,17 @@
    */
   function maybeGrantQualifyingReward(opts) {
     opts = opts || {};
-    var ignored = [];
-    FORBIDDEN_PAYLOAD_KEYS.forEach(function (k) {
-      if (opts[k] != null && opts[k] !== '') ignored.push(k);
-    });
+    var ignored = collectIgnoredDonorFields(opts);
+    if (opts.previewMode === true) {
+      return Promise.resolve(previewSkipResult('preview_mode', ignored));
+    }
     if (!NUGGET_WRITES_ENABLED) {
       return Promise.resolve({
         ok: true,
         skipped: true,
         reason: 'nugget_writes_disabled',
+        economyPosted: false,
+        missionWritten: false,
         ignoredDonorFields: ignored,
       });
     }
@@ -246,6 +284,7 @@
     sanitizeIncoming: sanitizeIncoming,
     resolveSessionIdentity: resolveSessionIdentity,
     submitLeaderboardScore: submitLeaderboardScore,
+    recordGameOutcome: recordGameOutcome,
     maybeGrantQualifyingReward: maybeGrantQualifyingReward,
     attach: attach,
     isTrustedMessage: isTrustedMessage,
