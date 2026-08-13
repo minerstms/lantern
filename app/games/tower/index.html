@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,minimal-ui,viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <title>Stack Lab</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{
+      height:100%;
+      width:100%;
+      max-width:100%;
+      overflow:hidden;
+      overflow-x:hidden;
+      background:#0b1220;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:#eaf0ff;
+      touch-action:manipulation;
+      user-select:none;
+      -webkit-user-select:none;
+      overscroll-behavior:none;
+    }
+    #canvas{
+      position:fixed;left:0;top:0;right:0;bottom:0;margin:auto;display:block;
+      max-width:100%;
+      touch-action:none;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .hide{display:none}
+    .loading{
+      position:fixed;inset:0;
+      background:#0b1220;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;
+      font-size:22px;
+      font-weight:700;
+      padding:24px;
+      text-align:center;
+    }
+    .loading .bar{
+      height:12px;width:min(70%, 280px);
+      border:2px solid #5aa7ff;border-radius:8px;overflow:hidden;
+    }
+    .loading .percent{height:100%;width:0;background:#5aa7ff}
+    .labStart{
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+      z-index:4;
+      font-size:28px;font-weight:900;
+      padding:12px 28px;
+      border:0;border-radius:14px;
+      background:#5aa7ff;color:#0b1220;
+      max-width:calc(100% - 24px);
+    }
+    .labHint{
+      position:fixed;left:50%;bottom:88px;transform:translateX(-50%);
+      z-index:4;
+      font-size:22px;font-weight:700;
+      color:#c8e4ff;
+      text-align:center;
+      max-width:calc(100% - 24px);
+      line-height:1.35;
+      pointer-events:none;
+      text-shadow:0 2px 8px rgba(11,18,32,.85);
+    }
+    .labOver{
+      position:fixed;inset:0;
+      background:rgba(11,18,32,.82);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;
+      z-index:5;
+      font-size:24px;font-weight:800;
+      padding:24px;text-align:center;
+    }
+    .labOver button{
+      font-size:26px;font-weight:900;
+      padding:12px 24px;border:0;border-radius:14px;
+      background:#5aa7ff;color:#0b1220;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" class="hide"></canvas>
+  <div class="loading" id="loading">
+    <div>Loading Stack Lab…</div>
+    <div class="bar"><div class="percent" id="loadPercent"></div></div>
+    <div id="loadLabel">0%</div>
+  </div>
+  <p class="labHint hide" id="labHint">Tap, click, or press Space to place a floor</p>
+  <button type="button" class="labStart hide" id="labStart">Begin</button>
+  <div class="labOver hide" id="labOver">
+    <p>Game over</p>
+    <p id="labOverScore"></p>
+    <button type="button" id="labReload">Reload lab</button>
+  </div>
+  <script src="/games/tower/lantern-sprites.js"></script>
+  <script src="/games/tower/lantern-sfx.js"></script>
+  <script src="/games/tower/donor/dist/main.js"></script>
+  <script src="/games/tower/vendor/zepto-1.1.6.min.js"></script>
+  <script src="/games/tower/lantern-adapter.js"></script>
+  <script>
+    var canvasReady, loadError, gameStart, game, score, successCount;
+    var SCORE_MAX = 2500;
+    var QUALIFYING_FLOORS = 10;
+    var lastPlaceAt = 0;
+    var lanternPlay = /(?:\?|&)lanternPlay=1(?:&|$)/.test(String(window.location.search || ''));
+    var gameWidth = window.innerWidth;
+    var gameHeight = window.innerHeight;
+    var ratio = 1.5;
+    if (gameHeight / gameWidth < ratio) {
+      gameWidth = Math.ceil(gameHeight / ratio);
+    }
+
+    if (window.LanternTowerAssets) window.LanternTowerAssets.build();
+
+    function clampScore(s) {
+      var n = Math.floor(Number(s));
+      if (!Number.isFinite(n) || n < 0) return 0;
+      if (n > SCORE_MAX) return SCORE_MAX;
+      return n;
+    }
+
+    function hideLoading() {
+      if (canvasReady) {
+        $('#canvas').show();
+        $('#loading').hide();
+        if (lanternPlay) {
+          $('#labStart').addClass('hide');
+          $('#labHint').removeClass('hide');
+        } else {
+          $('#labStart').removeClass('hide');
+        }
+      }
+    }
+
+    function updateLoading(status) {
+      var success = status.success;
+      var total = status.total;
+      var failed = status.failed;
+      if (failed > 0 && !loadError) {
+        loadError = true;
+        alert('Could not load Stack Lab assets.');
+        return;
+      }
+      var percent = parseInt((success / total) * 100, 10);
+      if (percent === 100 && !canvasReady) {
+        canvasReady = true;
+        hideLoading();
+      }
+      percent = percent > 98 ? 98 : percent;
+      $('#loadLabel').text(percent + '%');
+      $('#loadPercent').css({ width: percent + '%' });
+    }
+
+    function stopEngine() {
+      try {
+        if (game && typeof game.setVariable === 'function') {
+          game.setVariable('GAME_START_NOW', false);
+        }
+      } catch (e) {}
+    }
+
+    var option = {
+      width: gameWidth,
+      height: gameHeight,
+      canvasId: 'canvas',
+      soundOn: false,
+      setGameScore: function (s) {
+        score = clampScore(s);
+        if (window.LanternDonorAdapter) {
+          window.LanternDonorAdapter.notifyScoreChanged(score, successCount || 0);
+        }
+      },
+      setGameSuccess: function (s) {
+        successCount = s;
+        if (s === QUALIFYING_FLOORS && window.LanternTowerSfx) window.LanternTowerSfx.play('win');
+        if (s >= QUALIFYING_FLOORS) {
+          stopEngine();
+          $('#labHint').addClass('hide');
+          if (window.LanternDonorAdapter) window.LanternDonorAdapter.notifyGameEnded('completed');
+        }
+      },
+      setGameFailed: function (f) {
+        if (f >= 3) {
+          stopEngine();
+          $('#labHint').addClass('hide');
+          if (!lanternPlay) {
+            $('#labOverScore').text((score || 0) + ' pts');
+            $('#labOver').removeClass('hide');
+          }
+        }
+      }
+    };
+    if (window.LanternDonorAdapter && typeof window.LanternDonorAdapter.wrapOptions === 'function') {
+      option = window.LanternDonorAdapter.wrapOptions(option);
+    }
+
+    function startDonorPlay() {
+      if (gameStart) return;
+      gameStart = true;
+      $('#labStart').addClass('hide');
+      if (lanternPlay) $('#labHint').removeClass('hide');
+      if (window.LanternDonorAdapter) window.LanternDonorAdapter.notifyGameStarted();
+      setTimeout(game.start, 400);
+    }
+    window.__lanternTowerBeginPlay = startDonorPlay;
+
+    function lanternPlace(ev) {
+      var now = Date.now();
+      if (now - lastPlaceAt < 90) return;
+      lastPlaceAt = now;
+      if (ev && typeof ev.preventDefault === 'function' && ev.cancelable) ev.preventDefault();
+      if (!gameStart || !game) return;
+      $('#labHint').addClass('hide');
+      if (typeof game.touchStartListener === 'function') game.touchStartListener();
+    }
+
+    function bindLanternControls() {
+      var canvasEl = document.getElementById('canvas');
+      if (canvasEl) {
+        canvasEl.addEventListener('pointerdown', lanternPlace, { passive: false });
+      }
+      document.addEventListener('keydown', function (e) {
+        var key = e.key || '';
+        if (key === ' ' || key === 'Enter' || key === 'Spacebar' || e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowDown') {
+          if (e.repeat) return;
+          lanternPlace(e);
+        }
+      }, { passive: false });
+      document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+      document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+      if (game && typeof game.addKeyDownListener === 'function') {
+        game.addKeyDownListener('space', function () { lanternPlace(); });
+        game.addKeyDownListener('enter', function () { lanternPlace(); });
+        game.addKeyDownListener('downArrow', function () { lanternPlace(); });
+      }
+    }
+
+    function gameReady() {
+      game = TowerGame(option);
+      if (window.LanternTowerSfx) window.LanternTowerSfx.attach(game);
+      bindLanternControls();
+      game.load(function () {
+        game.init();
+        if (lanternPlay) {
+          setTimeout(startDonorPlay, 400);
+        }
+      }, updateLoading);
+    }
+
+    gameReady();
+
+    window.__LANTERN_TOWER_TEST__ = {
+      simulateWin: function () {
+        successCount = QUALIFYING_FLOORS;
+        score = clampScore(250);
+        if (window.LanternDonorAdapter) {
+          window.LanternDonorAdapter.notifyScoreChanged(score, successCount);
+          window.LanternDonorAdapter.notifyGameEnded('completed');
+        }
+        stopEngine();
+        $('#labHint').addClass('hide');
+      },
+      simulateMissOut: function () {
+        if (window.LanternDonorAdapter) {
+          window.LanternDonorAdapter.notifyScoreChanged(score || 0, successCount || 0);
+          window.LanternDonorAdapter.notifyGameEnded('hp_depleted');
+        }
+        stopEngine();
+        $('#labHint').addClass('hide');
+        if (!lanternPlay) {
+          $('#labOverScore').text((score || 0) + ' pts');
+          $('#labOver').removeClass('hide');
+        }
+      }
+    };
+
+    $('#labStart').on('click', function () {
+      startDonorPlay();
+    });
+    $('#labReload').on('click', function () {
+      if (lanternPlay) return;
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

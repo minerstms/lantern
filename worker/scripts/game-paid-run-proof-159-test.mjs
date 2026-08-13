@@ -203,8 +203,8 @@ if (hunt.scoreMin === 0 && validateLeaderboardScore(hunt, 0).ok) {
 } else bad('Nugget Hunt 0 still legitimate');
 
 const catalogIds = LANTERN_LEADERBOARD_GAMES.map((g) => g.id).sort();
-const expectedIds = ['avatar-match', 'clickrush', 'handbook-trivia', 'lantern-live-trivia', 'local-history-trivia', 'memory', 'nuggetHunt', 'reaction', 'srp-safety-trivia'];
-if (catalogIds.join() === expectedIds.sort().join()) ok('33. all nine catalog games remain the production set');
+const expectedIds = ['avatar-match', 'clickrush', 'handbook-trivia', 'lantern-live-trivia', 'local-history-trivia', 'memory', 'nuggetHunt', 'reaction', 'srp-safety-trivia', 'tower'];
+if (catalogIds.join() === expectedIds.sort().join()) ok('33. all ten catalog games remain the production set');
 else bad('catalog ids', catalogIds);
 
 if (

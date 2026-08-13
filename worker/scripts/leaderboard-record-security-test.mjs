@@ -215,7 +215,7 @@ async function postTransact(env, cookie, body) {
 // ---------------------------------------------------------------------------
 // Catalog unit checks
 // ---------------------------------------------------------------------------
-if (LANTERN_LEADERBOARD_GAMES.length === 9) ok('server catalog has nine production games');
+if (LANTERN_LEADERBOARD_GAMES.length === 10) ok('server catalog has ten production games');
 else bad('server catalog count', LANTERN_LEADERBOARD_GAMES.length);
 
 const expectedNames = [
@@ -228,6 +228,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Stack Lab',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
@@ -239,9 +240,9 @@ if (resolveRegisteredLeaderboardGame('clickrush') && resolveRegisteredLeaderboar
   ok('game id clickrush resolves to canonical display name');
 } else bad('id resolution');
 
-if (!resolveRegisteredLeaderboardGame('tower') && !resolveRegisteredLeaderboardGame('Tower')) {
-  ok('Tower is not registered until explicitly added to the server catalog');
-} else bad('Tower should not be in production catalog yet');
+if (resolveRegisteredLeaderboardGame('tower') && resolveRegisteredLeaderboardGame('tower').name === 'Stack Lab') {
+  ok('Stack Lab is registered as tower on the server catalog');
+} else bad('Stack Lab / tower missing from production catalog');
 
 if (!resolveRegisteredLeaderboardGame('lab-game') && !resolveRegisteredLeaderboardGame('<script>')) {
   ok('arbitrary / injection game names are not registered');
@@ -272,7 +273,7 @@ if (sanitizeRunId('run_abc-123') === 'run_abc-123' && sanitizeRunId('bad run;dro
   ok('run_id sanitizer allows uuid-like tokens only');
 } else bad('run_id sanitize');
 
-if (leaderboardGameNames().length === 9) ok('production leaderboard name list is the nine catalog games');
+if (leaderboardGameNames().length === 10) ok('production leaderboard name list is the ten catalog games');
 else bad('leaderboardGameNames', leaderboardGameNames());
 
 // ---------------------------------------------------------------------------
