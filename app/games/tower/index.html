@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,minimal-ui">
+  <title>Lantern Stack</title>
+  <!-- Engine bundle still resolves ./assets/* under donor/ (Lantern-owned replacements). -->
+  <base href="./donor/">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{
+      height:100%;
+      width:100%;
+      overflow:hidden;
+      background:#0b1220;
+      color:#eaf0ff;
+      font-family:Arial,Helvetica,sans-serif;
+    }
+    body{margin:0 auto;text-align:center}
+    #canvas{position:fixed;left:0;top:0;right:0;bottom:0;margin:auto;max-width:100%}
+    .hide{display:none}
+    .content{height:100%;width:100%;margin:0 auto;position:relative;overflow:hidden}
+    .loading{
+      position:absolute;inset:0;
+      background:#0b1220;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;padding:24px;
+    }
+    .loading .mark{
+      width:72px;height:72px;border-radius:18px;
+      background:linear-gradient(180deg,#5aa7ff,#0f3b86);
+      box-shadow:0 0 24px rgba(90,167,255,.45);
+    }
+    .loading .title{font-size:28px;font-weight:900;letter-spacing:.04em}
+    .loading .text{font-size:22px;color:#b9c6ea}
+    .loading .bar{
+      height:14px;width:min(72%,280px);
+      border:2px solid #5aa7ff;border-radius:999px;overflow:hidden;
+    }
+    .loading .percent{height:100%;width:0;background:#5aa7ff}
+    .landing{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:20px;padding:24px;background:#0b1220;
+    }
+    .landing h1{font-size:32px;font-weight:900;margin:0;color:#ffcc66}
+    .landing p{font-size:22px;color:#b9c6ea;max-width:20rem;line-height:1.35}
+    .landing .start{
+      appearance:none;border:0;border-radius:18px;
+      background:#5aa7ff;color:#0b1220;
+      font-size:28px;font-weight:900;
+      padding:14px 28px;min-height:52px;
+    }
+    .modal{
+      position:fixed;inset:0;background:rgba(11,18,32,.92);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;padding:24px;z-index:5;
+    }
+    .modal h2{font-size:32px;font-weight:900;color:#ffcc66;margin:0}
+    .modal #score{font-size:28px;font-weight:800}
+    .modal .tip{font-size:22px;color:#b9c6ea}
+    .modal .js-reload{
+      appearance:none;border:0;border-radius:18px;
+      background:#5aa7ff;color:#0b1220;
+      font-size:26px;font-weight:900;padding:12px 24px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" class="hide"></canvas>
+  <div class="content">
+    <div class="loading" id="stackLoading">
+      <div class="mark" aria-hidden="true"></div>
+      <div class="title">Lantern Stack</div>
+      <div class="bar"><div class="percent" id="stackLoadPct"></div></div>
+      <div class="text" id="stackLoadText">Loading…</div>
+    </div>
+    <div class="landing hide" id="stackLanding">
+      <h1>Lantern Stack</h1>
+      <p>Tap to drop each floor. Stack 10 floors to earn +1 Nugget.</p>
+      <button type="button" class="start" id="start">Start</button>
+    </div>
+    <div id="modal" class="modal hide">
+      <h2>Run complete</h2>
+      <div id="score"></div>
+      <div id="over-zero" class="hide">
+        <p class="tip">The Play shell will show your result.</p>
+        <button type="button" class="js-reload" id="stackReplay">Play Again</button>
+      </div>
+    </div>
+  </div>
+  <script src="./dist/main.js"></script>
+  <script src="./assets/zepto-1.1.6.min.js"></script>
+  <script src="/games/tower/lantern-stack-audio.js"></script>
+  <script src="/games/tower/lantern-adapter.js"></script>
+  <script>
+    var domReady, canvasReady, loadError, gameStart, game, score, successCount;
+    var lanternPlay = /(?:\?|&)lanternPlay=1(?:&|$)/.test(String(window.location.search || ''));
+    var gameWidth = window.innerWidth;
+    var gameHeight = window.innerHeight;
+    var ratio = 1.5;
+    if (gameHeight / gameWidth < ratio) {
+      gameWidth = Math.ceil(gameHeight / ratio);
+    }
+    $('.content').css({ height: gameHeight + 'px', width: gameWidth + 'px' });
+
+    function hideLoading() {
+      if (domReady && canvasReady) {
+        $('#canvas').show();
+        setTimeout(function () {
+          $('#stackLoading').hide();
+          if (lanternPlay) {
+            $('#stackLanding').hide();
+          } else {
+            $('#stackLanding').show();
+          }
+        }, 400);
+      }
+    }
+
+    function updateLoading(status) {
+      var success = status.success;
+      var total = status.total;
+      var failed = status.failed;
+      if (failed > 0 && !loadError) {
+        loadError = true;
+        $('#stackLoadText').text('Could not load. Try again.');
+        return;
+      }
+      var percent = parseInt((success / total) * 100, 10);
+      if (percent === 100 && !canvasReady) {
+        canvasReady = true;
+        hideLoading();
+      }
+      percent = percent > 98 ? 98 : percent;
+      $('#stackLoadText').text(percent + '%');
+      $('#stackLoadPct').css({ width: percent + '%' });
+    }
+
+    function overShowOver() {
+      if (lanternPlay) return;
+      $('#modal').show();
+      $('#over-zero').show();
+      $('#score').text((score || 0) + ' pts');
+    }
+
+    var option = {
+      width: gameWidth,
+      height: gameHeight,
+      canvasId: 'canvas',
+      soundOn: false,
+      setGameScore: function (s) {
+        score = s;
+      },
+      setGameSuccess: function (s) {
+        successCount = s;
+      },
+      setGameFailed: function (f) {
+        $('#score').text((score || 0) + ' pts');
+        if (f >= 3) overShowOver();
+      }
+    };
+    if (window.LanternDonorAdapter && typeof window.LanternDonorAdapter.wrapOptions === 'function') {
+      option = window.LanternDonorAdapter.wrapOptions(option);
+    }
+
+    function startDonorPlay() {
+      if (gameStart) return;
+      gameStart = true;
+      if (window.LanternDonorAdapter) window.LanternDonorAdapter.notifyGameStarted();
+      $('#stackLanding').hide();
+      setTimeout(game.start, 200);
+    }
+    window.__lanternTowerBeginPlay = startDonorPlay;
+
+    function gameReady() {
+      game = TowerGame(option);
+      if (window.LanternStackAudio && typeof window.LanternStackAudio.attachToGame === 'function') {
+        window.LanternStackAudio.attachToGame(game);
+      }
+      game.load(function () {
+        game.init();
+        if (lanternPlay) {
+          setTimeout(startDonorPlay, 250);
+        }
+      }, updateLoading);
+    }
+
+    gameReady();
+
+    $('#start').on('click', function () {
+      startDonorPlay();
+    });
+
+    $('#stackReplay').on('click', function () {
+      if (lanternPlay) return;
+      window.location.reload();
+    });
+
+    window.addEventListener('load', function () {
+      domReady = true;
+      hideLoading();
+    }, false);
+  </script>
+</body>
+</html>

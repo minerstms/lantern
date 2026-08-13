@@ -3,7 +3,7 @@
  * play_cost is the authoritative entry fee (minimum 1 for scored games).
  *
  * Server-side result validation lives in worker/lantern-game-catalog.js (same ids/names).
- * Register future donor games (e.g. Tower) in BOTH catalogs before they can record scores.
+ * Register future donor games in BOTH catalogs before they can record scores.
  */
 (function (global) {
   'use strict';
@@ -123,6 +123,21 @@
       scoring: { lowerIsBetter: true },
       leaderboard: true,
       description: 'Find the special icon among decoys. Full-screen search.',
+    },
+    {
+      id: 'tower',
+      name: 'Lantern Stack',
+      type: 'arcade',
+      playBtnId: 'towerPlayBtn',
+      play_cost: 1,
+      icon: '🏗️',
+      image: 'assets/lantern-stack-card.png',
+      featured: false,
+      status: 'playable',
+      scoring: { lowerIsBetter: false },
+      leaderboard: true,
+      qualifyingWin: { floors: 10 },
+      description: 'Stack glowing floors against a night skyline. Higher score wins. Reach 10 floors to earn +1 Nugget.',
     },
   ];
 

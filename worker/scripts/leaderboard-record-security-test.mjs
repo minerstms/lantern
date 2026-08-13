@@ -186,7 +186,7 @@ async function postTransact(env, cookie, body) {
 // ---------------------------------------------------------------------------
 // Catalog unit checks
 // ---------------------------------------------------------------------------
-if (LANTERN_LEADERBOARD_GAMES.length === 8) ok('server catalog has eight production games');
+if (LANTERN_LEADERBOARD_GAMES.length === 9) ok('server catalog has nine production games');
 else bad('server catalog count', LANTERN_LEADERBOARD_GAMES.length);
 
 const expectedNames = [
@@ -198,6 +198,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Lantern Stack',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
@@ -209,9 +210,9 @@ if (resolveRegisteredLeaderboardGame('clickrush') && resolveRegisteredLeaderboar
   ok('game id clickrush resolves to canonical display name');
 } else bad('id resolution');
 
-if (!resolveRegisteredLeaderboardGame('tower') && !resolveRegisteredLeaderboardGame('Tower')) {
-  ok('Tower is not registered until explicitly added to the server catalog');
-} else bad('Tower should not be in production catalog yet');
+if (resolveRegisteredLeaderboardGame('tower') && resolveRegisteredLeaderboardGame('Lantern Stack') && resolveRegisteredLeaderboardGame('tower').name === 'Lantern Stack') {
+  ok('Lantern Stack is registered in the server catalog as id tower / name Lantern Stack');
+} else bad('Lantern Stack missing from server catalog');
 
 if (!resolveRegisteredLeaderboardGame('lab-game') && !resolveRegisteredLeaderboardGame('<script>')) {
   ok('arbitrary / injection game names are not registered');
@@ -242,11 +243,11 @@ if (sanitizeRunId('run_abc-123') === 'run_abc-123' && sanitizeRunId('bad run;dro
   ok('run_id sanitizer allows uuid-like tokens only');
 } else bad('run_id sanitize');
 
-if (leaderboardGameNames().length === 8) ok('production leaderboard name list is the eight catalog games');
+if (leaderboardGameNames().length === 9) ok('production leaderboard name list is the nine catalog games');
 else bad('leaderboardGameNames', leaderboardGameNames());
 
 // ---------------------------------------------------------------------------
-// Client contract: eight games post without client-authoritative character_name
+// Client contract: catalog games post without client-authoritative character_name
 // ---------------------------------------------------------------------------
 const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 const paidStartJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-paid-start.js'), 'utf8');
@@ -336,9 +337,9 @@ async function main() {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
-    const { status, json } = await postRecord(env, cookie, { game_name: 'Tower', score: 999 });
+    const { status, json } = await postRecord(env, cookie, { game_name: 'Unregistered Lab Game', score: 999 });
     if (status === 400 && json.error === 'invalid_game' && state.entries.length === 0) {
-      ok('D. unregistered game ID (Tower) rejected');
+      ok('D. unregistered game ID rejected');
     } else bad('D. invalid game', { status, json, n: state.entries.length });
   }
 
@@ -400,6 +401,36 @@ async function main() {
     if (first.status === 200 && second.status === 200 && second.json.idempotent === true && state.entries.length === 1 && second.json.id === first.json.id) {
       ok('I. duplicate run_id does not insert a second leaderboard row');
     } else bad('I. idempotency', { first, second, n: state.entries.length });
+  }
+
+  // Tower registered record + retry
+  {
+    const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    const env = makeEnv(state);
+    const cookie = await cookieFor(studentAccount());
+    const body = {
+      game_id: 'tower',
+      score: 250,
+      score_display: '250 pts',
+      run_id: 'tower-run-1',
+      character_name: 'spoof_ignored',
+    };
+    const first = await postRecord(env, cookie, body);
+    const second = await postRecord(env, cookie, body);
+    const row = state.entries[0];
+    if (
+      first.status === 200 &&
+      first.json.ok &&
+      first.json.game_name === 'Lantern Stack' &&
+      first.json.character_name === '20889' &&
+      row &&
+      row.character_name === '20889' &&
+      row.score === 250 &&
+      second.json.idempotent === true &&
+      state.entries.length === 1
+    ) {
+      ok('Tower authenticated record uses session identity; retry is idempotent');
+    } else bad('Tower record', { first, second, row, n: state.entries.length });
   }
 
   // J. Tower-shaped call: authenticated, no identity fields
