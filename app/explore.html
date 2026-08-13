@@ -14,7 +14,8 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260812-openedmodal9">
-  <link rel="stylesheet" href="css/lantern-feed.css?v=20260811-exploreheaderfilters">
+  <link rel="stylesheet" href="css/lantern-feed.css?v=20260812-marquee137">
+  <link rel="stylesheet" href="css/lantern-power-list.css?v=20260812-marquee137">
   <link rel="stylesheet" href="css/lantern-surface-theme.css?v=20260811-exploreheaderfilters">
   <link rel="stylesheet" href="css/lantern-reactions.css">
   <style>
@@ -94,9 +95,19 @@
       <button type="button" class="feedDetailClose feedDetailCloseBtn" onclick="document.getElementById('feedDetailOverlay').hidden=true">Close</button>
     </div>
   </div>
+  <div id="marqueeFeedInspector" class="marqueeFeedOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="marqueeFeedTitle">
+    <div class="marqueeFeedPanel">
+      <div class="marqueeFeedPanelHd">
+        <h2 id="marqueeFeedTitle">Marquee Feed</h2>
+        <button type="button" class="marqueeFeedCloseBtn" id="marqueeFeedCloseBtn">Close</button>
+      </div>
+      <p class="marqueeFeedHint">Read-only. Newest first. Same events the public ticker can show.</p>
+      <div id="marqueeFeedListMount"></div>
+    </div>
+  </div>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
-  <script src="js/lantern-nav.js?v=20260811-exploreheaderfilters"></script>
+  <script src="js/lantern-nav.js?v=20260812-marquee137"></script>
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-ticker.js"></script>
@@ -109,6 +120,8 @@
   <script src="js/lantern-feed-card.js"></script>
   <script src="js/lantern-surface-theme.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-feed-explore.js?v=20260811-exploreheaderfilters"></script>
+  <script src="js/lantern-power-list.js?v=20260812-marquee137"></script>
+  <script src="js/lantern-marquee-inspector.js?v=20260812-marquee137"></script>
   <script>
   (function () {
     function boot() {

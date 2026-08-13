@@ -570,3 +570,69 @@
   border: 1px solid var(--feed-line);
   cursor: pointer;
 }
+
+/* Prompt #137 — SYSTEM_ADMIN Marquee Feed inspector (read-only Power Scroller). */
+.marqueeFeedOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  background: rgba(5, 7, 11, 0.92);
+  overflow: auto;
+  padding: 24px 16px;
+}
+.marqueeFeedOverlay[hidden] {
+  display: none !important;
+}
+.marqueeFeedPanel {
+  max-width: 960px;
+  margin: 0 auto;
+  background: #0f1b33;
+  border-radius: 16px;
+  padding: 18px 16px 20px;
+  border: 1px solid var(--feed-line, rgba(255, 255, 255, 0.12));
+}
+.marqueeFeedPanelHd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.marqueeFeedPanelHd h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+}
+.marqueeFeedHint {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--feed-muted, #b9c6ea);
+}
+.marqueeFeedCloseBtn {
+  font-size: 18px;
+  font-weight: 800;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--feed-line, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--feed-ink, #eaf0ff);
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 44px;
+}
+.marqueeFeedDl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1.4fr);
+  gap: 6px 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.marqueeFeedDl dt {
+  color: var(--feed-muted, #b9c6ea);
+}
+.marqueeFeedDl dd {
+  margin: 0;
+  word-break: break-word;
+}

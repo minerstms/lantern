@@ -155,9 +155,13 @@
       current === 'explore'
         ? '<button type="button" class="lanternAppBarFiltersBtn" id="feedFiltersToggle" aria-expanded="false" aria-controls="feedFiltersPanel">Filters ▸</button>'
         : '';
+    var marqueeFeedBtn =
+      current === 'explore'
+        ? '<button type="button" class="lanternAppBarFiltersBtn" id="marqueeFeedBtn" hidden aria-controls="marqueeFeedInspector">Marquee Feed</button>'
+        : '';
     var searchCluster =
       current === 'explore'
-        ? '<div class="lanternAppBarSearchFilters">' + searchWrap + exploreFilters + '</div>'
+        ? '<div class="lanternAppBarSearchFilters">' + searchWrap + exploreFilters + marqueeFeedBtn + '</div>'
         : searchWrap;
     // Prompt #185 — keep Needs Attention bell; remove header avatar + Help Mode slot (desktop + phone).
     var bellBtn = '<button type="button" class="lanternAppBarIconBtn" id="lanternExploreBell" style="display:none" aria-hidden="true" aria-label="Needs attention">&#128276;</button>';

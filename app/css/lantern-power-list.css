@@ -298,6 +298,17 @@
     minmax(88px, 0.9fr);
 }
 
+/* Prompt #137 — Marquee Feed inspector: chevron | Type | Public Text | Time | Status */
+.lanternPowerList--marquee .lanternPowerListColHd,
+.lanternPowerList--marquee .lanternPowerListRowHd {
+  grid-template-columns:
+    22px
+    minmax(108px, 0.85fr)
+    minmax(0, 1.8fr)
+    minmax(96px, 0.7fr)
+    minmax(72px, 0.55fr);
+}
+
 .lanternPowerListToolbar .btn {
   height: 44px;
   flex: 0 0 auto;
@@ -326,7 +337,8 @@
   }
 
   .lanternPowerList--moderation .lanternPowerListRowHd,
-  .lanternPowerList--staff .lanternPowerListRowHd {
+  .lanternPowerList--staff .lanternPowerListRowHd,
+  .lanternPowerList--marquee .lanternPowerListRowHd {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 10px;
@@ -340,7 +352,8 @@
   }
 
   .lanternPowerList--moderation .lanternPowerListCell--title,
-  .lanternPowerList--staff .lanternPowerListCell--name {
+  .lanternPowerList--staff .lanternPowerListCell--name,
+  .lanternPowerList--marquee .lanternPowerListCell--text {
     flex: 1 1 100%;
     order: -1;
     white-space: normal;

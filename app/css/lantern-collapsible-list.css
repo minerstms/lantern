@@ -131,6 +131,9 @@
 .lanternMgmtRecordListHd--missions {
   grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.7fr) minmax(88px, 0.8fr) 28px;
 }
+.lanternMgmtRecordListHd--marquee {
+  grid-template-columns: minmax(108px, 0.85fr) minmax(0, 1.8fr) minmax(96px, 0.7fr) minmax(72px, 0.55fr) 28px;
+}
 
 .lanternMgmtRecordList {
   display: block;
@@ -170,6 +173,9 @@
 }
 .lanternMgmtRecord--missions > summary.lanternMgmtRecordHd {
   grid-template-columns: minmax(0, 1.6fr) minmax(72px, 0.7fr) minmax(88px, 0.8fr) 28px;
+}
+.lanternMgmtRecord--marquee > summary.lanternMgmtRecordHd {
+  grid-template-columns: minmax(108px, 0.85fr) minmax(0, 1.8fr) minmax(96px, 0.7fr) minmax(72px, 0.55fr) 28px;
 }
 
 .lanternMgmtRecordCol {

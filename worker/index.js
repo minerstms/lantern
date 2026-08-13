@@ -128,6 +128,12 @@ import {
 } from './device-enrollment.js';
 import { ACCESS_AUDIT_ACTIONS, recordAccessAuditEvent } from './access-audit.js';
 import { handleSettingsRoutes } from './lantern-settings.js';
+import { handleMarqueeRoutes } from './marquee-handlers.js';
+import {
+  detectLeaderboardEntryTransition,
+  queryWeeklyTopCharacterNames,
+  withBoardEntryMeta,
+} from './marquee-events.js';
 import {
   awardAchievementsForEconomyTransact,
   awardAchievementsAfterPositiveCredit,
@@ -291,6 +297,7 @@ export default {
         path.startsWith('/api/missions') ||
         path.startsWith('/api/feed') ||
         path.startsWith('/api/trivia') ||
+        path.startsWith('/api/marquee') ||
         path.startsWith('/api/locker')
       ) {
         o = corsForPilot(request);
@@ -545,6 +552,22 @@ export default {
         const settingsCors = request.method === 'GET' ? cors : corsForPilot(request);
         const settingsDeps = { jsonResponse, requireAdminPilotSession, adminAuditLabel };
         return await handleSettingsRoutes(request, url, path, env, settingsCors, settingsDeps);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
+      }
+    }
+    if (path.startsWith('/api/marquee')) {
+      try {
+        const marqueeCors = corsForPilot(request);
+        return await handleMarqueeRoutes(request, url, path, env, marqueeCors, {
+          getPilotAccountFromRequest,
+          pilotAccountRequiresChangePassword,
+          resolveTmsStaffIdForLanternAccount,
+          callTmsNuggetsBridge,
+          filterNewsRowsForHallwayTv,
+          filterRecognitionRowsForHallwayTv,
+        });
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
@@ -7532,6 +7555,7 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
 
     const now = new Date().toISOString();
     const id = 'lb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    const beforeNames = await queryWeeklyTopCharacterNames(db, gameName, { nowMs: Date.parse(now) || Date.now() });
     try {
       await db.prepare(
         'INSERT INTO lantern_leaderboard_entries (id, game_name, character_name, score, score_display, meta_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -7539,6 +7563,15 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     } catch (e) {
       return jsonResponse({ ok: false, error: 'Leaderboard table not ready' }, 503, cors);
     }
+    // Prompt #137 — marquee leaderboard-entry is a weekly top-8 state transition, not a score write.
+    // Flag is stored in existing meta_json (no schema change). Improvement while already ranked is not an entry.
+    try {
+      const afterNames = await queryWeeklyTopCharacterNames(db, gameName, { nowMs: Date.parse(now) || Date.now() });
+      if (detectLeaderboardEntryTransition(beforeNames, afterNames, characterName)) {
+        const flagged = withBoardEntryMeta(meta, true);
+        await db.prepare('UPDATE lantern_leaderboard_entries SET meta_json = ? WHERE id = ?').bind(JSON.stringify(flagged), id).run();
+      }
+    } catch (_) {}
     return jsonResponse({ ok: true, id, character_name: characterName, game_name: gameName }, 200, cors);
   }
 

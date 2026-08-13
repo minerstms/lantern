@@ -74,7 +74,7 @@
   }
 
   function getHeroCandidates(slides) {
-    var types = ['teacher_pick', 'featured_creation', 'student_news', 'teacher_recognition', 'achievement', 'nugget_milestone', 'thank_you_highlight'];
+    var types = ['teacher_pick', 'featured_creation', 'student_news', 'teacher_recognition', 'achievement', 'nugget_milestone', 'thank_you_highlight', 'poll', 'arcade_leader'];
     return (slides || []).filter(function (s) {
       return types.indexOf(s.type) !== -1;
     });
@@ -367,11 +367,10 @@
 
   function fetchDisplayTickerState(createRun, apiBase) {
     var base = apiBase || defaultApiBase();
-    /* Prompt #125 — ONE authoritative production collection:
-       Worker /api/recognition/list + /api/news/approved (demo-persona-guard already applied
-       server-side) + optional arcade leaderboard meta. Do not merge LANTERN_API localStorage
-       slides (seedDemoWorld / demo personas). createRun is retained for call-signature
-       compatibility but is not used as a content source. */
+    /* Prompt #111/#125/#137 — ONE marquee source: Worker /api/marquee/events
+       (polls, missions, shout-outs, news, leaderboard entries, recognition).
+       Merge recognition + news INTO slides once as fallback if the expanded feed is unavailable.
+       LANTERN_API.getDisplaySlides (localStorage seed/demo world) is intentionally NOT a source. */
     void createRun;
     var forDisplay =
       (typeof document !== 'undefined' &&
@@ -379,43 +378,42 @@
         document.body.classList &&
         document.body.classList.contains('page-marquee-only')) ||
       (typeof location !== 'undefined' && /\/display\.html/i.test(String(location.pathname || '')));
+    var marqueeUrl = base + '/api/marquee/events?limit=40' + (forDisplay ? '&for_display=1' : '');
     var recognitionUrl = base + '/api/recognition/list?limit=50' + (forDisplay ? '&for_display=1' : '');
     var newsUrl = base + '/api/news/approved' + (forDisplay ? '?for_display=1' : '');
-    return Promise.all([
-      fetch(recognitionUrl)
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (recRes) {
-          return recRes && recRes.ok && recRes.recognition ? recRes.recognition : [];
-        })
-        .catch(function () {
-          return [];
-        }),
-      fetch(newsUrl)
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (nr) {
-          return nr && nr.ok && nr.news ? nr.news : [];
-        })
-        .catch(function () {
-          return [];
-        })
-    ])
-      .then(function (results) {
+
+    function fallbackRecognitionNews() {
+      return Promise.all([
+        fetch(recognitionUrl)
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (recRes) {
+            return recRes && recRes.ok && recRes.recognition ? recRes.recognition : [];
+          })
+          .catch(function () {
+            return [];
+          }),
+        fetch(newsUrl)
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (nr) {
+            return nr && nr.ok && nr.news ? nr.news : [];
+          })
+          .catch(function () {
+            return [];
+          })
+      ]).then(function (results) {
         var recognitionList = results[0] || [];
         var newsList = results[1] || [];
         var slides = [];
-        /* Merge recognition + news INTO slides once — the single authoritative marquee source. */
         var seenRec = {};
         recognitionList.forEach(function (r) {
           var msg = String(r.message || '').trim().slice(0, 250);
           if ((r.message || '').length > 250) msg += '…';
-          /* Prompt #133 — professional staff label from Worker overlay; never first+last snapshots. */
           var title = String(r.character_public_label || r.character_name || '').trim() || 'Recognition';
-          var fromStaff = String(r.created_by_teacher_public_label || r.created_by_teacher_name || '').trim();
-          var subtitle = msg || (fromStaff ? 'From ' + fromStaff : '');
+          var subtitle = msg || (r.created_by_teacher_public_label || r.created_by_teacher_name ? 'From ' + (r.created_by_teacher_public_label || r.created_by_teacher_name) : '');
           var key = title.toLowerCase() + '\n' + subtitle.toLowerCase();
           if (seenRec[key]) return;
           seenRec[key] = true;
@@ -466,35 +464,40 @@
             created_at: n.approved_at || n.created_at || ''
           });
         });
-        return fetchWorkerLeaderboardForDisplay(base).then(function (weeklyEntries) {
-          if (weeklyEntries && weeklyEntries.length > 0) {
-            slides.push({
-              type: 'arcade_leader',
-              title: 'Arcade Leaders',
-              subtitle: 'Best scores this week',
-              image: null,
-              actor_name: '',
-              meta: { daily: [], weekly: weeklyEntries, monthly: [], schoolYear: [] },
-              created_at: ''
-            });
+        return enrichTickerPayloadCanonical(slides, recognitionList, newsList).then(function () {
+          if (slides.length === 0) {
+            slides = [
+              {
+                type: 'fallback',
+                title: 'Lantern',
+                subtitle: 'Celebrating our community',
+                image: null,
+                actor_name: '',
+                meta: {},
+                created_at: ''
+              }
+            ];
           }
-          return enrichTickerPayloadCanonical(slides, recognitionList, newsList).then(function () {
-            if (slides.length === 0) {
-              slides = [
-                {
-                  type: 'fallback',
-                  title: 'Lantern',
-                  subtitle: 'Celebrating our community',
-                  image: null,
-                  actor_name: '',
-                  meta: {},
-                  created_at: ''
-                }
-              ];
-            }
-            return { slides: slides, recognitionList: recognitionList, newsList: newsList };
-          });
+          return { slides: slides, recognitionList: recognitionList, newsList: newsList };
         });
+      });
+    }
+
+    return fetch(marqueeUrl, { credentials: 'include', cache: 'no-store' })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (mr) {
+        if (!mr || !mr.ok || !((mr.slides && mr.slides.length) || (mr.events && mr.events.length))) {
+          return fallbackRecognitionNews();
+        }
+        var slides = mr.slides && mr.slides.length ? mr.slides : [];
+        return enrichTickerPayloadCanonical(slides, [], []).then(function () {
+          return { slides: slides, recognitionList: [], newsList: [] };
+        });
+      })
+      .catch(function () {
+        return fallbackRecognitionNews();
       })
       .catch(function () {
         return {
