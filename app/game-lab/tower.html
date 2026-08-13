@@ -1,0 +1,252 @@
+<!-- ===== TMS Lantern — Tower donor lab (unlinked, experimental) ===== -->
+<!DOCTYPE html>
+<html class="lantern-pilot-auth-pending" lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
+  <link rel="apple-touch-icon" href="/assets/favicon.png?v=2">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script src="/js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <title>Tower Lab | Lantern</title>
+  <link rel="stylesheet" href="/css/lantern-ticker.css">
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <style>
+    :root{
+      --ink:#eaf0ff;
+      --muted:#b9c6ea;
+      --accent:#5aa7ff;
+      --good:#38d07c;
+      --warn:#ffcc66;
+      --line: rgba(255,255,255,.12);
+      --fsBase: 22px;
+      --fsButton: 28px;
+    }
+    *{box-sizing:border-box}
+    html,body{ min-height:100%; margin:0; }
+    body{
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      overflow-x: hidden;
+    }
+    .towerLab{
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 980px;
+      width: 100%;
+    }
+    .towerLabBanner{
+      border: 1px solid var(--warn);
+      background: rgba(255,204,102,.12);
+      border-radius: 18px;
+      padding: 16px;
+      font-size: 22px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+    .towerLabTitle{
+      font-size: 32px;
+      font-weight: 1000;
+      line-height: 1.15;
+      margin: 0 0 8px;
+    }
+    .towerLabMeta{
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .towerLabFrameWrap{
+      width: 100%;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: #f95240;
+      min-height: 70vh;
+    }
+    .towerLabFrameWrap iframe{
+      display: block;
+      width: 100%;
+      height: 70vh;
+      min-height: 480px;
+      border: 0;
+      background: #f95240;
+    }
+    .towerLabStatus{
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      font-size: 22px;
+      line-height: 1.4;
+    }
+    .towerLabStatus h2{
+      margin: 0 0 8px;
+      font-size: 26px;
+    }
+    .towerLabStatus p{ margin: 0 0 8px; }
+    .towerLabStatus .ok{ color: var(--good); font-weight: 800; }
+    .towerLabStatus .warn{ color: var(--warn); font-weight: 800; }
+    .towerLabAttribution{
+      font-size: 22px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body class="page-has-ticker">
+  <script>
+  (function(){
+    var auth = window.LanternAuth || window.LanternPilotAuth;
+    if (!auth || typeof auth.guardPilotPage !== 'function') {
+      location.replace('/login.html?return=' + encodeURIComponent(location.pathname + location.search + location.hash));
+      return;
+    }
+    auth.guardPilotPage({ mode: 'general' }, function (data) {
+      window.LANTERN_PILOT_ME = data;
+      if (auth.applyStudentStorageFromSession) auth.applyStudentStorageFromSession(data);
+      document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      if (typeof window.__bootTowerLab === 'function') window.__bootTowerLab();
+    });
+  })();
+  </script>
+  <div id="lanternHeader">
+    <div id="lanternTicker"></div>
+    <div id="lanternAppBarRoot"></div>
+  </div>
+  <div class="wrap lanternContent">
+    <div id="classAccessBannerEl" hidden aria-hidden="true"></div>
+    <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
+    <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
+      <div class="towerLab">
+        <div class="towerLabBanner">
+          <h1 class="towerLabTitle">Tower Lab</h1>
+          <p class="towerLabMeta">Experimental unlinked prototype. Not listed on Play, Explore, Missions, Create, or navigation. Direct URL only.</p>
+        </div>
+        <div class="towerLabFrameWrap">
+          <iframe
+            id="towerGameFrame"
+            src="/games/tower/index.html"
+            title="Tower Building Game"
+            allow="autoplay"
+          ></iframe>
+        </div>
+        <div class="towerLabStatus" id="towerLabStatus" role="status" aria-live="polite">
+          <h2>Lantern bridge</h2>
+          <p id="towerLabPlayer">Player: …</p>
+          <p id="towerLabEvent">Waiting for game events.</p>
+          <p id="towerLabScore">Score: 0</p>
+          <p id="towerLabBoard" class="warn">Leaderboard: not submitted yet.</p>
+          <p id="towerLabNuggets" class="warn">Nuggets: writes disabled in this lab.</p>
+        </div>
+        <p class="towerLabAttribution">
+          Tower Building Game © 2018 BMQB, Inc. MIT license. Served by Lantern, not from an external site.
+        </p>
+      </div>
+    </div>
+  </div>
+  <script src="/js/class-access.js"></script>
+  <script src="/js/lantern-broadcast.js"></script>
+  <script src="/js/lantern-ticker.js"></script>
+  <script src="/js/lantern-staff-nav.js"></script>
+  <script src="/js/lantern-nav.js"></script>
+  <script src="/js/lantern-game-bridge.js"></script>
+  <script>
+    (function () {
+      var LANTERN_TOWER_GAME = {
+        id: 'tower',
+        name: 'Tower',
+        leaderboardKey: 'Tower'
+      };
+      var booted = false;
+      var endedOnce = false;
+
+      function setText(id, text, cls) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = text;
+        el.classList.remove('ok', 'warn');
+        if (cls) el.classList.add(cls);
+      }
+
+      window.__bootTowerLab = function bootTowerLab() {
+        if (booted) return;
+        var auth = window.LanternAuth || window.LanternPilotAuth;
+        var me = auth && typeof auth.getCachedPilotMe === 'function' ? auth.getCachedPilotMe() : null;
+        if (!me || me.authenticated !== true) return;
+        booted = true;
+
+        var bridge = window.LanternGameBridge;
+        var identity = bridge && typeof bridge.resolveSessionIdentity === 'function'
+          ? bridge.resolveSessionIdentity()
+          : null;
+        var playerLabel = identity && identity.display_name ? identity.display_name : '(session identity missing)';
+        setText('towerLabPlayer', 'Player: ' + playerLabel + ' (from Lantern session, not the game)');
+
+        var iframe = document.getElementById('towerGameFrame');
+        if (!bridge || !iframe) {
+          setText('towerLabEvent', 'Bridge failed to load.', 'warn');
+          return;
+        }
+
+        bridge.attach(iframe, {
+          onGameStarted: function () {
+            endedOnce = false;
+            setText('towerLabEvent', 'Game started.', 'ok');
+            setText('towerLabScore', 'Score: 0');
+            setText('towerLabBoard', 'Leaderboard: not submitted yet.', 'warn');
+          },
+          onScoreChanged: function (payload) {
+            setText('towerLabScore', 'Score: ' + payload.score + ' · Floors: ' + payload.floors);
+          },
+          onGameEnded: function (payload) {
+            setText('towerLabEvent', 'Game ended. Score ' + payload.score + '.', 'ok');
+            setText('towerLabScore', 'Score: ' + payload.score + ' · Floors: ' + payload.floors);
+            if (endedOnce) return;
+            endedOnce = true;
+            bridge.submitLeaderboardScore({
+              gameId: LANTERN_TOWER_GAME.id,
+              gameName: LANTERN_TOWER_GAME.leaderboardKey,
+              score: payload.score,
+              floors: payload.floors,
+              scoreDisplay: payload.score + ' pts',
+              username: 'DONOR_MUST_BE_IGNORED',
+              character_name: 'DONOR_MUST_BE_IGNORED',
+              nuggets: 999
+            }).then(function (res) {
+              if (res && res.ok) {
+                setText('towerLabBoard', 'Leaderboard: saved as ' + LANTERN_TOWER_GAME.leaderboardKey + '.', 'ok');
+              } else {
+                setText('towerLabBoard', 'Leaderboard: not saved (' + ((res && res.error) || 'error') + ').', 'warn');
+              }
+            });
+            bridge.maybeGrantQualifyingReward({
+              gameId: LANTERN_TOWER_GAME.id,
+              score: payload.score,
+              nuggets: 999
+            }).then(function (res) {
+              if (res && res.skipped) {
+                setText('towerLabNuggets', 'Nuggets: writes disabled in this lab. Donor amount ignored.', 'warn');
+              } else {
+                setText('towerLabNuggets', 'Nuggets: unexpected lab grant path.', 'warn');
+              }
+            });
+          }
+        });
+      };
+
+      document.addEventListener('lantern-class-access-resolved', function () {
+        window.__bootTowerLab();
+      });
+      var contentWrap = document.getElementById('classAccessContentWrap');
+      if (contentWrap && getComputedStyle(contentWrap).visibility === 'visible') {
+        window.__bootTowerLab();
+      }
+    })();
+  </script>
+</body>
+</html>
