@@ -4,7 +4,7 @@
  * Correctness is scored against Worker banks (parity with lantern-game-content.js).
  * Run state lives in existing lantern_mission_submissions JSON (no schema migration).
  */
-import { HANDBOOK_TRIVIA_BANK, LOCAL_HISTORY_TRIVIA_BANK } from './educational-trivia-banks.js';
+import { HANDBOOK_TRIVIA_BANK, LOCAL_HISTORY_TRIVIA_BANK, SRP_SAFETY_TRIVIA_BANK } from './educational-trivia-banks.js';
 import { completeMissionByEvent } from './mission-event-completions.js';
 import { sanitizeRunId } from './lantern-game-catalog.js';
 
@@ -40,6 +40,19 @@ export const EDUCATIONAL_TRIVIA_MISSIONS = {
     icon: '🏛️',
     cover: 'assets/history-trivia-card.png',
   },
+  perm_srp_safety: {
+    id: 'perm_srp_safety',
+    type: GAME_CORRECT_TARGET_TYPE,
+    game_id: 'srp-safety-trivia',
+    game_name: 'SRP Safety Challenge',
+    title: 'SRP Safety Challenge',
+    description: 'Learn the five SRP safety actions. Get 10 questions correct in one session.',
+    correct_target: EDUCATIONAL_TRIVIA_CORRECT_TARGET,
+    reward_nuggets: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
+    trigger_type: 'srp_safety_trivia',
+    icon: '🛡️',
+    cover: 'assets/srp-safety-trivia-card.png',
+  },
 };
 
 export function isEducationalTriviaMissionId(missionId) {
@@ -61,6 +74,7 @@ export function getEducationalTriviaBank(gameId) {
   const id = String(gameId || '').trim();
   if (id === 'handbook-trivia') return HANDBOOK_TRIVIA_BANK;
   if (id === 'local-history-trivia') return LOCAL_HISTORY_TRIVIA_BANK;
+  if (id === 'srp-safety-trivia') return SRP_SAFETY_TRIVIA_BANK;
   return [];
 }
 

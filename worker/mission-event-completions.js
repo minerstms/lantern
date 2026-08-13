@@ -18,6 +18,7 @@ export const WAVE2_MISSION_IDS = {
   /** Prompt #150 — educational trivia missions (game_correct_target). */
   HANDBOOK_TRIVIA: 'perm_handbook_trivia',
   LOCAL_HISTORY_TRIVIA: 'perm_local_history_trivia',
+  SRP_SAFETY: 'perm_srp_safety',
 };
 
 export const DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
@@ -66,6 +67,10 @@ export function eventKeyHandbookTrivia(characterName) {
 
 export function eventKeyLocalHistoryTrivia(characterName) {
   return `local_history_trivia:${String(characterName || '').trim()}`;
+}
+
+export function eventKeySrpSafety(characterName) {
+  return `srp_safety_trivia:${String(characterName || '').trim()}`;
 }
 
 /** Deterministic submission id derived from event_key (safe for D1 TEXT PK). */
@@ -460,6 +465,7 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
     thank_you: { completed_today: false, day },
     handbook_trivia: { completed: false },
     local_history_trivia: { completed: false },
+    srp_safety_trivia: { completed: false },
   };
   if (!key) return out;
 
@@ -502,6 +508,7 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
   await onceDone(WAVE2_MISSION_IDS.SHOUTOUT, 'shoutout');
   await onceDone(WAVE2_MISSION_IDS.HANDBOOK_TRIVIA, 'handbook_trivia');
   await onceDone(WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA, 'local_history_trivia');
+  await onceDone(WAVE2_MISSION_IDS.SRP_SAFETY, 'srp_safety_trivia');
 
   const thankKey = eventKeyThankYou(key, day);
   const thankDone = await findCompletionByEventKey(db, thankKey);

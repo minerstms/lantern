@@ -544,7 +544,8 @@
       shout: 'perm_shoutout_someone',
       thankYou: 'perm_thank_you',
       handbookTrivia: 'perm_handbook_trivia',
-      localHistoryTrivia: 'perm_local_history_trivia'
+      localHistoryTrivia: 'perm_local_history_trivia',
+      srpSafety: 'perm_srp_safety'
     };
     var DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
 
@@ -1286,6 +1287,7 @@
       var firstGameDone = !!(progress.first_game && progress.first_game.completed) || !!missions.first_game;
       var handbookTriviaDone = !!(progress.handbook_trivia && progress.handbook_trivia.completed);
       var localHistoryTriviaDone = !!(progress.local_history_trivia && progress.local_history_trivia.completed);
+      var srpSafetyDone = !!(progress.srp_safety_trivia && progress.srp_safety_trivia.completed);
       function missionLibraryCoverUrl(m) {
         var card = m && m.card_image_url ? String(m.card_image_url).trim() : '';
         if (card) return card;
@@ -1443,11 +1445,15 @@
           return;
         }
 
-        if (mid === WAVE2_MISSION.handbookTrivia || mid === WAVE2_MISSION.localHistoryTrivia) {
+        if (mid === WAVE2_MISSION.handbookTrivia || mid === WAVE2_MISSION.localHistoryTrivia || mid === WAVE2_MISSION.srpSafety) {
           var triviaDef = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.resolve === 'function')
             ? window.LANTERN_EDU_TRIVIA.resolve(mid)
             : null;
-          var triviaDone = (mid === WAVE2_MISSION.handbookTrivia ? handbookTriviaDone : localHistoryTriviaDone) || st === 'accepted';
+          var triviaDone = (mid === WAVE2_MISSION.handbookTrivia
+            ? handbookTriviaDone
+            : mid === WAVE2_MISSION.srpSafety
+              ? srpSafetyDone
+              : localHistoryTriviaDone) || st === 'accepted';
           var triviaTitle = (triviaDef && triviaDef.title) || m.title || 'Trivia Challenge';
           var triviaDesc = triviaDone
             ? 'Completed\n+1 Nugget earned'
@@ -1461,7 +1467,7 @@
             typeFilter: 'quick',
             typeBadge: '',
             stateBadge: triviaDone ? 'COMPLETED' : '',
-            icon: (triviaDef && triviaDef.game_id === 'local-history-trivia') ? '🏛️' : '📖',
+            icon: (triviaDef && triviaDef.game_id === 'local-history-trivia') ? '🏛️' : ((triviaDef && triviaDef.game_id === 'srp-safety-trivia') ? '🛡️' : '📖'),
             title: triviaTitle,
             description: triviaDesc,
             reward: 1,

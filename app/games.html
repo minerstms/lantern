@@ -784,6 +784,7 @@
       <button type="button" id="lanternLiveTriviaPlayBtn"></button>
       <button type="button" id="handbookTriviaPlayBtn"></button>
       <button type="button" id="localHistoryTriviaPlayBtn"></button>
+      <button type="button" id="srpSafetyTriviaPlayBtn"></button>
       <button type="button" id="reactionPlayBtn"></button>
       <button type="button" id="clickrushPlayBtn"></button>
       <button type="button" id="memoryPlayBtn"></button>
@@ -1121,7 +1122,7 @@
         title: playerOpts.title || gameName,
         gameName: gameName,
         description: sponsored
-          ? 'Multiple-choice on Trinidad, Colorado history. Get 10 Trinidad history questions correct in one game session.'
+          ? (sponsored.description || playerOpts.description)
           : playerOpts.description,
         sponsoredFreeMission: !!sponsored,
         surface: playerOpts.surface,
@@ -2271,6 +2272,7 @@
         if (gameName === 'Handbook Trivia') return 'handbookTriviaPlayBtn';
         if (gameName === 'Lantern Live Trivia') return 'lanternLiveTriviaPlayBtn';
         if (gameName === 'Local History Trivia') return 'localHistoryTriviaPlayBtn';
+        if (gameName === 'SRP Safety Challenge') return 'srpSafetyTriviaPlayBtn';
         return null;
       }
       // Prompt #102: same fix class as Live Trivia (Prompt #99) — validate the question set is
@@ -2330,7 +2332,24 @@
           runTriviaGame('Local History Trivia', 'Local History Trivia', function(){ return questions; });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('localHistoryTriviaPlayBtn') });
       });
-      var autoMission = candidateTriviaMission('handbook-trivia') || candidateTriviaMission('local-history-trivia');
+      function getSrpSafetyQuestionsSafe(){
+        return (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.getSrpSafetyQuestions) ? window.LANTERN_GAME_CONTENT.getSrpSafetyQuestions() : [];
+      }
+      el('srpSafetyTriviaPlayBtn').addEventListener('click', function(){
+        var questions = getSrpSafetyQuestionsSafe();
+        if (!questions || !questions.length) { toast('No trivia questions loaded yet.'); return; }
+        tryPlay('SRP Safety Challenge', function(){
+          var mission = candidateTriviaMission('srp-safety-trivia');
+          if (mission) {
+            runEducationalTriviaMission(mission, function(){
+              runTriviaGame('SRP Safety Challenge', 'SRP Safety Challenge', function(){ return questions; });
+            });
+            return;
+          }
+          runTriviaGame('SRP Safety Challenge', 'SRP Safety Challenge', function(){ return questions; });
+        }, { surface: overlay, onExit: closeOverlay, returnFocus: el('srpSafetyTriviaPlayBtn') });
+      });
+      var autoMission = candidateTriviaMission('handbook-trivia') || candidateTriviaMission('local-history-trivia') || candidateTriviaMission('srp-safety-trivia');
       if (autoMission && autoMission.playBtnId && el(autoMission.playBtnId)) {
         setTimeout(function(){
           var btn = el(autoMission.playBtnId);

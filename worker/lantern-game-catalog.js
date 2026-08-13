@@ -50,6 +50,15 @@ export const LANTERN_LEADERBOARD_GAMES = [
     status: 'playable',
   },
   {
+    id: 'srp-safety-trivia',
+    name: 'SRP Safety Challenge',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 100,
+    leaderboard: true,
+    status: 'playable',
+  },
+  {
     id: 'reaction',
     name: 'Reaction Tap',
     lowerIsBetter: true,

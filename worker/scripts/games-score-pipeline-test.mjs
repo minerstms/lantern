@@ -70,7 +70,7 @@ sandbox.window = sandbox.globalThis = sandbox;
 vm.runInNewContext(catalogJs, sandbox);
 const cat = sandbox.LANTERN_GAME_CATALOG;
 const games = cat.listGames();
-if (games.length === 8) ok('eight canonical games');
+if (games.length === 9) ok('nine canonical games');
 else bad('canonical count', games.length);
 
 const expected = [
@@ -78,6 +78,7 @@ const expected = [
   'Lantern Live Trivia',
   'Handbook Trivia',
   'Local History Trivia',
+  'SRP Safety Challenge',
   'Reaction Tap',
   'Nugget Click Rush',
   'Memory Match',
@@ -93,7 +94,7 @@ expected.forEach(function (name) {
 // Completion contract: each game has postLeaderboardScore with canonical name
 expected.forEach(function (name) {
   const re = new RegExp("postLeaderboardScore\\('" + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "'");
-  if (name === 'Lantern Live Trivia' || name === 'Handbook Trivia' || name === 'Local History Trivia') {
+  if (name === 'Lantern Live Trivia' || name === 'Handbook Trivia' || name === 'Local History Trivia' || name === 'SRP Safety Challenge') {
     if (gamesHtml.includes('postLeaderboardScore(gameName,')) ok('trivia completion uses gameName key: ' + name);
     else bad('trivia post', name);
   } else if (re.test(gamesHtml)) {

@@ -28,10 +28,25 @@
       cta: 'Play Trivia',
       sponsored_free: true,
     },
+    perm_srp_safety: {
+      id: 'perm_srp_safety',
+      type: 'game_correct_target',
+      game_id: 'srp-safety-trivia',
+      game_name: 'SRP Safety Challenge',
+      playBtnId: 'srpSafetyTriviaPlayBtn',
+      title: 'SRP Safety Challenge',
+      description: 'Learn the five SRP safety actions. Get 10 questions correct in one session.',
+      cta: 'Play Trivia',
+      sponsored_free: true,
+    },
   };
 
   var SPONSORED_FREE_MISSION_ID = 'perm_local_history_trivia';
   var SPONSORED_FREE_GAME_ID = 'local-history-trivia';
+  var SPONSORED_FREE_PAIRS = [
+    { missionId: 'perm_local_history_trivia', gameId: 'local-history-trivia' },
+    { missionId: 'perm_srp_safety', gameId: 'srp-safety-trivia' },
+  ];
 
   function resolve(missionId) {
     return MISSIONS[String(missionId || '').trim()] || null;
@@ -55,8 +70,20 @@
   }
 
   function isSponsoredFreePair(missionId, gameId) {
-    return String(missionId || '').trim() === SPONSORED_FREE_MISSION_ID
-      && String(gameId || '').trim() === SPONSORED_FREE_GAME_ID;
+    var mid = String(missionId || '').trim();
+    var gid = String(gameId || '').trim();
+    for (var i = 0; i < SPONSORED_FREE_PAIRS.length; i++) {
+      if (SPONSORED_FREE_PAIRS[i].missionId === mid && SPONSORED_FREE_PAIRS[i].gameId === gid) return true;
+    }
+    return false;
+  }
+
+  function isSponsoredFreeMissionId(missionId) {
+    var mid = String(missionId || '').trim();
+    for (var i = 0; i < SPONSORED_FREE_PAIRS.length; i++) {
+      if (SPONSORED_FREE_PAIRS[i].missionId === mid) return true;
+    }
+    return false;
   }
 
   function isSponsoredFreeLaunch(loc, gameIdOrName) {
@@ -80,8 +107,8 @@
     var def = resolve(missionId);
     if (!def) return 'games.html';
     var replay = opts && opts.replay;
-    // Prompt #160 — Trinidad sponsored Mission stays in Mission context on replay (free, no re-award).
-    if (replay && def.id !== SPONSORED_FREE_MISSION_ID) {
+    // Prompt #160/#166 — sponsored Missions stay in Mission context on replay (free, no re-award).
+    if (replay && !isSponsoredFreeMissionId(def.id)) {
       return 'games.html?game=' + encodeURIComponent(def.game_id);
     }
     return 'games.html?game=' + encodeURIComponent(def.game_id) + '&mission=' + encodeURIComponent(def.id);
@@ -145,6 +172,7 @@
     MISSIONS: MISSIONS,
     SPONSORED_FREE_MISSION_ID: SPONSORED_FREE_MISSION_ID,
     SPONSORED_FREE_GAME_ID: SPONSORED_FREE_GAME_ID,
+    SPONSORED_FREE_PAIRS: SPONSORED_FREE_PAIRS,
     resolve: resolve,
     resolveForGame: resolveForGame,
     candidateFromLocation: candidateFromLocation,

@@ -4,6 +4,8 @@
  * Do not author new Trinidad questions here. Do not introduce Trinidad and Tobago content.
  * Parity is enforced by worker/scripts/educational-trivia-missions-150-test.mjs.
  */
+export { SRP_SAFETY_TRIVIA_BANK } from './srp-safety-trivia-bank.js';
+
 export const HANDBOOK_TRIVIA_BANK = [
   {
     "id": "hb1",

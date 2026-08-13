@@ -144,6 +144,7 @@ if (buildFnMatch) {
       thankYou: 'perm_thank_you',
       handbookTrivia: 'perm_handbook_trivia',
       localHistoryTrivia: 'perm_local_history_trivia',
+      srpSafety: 'perm_srp_safety',
     },
     window: {
       LanternCards: null,

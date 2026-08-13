@@ -1040,7 +1040,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (missionId === WAVE2_MISSION_IDS.THANK_YOU) {
       return jsonResponse({ ok: false, error: 'use_thank_you', message: 'Use Thank a Teacher to complete this mission.' }, 400, cors);
     }
-    if (missionId === WAVE2_MISSION_IDS.HANDBOOK_TRIVIA || missionId === WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA) {
+    if (missionId === WAVE2_MISSION_IDS.HANDBOOK_TRIVIA || missionId === WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA || missionId === WAVE2_MISSION_IDS.SRP_SAFETY) {
       return jsonResponse({ ok: false, error: 'use_trivia_mission', message: 'Play the trivia game to complete this mission.' }, 400, cors);
     }
     // Prompt #8 — active manual missions remain redoable after prior accept/reject.

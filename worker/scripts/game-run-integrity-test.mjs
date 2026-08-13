@@ -88,6 +88,10 @@ if (gamesHtml.match(/var questions = getLocalHistoryQuestionsSafe\(\);\s*\n\s*if
   ok('Local History Trivia validates questions are loaded BEFORE charging the Nugget play cost');
 } else bad('Local History Trivia still charges before validating question data');
 
+if (gamesHtml.match(/var questions = getSrpSafetyQuestionsSafe\(\);\s*\n\s*if \(!questions \|\| !questions\.length\) \{ toast\('No trivia questions loaded yet\.'\); return; \}\s*\n\s*tryPlay\('SRP Safety Challenge'/)) {
+  ok('SRP Safety Challenge validates questions are loaded BEFORE charging the Nugget play cost');
+} else bad('SRP Safety Challenge still charges before validating question data');
+
 if (gamesHtml.match(/window\.LANTERN_FEED\.triviaLive\(\)\.then\(function\(res\)\{\s*\n\s*if \(!res \|\| !res\.ok \|\| !\(res\.questions && res\.questions\.length\)\) \{[\s\S]{0,150}tryPlay\('Lantern Live Trivia'/)) {
   ok('Lantern Live Trivia (Prompt #99 fix) still fetches and validates before charging — no regression');
 } else bad('Lantern Live Trivia fetch-before-charge regressed');

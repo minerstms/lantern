@@ -52,6 +52,7 @@
   function rewardMeta(reward, item) {
     if (reward == null || reward === '' || Number(reward) <= 0) return '';
     if (item && item.id === 'perm_local_history_trivia') return 'FREE · +1 Nugget';
+    if (item && item.id === 'perm_srp_safety') return 'FREE · +1 Nugget';
     return '🟡 +1 Nugget';
   }
 
@@ -225,7 +226,7 @@
       });
       var node = LC.createStudentCard(spec);
       if (!node) return;
-      if (item.id === 'perm_local_history_trivia') paintSponsoredTrinidadReward(node);
+      if (item.id === 'perm_local_history_trivia' || item.id === 'perm_srp_safety') paintSponsoredTrinidadReward(node);
       // Card faces from specGameHubRailCard never produce an .exploreCardOuterWrap <a>
       // wrapper (no navHref is passed), so every card — url-based or onActivate-based —
       // must get its dispatch wired directly on the returned node. A prior version only

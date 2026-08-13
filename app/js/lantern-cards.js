@@ -669,6 +669,7 @@
     perm_shoutout_someone: 'assets/shout-out-card.png',
     perm_handbook_trivia: 'assets/handbook-triva-card.png',
     perm_local_history_trivia: 'assets/history-trivia-card.png',
+    perm_srp_safety: 'assets/srp-safety-trivia-card.png',
   };
 
   function builtInMissionCoverUrl(missionId) {
