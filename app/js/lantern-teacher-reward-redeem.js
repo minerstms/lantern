@@ -194,17 +194,41 @@
     }
   }
 
+  function layoutStudentDropdown() {
+    var inp = el('teacherRewardStudentInput');
+    var dd = el('teacherRewardStudentDropdown');
+    if (!inp || !dd || !dd.classList.contains('show')) return;
+    var rect = inp.getBoundingClientRect();
+    var gap = 12;
+    var available = Math.floor((window.innerHeight || 0) - rect.bottom - gap);
+    var narrow = (window.innerWidth || 0) < 700;
+    var cap = narrow
+      ? Math.floor((window.innerHeight || 0) * 0.55)
+      : 500;
+    var h = Math.min(cap, Math.max(0, available));
+    if (!Number.isFinite(h) || h < 80) h = Math.min(cap, 80);
+    dd.style.maxHeight = h + 'px';
+    dd.style.width = Math.round(rect.width) + 'px';
+  }
+
   function openStudentDropdown() {
     var dd = el('teacherRewardStudentDropdown');
+    var panel = el('teacher-rewards');
     if (!dd) return;
     dd.classList.add('show');
     dd.setAttribute('aria-hidden', 'false');
+    if (panel) panel.classList.add('is-picker-open');
+    layoutStudentDropdown();
   }
   function closeStudentDropdown() {
     var dd = el('teacherRewardStudentDropdown');
+    var panel = el('teacher-rewards');
     if (!dd) return;
     dd.classList.remove('show');
     dd.setAttribute('aria-hidden', 'true');
+    dd.style.maxHeight = '';
+    dd.style.width = '';
+    if (panel) panel.classList.remove('is-picker-open');
   }
 
   function renderStudentDropdown() {
@@ -447,6 +471,8 @@
       inp.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeStudentDropdown(); });
       inp.addEventListener('blur', function () { setTimeout(closeStudentDropdown, 180); });
       dd.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      window.addEventListener('resize', layoutStudentDropdown);
+      window.addEventListener('scroll', layoutStudentDropdown, true);
     }
 
     setSelectedStudent(null);
