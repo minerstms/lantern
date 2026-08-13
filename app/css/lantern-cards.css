@@ -20,10 +20,12 @@
   --lantern-rail-card-outer-width: var(--lantern-card-width);
   /* Opened post / Contribute preview — inner column (same as legacy Explore detail modal max-width). */
   --lantern-opened-content-max-width: 520px;
-  /* Prompt #219/#9 — viewport-safe dialog (leave chrome + safe-area room; no offscreen growth). */
+  /* Prompt #219/#9/#148 — viewport-safe dialog (leave chrome + safe-area room; no offscreen growth). */
   --lantern-opened-modal-max-width: 560px;
   --lantern-opened-modal-max-height: min(88dvh, calc(100dvh - 28px));
-  --lantern-opened-image-max-height: min(36dvh, 36vh, 400px);
+  --lantern-opened-image-max-height: min(42dvh, 42vh);
+  --lantern-opened-media-reading-max-height: 72px;
+  --lantern-opened-body-clamp-lines: 5;
   --lantern-opened-modal-radius: 18px;
   --lantern-opened-modal-pad-x: 18px;
   /* Contribute Studio desktop canvas — CENTER page-centered at 50vw; side panes edge-anchored. */
@@ -1167,7 +1169,7 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
     0 24px 64px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(0, 0, 0, 0.35),
     0 0 48px rgba(70, 130, 255, 0.1);
-  /* Shell scrolls only via .lanternSurfaceContent — prevents nested page jump / offscreen growth */
+  /* Prompt #148 — shell never scrolls; only Reading Mode body may scroll. */
   overflow: hidden;
   height: auto;
   max-height: min(var(--lantern-opened-modal-max-height), 100%);
@@ -1332,9 +1334,10 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 #lanternCardDetailOverlay .lanternCardDetailHeader{
-  position: sticky;
-  top: 0;
+  position: relative;
+  top: auto;
   z-index: 6;
+  flex-shrink: 0;
   background: linear-gradient(180deg, rgba(18, 30, 52, 0.98) 0%, rgba(12, 22, 40, 0.96) 100%);
   padding: 12px var(--lantern-opened-modal-pad-x, 18px) 12px;
   margin: 0 calc(-1 * var(--lantern-opened-modal-pad-x, 18px));
@@ -1442,7 +1445,7 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 }
 .lanternCardDetailVisualInner .lanternDetailMedia--video .newsCardVideo{
   width: 100%;
-  max-height: min(42dvh, 42vh, 480px);
+  max-height: var(--lantern-opened-image-max-height);
   border-radius: 12px;
   border: 1px solid var(--line);
   display: block;
@@ -1606,20 +1609,22 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
  * Embedded Contribute preview (.lanternCardDetailModal--embedded) is unchanged.
  */
 #lanternCardDetailOverlay .lanternSurfaceContent{
-  padding: 0 var(--lantern-opened-modal-pad-x, 18px) 22px;
+  padding: 0 var(--lantern-opened-modal-pad-x, 18px) 14px;
   max-width: none;
   width: 100%;
   margin: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  -webkit-overflow-scrolling: auto;
   flex: 1 1 auto;
   min-height: 0;
-  overscroll-behavior: contain;
+  max-height: 100%;
+  overscroll-behavior: none;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 .lanternCardDetailOverlay .lanternSurfaceContent{
-  padding: 0 var(--lantern-opened-modal-pad-x, 18px) 22px;
+  padding: 0 var(--lantern-opened-modal-pad-x, 18px) 14px;
 }
 .lanternCardDetailOverlay .lanternCardDetailHeader{
   padding: 12px var(--lantern-opened-modal-pad-x, 18px) 12px;
@@ -1628,15 +1633,67 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   background: rgba(0, 0, 0, 0.44);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
+#lanternCardDetailOverlay .lanternCardDetailStage{
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+#lanternCardDetailOverlay .lanternCardDetailFooter{
+  flex-shrink: 0;
+  min-width: 0;
+  padding-top: 8px;
+}
 .lanternCardDetailOverlay .lanternCardDetailVisual{
-  margin-top: 14px;
-  margin-bottom: 14px;
+  margin-top: 12px;
+  margin-bottom: 12px;
   border: 1px solid rgba(120, 170, 255, 0.14);
   background: rgba(0, 0, 0, 0.34);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
   border-radius: 14px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: var(--lantern-opened-image-max-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: max-height .22s ease;
+}
+#lanternCardDetailOverlay .lanternCardDetailVisualInner{
+  width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .lanternDetailMedia,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .lanternDetailMediaImageInner,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .lanternDetailMediaVideoInner,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .newsCardImageWrap,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .newsCardVideoWrap,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .exploreCardVisual{
+  max-height: 100%;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .exploreCardVisual img,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .exploreCardVisual .lcCardImg,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner > .lcCardImg,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .lanternDetailMedia--img .newsCardImage,
+#lanternCardDetailOverlay .lanternCardDetailVisualInner .lanternDetailMedia--video .newsCardVideo{
+  width: auto;
+  max-width: 100%;
+  height: auto !important;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 .lanternCardDetailOverlay .lanternDetailMediaExpandBtn{
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
@@ -1652,22 +1709,54 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   letter-spacing: -0.02em;
   line-height: 1.2;
   font-size: clamp(24px, 4.5vw, 30px);
+  flex-shrink: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  min-width: 0;
 }
 .lanternCardDetailOverlay .lanternCardDetailIdentityWrap{
   margin-bottom: 8px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 .lanternCardDetailOverlay .lanternCardDetailMeta{
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   font-size: 18px;
   color: rgba(185, 198, 234, 0.88);
+  flex-shrink: 0;
+  min-width: 0;
+}
+#lanternCardDetailOverlay .lanternCardDetailRecognizing{
+  flex-shrink: 0;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 170, 255, 0.18);
+  background: rgba(90, 167, 255, 0.08);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--ink);
+  min-width: 0;
+}
+#lanternCardDetailOverlay .lanternCardDetailRecognizing[hidden]{
+  display: none !important;
 }
 .lanternCardDetailOverlay .lanternCardDetailBody{
   margin-top: 0;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,.08);
   background: rgba(255,255,255,.04);
   box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .lanternCardDetailOverlay .lanternCardDetailBody:empty{
   display: none;
@@ -1675,16 +1764,102 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   border: none;
   background: transparent;
 }
+#lanternCardDetailOverlay .lanternCardDetailBodyRead{
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
 .lanternCardDetailOverlay .lanternCardDetailCaption{
   font-size: 20px;
   line-height: 1.45;
   margin: 0;
 }
+#lanternCardDetailOverlay .lanternCardDetailModal:not(.lanternCardDetailModal--reading):not(.lanternCardDetailModal--poll):not(.lanternCardDetailModal--no-media) .lanternCardDetailBodyRead{
+  max-height: calc(1.45em * var(--lantern-opened-body-clamp-lines, 5));
+  overflow: hidden;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--no-media:not(.lanternCardDetailModal--reading) .lanternCardDetailBody{
+  flex: 1 1 auto;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--no-media:not(.lanternCardDetailModal--reading) .lanternCardDetailBodyRead{
+  flex: 1 1 auto;
+  max-height: none;
+  overflow: hidden;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--no-media .lanternCardDetailVisual{
+  display: none;
+}
+#lanternCardDetailOverlay .lanternCardDetailReadToggle{
+  flex-shrink: 0;
+  margin-top: 10px;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: rgba(90, 167, 255, 0.95);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+#lanternCardDetailOverlay .lanternCardDetailReadToggle[hidden]{
+  display: none !important;
+}
+#lanternCardDetailOverlay .lanternCardDetailReadToggle:focus-visible{
+  outline: 3px solid rgba(90,167,255,.85);
+  outline-offset: 2px;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--reading .lanternCardDetailVisual{
+  max-height: var(--lantern-opened-media-reading-max-height);
+  flex: 0 0 auto;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--reading.lanternCardDetailModal--video .lanternCardDetailVisual{
+  max-height: 96px;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--reading .lanternCardDetailBody{
+  flex: 1 1 auto;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--reading .lanternCardDetailBodyRead{
+  flex: 1 1 auto;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 170, 255, 0.45) transparent;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--reading .lanternCardDetailBodyRead::-webkit-scrollbar{
+  width: 8px;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--reading .lanternCardDetailBodyRead::-webkit-scrollbar-thumb{
+  background: rgba(120, 170, 255, 0.4);
+  border-radius: 8px;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--poll .lanternCardDetailBody{
+  flex: 1 1 auto;
+  padding: 4px 2px 8px;
+  border: none;
+  background: transparent;
+}
+#lanternCardDetailOverlay .lanternCardDetailModal--poll .lanternCardDetailBodyRead{
+  flex: 1 1 auto;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 170, 255, 0.45) transparent;
+}
 .lanternCardDetailOverlay .lanternCardDetailActions{
-  margin-top: 14px;
+  margin-top: 0;
+  flex-shrink: 0;
 }
 .lanternCardDetailOverlay .lanternCardDetailReactions{
-  margin-top: 14px;
+  margin-top: 10px;
   padding: 12px 14px 4px;
   border-top: none;
   border-radius: 14px;
@@ -1707,12 +1882,18 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   gap: 8px;
   padding-top: 2px;
 }
+@media (prefers-reduced-motion: reduce) {
+  .lanternCardDetailOverlay .lanternCardDetailVisual{
+    transition: none;
+  }
+}
 
 @media (max-width: 420px) {
   :root {
     --lantern-opened-modal-max-width: 100%;
-    --lantern-opened-modal-max-height: min(90dvh, calc(100dvh - 16px));
-    --lantern-opened-image-max-height: min(32dvh, 32vh, 280px);
+    --lantern-opened-modal-max-height: min(96dvh, calc(100dvh - 8px));
+    --lantern-opened-image-max-height: min(32dvh, 32vh);
+    --lantern-opened-media-reading-max-height: 56px;
     --lantern-opened-modal-radius: 14px;
     --lantern-opened-modal-pad-x: 14px;
   }
@@ -1731,8 +1912,9 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 }
 @media (max-height: 640px) {
   :root {
-    --lantern-opened-modal-max-height: min(92dvh, calc(100dvh - 12px));
-    --lantern-opened-image-max-height: min(28dvh, 28vh, 220px);
+    --lantern-opened-modal-max-height: min(96dvh, calc(100dvh - 8px));
+    --lantern-opened-image-max-height: min(28dvh, 28vh);
+    --lantern-opened-media-reading-max-height: 52px;
   }
 }
 @media (min-width: 1600px) {

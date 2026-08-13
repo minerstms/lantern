@@ -18,7 +18,7 @@ function bad(label, detail) { fail++; console.error('FAIL', label, detail != nul
 function assert(cond, label, detail) { if (cond) ok(label); else bad(label, detail); }
 
 assert(/--lantern-opened-modal-max-height:\s*min\(88dvh/.test(cardsCss), '1. modal max-height leaves viewport chrome room');
-assert(/--lantern-opened-image-max-height:\s*min\(36dvh/.test(cardsCss), '2. image max-height reduced vs half-viewport');
+assert(/--lantern-opened-image-max-height:\s*min\(42dvh/.test(cardsCss), '2. image max-height bounded in 35–45vh band');
 assert(/backdrop-filter:\s*blur\(12px\)/.test(cardsCss), '3. translucent blurred backdrop');
 assert(/rgba\(5,\s*10,\s*20,\s*0\.72\)/.test(cardsCss), '4. backdrop not opaque full-page replace');
 assert(/max-height:\s*min\(var\(--lantern-opened-modal-max-height\),\s*100%\)/.test(cardsCss), '5. modal capped to viewport box');
@@ -27,8 +27,8 @@ assert(
     /Shell scrolls only via \.lanternSurfaceContent[\s\S]{0,80}overflow:\s*hidden/.test(cardsCss),
   '6. modal shell overflow hidden'
 );
-assert(/#lanternCardDetailOverlay\s+\.lanternSurfaceContent[\s\S]{0,200}overflow-y:\s*auto/.test(cardsCss), '7. content scrolls internally');
-assert(/position:\s*sticky/.test(cardsCss) && /lanternCardDetailHeader/.test(cardsCss), '8. close header sticky');
+assert(/#lanternCardDetailOverlay\s+\.lanternSurfaceContent[\s\S]{0,200}overflow:\s*hidden/.test(cardsCss), '7. overlay content does not outer-scroll');
+assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailHeader[\s\S]{0,160}flex-shrink:\s*0/.test(cardsCss), '8. close header pinned, not sticky-in-scroller');
 assert(/overscroll-behavior:\s*none/.test(cardsCss), '9. shell overscroll contained');
 assert(/touch-action:\s*manipulation/.test(cardsCss), '10. reduce accidental zoom gestures');
 assert(/linear-gradient\(180deg,\s*rgba\(22,\s*36,\s*62/.test(cardsCss), '11. branded modal surface gradient');
@@ -51,7 +51,7 @@ assert(/openReportModal/.test(cardUi), '26. report modal preserved');
 assert(/LANTERN_REACTIONS|renderReactionBar/.test(cardUi), '27. reactions preserved');
 
 assert(/lantern-cards\.css/.test(explore), '28. Explore loads shared card CSS');
-assert(/max-width:\s*420px[\s\S]{0,280}--lantern-opened-modal-max-height:\s*min\(90dvh/.test(cardsCss), '29. mobile viewport max-height');
+assert(/max-width:\s*420px[\s\S]{0,280}--lantern-opened-modal-max-height:\s*min\(96dvh/.test(cardsCss), '29. mobile viewport max-height');
 assert(/max-height:\s*640px[\s\S]{0,160}--lantern-opened-image-max-height:\s*min\(28dvh/.test(cardsCss), '30. short-viewport image shrink');
 
 console.log('\nopened-modal-9-test: ' + pass + ' PASS ' + fail + ' FAIL');

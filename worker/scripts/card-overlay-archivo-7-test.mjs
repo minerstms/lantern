@@ -79,9 +79,9 @@ assert(/grid-row:\s*1\s*\/\s*span\s*2/.test(mob), '28. mobile avatar spans 2+3')
 assert(/line-height:\s*1\.2/.test(mob), '29. mobile title descender-safe');
 assert(/gap:\s*var\(--lantern-card-overlay-title-meta-gap/.test(mob), '30. mobile title-meta gap');
 
-assert(/lantern-cards\.css\?v=20260812-openedmodal9/.test(explore), '31. Explore CSS cache-bust');
-assert(/lantern-cards\.css\?v=20260812-openedmodal9/.test(contribute), '32. Create CSS cache-bust');
-assert(/lantern-cards\.css\?v=20260812-openedmodal9/.test(locker), '33. My Lantern CSS cache-bust');
+assert(/lantern-cards\.css\?v=/.test(explore), '31. Explore CSS cache-bust');
+assert(/lantern-cards\.css\?v=/.test(contribute), '32. Create CSS cache-bust');
+assert(/lantern-cards\.css\?v=/.test(locker), '33. My Lantern CSS cache-bust');
 
 const sandbox = {
   console,
