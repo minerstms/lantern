@@ -1,0 +1,138 @@
+<!--
+  TEMPLATE ONLY — not in the production Games catalog, not linked from nav.
+  Lives under dev/ (outside the Pages deploy root `app/`) so it is not shipped.
+  Open locally for wiring review; copy patterns into app/games.html for a real game.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Tap Once — Lantern Game Starter Template</title>
+  <link rel="stylesheet" href="../../app/css/lantern-game-player.css">
+  <style>
+    :root {
+      --ink: #eaf0ff;
+      --muted: #b9c6ea;
+      --panel: #0f1b33;
+      --good: #38d07c;
+      --line: rgba(255,255,255,.12);
+      --fsBase: 22px;
+      --fsButton: 28px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: var(--fsBase);
+      color: var(--ink);
+      background: #0b1220;
+      padding: 16px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    p { font-size: 22px; line-height: 1.35; color: var(--muted); }
+    .banner {
+      border: 2px solid #ffcc66;
+      background: rgba(255,204,102,.12);
+      color: #ffcc66;
+      font-weight: 800;
+      font-size: 22px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+    .gameArea {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+    }
+    .tapTarget {
+      min-height: 120px;
+      font-size: var(--fsButton);
+      font-weight: 900;
+      border-radius: 16px;
+      border: 3px solid var(--good);
+      background: rgba(56,208,124,.16);
+      color: var(--ink);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .playAgainRow[hidden] { display: none !important; }
+    .playAgainRow button, .demoStart {
+      font-size: var(--fsButton);
+      font-weight: 800;
+      min-height: 52px;
+      width: 100%;
+      border-radius: 14px;
+      border: 2px solid var(--line);
+      background: #1e63d6;
+      color: #fff;
+      cursor: pointer;
+    }
+    code { font-size: 20px; color: #ffcc66; }
+  </style>
+</head>
+<body>
+  <p class="banner">TEMPLATE ONLY — not registered in the production Games catalog. Do not deploy as a live game.</p>
+  <h1>Tap Once</h1>
+  <p>Starter-kit sample. Production games live in <code>app/games.html</code> and must be registered in both catalogs before scores can record.</p>
+  <p id="missionNote" hidden></p>
+  <button type="button" class="demoStart" id="demoStartBtn">Start (demo mechanics only)</button>
+  <div class="gameArea" id="tapOnceArea" hidden>
+    <div data-tap-once-status>Tap the target — or press Enter / Space.</div>
+    <div data-tap-once-score>Score: 0</div>
+    <button type="button" class="tapTarget" data-tap-once-target aria-label="Tap target">Tap</button>
+    <div class="playAgainRow" data-tap-once-again-row hidden>
+      <button type="button" data-tap-once-again>Play Again</button>
+    </div>
+  </div>
+  <script src="../../app/js/lantern-game-starter.js"></script>
+  <script src="tap-once.js"></script>
+  <script>
+    (function () {
+      var area = document.getElementById('tapOnceArea');
+      var startBtn = document.getElementById('demoStartBtn');
+      var missionNote = document.getElementById('missionNote');
+      var ctx = window.LanternGameStarter
+        ? window.LanternGameStarter.missionLaunchContext(location)
+        : { fromMission: false };
+      if (ctx.fromMission) {
+        missionNote.hidden = false;
+        missionNote.textContent = 'Mission launch context detected (mission=' + ctx.missionId + '). Ordinary play does not set this.';
+      }
+      var game = window.LANTERN_STARTER_TAP_ONCE.mount(area, {
+        onEnd: function (result) {
+          if (window.LanternGameStarter && window.LanternGameStarter.postScore) {
+            window.LanternGameStarter.postScore({
+              gameName: 'Tap Once (Starter Template)',
+              score: result.score,
+              scoreDisplay: result.scoreDisplay,
+            }).then(function (res) {
+              if (!res || !res.ok) {
+                var status = area.querySelector('[data-tap-once-status]');
+                if (status) status.textContent = 'Score not saved (template is not on the server allowlist). That is expected.';
+              }
+            });
+          }
+        },
+        onPlayAgain: function () {
+          if (window.LanternGameStarter) window.LanternGameStarter.clearMissionQuery(history, location);
+          game.start();
+        }
+      });
+      startBtn.addEventListener('click', function () {
+        area.hidden = false;
+        startBtn.hidden = true;
+        game.start();
+      });
+    })();
+  </script>
+</body>
+</html>

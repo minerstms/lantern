@@ -7,6 +7,7 @@
  * Keep IDs and display names aligned with app/js/lantern-game-catalog.js.
  * To register a future donor game (e.g. Tower): add one object here AND in the frontend catalog.
  * Do not accept unlisted/lab game names until they are registered.
+ * Starter kit: docs/LANTERN_GAME_STARTER_KIT.md — do not allowlist starter-tap-once.
  *
  * Score max values are generous gameplay ceilings derived from current client math, not
  * cryptographic anti-cheat. They exist to reject obviously impossible payloads.

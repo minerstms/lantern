@@ -4,6 +4,8 @@
  *
  * Server-side result validation lives in worker/lantern-game-catalog.js (same ids/names).
  * Register future donor games (e.g. Tower) in BOTH catalogs before they can record scores.
+ * New-game checklist and copy-paste starter: docs/LANTERN_GAME_STARTER_KIT.md (do not add
+ * template/dev ids here — starter-tap-once stays out of this production list).
  */
 (function (global) {
   'use strict';

@@ -11,6 +11,7 @@ School culture platform: student publishing, missions, moderated news, recogniti
 | [**docs/CHANGELOG_LOCKED.md**](docs/CHANGELOG_LOCKED.md) | Locked decisions and consolidation notes |
 | [**docs/CURSOR_RUN_PROMPT.md**](docs/CURSOR_RUN_PROMPT.md) | Default agent/Cursor run discipline |
 | [**docs/LANTERN_AUTH_BASELINE.md**](docs/LANTERN_AUTH_BASELINE.md) | Lantern Auth Baseline — locked auth, cookie, and class-access contract |
+| [**docs/LANTERN_GAME_STARTER_KIT.md**](docs/LANTERN_GAME_STARTER_KIT.md) | Canonical game contract, checklist, and non-production starter template |
 
 **Agent guardrails:** root [**AGENTS.md**](AGENTS.md).
 
