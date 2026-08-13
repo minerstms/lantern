@@ -153,30 +153,29 @@
       if (header && header.parentNode === sc) sc.insertBefore(stage, header.nextSibling);
       else sc.insertBefore(stage, sc.firstChild);
     }
-    var stageOrder = [
-      'lanternCardDetailVisual',
-      'lanternCardDetailTitle',
-      'lanternCardDetailIdentityWrap',
-      'lanternCardDetailMeta',
-      'lanternCardDetailRecognizing',
-      'lanternCardDetailReactions',
-      'lanternCardDetailBody',
-      'lanternCardDetailAdminModeration',
-    ];
-    for (var si = 0; si < stageOrder.length; si++) {
-      var node = sc.querySelector('.' + stageOrder[si]);
-      if (node && node.parentNode !== stage) stage.appendChild(node);
-    }
-    var rec = stage.querySelector('.lanternCardDetailRecognizing');
+    var rec = sc.querySelector('.lanternCardDetailRecognizing');
     if (!rec) {
       rec = global.document.createElement('div');
       rec.className = 'lanternCardDetailRecognizing';
       rec.id = 'lanternCardDetailRecognizing';
       rec.hidden = true;
       rec.setAttribute('aria-hidden', 'true');
-      var bodySlot = stage.querySelector('.lanternCardDetailBody');
-      if (bodySlot) stage.insertBefore(rec, bodySlot);
-      else stage.appendChild(rec);
+      stage.appendChild(rec);
+    }
+    /* Prompt #171 — read/view content first, react last. DOM order is the visual/keyboard order. */
+    var stageOrder = [
+      'lanternCardDetailVisual',
+      'lanternCardDetailTitle',
+      'lanternCardDetailIdentityWrap',
+      'lanternCardDetailMeta',
+      'lanternCardDetailRecognizing',
+      'lanternCardDetailBody',
+      'lanternCardDetailReactions',
+      'lanternCardDetailAdminModeration',
+    ];
+    for (var si = 0; si < stageOrder.length; si++) {
+      var node = sc.querySelector('.' + stageOrder[si]);
+      if (node) stage.appendChild(node);
     }
     var footer = sc.querySelector('.lanternCardDetailFooter');
     if (!footer) {
@@ -185,17 +184,6 @@
       sc.appendChild(footer);
     }
     var actions = sc.querySelector('.lanternCardDetailActions');
-    var rx = sc.querySelector('.lanternCardDetailReactions');
-    if (rx) {
-      var recNode = stage.querySelector('.lanternCardDetailRecognizing');
-      var bodyNode = stage.querySelector('.lanternCardDetailBody');
-      if (rx.parentNode !== stage) {
-        if (bodyNode) stage.insertBefore(rx, bodyNode);
-        else stage.appendChild(rx);
-      } else if (bodyNode && recNode && rx.compareDocumentPosition(bodyNode) & 2) {
-        stage.insertBefore(rx, bodyNode);
-      }
-    }
     if (actions && actions.parentNode !== footer) footer.appendChild(actions);
   }
 
@@ -610,8 +598,8 @@
       '<div class="lanternCardDetailIdentityWrap" id="lanternCardDetailIdentityWrap"></div>' +
       '<div class="lanternCardDetailMeta" id="lanternCardDetailMeta"></div>' +
       '<div class="lanternCardDetailRecognizing" id="lanternCardDetailRecognizing" hidden></div>' +
-      '<div class="lanternCardDetailReactions" id="lanternCardDetailReactions"></div>' +
       '<div class="lanternCardDetailBody" id="lanternCardDetailBody"></div>' +
+      '<div class="lanternCardDetailReactions" id="lanternCardDetailReactions"></div>' +
       '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
       '</div>' +
       '<footer class="lanternCardDetailFooter">' +

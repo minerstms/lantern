@@ -29,7 +29,7 @@ assert(/overflow:\s*visible/.test(overlayModalCss) || /#lanternCardDetailOverlay
 assert(/overflow:\s*visible/.test(overlaySurfaceCss) && !/overflow-y:\s*auto/.test(overlaySurfaceCss), '1/20. lanternSurfaceContent is not an inner scroller');
 assert(/lanternCardDetailStage/.test(overlayHtml) && /lanternCardDetailFooter/.test(overlayHtml), 'canonical shell owns header/stage/footer');
 assert(/lanternCardDetailHeader/.test(overlayHtml) && /aria-label="Close"/.test(overlayHtml), '15. close in header');
-assert(/lanternCardDetailReactions/.test(overlayHtml) && overlayHtml.indexOf('lanternCardDetailReactions') < overlayHtml.indexOf('lanternCardDetailBody'), '14. reactions precede body');
+assert(/lanternCardDetailReactions/.test(overlayHtml) && overlayHtml.indexOf('lanternCardDetailBody') < overlayHtml.indexOf('lanternCardDetailReactions'), '14. #171 message body precedes reactions');
 assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailFooter[\s\S]{0,80}flex-shrink:\s*0/.test(cardsCss), '14. footer does not shrink away');
 assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailHeader[\s\S]{0,160}flex-shrink:\s*0/.test(cardsCss), '15. header/close remains in shell');
 

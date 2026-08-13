@@ -52,14 +52,15 @@ assert(!/--lantern-opened-image-max-height/.test(cardsCss), '3. no forced short 
 
 const rxIdx = overlayHtml.indexOf('lanternCardDetailReactions');
 const bodyIdx = overlayHtml.indexOf('lanternCardDetailBody');
-assert(rxIdx > 0 && bodyIdx > rxIdx, 'I. reactions precede message body in overlay HTML');
+assert(rxIdx > 0 && bodyIdx > 0 && rxIdx > bodyIdx, 'I. #171 message body precedes reactions in overlay HTML');
 assert(/lanternCardDetailVisual/.test(overlayHtml) && overlayHtml.indexOf('class="lanternCardDetailVisual"') < overlayHtml.indexOf('class="lanternCardDetailTitle"'), '4. headline follows media');
 assert(overlayHtml.indexOf('lanternCardDetailTitle') < overlayHtml.indexOf('lanternCardDetailIdentityWrap'), '5. name follows headline');
 assert(overlayHtml.indexOf('lanternCardDetailIdentityWrap') < overlayHtml.indexOf('lanternCardDetailMeta'), '6. meta follows name');
-assert(overlayHtml.indexOf('lanternCardDetailMeta') < rxIdx, '7. reactions follow meta');
+assert(overlayHtml.indexOf('lanternCardDetailMeta') < bodyIdx, '7. body follows meta');
+assert(bodyIdx < rxIdx, '7b. #171 reactions follow the full message body');
 assert(/Shout-Out!/.test(cardUi) && /isShout/.test(cardUi), '6. Shout-Out! · Date meta path');
 assert(/isShoutFeed/.test(cardUi) && /SHOUT_OUT_DISPLAY_NAME/.test(cardUi), '6b. feed Shout-Out modal uses canonical Shout-Out! label');
-assert(/stageOrder[\s\S]{0,280}lanternCardDetailReactions[\s\S]{0,80}lanternCardDetailBody/.test(cardUi), 'I. shell reorder keeps reactions before body');
+assert(/stageOrder[\s\S]{0,280}lanternCardDetailBody[\s\S]{0,80}lanternCardDetailReactions/.test(cardUi), 'I. #171 shell reorder keeps body before reactions');
 
 assert(/el\.scrollTop = 0/.test(cardUi), 'R. opening a modal starts at top');
 assert(/function lockPageScrollForDetail/.test(cardUi) && /function unlockPageScrollForDetail/.test(cardUi), '27. background lock helpers');
