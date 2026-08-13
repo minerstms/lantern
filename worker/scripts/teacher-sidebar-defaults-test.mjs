@@ -131,10 +131,20 @@ if (/id="teacherPhoneAppDownloadLink"/.test(html) && /intent=install/.test(html)
   ok('Phone App Download routes to existing TMS PWA install intent');
 } else bad('Phone App Download route/intent missing');
 
+const repairIdx = html.indexOf('Repair App');
+if (repairIdx > phoneIdx && phoneIdx > hallwayIdx) ok('Repair App appears after Phone App Download');
+else bad('Repair App placement', { hallwayIdx, phoneIdx, repairIdx });
+
+if (/id="teacherRepairAppLink"/.test(html) && /intent=repair/.test(html) && /log\.tmslantern\.org/.test(html)) {
+  ok('Repair App routes to TMS PWA repair intent on log.tmslantern.org');
+} else bad('Repair App route/intent missing');
+
 const staffNavPath = path.join(root, 'app/js/lantern-staff-nav.js');
 const staffNav = fs.readFileSync(staffNavPath, 'utf8');
 if (!/Phone App Download/.test(staffNav)) ok('Phone App Download absent from global LanternStaffNav');
 else bad('Phone App Download must not be in global dropdown');
+if (!/Repair App/.test(staffNav)) ok('Repair App absent from global LanternStaffNav');
+else bad('Repair App must not be in global dropdown');
 
 // Prompt #174 — opaque mobile Teacher sidebar + no translucent bleed fill
 const sidebarCssMatch = html.match(/\.teacherSidebar\{[\s\S]*?box-shadow:[^}]+\}/);
