@@ -26,8 +26,92 @@
     icon: '✨',
     text: '<span class="lanternTickerText">Lantern — News · Spotlights · Community</span>',
     avatarUrl: '',
-    avatarEmoji: ''
+    avatarEmoji: '',
+    system: true,
+    hasPerson: false
   };
+
+  var TICKER_ICONS = {
+    mission_created: '🎯',
+    mission_completed: '🎯',
+    poll_created: '📊',
+    shout_out: '⭐',
+    recognition: '⭐',
+    news: '📰',
+    leaderboard_entry: '🏆'
+  };
+
+  function tickerIconForType(type) {
+    return TICKER_ICONS[String(type || '').trim()] || '';
+  }
+
+  function formatTickerCopy(parts) {
+    var type = String((parts && parts.type) || '').trim();
+    var name = String((parts && parts.primary_name) || '').trim();
+    var object = String((parts && parts.object_title) || '').trim();
+    var secondary = String((parts && parts.secondary_name) || '').trim();
+    var rank = parts && parts.rank != null && String(parts.rank).trim() !== '' ? String(parts.rank).trim() : '';
+    if (type === 'mission_created') {
+      if (name && object) return name + ' created a mission: ' + object;
+      if (name) return name + ' created a mission';
+      return object ? 'A new mission: ' + object : 'A new mission';
+    }
+    if (type === 'mission_completed') {
+      if (name && object) return name + ' completed ' + object;
+      if (name) return name + ' completed a mission';
+      return object ? 'Someone completed ' + object : 'Mission completed';
+    }
+    if (type === 'poll_created') {
+      if (name && object) return name + ' created a poll: ' + object;
+      if (name) return name + ' created a poll';
+      return object ? 'A new poll: ' + object : 'A new poll';
+    }
+    if (type === 'shout_out' || type === 'recognition') {
+      if (name && secondary) return name + ' got a Shout-Out from ' + secondary;
+      if (name) return name + ' got a Shout-Out';
+      return 'Shout-Out';
+    }
+    if (type === 'news') {
+      if (name && object) return name + ' posted: ' + object;
+      if (name) return name + ' posted';
+      return object ? 'Posted: ' + object : 'News';
+    }
+    if (type === 'leaderboard_entry') {
+      if (name && rank && object) return name + ' reached #' + rank + ' in ' + object;
+      if (name && object) return name + ' reached the ' + object + ' leaderboard';
+      if (name) return name + ' reached a leaderboard';
+      return object ? 'New ' + object + ' leaderboard entry' : 'Leaderboard update';
+    }
+    return String((parts && parts.fallback) || '').trim() || 'Lantern update';
+  }
+
+  function tickerNameAndRest(publicText, primaryName) {
+    var full = String(publicText || '').trim();
+    var name = String(primaryName || '').trim();
+    if (name && full.indexOf(name) === 0) {
+      return { name: name, rest: full.slice(name.length) };
+    }
+    return { name: '', rest: full };
+  }
+
+  function looksLikeSystemLogTickerCopy(text) {
+    var t = String(text || '');
+    return (
+      /Mission Created\s*—/.test(t) ||
+      /Mission Completed\s*—/.test(t) ||
+      /Poll Created\s*—/.test(t) ||
+      /New mission from Teacher:/.test(t) ||
+      /New poll from Teacher:/.test(t) ||
+      /Submission approved:/.test(t)
+    );
+  }
+
+  function safeTickerHref(href) {
+    var h = String(href || '').trim();
+    if (!h) return '';
+    if (/^[a-z0-9][a-z0-9._-]*\.html(?:[?#][^\s]*)?$/i.test(h)) return h;
+    return '';
+  }
 
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -155,6 +239,33 @@
     var meta = (s && s.meta) || {};
     var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
     var emFb = '';
+    var marqueeType = String(meta.marquee_type || '').trim();
+    var canonicalIcon = String(meta.ticker_icon || '').trim() || tickerIconForType(marqueeType);
+
+    /* Prompt #167 — canonical human activity stream. Do not prepend type_label
+       ("Mission Created —") and do not JS-slice the person's name. */
+    if (marqueeType) {
+      var primaryName = String(meta.public_display_name || '').trim();
+      var rest = String(meta.action_rest || '').trim();
+      var split = tickerNameAndRest(titleRaw, primaryName);
+      if (!rest && split.rest) rest = String(split.rest || '').replace(/^\s+/, '');
+      if (!primaryName && split.name) primaryName = split.name;
+      var full = titleRaw || (primaryName + (rest ? ' ' + rest.replace(/^\s+/, '') : ''));
+      if (rest && rest.charAt(0) !== ' ') rest = ' ' + rest;
+      return {
+        icon: canonicalIcon || '✨',
+        text: '<span class="lanternTickerText">' + esc(full) + '</span>',
+        primaryName: primaryName,
+        rest: rest,
+        ariaLabel: full,
+        href: safeTickerHref(meta.destination),
+        avatarUrl: urlFb,
+        avatarEmoji: emFb,
+        hasPerson: true,
+        system: false
+      };
+    }
+
     var icon =
       type === 'teacher_recognition'
         ? '⭐'
@@ -252,10 +363,13 @@
   }
 
   function itemToHtml(it) {
-    // Prompt #217/#161 — person chip is the current approved avatar, else #149 placeholder.
-    var approved = it.avatarUrl && String(it.avatarUrl).trim() ? String(it.avatarUrl).trim() : '';
+    // Prompt #217/#161/#167 — person chip is the current approved avatar, else #149 placeholder.
+    // System/empty-ticker fallback has no human actor — do not invent a silhouette.
+    var isSystem = !!(it && it.system);
+    var hasPerson = !isSystem && (!it || it.hasPerson !== false);
+    var approved = it && it.avatarUrl && String(it.avatarUrl).trim() ? String(it.avatarUrl).trim() : '';
     var fb = canonicalPersonFallbackUrl();
-    var src = approved || fb;
+    var src = hasPerson ? approved || fb : '';
     var avatar = '';
     if (src) {
       avatar =
@@ -265,16 +379,38 @@
         (fb ? ' data-lc-av-def="' + esc(fb) + '"' : '') +
         ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;return;}el.style.display=\'none\';">';
     }
-    var iconHtml = it.icon || '✨';
-    var text = it.text != null && it.text !== '' ? it.text : '';
+    var iconHtml = (it && it.icon) || '✨';
+    var body = '';
+    if (it && (it.primaryName || it.rest)) {
+      var nameHtml = it.primaryName
+        ? '<span class="lanternTickerItemName">' + esc(it.primaryName) + '</span>'
+        : '';
+      var restHtml = it.rest ? '<span class="lanternTickerItemRest">' + esc(it.rest) + '</span>' : '';
+      var inner = nameHtml + restHtml;
+      var label = String(it.ariaLabel || String(it.primaryName || '') + String(it.rest || '')).trim();
+      if (it.href) {
+        body =
+          '<a class="lanternTickerItemLink" href="' +
+          esc(it.href) +
+          '"' +
+          (label ? ' aria-label="' + esc(label) + '"' : '') +
+          '>' +
+          inner +
+          '</a>';
+      } else {
+        body = '<span class="lanternTickerItemText">' + inner + '</span>';
+      }
+    } else {
+      var text = it && it.text != null && it.text !== '' ? it.text : '';
+      body = '<span class="lanternTickerItemText">' + text + '</span>';
+    }
     return (
       '<span class="lanternTickerItem"><span class="lanternTickerItemIcon">' +
       iconHtml +
       '</span>' +
       avatar +
-      '<span class="lanternTickerItemText">' +
-      text +
-      '</span></span>'
+      body +
+      '</span>'
     );
   }
 
@@ -454,6 +590,15 @@
   } else {
     init();
   }
+
+  global.LanternTickerContract = {
+    TICKER_ICONS: TICKER_ICONS,
+    tickerIconForType: tickerIconForType,
+    formatTickerCopy: formatTickerCopy,
+    tickerNameAndRest: tickerNameAndRest,
+    looksLikeSystemLogTickerCopy: looksLikeSystemLogTickerCopy,
+    safeTickerHref: safeTickerHref
+  };
 
   global.LanternTicker = {
     render: render,

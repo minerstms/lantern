@@ -19,6 +19,13 @@ import {
 } from './staff-public-name.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { isLowerIsBetterGame } from './lantern-game-catalog.js';
+import {
+  formatTickerCopy,
+  tickerDestinationForEvent,
+  tickerIconForType,
+  tickerNameAndRest,
+  tickerPrimaryRoleForType,
+} from './marquee-ticker-contract.js';
 
 export const MARQUEE_PUBLIC_LIMIT = 40;
 export const MARQUEE_INSPECTOR_LIMIT = 200;
@@ -205,10 +212,22 @@ function firstRecognizedPersonKey(people) {
   return rec ? trimStr(rec.person_key) : '';
 }
 
+/** Display-only recipient label from already-public Shout-Out copy. Never used as an account lookup. */
+function shoutRecipientDisplayFallback(row) {
+  const body = trimStr(row && row.body);
+  const fromBody = body.match(/Recognizing:\s*([^\n\r]+)/i);
+  if (fromBody) return trimStr(fromBody[1]);
+  const title = trimStr(row && row.title);
+  const fromTitle = title.match(/^Shout-out:\s*(.+)$/i);
+  return fromTitle ? trimStr(fromTitle[1]) : '';
+}
+
 function eventRecord(partial) {
   const type = partial.type;
   const id = partial.id || marqueeEventId(type, partial.source_id);
   const publicText = sanitizePublicMarqueeText(partial.public_text, partial.fallback_text);
+  const primaryName = trimStr(partial.public_display_name);
+  const parts = tickerNameAndRest(publicText, primaryName);
   return {
     id,
     event_key: id,
@@ -221,8 +240,16 @@ function eventRecord(partial) {
     source_id: String(partial.source_id || ''),
     source_title: trimStr(partial.source_title),
     excluded_reason: partial.excluded_reason || null,
-    public_display_name: trimStr(partial.public_display_name),
+    public_display_name: primaryName,
     author_avatar_key: trimStr(partial.author_avatar_key),
+    secondary_display_name: trimStr(partial.secondary_display_name),
+    ticker_icon: tickerIconForType(type) || trimStr(partial.ticker_icon),
+    ticker_primary_role: tickerPrimaryRoleForType(type),
+    destination: trimStr(partial.destination) || tickerDestinationForEvent(type, {
+      game_name: partial.game_name,
+      object_title: partial.source_title,
+    }),
+    action_rest: parts.rest,
   };
 }
 
@@ -452,9 +479,9 @@ export function eventsToTickerSlides(events) {
               : 'student_news';
     return {
       type,
-      contentType: e.type === 'shout_out' || e.type === 'recognition' ? 'shout_out' : e.type === 'poll_created' ? 'poll' : 'news',
+      contentType: e.type === 'shout_out' || e.type === 'recognition' ? 'shout_out' : e.type === 'poll_created' ? 'poll' : e.type === 'news' ? 'news' : 'news',
       title: e.public_text,
-      subtitle: e.type_label,
+      subtitle: '',
       created_at: e.created_at,
       meta: {
         marquee_event_id: e.id,
@@ -462,6 +489,12 @@ export function eventsToTickerSlides(events) {
         source_id: e.source_id,
         author_avatar_key: trimStr(e.author_avatar_key),
         public_display_name: trimStr(e.public_display_name),
+        secondary_display_name: trimStr(e.secondary_display_name),
+        ticker_icon: trimStr(e.ticker_icon) || tickerIconForType(e.type),
+        ticker_primary_role: e.ticker_primary_role || tickerPrimaryRoleForType(e.type),
+        destination: trimStr(e.destination),
+        object_title: trimStr(e.source_title),
+        action_rest: trimStr(e.action_rest),
       },
     };
   });
@@ -516,6 +549,7 @@ export async function collectMarqueeEvents(db, opts) {
     if (!row.approved_at || isHiddenAtSet(row)) return;
     const q = trimStr(row.question) || 'a new poll';
     const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
+    const who = actor.public_display_name || publicActorLabel(row.character_name, staffIndex, studentIndex);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.POLL_CREATED,
@@ -523,9 +557,9 @@ export async function collectMarqueeEvents(db, opts) {
         source_type: 'poll',
         source_title: q,
         created_at: row.approved_at || row.created_at,
-        public_text: 'New poll: ' + q,
+        public_text: formatTickerCopy({ type: MARQUEE_EVENT_TYPES.POLL_CREATED, primary_name: who, object_title: q }),
         author_avatar_key: actor.author_avatar_key,
-        public_display_name: actor.public_display_name,
+        public_display_name: who,
       })
     );
   });
@@ -533,9 +567,8 @@ export async function collectMarqueeEvents(db, opts) {
   missions.forEach((row) => {
     if (!isMissionPubliclyListed(row)) return;
     const title = trimStr(row.title) || 'a new mission';
-    const author = resolveMissionCreatorPublicLabel(staffIndex, row.teacher_id, row.teacher_name);
-    const line = author ? 'New mission from ' + author + ': ' + title : 'New mission: ' + title;
     const actor = resolveMarqueeActorIdentity(staffIndex, [row.teacher_id]);
+    const who = actor.public_display_name || resolveMissionCreatorPublicLabel(staffIndex, row.teacher_id, row.teacher_name);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.MISSION_CREATED,
@@ -543,9 +576,9 @@ export async function collectMarqueeEvents(db, opts) {
         source_type: 'mission',
         source_title: title,
         created_at: row.created_at,
-        public_text: line,
+        public_text: formatTickerCopy({ type: MARQUEE_EVENT_TYPES.MISSION_CREATED, primary_name: who, object_title: title }),
         author_avatar_key: actor.author_avatar_key,
-        public_display_name: actor.public_display_name || author,
+        public_display_name: who,
       })
     );
   });
@@ -553,8 +586,8 @@ export async function collectMarqueeEvents(db, opts) {
   completions.forEach((row) => {
     if (isExcludedMissionCompletion(row)) return;
     const title = trimStr(row.mission_title) || 'a mission';
-    const who = publicActorLabel(row.character_name, staffIndex, studentIndex);
     const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
+    const who = actor.public_display_name || publicActorLabel(row.character_name, staffIndex, studentIndex);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.MISSION_COMPLETED,
@@ -562,9 +595,9 @@ export async function collectMarqueeEvents(db, opts) {
         source_type: 'mission_submission',
         source_title: title,
         created_at: row.reviewed_at || row.created_at,
-        public_text: who + ' completed ' + title,
+        public_text: formatTickerCopy({ type: MARQUEE_EVENT_TYPES.MISSION_COMPLETED, primary_name: who, object_title: title }),
         author_avatar_key: actor.author_avatar_key,
-        public_display_name: actor.public_display_name || who,
+        public_display_name: who,
       })
     );
   });
@@ -582,34 +615,37 @@ export async function collectMarqueeEvents(db, opts) {
         authorRole: overlaid.author_type,
       }) || formatCompactPersonName(overlaid.author_name);
     const title = trimStr(overlaid.title) || (isShout ? 'Shout-Out' : 'News');
-    const recognized = trimStr(overlaid.recognition_public_label);
-    let publicText;
-    if (isShout && recognized) {
-      publicText = author ? 'Shout-Out: ' + recognized + ' · ' + author : 'Shout-Out: ' + recognized;
-    } else if (isShout) {
-      publicText = author ? title + ' · ' + author : title;
-    } else {
-      publicText = author ? title + ' · ' + author : title;
-    }
-    /* Shout-Out sentence leads with the recognized person when a durable person_key exists.
-       Otherwise the chip is the author. Never fuzzy-match recognized display text. */
+    const recognized =
+      trimStr(overlaid.recognition_public_label) ||
+      shoutRecipientDisplayFallback(overlaid) ||
+      (isShout && title && !/^shout-?outs?$/i.test(title) ? title : '');
     const recognizedKey = firstRecognizedPersonKey(people);
-    const actor = isShout
-      ? resolveMarqueeActorIdentity(staffIndex, recognized ? [recognizedKey, overlaid.actor_id] : [overlaid.actor_id])
-      : resolveMarqueeActorIdentity(staffIndex, [overlaid.actor_id]);
-    const actorName = isShout && recognized && actor.author_avatar_key && recognizedKey
-      ? actor.public_display_name || recognized
-      : actor.public_display_name || author;
+    const senderActor = resolveMarqueeActorIdentity(staffIndex, [overlaid.actor_id]);
+    const senderName = senderActor.public_display_name || author;
+    /* Shout-Out primary is the recipient only. Never fall back to the sender account. */
+    const recipientActor = isShout ? resolveMarqueeActorIdentity(staffIndex, [recognizedKey]) : null;
+    const actor = isShout ? recipientActor : senderActor;
+    const actorName = isShout
+      ? (recipientActor && recipientActor.public_display_name) || recognized || ''
+      : senderActor.public_display_name || author;
+    const publicText = isShout
+      ? formatTickerCopy({
+          type: MARQUEE_EVENT_TYPES.SHOUT_OUT,
+          primary_name: actorName,
+          secondary_name: senderName,
+        })
+      : formatTickerCopy({ type: MARQUEE_EVENT_TYPES.NEWS, primary_name: actorName, object_title: title });
     push(
       eventRecord({
         type: isShout ? MARQUEE_EVENT_TYPES.SHOUT_OUT : MARQUEE_EVENT_TYPES.NEWS,
         source_id: row.id,
         source_type: 'news',
-        source_title: title,
+        source_title: isShout ? actorName : title,
         created_at: overlaid.reviewed_at || overlaid.created_at,
         public_text: publicText,
-        author_avatar_key: actor.author_avatar_key,
+        author_avatar_key: actor && actor.author_avatar_key,
         public_display_name: actorName,
+        secondary_display_name: isShout ? senderName : '',
       })
     );
   });
@@ -617,20 +653,14 @@ export async function collectMarqueeEvents(db, opts) {
   recList.forEach((row) => {
     const people = peopleIndex.get('recognition|' + trimStr(row.id)) || [];
     const overlaid = overlayRecognitionListRow({ ...row }, staffIndex, people);
+    const recognizedKey = firstRecognizedPersonKey(people);
+    const recipientActor = resolveMarqueeActorIdentity(staffIndex, [recognizedKey, overlaid.character_name]);
+    const senderActor = resolveMarqueeActorIdentity(staffIndex, [overlaid.created_by_teacher_id]);
     const who =
+      recipientActor.public_display_name ||
       trimStr(overlaid.character_public_label) ||
       publicActorLabel(overlaid.character_name, staffIndex, studentIndex);
-    const author = trimStr(overlaid.created_by_teacher_public_label);
-    const msg = trimStr(overlaid.message).slice(0, 80);
-    const publicText = author
-      ? who + ' — ' + (msg || 'recognized') + ' · ' + author
-      : who + (msg ? ' — ' + msg : '');
-    const recognizedKey = firstRecognizedPersonKey(people);
-    const actor = resolveMarqueeActorIdentity(staffIndex, [
-      recognizedKey,
-      overlaid.character_name,
-      overlaid.created_by_teacher_id,
-    ]);
+    const author = senderActor.public_display_name || trimStr(overlaid.created_by_teacher_public_label);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.RECOGNITION,
@@ -638,27 +668,43 @@ export async function collectMarqueeEvents(db, opts) {
         source_type: 'recognition',
         source_title: who,
         created_at: overlaid.created_at,
-        public_text: publicText,
-        author_avatar_key: actor.author_avatar_key,
-        public_display_name: actor.public_display_name || who,
+        public_text: formatTickerCopy({
+          type: MARQUEE_EVENT_TYPES.RECOGNITION,
+          primary_name: who,
+          secondary_name: author,
+        }),
+        author_avatar_key: recipientActor.author_avatar_key,
+        public_display_name: who,
+        secondary_display_name: author,
       })
     );
   });
 
   filterOutDemoPersonas(lbRows, 'character_name').forEach((row) => {
-    const who = publicActorLabel(row.character_name, staffIndex, studentIndex);
-    const game = trimStr(row.game_name) || 'a game';
     const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
+    const who = actor.public_display_name || publicActorLabel(row.character_name, staffIndex, studentIndex);
+    const game = trimStr(row.game_name) || 'a game';
+    let rank = '';
+    try {
+      const meta = typeof row.meta_json === 'string' ? JSON.parse(row.meta_json) : row.meta_json || {};
+      if (meta && meta.rank != null && String(meta.rank).trim() !== '') rank = String(meta.rank).trim();
+    } catch (_) {}
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.LEADERBOARD_ENTRY,
         source_id: row.id,
         source_type: 'leaderboard',
         source_title: game,
+        game_name: game,
         created_at: row.created_at,
-        public_text: who + ' joined the ' + game + ' leaderboard',
+        public_text: formatTickerCopy({
+          type: MARQUEE_EVENT_TYPES.LEADERBOARD_ENTRY,
+          primary_name: who,
+          object_title: game,
+          rank,
+        }),
         author_avatar_key: actor.author_avatar_key,
-        public_display_name: actor.public_display_name || who,
+        public_display_name: who,
       })
     );
   });

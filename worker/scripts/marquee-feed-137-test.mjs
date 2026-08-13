@@ -259,7 +259,7 @@ assert(MARQUEE_PUBLIC_LIMIT === 40 && MARQUEE_INSPECTOR_LIMIT === 200, 'public 4
     byType[e.type] = (byType[e.type] || []).concat(e);
   });
   assert((byType.poll_created || []).length === 1, '1. new poll → one marquee event', byType.poll_created);
-  assert((byType.poll_created || [])[0] && /New poll:/.test(byType.poll_created[0].public_text), 'poll public text uses question');
+  assert((byType.poll_created || [])[0] && /created a poll:/.test(byType.poll_created[0].public_text), 'poll public text uses question');
   assert((byType.mission_created || []).length === 1, '4. new published mission → one event');
   assert((byType.mission_completed || []).length === 1, '5. legitimate completion → event');
   assert((byType.shout_out || []).length === 1, '10. published Shout-Out → event');

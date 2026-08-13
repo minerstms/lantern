@@ -309,8 +309,13 @@ const shoutNoKey = await collectMarqueeEvents(
   )
 );
 const shoutFree = shoutNoKey.find((e) => e.type === 'shout_out');
-assert(shoutFree && shoutFree.author_avatar_key === 'frank.begano', '14d. Shout-Out without durable recognized key uses author', shoutFree);
+assert(shoutFree && !shoutFree.author_avatar_key, '14d. Shout-Out without durable recognized key does not use sender avatar', shoutFree);
 assert(shoutFree && shoutFree.author_avatar_key !== 'eric.colorado', '14e. does not guess Colorado from display text');
+assert(
+  shoutFree && /Mr\. Colorado/.test(shoutFree.public_text) && /Mr\. Begano/.test(shoutFree.public_text),
+  '14f. recipient + sender labels still appear without fuzzy account match',
+  shoutFree && shoutFree.public_text
+);
 
 const ghostPoll = await collectMarqueeEvents(
   makeDb(
@@ -506,7 +511,7 @@ assert(itemsB[0] && /avatar_B/.test(itemsB[0].avatarUrl || ''), '7. replacing cu
 assert(itemsB[0] && !/avatar_A/.test(itemsB[0].avatarUrl || ''), '7b. previous avatar A is gone after current key changes');
 
 const noImg = {
-  type: 'news',
+  type: 'poll',
   title: 'Band concert Friday · Mr. Radle',
   subtitle: 'News',
   meta: { author_avatar_key: 'no.avatar', public_display_name: 'Ms. None', _canonicalAvatar: { imageUrl: '' } },
