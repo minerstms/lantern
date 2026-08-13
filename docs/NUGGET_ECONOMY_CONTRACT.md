@@ -78,7 +78,7 @@ Eligible student **and** linked staff: **+1 once per poll per account**.
 
 ## Historical missed rewards
 
-Do **not** mass-backfill under #169. Votes with a `lantern_poll_voter_rewards` row but no matching TMS `lantern:poll_complete:<poll>:<account>` row are **deterministic candidates**. Votes with no local marker are recoverable by reload after deploy.
+#169 identified 19 deterministic Poll +1 misses (14 staff + 5 non-staff) and did not write. #173 ships `worker/scripts/backfill-poll-rewards-173.mjs` (dry-run/apply) using `lantern:poll_complete:<poll_id>:<account_key>` on the authoritative TMS student/staff ledgers. Apply is refused unless the exact-identity gate is still 14 staff + 5 TMS-resolvable students. Demo/persona vote keys are not TMS students. Votes with no local marker remain recoverable by reload after #169.
 
 ## Parallel wallets
 
