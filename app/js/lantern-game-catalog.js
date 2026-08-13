@@ -75,7 +75,7 @@
       playBtnId: 'srpSafetyTriviaPlayBtn',
       play_cost: 1,
       icon: '🛡️',
-      image: 'assets/srp-safety-trivia-card.png',
+      image: 'assets/srp-safety.png',
       featured: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },

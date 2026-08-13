@@ -115,7 +115,7 @@ if (eduSrc.includes('completeMissionByEvent') && EDUCATIONAL_TRIVIA_REWARD_NUGGE
 } else bad('45/46 authority/migration');
 
 const srpMissionArt = path.join(root, 'app/assets/srp-safety.png');
-const srpGameArt = path.join(root, 'app/assets/srp-safety-trivia-card.png');
+const srpGameArt = path.join(root, 'app/assets/srp-safety.png');
 if (
   cardsSrc.includes("perm_srp_safety: 'assets/srp-safety.png'") &&
   eduSrc.includes("cover: 'assets/srp-safety.png'") &&
@@ -123,8 +123,8 @@ if (
 ) {
   ok('1/2. perm_srp_safety uses approved srp-safety.png');
 } else bad('1/2 mission artwork');
-if (catalogSrc.includes("image: 'assets/srp-safety-trivia-card.png'") && fs.existsSync(srpGameArt)) {
-  ok('game-card artwork unchanged (srp-safety-trivia-card.png)');
+if (catalogSrc.includes("image: 'assets/srp-safety.png'") && fs.existsSync(srpGameArt)) {
+  ok('game-card artwork uses assets/srp-safety.png');
 } else bad('game-card artwork');
 if (cardsSrc.includes("perm_handbook_trivia: 'assets/handbook-triva-card.png'") && cardsSrc.includes("perm_local_history_trivia: 'assets/history-trivia-card.png'")) {
   ok('12. unrelated Mission artwork unchanged');
