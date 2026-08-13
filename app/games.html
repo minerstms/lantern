@@ -890,6 +890,7 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-game-catalog.js"></script>
+  <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-game-player.js"></script>
   <script src="js/lantern-games-page.js"></script>
@@ -2117,6 +2118,129 @@
         }
         showQuestion();
       }
+
+      function candidateTriviaMission(gameId){
+        if (!window.LANTERN_EDU_TRIVIA || typeof window.LANTERN_EDU_TRIVIA.candidateFromLocation !== 'function') return null;
+        var def = window.LANTERN_EDU_TRIVIA.candidateFromLocation(location);
+        if (!def || def.game_id !== gameId) return null;
+        return def;
+      }
+
+      function clearMissionQuery(){
+        try {
+          var u = new URL(location.href);
+          if (!u.searchParams.has('mission')) return;
+          u.searchParams.delete('mission');
+          history.replaceState(null, '', u.pathname + (u.search || '') + (u.hash || ''));
+        } catch (_) {}
+      }
+
+      function missionProgressLine(correctCount, target, extra){
+        var n = Number(correctCount) || 0;
+        var t = Number(target) || 10;
+        var line = n + ' / ' + t + ' correct';
+        var note = extra ? String(extra) : '';
+        if (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.encourage === 'function') {
+          note = window.LANTERN_EDU_TRIVIA.encourage(n, t);
+        }
+        return '<div class="triviaProgress">' + esc(line) + (note ? ' — ' + esc(note) : '') + '</div>';
+      }
+
+      function runEducationalTriviaMission(mission, fallbackFn){
+        var runId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function')
+          ? window.LanternGamesPaidStart.getLastRunId()
+          : '';
+        if (!runId || !window.LANTERN_EDU_TRIVIA || typeof window.LANTERN_EDU_TRIVIA.startRun !== 'function') {
+          if (typeof fallbackFn === 'function') fallbackFn();
+          return;
+        }
+        openOverlay(mission.title || mission.game_name || 'Trivia Challenge');
+        setScore('0 / 10 correct');
+        gameBody.innerHTML = '<div class="triviaProgress">Starting mission…</div>';
+        window.LANTERN_EDU_TRIVIA.startRun(mission.id, mission.game_id, runId).then(function(start){
+          if (!start || !start.ok || start.already_completed || !start.question) {
+            if (start && start.already_completed) clearMissionQuery();
+            if (typeof fallbackFn === 'function') fallbackFn();
+            return;
+          }
+          var target = Number(start.target) || 10;
+          var answering = false;
+          function showMissionComplete(state){
+            var n = Number(state && state.correct_count) || target;
+            setScore(n + ' / ' + target + ' correct');
+            sfxCultureComplete();
+            var html = '<div class="resultMsg win">Mission Complete!</div>';
+            html += '<div class="triviaProgress">' + esc(n + ' / ' + target + ' correct') + '</div>';
+            html += '<div class="triviaProgress">+1 Nugget</div>';
+            html += playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
+            gameBody.innerHTML = html;
+            clearMissionQuery();
+            if (window.LanternWallet && typeof window.LanternWallet.fetchMyBalance === 'function') {
+              window.LanternWallet.fetchMyBalance();
+            }
+            var again = gameBody.querySelector('.playAgainRow button');
+            if (again) again.addEventListener('click', function(){
+              var btnId = playBtnIdForGameName(mission.game_name);
+              if (btnId && el(btnId)) el(btnId).click();
+            });
+          }
+          function renderQuestion(q, correctCount){
+            if (!q) return;
+            answering = false;
+            setScore((Number(correctCount) || 0) + ' / ' + target + ' correct');
+            var html = missionProgressLine(correctCount, target);
+            html += '<div class="triviaQuestion">' + esc(q.question) + '</div>';
+            (q.options || []).forEach(function(opt, i){
+              html += '<button type="button" class="choiceBtn" data-choice="' + i + '">' + esc(opt) + '</button>';
+            });
+            gameBody.innerHTML = html;
+            gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                if (answering) return;
+                answering = true;
+                gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
+                var choiceIndex = Number(btn.getAttribute('data-choice'));
+                window.LANTERN_EDU_TRIVIA.submitAnswer(mission.id, mission.game_id, runId, q.id, choiceIndex).then(function(res){
+                  if (!res || !res.ok) {
+                    answering = false;
+                    toast((res && (res.message || res.error)) || 'Could not submit answer. Try again.');
+                    gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = false; });
+                    return;
+                  }
+                  var isCorrect = !!res.correct;
+                  btn.classList.add(isCorrect ? 'correct' : 'wrong');
+                  if (isCorrect) sfxCultureCorrect();
+                  else sfxCultureWrong();
+                  if (res.explanation) {
+                    var explainDiv = document.createElement('div');
+                    explainDiv.className = 'triviaExplain';
+                    explainDiv.textContent = res.explanation;
+                    gameBody.appendChild(explainDiv);
+                  }
+                  var count = Number(res.correct_count) || 0;
+                  setScore(count + ' / ' + target + ' correct');
+                  var delay = res.explanation ? 2200 : 900;
+                  setTimeout(function(){
+                    if (res.completed || count >= target) {
+                      showMissionComplete(res);
+                      return;
+                    }
+                    if (res.question) renderQuestion(res.question, count);
+                    else showMissionComplete(res);
+                  }, delay);
+                }).catch(function(){
+                  answering = false;
+                  toast('Could not submit answer. Try again.');
+                  gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = false; });
+                });
+              });
+            });
+          }
+          renderQuestion(start.question, start.correct_count || 0);
+        }).catch(function(){
+          if (typeof fallbackFn === 'function') fallbackFn();
+        });
+      }
       function playBtnIdForGameName(gameName){
         if (gameName === 'Handbook Trivia') return 'handbookTriviaPlayBtn';
         if (gameName === 'Lantern Live Trivia') return 'lanternLiveTriviaPlayBtn';
@@ -2135,6 +2259,13 @@
         var questions = getHandbookQuestionsSafe();
         if (!questions || !questions.length) { toast('No trivia questions loaded yet.'); return; }
         tryPlay('Handbook Trivia', function(){
+          var mission = candidateTriviaMission('handbook-trivia');
+          if (mission) {
+            runEducationalTriviaMission(mission, function(){
+              runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){ return questions; });
+            });
+            return;
+          }
           runTriviaGame('Handbook Trivia', 'Handbook Trivia', function(){ return questions; });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('handbookTriviaPlayBtn') });
       });
@@ -2163,9 +2294,23 @@
         var questions = getLocalHistoryQuestionsSafe();
         if (!questions || !questions.length) { toast('No trivia questions loaded yet.'); return; }
         tryPlay('Local History Trivia', function(){
+          var mission = candidateTriviaMission('local-history-trivia');
+          if (mission) {
+            runEducationalTriviaMission(mission, function(){
+              runTriviaGame('Local History Trivia', 'Local History Trivia', function(){ return questions; });
+            });
+            return;
+          }
           runTriviaGame('Local History Trivia', 'Local History Trivia', function(){ return questions; });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('localHistoryTriviaPlayBtn') });
       });
+      var autoMission = candidateTriviaMission('handbook-trivia') || candidateTriviaMission('local-history-trivia');
+      if (autoMission && autoMission.playBtnId && el(autoMission.playBtnId)) {
+        setTimeout(function(){
+          var btn = el(autoMission.playBtnId);
+          if (btn) btn.click();
+        }, 0);
+      }
     })();
 
     function callGetDailyHuntStatus(name, page, spotCount){

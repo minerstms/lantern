@@ -338,6 +338,7 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-missions-page.js"></script>
+  <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
@@ -541,7 +542,9 @@
       photo: 'tmission_1773676581540_qzl0kx',
       poll: 'perm_create_a_poll',
       shout: 'perm_shoutout_someone',
-      thankYou: 'perm_thank_you'
+      thankYou: 'perm_thank_you',
+      handbookTrivia: 'perm_handbook_trivia',
+      localHistoryTrivia: 'perm_local_history_trivia'
     };
     var DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
 
@@ -1281,6 +1284,8 @@
       var thankYouClaimed = !!(progress.thank_you && progress.thank_you.completed_today);
       var hiddenDone = !!missions.hidden_nugget;
       var firstGameDone = !!(progress.first_game && progress.first_game.completed) || !!missions.first_game;
+      var handbookTriviaDone = !!(progress.handbook_trivia && progress.handbook_trivia.completed);
+      var localHistoryTriviaDone = !!(progress.local_history_trivia && progress.local_history_trivia.completed);
       function missionLibraryCoverUrl(m) {
         var card = m && m.card_image_url ? String(m.card_image_url).trim() : '';
         if (card) return card;
@@ -1434,6 +1439,42 @@
             onActivate: fgDone ? function(){
               if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +1 Nugget.');
             } : null,
+          });
+          return;
+        }
+
+        if (mid === WAVE2_MISSION.handbookTrivia || mid === WAVE2_MISSION.localHistoryTrivia) {
+          var triviaDef = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.resolve === 'function')
+            ? window.LANTERN_EDU_TRIVIA.resolve(mid)
+            : null;
+          var triviaDone = (mid === WAVE2_MISSION.handbookTrivia ? handbookTriviaDone : localHistoryTriviaDone) || st === 'accepted';
+          var triviaTitle = (triviaDef && triviaDef.title) || m.title || 'Trivia Challenge';
+          var triviaDesc = triviaDone
+            ? 'Completed\n+1 Nugget earned'
+            : ((m.description || '').trim() || (triviaDef && triviaDef.description) || 'Get 10 questions correct in one game session.');
+          var triviaUrl = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.launchUrl === 'function')
+            ? window.LANTERN_EDU_TRIVIA.launchUrl(mid, { replay: triviaDone })
+            : ('games.html?game=' + encodeURIComponent((triviaDef && triviaDef.game_id) || '') + (triviaDone ? '' : ('&mission=' + encodeURIComponent(mid))));
+          items.push({
+            id: m.id,
+            kind: 'teacher',
+            typeFilter: 'quick',
+            typeBadge: '',
+            stateBadge: triviaDone ? 'COMPLETED' : '',
+            icon: (triviaDef && triviaDef.game_id === 'local-history-trivia') ? '🏛️' : '📖',
+            title: triviaTitle,
+            description: triviaDesc,
+            reward: 1,
+            status: triviaDone ? 'completed' : 'available',
+            statusLabel: triviaDone ? 'Play Again' : 'Play Trivia',
+            audience: m.audience || '',
+            featured: !!m.featured,
+            created_at: m.created_at || '',
+            url: triviaUrl,
+            imageUrl: missionLibraryCoverUrl(m),
+            raw: m,
+            submission: triviaDone ? sub : null,
+            onActivate: null,
           });
           return;
         }

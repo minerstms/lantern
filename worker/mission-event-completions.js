@@ -15,6 +15,9 @@ export const WAVE2_MISSION_IDS = {
   SHOUTOUT: 'perm_shoutout_someone',
   /** Prompt #204 — Thank a Teacher (direct email; daily cadence). */
   THANK_YOU: 'perm_thank_you',
+  /** Prompt #150 — educational trivia missions (game_correct_target). */
+  HANDBOOK_TRIVIA: 'perm_handbook_trivia',
+  LOCAL_HISTORY_TRIVIA: 'perm_local_history_trivia',
 };
 
 export const DAILY_CHECKIN_CHOICES = ['Ready', 'Okay', 'Tired', 'Need a reset'];
@@ -55,6 +58,14 @@ export function isSystemMissionEventMarkerSubmission(row) {
 
 export function eventKeyThankYou(characterName, dayYYYYMMDD) {
   return `thank_you:${String(characterName || '').trim()}:${String(dayYYYYMMDD || '').trim()}`;
+}
+
+export function eventKeyHandbookTrivia(characterName) {
+  return `handbook_trivia:${String(characterName || '').trim()}`;
+}
+
+export function eventKeyLocalHistoryTrivia(characterName) {
+  return `local_history_trivia:${String(characterName || '').trim()}`;
 }
 
 /** Deterministic submission id derived from event_key (safe for D1 TEXT PK). */
@@ -447,6 +458,8 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
     create_poll: { completed: false },
     shoutout: { completed: false },
     thank_you: { completed_today: false, day },
+    handbook_trivia: { completed: false },
+    local_history_trivia: { completed: false },
   };
   if (!key) return out;
 
@@ -487,6 +500,8 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
   await onceDone(WAVE2_MISSION_IDS.FIRST_PHOTO, 'first_photo');
   await onceDone(WAVE2_MISSION_IDS.CREATE_POLL, 'create_poll');
   await onceDone(WAVE2_MISSION_IDS.SHOUTOUT, 'shoutout');
+  await onceDone(WAVE2_MISSION_IDS.HANDBOOK_TRIVIA, 'handbook_trivia');
+  await onceDone(WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA, 'local_history_trivia');
 
   const thankKey = eventKeyThankYou(key, day);
   const thankDone = await findCompletionByEventKey(db, thankKey);

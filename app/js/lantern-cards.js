@@ -667,6 +667,8 @@
     perm_report_good_news: 'assets/good-news.png',
     perm_thank_you: 'assets/thank-you-letter.png',
     perm_shoutout_someone: 'assets/shout-out-card.png',
+    perm_handbook_trivia: 'assets/handbook-triva-card.png',
+    perm_local_history_trivia: 'assets/history-trivia-card.png',
   };
 
   function builtInMissionCoverUrl(missionId) {

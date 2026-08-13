@@ -37,6 +37,13 @@ import {
   getMissionProgressForCharacter,
 } from './mission-event-completions.js';
 import { sendThankYouMission } from './thank-you-mission.js';
+import {
+  ensureEducationalTriviaMissions,
+  overlayEducationalTriviaMissions,
+  startEducationalTriviaRun,
+  answerEducationalTriviaRun,
+  isTriviaRunPendingSubmission,
+} from './educational-trivia-missions.js';
 import { isStaffEconomyKey } from './staff-economy.js';
 import {
   loadStaffPublicNameIndex,
@@ -428,6 +435,10 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         .all();
     }
     let list = (rows.results || []).map((r) => missionRowToJson(r, origin));
+    try {
+      await ensureEducationalTriviaMissions(db);
+    } catch (_) {}
+    list = overlayEducationalTriviaMissions(list);
     list = list.filter((m) => missionInCatalogForParticipant(m, identity));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
@@ -556,6 +567,66 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       200,
       cors
     );
+  }
+
+  // Prompt #150 — educational trivia mission runs. Mission tap itself does not charge;
+  // only the existing game_play start may charge. Server owns target=10 and reward=1.
+  if (request.method === 'POST' && path === '/api/missions/trivia/run/start') {
+    const auth = await requireMissionSession(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
+    if (!identity.ok) {
+      return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    if (identity.participantKind !== 'student') {
+      return jsonResponse({ ok: false, error: 'students_only' }, 403, cors);
+    }
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await startEducationalTriviaRun(db, env, {
+      characterName: identity.characterName,
+      missionId: body.mission_id || body.mission,
+      gameId: body.game_id || body.game,
+      runId: body.run_id,
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error }, result._httpStatus || 400, cors);
+    }
+    return jsonResponse(result, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/missions/trivia/answer') {
+    const auth = await requireMissionSession(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
+    if (!identity.ok) {
+      return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    if (identity.participantKind !== 'student') {
+      return jsonResponse({ ok: false, error: 'students_only' }, 403, cors);
+    }
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await answerEducationalTriviaRun(db, env, {
+      characterName: identity.characterName,
+      missionId: body.mission_id || body.mission,
+      gameId: body.game_id || body.game,
+      runId: body.run_id,
+      questionId: body.question_id,
+      choiceIndex: body.choice_index,
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error }, result._httpStatus || 400, cors);
+    }
+    return jsonResponse(result, 200, cors);
   }
 
   if (request.method === 'GET' && path === '/api/missions/teacher') {
@@ -969,6 +1040,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (missionId === WAVE2_MISSION_IDS.THANK_YOU) {
       return jsonResponse({ ok: false, error: 'use_thank_you', message: 'Use Thank a Teacher to complete this mission.' }, 400, cors);
     }
+    if (missionId === WAVE2_MISSION_IDS.HANDBOOK_TRIVIA || missionId === WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA) {
+      return jsonResponse({ ok: false, error: 'use_trivia_mission', message: 'Play the trivia game to complete this mission.' }, 400, cors);
+    }
     // Prompt #8 — active manual missions remain redoable after prior accept/reject.
     // Usability ≠ reward eligibility: a new pending row is allowed; Nugget cadence is enforced on approve.
     // Prompt #13 — staff-side participants finalize immediately (no student review queue).
@@ -1174,7 +1248,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         });
       } catch (_) {}
     }
-    const studentPending = rawPending.filter((s) => !isStaffEconomyKey(s.character_name));
+    const studentPending = rawPending.filter(
+      (s) => !isStaffEconomyKey(s.character_name) && !isTriviaRunPendingSubmission(s)
+    );
     const byMission = {};
     (missionRows.results || []).forEach((m) => {
       byMission[m.id] = {
@@ -1430,7 +1506,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         };
       });
     }
-    const list = (subRows.results || []).map((s) => mapCharacterSubmissionRow(s, byMission));
+    const list = (subRows.results || [])
+      .filter((s) => !isTriviaRunPendingSubmission(s))
+      .map((s) => mapCharacterSubmissionRow(s, byMission));
     return jsonResponse({ ok: true, submissions: list }, 200, cors);
   }
 

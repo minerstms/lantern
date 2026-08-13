@@ -142,6 +142,13 @@ if (buildFnMatch) {
       poll: 'perm_create_a_poll',
       shout: 'perm_shoutout_someone',
       thankYou: 'perm_thank_you',
+      handbookTrivia: 'perm_handbook_trivia',
+      localHistoryTrivia: 'perm_local_history_trivia',
+    },
+    window: {
+      LanternCards: null,
+      LanternCardUI: null,
+      LANTERN_EDU_TRIVIA: null,
     },
     DAILY_CHECKIN_CHOICES: ['Ready', 'Okay', 'Tired', 'Need a reset'],
     openDailyCheckInPicker: function () {},
@@ -150,6 +157,7 @@ if (buildFnMatch) {
     callSendThankYou: function () { return Promise.resolve({ ok: true }); },
     loadMissions: function () {},
     openMissionSubmitModal: function () {},
+    missionsParticipantIsStaff: false,
     console,
   };
   vm.createContext(sandbox);
