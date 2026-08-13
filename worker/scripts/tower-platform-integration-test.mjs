@@ -1,5 +1,6 @@
 /**
  * Prompt #132 — Tower full Lantern platform integration.
+ * Prompt #134 — commercial asset / shipping-tree checks.
  *
  * Usage: node worker/scripts/tower-platform-integration-test.mjs
  */
@@ -245,9 +246,18 @@ if (workerIndex.includes('student entered the {gameName} leaderboard') && worker
   ok('generic marquee integration point documented on successful leaderboard insert');
 } else bad('marquee hook');
 
-// License notices retained
-if (license.includes('Copyright (c) 2018 BMQB, Inc') && notices.includes('Caketown') && provenance.includes('CC-BY-SA')) {
-  ok('MIT/third-party notices and Caketown attribution retained');
+// License notices retained (code). Caketown is documented as removed, not shipped.
+if (
+  license.includes('Copyright (c) 2018 BMQB, Inc') &&
+  notices.includes('MIT License') &&
+  notices.includes('cooljs') &&
+  notices.includes('Zepto') &&
+  notices.includes('Caketown') &&
+  notices.includes('deleted from shipping tree') &&
+  provenance.includes('CC-BY-SA') &&
+  provenance.includes('not retained')
+) {
+  ok('25/26/27. MIT/ISC/Zepto notices retained; Caketown documented as removed');
 } else bad('notices');
 
 // Mobile / overflow
@@ -262,8 +272,126 @@ if (
 } else bad('mobile/overflow');
 
 if (exists('app/assets/tower-card.png') && tower.image === 'assets/tower-card.png') {
-  ok('Tower Play card uses Lantern-branded catalog artwork');
-} else bad('card artwork');
+  ok('24. Tower Play card uses Lantern-owned catalog artwork');
+} else bad('24. card artwork');
+const cardBytes = fs.readFileSync(path.join(root, 'app/assets/tower-card.png'));
+if (cardBytes.length > 800 && cardBytes[0] === 0x89 && cardBytes[1] === 0x50) {
+  ok('24b. Play card is a real PNG');
+} else bad('24b. Play card PNG header');
+
+// ---------------------------------------------------------------------------
+// Prompt #134 commercial / shipping-tree audit
+// ---------------------------------------------------------------------------
+const spritesJs = read('app/games/tower/lantern-sprites.js');
+const sfxJs = read('app/games/tower/lantern-sfx.js');
+const distJs = read('app/games/tower/donor/dist/main.js');
+const srcIndex = read('app/games/tower/donor/src/index.js');
+
+if (
+  exists('app/games/tower/lantern-sprites.js') &&
+  gameHtml.includes('/games/tower/lantern-sprites.js') &&
+  spritesJs.includes('LanternTowerAssets') &&
+  spritesJs.includes('#5aa7ff')
+) {
+  ok('23. original Lantern sprites referenced at runtime');
+} else bad('23. lantern sprites');
+
+if (
+  exists('app/games/tower/lantern-sfx.js') &&
+  gameHtml.includes('/games/tower/lantern-sfx.js') &&
+  gameHtml.includes('soundOn: false') &&
+  sfxJs.includes('Web Audio') &&
+  !gameHtml.includes('bgm.mp3') &&
+  !gameHtml.includes('Caketown')
+) {
+  ok('15. no runtime Caketown; Web Audio SFX used');
+} else bad('15. runtime audio');
+
+const DONOR_MEDIA = [
+  'bgm.mp3', 'bgm.ogg', 'drop.mp3', 'drop.ogg', 'drop-perfect.mp3', 'drop-perfect.ogg',
+  'rotate.mp3', 'rotate.ogg', 'game-over.mp3', 'game-over.ogg',
+  'background.png', 'hook.png', 'block.png', 'block-perfect.png', 'block-rope.png', 'rope.png',
+  'heart.png', 'score.png', 'tutorial.png', 'tutorial-arrow.png',
+  'c1.png', 'c2.png', 'c3.png', 'c4.png', 'c5.png', 'c6.png', 'c7.png', 'c8.png',
+  'f1.png', 'f2.png', 'f3.png', 'f4.png', 'f5.png', 'f6.png', 'f7.png',
+  'main-index-logo.png', 'main-loading-logo.png', 'main-index-title.png', 'main-index-start.png',
+  'main-bg.png', 'main-modal-over.png', 'main-modal-again-b.png', 'main-modal-invite-b.png',
+  'main-modal-bg.png', 'main-share-icon.png', 'main-loading.gif', 'favicon.png',
+];
+function walkFiles(dir) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) out.push(...walkFiles(full));
+    else out.push(full);
+  }
+  return out;
+}
+const appFiles = walkFiles(path.join(root, 'app'));
+const towerFiles = walkFiles(path.join(root, 'app/games/tower'));
+const donorMediaHits = appFiles.filter((f) => {
+  const base = path.basename(f);
+  if (!DONOR_MEDIA.includes(base)) return false;
+  if (base === 'favicon.png' && f.replace(/\\/g, '/').endsWith('/app/assets/favicon.png')) return false;
+  return true;
+});
+if (donorMediaHits.length === 0) {
+  ok('16/18/19/20/28. no donor media filenames under app/ shipping tree');
+} else bad('16/18/19/20/28. donor media still publishable', donorMediaHits.map((f) => path.relative(root, f)));
+
+const towerMedia = towerFiles.filter((f) => /\.(mp3|ogg|wav|png|gif|jpg|jpeg|ico|ttf|woff2?|eot)$/i.test(f));
+if (towerMedia.length === 0) {
+  ok('28b. no binary media files under app/games/tower/');
+} else bad('28b. tower media files', towerMedia.map((f) => path.relative(root, f)));
+
+if (!exists('app/games/tower/donor/assets') && !exists('app/games/tower/donor/index.html')) {
+  ok('donor/assets and donor/index.html are gone from shipping tree');
+} else bad('donor snapshot still present');
+
+if (
+  !gameHtml.includes('BMQB') &&
+  !gameHtml.includes('贝米') &&
+  !spritesJs.includes('BMQB') &&
+  !sfxJs.includes('BMQB') &&
+  !adapterJs.includes('BMQB')
+) {
+  ok('17. no runtime BMQB branding in hosted game / sprites / sfx / adapter');
+} else bad('17. runtime BMQB');
+
+if (
+  !gameHtml.includes('wenxue') &&
+  !distJs.includes('wenxue') &&
+  srcIndex.includes('LanternTowerAssets') &&
+  utils.includes("'Arial,Helvetica,sans-serif'") &&
+  !exists('app/games/tower/donor/assets/wenxue.ttf')
+) {
+  ok('21. no wenxue runtime dependency or font file');
+} else bad('21. wenxue');
+
+if (
+  !gameHtml.includes('googletagmanager') &&
+  !gameHtml.includes('google-analytics') &&
+  !gameHtml.includes('UA-80834434') &&
+  !distJs.includes('googletagmanager') &&
+  !adapterJs.includes('googletagmanager')
+) {
+  ok('22. no donor Analytics');
+} else bad('22. analytics');
+
+if (
+  exists('app/games/tower/LICENSE') &&
+  exists('app/games/tower/donor/LICENSE') &&
+  exists('app/games/tower/GAME_PROVENANCE.md') &&
+  exists('app/games/tower/THIRD_PARTY_NOTICES.md') &&
+  exists('app/games/tower/vendor/zepto-1.1.6.min.js')
+) {
+  ok('25b. required LICENSE, provenance, notices, and Zepto remain');
+} else bad('25b. required docs/code missing');
+
+if (gameHtml.includes('labStart') && gameHtml.includes('lanternPlay') && !gameHtml.includes('main-index-start') && !gameHtml.includes('main-modal-over')) {
+  ok('hosted game uses Lantern chrome, not donor title/start/game-over bitmaps');
+} else bad('donor chrome still referenced');
 
 // ---------------------------------------------------------------------------
 // Live Worker: unauthenticated / spoof / valid / retry
@@ -406,7 +534,7 @@ async function main() {
     } else bad('10b. Tower retry', { retry, n: state.entries.length });
   }
 
-  console.log('\nTower platform integration tests (Prompt #132):', pass, 'passed,', fail, 'failed');
+  console.log('\nTower platform integration tests (Prompt #132/#134):', pass, 'passed,', fail, 'failed');
   process.exit(fail ? 1 : 0);
 }
 

@@ -94,11 +94,15 @@ if (labHtml.includes('flex-direction: column') && labHtml.includes('width: 100%'
 } else bad('lab layout');
 
 // ---------------------------------------------------------------------------
-// Self-hosted donor + license
+// Self-hosted engine + license (commercially cleaned assets)
 // ---------------------------------------------------------------------------
-if (exists('app/games/tower/donor/dist/main.js') && exists('app/games/tower/donor/assets/block.png')) {
-  ok('donor bundle and artwork are vendored locally');
-} else bad('donor runtime files missing');
+if (exists('app/games/tower/donor/dist/main.js') && exists('app/games/tower/lantern-sprites.js') && exists('app/games/tower/lantern-sfx.js')) {
+  ok('donor engine plus Lantern sprites/sfx are vendored locally');
+} else bad('runtime files missing');
+
+if (exists('app/games/tower/donor/assets/block.png') || exists('app/games/tower/donor/index.html')) {
+  bad('uncleared donor snapshot still in shipping tree');
+} else ok('donor artwork HTML/assets snapshot is not in the shipping tree');
 
 if (license.includes('Copyright (c) 2018 BMQB, Inc') && donorLicense.includes('MIT License')) {
   ok('MIT copyright/license files preserved');
@@ -109,16 +113,21 @@ if (notices.includes('wenxue') && notices.includes('not incorporated')) {
 } else bad('font exclusion notice');
 
 ['wenxue.eot', 'wenxue.woff', 'wenxue.ttf', 'wenxue.svg'].forEach(function (f) {
-  if (!exists('app/games/tower/donor/assets/' + f)) ok('excluded font not vendored: ' + f);
+  if (!exists('app/games/tower/donor/assets/' + f) && !exists('app/games/tower/' + f)) ok('excluded font not vendored: ' + f);
   else bad('unclear-license font was incorporated', f);
 });
 
-if (!gameHtml.includes('googletagmanager') && !read('app/games/tower/donor/index.html').includes('googletagmanager')) {
-  ok('Google Analytics not loaded from vendored game');
+if (!gameHtml.includes('googletagmanager') && !exists('app/games/tower/donor/index.html')) {
+  ok('Google Analytics not loaded from vendored game; donor index.html removed');
 } else bad('GA still present');
 
-if (gameHtml.includes('<base href="./donor/">') && gameHtml.includes('src="./dist/main.js"')) {
-  ok('hosted game loads self-hosted donor dist via local base href');
+if (
+  gameHtml.includes('/games/tower/lantern-sprites.js') &&
+  gameHtml.includes('/games/tower/donor/dist/main.js') &&
+  gameHtml.includes('/games/tower/vendor/zepto-1.1.6.min.js') &&
+  !gameHtml.includes('<base href="./donor/">')
+) {
+  ok('hosted game loads Lantern sprites + self-hosted donor dist without donor base href');
 } else bad('hosted game script paths');
 
 if (gameHtml.includes('/games/tower/lantern-adapter.js')) ok('hosted game loads lantern-adapter');
@@ -441,9 +450,9 @@ if (gameHtml.includes('overflow:hidden') && labHtml.includes('overflow-x: hidden
   ok('lab iframe is centered with overflow clipping prevented');
 } else bad('iframe layout');
 
-if (gameHtml.includes("game.playBgm()") && !gameHtml.match(/game\.load\(function \(\) \{[\s\S]{0,80}playBgm/)) {
-  ok('BGM waits for the Start click (no load-time autoplay)');
-} else bad('audio autoplay');
+if (gameHtml.includes('soundOn: false') && gameHtml.includes('lantern-sfx.js') && !gameHtml.includes('bgm.mp3') && !gameHtml.includes('Caketown')) {
+  ok('BGM/Caketown omitted; Web Audio SFX, soundOn false');
+} else bad('audio shipping');
 
 console.log('\nTower lab bridge tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);
