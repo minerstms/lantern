@@ -15,3 +15,10 @@
 
 /css/*
   Cache-Control: no-cache
+
+# Prompt #177 — game-card artwork is not fingerprinted. Revalidate so a future
+# deploy of smaller WebP bytes is not stuck behind a long-lived image cache.
+/assets/*-card.webp
+  Cache-Control: no-cache
+/assets/*-card.png
+  Cache-Control: no-cache

@@ -1,3 +1,6 @@
+# Local encoder toolchain (Prompt #177 sharp install; not a runtime dep)
+/node_modules/
+
 # Cloudflare Wrangler local dev/build/cache output
 .wrangler/
 **/.wrangler/
