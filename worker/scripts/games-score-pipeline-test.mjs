@@ -82,7 +82,7 @@ const expected = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
-  'Tower',
+  'Lantern Stack',
 ];
 expected.forEach(function (name) {
   const g = cat.getGameByName(name);

@@ -1,6 +1,6 @@
 # Tower — Third-party notices
 
-This file contains **only** notices that are required or recommended by licenses of code and media **actually present** in the Lantern Tower lab snapshot.
+This file contains **only** notices that are required or recommended by licenses of code and media **actually present** in the Lantern Stack shipping snapshot, plus a historical note for Caketown (removed in Prompt #134).
 
 It does **not** invent copyright lines that do not appear in upstream materials.
 
@@ -108,30 +108,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## 4. Background music — “Caketown” (Matthew Pablo)
+## 4. Background music — “Caketown” (Matthew Pablo) — REMOVED
 
-Required **while** `donor/assets/bgm.mp3` / `donor/assets/bgm.ogg` remain in the tree.
+**Removed from the shipping tree in Prompt #134.** `donor/assets/bgm.mp3` and `donor/assets/bgm.ogg` are no longer present. Lantern Stack ships **without BGM**.
 
-ID3 tags on `bgm.mp3` identify the recording as:
+This section is retained only as a historical record of why the track was unsuitable (CC-BY-SA 3.0 / OpenGameArt listing; donor shipped it without attribution). Do not restore the files.
 
-- Title: Caketown
-- Artist: Matthew Pablo
-- Date: 2012
-
+Former ID3 tags: Title Caketown; Artist Matthew Pablo; Date 2012.
 Public listing: https://opengameart.org/content/caketown-cuteplayful
-License on that listing: **CC-BY-SA 3.0**
-Legal code: http://creativecommons.org/licenses/by-sa/3.0/
-
-The donor repository did not include this attribution. Lantern records it here because ShareAlike / Attribution obligations attach to the track independently of the Tower MIT file.
-
-Lantern’s commercial standard treats CC-BY-SA assets as generally unsuitable unless explicitly approved. **Replace this track before a commercial release.** After replacement, delete this section.
-
-Until replacement, any public distribution that includes the BGM should credit:
-
-> “Caketown” by Matthew Pablo, licensed under CC-BY-SA 3.0
-> https://opengameart.org/content/caketown-cuteplayful
-
-CC-BY-SA 3.0 requires attribution, a license notice, a link to the license, and ShareAlike for adaptations of the licensed work. This file does not reproduce the full CC legal code; the URL above is the license.
 
 ---
 
@@ -142,5 +126,7 @@ The following are **not** third-party notice obligations of the current snapshot
 - Google Analytics (removed; not shipped)
 - wenxue webfont (never incorporated)
 - npm `package-lock.json` / Express / webpack / Babel as shipped source (build-time only; webpack runtime inside `dist/main.js` carries no copyright comment in the minified file)
-- Lantern-original wrapper files (`lantern-adapter.js`, `lantern-game-bridge.js`, lab HTML, tests)
-- Donor PNG/GIF/SFX for which **no** third-party copyright statement was found (absence of a statement is not a license; see `GAME_PROVENANCE.md`)
+- Lantern-original wrapper files (`lantern-adapter.js`, `lantern-stack-audio.js`, `lantern-art/`, hosted `index.html`, `lantern-game-bridge.js`, lab HTML, tests)
+- Donor PNG/GIF/SFX **removed from shipping** in Prompt #134 (see `GAME_PROVENANCE.md` §11)
+- Original Lantern Stack raster gameplay sprites and Play card generated in-repo (no third-party artwork license)
+- Original synthesized SFX (Web Audio API; no sample files)

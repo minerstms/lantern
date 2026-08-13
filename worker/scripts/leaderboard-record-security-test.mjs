@@ -198,7 +198,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
-  'Tower',
+  'Lantern Stack',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
@@ -210,9 +210,9 @@ if (resolveRegisteredLeaderboardGame('clickrush') && resolveRegisteredLeaderboar
   ok('game id clickrush resolves to canonical display name');
 } else bad('id resolution');
 
-if (resolveRegisteredLeaderboardGame('tower') && resolveRegisteredLeaderboardGame('Tower') && resolveRegisteredLeaderboardGame('tower').name === 'Tower') {
-  ok('Tower is registered in the server catalog as id tower / name Tower');
-} else bad('Tower missing from server catalog');
+if (resolveRegisteredLeaderboardGame('tower') && resolveRegisteredLeaderboardGame('Lantern Stack') && resolveRegisteredLeaderboardGame('tower').name === 'Lantern Stack') {
+  ok('Lantern Stack is registered in the server catalog as id tower / name Lantern Stack');
+} else bad('Lantern Stack missing from server catalog');
 
 if (!resolveRegisteredLeaderboardGame('lab-game') && !resolveRegisteredLeaderboardGame('<script>')) {
   ok('arbitrary / injection game names are not registered');
@@ -421,7 +421,7 @@ async function main() {
     if (
       first.status === 200 &&
       first.json.ok &&
-      first.json.game_name === 'Tower' &&
+      first.json.game_name === 'Lantern Stack' &&
       first.json.character_name === '20889' &&
       row &&
       row.character_name === '20889' &&

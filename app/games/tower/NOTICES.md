@@ -9,8 +9,9 @@ audit lives in:
 This file is retained so earlier lab notes are not deleted. It is **not**
 complete: it treated donor PNG/MP3/OGG as covered by the repo MIT license.
 That assumption is **not** reliable. In particular, `donor/assets/bgm.mp3`
-is tagged as Matthew Pablo’s “Caketown” (CC-BY-SA 3.0 on OpenGameArt), which
-is not MIT.
+**was** tagged as Matthew Pablo’s “Caketown” (CC-BY-SA 3.0 on OpenGameArt).
+Prompt #134 **removed** Caketown and donor SFX from the shipping tree.
+Lantern Stack uses original synthesized Web Audio instead, with no BGM.
 
 Do not remove `LICENSE` or `donor/LICENSE`.
 
@@ -39,12 +40,14 @@ preserved here.
 
 ## Artwork, audio, and other assets
 
-PNG, GIF, MP3, and OGG files under `donor/assets/` shipped with the donor
-repository under the same MIT license as the Software. No separate asset
-license file was present in the donor.
+Prompt #134 replaced donor PNG gameplay sprites with original Lantern Stack
+art generated in-repo. Donor UI chrome, BMQB logos, Caketown BGM, and donor
+SFX were **removed** from `donor/assets/`. Remaining runtime files there are
+Lantern-owned PNGs plus Zepto.
 
 The donor README describes the game as “Tower Bloxx Deluxe Skyscraper”
-inspired. This lab prototype does not claim that trademark.
+inspired. This is documentation-only provenance. The shipping player does
+not use that name.
 
 ## Fonts — excluded
 

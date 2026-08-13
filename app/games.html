@@ -853,7 +853,7 @@
       <iframe
         id="towerPlayFrame"
         class="towerPlayFrame"
-        title="Tower"
+        title="Lantern Stack"
         src="about:blank"
         allow="autoplay"
       ></iframe>
@@ -1112,7 +1112,7 @@
           ['reaction','clickrush','memory','nuggetHunt','tower'].forEach(function(g){
             var lockEl = el(g + 'Locked');
             var playBtn = el(g + 'PlayBtn');
-            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : g === 'tower' ? 'Tower' : 'Reaction Tap');
+            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : g === 'tower' ? 'Lantern Stack' : 'Reaction Tap');
             if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
             if (playBtn) playBtn.disabled = false;
           });
@@ -1915,7 +1915,7 @@
       });
     }
 
-    // ---- Tower: same-origin iframe in the shared Game Player (Prompt #132) ----
+    // ---- Lantern Stack (id tower): same-origin iframe in the shared Game Player ----
     (function(){
       var QUALIFYING_FLOORS = 10;
       var playBtn = el('towerPlayBtn');
@@ -1978,7 +1978,7 @@
         iframe.src = 'about:blank';
       }
       function startTowerRound(){
-        tryPlay('Tower', function(){
+        tryPlay('Lantern Stack', function(){
           playing = true;
           towerRunId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function')
             ? window.LanternGamesPaidStart.getLastRunId()
@@ -1986,8 +1986,8 @@
           loadPlayableIframe();
         }, {
           surface: surface,
-          title: 'Tower',
-          gameName: 'Tower',
+          title: 'Lantern Stack',
+          gameName: 'Lantern Stack',
           gameId: 'tower',
           onExit: unloadIframe,
           returnFocus: playBtn
@@ -2014,9 +2014,9 @@
             var floors = payload && payload.floors != null ? payload.floors : 0;
             var won = floors >= QUALIFYING_FLOORS;
             var adopted = loadAdopted();
-            postLeaderboardScore('Tower', adopted && adopted.name, score, score + ' pts', function(){}, towerRunId);
+            postLeaderboardScore('Lantern Stack', adopted && adopted.name, score, score + ' pts', function(){}, towerRunId);
             if (won && adopted) {
-              awardGameWinWithEconomy(adopted.name, 'Tower', 1, function(){
+              awardGameWinWithEconomy(adopted.name, 'Lantern Stack', 1, function(){
                 refreshBalance();
               }, function(){
                 toast('Nugget award failed. Contact your teacher if this persists.');

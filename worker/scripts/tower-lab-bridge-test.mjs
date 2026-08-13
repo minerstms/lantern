@@ -100,6 +100,11 @@ if (exists('app/games/tower/donor/dist/main.js') && exists('app/games/tower/dono
   ok('donor bundle and artwork are vendored locally');
 } else bad('donor runtime files missing');
 
+const shippingAssets = fs.readdirSync(path.join(root, 'app/games/tower/donor/assets'));
+if (shippingAssets.every(function (f) { return !/\.(mp3|ogg)$/i.test(f); })) {
+  ok('shipping donor/assets has no MP3/OGG');
+} else bad('shipping still has audio files', shippingAssets.filter(function (f) { return /\.(mp3|ogg)$/i.test(f); }));
+
 if (license.includes('Copyright (c) 2018 BMQB, Inc') && donorLicense.includes('MIT License')) {
   ok('MIT copyright/license files preserved');
 } else bad('license files');
@@ -135,12 +140,12 @@ const sandbox = { window: {}, globalThis: {} };
 sandbox.window = sandbox.globalThis = sandbox;
 vm.runInNewContext(catalogJs, sandbox);
 const games = sandbox.LANTERN_GAME_CATALOG.listGames();
-if (games.length === 9) ok('Play catalog has 9 games including Tower');
+if (games.length === 9) ok('Play catalog has 9 games including Lantern Stack');
 else bad('catalog count changed', games.length);
 
-if (sandbox.LANTERN_GAME_CATALOG.getGameById('tower') && sandbox.LANTERN_GAME_CATALOG.getGameByName('Tower')) {
-  ok('Tower is registered in the Play catalog');
-} else bad('Tower missing from LANTERN_GAME_CATALOG');
+if (sandbox.LANTERN_GAME_CATALOG.getGameById('tower') && sandbox.LANTERN_GAME_CATALOG.getGameByName('Lantern Stack')) {
+  ok('Lantern Stack is registered in the Play catalog (id tower)');
+} else bad('Lantern Stack missing from LANTERN_GAME_CATALOG');
 
 const originalEight = [
   'Avatar Match',
@@ -233,7 +238,7 @@ if (reward.skipped === true && reward.reason === 'nugget_writes_disabled' && rew
 
 const posted = await bridge.submitLeaderboardScore({
   gameId: 'tower',
-  gameName: 'Tower',
+  gameName: 'Lantern Stack',
   score: 150,
   floors: 6,
   username: 'DONOR_USER',
@@ -243,7 +248,7 @@ const posted = await bridge.submitLeaderboardScore({
 if (
   posted.ok &&
   posted.submitted.character_name == null &&
-  posted.submitted.game_name === 'Tower' &&
+  posted.submitted.game_name === 'Lantern Stack' &&
   posted.submitted.score === 150 &&
   posted.ignoredDonorFields.indexOf('character_name') !== -1 &&
   posted.ignoredDonorFields.indexOf('nuggets') !== -1 &&
@@ -259,7 +264,7 @@ const fetchCountAfterRealSubmit = fetchCalls.length;
 const previewed = await bridge.recordGameOutcome({
   previewMode: true,
   gameId: 'tower',
-  gameName: 'Tower',
+  gameName: 'Lantern Stack',
   score: 150,
   floors: 6,
   username: 'DONOR_USER',
@@ -283,7 +288,7 @@ if (
 
 const previewSubmit = await bridge.submitLeaderboardScore({
   previewMode: true,
-  gameName: 'Tower',
+  gameName: 'Lantern Stack',
   score: 10,
   nuggets: 999,
 });
@@ -311,7 +316,7 @@ if (
 
 const noId = await (function () {
   bridgeSandbox.LanternAuth = { adoptedFromPilotMe: function () { return null; } };
-  return bridge.submitLeaderboardScore({ gameName: 'Tower', score: 10, character_name: 'DONOR_USER' });
+  return bridge.submitLeaderboardScore({ gameName: 'Lantern Stack', score: 10, character_name: 'DONOR_USER' });
 })();
 if (noId.ok === false && noId.error === 'no_session_identity') {
   ok('score adapter refuses to submit without Lantern session identity');
@@ -441,9 +446,9 @@ if (gameHtml.includes('overflow:hidden') && labHtml.includes('overflow-x: hidden
   ok('lab iframe is centered with overflow clipping prevented');
 } else bad('iframe layout');
 
-if (gameHtml.includes("game.playBgm()") && !gameHtml.match(/game\.load\(function \(\) \{[\s\S]{0,80}playBgm/)) {
-  ok('BGM waits for the Start click (no load-time autoplay)');
-} else bad('audio autoplay');
+if (gameHtml.includes('soundOn: false') && gameHtml.includes('lantern-stack-audio.js') && !gameHtml.includes('game.playBgm()')) {
+  ok('no donor BGM autoplay; synthesized audio only');
+} else bad('audio autoplay / donor BGM');
 
 console.log('\nTower lab bridge tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

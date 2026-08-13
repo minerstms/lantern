@@ -119,7 +119,7 @@ const gameNames = [
   'Handbook Trivia',
   'Lantern Live Trivia',
   'Local History Trivia',
-  'Tower',
+  'Lantern Stack',
 ];
 gameNames.forEach(function (name) {
   const re = new RegExp(

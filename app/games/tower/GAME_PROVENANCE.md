@@ -1,9 +1,9 @@
 # Tower — Game Provenance and Commercial Clearance Audit
 
-**Status:** Engineering integration branch (`cursor/tower-lantern-integration-0c71`). Not on `origin/main`. Not cleared for production Play merge.
-**Audit date:** 2026-08-13
-**Auditor lane:** RED — commercial / IP documentation. No gameplay, scoring, Nuggets, Play, auth, D1, deploy, or merge-to-main changes in the audit commit.
-**Prompt #132 note:** Engineering may list Tower on Play *on this isolated branch* for inspection. Commercial-as-is remains **RED**. Do not treat this file as legal advice or as commercial clearance.
+**Status (Prompt #134):** Donor-facing presentation removed from shipping runtime. Public working title **Lantern Stack**. Internal game id remains `tower`. Isolated branch only — not on `origin/main`, not production-deployed.
+**Audit date:** 2026-08-13 (#127 inventory). **Reskin date:** 2026-08-13 (#134).
+**Auditor lane:** RED/YELLOW — commercial reskin around approved MIT mechanics.
+**Prompt #132 note:** Engineering listed the game on Play on the isolated integration branch. #134 replaces donor chrome with Lantern-owned presentation. Do not treat this file as legal advice or as trademark clearance.
 
 Canonical notices for redistribution: [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 Required upstream license texts also remain in [`LICENSE`](./LICENSE) and [`donor/LICENSE`](./donor/LICENSE). Do not remove those files.
@@ -395,3 +395,61 @@ Biggest risks, in order:
 3. **BMQB / 贝米钱包** trademarks in the asset tree.
 4. **Tower Bloxx** inspiration + crane-stacking presentation if Lantern ships the donor look.
 5. Missing cooljs LICENSE file (manageable with ISC notice).
+
+---
+
+## 11. Prompt #134 commercial reskin (2026-08-13)
+
+This section records what changed after the #127 inventory. Historical tables above describe the **pre-reskin** snapshot.
+
+### 11.1 What was kept (code / notices)
+
+- Tower MIT gameplay (`donor/src/`, `donor/dist/main.js`) — mechanics unchanged.
+- cooljs ISC (bundled in `dist/main.js`).
+- Zepto MIT (`donor/assets/zepto-1.1.6.min.js`).
+- Lantern Game Bridge / paid-start / leaderboard / economy paths.
+- `LICENSE`, `donor/LICENSE`, this file, `THIRD_PARTY_NOTICES.md`.
+- Internal catalog id `tower`.
+
+### 11.2 Donor visible assets removed from shipping runtime
+
+Deleted from `donor/assets/` (no longer present on disk):
+
+- BMQB / 贝米钱包 logos: `main-index-logo.png`, `main-loading-logo.png`
+- Donor title / start / loading / share / favicon / unused rope: `main-index-title.png`, `main-index-start.png`, `main-loading.gif`, `main-bg.png`, `main-share-icon.png`, `favicon.png`, `rope.png`
+- Donor modal chrome: `main-modal-bg.png`, `main-modal-over.png`, `main-modal-again-b.png`, `main-modal-invite-b.png`, `main-modal-close.png` (if present)
+- Caketown BGM: `bgm.mp3`, `bgm.ogg`
+- Donor SFX: `drop.mp3/.ogg`, `drop-perfect.mp3/.ogg`, `rotate.mp3/.ogg`, `game-over.mp3/.ogg`
+- Temporary Play card: `app/assets/tower-card.png`, `assets/tower-card.png`
+
+`donor/index.html` is no longer a playable donor splash. It is a short provenance stub pointing at LICENSE and the Lantern Stack player.
+
+### 11.3 Original Lantern replacements
+
+- Working public title: **Lantern Stack** (not a trademark-clearance claim).
+- Visual concept: nighttime school-tech arcade — navy sky, glowing windows, geometric floors, Lantern blue/gold accents. Generated in-repo by `lantern-art/generate-assets.py` (PNG from original primitives; no donor tracing).
+- Engine filenames retained (`background.png`, `block.png`, `hook.png`, `c1–c8`, `f1–f7`, HUD sprites) so `dist/main.js` paths still resolve; **file contents are Lantern-owned replacements**.
+- UI chrome: CSS in `app/games/tower/index.html` (loading, landing, result). Parent Play shell still owns paid Start / result / Play Again.
+- Audio: original Web Audio API tones in `lantern-stack-audio.js` (drop, perfect, rotate, game-over). **No BGM.** Hosted game sets `soundOn: false` so cooljs does not fetch MP3s.
+- Canvas HUD font default changed from `wenxue` to `Arial` in `donor/src/utils.js` and `donor/dist/main.js`.
+- Play card: `assets/lantern-stack-card.png` (same generator). A later custom illustration may replace this raster.
+
+### 11.4 Runtime third-party remaining
+
+| Item | Role | License | Shipping? |
+|------|------|---------|-----------|
+| Tower JS mechanics | Gameplay | MIT (BMQB, Inc 2018) | Yes — notices retained |
+| cooljs | Canvas engine inside `dist/main.js` | ISC | Yes — notice retained |
+| Zepto 1.1.6 | DOM helper | MIT | Yes — notice retained |
+| Donor PNG/GIF/MP3/OGG | Art/audio | Unproven / Caketown CC-BY-SA | **No — removed** |
+| wenxue webfont | Font | None | **No — never shipped; code no longer requests it** |
+| Google Analytics | Tracking | n/a | **No** |
+| Caketown | BGM | CC-BY-SA 3.0 | **No — removed; notice section marked removed** |
+
+### 11.5 Remaining before main merge (non-code)
+
+- Human selection of a final public name (alternatives listed in the #134 report).
+- Optional later custom Play-card illustration (current card is original geometric raster).
+- Counsel review of residual stacking-genre look-alike risk (Lantern art is distinct; mechanics are the same genre).
+- Do not restore donor art, Caketown, wenxue, Analytics, or BMQB marks.
+

@@ -41,11 +41,14 @@ window.TowerGame = (option = {}) => {
   game.addImg('tutorial-arrow', pathGenerator('tutorial-arrow.png'))
   game.addImg('heart', pathGenerator('heart.png'))
   game.addImg('score', pathGenerator('score.png'))
-  game.addAudio('drop-perfect', pathGenerator('drop-perfect.mp3'))
-  game.addAudio('drop', pathGenerator('drop.mp3'))
-  game.addAudio('game-over', pathGenerator('game-over.mp3'))
-  game.addAudio('rotate', pathGenerator('rotate.mp3'))
-  game.addAudio('bgm', pathGenerator('bgm.mp3'))
+  // Shipping uses soundOn: false + LanternStackAudio (Web Audio). Do not load donor MP3s.
+  if (soundOn) {
+    game.addAudio('drop-perfect', pathGenerator('drop-perfect.mp3'))
+    game.addAudio('drop', pathGenerator('drop.mp3'))
+    game.addAudio('game-over', pathGenerator('game-over.mp3'))
+    game.addAudio('rotate', pathGenerator('rotate.mp3'))
+    game.addAudio('bgm', pathGenerator('bgm.mp3'))
+  }
   game.setVariable(constant.blockWidth, game.width * 0.25)
   game.setVariable(constant.blockHeight, game.getVariable(constant.blockWidth) * 0.71)
   game.setVariable(constant.cloudSize, game.width * 0.3)

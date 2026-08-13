@@ -87,7 +87,7 @@ export const LANTERN_LEADERBOARD_GAMES = [
   },
   {
     id: 'tower',
-    name: 'Tower',
+    name: 'Lantern Stack',
     lowerIsBetter: false,
     scoreMin: 0,
     scoreMax: 1000000,

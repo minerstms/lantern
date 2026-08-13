@@ -126,18 +126,18 @@
     },
     {
       id: 'tower',
-      name: 'Tower',
+      name: 'Lantern Stack',
       type: 'arcade',
       playBtnId: 'towerPlayBtn',
       play_cost: 1,
       icon: '🏗️',
-      image: 'assets/tower-card.png',
+      image: 'assets/lantern-stack-card.png',
       featured: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
       qualifyingWin: { floors: 10 },
-      description: 'Stack floors from a swinging crane. Higher score wins. Reach 10 floors to earn +1 Nugget.',
+      description: 'Stack glowing floors against a night skyline. Higher score wins. Reach 10 floors to earn +1 Nugget.',
     },
   ];
 

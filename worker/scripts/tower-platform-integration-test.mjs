@@ -67,23 +67,23 @@ vm.runInNewContext(catalogJs, sandbox);
 const cat = sandbox.LANTERN_GAME_CATALOG;
 const games = cat.listGames();
 const tower = cat.getGameById('tower');
-const towerByName = cat.getGameByName('Tower');
+const towerByName = cat.getGameByName('Lantern Stack');
 
-// 1. Tower registered in canonical catalog
-if (tower && towerByName && tower.id === 'tower' && tower.name === 'Tower' && tower.play_cost === 1) {
-  ok('1. Tower registered in canonical frontend catalog (id tower / name Tower / cost 1)');
+// 1. Lantern Stack registered in canonical catalog (id remains tower)
+if (tower && towerByName && tower.id === 'tower' && tower.name === 'Lantern Stack' && tower.play_cost === 1) {
+  ok('1. Lantern Stack registered in canonical frontend catalog (id tower / name Lantern Stack / cost 1)');
 } else bad('1. frontend catalog', tower);
 const serverTower = resolveRegisteredLeaderboardGame('tower');
-if (serverTower && serverTower.name === 'Tower' && !serverTower.lowerIsBetter) {
-  ok('1b. Tower registered in server catalog, higher-is-better');
+if (serverTower && serverTower.name === 'Lantern Stack' && !serverTower.lowerIsBetter) {
+  ok('1b. Lantern Stack registered in server catalog, higher-is-better');
 } else bad('1b. server catalog', serverTower);
 if (LANTERN_LEADERBOARD_GAMES.filter((g) => g.id === 'tower').length === 1) {
-  ok('1c. Tower appears exactly once in the server catalog');
+  ok('1c. tower id appears exactly once in the server catalog');
 } else bad('1c. server catalog duplicates');
 
-// 17. Play contains Tower exactly once
-if (games.filter((g) => g.id === 'tower' || g.name === 'Tower').length === 1) {
-  ok('17. Play catalog contains Tower exactly once');
+// 17. Play contains Lantern Stack exactly once
+if (games.filter((g) => g.id === 'tower' || g.name === 'Lantern Stack').length === 1) {
+  ok('17. Play catalog contains Lantern Stack exactly once');
 } else bad('17. catalog tower count');
 if ((gamesHtml.match(/id="towerPlayBtn"/g) || []).length === 1) {
   ok('17b. Play page has exactly one Tower play trigger');
@@ -106,8 +106,8 @@ ORIGINAL_EIGHT.forEach(function (name) {
 });
 
 // 2 / 3 / 4 identity: Tower cannot submit unauthenticated; session identity; donor spoof ignored
-if (gamesHtml.includes("postLeaderboardScore('Tower'") && !/function postLeaderboardScore[\s\S]{0,900}character_name\s*:/.test(gamesHtml)) {
-  ok('3. postLeaderboardScore used for Tower does not send character_name');
+if (gamesHtml.includes("postLeaderboardScore('Lantern Stack'") && !/function postLeaderboardScore[\s\S]{0,900}character_name\s*:/.test(gamesHtml)) {
+  ok('3. postLeaderboardScore used for Lantern Stack does not send character_name');
 } else bad('3. character_name in record payload');
 if (bridgeJs.includes('never send client-authoritative character_name') && bridgeJs.indexOf('character_name: identity.character_name') === -1) {
   ok('3b. game bridge no longer posts character_name');
@@ -117,8 +117,8 @@ if (adapterJs.includes('stripForbidden') && adapterJs.includes('must NEVER send'
 } else bad('4. adapter contract');
 
 // 5. paid start costs exactly 1 Nugget
-if (gamesHtml.includes("tryPlay('Tower'") && gamesHtml.includes('LanternGamesPaidStart.startPaidGame') && tower.play_cost === 1) {
-  ok('5. Tower uses shared paid-start; play_cost is 1 Nugget');
+if (gamesHtml.includes("tryPlay('Lantern Stack'") && gamesHtml.includes('LanternGamesPaidStart.startPaidGame') && tower.play_cost === 1) {
+  ok('5. Lantern Stack uses shared paid-start; play_cost is 1 Nugget');
 } else bad('5. paid start');
 if (paidStartJs.includes("kind: 'game_play'") && paidStartJs.includes('delta: -cost')) {
   ok('5b. game_play delta is -cost (catalog-enforced 1)');
@@ -143,10 +143,10 @@ if (
 // 8. stable run_id
 if (
   gamesHtml.includes('getLastRunId') &&
-  gamesHtml.match(/postLeaderboardScore\('Tower'[\s\S]{0,200}towerRunId/) &&
-  gamesHtml.match(/awardGameWinWithEconomy\([\s\S]{0,200}'Tower'[\s\S]{0,400}towerRunId/)
+  gamesHtml.match(/postLeaderboardScore\('Lantern Stack'[\s\S]{0,200}towerRunId/) &&
+  gamesHtml.match(/awardGameWinWithEconomy\([\s\S]{0,200}'Lantern Stack'[\s\S]{0,400}towerRunId/)
 ) {
-  ok('8. Tower score and win reward use paid-start run_id');
+  ok('8. Lantern Stack score and win reward use paid-start run_id');
 } else bad('8. run_id wiring');
 
 // 9. valid score records — donor scoring model preserved
@@ -169,7 +169,7 @@ if (workerIndex.includes("json_extract(meta_json, '$.run_id')") && gamesHtml.inc
 if (tower.qualifyingWin && tower.qualifyingWin.floors === 10) {
   ok('11. qualifying win is 10 successful floors (catalog)');
 } else bad('11. qualifying floors', tower && tower.qualifyingWin);
-if (gamesHtml.includes('floors >= QUALIFYING_FLOORS') && gamesHtml.includes("awardGameWinWithEconomy(adopted.name, 'Tower', 1")) {
+if (gamesHtml.includes('floors >= QUALIFYING_FLOORS') && gamesHtml.includes("awardGameWinWithEconomy(adopted.name, 'Lantern Stack', 1")) {
   ok('11b. qualifying win calls awardGameWinWithEconomy with +1');
 } else bad('11b. win award call');
 if (gamesHtml.includes('if (won && adopted)') && gamesHtml.includes('QUALIFYING_FLOORS')) {
@@ -236,8 +236,8 @@ if (!adapterJs.includes('/api/economy') && !gameHtml.includes('/api/economy') &&
 } else bad('iframe API calls');
 
 // Ticker / leaderboard periods
-if (tickerJs.includes("'Tower'") && catalogJs.includes("'24h': 'daily'") && catalogJs.includes("all: 'all_time'")) {
-  ok('Tower is on the shared ticker/leaderboard period map');
+if (tickerJs.includes("'Lantern Stack'") && catalogJs.includes("'24h': 'daily'") && catalogJs.includes("all: 'all_time'")) {
+  ok('Lantern Stack is on the shared ticker/leaderboard period map');
 } else bad('ticker/periods');
 
 // Marquee hook
@@ -246,8 +246,8 @@ if (workerIndex.includes('student entered the {gameName} leaderboard') && worker
 } else bad('marquee hook');
 
 // License notices retained
-if (license.includes('Copyright (c) 2018 BMQB, Inc') && notices.includes('Caketown') && provenance.includes('CC-BY-SA')) {
-  ok('MIT/third-party notices and Caketown attribution retained');
+if (license.includes('Copyright (c) 2018 BMQB, Inc') && notices.includes('Caketown') && notices.includes('REMOVED') && provenance.includes('CC-BY-SA')) {
+  ok('MIT/third-party notices retained; Caketown documented as removed');
 } else bad('notices');
 
 // Mobile / overflow
@@ -261,9 +261,56 @@ if (
   ok('Tower player is single-column, overflow-clipped, portrait-ok');
 } else bad('mobile/overflow');
 
-if (exists('app/assets/tower-card.png') && tower.image === 'assets/tower-card.png') {
-  ok('Tower Play card uses Lantern-branded catalog artwork');
+if (exists('app/assets/lantern-stack-card.png') && exists('assets/lantern-stack-card.png') && tower.image === 'assets/lantern-stack-card.png') {
+  ok('Play card uses original Lantern Stack artwork');
 } else bad('card artwork');
+if (exists('app/assets/tower-card.png') || exists('assets/tower-card.png')) {
+  bad('old donor/temporary tower-card.png still present');
+} else ok('temporary tower-card.png removed');
+
+// ---------------------------------------------------------------------------
+// Prompt #134 shipping asset / string audit
+// ---------------------------------------------------------------------------
+const audioJs = read('app/games/tower/lantern-stack-audio.js');
+const donorIndex = read('app/games/tower/donor/index.html');
+const utilsSrc = read('app/games/tower/donor/src/utils.js');
+const distJs = read('app/games/tower/donor/dist/main.js');
+const assetDir = path.join(root, 'app/games/tower/donor/assets');
+const assetFiles = fs.readdirSync(assetDir);
+
+const blockedAudio = assetFiles.filter((f) => /\.(mp3|ogg)$/i.test(f));
+if (blockedAudio.length === 0) ok('no runtime Caketown/donor MP3/OGG in donor/assets');
+else bad('audio files still in shipping assets', blockedAudio);
+
+['main-index-logo.png', 'main-loading-logo.png', 'main-index-title.png', 'main-index-start.png', 'main-loading.gif', 'favicon.png'].forEach(function (f) {
+  if (!exists('app/games/tower/donor/assets/' + f)) ok('removed donor branding file: ' + f);
+  else bad('donor branding still in assets', f);
+});
+
+if (gameHtml.includes('Lantern Stack') && gameHtml.includes('soundOn: false') && gameHtml.includes('lantern-stack-audio.js')) {
+  ok('hosted player uses Lantern Stack chrome + synthesized audio hook');
+} else bad('hosted player presentation');
+if (audioJs.includes('AudioContext') && audioJs.includes("name === 'drop'") && !audioJs.includes('.mp3')) {
+  ok('original synthesized audio only (no sample files)');
+} else bad('audio module');
+if (gameHtml.includes('googletagmanager') || donorIndex.includes('googletagmanager') || gameHtml.includes('google-analytics')) {
+  bad('Analytics still referenced in shipping HTML');
+} else ok('no Analytics in shipping HTML');
+if (utilsSrc.includes("fontName = 'Arial'") && !utilsSrc.includes('wenxue') && !distJs.includes('wenxue')) {
+  ok('canvas HUD no longer requests wenxue');
+} else bad('wenxue still in runtime code');
+if (distJs.includes('.mp3') || distJs.includes('.ogg')) {
+  bad('shipping bundle still references donor audio files');
+} else ok('shipping bundle has no MP3/OGG references');
+if (gameHtml.includes('main-index-title') || gameHtml.includes('main-loading.gif') || gameHtml.includes('font-wenxue')) {
+  bad('donor UI chrome still in hosted index.html');
+} else ok('hosted index.html has no donor title/loading chrome');
+if (exists('app/games/tower/lantern-art/generate-assets.py') && exists('app/games/tower/donor/assets/background.png')) {
+  ok('original Lantern visual generator and replaced gameplay sprites present');
+} else bad('Lantern visual assets missing');
+if (gameHtml.includes('overflow:hidden') && !gameHtml.includes('orientation: landscape')) {
+  ok('hosted player remains overflow-clipped / portrait-ok');
+} else bad('hosted overflow');
 
 // ---------------------------------------------------------------------------
 // Live Worker: unauthenticated / spoof / valid / retry
@@ -375,28 +422,28 @@ async function postRecord(env, cookie, body) {
 async function main() {
   {
     const env = makeEnv({ entries: [] });
-    const r = await postRecord(env, null, { game_name: 'Tower', score: 100, character_name: 'spoof' });
+    const r = await postRecord(env, null, { game_name: 'Lantern Stack', score: 100, character_name: 'spoof' });
     if (r.status === 401 && r.json && r.json.error === 'not_authenticated') {
-      ok('2. Tower cannot submit score unauthenticated');
-    } else bad('2. unauthenticated Tower', r);
+      ok('2. Lantern Stack cannot submit score unauthenticated');
+    } else bad('2. unauthenticated Lantern Stack', r);
   }
   {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
     const r = await postRecord(env, cookie, {
-      game_name: 'Tower',
+      game_name: 'Lantern Stack',
       character_name: 'DONOR_MUST_BE_IGNORED',
       score: 175,
       score_display: '175 pts',
       run_id: 'tower-int-1',
     });
     const row = state.entries[0];
-    if (r.status === 200 && r.json.ok && r.json.character_name === '20889' && row && row.character_name === '20889' && row.game_name === 'Tower') {
-      ok('3/4. Tower record identity is session 20889; donor spoof ignored');
+    if (r.status === 200 && r.json.ok && r.json.character_name === '20889' && row && row.character_name === '20889' && row.game_name === 'Lantern Stack') {
+      ok('3/4. Lantern Stack record identity is session 20889; donor spoof ignored');
     } else bad('3/4. spoof', { r, row });
     const retry = await postRecord(env, cookie, {
-      game_name: 'Tower',
+      game_name: 'Lantern Stack',
       score: 175,
       score_display: '175 pts',
       run_id: 'tower-int-1',
@@ -406,7 +453,7 @@ async function main() {
     } else bad('10b. Tower retry', { retry, n: state.entries.length });
   }
 
-  console.log('\nTower platform integration tests (Prompt #132):', pass, 'passed,', fail, 'failed');
+  console.log('\nTower platform integration tests (Prompt #134):', pass, 'passed,', fail, 'failed');
   process.exit(fail ? 1 : 0);
 }
 

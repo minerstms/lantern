@@ -11,7 +11,7 @@
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="/js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
-  <title>Tower Lab | Lantern</title>
+  <title>Lantern Stack Lab | Lantern</title>
   <link rel="stylesheet" href="/css/lantern-ticker.css">
   <link rel="stylesheet" href="/css/lantern-header.css">
   <style>
@@ -76,7 +76,7 @@
       border-radius: 18px;
       overflow: hidden;
       border: 1px solid var(--line);
-      background: #f95240;
+      background: #0b1220;
       touch-action: manipulation;
     }
     .towerLabFrameWrap iframe{
@@ -84,7 +84,7 @@
       width: 100%;
       height: 100%;
       border: 0;
-      background: #f95240;
+      background: #0b1220;
     }
     .towerLabStatus{
       border: 1px solid var(--line);
@@ -153,15 +153,15 @@
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
       <div class="towerLab">
         <div class="towerLabBanner">
-          <h1 class="towerLabTitle">Tower Lab</h1>
-          <p class="towerLabMeta">Experimental unlinked prototype. Not listed on Play, Explore, Missions, Create, or navigation. Direct URL only.</p>
+          <h1 class="towerLabTitle">Lantern Stack Lab</h1>
+          <p class="towerLabMeta">Experimental unlinked prototype (internal id: tower). Not listed on Play, Explore, Missions, Create, or navigation. Direct URL only.</p>
           <p class="towerLabPreviewFlag" id="towerLabPreviewFlag">PREVIEW MODE — RESULTS NOT SAVED</p>
         </div>
         <div class="towerLabFrameWrap">
           <iframe
             id="towerGameFrame"
             src="/games/tower/index.html"
-            title="Tower Building Game"
+            title="Lantern Stack"
             allow="autoplay"
           ></iframe>
         </div>
@@ -174,7 +174,7 @@
             </div>
             <div>
               <dt>Game</dt>
-              <dd id="towerLabGame">Tower</dd>
+              <dd id="towerLabGame">Lantern Stack</dd>
             </div>
             <div>
               <dt>Bridge</dt>
@@ -207,7 +207,7 @@
           </dl>
         </div>
         <p class="towerLabAttribution">
-          Tower Building Game © 2018 BMQB, Inc. MIT license. Served by Lantern, not from an external site.
+          Lantern Stack uses MIT-licensed Tower Building Game code © 2018 BMQB, Inc. Required notices: /games/tower/LICENSE. Served by Lantern, not from an external site.
         </p>
       </div>
     </div>
@@ -224,8 +224,8 @@
       var TOWER_LAB_PREVIEW_MODE = true;
       var LANTERN_TOWER_GAME = {
         id: 'tower',
-        name: 'Tower',
-        leaderboardKey: 'Tower'
+        name: 'Lantern Stack',
+        leaderboardKey: 'Lantern Stack'
       };
       var booted = false;
       var endedOnce = false;
@@ -268,7 +268,7 @@
         booted = true;
 
         setText('towerLabPlayer', displayIdentity());
-        setText('towerLabGame', 'Tower');
+        setText('towerLabGame', 'Lantern Stack');
 
         var bridge = window.LanternGameBridge;
         var iframe = document.getElementById('towerGameFrame');
