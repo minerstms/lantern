@@ -97,12 +97,18 @@
   function transactGamePlay(gameName, cost, runId) {
     var w = walletApi();
     if (w && typeof w.canUseHttpEconomy === 'function' && w.canUseHttpEconomy() && typeof w.postEconomyTransact === 'function') {
+      var cat = catalogApi();
+      var game = cat && typeof cat.getGameByName === 'function' ? cat.getGameByName(gameName) : null;
       return w.postEconomyTransact({
         delta: -cost,
         kind: 'game_play',
         source: 'GAME',
         note: gameName || 'Game',
-        meta: { game_name: gameName || '', run_id: runId || '' },
+        meta: {
+          game_name: gameName || '',
+          game_id: game && game.id ? String(game.id) : '',
+          run_id: runId || '',
+        },
       });
     }
     return Promise.resolve({ ok: false, error: 'economy_unavailable' });
@@ -205,6 +211,9 @@
     },
     getLastRunId: function () {
       return lastRunId;
+    },
+    clearLastRunId: function () {
+      lastRunId = '';
     },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

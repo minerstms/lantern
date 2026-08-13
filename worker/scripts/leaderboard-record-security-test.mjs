@@ -86,9 +86,30 @@ function staffAccount(overrides) {
   };
 }
 
+function addPaidRun(state, opts) {
+  state.transactions = state.transactions || [];
+  const gameName = opts.gameName;
+  const runId = opts.runId;
+  state.transactions.push({
+    id: opts.id || ('tx-' + runId),
+    character_name: opts.characterName,
+    delta: opts.delta != null ? opts.delta : -1,
+    kind: opts.kind || 'game_play',
+    source: 'GAME',
+    note: opts.note != null ? opts.note : gameName,
+    created_at: opts.createdAt || new Date().toISOString(),
+    meta_json: JSON.stringify({
+      game_name: gameName,
+      game_id: opts.gameId || '',
+      run_id: runId,
+    }),
+  });
+}
+
 function makeEnv(state) {
   state.accounts = state.accounts || {};
   state.entries = state.entries || [];
+  state.transactions = state.transactions || [];
 
   function prepare(sql) {
     const s = String(sql);
@@ -99,6 +120,14 @@ function makeEnv(state) {
         if (s.includes('FROM lantern_pilot_accounts WHERE lower(trim(username))')) {
           const key = String(binds[0] || '').trim().toLowerCase();
           return state.accounts[key] || null;
+        }
+        if (s.includes('FROM lantern_transactions') && s.includes("json_extract(meta_json, '$.run_id')")) {
+          const runId = binds[0];
+          return state.transactions.find((t) => {
+            let meta = {};
+            try { meta = JSON.parse(t.meta_json || '{}'); } catch (_) {}
+            return t.kind === 'game_play' && meta.run_id === runId;
+          }) || null;
         }
         if (s.includes('FROM lantern_leaderboard_entries') && s.includes("json_extract(meta_json, '$.run_id')")) {
           const characterName = binds[0];
@@ -255,8 +284,8 @@ const frontendCatalog = fs.readFileSync(path.join(root, 'app/js/lantern-game-cat
 
 const postFnStart = gamesHtml.indexOf('function postLeaderboardScore');
 const postFnBlock = postFnStart === -1 ? '' : gamesHtml.slice(postFnStart, postFnStart + 2800);
-if (postFnBlock.includes('game_name: key') && postFnBlock.includes('payload.run_id') && !/character_name\s*:/.test(postFnBlock)) {
-  ok('postLeaderboardScore no longer sends client character_name; sends run_id when present');
+if (postFnBlock.includes('game_name: key') && postFnBlock.includes('run_id: resultRunId') && !/character_name\s*:/.test(postFnBlock)) {
+  ok('postLeaderboardScore no longer sends client character_name; always sends paid run_id');
 } else bad('client record payload still identity-authoritative');
 
 expectedNames.forEach((name) => {
@@ -301,6 +330,7 @@ async function main() {
   // B. spoofed character_name ignored
   {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    addPaidRun(state, { characterName: '20889', gameName: 'Nugget Click Rush', gameId: 'clickrush', runId: 'run_click_b' });
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
     const { status, json } = await postRecord(env, cookie, {
@@ -308,6 +338,7 @@ async function main() {
       character_name: 'someone_else',
       score: 42,
       score_display: '42 taps',
+      run_id: 'run_click_b',
     });
     const row = state.entries[0];
     if (status === 200 && json.ok && row && row.character_name === '20889' && json.character_name === '20889') {
@@ -318,6 +349,7 @@ async function main() {
   // C. legitimate current game
   {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    addPaidRun(state, { characterName: '20889', gameName: 'Reaction Tap', gameId: 'reaction', runId: 'run_legit_1' });
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
     const { status, json } = await postRecord(env, cookie, {
@@ -358,12 +390,14 @@ async function main() {
   // F. score_display injection
   {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    addPaidRun(state, { characterName: '20889', gameName: 'Avatar Match', gameId: 'avatar-match', runId: 'run_avatar_f' });
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
     const { status, json } = await postRecord(env, cookie, {
       game_name: 'Avatar Match',
       score: 80,
       score_display: '<script>alert(1)</script>80 pts',
+      run_id: 'run_avatar_f',
     });
     const row = state.entries[0];
     if (status === 200 && json.ok && row && String(row.score_display).indexOf('<') === -1 && String(row.score_display).indexOf('>') === -1) {
@@ -375,6 +409,7 @@ async function main() {
   {
     const staff = staffAccount();
     const state = { accounts: { rradle: staff }, entries: [] };
+    addPaidRun(state, { characterName: 'staff_id:4', gameName: 'Memory Match', gameId: 'memory', runId: 'run_staff_h' });
     const env = makeEnv(state);
     const cookie = await cookieFor(staff);
     const { status, json } = await postRecord(env, cookie, {
@@ -382,6 +417,7 @@ async function main() {
       character_name: '20889',
       score: 12,
       score_display: '12s',
+      run_id: 'run_staff_h',
     });
     const row = state.entries[0];
     if (status === 200 && json.ok && row && row.character_name === 'staff_id:4' && row.character_name !== '20889') {
@@ -392,6 +428,7 @@ async function main() {
   // I. run_id idempotency
   {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    addPaidRun(state, { characterName: '20889', gameName: 'Nugget Hunt', gameId: 'nuggetHunt', runId: 'hunt-run-abc' });
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
     const body = { game_name: 'Nugget Hunt', score: 9, score_display: '9s', run_id: 'hunt-run-abc' };
@@ -405,9 +442,10 @@ async function main() {
   // J. Tower-shaped call: authenticated, no identity fields
   {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    addPaidRun(state, { characterName: '20889', gameName: 'Handbook Trivia', gameId: 'handbook-trivia', runId: 'run_hb_j' });
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
-    const { status, json } = await postRecord(env, cookie, { game_name: 'Handbook Trivia', score: 70, score_display: '7/10 · 70 pts' });
+    const { status, json } = await postRecord(env, cookie, { game_name: 'Handbook Trivia', score: 70, score_display: '7/10 · 70 pts', run_id: 'run_hb_j' });
     if (status === 200 && json.ok && json.character_name === '20889' && !Object.prototype.hasOwnProperty.call({ game_name: 'Handbook Trivia', score: 70 }, 'character_name')) {
       ok('J. result submission without client identity uses session (Tower bridge contract)');
     } else bad('J. no-identity submit', { status, json });

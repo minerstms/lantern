@@ -43,6 +43,7 @@ import {
   sanitizeScoreDisplay,
   sanitizeRunId,
 } from './lantern-game-catalog.js';
+import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun } from './game-paid-run-proof.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
@@ -7824,7 +7825,9 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
 
   if (request.method === 'POST' && path === '/api/leaderboards/record') {
     // Prompt #128 — identity is session-owned. Client may send game id/name, score, score_display,
-    // and optional run_id. Client character_name / account id / reward fields are ignored.
+    // and run_id. Client character_name / account id / reward fields are ignored.
+    // Prompt #159 — run_id is required and must match a successful paid game_play for this
+    // session account and this catalog game. The UUID itself is not authority.
     const pilotAccount = await getPilotAccountFromRequest(request, env);
     const identityAuth = resolveEconomyGamePlayTransact(pilotAccount, '', pilotEconomyCharacterName);
     if (!identityAuth.ok) {
@@ -7849,6 +7852,14 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     const score = scoreCheck.score;
     const scoreDisplay = sanitizeScoreDisplay(body.score_display, score);
     const runId = sanitizeRunId(body.run_id || (body.meta && body.meta.run_id));
+    if (!runId) {
+      return jsonResponse({ ok: false, error: 'invalid_run' }, 400, cors);
+    }
+    const paidTx = await findPaidGamePlayByRunId(db, runId);
+    const proof = evaluatePaidGamePlayRun(paidTx, { characterName, game, nowMs: Date.now() });
+    if (!proof.ok) {
+      return jsonResponse({ ok: false, error: proof.error || 'invalid_run' }, 400, cors);
+    }
     const meta = body.meta && typeof body.meta === 'object' ? { ...body.meta } : {};
     delete meta.character_name;
     delete meta.username;
@@ -7856,18 +7867,17 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     delete meta.nuggets;
     delete meta.reward;
     delete meta.delta;
-    if (runId) meta.run_id = runId;
+    meta.run_id = runId;
+    meta.game_id = game.id;
 
-    if (runId) {
-      try {
-        const existing = await db.prepare(
-          "SELECT id FROM lantern_leaderboard_entries WHERE character_name = ? AND game_name = ? AND json_extract(meta_json, '$.run_id') = ? LIMIT 1"
-        ).bind(characterName, gameName, runId).first();
-        if (existing && existing.id) {
-          return jsonResponse({ ok: true, id: existing.id, idempotent: true, character_name: characterName, game_name: gameName }, 200, cors);
-        }
-      } catch (_) {}
-    }
+    try {
+      const existing = await db.prepare(
+        "SELECT id FROM lantern_leaderboard_entries WHERE character_name = ? AND game_name = ? AND json_extract(meta_json, '$.run_id') = ? LIMIT 1"
+      ).bind(characterName, gameName, runId).first();
+      if (existing && existing.id) {
+        return jsonResponse({ ok: true, id: existing.id, idempotent: true, character_name: characterName, game_name: gameName }, 200, cors);
+      }
+    } catch (_) {}
 
     const now = new Date().toISOString();
     const id = 'lb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);

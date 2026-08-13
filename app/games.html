@@ -1749,7 +1749,7 @@
                   if (run && run.recordGameResult) {
                     run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
                   }
-                  postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){}, huntRunId);
+                  postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){});
                 }
               }
               celebrateAndContinue(isRewardedFirstFind);
@@ -1839,15 +1839,15 @@
       }
       return gameName;
     }
-    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone, runId){
+    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
       var key = canonicalLeaderboardKey(gameName);
       var numericScore = Math.floor(Number(score));
-      if (gamesApiBase == null || !key || !Number.isFinite(numericScore)) {
+      var resultRunId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function' ? window.LanternGamesPaidStart.getLastRunId() : '') || '';
+      if (gamesApiBase == null || !key || !Number.isFinite(numericScore) || !resultRunId) {
         toast('Score couldn\'t be saved. Try again.');
         if (onDone) onDone(false);
         return Promise.resolve(false);
       }
-      var resultRunId = runId || (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function' ? window.LanternGamesPaidStart.getLastRunId() : '') || '';
       var guardKey = key + '|' + String(numericScore) + '|' + String(scoreDisplay || '') + '|' + String(resultRunId || '');
       if (leaderboardSubmitGuard[guardKey]) {
         if (onDone) onDone(true);
@@ -1857,9 +1857,9 @@
       var payload = {
         game_name: key,
         score: numericScore,
-        score_display: scoreDisplay || String(numericScore)
+        score_display: scoreDisplay || String(numericScore),
+        run_id: resultRunId
       };
-      if (resultRunId) payload.run_id = resultRunId;
       return fetch(gamesApiBase + '/api/leaderboards/record', {
         method: 'POST',
         credentials: 'include',

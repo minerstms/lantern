@@ -430,6 +430,9 @@
         state.onExit();
       } catch (e) {}
     }
+    if (global.LanternGamesPaidStart && typeof global.LanternGamesPaidStart.clearLastRunId === 'function') {
+      global.LanternGamesPaidStart.clearLastRunId();
+    }
 
     if (state.surface) {
       reparentToHost(state.surface);
