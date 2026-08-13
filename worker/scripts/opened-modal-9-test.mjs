@@ -1,5 +1,5 @@
 /**
- * Prompt #9 — opened modal stays in viewport; branded shell; scroll lock; no behavior rewrite.
+ * Prompt #9 — branded opened-modal shell + scroll lock (geometry superseded by #168).
  * Usage: node worker/scripts/opened-modal-9-test.mjs
  */
 import fs from 'node:fs';
@@ -17,20 +17,16 @@ function ok(label) { pass++; console.log('PASS', label); }
 function bad(label, detail) { fail++; console.error('FAIL', label, detail != null ? detail : ''); }
 function assert(cond, label, detail) { if (cond) ok(label); else bad(label, detail); }
 
-assert(/--lantern-opened-modal-max-height:\s*min\(88dvh/.test(cardsCss), '1. modal max-height leaves viewport chrome room');
-assert(/--lantern-opened-image-max-height:\s*min\(42dvh/.test(cardsCss), '2. image max-height bounded in 35–45vh band');
+assert(/--lantern-opened-modal-top-gap:\s*32px/.test(cardsCss), '1. #168 top gap (viewport-fit max-height superseded)');
+assert(/aspect-ratio:\s*16\s*\/\s*9/.test(cardsCss) && /object-fit:\s*contain/.test(cardsCss), '2. full 16:9 contain media (no viewport image clamp)');
 assert(/backdrop-filter:\s*blur\(12px\)/.test(cardsCss), '3. translucent blurred backdrop');
 assert(/rgba\(5,\s*10,\s*20,\s*0\.72\)/.test(cardsCss), '4. backdrop not opaque full-page replace');
-assert(/max-height:\s*min\(var\(--lantern-opened-modal-max-height\),\s*100%\)/.test(cardsCss), '5. modal capped to viewport box');
-assert(
-  /#lanternCardDetailOverlay\s+\.lanternCardDetailModal\.lanternSurface\s*\{[^}]*overflow:\s*hidden/.test(cardsCss) ||
-    /Shell scrolls only via \.lanternSurfaceContent[\s\S]{0,80}overflow:\s*hidden/.test(cardsCss),
-  '6. modal shell overflow hidden'
-);
-assert(/#lanternCardDetailOverlay\s+\.lanternSurfaceContent[\s\S]{0,200}overflow:\s*hidden/.test(cardsCss), '7. overlay content does not outer-scroll');
-assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailHeader[\s\S]{0,160}flex-shrink:\s*0/.test(cardsCss), '8. close header pinned, not sticky-in-scroller');
-assert(/overscroll-behavior:\s*none/.test(cardsCss), '9. shell overscroll contained');
-assert(/touch-action:\s*manipulation/.test(cardsCss), '10. reduce accidental zoom gestures');
+assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailModal[\s\S]{0,220}max-height:\s*none/.test(cardsCss), '5. modal natural height');
+assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailModal[\s\S]{0,240}overflow:\s*visible/.test(cardsCss), '6. modal card overflow visible');
+assert(/#lanternCardDetailOverlay\s+\.lanternSurfaceContent[\s\S]{0,200}overflow:\s*visible/.test(cardsCss), '7. no inner content scroller');
+assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailHeader[\s\S]{0,160}flex-shrink:\s*0/.test(cardsCss), '8. close header remains in shell');
+assert(/overscroll-behavior:\s*contain/.test(cardsCss), '9. overlay overscroll contained');
+assert(/touch-action:\s*pan-y/.test(cardsCss), '10. overlay allows vertical pan');
 assert(/linear-gradient\(180deg,\s*rgba\(22,\s*36,\s*62/.test(cardsCss), '11. branded modal surface gradient');
 assert(/pollChoiceBtn[\s\S]{0,200}linear-gradient\(180deg,\s*rgba\(90,167,255/.test(cardsCss), '12. poll choices polished');
 assert(/\.pollLockInBtn\s*\{[\s\S]{0,280}linear-gradient\(180deg,\s*rgba\(90,167,255/.test(cardsCss), '13. lock-in button polished');
@@ -51,8 +47,8 @@ assert(/openReportModal/.test(cardUi), '26. report modal preserved');
 assert(/LANTERN_REACTIONS|renderReactionBar/.test(cardUi), '27. reactions preserved');
 
 assert(/lantern-cards\.css/.test(explore), '28. Explore loads shared card CSS');
-assert(/max-width:\s*420px[\s\S]{0,280}--lantern-opened-modal-max-height:\s*min\(96dvh/.test(cardsCss), '29. mobile viewport max-height');
-assert(/max-height:\s*640px[\s\S]{0,160}--lantern-opened-image-max-height:\s*min\(28dvh/.test(cardsCss), '30. short-viewport image shrink');
+assert(/max-width:\s*420px[\s\S]{0,280}--lantern-opened-modal-top-gap:\s*16px/.test(cardsCss), '29. mobile top gap + full width');
+assert(/#lanternCardDetailOverlay\.lanternSurfaceShell\{[\s\S]*?overflow-y:\s*auto/.test(cardsCss), '30. overlay is the vertical scroller');
 
 console.log('\nopened-modal-9-test: ' + pass + ' PASS ' + fail + ' FAIL');
 if (fail) process.exit(1);

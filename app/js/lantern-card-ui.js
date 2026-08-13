@@ -159,6 +159,7 @@
       'lanternCardDetailIdentityWrap',
       'lanternCardDetailMeta',
       'lanternCardDetailRecognizing',
+      'lanternCardDetailReactions',
       'lanternCardDetailBody',
       'lanternCardDetailAdminModeration',
     ];
@@ -185,8 +186,17 @@
     }
     var actions = sc.querySelector('.lanternCardDetailActions');
     var rx = sc.querySelector('.lanternCardDetailReactions');
+    if (rx) {
+      var recNode = stage.querySelector('.lanternCardDetailRecognizing');
+      var bodyNode = stage.querySelector('.lanternCardDetailBody');
+      if (rx.parentNode !== stage) {
+        if (bodyNode) stage.insertBefore(rx, bodyNode);
+        else stage.appendChild(rx);
+      } else if (bodyNode && recNode && rx.compareDocumentPosition(bodyNode) & 2) {
+        stage.insertBefore(rx, bodyNode);
+      }
+    }
     if (actions && actions.parentNode !== footer) footer.appendChild(actions);
-    if (rx && rx.parentNode !== footer) footer.appendChild(rx);
   }
 
   function ensureCanonicalBodyChrome(modalRoot) {
@@ -261,33 +271,12 @@
   function measureOpenedModalTruncation(modalRoot) {
     if (!isExploreOpenedOverlayModal(modalRoot)) return;
     var chrome = ensureCanonicalBodyChrome(modalRoot);
-    if (!chrome || !chrome.toggle || !chrome.read) return;
-    var read = chrome.read;
-    var toggle = chrome.toggle;
-    if (modalRoot.classList.contains('lanternCardDetailModal--poll')) {
-      toggle.hidden = true;
-      toggle.textContent = '';
-      modalRoot.classList.remove('lanternCardDetailModal--truncated');
-      return;
-    }
-    if (modalRoot.classList.contains('lanternCardDetailModal--reading')) {
-      toggle.hidden = false;
-      toggle.textContent = openedReadingReturnLabel(modalRoot);
-      toggle.setAttribute('aria-expanded', 'true');
-      return;
-    }
-    var overflowing = read.scrollHeight > read.clientHeight + 1;
-    var cap = read.querySelector('.lanternCardDetailCaption');
-    if (!overflowing && cap) overflowing = cap.scrollHeight > cap.clientHeight + 1;
-    modalRoot.classList.toggle('lanternCardDetailModal--truncated', overflowing);
-    toggle.hidden = !overflowing;
-    if (overflowing) {
-      toggle.textContent = 'Read full message';
-      toggle.setAttribute('aria-expanded', 'false');
-    } else {
-      toggle.textContent = '';
-      toggle.removeAttribute('aria-expanded');
-    }
+    if (!chrome || !chrome.toggle) return;
+    /* Prompt #168 — full body is always in flow; no inner Read-full-message viewport. */
+    chrome.toggle.hidden = true;
+    chrome.toggle.textContent = '';
+    chrome.toggle.removeAttribute('aria-expanded');
+    modalRoot.classList.remove('lanternCardDetailModal--truncated', 'lanternCardDetailModal--reading');
   }
 
   function scheduleOpenedModalMeasure(modalRoot) {
@@ -436,6 +425,7 @@
     if (!el) return;
     el.classList.add('show');
     el.setAttribute('aria-hidden', 'false');
+    el.scrollTop = 0;
     lockPageScrollForDetail();
     var modal = el.querySelector('.lanternCardDetailModal');
     if (modal) prepareCanonicalOpenedModal(modal);
@@ -620,12 +610,12 @@
       '<div class="lanternCardDetailIdentityWrap" id="lanternCardDetailIdentityWrap"></div>' +
       '<div class="lanternCardDetailMeta" id="lanternCardDetailMeta"></div>' +
       '<div class="lanternCardDetailRecognizing" id="lanternCardDetailRecognizing" hidden></div>' +
+      '<div class="lanternCardDetailReactions" id="lanternCardDetailReactions"></div>' +
       '<div class="lanternCardDetailBody" id="lanternCardDetailBody"></div>' +
       '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
       '</div>' +
       '<footer class="lanternCardDetailFooter">' +
       '<div class="lanternCardDetailActions" id="lanternCardDetailActions"></div>' +
-      '<div class="lanternCardDetailReactions" id="lanternCardDetailReactions"></div>' +
       '</footer>' +
       '</div></div>';
     global.document.body.appendChild(overlay);
@@ -642,6 +632,7 @@
     if (!overlay) return;
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
+    overlay.scrollTop = 0;
     unlockPageScrollForDetail();
     var modalClose = overlay.querySelector('.lanternCardDetailModal');
     if (modalClose) resetCanonicalOpenedModal(modalClose);
@@ -1299,7 +1290,13 @@
     paintCanonicalPersonIdentity(idw, n, { size: 'md' });
     var roleLabel = newsRoleLabelFromAuthorType(n.author_type);
     var cat = String(n.category || '').trim();
-    m.textContent = [roleLabel, cat, time].filter(Boolean).join(' · ');
+    var isShout = /shout/i.test(cat) || /shout/i.test(String(n.type || n.content_type || ''));
+    if (isShout) {
+      var shoutLabel = (LC && LC.SHOUT_OUT_DISPLAY_NAME) || 'Shout-Out!';
+      m.textContent = [shoutLabel, time].filter(Boolean).join(' · ');
+    } else {
+      m.textContent = [roleLabel, cat, time].filter(Boolean).join(' · ');
+    }
     var body = String(n.body || '').trim();
     b.innerHTML = body ? '<div class="lanternCardDetailCaption">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '';
     var itemId = String(n.id || '').trim();
@@ -2504,6 +2501,7 @@
   }
 
   global.LanternCardUI = {
+    showDetailOverlay: showDetailOverlay,
     openCreation: openCreation,
     openNews: openNews,
     openPoll: openPoll,
