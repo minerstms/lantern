@@ -16,6 +16,7 @@
     returnFocus: null,
     escapeHandler: null,
     gameMeta: null,
+    sponsoredFreeMission: false,
   };
 
   function el(id) {
@@ -130,6 +131,14 @@
     costEl.removeAttribute('hidden');
   }
 
+  function setSponsoredMissionPregameCost() {
+    var costEl = el('lanternGamePlayerPregameCost');
+    if (!costEl) return;
+    costEl.innerHTML = 'FREE TO PLAY · Complete the challenge to earn <img src="assets/icons/nugget.png" alt="" class="lanternGamePlayerNuggetIcon" width="18" height="18"> +1 Nugget';
+    costEl.hidden = false;
+    costEl.removeAttribute('hidden');
+  }
+
   function setPregameStatus(text, kind) {
     var statusEl = el('lanternGamePlayerPregameStatus');
     if (!statusEl) return;
@@ -152,6 +161,10 @@
   }
 
   function refreshPregameCostHint(gameName) {
+    if (state.sponsoredFreeMission) {
+      setSponsoredMissionPregameCost();
+      return;
+    }
     var paid = global.LanternGamesPaidStart;
     var cost = 1;
     if (paid && typeof paid.playCostForGame === 'function') {
@@ -387,6 +400,7 @@
     state.onPregameStart = typeof opts.onPregameStart === 'function' ? opts.onPregameStart : null;
     state.returnFocus = opts.returnFocus || null;
     state.surface = surface;
+    state.sponsoredFreeMission = opts.sponsoredFreeMission === true;
     state.gameMeta = resolveGameMeta(opts);
 
     paintHero(state.gameMeta);
@@ -458,6 +472,7 @@
     state.onExit = null;
     state.onPregameStart = null;
     state.gameMeta = null;
+    state.sponsoredFreeMission = false;
 
     if (focusTarget && typeof focusTarget.focus === 'function') {
       try {

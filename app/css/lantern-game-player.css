@@ -169,6 +169,14 @@
   display: none !important;
 }
 
+.lanternGamePlayerNuggetIcon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+  margin: 0 0.15em;
+}
+
 .lanternGamePlayerPregameStatus {
   margin: 0;
   text-align: center;

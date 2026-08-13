@@ -1112,14 +1112,37 @@
         toast('Couldn\'t start game. Try again.');
         return;
       }
+      var sponsored = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.isSponsoredFreeLaunch === 'function')
+        ? window.LANTERN_EDU_TRIVIA.isSponsoredFreeLaunch(location, gameName)
+        : null;
       // Prompt #149 — open shared pregame hero (canonical catalog artwork) first; charge on Start.
+      // Prompt #160 — exact Trinidad History Mission + Local History Trivia pairing is sponsored (no game_play debit).
       var opened = window.LanternGamePlayer.open({
         title: playerOpts.title || gameName,
         gameName: gameName,
+        description: sponsored
+          ? 'Multiple-choice on Trinidad, Colorado history. Get 10 Trinidad history questions correct in one game session.'
+          : playerOpts.description,
+        sponsoredFreeMission: !!sponsored,
         surface: playerOpts.surface,
         onExit: playerOpts.onExit,
         returnFocus: playerOpts.returnFocus || null,
         onPregameStart: function(done){
+          if (sponsored) {
+            try {
+              done(true);
+              showGameFn();
+            } catch (err) {
+              if (window.LanternGamePlayer) {
+                if (typeof window.LanternGamePlayer.setPregameStatus === 'function') {
+                  window.LanternGamePlayer.setPregameStatus('Couldn\'t start the game. Try again.', 'error');
+                }
+                window.LanternGamePlayer.close({ skipExit: true, force: true });
+              }
+              toast('Couldn\'t start the game. Try again.');
+            }
+            return;
+          }
           window.LanternGamesPaidStart.startPaidGame(gameName, function(){
             try {
               done(true);
@@ -2150,6 +2173,9 @@
         var runId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function')
           ? window.LanternGamesPaidStart.getLastRunId()
           : '';
+        if (!runId && window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.generateMissionRunId === 'function') {
+          runId = window.LANTERN_EDU_TRIVIA.generateMissionRunId();
+        }
         if (!runId || !window.LANTERN_EDU_TRIVIA || typeof window.LANTERN_EDU_TRIVIA.startRun !== 'function') {
           if (typeof fallbackFn === 'function') fallbackFn();
           return;
@@ -2159,7 +2185,7 @@
         gameBody.innerHTML = '<div class="triviaProgress">Starting mission…</div>';
         window.LANTERN_EDU_TRIVIA.startRun(mission.id, mission.game_id, runId).then(function(start){
           if (!start || !start.ok || start.already_completed || !start.question) {
-            if (start && start.already_completed) clearMissionQuery();
+            if (start && start.already_completed && !mission.sponsored_free) clearMissionQuery();
             if (typeof fallbackFn === 'function') fallbackFn();
             return;
           }
@@ -2174,7 +2200,7 @@
             html += '<div class="triviaProgress">+1 Nugget</div>';
             html += playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
             gameBody.innerHTML = html;
-            clearMissionQuery();
+            if (!mission.sponsored_free) clearMissionQuery();
             if (window.LanternWallet && typeof window.LanternWallet.fetchMyBalance === 'function') {
               window.LanternWallet.fetchMyBalance();
             }

@@ -49,13 +49,21 @@
   // painted on the card face. Progress/state chips (STARTED / COMPLETED / NEEDS CHANGES) stay.
   //
   // Prompt #159 — every ordinary mission card shows exactly +1 Nugget.
-  function rewardMeta(reward) {
+  function rewardMeta(reward, item) {
     if (reward == null || reward === '' || Number(reward) <= 0) return '';
+    if (item && item.id === 'perm_local_history_trivia') return 'FREE · +1 Nugget';
     return '🟡 +1 Nugget';
   }
 
   function buildFooterMeta(item) {
-    return { primary: '', reward: rewardMeta(item.reward) };
+    return { primary: '', reward: rewardMeta(item.reward, item) };
+  }
+
+  function paintSponsoredTrinidadReward(node) {
+    if (!node || !node.querySelector) return;
+    var dateEl = node.querySelector('.lanternCanonicalCardDate');
+    if (!dateEl) return;
+    dateEl.innerHTML = 'FREE · <img src="assets/icons/nugget.png" alt="" class="missionsHubNuggetIcon" width="16" height="16"> +1 Nugget';
   }
 
   function stateBadgeFor(item) {
@@ -217,6 +225,7 @@
       });
       var node = LC.createStudentCard(spec);
       if (!node) return;
+      if (item.id === 'perm_local_history_trivia') paintSponsoredTrinidadReward(node);
       // Card faces from specGameHubRailCard never produce an .exploreCardOuterWrap <a>
       // wrapper (no navHref is passed), so every card — url-based or onActivate-based —
       // must get its dispatch wired directly on the returned node. A prior version only

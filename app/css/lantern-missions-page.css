@@ -299,6 +299,14 @@ body.mission-detail-open {
   overflow: hidden;
 }
 
+.missionsHubNuggetIcon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+  margin: 0 0.12em;
+}
+
 @media (max-width: 640px) {
   .missionDetailOverlay {
     align-items: stretch;
