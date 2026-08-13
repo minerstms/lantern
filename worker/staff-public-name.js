@@ -322,9 +322,11 @@ export function resolveAuthorPublicLabel(index, fields) {
   const role = lower(fields && (fields.authorRole || fields.author_role || fields.author_type));
   let authorId = trimStr(fields && (fields.authorId || fields.author_id || fields.actor_id));
   const display = trimStr(fields && (fields.authorDisplayName || fields.author_display_name || fields.author_name));
+  let avatarKey = trimStr(fields && (fields.authorAvatarKey || fields.author_avatar_key));
 
   // Prompt #13 — mission feed rows may carry staff:<username> as author id/display.
   if (authorId.toLowerCase().startsWith('staff:')) authorId = authorId.slice(6).trim();
+  if (avatarKey.toLowerCase().startsWith('staff:')) avatarKey = avatarKey.slice(6).trim();
   let lookupDisplay = display;
   if (lookupDisplay.toLowerCase().startsWith('staff:')) lookupDisplay = lookupDisplay.slice(6).trim();
 
@@ -340,6 +342,14 @@ export function resolveAuthorPublicLabel(index, fields) {
   }
   if (!row && lookupDisplay && idx.byStudentKey && idx.byStudentKey[lower(lookupDisplay)]) {
     row = idx.byStudentKey[lower(lookupDisplay)];
+  }
+  // Prompt #151 — polls often store legal display snapshots with authorId null.
+  // After attachAuthorAvatarKeys, authorAvatarKey is the durable username; use it (exact), never fuzzy name match.
+  if (!row && avatarKey && idx.byUsername[lower(avatarKey)]) {
+    row = idx.byUsername[lower(avatarKey)];
+  }
+  if (!row && avatarKey && idx.byStudentKey && idx.byStudentKey[lower(avatarKey)]) {
+    row = idx.byStudentKey[lower(avatarKey)];
   }
 
   if (row) {

@@ -7518,6 +7518,7 @@ async function handlePollsRoutes(request, url, path, env, cors) {
       actor_id: row.character_name,
       author_name: row.character_name,
       author_type: '',
+      authorAvatarKey,
     }) || null;
     // Prompt #215 — voter identity + result privacy from authenticated session only.
     // Do NOT trust ?character_name= to unlock aggregate results for an unvoted viewer.

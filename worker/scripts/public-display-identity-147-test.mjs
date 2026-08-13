@@ -137,6 +137,25 @@ const items = attachAuthorPublicLabels(
 );
 assert(items[0].authorPublicLabel === 'Lisa G.', '5b. attachAuthorPublicLabels writes Lisa G.');
 
+const pollSnapshot = attachAuthorPublicLabels(
+  [{
+    authorId: null,
+    authorDisplayName: 'Rick Radle',
+    authorRole: 'student',
+    authorAvatarKey: 'rick.radle',
+    title: 'Poll',
+  }],
+  idx
+);
+assert(pollSnapshot[0].authorPublicLabel === 'Mr. Radle', '5d. poll legal snapshot + durable avatar key → public_display_name');
+assert(pollSnapshot[0].authorDisplayName === 'Rick Radle', '5e. stored poll snapshot is not rewritten');
+
+const noKeyPoll = attachAuthorPublicLabels(
+  [{ authorId: null, authorDisplayName: 'Rick Radle', authorRole: 'student', title: 'Poll' }],
+  idx
+);
+assert(noKeyPoll[0].authorPublicLabel == null, '5f. no durable account key → no fuzzy display-name match');
+
 const idxOverride = buildStaffPublicNameIndex([lisaOverride, rick]);
 assert(
   resolveAuthorPublicLabel(idxOverride, { authorId: '20890', authorRole: 'student', authorDisplayName: 'Lisa Glorioso' }) ===
@@ -195,6 +214,8 @@ assert(/resolvePublicDisplayName\(account\)/.test(indexJs), '34. TMS mint sends 
 assert(/defaultPublicDisplayName/.test(indexJs), '1b. provisioning assigns default public_display_name');
 assert(/buildAvatarMatchPool/.test(indexJs) && /uniqueAvatarMatchByLabel/.test(indexJs), '23f. games/characters uses live account/avatar pool');
 assert(/public_display_label/.test(indexJs), '30c. /api/pilot/me exposes public_display_label');
+assert(/authorAvatarKey/.test(fs.readFileSync(path.join(root, 'worker/staff-public-name.js'), 'utf8')), '5g. resolver uses durable authorAvatarKey');
+assert(/authorAvatarKey,/.test(indexJs), '5h. direct-open poll path passes authorAvatarKey into resolver');
 
 const marqueeJs = fs.readFileSync(path.join(root, 'worker/marquee-events.js'), 'utf8');
 assert(/resolvePublicDisplayName/.test(marqueeJs), '16. marquee uses public_display_name');
