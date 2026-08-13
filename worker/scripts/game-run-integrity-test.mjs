@@ -151,6 +151,10 @@ if (gamesHtml.match(/again\.addEventListener\('click', function\(\)\{\s*\n\s*el\
   ok('Trivia family Play Again re-clicks the original Play button (fresh paid run through the same fetch/validate-before-charge path), not a free replay');
 } else bad('Trivia family Play Again does not re-charge');
 
+if (gamesHtml.match(/playAgainBtn\.addEventListener\('click', startOrbitLockRound\)/) && gamesHtml.match(/function startOrbitLockRound\(\)\{\s*\n[\s\S]{0,400}tryPlay\('Orbit Lock'/)) {
+  ok('Orbit Lock Play Again re-enters tryPlay (fresh paid run + fresh run_id), not a free replay');
+} else bad('Orbit Lock Play Again does not re-charge');
+
 // ---------------------------------------------------------------------------
 // Demo persona exclusion reconfirmed for the leaderboard path every game submits scores through
 // ---------------------------------------------------------------------------
