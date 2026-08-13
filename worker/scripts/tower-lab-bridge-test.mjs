@@ -117,9 +117,13 @@ if (!gameHtml.includes('googletagmanager') && !read('app/games/tower/donor/index
   ok('Google Analytics not loaded from vendored game');
 } else bad('GA still present');
 
-if (gameHtml.includes('<base href="./donor/">') && gameHtml.includes('src="./dist/main.js"')) {
-  ok('hosted game loads self-hosted donor dist via local base href');
+if (gameHtml.includes('src="./donor/dist/main.js"') && gameHtml.includes('src="./donor/assets/zepto-1.1.6.min.js"')) {
+  ok('hosted game loads self-hosted donor dist and Zepto via explicit donor paths');
 } else bad('hosted game script paths');
+
+if (!/<base\s/i.test(gameHtml) && gameHtml.includes('src="./donor/dist/main.js"')) {
+  ok('hosted game has no base href; scripts use explicit donor paths and overlay ./assets/');
+} else bad('asset overlay base href');
 
 if (gameHtml.includes('/games/tower/lantern-adapter.js')) ok('hosted game loads lantern-adapter');
 else bad('adapter script missing from game html');
@@ -392,6 +396,7 @@ if (
   labHtml.includes('id="towerLabFinal"') &&
   labHtml.includes('id="towerLabFloors"') &&
   labHtml.includes('id="towerLabEvent"') &&
+  labHtml.includes('id="towerLabAssets"') &&
   labHtml.includes('PREVIEW MODE — RESULTS NOT SAVED')
 ) {
   ok('lab diagnostic panel has identity, game, bridge, state, scores, floors, event, preview flag');
@@ -425,9 +430,102 @@ if (gameHtml.includes('overflow:hidden') && labHtml.includes('overflow-x: hidden
   ok('lab iframe is centered with overflow clipping prevented');
 } else bad('iframe layout');
 
-if (gameHtml.includes("game.playBgm()") && !gameHtml.match(/game\.load\(function \(\) \{[\s\S]{0,80}playBgm/)) {
-  ok('BGM waits for the Start click (no load-time autoplay)');
-} else bad('audio autoplay');
+if (gameHtml.includes('soundOn: false') && adapterJs.includes('opt.soundOn = false') && adapterJs.includes('function silenceAudio')) {
+  ok('uncleared donor audio is forced off in options and adapter');
+} else bad('audio mute');
+
+if (!gameHtml.includes('game.playBgm()') && !gameHtml.includes('playBgm()')) {
+  ok('hosted game does not start donor BGM');
+} else bad('donor BGM still started');
+
+if (!gameHtml.includes('font-wenxue') && gameHtml.includes('lantern-hud-font')) {
+  ok('hosted UI does not use wenxue class name');
+} else bad('wenxue class still in hosted UI');
+
+if (!labHtml.includes('Tower Bloxx') && !gameHtml.includes('Tower Bloxx') && !labHtml.includes('来啊盖楼啊') && !gameHtml.includes('来啊盖楼啊')) {
+  ok('lab/hosted UI has no Tower Bloxx or donor Chinese title copy');
+} else bad('forbidden branding in UI');
+
+if (!gameHtml.includes('main-index-title.png') && !gameHtml.includes('main-index-logo.png') && !gameHtml.includes('main-loading-logo.png') && !gameHtml.includes('main-index-start.png')) {
+  ok('hosted HTML does not load donor title, BMQB logos, or START bitmap');
+} else bad('donor chrome still referenced');
+
+if (labHtml.includes('Stack Lab') && labHtml.includes('product name not selected') && labHtml.includes('not product-cleared')) {
+  ok('lab uses working title Stack Lab and states assets are not product-cleared');
+} else bad('lab working title / clearance copy');
+
+// ---------------------------------------------------------------------------
+// Commercial overlay / provenance (Prompt #132)
+// ---------------------------------------------------------------------------
+if (exists('app/games/tower/GAME_PROVENANCE.md') && exists('app/games/tower/THIRD_PARTY_NOTICES.md')) {
+  ok('GAME_PROVENANCE.md and THIRD_PARTY_NOTICES.md are present');
+} else bad('provenance/notices missing');
+
+const provenance = read('app/games/tower/GAME_PROVENANCE.md');
+const thirdParty = read('app/games/tower/THIRD_PARTY_NOTICES.md');
+if (provenance.includes('iamkun/tower_game') && thirdParty.includes('Copyright (c) 2018 BMQB, Inc') && thirdParty.includes('Caketown')) {
+  ok('provenance and third-party notices retain donor MIT and Caketown records');
+} else bad('provenance content');
+
+if (exists('app/games/tower/asset-slots.json') && exists('app/games/tower/apply-asset-overlay.mjs') && exists('app/games/tower/COMMERCIAL_MERGE_GATE.md') && exists('app/games/tower/NAME_CANDIDATES.md')) {
+  ok('asset inventory, overlay script, merge gate, and name candidates exist');
+} else bad('overlay architecture files missing');
+
+const slots = JSON.parse(read('app/games/tower/asset-slots.json'));
+const slotFiles = slots.slots.map(function (s) { return s.file; });
+['background.png', 'block.png', 'hook.png', 'bgm.mp3', 'drop.mp3', 'main-index-title.png', 'main-index-logo.png', 'main-loading-logo.png', 'wenxue.woff'].forEach(function (f) {
+  if (slotFiles.indexOf(f) !== -1) ok('asset slot inventoried: ' + f);
+  else bad('missing asset slot', f);
+});
+
+const bmqbSlots = slots.slots.filter(function (s) { return s.file === 'main-index-logo.png' || s.file === 'main-loading-logo.png'; });
+if (bmqbSlots.length === 2 && bmqbSlots.every(function (s) { return s.runtime === 'omit' && s.action === 'never-ship'; })) {
+  ok('BMQB logo slots are omit / never-ship');
+} else bad('BMQB slot policy');
+
+['main-index-logo.png', 'main-loading-logo.png', 'main-index-title.png', 'wenxue.woff'].forEach(function (f) {
+  if (!exists('app/games/tower/assets/' + f)) ok('runtime overlay omits ' + f);
+  else bad('forbidden file in runtime overlay', f);
+});
+
+if (exists('app/games/tower/donor/assets/main-index-logo.png') && exists('app/games/tower/donor/assets/bgm.mp3')) {
+  ok('donor snapshot still holds BMQB logo and Caketown for provenance');
+} else bad('donor provenance snapshot stripped unexpectedly');
+
+if (exists('app/games/tower/assets/block.png') && exists('app/games/tower/assets/bgm.mp3') && exists('app/games/tower/lantern-assets/silence.mp3')) {
+  const runtimeBgm = fs.statSync(path.join(root, 'app/games/tower/assets/bgm.mp3')).size;
+  const donorBgm = fs.statSync(path.join(root, 'app/games/tower/donor/assets/bgm.mp3')).size;
+  if (runtimeBgm < 5000 && donorBgm > 100000) ok('runtime BGM is silent placeholder; Caketown stays in donor snapshot');
+  else bad('runtime BGM not silenced', { runtimeBgm: runtimeBgm, donorBgm: donorBgm });
+} else bad('runtime overlay gameplay/audio files missing');
+
+const names = read('app/games/tower/NAME_CANDIDATES.md');
+if (
+  names.includes('Crane Drop') &&
+  names.includes('Floor Stack') &&
+  names.includes('Skyline Drop') &&
+  names.includes('Hook & Floor') &&
+  names.includes('Rise Line') &&
+  names.includes('Story Drop') &&
+  names.includes('Balance Stack') &&
+  names.includes('Capstone Drop') &&
+  names.includes('High Hook') &&
+  names.includes('Drop Story') &&
+  names.includes('Do not use Tower Bloxx') &&
+  names.includes('Do not use BMQB') &&
+  names.includes('None is selected')
+) {
+  ok('ten original name candidates proposed and none selected');
+} else bad('name candidates');
+
+const gate = read('app/games/tower/COMMERCIAL_MERGE_GATE.md');
+if (gate.includes('Do not merge this game to `origin/main`')) {
+  ok('commercial merge gate forbids production merge');
+} else bad('merge gate missing no-merge instruction');
+
+if (read('app/games/tower/donor/src/utils.js').includes("fontName = 'Arial'") && !read('app/games/tower/donor/dist/main.js').includes('"wenxue"')) {
+  ok('canvas default font is Arial, not wenxue');
+} else bad('wenxue still default canvas font');
 
 console.log('\nTower lab bridge tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

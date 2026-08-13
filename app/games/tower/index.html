@@ -3,67 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,minimal-ui">
-  <title>Tower Building</title>
-  <!-- Resolve donor assets/scripts under ./donor/ so dist/main.js can keep its ./assets/ paths. -->
-  <base href="./donor/">
-  <link rel="icon" type="image/png" href="./assets/favicon.png">
+  <title>Stack Lab</title>
+  <!--
+    Engine bundle and Zepto stay on explicit donor paths (cleared code).
+    Canvas media resolves to ./assets/ (runtime overlay). Drop Lantern files
+    into lantern-assets/ and run apply-asset-overlay.mjs to swap slots.
+  -->
+  <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
   <style>
-    *{margin:0;padding:0}
-    img{width:100%}
-    html{background:#fff;height:100%;font-size:17.6vh;overflow:hidden}
+    *{margin:0;padding:0;box-sizing:border-box}
+    html{background:#1b2438;height:100%;overflow:hidden}
     body{
-      font-family:"Helvetica Neue",Arial,Helvetica,sans-serif;
+      font-family:Arial,Helvetica,sans-serif;
       margin:0 auto;
       text-align:center;
       width:100%;
       height:100%;
       overflow:hidden;
-      background:#f95240 url(assets/main-bg.png);
+      background:#1b2438;
+      color:#eaf0ff;
     }
-    @media screen and (min-height:560px){html{font-size:100px}}
-    @media screen and (min-height:640px){html{font-size:112.5px}}
-    @media screen and (min-height:720px){html{font-size:125px}}
-    @media screen and (min-height:800px){html{font-size:137.5px}}
-    @media screen and (min-height:880px){html{font-size:150px}}
-    @media screen and (min-height:960px){html{font-size:162.5px}}
-    @media screen and (min-height:1040px){html{font-size:180px}}
-    @media screen and (min-height:1200px){html{font-size:200px}}
     #canvas{position:fixed;left:0;top:0;right:0;bottom:0;margin:auto}
     a{text-decoration:none}
     li,ol,ul{list-style-type:none;padding:0;margin:0}
     .hide{display:none}
-    .loading{background-color:#f05a50;height:100%;width:100%}
-    .loading .main{width:60%;margin:0 auto;color:#fff}
-    .loading .main img{width:60%;margin:1rem auto 0}
-    .loading .main .title{font-size:.3rem}
-    .loading .main .text{font-size:.15rem}
-    .loading .main .bar{height:.12rem;width:100%;border:3px solid #fff;border-radius:.6rem;margin:.1rem 0}
-    .loading .main .bar .sub{height:.1rem;width:98%;margin:.008rem auto 0}
-    .loading .main .bar .percent{height:100%;width:0;background-color:#fff;border-radius:.6rem}
+    .loading{background-color:#1b2438;height:100%;width:100%}
+    .loading .main{width:80%;max-width:320px;margin:0 auto;color:#eaf0ff;padding-top:18vh}
+    .loading .lantern-lab-mark{
+      font-size:32px;
+      font-weight:900;
+      letter-spacing:.04em;
+      margin:0 0 12px;
+    }
+    .loading .title{font-size:28px;font-weight:800}
+    .loading .text{font-size:22px;margin-top:8px}
+    .loading .bar{height:18px;width:100%;border:2px solid #eaf0ff;border-radius:18px;margin:12px 0}
+    .loading .bar .sub{height:14px;width:98%;margin:2px auto 0}
+    .loading .bar .percent{height:100%;width:0;background-color:#5aa7ff;border-radius:18px}
     .content{height:100vh;margin:0 auto;position:relative}
-    .landing .title{width:60%}
-    .landing .action-2{position:absolute;bottom:.2rem;width:100%}
-    .landing .start{width:65%}
+    .landing{
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      gap:24px;
+      min-height:100%;
+      padding:24px 16px;
+    }
+    .lantern-title{
+      font-size:36px;
+      font-weight:900;
+      line-height:1.15;
+      margin:0;
+      color:#fff;
+    }
+    .lantern-sub{
+      font-size:22px;
+      line-height:1.35;
+      margin:8px 0 0;
+      color:#b9c6ea;
+      font-weight:700;
+    }
+    .lantern-start{
+      appearance:none;
+      border:0;
+      border-radius:18px;
+      background:#5aa7ff;
+      color:#081018;
+      font-size:28px;
+      font-weight:900;
+      padding:14px 28px;
+      min-width:70%;
+      cursor:pointer;
+      font-family:Arial,Helvetica,sans-serif;
+    }
     .slideTop{-webkit-animation:st 1s ease-in-out;animation:st 1s ease-in-out}
     @-webkit-keyframes st{0%{transform:translateZ(0)}100%{transform:translate3d(0,-100%,0)}}
     @keyframes st{0%{transform:translateZ(0)}100%{transform:translate3d(0,-100%,0)}}
     .slideBottom{-webkit-animation:sb 1s ease-in-out;animation:sb 1s ease-in-out}
     @-webkit-keyframes sb{0%{transform:translateZ(0)}100%{transform:translate3d(0,200%,0)}}
     @keyframes sb{0%{transform:translateZ(0)}100%{transform:translate3d(0,200%,0)}}
-    .swing{-webkit-animation:sw 2s ease-in-out alternate infinite;animation:sw 2s ease-in-out alternate infinite}
-    @-webkit-keyframes sw{0%{transform:rotate(5deg);transform-origin:top center}100%{transform:rotate(-5deg);transform-origin:top center}}
-    @keyframes sw{0%{transform:rotate(5deg);transform-origin:top center}100%{transform:rotate(-5deg);transform-origin:top center}}
     .modal .mask{background-color:#000;opacity:.6;position:fixed;height:100%;width:100%;top:0;left:0}
-    .modal .modal-content{position:fixed;height:100%;width:90%;margin-top:.3rem;top:0}
+    .modal .modal-content{position:fixed;height:100%;width:90%;margin-top:.3rem;top:0;left:0;right:0}
     .modal .main{width:85%;margin:0 auto}
     .modal .container{position:relative}
-    .modal .bg{width:100%;position:absolute;top:0;left:0}
-    .modal .modal-main{width:100%;position:absolute;top:0;left:0;margin-top:-.4rem}
-    .modal .over-img{width:80%;margin:.8rem auto 0}
-    .modal .over-score{margin-top:-.2rem;font-size:.5rem;color:#ff735c;text-shadow:-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff,2px 2px 0 #fff}
-    .modal .tip{font-size:.16rem;color:#9b724e}
-    .modal .over-button-b{width:70%;margin:.1rem auto 0}
-    .font-wenxue{font-family:Arial,Helvetica,sans-serif}
+    .modal .modal-main{width:100%;position:relative;margin-top:18vh}
+    .lantern-over-card{
+      background:#162033;
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      padding:20px 16px;
+    }
+    .lantern-over-title{font-size:32px;font-weight:900;margin:0 0 8px;color:#fff}
+    .over-score{margin:8px 0;font-size:36px;color:#ffcc66;font-weight:900}
+    .tip{font-size:22px;color:#b9c6ea;font-weight:700}
+    .lantern-hud-font{font-family:Arial,Helvetica,sans-serif}
   </style>
 </head>
 <body>
@@ -71,20 +105,21 @@
   <div class="content">
     <div class="loading">
       <div class="main">
-        <img src="./assets/main-loading.gif" alt="">
+        <div class="lantern-lab-mark">STACK LAB</div>
         <div class="progress">
-          <div class="title font-wenxue">0%</div>
+          <div class="title lantern-hud-font">0%</div>
           <div class="bar"><div class="sub"><div class="percent"></div></div></div>
-          <div class="text">Loading...</div>
+          <div class="text">Loading…</div>
         </div>
       </div>
     </div>
     <div class="landing hide">
       <div class="action-1">
-        <img src="./assets/main-index-title.png" class="title swing" alt="Tower Building">
+        <h1 class="lantern-title">Stack Lab</h1>
+        <p class="lantern-sub">Lab preview · name TBD</p>
       </div>
       <div class="action-2">
-        <img id="start" src="./assets/main-index-start.png" class="start" alt="Start">
+        <button type="button" id="start" class="lantern-start">Start</button>
       </div>
     </div>
     <div id="modal" class="modal hide">
@@ -92,15 +127,14 @@
       <div class="js-modal-content modal-content">
         <div class="main">
           <div class="container">
-            <img src="./assets/main-modal-bg.png" class="bg" alt="">
             <div class="modal-main">
-              <div id="over-modal" class="hide js-modal-card">
-                <img src="./assets/main-modal-over.png" class="over-img" alt="">
-                <div id="score" class="over-score font-wenxue"></div>
+              <div id="over-modal" class="hide js-modal-card lantern-over-card">
+                <div class="lantern-over-title">Game over</div>
+                <div id="score" class="over-score lantern-hud-font"></div>
                 <div id="over-zero" class="hide">
                   <div class="tip">
-                    <p>Try Again!</p>
-                    <img src="./assets/main-modal-again-b.png" class="over-button-b js-reload" alt="Try again">
+                    <p>Try again</p>
+                    <button type="button" class="lantern-start js-reload">Try again</button>
                   </div>
                 </div>
               </div>
@@ -110,8 +144,8 @@
       </div>
     </div>
   </div>
-  <script src="./dist/main.js"></script>
-  <script src="./assets/zepto-1.1.6.min.js"></script>
+  <script src="./donor/dist/main.js"></script>
+  <script src="./donor/assets/zepto-1.1.6.min.js"></script>
   <script src="/games/tower/lantern-adapter.js"></script>
   <script>
     var domReady, loadFinish, canvasReady, loadError, gameStart, game, score, successCount;
@@ -165,7 +199,7 @@
       width: gameWidth,
       height: gameHeight,
       canvasId: 'canvas',
-      soundOn: true,
+      soundOn: false,
       setGameScore: function (s) {
         score = s;
       },
@@ -183,6 +217,9 @@
 
     function gameReady() {
       game = TowerGame(option);
+      if (window.LanternDonorAdapter && typeof window.LanternDonorAdapter.silenceAudio === 'function') {
+        window.LanternDonorAdapter.silenceAudio(game);
+      }
       game.load(function () {
         game.init();
       }, updateLoading);
@@ -202,9 +239,6 @@
       if (gameStart) return;
       gameStart = true;
       if (window.LanternDonorAdapter) window.LanternDonorAdapter.notifyGameStarted();
-      setTimeout(function () {
-        game.playBgm();
-      });
       indexHide();
       setTimeout(game.start, 400);
     });

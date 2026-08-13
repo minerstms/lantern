@@ -118,7 +118,19 @@
       if (typeof userSetFailed === 'function') userSetFailed(f);
       if (lastFailed >= 3) notifyGameEnded('hp_depleted');
     };
+    /* Uncleared donor BGM/SFX must not play. Lantern audio is a later swap. */
+    opt.soundOn = false;
     return opt;
+  }
+
+  function silenceAudio(game) {
+    if (!game) return game;
+    game.playBgm = function () {};
+    game.pauseBgm = function () {};
+    if (typeof game.pauseAudio === 'function') {
+      try { game.pauseAudio('bgm'); } catch (e) {}
+    }
+    return game;
   }
 
   global.LanternDonorAdapter = {
@@ -128,6 +140,7 @@
     emit: emit,
     stripForbidden: stripForbidden,
     wrapOptions: wrapOptions,
+    silenceAudio: silenceAudio,
     notifyGameStarted: notifyGameStarted,
     notifyScoreChanged: notifyScoreChanged,
     notifyGameEnded: notifyGameEnded,

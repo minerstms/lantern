@@ -11,7 +11,7 @@
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="/js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
-  <title>Tower Lab | Lantern</title>
+  <title>Stack Lab | Lantern</title>
   <link rel="stylesheet" href="/css/lantern-ticker.css">
   <link rel="stylesheet" href="/css/lantern-header.css">
   <style>
@@ -153,15 +153,15 @@
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
       <div class="towerLab">
         <div class="towerLabBanner">
-          <h1 class="towerLabTitle">Tower Lab</h1>
-          <p class="towerLabMeta">Experimental unlinked prototype. Not listed on Play, Explore, Missions, Create, or navigation. Direct URL only.</p>
+          <h1 class="towerLabTitle">Stack Lab</h1>
+          <p class="towerLabMeta">Experimental unlinked stacking prototype. Not listed on Play, Explore, Missions, Create, or navigation. Direct URL only. Product name not selected. Donor canvas art is a temporary placeholder and is not product-cleared.</p>
           <p class="towerLabPreviewFlag" id="towerLabPreviewFlag">PREVIEW MODE — RESULTS NOT SAVED</p>
         </div>
         <div class="towerLabFrameWrap">
           <iframe
             id="towerGameFrame"
             src="/games/tower/index.html"
-            title="Tower Building Game"
+            title="Stack Lab"
             allow="autoplay"
           ></iframe>
         </div>
@@ -174,7 +174,7 @@
             </div>
             <div>
               <dt>Game</dt>
-              <dd id="towerLabGame">Tower</dd>
+              <dd id="towerLabGame">Stack Lab</dd>
             </div>
             <div>
               <dt>Bridge</dt>
@@ -201,13 +201,17 @@
               <dd id="towerLabEvent">Waiting for game events.</dd>
             </div>
             <div>
+              <dt>Assets</dt>
+              <dd id="towerLabAssets" class="warn">Donor placeholders — not product-cleared</dd>
+            </div>
+            <div>
               <dt>Writes</dt>
               <dd id="towerLabWrites" class="warn">PREVIEW MODE — RESULTS NOT SAVED</dd>
             </div>
           </dl>
         </div>
         <p class="towerLabAttribution">
-          Tower Building Game © 2018 BMQB, Inc. MIT license. Served by Lantern, not from an external site.
+          Lab working title: Stack Lab (product name not selected). Gameplay code is the MIT-licensed Tower Building Game © 2018 BMQB, Inc. Served by Lantern, not from an external site. Donor artwork and audio are temporary placeholders and must be replaced before any production merge. See GAME_PROVENANCE.md.
         </p>
       </div>
     </div>
@@ -224,8 +228,8 @@
       var TOWER_LAB_PREVIEW_MODE = true;
       var LANTERN_TOWER_GAME = {
         id: 'tower',
-        name: 'Tower',
-        leaderboardKey: 'Tower'
+        name: 'Stack Lab',
+        leaderboardKey: 'Stack Lab'
       };
       var booted = false;
       var endedOnce = false;
@@ -268,7 +272,7 @@
         booted = true;
 
         setText('towerLabPlayer', displayIdentity());
-        setText('towerLabGame', 'Tower');
+        setText('towerLabGame', 'Stack Lab');
 
         var bridge = window.LanternGameBridge;
         var iframe = document.getElementById('towerGameFrame');

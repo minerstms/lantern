@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "gameId": "tower",
+  "workingTitle": "Stack Lab",
+  "productName": null,
+  "productNameStatus": "not-selected",
+  "runtimeDir": "assets",
+  "donorDir": "donor/assets",
+  "lanternDir": "lantern-assets",
+  "enginePathPattern": "./assets/${file}",
+  "notes": "Drop Lantern-owned files into lantern-assets/ using the same filename, then run apply-asset-overlay.mjs. Donor binaries under donor/assets/ are the provenance snapshot and are not rewritten. Runtime assets/ is what the hosted game loads. Donor placeholders in assets/ are NOT product-cleared.",
+  "productionMerge": "not-recommended",
+  "slots": [
+    {
+      "file": "background.png",
+      "role": "canvas-gameplay",
+      "size": "750x1050",
+      "loadedBy": ["donor/src/index.js addImg background"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "hook.png",
+      "role": "canvas-gameplay",
+      "size": "50x507",
+      "loadedBy": ["donor/src/index.js addImg hook"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "block.png",
+      "role": "canvas-gameplay",
+      "size": "188x134",
+      "loadedBy": ["donor/src/index.js addImg block"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "block-perfect.png",
+      "role": "canvas-gameplay",
+      "size": "188x133",
+      "loadedBy": ["donor/src/index.js addImg block-perfect"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "block-rope.png",
+      "role": "canvas-gameplay",
+      "size": "188x179",
+      "loadedBy": ["donor/src/index.js addImg blockRope"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c1.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c1"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c2.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c2"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c3.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c3"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c4.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c4"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c5.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c5"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c6.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c6"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c7.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c7"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "c8.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg c8"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f1.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f1"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f2.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f2"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f3.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f3"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f4.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f4"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f5.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f5"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f6.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f6"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "f7.png",
+      "role": "canvas-gameplay",
+      "size": "260x260",
+      "loadedBy": ["donor/src/index.js addImg f7"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "tutorial.png",
+      "role": "canvas-hud",
+      "size": "181x85",
+      "loadedBy": ["donor/src/index.js addImg tutorial"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "tutorial-arrow.png",
+      "role": "canvas-hud",
+      "size": "182x85",
+      "loadedBy": ["donor/src/index.js addImg tutorial-arrow"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "heart.png",
+      "role": "canvas-hud",
+      "size": "60x53",
+      "loadedBy": ["donor/src/index.js addImg heart"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "score.png",
+      "role": "canvas-hud",
+      "size": "409x131",
+      "loadedBy": ["donor/src/index.js addImg score"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "donor-placeholder"
+    },
+    {
+      "file": "rope.png",
+      "role": "unused-donor-file",
+      "size": "255x51",
+      "loadedBy": [],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit",
+      "notes": "Not referenced by pathGenerator. Keep in donor snapshot only."
+    },
+    {
+      "file": "main-bg.png",
+      "role": "html-chrome",
+      "size": "444x356",
+      "loadedBy": ["donor/index.html body background (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit",
+      "notes": "Hosted index.html uses a CSS background. Do not load this file."
+    },
+    {
+      "file": "main-loading.gif",
+      "role": "html-chrome",
+      "loadedBy": ["donor/index.html (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit"
+    },
+    {
+      "file": "main-index-title.png",
+      "role": "donor-title-art",
+      "size": "398x520",
+      "loadedBy": ["donor/index.html (not Lantern hosted index.html)"],
+      "clearance": "red-donor-branding",
+      "action": "replace-before-product",
+      "runtime": "omit",
+      "notes": "Chinese title 来啊盖楼啊. Replaced by Lantern CSS title Stack Lab."
+    },
+    {
+      "file": "main-index-start.png",
+      "role": "html-chrome",
+      "size": "459x141",
+      "loadedBy": ["donor/index.html (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit",
+      "notes": "Replaced by Lantern HTML Start button."
+    },
+    {
+      "file": "main-modal-bg.png",
+      "role": "html-chrome",
+      "size": "640x1020",
+      "loadedBy": ["donor/index.html (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit"
+    },
+    {
+      "file": "main-modal-over.png",
+      "role": "html-chrome",
+      "size": "556x190",
+      "loadedBy": ["donor/index.html (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit"
+    },
+    {
+      "file": "main-modal-again-b.png",
+      "role": "html-chrome",
+      "size": "459x138",
+      "loadedBy": ["donor/index.html (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit"
+    },
+    {
+      "file": "main-modal-invite-b.png",
+      "role": "html-chrome-unused",
+      "size": "459x141",
+      "loadedBy": ["donor/index.html WeChat-era share (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit"
+    },
+    {
+      "file": "main-share-icon.png",
+      "role": "html-chrome-unused",
+      "size": "555x373",
+      "loadedBy": ["donor/index.html WeChat-era share (not Lantern hosted index.html)"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit"
+    },
+    {
+      "file": "favicon.png",
+      "role": "html-chrome",
+      "size": "582x582",
+      "loadedBy": ["donor/index.html"],
+      "clearance": "not-product-cleared",
+      "action": "replace-before-product",
+      "runtime": "omit",
+      "notes": "Hosted index.html uses Lantern /assets/favicon.png."
+    },
+    {
+      "file": "main-index-logo.png",
+      "role": "bmqb-branding",
+      "size": "165x62",
+      "loadedBy": [],
+      "clearance": "red-trademark",
+      "action": "never-ship",
+      "runtime": "omit",
+      "notes": "贝米钱包 / BMQB.COM. Keep in donor snapshot for provenance. Never copy to assets/ or wire into UI."
+    },
+    {
+      "file": "main-loading-logo.png",
+      "role": "bmqb-branding",
+      "size": "160x57",
+      "loadedBy": [],
+      "clearance": "red-trademark",
+      "action": "never-ship",
+      "runtime": "omit",
+      "notes": "贝米钱包 / BMQB.COM. Keep in donor snapshot for provenance. Never copy to assets/ or wire into UI."
+    },
+    {
+      "file": "bgm.mp3",
+      "role": "audio-bgm",
+      "loadedBy": ["donor/src/index.js addAudio bgm"],
+      "clearance": "red-cc-by-sa",
+      "action": "replace-before-product",
+      "runtime": "silent-audio",
+      "notes": "Caketown / Matthew Pablo / CC-BY-SA 3.0. Original remains in donor/assets/. Runtime file is silent."
+    },
+    {
+      "file": "bgm.ogg",
+      "role": "audio-bgm",
+      "loadedBy": [],
+      "clearance": "red-cc-by-sa",
+      "action": "replace-before-product",
+      "runtime": "silent-audio",
+      "notes": "Sibling of bgm.mp3. Engine loads mp3 only. Still must not ship Caketown."
+    },
+    {
+      "file": "drop.mp3",
+      "role": "audio-sfx",
+      "loadedBy": ["donor/src/index.js addAudio drop"],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "drop.ogg",
+      "role": "audio-sfx",
+      "loadedBy": [],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "drop-perfect.mp3",
+      "role": "audio-sfx",
+      "loadedBy": ["donor/src/index.js addAudio drop-perfect"],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "drop-perfect.ogg",
+      "role": "audio-sfx",
+      "loadedBy": [],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "rotate.mp3",
+      "role": "audio-sfx",
+      "loadedBy": ["donor/src/index.js addAudio rotate"],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "rotate.ogg",
+      "role": "audio-sfx",
+      "loadedBy": [],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "game-over.mp3",
+      "role": "audio-sfx",
+      "loadedBy": ["donor/src/index.js addAudio game-over"],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "game-over.ogg",
+      "role": "audio-sfx",
+      "loadedBy": [],
+      "clearance": "red-unknown-provenance",
+      "action": "replace-before-product",
+      "runtime": "silent-audio"
+    },
+    {
+      "file": "zepto-1.1.6.min.js",
+      "role": "code",
+      "loadedBy": ["app/games/tower/index.html"],
+      "clearance": "green-mit",
+      "action": "keep",
+      "runtime": "keep-donor-path",
+      "notes": "MIT Zepto. Loaded from donor/assets/, not copied into the overlay."
+    },
+    {
+      "file": "wenxue.eot",
+      "role": "font",
+      "loadedBy": [],
+      "clearance": "red-no-license",
+      "action": "keep-omitted",
+      "runtime": "omit",
+      "notes": "Never vendored. Do not add."
+    },
+    {
+      "file": "wenxue.woff",
+      "role": "font",
+      "loadedBy": [],
+      "clearance": "red-no-license",
+      "action": "keep-omitted",
+      "runtime": "omit"
+    },
+    {
+      "file": "wenxue.ttf",
+      "role": "font",
+      "loadedBy": [],
+      "clearance": "red-no-license",
+      "action": "keep-omitted",
+      "runtime": "omit"
+    },
+    {
+      "file": "wenxue.svg",
+      "role": "font",
+      "loadedBy": [],
+      "clearance": "red-no-license",
+      "action": "keep-omitted",
+      "runtime": "omit"
+    }
+  ]
+}

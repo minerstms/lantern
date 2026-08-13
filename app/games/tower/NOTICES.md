@@ -3,11 +3,18 @@
 This directory vendors a bounded copy of the MIT-licensed Tower Building Game
 for an **experimental, unlinked Lantern lab prototype**.
 
+Canonical provenance and keep/replace decisions: [`GAME_PROVENANCE.md`](./GAME_PROVENANCE.md).
+Required third-party license texts: [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+Do not delete [`LICENSE`](./LICENSE) or [`donor/LICENSE`](./donor/LICENSE).
+
+**This lab is not product-cleared for production merge.** See
+[`COMMERCIAL_MERGE_GATE.md`](./COMMERCIAL_MERGE_GATE.md).
+
 ## Donor
 
 - Repository: https://github.com/iamkun/tower_game
 - Commit: `c6fa84afe179b661fa71cf7cc8788d0c47ca2875`
-- License: MIT — Copyright (c) 2018 BMQB, Inc
+- License (code): MIT — Copyright (c) 2018 BMQB, Inc
 - Required notice: see `LICENSE` and `donor/LICENSE`
 
 The MIT license requires that the copyright notice and permission notice be
@@ -23,12 +30,19 @@ preserved here.
 
 ## Artwork, audio, and other assets
 
-PNG, GIF, MP3, and OGG files under `donor/assets/` shipped with the donor
-repository under the same MIT license as the Software. No separate asset
-license file was present in the donor.
+Do **not** treat PNG, GIF, MP3, or OGG files under `donor/assets/` as MIT-cleared
+product art. Commercial clearance found Caketown BGM (CC-BY-SA 3.0), unknown
+SFX provenance, BMQB / 贝米钱包 logos, and unproven illustration. Inventory:
+[`asset-slots.json`](./asset-slots.json).
+
+The hosted game loads canvas media from `assets/` (runtime overlay). Donor
+gameplay sprites there are **temporary placeholders**. HTML chrome is
+Lantern CSS. Runtime audio files are silent. Original Caketown / SFX / BMQB
+files remain only under `donor/assets/` for provenance and must not ship.
 
 The donor README describes the game as “Tower Bloxx Deluxe Skyscraper”
-inspired. This lab prototype does not claim that trademark.
+inspired. That name must not appear in Lantern product UI. It is kept only
+in the vendor README for provenance.
 
 ## Fonts — excluded
 
@@ -37,8 +51,8 @@ with **no copyright, author, or license metadata** (SVG metadata empty;
 family name garbled; produced via FontEditor). Per Lantern donor-audit rules,
 those font files were **not incorporated**.
 
-Lantern’s hosted copy uses system / Arial fonts instead. Canvas HUD text in
-the donor already used Arial for floor/score drawing.
+Lantern’s hosted copy uses system / Arial fonts. Canvas HUD default font
+name is Arial (not wenxue).
 
 ## Deliberately not vendored / not loaded
 
@@ -47,10 +61,13 @@ the donor already used Arial for floor/score drawing.
 - `package-lock.json` and the Express dev server (`donor/index.js` is kept
   only as donor source; Lantern does not run it).
 - External demo images hosted on qnssl / GitHub user content (README only).
+- BMQB / 贝米钱包 logos are not referenced by hosted `index.html` and are
+  not copied into the runtime overlay.
 
 ## How Lantern serves this game
 
 The playable document is `app/games/tower/index.html`, loaded in a
 **same-origin iframe** from the unlinked lab page `/game-lab/tower.html`.
-Asset paths resolve under `./donor/` via `<base href="./donor/">`.
-The game is not loaded from `iamkun.github.io` or any other website.
+Engine code loads from `./donor/dist/main.js`. Canvas paths resolve to
+`./assets/` (overlay). The game is not loaded from `iamkun.github.io` or
+any other website.
