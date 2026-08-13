@@ -1,6 +1,9 @@
 /**
  * Canonical Lantern game registry — one ID per playable game.
  * play_cost is the authoritative entry fee (minimum 1 for scored games).
+ *
+ * Server-side result validation lives in worker/lantern-game-catalog.js (same ids/names).
+ * Register future donor games (e.g. Tower) in BOTH catalogs before they can record scores.
  */
 (function (global) {
   'use strict';

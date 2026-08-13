@@ -103,9 +103,13 @@ if (!workerIndex.match(/if \(\(kind === 'game_play' \|\| kind === 'game_win'\) &
   ok('the old narrow game_play/game_win-only reference check was replaced, not duplicated alongside the new one');
 } else bad('old narrow game_play/game_win reference check still present alongside the new one');
 
-if (gamesHtml.includes("callEconomyTransact(adopted.name, -1, 'game_false_start', 'GAME', 'Reaction Tap False Start', generateRunId())")) {
-  ok('Reaction Tap false-start penalty still sends a stable per-attempt run_id (now actually honored server-side for idempotency)');
-} else bad('Reaction Tap false-start run_id wiring regressed');
+if (
+  gamesHtml.includes('function applyFalseStartPenalty') &&
+  gamesHtml.includes('Do NOT charge an extra Nugget') &&
+  !gamesHtml.includes("callEconomyTransact(adopted.name, -1, 'game_false_start'")
+) {
+  ok('Reaction Tap false start remains visual-only (no extra Nugget / no game_false_start transact)');
+} else bad('Reaction Tap false-start extra-charge policy regressed');
 
 // ---------------------------------------------------------------------------
 // One TMS economy reconfirmed — no game uses the legacy local wallet as currency authority
