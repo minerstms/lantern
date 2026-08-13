@@ -174,6 +174,27 @@
     return fetchMyBalance();
   }
 
+  /**
+   * Apply the authoritative balance returned by game_play / game_win immediately
+   * so the heading cannot stay stale until the next fetch.
+   * Do not invent a local decrement when the server already returned balance_after.
+   */
+  function applyVisibleBalance(available) {
+    var n = Number(available);
+    if (!Number.isFinite(n)) return false;
+    var doc = global.document;
+    if (doc) {
+      ['gamesPageWalletAmt', 'missionsPageWalletAmt'].forEach(function (id) {
+        var node = doc.getElementById(id);
+        if (node) node.textContent = String(n);
+      });
+    }
+    if (global.LanternGamesPage && typeof global.LanternGamesPage.applyWalletAmount === 'function') {
+      global.LanternGamesPage.applyWalletAmount(n);
+    }
+    return true;
+  }
+
   global.LanternWallet = {
     AVATAR_UPLOAD_COST: AVATAR_UPLOAD_COST,
     economyApiBase: economyApiBase,
@@ -185,5 +206,6 @@
     fetchBalance: fetchAuthoritativeBalance,
     fetchMyBalance: fetchMyBalance,
     refreshAllVisible: refreshAllVisibleWalletDisplays,
+    applyVisibleBalance: applyVisibleBalance,
   };
 })(typeof window !== 'undefined' ? window : self);

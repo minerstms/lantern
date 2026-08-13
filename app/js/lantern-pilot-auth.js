@@ -193,6 +193,7 @@
       '/teacher': '/teacher.html',
       '/explore': '/explore.html',
       '/games': '/games.html',
+      '/game-lab/tower': '/game-lab/tower.html',
       '/missions': '/missions.html',
       '/store': '/store.html',
       '/change-password': '/change-password.html',

@@ -53,8 +53,8 @@ if (gamesHtml.includes('lantern-game-catalog.js') && gamesHtml.includes('lantern
 
 const idMatches = catalogJs.match(/id: '[^']+'/g) || [];
 const uniqueIds = new Set(idMatches);
-if (uniqueIds.size === 8 && idMatches.length === 8) {
-  ok('eight canonical game IDs, no duplicates');
+if (uniqueIds.size === 9 && idMatches.length === 9) {
+  ok('nine canonical game IDs, no duplicates');
 } else bad('canonical game count', `${uniqueIds.size} unique of ${idMatches.length}`);
 
 if (catalogJs.includes('play_cost: 1')) {

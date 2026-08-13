@@ -20,7 +20,7 @@
   var tickerActiveTrackEl = null;
   var tickerResizeTimer = null;
   var tickerLastViewportWidth = 0;
-  var DISPLAY_LEADERBOARD_GAMES = ['Avatar Match', 'Lantern Live Trivia', 'Handbook Trivia', 'Local History Trivia', 'Reaction Tap', 'Nugget Click Rush', 'Memory Match', 'Nugget Hunt'];
+  var DISPLAY_LEADERBOARD_GAMES = ['Avatar Match', 'Lantern Live Trivia', 'Handbook Trivia', 'Local History Trivia', 'Reaction Tap', 'Nugget Click Rush', 'Memory Match', 'Nugget Hunt', 'Stack Lab'];
 
   var FALLBACK_TICKER_ITEM = {
     icon: '✨',
