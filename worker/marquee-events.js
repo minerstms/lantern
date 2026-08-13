@@ -19,6 +19,7 @@ import {
 } from './staff-public-name.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { isLowerIsBetterGame } from './lantern-game-catalog.js';
+import { durableAccountKeyFromPilotAccount, staffIdFromEconomyKey } from './durable-account-key.js';
 import {
   formatTickerCopy,
   tickerDestinationForEvent,
@@ -169,24 +170,34 @@ function stripStaffAvatarPrefix(raw) {
 
 /** Same profile PK Locker uses: students → economy/MTSS key; staff/admin → username. */
 export function avatarProfileKeyForAccountRow(row) {
-  if (!row) return '';
-  const role = trimStr(row.role).toLowerCase();
-  if (role === 'student') {
-    return trimStr(row.mtss_student_id) || trimStr(row.student_character_name) || trimStr(row.username);
-  }
-  return trimStr(row.username);
+  return durableAccountKeyFromPilotAccount(row);
+}
+
+function actorIdentityFromRow(row) {
+  if (!row) return { author_avatar_key: '', public_display_name: '' };
+  return {
+    author_avatar_key: avatarProfileKeyForAccountRow(row),
+    public_display_name: resolvePublicDisplayName(row) || '',
+  };
 }
 
 /**
- * Prompt #161 — durable-account avatar identity only.
- * Candidates must already be account keys (username, teacher_id, mtss id, person_key).
- * Never pass public display names. No fuzzy "Mr. Radle" → rick.radle.
+ * Prompt #161/#170 — durable-account avatar identity only.
+ * Candidates must already be account keys (username, teacher_id, mtss id, person_key,
+ * staff:username, staff_id:N). Never pass public display names.
+ * No fuzzy "Mr. Radle" → rick.radle.
  */
 export function resolveMarqueeActorIdentity(staffIndex, candidates) {
   const idx = staffIndex || {};
   const list = Array.isArray(candidates) ? candidates : [candidates];
   for (let i = 0; i < list.length; i++) {
-    const key = stripStaffAvatarPrefix(list[i]);
+    const raw = trimStr(list[i]);
+    if (!raw) continue;
+    const sid = staffIdFromEconomyKey(raw);
+    if (sid && idx.byStaffId && idx.byStaffId[sid]) {
+      return actorIdentityFromRow(idx.byStaffId[sid]);
+    }
+    const key = stripStaffAvatarPrefix(raw);
     if (!key) continue;
     const low = key.toLowerCase();
     const row =
@@ -198,13 +209,24 @@ export function resolveMarqueeActorIdentity(staffIndex, candidates) {
       resolveStaffRowByPersonKey(idx, key) ||
       null;
     if (row) {
-      return {
-        author_avatar_key: avatarProfileKeyForAccountRow(row),
-        public_display_name: resolvePublicDisplayName(row) || '',
-      };
+      return actorIdentityFromRow(row);
     }
   }
   return { author_avatar_key: '', public_display_name: '' };
+}
+
+function recognitionRecipientLabel(recipientActor, overlaid, staffIndex, studentIndex) {
+  if (recipientActor && recipientActor.public_display_name) return recipientActor.public_display_name;
+  const stored = trimStr(overlaid && overlaid.character_public_label) || trimStr(overlaid && overlaid.character_name);
+  if (
+    stored &&
+    !INTERNAL_TOKEN_RE.test(stored) &&
+    !ECONOMY_KEY_RE.test(stored) &&
+    !/^\d{3,}$/.test(stored)
+  ) {
+    return stored;
+  }
+  return publicActorLabel(overlaid && overlaid.character_name, staffIndex, studentIndex);
 }
 
 function firstRecognizedPersonKey(people) {
@@ -311,7 +333,7 @@ async function fetchPolls(db, limit) {
   try {
     const rows = await db
       .prepare(
-        `SELECT id, question, character_name, created_at, approved_at, hidden_at FROM lantern_polls
+        `SELECT id, question, character_name, created_by_character, created_at, approved_at, hidden_at FROM lantern_polls
          WHERE approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')
          ORDER BY approved_at DESC LIMIT ?`
       )
@@ -548,7 +570,7 @@ export async function collectMarqueeEvents(db, opts) {
   polls.forEach((row) => {
     if (!row.approved_at || isHiddenAtSet(row)) return;
     const q = trimStr(row.question) || 'a new poll';
-    const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
+    const actor = resolveMarqueeActorIdentity(staffIndex, [row.created_by_character, row.character_name]);
     const who = actor.public_display_name || publicActorLabel(row.character_name, staffIndex, studentIndex);
     push(
       eventRecord({
@@ -656,10 +678,7 @@ export async function collectMarqueeEvents(db, opts) {
     const recognizedKey = firstRecognizedPersonKey(people);
     const recipientActor = resolveMarqueeActorIdentity(staffIndex, [recognizedKey, overlaid.character_name]);
     const senderActor = resolveMarqueeActorIdentity(staffIndex, [overlaid.created_by_teacher_id]);
-    const who =
-      recipientActor.public_display_name ||
-      trimStr(overlaid.character_public_label) ||
-      publicActorLabel(overlaid.character_name, staffIndex, studentIndex);
+    const who = recognitionRecipientLabel(recipientActor, overlaid, staffIndex, studentIndex);
     const author = senderActor.public_display_name || trimStr(overlaid.created_by_teacher_public_label);
     push(
       eventRecord({

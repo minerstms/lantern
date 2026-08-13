@@ -4,22 +4,14 @@
  * Students: economy / MTSS / student_character_name / username.
  * Prefer immutable account keys (actor_id / authorId / username) over display names.
  */
+import { durableAccountKeyFromPilotAccount } from './durable-account-key.js';
 
 function trimStr(v) {
   return v == null ? '' : String(v).trim();
 }
 
 function pilotAvatarKeyFromRow(row) {
-  if (!row) return '';
-  const role = trimStr(row.role).toLowerCase();
-  if (role === 'student') {
-    const mid = trimStr(row.mtss_student_id);
-    if (mid) return mid;
-    const scn = trimStr(row.student_character_name);
-    if (scn) return scn;
-    return trimStr(row.username);
-  }
-  return trimStr(row.username);
+  return durableAccountKeyFromPilotAccount(row);
 }
 
 /**

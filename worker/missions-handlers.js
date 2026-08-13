@@ -698,15 +698,10 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     const title = (body.title || '').trim().slice(0, 200);
     if (!title) return jsonResponse({ ok: false, error: 'Missing title' }, 400, cors);
-    let teacherId = sessionTeacherId(auth.account);
-    let teacherName = reviewerLabelFromAccount(auth.account);
-    if (isAdminRole(auth.account.role)) {
-      // Admin may explicitly author on behalf of a specific teacher_id; otherwise
-      // the mission is owned by the admin's own session identity (never an
-      // orphaned 'teacher' placeholder that no account can ever list as "mine").
-      teacherId = (body.created_by_teacher_id || body.teacher_id || teacherId || 'admin').trim();
-      teacherName = (body.created_by_teacher_name || body.teacher_name || teacherName || 'Admin').trim();
-    }
+    // Prompt #170 — creator identity is session-owned. Client teacher_id / teacher_name
+    // / created_by_teacher_id are not identity authority (Web Admin stays distinct).
+    const teacherId = sessionTeacherId(auth.account);
+    const teacherName = reviewerLabelFromAccount(auth.account);
     if (!teacherId) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }

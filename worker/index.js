@@ -33,6 +33,7 @@ import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { handleMissionsRoutes } from './missions-handlers.js';
 import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './missions-auth.js';
+import { durableAccountKeyFromPilotAccount } from './durable-account-key.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
 import {
@@ -1194,10 +1195,7 @@ function pilotEconomyCharacterName(row) {
  * Students: economy/MTSS key. Staff/admin: login username.
  */
 function avatarCharacterNameForPilotAccount(row) {
-  if (!row) return '';
-  const role = String(row.role || '').trim().toLowerCase();
-  if (role === 'student') return pilotEconomyCharacterName(row);
-  return String(row.username || '').trim();
+  return durableAccountKeyFromPilotAccount(row);
 }
 
 /**
@@ -6223,15 +6221,16 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     }
     const title = (body.title || '').trim();
     const articleBody = (body.body || '').trim();
+    // Prompt #170 — actor_id is the durable account key from session. Client actor_id /
+    // author_name / account_key are not identity authority.
+    const actorId = durableAccountKeyFromPilotAccount(account);
+    if (!actorId) return jsonResponse({ ok: false, error: 'account_link_missing' }, 400, cors);
     let authorName = '';
     if (authorType === 'student') {
-      authorName = String(account.student_character_name || body.author_name || account.display_name || account.username || '').trim();
+      authorName = String(account.display_name || account.student_character_name || account.username || '').trim();
     } else {
-      authorName = String(account.display_name || account.username || body.author_name || '').trim();
+      authorName = String(account.display_name || account.username || '').trim();
     }
-    const actorId = authorType === 'student'
-      ? String(account.student_character_name || body.actor_id || authorName || '').trim()
-      : String(body.actor_id || account.username || '').trim();
     const imageR2Key = (body.image_r2_key || '').trim() || null;
     const fullImageR2Key = (body.full_image_r2_key || '').trim() || null;
     const imageFileName = (body.image_file_name || '').trim() || null;
@@ -7220,13 +7219,9 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     if (clientClaim && isPollPublisherRole(clientClaim) && !staffPublisher) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
-    let characterName = '';
-    if (staffPublisher) {
-      characterName = String(account.display_name || account.username || '').trim();
-      if (!characterName) characterName = String(account.username || '').trim();
-    } else {
-      characterName = pilotEconomyCharacterName(account) || String(account.student_character_name || account.username || '').trim();
-    }
+    // Prompt #170 — persist the exact durable account key from session. Client
+    // character_name / author_name / display labels are not identity authority.
+    const characterName = durableAccountKeyFromPilotAccount(account);
     if (!characterName) return jsonResponse({ ok: false, error: 'character_name required' }, 400, cors);
     const question = (body.question || '').trim().slice(0, 500);
     let choices = parsePollChoices(body.choices);
@@ -8197,7 +8192,7 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
       fullImageR2Key = null;
       videoR2Key = null;
     }
-    const createdByTeacherId = sessionTeacherId(auth.account) || null;
+    const createdByTeacherId = sessionTeacherId(auth.account) || String(auth.account.username || '').trim() || null;
     const createdByTeacherName = reviewerLabelFromAccount(auth.account);
     const id = 'rec-' + crypto.randomUUID();
     const now = new Date().toISOString();
