@@ -538,6 +538,33 @@ export async function listContentPeople(db, contentKind, contentId) {
   }
 }
 
+/** Map of `content_kind|content_id` → people rows (presentation overlay; no D1 rewrite). */
+export async function loadContentPeopleIndex(db) {
+  const map = new Map();
+  if (!db) return map;
+  try {
+    const rows = await db
+      .prepare(
+        `SELECT content_kind, content_id, person_kind, person_key, relationship, display_label
+         FROM lantern_content_people`
+      )
+      .all();
+    for (const r of rows.results || []) {
+      const k = trimStr(r.content_kind) + '|' + trimStr(r.content_id);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push({
+        person_kind: r.person_kind,
+        person_key: r.person_key,
+        relationship: r.relationship,
+        display_label: r.display_label || '',
+      });
+    }
+  } catch (_) {
+    /* table optional on older local DBs */
+  }
+  return map;
+}
+
 /**
  * Map content_people rows for a viewer into Explore feed item ids (news:/poll:/shout_out:).
  */

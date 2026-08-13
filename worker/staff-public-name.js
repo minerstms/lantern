@@ -1,11 +1,16 @@
 /**
- * Prompt #220/#223 — Staff public names (presentation only).
- * Priority: public_display_name override → Honorific + Last → safe full name.
+ * Prompt #220/#223/#133 — Staff public names (presentation only).
+ * Priority: public_display_name override → Honorific + Last → established professional
+ * label already stored on display_name → last_name (never inferred honorific, never first+last).
  * Students remain First L. Free-text recognition unchanged. Web Admin stays Web Admin.
+ * Ticker/marquee must call formatPublicStaffName (alias formatTickerStaffName) — do not
+ * format staff first names from upstream records.
  */
 
 export const STAFF_HONORIFICS = Object.freeze(['Mr.', 'Miss', 'Ms.', 'Mrs.', 'SRO']);
 export const PUBLIC_DISPLAY_NAME_MAX_LEN = 80;
+/** Prefixes already stored on a label (not inferred / not applied as honorifics). */
+const ESTABLISHED_PUBLIC_LABEL_RE = /^(Mr\.|Miss|Ms\.|Mrs\.|SRO|Dr\.|Coach)\s+\S/i;
 
 function trimStr(v) {
   return v == null ? '' : String(v).trim();
@@ -58,11 +63,24 @@ export function isSystemWebAdminAccount(row) {
   return !dn || dn === 'web admin' || dn === 'admin';
 }
 
+export function firstLastStaffCombo(row) {
+  if (!row) return '';
+  const fn = trimStr(row.first_name);
+  const last = trimStr(row.last_name);
+  if (fn && last) return fn + ' ' + last;
+  return '';
+}
+
+export function isEstablishedProfessionalStaffLabel(name) {
+  return ESTABLISHED_PUBLIC_LABEL_RE.test(trimStr(name));
+}
+
 /**
  * Public-facing staff label for student/community surfaces.
- * 1) public_display_name (exact)
- * 2) honorific + last_name
- * 3) safe full display_name / first+last
+ * 1) public_display_name (exact stored override, e.g. Coach Colorado / Miss Becky)
+ * 2) explicit valid honorific + last_name
+ * 3) display_name only when it already is an established professional label
+ * 4) last_name (no first-name leak; no honorific inference)
  * Web Admin system account → "Web Admin" (session/account identity)
  */
 export function formatPublicStaffName(row) {
@@ -76,10 +94,16 @@ export function formatPublicStaffName(row) {
     return honorific + ' ' + last;
   }
   const dn = trimStr(row.display_name);
+  if (isEstablishedProfessionalStaffLabel(dn)) return dn;
+  if (last) return last;
+  // last_name absent: use stored display_name only (do not concatenate first+last; do not guess honorific).
   if (dn) return dn;
-  const fn = trimStr(row.first_name);
-  if (fn || last) return [fn, last].filter(Boolean).join(' ').trim();
-  return trimStr(row.username);
+  return '';
+}
+
+/** Same canonical formatter for ticker / marquee / event-feed work. */
+export function formatTickerStaffName(row) {
+  return formatPublicStaffName(row);
 }
 
 export function staffNeedsHonorific(row) {
@@ -92,39 +116,59 @@ export function staffNeedsHonorific(row) {
 }
 
 /**
- * Build username → pilot row map for public label enrichment.
+ * Build username / staff_id / TMS staff id / teacher_id → pilot row maps.
+ * @param {object[]} rows
+ * @param {object[]} [linkRows] tms_identity_links rows { lantern_username, tms_staff_id, is_primary }
  */
-export function buildStaffPublicNameIndex(rows) {
+export function buildStaffPublicNameIndex(rows, linkRows) {
   const byUsername = Object.create(null);
+  const byStaffId = Object.create(null);
+  const byTmsStaffId = Object.create(null);
+  const byTeacherId = Object.create(null);
   (rows || []).forEach((row) => {
-    const u = lower(row && row.username);
-    if (!u) return;
-    byUsername[u] = row;
+    if (!row) return;
+    const u = lower(row.username);
+    if (u) byUsername[u] = row;
+    const sid = row.staff_id != null ? String(row.staff_id).trim() : '';
+    if (sid) byStaffId[sid] = row;
+    const tid = lower(row.teacher_id);
+    if (tid) byTeacherId[tid] = row;
   });
-  return { byUsername };
+  (linkRows || []).forEach((link) => {
+    if (!link) return;
+    const tms = trimStr(link.tms_staff_id);
+    const u = lower(link.lantern_username);
+    const row = u ? byUsername[u] : null;
+    if (!tms || !row) return;
+    const k = lower(tms);
+    const primary = Number(link.is_primary) === 1;
+    if (!byTmsStaffId[k] || primary) byTmsStaffId[k] = row;
+  });
+  return { byUsername, byStaffId, byTmsStaffId, byTeacherId };
 }
 
 export async function loadStaffPublicNameIndex(db) {
   if (!db) return buildStaffPublicNameIndex([]);
+  let accountRows = [];
   try {
     const res = await db
       .prepare(
-        `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, staff_id
+        `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, staff_id, teacher_id
          FROM lantern_pilot_accounts
          WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
       )
       .all();
-    return buildStaffPublicNameIndex(res.results || []);
+    accountRows = res.results || [];
   } catch (_) {
     try {
       const res = await db
         .prepare(
-          `SELECT username, display_name, first_name, last_name, honorific, role, staff_id
+          `SELECT username, display_name, first_name, last_name, honorific, role, staff_id, teacher_id
            FROM lantern_pilot_accounts
            WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
         )
         .all();
-      return buildStaffPublicNameIndex(res.results || []);
+      accountRows = res.results || [];
     } catch (e2) {
       try {
         const res = await db
@@ -134,12 +178,40 @@ export async function loadStaffPublicNameIndex(db) {
              WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
           )
           .all();
-        return buildStaffPublicNameIndex(res.results || []);
+        accountRows = res.results || [];
       } catch (e3) {
         return buildStaffPublicNameIndex([]);
       }
     }
   }
+  let linkRows = [];
+  try {
+    const links = await db
+      .prepare(`SELECT lantern_username, tms_staff_id, is_primary FROM tms_identity_links`)
+      .all();
+    linkRows = links.results || [];
+  } catch (_) {
+    linkRows = [];
+  }
+  return buildStaffPublicNameIndex(accountRows, linkRows);
+}
+
+/**
+ * Durable staff person_key from lantern_content_people (tms_staff_id or lantern_staff:N).
+ * Students and unknown keys return null — never fuzzy-match free text.
+ */
+export function resolveStaffRowByPersonKey(index, personKeyRaw) {
+  const idx = index || buildStaffPublicNameIndex([]);
+  const key = trimStr(personKeyRaw);
+  if (!key) return null;
+  const low = key.toLowerCase();
+  if (low.startsWith('lantern_staff:')) {
+    const sid = key.slice('lantern_staff:'.length).trim();
+    return (sid && idx.byStaffId && idx.byStaffId[sid]) || null;
+  }
+  if (idx.byTmsStaffId && idx.byTmsStaffId[low]) return idx.byTmsStaffId[low];
+  if (idx.byUsername && idx.byUsername[low]) return idx.byUsername[low];
+  return null;
 }
 
 /**
@@ -222,6 +294,9 @@ export function resolveAuthorPublicLabel(index, fields) {
 
   let row = null;
   if (authorId && idx.byUsername[lower(authorId)]) row = idx.byUsername[lower(authorId)];
+  if (!row && authorId && idx.byTeacherId && idx.byTeacherId[lower(authorId)]) {
+    row = idx.byTeacherId[lower(authorId)];
+  }
   if (!row && lookupDisplay && idx.byUsername[lower(lookupDisplay)]) row = idx.byUsername[lower(lookupDisplay)];
 
   if (row) {
@@ -246,6 +321,143 @@ export function attachAuthorPublicLabels(items, index) {
     if (label) it.authorPublicLabel = label;
   });
   return list;
+}
+
+export function rewriteRecognizingLine(text, canonical) {
+  const s = String(text == null ? '' : text);
+  const label = trimStr(canonical);
+  if (!label || !/Recognizing:\s*/i.test(s)) return s;
+  return s.replace(/Recognizing:\s*[^\n\r]+/i, 'Recognizing: ' + label);
+}
+
+function replaceExactLabels(text, previousLabels, canonical) {
+  let t = String(text == null ? '' : text);
+  const next = trimStr(canonical);
+  if (!next) return t;
+  (previousLabels || []).forEach((old) => {
+    const from = trimStr(old);
+    if (!from || from === next) return;
+    if (t.indexOf(from) >= 0) t = t.split(from).join(next);
+  });
+  return t;
+}
+
+/**
+ * Presentation overlay for a recognized staff person (no D1 write).
+ * Rewrites Recognizing: metadata line + title snapshots; leaves free-text body copy.
+ */
+export function overlayRecognizedStaffPresentation(item, canonical, previousLabels) {
+  if (!item || typeof item !== 'object') return item;
+  const label = trimStr(canonical);
+  if (!label) return item;
+  if (!item.contentSlot || typeof item.contentSlot !== 'object') item.contentSlot = {};
+  item.contentSlot.recipient = label;
+  item.contentSlot.recognition_label = label;
+  if (item.body) item.body = rewriteRecognizingLine(item.body, label);
+  if (item.summary) item.summary = rewriteRecognizingLine(item.summary, label);
+  if (item.title) item.title = replaceExactLabels(item.title, previousLabels, label);
+  return item;
+}
+
+export function liveStaffPersonLabel(personRow, index) {
+  if (!personRow) return '';
+  if (lower(personRow.person_kind) !== 'staff') return trimStr(personRow.display_label);
+  const row = resolveStaffRowByPersonKey(index, personRow.person_key);
+  if (row) return formatPublicStaffName(row);
+  return trimStr(personRow.display_label);
+}
+
+export function contentKeyFromFeedItem(item) {
+  if (!item || typeof item !== 'object') return null;
+  const id = trimStr(item.id);
+  const slot = item.contentSlot && typeof item.contentSlot === 'object' ? item.contentSlot : {};
+  const low = id.toLowerCase();
+  if (low.startsWith('news:')) return { kind: 'news', id: id.slice(5) };
+  if (low.startsWith('shout_out:')) return { kind: 'recognition', id: id.slice(10) };
+  if (low.startsWith('poll:')) return { kind: 'poll', id: id.slice(5) };
+  if (slot.newsId) return { kind: 'news', id: trimStr(slot.newsId) };
+  if (slot.recognitionId) return { kind: 'recognition', id: trimStr(slot.recognitionId) };
+  if (slot.pollId) return { kind: 'poll', id: trimStr(slot.pollId) };
+  return null;
+}
+
+function previousStaffLeakLabels(personRow, staffRow) {
+  const out = [];
+  const snap = trimStr(personRow && personRow.display_label);
+  if (snap) out.push(snap);
+  const combo = firstLastStaffCombo(staffRow);
+  if (combo && out.indexOf(combo) < 0) out.push(combo);
+  return out;
+}
+
+/**
+ * Prompt #133 — at serialize time, recognized staff with a durable person_key
+ * render the current professional label. Free-text / unmatched keys are left as stored.
+ */
+export function attachRecognizedStaffPublicLabels(items, index, peopleByContent) {
+  const list = Array.isArray(items) ? items : [];
+  const map = peopleByContent || new Map();
+  list.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const key = contentKeyFromFeedItem(item);
+    if (!key) return;
+    const people = map.get(key.kind + '|' + key.id) || [];
+    if (!people.length) return;
+    const recognizedStaff = people.filter(
+      (p) => lower(p.person_kind) === 'staff' && lower(p.relationship) === 'recognized'
+    );
+    const target = recognizedStaff[0];
+    if (target) {
+      const row = resolveStaffRowByPersonKey(index, target.person_key);
+      if (row) {
+        overlayRecognizedStaffPresentation(item, formatPublicStaffName(row), previousStaffLeakLabels(target, row));
+      }
+    }
+    item.people = people.map((p) => ({
+      relationship: p.relationship,
+      person_kind: p.person_kind,
+      label: liveStaffPersonLabel(p, index),
+    }));
+  });
+  return list;
+}
+
+export function overlayNewsRowRecognizedStaff(row, index, people) {
+  if (!row || typeof row !== 'object') return row;
+  const recognized = (people || []).find(
+    (p) => lower(p.person_kind) === 'staff' && lower(p.relationship) === 'recognized'
+  );
+  if (!recognized) return row;
+  const staffRow = resolveStaffRowByPersonKey(index, recognized.person_key);
+  if (!staffRow) return row;
+  const canonical = formatPublicStaffName(staffRow);
+  if (!canonical) return row;
+  const previous = previousStaffLeakLabels(recognized, staffRow);
+  if (row.body) row.body = rewriteRecognizingLine(row.body, canonical);
+  if (row.title) row.title = replaceExactLabels(row.title, previous, canonical);
+  row.recognition_public_label = canonical;
+  return row;
+}
+
+export function overlayRecognitionListRow(row, index, people) {
+  if (!row || typeof row !== 'object') return row;
+  const recognized = (people || []).find(
+    (p) => lower(p.person_kind) === 'staff' && lower(p.relationship) === 'recognized'
+  );
+  if (recognized) {
+    const staffRow = resolveStaffRowByPersonKey(index, recognized.person_key);
+    if (staffRow) {
+      const canonical = formatPublicStaffName(staffRow);
+      if (canonical) row.character_public_label = canonical;
+    }
+  }
+  const authorLabel = resolveAuthorPublicLabel(index, {
+    authorId: row.created_by_teacher_id,
+    authorRole: 'teacher',
+    authorDisplayName: row.created_by_teacher_name,
+  });
+  if (authorLabel) row.created_by_teacher_public_label = authorLabel;
+  return row;
 }
 
 /**

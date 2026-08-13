@@ -113,10 +113,11 @@ const missing = {
   honorific: null,
   role: 'teacher',
 };
-assert(formatPublicStaffName(missing) === 'Jane Doe', '6a. missing honorific → full name fallback');
+assert(formatPublicStaffName(missing) === 'Doe', '6a. missing honorific → last name only (no first-name leak)');
 assert(staffNeedsHonorific(missing) === true, '6b. Needs Title for missing');
 assert(!String(formatPublicStaffName(missing)).includes('undefined'), '6c. no undefined');
 assert(!String(formatPublicStaffName(missing)).includes('null'), '6d. no null');
+assert(formatPublicStaffName(missing) !== 'Jane Doe', '6e. does not expose first+last');
 
 const webAdmin = {
   username: 'admin',
@@ -136,7 +137,7 @@ const idx = buildStaffPublicNameIndex([rick, deana, webAdmin, missing, sroMike])
 assert(resolveAuthorPublicLabel(idx, { authorId: 'rick.radle', authorRole: 'teacher' }) === 'Mr. Radle', '9a. feed author Rick');
 assert(resolveAuthorPublicLabel(idx, { actor_id: 'deana.pachelli', author_type: 'teacher' }) === 'Ms. Pachelli', '9b. feed author Deana');
 assert(resolveAuthorPublicLabel(idx, { actor_id: 'admin', author_type: 'admin' }) === 'Web Admin', '9c. feed author admin');
-assert(resolveAuthorPublicLabel(idx, { authorId: 'jane.doe', authorRole: 'teacher' }) === 'Jane Doe', '9d. missing honorific fallback');
+assert(resolveAuthorPublicLabel(idx, { authorId: 'jane.doe', authorRole: 'teacher' }) === 'Doe', '9d. missing honorific last-name fallback');
 assert(resolveAuthorPublicLabel(idx, { authorRole: 'student', authorDisplayName: 'Lucas Radle' }) === '', '9e. student → client compact');
 assert(resolveAuthorPublicLabel(idx, { authorId: 'mike.martinez', authorRole: 'staff' }) === 'SRO Martinez', '9f. feed author SRO');
 

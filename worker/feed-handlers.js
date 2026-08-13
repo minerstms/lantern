@@ -8,7 +8,12 @@ import { filterFeedItemsForHallwayTv } from './media-publicity.js';
 import { ensureContentApprovedMissionCompletion, isSystemMissionEventMarkerSubmission } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import { attachAuthorAvatarKeys, loadPilotAvatarKeyIndex } from './author-avatar-key.js';
-import { attachAuthorPublicLabels, loadStaffPublicNameIndex } from './staff-public-name.js';
+import {
+  attachAuthorPublicLabels,
+  attachRecognizedStaffPublicLabels,
+  loadStaffPublicNameIndex,
+} from './staff-public-name.js';
+import { loadContentPeopleIndex } from './content-people.js';
 import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
 
 export const FEED_TYPES = {
@@ -259,6 +264,7 @@ export function normalizePollRow(row, origin) {
   }
   if (!Array.isArray(choices)) choices = [];
   const question = String(row.question || '').trim() || 'Poll';
+  const staffUser = parseStaffEconomyKey(row.character_name);
   // Prompt #215 — do NOT flatten MC choices into body/summary (Explore was showing them as
   // paragraph text and opening the generic content modal). Choices live in contentSlot only.
   const adapted = {
@@ -267,9 +273,9 @@ export function normalizePollRow(row, origin) {
     title: question,
     body: '',
     summary: 'Tap to vote',
-    author_id: null,
-    author_display_name: row.character_name || 'Poll',
-    author_role: 'student',
+    author_id: staffUser || null,
+    author_display_name: staffUser ? staffUser : row.character_name || 'Poll',
+    author_role: staffUser ? 'staff' : 'student',
     direct_image_url: row.image_url || null,
     tags: '[]',
     status: 'approved',
@@ -455,15 +461,17 @@ async function fetchApprovedShoutOuts(db, origin, limit) {
 
 export async function collectApprovedFeed(db, origin, opts) {
   const limit = opts && opts.limit ? opts.limit : 200;
-  const [feedItems, newsItems, missionItems, pollItems, shoutItems, avatarIndex, staffNameIndex] = await Promise.all([
-    fetchApprovedFeedItems(db, origin),
-    fetchApprovedNews(db, origin),
-    fetchApprovedMissions(db, origin, limit),
-    fetchApprovedPolls(db, origin, limit),
-    fetchApprovedShoutOuts(db, origin, limit),
-    loadPilotAvatarKeyIndex(db),
-    loadStaffPublicNameIndex(db),
-  ]);
+  const [feedItems, newsItems, missionItems, pollItems, shoutItems, avatarIndex, staffNameIndex, peopleByContent] =
+    await Promise.all([
+      fetchApprovedFeedItems(db, origin),
+      fetchApprovedNews(db, origin),
+      fetchApprovedMissions(db, origin, limit),
+      fetchApprovedPolls(db, origin, limit),
+      fetchApprovedShoutOuts(db, origin, limit),
+      loadPilotAvatarKeyIndex(db),
+      loadStaffPublicNameIndex(db),
+      loadContentPeopleIndex(db),
+    ]);
   // Prompt #97: known demo/fake personas (created while building the app) have real, approved
   // rows in production across feed sources here — filter them from this unified public
   // Explore feed rather than deleting the historical rows. See worker/demo-persona-guard.js.
@@ -473,8 +481,9 @@ export async function collectApprovedFeed(db, origin, opts) {
   );
   // Prompt #218 — attach Locker avatar profile keys (username / student economy id), not display labels.
   attachAuthorAvatarKeys(items, avatarIndex);
-  // Prompt #220 — staff public author labels (Honorific + Last Name when configured).
+  // Prompt #220/#133 — staff public author labels (Honorific + Last Name when configured).
   attachAuthorPublicLabels(items, staffNameIndex);
+  attachRecognizedStaffPublicLabels(items, staffNameIndex, peopleByContent);
   return items;
 }
 

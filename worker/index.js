@@ -22,6 +22,8 @@ import {
   loadStaffPublicNameIndex,
   resolveAuthorPublicLabel,
   formatPublicStaffName,
+  overlayNewsRowRecognizedStaff,
+  overlayRecognitionListRow,
 } from './staff-public-name.js';
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
 import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar-key.js';
@@ -53,6 +55,7 @@ import {
   replaceContentPeople,
   copyContentPeople,
   listContentPeople,
+  loadContentPeopleIndex,
   publicPeopleForReview,
 } from './content-people.js';
 import {
@@ -5946,10 +5949,22 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     // Prompt #218 — expose actor_id + Locker avatar key so ticker/LLHC do not look up display names.
     const avatarIndex = await loadPilotAvatarKeyIndex(db);
     const staffNameIndex = await loadStaffPublicNameIndex(db);
-    const list = rawResults.map(r => ({
+    const peopleByContent = await loadContentPeopleIndex(db);
+    const list = rawResults.map(r => {
+      const people = peopleByContent.get('news|' + String(r.id || '').trim()) || [];
+      const overlaid = overlayNewsRowRecognizedStaff(
+        {
+          id: r.id,
+          title: r.title,
+          body: r.body,
+        },
+        staffNameIndex,
+        people
+      );
+      return {
       id: r.id,
-      title: r.title,
-      body: r.body,
+      title: overlaid.title,
+      body: overlaid.body,
       category: r.category != null && String(r.category).trim() !== '' ? String(r.category).trim() : null,
       actor_id: r.actor_id != null && String(r.actor_id).trim() ? String(r.actor_id).trim() : null,
       author_avatar_key: resolveAuthorAvatarKey(avatarIndex, {
@@ -5976,7 +5991,8 @@ async function handleNewsRoutes(request, url, path, env, cors) {
       status: r.status,
       created_at: r.created_at,
       approved_at: r.reviewed_at,
-    }));
+    };
+    });
     return jsonResponse({ ok: true, news: list }, 200, cors);
   }
 
@@ -7804,16 +7820,31 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     (profiles.results || []).forEach(p => {
       if (p.character_name && p.current_avatar_key) avatarByChar[p.character_name] = p.current_avatar_key;
     });
+    const staffNameIndex = await loadStaffPublicNameIndex(db);
+    const peopleByContent = await loadContentPeopleIndex(db);
     // Prompt #97: same demo-persona filter as /api/news/approved — see worker/demo-persona-guard.js.
     let list = filterOutDemoPersonas(rows.results || [], 'character_name').map(r => {
       const key = avatarByChar[r.character_name];
+      const people = peopleByContent.get('recognition|' + String(r.id || '').trim()) || [];
+      const overlaid = overlayRecognitionListRow(
+        {
+          id: r.id,
+          character_name: r.character_name,
+          created_by_teacher_id: r.created_by_teacher_id,
+          created_by_teacher_name: r.created_by_teacher_name || '',
+        },
+        staffNameIndex,
+        people
+      );
       return {
         id: r.id,
         character_name: r.character_name,
+        character_public_label: overlaid.character_public_label || null,
         message: r.message,
         category: r.category || '',
         created_at: r.created_at,
         created_by_teacher_name: r.created_by_teacher_name || '',
+        created_by_teacher_public_label: overlaid.created_by_teacher_public_label || null,
         avatar_image: key ? origin + '/api/avatar/image?key=' + encodeURIComponent(key) : null,
         image_r2_key: r.image_r2_key || null,
         image_url: r.image_r2_key ? origin + '/api/news/image?key=' + encodeURIComponent(r.image_r2_key) : null,

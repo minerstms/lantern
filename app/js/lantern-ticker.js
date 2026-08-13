@@ -412,8 +412,10 @@
         recognitionList.forEach(function (r) {
           var msg = String(r.message || '').trim().slice(0, 250);
           if ((r.message || '').length > 250) msg += '…';
-          var title = String(r.character_name || '').trim() || 'Recognition';
-          var subtitle = msg || (r.created_by_teacher_name ? 'From ' + r.created_by_teacher_name : '');
+          /* Prompt #133 — professional staff label from Worker overlay; never first+last snapshots. */
+          var title = String(r.character_public_label || r.character_name || '').trim() || 'Recognition';
+          var fromStaff = String(r.created_by_teacher_public_label || r.created_by_teacher_name || '').trim();
+          var subtitle = msg || (fromStaff ? 'From ' + fromStaff : '');
           var key = title.toLowerCase() + '\n' + subtitle.toLowerCase();
           if (seenRec[key]) return;
           seenRec[key] = true;
