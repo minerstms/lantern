@@ -27,8 +27,8 @@ assert(/--lantern-opened-modal-max-height:\s*min\(88dvh/.test(cardsCss), '6. mod
 assert(/--lantern-opened-modal-max-width/.test(cardsCss), '7. modal max-width token present');
 assert(/safe-area-inset/.test(cardsCss), '8. safe-area padding on overlay');
 assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailModal[\s\S]{0,240}max-height:\s*min\(var\(--lantern-opened-modal-max-height/.test(cardsCss), '9. overlay modal constrained to viewport');
-assert(/#lanternCardDetailOverlay\s+\.lanternSurfaceContent[\s\S]{0,160}overflow-y:\s*auto/.test(cardsCss), '10. content scrolls internally');
-assert(/position:\s*sticky/.test(cardsCss) && /lanternCardDetailHeader/.test(cardsCss), '11. close header sticky');
+assert(/#lanternCardDetailOverlay\s+\.lanternSurfaceContent[\s\S]{0,160}overflow:\s*hidden/.test(cardsCss), '10. overlay content does not outer-scroll');
+assert(/#lanternCardDetailOverlay\s+\.lanternCardDetailHeader[\s\S]{0,160}flex-shrink:\s*0/.test(cardsCss), '11. close header pinned');
 assert(/--lantern-opened-image-max-height/.test(cardsCss) && /object-fit:\s*contain/.test(cardsCss), '12. opened image contain + viewport max-height');
 assert(/aspect-ratio:\s*auto/.test(cardsCss), '13. detail overrides rail 16:9 crop');
 assert(/display:\s*none\s*!important/.test(rxCss), '14. legacy View full image CSS hidden');

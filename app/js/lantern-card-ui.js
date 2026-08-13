@@ -1,6 +1,7 @@
 /**
  * Lantern — shared opened-card surface + fullscreen media for student preview cards (Explore, Profile, Contribute embedded).
  * - Opened surface: #lanternCardDetailOverlay + fillNewsDetailModal / fillCreationDetailModal / fillPollDetailModal; mount*DetailInto for embedded.
+ * - Prompt #148 — Explore overlay is a viewport-fit shell (header + stage + footer). Outer modal does not scroll; long body uses in-modal Reading Mode.
  * - Fullscreen media: openMediaFullscreen + wireOpenedPostMediaInteractions (only stack for student opened-post media).
  * Depends: LanternCards, LanternMedia (optional), LANTERN_REACTIONS (news), LANTERN_API (post reactions).
  * See docs/ui/LANTERN_RAIL_OPEN_FULLSCREEN_SYSTEM.md
@@ -17,6 +18,7 @@
   var overlay = null;
   var escapeWired = false;
   var mediaFsOverlay = null;
+  var canonicalResizeWired = false;
 
   /** Prompt #9 — freeze page scroll while opened-detail dialog is shown (prevents jump/zoom feel). */
   function lockPageScrollForDetail() {
@@ -43,11 +45,336 @@
     } catch (eScroll) {}
   }
 
+  function isExploreOpenedOverlayModal(modalRoot) {
+    if (!modalRoot) return false;
+    var cl = modalRoot.classList;
+    if (cl && typeof cl.contains === 'function' && cl.contains('lanternCardDetailModal--embedded')) return false;
+    if (typeof modalRoot.closest === 'function') {
+      try {
+        return !!modalRoot.closest('#lanternCardDetailOverlay');
+      } catch (eClosest) {}
+    }
+    var p = modalRoot.parentNode;
+    while (p) {
+      if (p.id === 'lanternCardDetailOverlay') return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+
+  function openedModalHasMedia(modalRoot) {
+    var v = modalRoot && modalRoot.querySelector ? modalRoot.querySelector('.lanternCardDetailVisual') : null;
+    if (!v) return false;
+    if (!String(v.innerHTML || '').trim()) return false;
+    return !!(v.querySelector('img, video, .lanternDetailMedia, .exploreCardVisual, .lcCardImg, .pollModalImage'));
+  }
+
+  function openedReadingReturnLabel(modalRoot) {
+    var v = modalRoot && modalRoot.querySelector ? modalRoot.querySelector('.lanternCardDetailVisual') : null;
+    if (v && v.querySelector('video, .lanternDetailMedia--video')) return 'Show video';
+    if (v && v.querySelector('img, .lanternDetailMedia--img')) return 'Show photo';
+    if (openedModalHasMedia(modalRoot)) return 'Show media';
+    return 'Collapse message';
+  }
+
+  function ensureCanonicalOpenedShell(modalRoot) {
+    if (!modalRoot || !global.document) return;
+    var sc = modalRoot.querySelector('.lanternSurfaceContent');
+    if (!sc) return;
+    var header = sc.querySelector('.lanternCardDetailHeader');
+    var stage = sc.querySelector('.lanternCardDetailStage');
+    if (!stage) {
+      stage = global.document.createElement('div');
+      stage.className = 'lanternCardDetailStage';
+      if (header && header.parentNode === sc) sc.insertBefore(stage, header.nextSibling);
+      else sc.insertBefore(stage, sc.firstChild);
+    }
+    var stageOrder = [
+      'lanternCardDetailVisual',
+      'lanternCardDetailTitle',
+      'lanternCardDetailIdentityWrap',
+      'lanternCardDetailMeta',
+      'lanternCardDetailRecognizing',
+      'lanternCardDetailBody',
+      'lanternCardDetailAdminModeration',
+    ];
+    for (var si = 0; si < stageOrder.length; si++) {
+      var node = sc.querySelector('.' + stageOrder[si]);
+      if (node && node.parentNode !== stage) stage.appendChild(node);
+    }
+    var rec = stage.querySelector('.lanternCardDetailRecognizing');
+    if (!rec) {
+      rec = global.document.createElement('div');
+      rec.className = 'lanternCardDetailRecognizing';
+      rec.id = 'lanternCardDetailRecognizing';
+      rec.hidden = true;
+      rec.setAttribute('aria-hidden', 'true');
+      var bodySlot = stage.querySelector('.lanternCardDetailBody');
+      if (bodySlot) stage.insertBefore(rec, bodySlot);
+      else stage.appendChild(rec);
+    }
+    var footer = sc.querySelector('.lanternCardDetailFooter');
+    if (!footer) {
+      footer = global.document.createElement('footer');
+      footer.className = 'lanternCardDetailFooter';
+      sc.appendChild(footer);
+    }
+    var actions = sc.querySelector('.lanternCardDetailActions');
+    var rx = sc.querySelector('.lanternCardDetailReactions');
+    if (actions && actions.parentNode !== footer) footer.appendChild(actions);
+    if (rx && rx.parentNode !== footer) footer.appendChild(rx);
+  }
+
+  function ensureCanonicalBodyChrome(modalRoot) {
+    if (!modalRoot || !global.document) return null;
+    var body = modalRoot.querySelector('.lanternCardDetailBody');
+    if (!body) return null;
+    var read = body.querySelector('.lanternCardDetailBodyRead');
+    if (!read) {
+      read = global.document.createElement('div');
+      read.className = 'lanternCardDetailBodyRead';
+      var move = [];
+      for (var i = 0; i < body.childNodes.length; i++) {
+        var n = body.childNodes[i];
+        if (n.classList && n.classList.contains('lanternCardDetailReadToggle')) continue;
+        move.push(n);
+      }
+      for (var mi = 0; mi < move.length; mi++) read.appendChild(move[mi]);
+      body.insertBefore(read, body.firstChild);
+    }
+    var toggle = body.querySelector('.lanternCardDetailReadToggle');
+    if (!toggle) {
+      toggle = global.document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'lanternCardDetailReadToggle';
+      toggle.hidden = true;
+      body.appendChild(toggle);
+    }
+    return { body: body, read: read, toggle: toggle };
+  }
+
+  function syncOpenedBodyVisibility(modalRoot) {
+    var body = modalRoot && modalRoot.querySelector ? modalRoot.querySelector('.lanternCardDetailBody') : null;
+    if (!body) return;
+    var read = body.querySelector('.lanternCardDetailBodyRead');
+    var hasText = !!(read && String(read.textContent || '').trim());
+    var hasPollUi = !!(read && (read.querySelector('.pollChoiceBtn, .pollChoiceGroup, .pollResultsWrap, #lanternPollDetailChoices, .pollLockInBtn')));
+    body.style.display = hasText || hasPollUi ? '' : 'none';
+  }
+
+  function applyOpenedRecognizing(modalRoot, item) {
+    var rec = modalRoot && modalRoot.querySelector ? modalRoot.querySelector('.lanternCardDetailRecognizing') : null;
+    if (!rec) return;
+    var party = '';
+    var LC = global.LanternCards;
+    if (item && LC && typeof LC.shoutOutRecognizedPartyLabel === 'function') {
+      party = String(LC.shoutOutRecognizedPartyLabel(item) || '').trim();
+    }
+    var cap = modalRoot.querySelector('.lanternCardDetailCaption');
+    var blob = cap ? String(cap.textContent || '') : '';
+    if (!party) {
+      var m = blob.match(/Recognizing:\s*([^\n\r]+)/i);
+      if (m && m[1]) party = String(m[1]).replace(/\s+/g, ' ').trim();
+    }
+    if (!party || /^(undefined|null)$/i.test(party)) {
+      rec.hidden = true;
+      rec.textContent = '';
+      rec.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    rec.hidden = false;
+    rec.setAttribute('aria-hidden', 'false');
+    rec.textContent = 'Recognizing: ' + party;
+    if (cap) {
+      var html = String(cap.innerHTML || '');
+      var stripped = html.replace(/Recognizing:\s*[^<]*(?:<br\s*\/?>)?/gi, '');
+      stripped = stripped.replace(/^(?:\s|<br\s*\/?>)+/i, '');
+      cap.innerHTML = stripped;
+      if (!String(cap.textContent || '').trim() && cap.parentNode) cap.parentNode.removeChild(cap);
+    }
+  }
+
+  function measureOpenedModalTruncation(modalRoot) {
+    if (!isExploreOpenedOverlayModal(modalRoot)) return;
+    var chrome = ensureCanonicalBodyChrome(modalRoot);
+    if (!chrome || !chrome.toggle || !chrome.read) return;
+    var read = chrome.read;
+    var toggle = chrome.toggle;
+    if (modalRoot.classList.contains('lanternCardDetailModal--poll')) {
+      toggle.hidden = true;
+      toggle.textContent = '';
+      modalRoot.classList.remove('lanternCardDetailModal--truncated');
+      return;
+    }
+    if (modalRoot.classList.contains('lanternCardDetailModal--reading')) {
+      toggle.hidden = false;
+      toggle.textContent = openedReadingReturnLabel(modalRoot);
+      toggle.setAttribute('aria-expanded', 'true');
+      return;
+    }
+    var overflowing = read.scrollHeight > read.clientHeight + 1;
+    var cap = read.querySelector('.lanternCardDetailCaption');
+    if (!overflowing && cap) overflowing = cap.scrollHeight > cap.clientHeight + 1;
+    modalRoot.classList.toggle('lanternCardDetailModal--truncated', overflowing);
+    toggle.hidden = !overflowing;
+    if (overflowing) {
+      toggle.textContent = 'Read full message';
+      toggle.setAttribute('aria-expanded', 'false');
+    } else {
+      toggle.textContent = '';
+      toggle.removeAttribute('aria-expanded');
+    }
+  }
+
+  function scheduleOpenedModalMeasure(modalRoot) {
+    if (!modalRoot) return;
+    if (typeof global.requestAnimationFrame !== 'function') {
+      measureOpenedModalTruncation(modalRoot);
+      return;
+    }
+    global.requestAnimationFrame(function () {
+      global.requestAnimationFrame(function () {
+        measureOpenedModalTruncation(modalRoot);
+      });
+    });
+  }
+
+  function enterOpenedReadingMode(modalRoot) {
+    if (!modalRoot || !modalRoot.classList) return;
+    modalRoot.classList.add('lanternCardDetailModal--reading');
+    var read = modalRoot.querySelector('.lanternCardDetailBodyRead');
+    if (read) read.scrollTop = 0;
+    scheduleOpenedModalMeasure(modalRoot);
+  }
+
+  function exitOpenedReadingMode(modalRoot) {
+    if (!modalRoot || !modalRoot.classList) return;
+    modalRoot.classList.remove('lanternCardDetailModal--reading');
+    var read = modalRoot.querySelector('.lanternCardDetailBodyRead');
+    if (read) read.scrollTop = 0;
+    scheduleOpenedModalMeasure(modalRoot);
+  }
+
+  function toggleOpenedReadingMode(modalRoot) {
+    if (!modalRoot || !modalRoot.classList) return;
+    if (modalRoot.classList.contains('lanternCardDetailModal--reading')) exitOpenedReadingMode(modalRoot);
+    else enterOpenedReadingMode(modalRoot);
+  }
+
+  function wireOpenedModalReadControls(modalRoot) {
+    var chrome = ensureCanonicalBodyChrome(modalRoot);
+    if (!chrome) return;
+    if (chrome.toggle.dataset.lanternReadWired !== '1') {
+      chrome.toggle.dataset.lanternReadWired = '1';
+      chrome.toggle.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleOpenedReadingMode(modalRoot);
+      });
+    }
+    if (chrome.read.dataset.lanternReadWired !== '1') {
+      chrome.read.dataset.lanternReadWired = '1';
+      chrome.read.addEventListener('click', function (e) {
+        var t = e.target;
+        if (t && t.closest && t.closest('a, button, input, textarea, select, video, .pollChoiceBtn, .pollLockInBtn')) return;
+        if (!modalRoot.classList.contains('lanternCardDetailModal--truncated')) return;
+        if (modalRoot.classList.contains('lanternCardDetailModal--reading')) return;
+        if (modalRoot.classList.contains('lanternCardDetailModal--poll')) return;
+        enterOpenedReadingMode(modalRoot);
+      });
+    }
+  }
+
+  function wireOpenedModalMediaMeasure(modalRoot) {
+    var v = modalRoot && modalRoot.querySelector ? modalRoot.querySelector('.lanternCardDetailVisual') : null;
+    if (!v) return;
+    var imgs = v.querySelectorAll('img');
+    for (var i = 0; i < imgs.length; i++) {
+      if (imgs[i].dataset.lanternMeasureWired === '1') continue;
+      imgs[i].dataset.lanternMeasureWired = '1';
+      imgs[i].addEventListener('load', function () { scheduleOpenedModalMeasure(modalRoot); });
+    }
+    var vids = v.querySelectorAll('video');
+    for (var vi = 0; vi < vids.length; vi++) {
+      if (vids[vi].dataset.lanternMeasureWired === '1') continue;
+      vids[vi].dataset.lanternMeasureWired = '1';
+      vids[vi].addEventListener('loadedmetadata', function () { scheduleOpenedModalMeasure(modalRoot); });
+    }
+  }
+
+  function wireOpenedModalResize() {
+    if (canonicalResizeWired) return;
+    canonicalResizeWired = true;
+    global.addEventListener('resize', function () {
+      if (!overlay || !overlay.classList || !overlay.classList.contains('show')) return;
+      var modal = overlay.querySelector('.lanternCardDetailModal');
+      if (modal) scheduleOpenedModalMeasure(modal);
+    });
+  }
+
+  function resetCanonicalOpenedModal(modalRoot) {
+    if (!modalRoot || !modalRoot.classList) return;
+    modalRoot.classList.remove(
+      'lanternCardDetailModal--reading',
+      'lanternCardDetailModal--no-media',
+      'lanternCardDetailModal--poll',
+      'lanternCardDetailModal--video',
+      'lanternCardDetailModal--truncated'
+    );
+    var read = modalRoot.querySelector('.lanternCardDetailBodyRead');
+    if (read) read.scrollTop = 0;
+    var rec = modalRoot.querySelector('.lanternCardDetailRecognizing');
+    if (rec) {
+      rec.hidden = true;
+      rec.textContent = '';
+      rec.setAttribute('aria-hidden', 'true');
+    }
+    var toggle = modalRoot.querySelector('.lanternCardDetailReadToggle');
+    if (toggle) {
+      toggle.hidden = true;
+      toggle.textContent = '';
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function prepareCanonicalOpenedModal(modalRoot, ctx) {
+    ctx = ctx || {};
+    if (!isExploreOpenedOverlayModal(modalRoot)) return;
+    ensureCanonicalOpenedShell(modalRoot);
+    modalRoot.classList.remove('lanternCardDetailModal--reading', 'lanternCardDetailModal--truncated');
+    var read = modalRoot.querySelector('.lanternCardDetailBodyRead');
+    if (read) read.scrollTop = 0;
+    ensureCanonicalBodyChrome(modalRoot);
+    var kind = String(ctx.kind || '').toLowerCase();
+    var isPoll = kind === 'poll' || !!(modalRoot.querySelector('#lanternPollDetailChoices, .pollChoiceGroup, .pollLockInBtn'));
+    modalRoot.classList.toggle('lanternCardDetailModal--poll', isPoll);
+    var hasVideo = !!(modalRoot.querySelector('.lanternDetailMedia--video, video.newsCardVideo, video.lcCardVideo'));
+    modalRoot.classList.toggle('lanternCardDetailModal--video', hasVideo);
+    modalRoot.classList.toggle('lanternCardDetailModal--no-media', !openedModalHasMedia(modalRoot));
+    if (isPoll) {
+      var rec = modalRoot.querySelector('.lanternCardDetailRecognizing');
+      if (rec) {
+        rec.hidden = true;
+        rec.textContent = '';
+        rec.setAttribute('aria-hidden', 'true');
+      }
+    } else {
+      applyOpenedRecognizing(modalRoot, ctx.item || null);
+    }
+    syncOpenedBodyVisibility(modalRoot);
+    wireOpenedModalReadControls(modalRoot);
+    wireOpenedModalMediaMeasure(modalRoot);
+    wireOpenedModalResize();
+    scheduleOpenedModalMeasure(modalRoot);
+  }
+
   function showDetailOverlay(el) {
     if (!el) return;
     el.classList.add('show');
     el.setAttribute('aria-hidden', 'false');
     lockPageScrollForDetail();
+    var modal = el.querySelector('.lanternCardDetailModal');
+    if (modal) prepareCanonicalOpenedModal(modal);
   }
 
   function closeMediaFullscreen() {
@@ -209,6 +536,7 @@
           if (actEl) scAdm.insertBefore(admEl, actEl);
           else scAdm.appendChild(admEl);
         }
+        ensureCanonicalOpenedShell(modalPatch);
       }
       return overlay;
     }
@@ -222,14 +550,19 @@
       '<header class="lanternCardDetailHeader" role="presentation">' +
       '<button type="button" class="lanternCardDetailClose" aria-label="Close">✕</button>' +
       '</header>' +
+      '<div class="lanternCardDetailStage">' +
       '<div class="lanternCardDetailVisual" id="lanternCardDetailVisual"></div>' +
       '<h2 class="lanternCardDetailTitle" id="lanternCardDetailTitle"></h2>' +
       '<div class="lanternCardDetailIdentityWrap" id="lanternCardDetailIdentityWrap"></div>' +
       '<div class="lanternCardDetailMeta" id="lanternCardDetailMeta"></div>' +
+      '<div class="lanternCardDetailRecognizing" id="lanternCardDetailRecognizing" hidden></div>' +
       '<div class="lanternCardDetailBody" id="lanternCardDetailBody"></div>' +
       '<div class="lanternCardDetailAdminModeration" id="lanternCardDetailAdminModeration" aria-hidden="true"></div>' +
+      '</div>' +
+      '<footer class="lanternCardDetailFooter">' +
       '<div class="lanternCardDetailActions" id="lanternCardDetailActions"></div>' +
       '<div class="lanternCardDetailReactions" id="lanternCardDetailReactions"></div>' +
+      '</footer>' +
       '</div></div>';
     global.document.body.appendChild(overlay);
     overlay.addEventListener('click', function (e) {
@@ -246,6 +579,8 @@
     overlay.classList.remove('show');
     overlay.setAttribute('aria-hidden', 'true');
     unlockPageScrollForDetail();
+    var modalClose = overlay.querySelector('.lanternCardDetailModal');
+    if (modalClose) resetCanonicalOpenedModal(modalClose);
     var rx = global.document.getElementById('lanternCardDetailReactions');
     if (rx) rx.innerHTML = '';
     var ex = global.document.getElementById('lanternCardDetailProfileExtras');
@@ -893,6 +1228,7 @@
       modalRoot.appendChild(wrap);
       opts.profilePostExtras.mount(wrap, p);
     }
+    prepareCanonicalOpenedModal(modalRoot, { kind: 'creation', item: p });
   }
 
   function openCreation(p, opts) {
@@ -1133,6 +1469,7 @@
       show: !!(ownsNews && newsRemovable),
       target: ownsNews && newsRemovable ? { item_type: 'news', item_id: String(itemId).replace(/^news:/, '') } : null,
     });
+    prepareCanonicalOpenedModal(modalRoot, { kind: 'news', item: n });
   }
 
   function openNews(n, opts) {
@@ -1489,6 +1826,7 @@
     var a = modalRoot.querySelector('.lanternCardDetailActions');
     var r = modalRoot.querySelector('.lanternCardDetailReactions');
     if (!v || !t || !m || !b || !a || !r) return;
+    try {
     var admClearP = modalRoot.querySelector('#lanternCardDetailAdminModeration');
     if (admClearP) {
       admClearP.innerHTML = '';
@@ -1751,6 +2089,9 @@
       });
       choicesEl.appendChild(lockBtn);
       syncChoiceSelection();
+    }
+    } finally {
+      prepareCanonicalOpenedModal(modalRoot, { kind: 'poll' });
     }
   }
 
@@ -2150,6 +2491,7 @@
         body: { id: feedTarget.item_id },
       });
     }
+    prepareCanonicalOpenedModal(modalRoot, { kind: String(item.type || '').toLowerCase(), item: item });
   }
 
   function resolveFeedPollId(item) {
