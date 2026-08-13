@@ -34,8 +34,8 @@ if (/schoolAccessStatusDashboard/.test(pane) && /Current Access Status/.test(pan
   ok('Current Access Status is always-open section, not details');
 } else bad('status dashboard markup wrong');
 
-if (/Individual Access/.test(pane) && /Pending Access Requests/.test(pane) && /Active Individual Grants/.test(pane)) {
-  ok('Individual Access hosts pending + active grants');
+if (/Individual Access/.test(pane) && /Pre-authorize Student/.test(pane) && /individualAccessBoardMount/.test(pane) && /lantern-individual-access\.js/.test(html)) {
+  ok('Individual Access hosts pre-authorize + Power Scroller board');
 } else bad('Individual Access content incomplete');
 
 if (!/id="classAccessCard"[\s\S]*Pending Access Requests/.test(pane)) {

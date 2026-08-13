@@ -95,7 +95,20 @@
    * @param {string} apiBase
    * @param {function(string)} onSuccess - Receives token
    */
-  var ACCESS_REQUEST_POLL_MS = 5000;
+    var ACCESS_REQUEST_POLL_MS = 5000;
+    var ACCESS_STATE_POLL_MS = 5000;
+
+    function isAuthenticatedStudent() {
+      try {
+        var me = global.LANTERN_PILOT_ME;
+        if (me && me.ok && String(me.role || '').trim().toLowerCase() === 'student') return true;
+        if (global.LanternPilotAuth && typeof global.LanternPilotAuth.getCachedPilotMe === 'function') {
+          me = global.LanternPilotAuth.getCachedPilotMe();
+          if (me && String(me.role || '').trim().toLowerCase() === 'student') return true;
+        }
+      } catch (e) {}
+      return false;
+    }
 
   function renderGate(container, apiBase, onSuccess) {
     var el = typeof container === 'string' ? (document.getElementById(container) || document.querySelector(container)) : container;
@@ -109,7 +122,7 @@
       '<button type="button" id="classAccessJoinBtn" class="btn good" style="padding:14px 24px;font-size:24px;font-weight:800;">Join Class</button>' +
       '<p style="color:var(--muted);font-size:22px;margin:18px 0 10px;">— or —</p>' +
       '<div id="classAccessRequestIdle">' +
-      '<p style="color:var(--muted);font-size:22px;margin-bottom:14px;">Lantern is locked during school hours.</p>' +
+      '<p style="color:var(--muted);font-size:22px;margin-bottom:14px;">Lantern access is currently closed.</p>' +
       '<button type="button" id="classAccessRequestBtn" class="btn" style="padding:14px 24px;font-size:24px;font-weight:800;">Request Access</button>' +
       '</div>' +
       '<div id="classAccessRequestNamePanel" style="display:none;">' +
@@ -117,9 +130,9 @@
       '<button type="button" id="classAccessRequestSendBtn" class="btn" style="padding:14px 24px;font-size:24px;font-weight:800;">Send Request</button>' +
       '</div>' +
       '<div id="classAccessRequestWaitingPanel" style="display:none;">' +
-      '<p style="font-size:22px;margin-bottom:6px;">Access requested</p>' +
-      '<p style="color:var(--muted);font-size:22px;margin-bottom:10px;">Tell your teacher:</p>' +
-      '<p id="classAccessRequestPhrase" style="font-weight:1000;font-size:30px;letter-spacing:1px;margin-bottom:14px;"></p>' +
+      '<p style="font-size:22px;margin-bottom:6px;">Access requested.</p>' +
+      '<p style="color:var(--muted);font-size:22px;margin-bottom:10px;">Your teacher can approve this browser.</p>' +
+      '<p id="classAccessRequestPhrase" style="font-weight:1000;font-size:24px;letter-spacing:1px;margin-bottom:14px;"></p>' +
       '<p id="classAccessRequestWaitingMsg" style="color:var(--muted);font-size:22px;">Waiting for approval…</p>' +
       '</div>' +
       '<p id="classAccessRequestError" style="display:none;color:var(--bad);font-weight:800;font-size:22px;margin-top:12px;"></p>' +
@@ -235,7 +248,10 @@
           requestInProgress = false;
           var res = result.body;
           if (res && res.ok && res.requestPhrase) {
-            if (phraseEl) phraseEl.textContent = res.requestPhrase;
+            if (phraseEl) {
+              phraseEl.textContent = res.requestPhrase;
+              phraseEl.style.display = 'block';
+            }
             if (waitingMsgEl) waitingMsgEl.textContent = 'Waiting for approval…';
             showPanel('waiting');
             startPolling();
@@ -261,6 +277,9 @@
     }
 
     if (reqBtn) reqBtn.addEventListener('click', function () { sendRequest(null); });
+    if (!isAuthenticatedStudent()) {
+      if (idlePanel) idlePanel.style.display = 'none';
+    }
     if (sendBtn) {
       sendBtn.addEventListener('click', function () {
         var name = (nameInput && nameInput.value || '').trim();
@@ -337,6 +356,20 @@
         gateWrap.style.alignItems = 'center';
         gateWrap.style.justifyContent = 'center';
         if (!gateWrap.querySelector('.classAccessGate')) renderGate(gateWrap, apiBase, function () { location.reload(); });
+        if (isAuthenticatedStudent() && !gateWrap._lanternAccessStatePoll) {
+          gateWrap._lanternAccessStatePoll = setInterval(function () {
+            if (document.visibilityState && document.visibilityState !== 'visible') return;
+            getAccessState(apiBase, function (next) {
+              if (next && next.tokenValid) {
+                if (gateWrap._lanternAccessStatePoll) {
+                  clearInterval(gateWrap._lanternAccessStatePoll);
+                  gateWrap._lanternAccessStatePoll = null;
+                }
+                location.reload();
+              }
+            });
+          }, ACCESS_STATE_POLL_MS);
+        }
       } else {
         gateWrap.style.display = 'none';
         setContentVisible(contentWrap);

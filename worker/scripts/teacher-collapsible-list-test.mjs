@@ -79,8 +79,6 @@ const requiredPanels = [
   ['#moderationLivePanel', 'Moderation live'],
   ['#moderationHiddenPanel', 'Moderation hidden'],
   ['#moderationFlaggedPanel', 'Moderation flagged'],
-  ['#accessRequestsPendingPanel', 'Pending Access Requests'],
-  ['#accessRequestsActivePanel', 'Active Individual Grants'],
   ['#devicePairingsPendingPanel', 'Pending Device Pairings'],
   ['#deviceGroupsPanel', 'Device Groups'],
   ['#deviceEnrolledPanel', 'Enrolled Devices'],

@@ -314,6 +314,48 @@
   flex: 0 0 auto;
 }
 
+.lanternPowerList--individualAccess .lanternPowerListColHd,
+.lanternPowerList--individualAccess .lanternPowerListRowHd {
+  grid-template-columns:
+    22px
+    minmax(0, 1.4fr)
+    minmax(96px, 0.7fr)
+    minmax(0, 1.1fr)
+    minmax(88px, 0.7fr);
+}
+
+.lanternIndividualAccessGrant {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lanternIndividualAccessResults {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  max-width: 520px;
+}
+
+.lanternIndividualAccessResultBtn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 20px;
+  font-weight: 800;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--lpl-line, var(--line));
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--lpl-ink, var(--ink));
+  cursor: pointer;
+}
+
+.lanternIndividualAccessResultBtn:hover,
+.lanternIndividualAccessResultBtn:focus-visible {
+  border-color: var(--lpl-accent, var(--accent));
+}
+
 .lanternPowerListDetail .staffBlLinkPanel {
   margin-top: 12px;
   padding-top: 10px;
@@ -338,7 +380,8 @@
 
   .lanternPowerList--moderation .lanternPowerListRowHd,
   .lanternPowerList--staff .lanternPowerListRowHd,
-  .lanternPowerList--marquee .lanternPowerListRowHd {
+  .lanternPowerList--marquee .lanternPowerListRowHd,
+  .lanternPowerList--individualAccess .lanternPowerListRowHd {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 10px;
@@ -353,7 +396,8 @@
 
   .lanternPowerList--moderation .lanternPowerListCell--title,
   .lanternPowerList--staff .lanternPowerListCell--name,
-  .lanternPowerList--marquee .lanternPowerListCell--text {
+  .lanternPowerList--marquee .lanternPowerListCell--text,
+  .lanternPowerList--individualAccess .lanternPowerListCell--student {
     flex: 1 1 100%;
     order: -1;
     white-space: normal;
@@ -375,5 +419,11 @@
   .lanternPowerListStatus {
     font-size: 12px;
     max-width: 46vw;
+  }
+
+  .lanternPowerList--individualAccess,
+  .lanternIndividualAccessGrant {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }

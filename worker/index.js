@@ -127,6 +127,17 @@ import {
   isGroupUnlockActive,
 } from './device-enrollment.js';
 import { ACCESS_AUDIT_ACTIONS, recordAccessAuditEvent } from './access-audit.js';
+import {
+  ACCESS_PREAUTH_CLAIM_TTL_SEC,
+  loadActiveStudentAccount,
+  searchActiveStudents,
+  listUnclaimedPreauths,
+  upsertStudentPreauthorization,
+  cancelUnclaimedPreauthorization,
+  claimPreauthorizationAfterLogin,
+  mapClaimedRequestSources,
+  studentPublicLabel,
+} from './access-preauthorize.js';
 import { handleSettingsRoutes } from './lantern-settings.js';
 import { handleMarqueeRoutes } from './marquee-handlers.js';
 import {
@@ -249,6 +260,14 @@ function jsonResponse(obj, status, corsHeaders) {
     status: status || 200,
     headers: { 'Content-Type': 'application/json', ...corsHeaders },
   });
+}
+
+function jsonResponseWithCookies(obj, status, corsHeaders, cookies) {
+  const headers = new Headers({ 'Content-Type': 'application/json', ...corsHeaders });
+  (cookies || []).forEach((c) => {
+    if (c) headers.append('Set-Cookie', c);
+  });
+  return new Response(JSON.stringify(obj), { status: status || 200, headers });
 }
 
 /**
@@ -3771,6 +3790,34 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     const token = await signPilotJwt(jwtPayload, secret);
     const mcp = row.must_change_password != null && Number(row.must_change_password) !== 0;
 
+    const loginHeaders = new Headers({
+      'Content-Type': 'application/json',
+      ...cors,
+    });
+    loginHeaders.append('Set-Cookie', pilotSetCookieHeader(token, secure, PILOT_JWT_TTL_SEC));
+
+    let individualAccessClaimed = false;
+    if (!mcp && String(row.role || '').trim().toLowerCase() === 'student') {
+      try {
+        const claim = await claimPreauthorizationAfterLogin(db, request, row, secure);
+        if (claim && claim.deviceCookie) {
+          loginHeaders.append('Set-Cookie', claim.deviceCookie);
+        }
+        if (claim && claim.claimed) {
+          individualAccessClaimed = true;
+          await recordAccessAuditEvent(db, {
+            action: ACCESS_AUDIT_ACTIONS.PREAUTH_CLAIMED,
+            staffId: null,
+            staffName: 'login-claim',
+            targetId: claim.preauthId || claim.requestId,
+            detail: { requestId: claim.requestId, durationMinutes: claim.durationMinutes },
+          });
+        }
+      } catch (_) {
+        // Missing preauth table or claim failure must never break login.
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -3783,14 +3830,11 @@ async function handlePilotRoutes(request, url, path, env, cors) {
           String(row.role || '').trim().toLowerCase() === 'student' ? pilotEconomyCharacterName(row) || null : null,
         teacher_id: row.teacher_id || null,
         must_change_password: mcp,
+        individual_access_claimed: individualAccessClaimed,
       }),
       {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          ...cors,
-          'Set-Cookie': pilotSetCookieHeader(token, secure, PILOT_JWT_TTL_SEC),
-        },
+        headers: loginHeaders,
       }
     );
   }
@@ -4184,7 +4228,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     // also uses, so this informational endpoint can never disagree with what actually gates
     // access. Identifies the caller solely by non-transferable, server-issued secrets — never by
     // anything a student could forward to someone else.
-    const { individualGrant, deviceGroupAccess, eventOverride, qualifyingAccess } = await computeQualifyingAccessSignals(request, env, db);
+    let { individualGrant, deviceGroupAccess, eventOverride, qualifyingAccess } = await computeQualifyingAccessSignals(request, env, db);
 
     const verifyState = await getVerifyState();
     const sim = verifyState.class_access_simulation || {};
@@ -4223,6 +4267,37 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       }, 200, cors);
     }
 
+    const secureForClaim = url.protocol === 'https:';
+    const stateCookies = [];
+    try {
+      const studentForClaim = await getPilotAccountFromRequest(request, env);
+      if (
+        studentForClaim &&
+        String(studentForClaim.role || '').trim().toLowerCase() === 'student' &&
+        !pilotAccountRequiresChangePassword(studentForClaim)
+      ) {
+        const claim = await claimPreauthorizationAfterLogin(db, request, studentForClaim, secureForClaim);
+        if (claim && claim.deviceCookie) stateCookies.push(claim.deviceCookie);
+        if (claim && claim.claimed) {
+          individualGrant = {
+            qualifyingAccess: true,
+            reason: 'active_individual_grant',
+            expiresAt: claim.grantExpiresAt,
+          };
+          qualifyingAccess = true;
+          await recordAccessAuditEvent(db, {
+            action: ACCESS_AUDIT_ACTIONS.PREAUTH_CLAIMED,
+            staffId: null,
+            staffName: 'state-claim',
+            targetId: claim.preauthId || claim.requestId,
+            detail: { requestId: claim.requestId, durationMinutes: claim.durationMinutes },
+          });
+        }
+      }
+    } catch (_) {
+      // Preauth table missing or claim error must not break the informational state endpoint.
+    }
+
     // Phase #34 (Production Enforcement) — the ACTUAL access decision now comes solely from the
     // canonical 2026-27 calendar (`schedule.withinScheduledLock`) plus the same staff / event-
     // override / device-group / individual-grant signals the real gate
@@ -4244,7 +4319,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     const effectivelyLocked = scheduleEnforcementEnabled && schedule.withinScheduledLock && !isStaffCaller;
 
     if (!effectivelyLocked) {
-      return jsonResponse({
+      return jsonResponseWithCookies({
         ok: true,
         mode: 'live',
         accessState: 'live_outside_school_hours',
@@ -4255,7 +4330,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         deviceGroupAccess,
         eventOverride,
         qualifyingAccess,
-      }, 200, cors);
+      }, 200, cors, stateCookies);
     }
 
     if (qualifyingAccess) {
@@ -4264,7 +4339,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         (deviceGroupAccess.qualifyingAccess && deviceGroupAccess.expiresAt) ||
         (eventOverride.qualifyingAccess && eventOverride.expiresAt) ||
         null;
-      return jsonResponse({
+      return jsonResponseWithCookies({
         ok: true,
         mode: 'live',
         accessState: 'live_student_has_valid_access',
@@ -4276,10 +4351,10 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         deviceGroupAccess,
         eventOverride,
         qualifyingAccess,
-      }, 200, cors);
+      }, 200, cors, stateCookies);
     }
 
-    return jsonResponse({
+    return jsonResponseWithCookies({
       ok: true,
       mode: 'live',
       accessState: 'live_locked_no_session',
@@ -4290,7 +4365,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       deviceGroupAccess,
       eventOverride,
       qualifyingAccess,
-    }, 200, cors);
+    }, 200, cors, stateCookies);
   }
 
   if (request.method === 'POST' && path === '/api/class-access/request') {
@@ -4427,6 +4502,8 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       id: r.id,
       requestPhrase: r.request_phrase,
       displayName: r.student_character_name || r.proposed_name || r.student_username || 'Student',
+      studentUsername: r.student_username || null,
+      studentId: r.student_username || null,
       verified: !!r.student_username,
       requestedAt: r.requested_at,
       requestExpiresAt: r.request_expires_at,
@@ -4502,12 +4579,22 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     const rows = await db.prepare(
       "SELECT id, student_username, student_character_name, proposed_name, decided_at, decided_by_staff_name, grant_expires_at FROM lantern_access_requests WHERE status = 'approved' AND (revoked_at IS NULL OR revoked_at = '') AND grant_expires_at > ? ORDER BY grant_expires_at ASC"
     ).bind(nowIso).all();
-    const list = (rows.results || []).map((r) => ({
+    const grantRows = rows.results || [];
+    let sourceMap = {};
+    try {
+      sourceMap = await mapClaimedRequestSources(db, grantRows.map((r) => r.id));
+    } catch (_) {
+      sourceMap = {};
+    }
+    const list = grantRows.map((r) => ({
       id: r.id,
       displayName: r.student_character_name || r.proposed_name || r.student_username || 'Student',
+      studentUsername: r.student_username || null,
+      studentId: r.student_username || null,
       grantedAt: r.decided_at,
       grantedBy: r.decided_by_staff_name,
       grantExpiresAt: r.grant_expires_at,
+      source: sourceMap[r.id] || 'Student Request',
     }));
     return jsonResponse({ ok: true, grants: list }, 200, cors);
   }
@@ -4573,6 +4660,187 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       detail: { deltaMinutes, grantExpiresAt: newExpiresAt },
     });
     return jsonResponse({ ok: true, id, status: 'approved', grantExpiresAt: newExpiresAt, deltaMinutes }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/students') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const q = String(url.searchParams.get('q') || '').trim();
+    try {
+      const students = await searchActiveStudents(db, q, 12);
+      return jsonResponse({ ok: true, students }, 200, cors);
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'student_search_unavailable' }, 503, cors);
+    }
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/preauthorize') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const studentUsername = String(body.student_username || body.username || '').trim();
+    const durationMinutes = parseInt(body.duration_minutes, 10);
+    if (!studentUsername) return jsonResponse({ ok: false, error: 'Missing student_username' }, 400, cors);
+    if (!ACCESS_REQUEST_ALLOWED_GRANT_MINUTES.includes(durationMinutes)) {
+      return jsonResponse({ ok: false, error: 'duration_minutes must be 15 or 30' }, 400, cors);
+    }
+    const studentRow = await loadActiveStudentAccount(db, studentUsername);
+    if (!studentRow) return jsonResponse({ ok: false, error: 'unknown_student' }, 400, cors);
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    let created;
+    try {
+      created = await upsertStudentPreauthorization(db, {
+        studentRow,
+        durationMinutes,
+        staffId,
+        staffName,
+        nowDate: new Date(),
+      });
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'preauth_unavailable' }, 503, cors);
+    }
+    if (!created || !created.ok) {
+      return jsonResponse({ ok: false, error: (created && created.error) || 'preauth_failed' }, 400, cors);
+    }
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.PREAUTH_CREATED,
+      staffId,
+      staffName,
+      targetId: created.id,
+      detail: { student_username: created.student_username, durationMinutes, replaced: !!created.replaced },
+    });
+    return jsonResponse({
+      ok: true,
+      id: created.id,
+      replaced: !!created.replaced,
+      student_username: created.student_username,
+      student_display_name: created.student_display_name,
+      student_id: created.student_id,
+      durationMinutes: created.durationMinutes,
+      claimExpiresAt: created.claimExpiresAt,
+      claimTtlSec: ACCESS_PREAUTH_CLAIM_TTL_SEC,
+      status: 'preauthorized',
+      message: studentPublicLabel(created) + ' is pre-authorized for ' + created.durationMinutes + ' minutes. Waiting for login.',
+    }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/preauthorize') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    let rows = [];
+    try {
+      rows = await listUnclaimedPreauths(db, nowIso);
+    } catch (_) {
+      rows = [];
+    }
+    const list = rows.map((r) => ({
+      id: r.id,
+      studentUsername: r.student_username,
+      studentId: r.student_id || r.student_username,
+      displayName: r.student_display_name || r.student_username,
+      durationMinutes: r.duration_minutes,
+      createdAt: r.created_at,
+      createdBy: r.created_by_staff_name,
+      claimExpiresAt: r.claim_expires_at,
+      status: 'preauthorized',
+    }));
+    return jsonResponse({ ok: true, preauthorizations: list }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/class-access/preauthorize/cancel') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const text = await request.text();
+    let body;
+    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
+    const id = String(body.id || '').trim();
+    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
+    const staffId = sessionTeacherId(auth.account);
+    const staffName = reviewerLabelFromAccount(auth.account);
+    let cancelled;
+    try {
+      cancelled = await cancelUnclaimedPreauthorization(db, id, new Date().toISOString());
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'preauth_unavailable' }, 503, cors);
+    }
+    if (!cancelled || !cancelled.ok) {
+      return jsonResponse({ ok: false, error: (cancelled && cancelled.error) || 'preauth_not_cancellable' }, 400, cors);
+    }
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.PREAUTH_CANCELLED,
+      staffId,
+      staffName,
+      targetId: id,
+    });
+    return jsonResponse({ ok: true, id, status: 'cancelled' }, 200, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/class-access/individual-board') {
+    const auth = await requireStaffPilotSession(request, env, cors);
+    if (auth.response) return auth.response;
+    const nowIso = new Date().toISOString();
+    const pendingRows = await db.prepare(
+      "SELECT id, request_phrase, student_username, student_character_name, proposed_name, requested_at, request_expires_at FROM lantern_access_requests WHERE status = 'pending' AND request_expires_at > ? ORDER BY requested_at ASC"
+    ).bind(nowIso).all();
+    const activeRows = await db.prepare(
+      "SELECT id, student_username, student_character_name, proposed_name, decided_at, decided_by_staff_name, grant_expires_at FROM lantern_access_requests WHERE status = 'approved' AND (revoked_at IS NULL OR revoked_at = '') AND grant_expires_at > ? ORDER BY grant_expires_at ASC"
+    ).bind(nowIso).all();
+    let preRows = [];
+    try {
+      preRows = await listUnclaimedPreauths(db, nowIso);
+    } catch (_) {
+      preRows = [];
+    }
+    const pending = (pendingRows.results || []).map((r) => ({
+      id: r.id,
+      kind: 'pending',
+      requestPhrase: r.request_phrase,
+      displayName: r.student_character_name || r.proposed_name || r.student_username || 'Student',
+      studentUsername: r.student_username || null,
+      studentId: r.student_username || null,
+      verified: !!r.student_username,
+      requestedAt: r.requested_at,
+      requestExpiresAt: r.request_expires_at,
+      source: 'Student Request',
+      status: 'pending',
+    }));
+    const preauthorized = preRows.map((r) => ({
+      id: r.id,
+      kind: 'preauthorized',
+      displayName: r.student_display_name || r.student_username,
+      studentUsername: r.student_username,
+      studentId: r.student_id || r.student_username,
+      durationMinutes: r.duration_minutes,
+      createdAt: r.created_at,
+      createdBy: r.created_by_staff_name,
+      claimExpiresAt: r.claim_expires_at,
+      source: 'Teacher',
+      status: 'preauthorized',
+    }));
+    const grantRows = activeRows.results || [];
+    let sourceMap = {};
+    try {
+      sourceMap = await mapClaimedRequestSources(db, grantRows.map((r) => r.id));
+    } catch (_) {
+      sourceMap = {};
+    }
+    const active = grantRows.map((r) => ({
+      id: r.id,
+      kind: 'active',
+      displayName: r.student_character_name || r.proposed_name || r.student_username || 'Student',
+      studentUsername: r.student_username || null,
+      studentId: r.student_username || null,
+      grantedAt: r.decided_at,
+      grantedBy: r.decided_by_staff_name,
+      grantExpiresAt: r.grant_expires_at,
+      source: sourceMap[r.id] || 'Student Request',
+      status: 'active',
+    }));
+    return jsonResponse({ ok: true, pending, preauthorized, active }, 200, cors);
   }
 
   // ================= Phase #32 — enrolled classroom devices + device-group unlock =================

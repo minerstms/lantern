@@ -24,6 +24,9 @@ export const ACCESS_AUDIT_ACTIONS = Object.freeze({
   OVERRIDE_STARTED: 'override_started',
   OVERRIDE_ENDED: 'override_ended',
   ENFORCEMENT_SETTING_CHANGED: 'enforcement_setting_changed',
+  PREAUTH_CREATED: 'preauth_created',
+  PREAUTH_CANCELLED: 'preauth_cancelled',
+  PREAUTH_CLAIMED: 'preauth_claimed',
 });
 
 /**
