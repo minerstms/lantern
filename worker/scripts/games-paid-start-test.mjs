@@ -141,5 +141,9 @@ if (gamesHtml.includes('done(false, res') || gamesHtml.includes('done(false, res
   ok('tryPlay forwards failure detail for persistent pregame status');
 } else bad('tryPlay failure detail forward');
 
+if (paidStartJs.includes('balance_after') && paidStartJs.includes('applyVisibleBalance')) {
+  ok('paid-start applies authoritative balance_after immediately');
+} else bad('paid-start immediate balance refresh');
+
 console.log('\nGames paid-start tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

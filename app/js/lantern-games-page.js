@@ -708,12 +708,20 @@
     }
   }
 
+  function applyWalletAmount(available) {
+    var amt = el('gamesPageWalletAmt');
+    if (!amt) return;
+    var n = Number(available);
+    if (!Number.isFinite(n)) return;
+    amt.textContent = String(n);
+  }
+
   function refreshWalletDisplay() {
     var amt = el('gamesPageWalletAmt');
     if (!amt || !global.LanternWallet) return Promise.resolve();
     return global.LanternWallet.fetchMyBalance().then(function (res) {
       if (res && res.ok && res.available != null) {
-        amt.textContent = String(res.available);
+        applyWalletAmount(res.available);
       } else if (amt.textContent === '' || amt.textContent === '…') {
         amt.textContent = '—';
       }
@@ -739,6 +747,7 @@
   global.LanternGamesPage = {
     init: init,
     refreshWalletDisplay: refreshWalletDisplay,
+    applyWalletAmount: applyWalletAmount,
     loadAllLeaderboards: loadAllLeaderboards,
     renderGameLibrary: renderGameLibrary,
     setPlayStarting: function (v) {
