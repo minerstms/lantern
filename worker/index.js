@@ -50,7 +50,7 @@ import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
-import { handleStaffStarterNuggets } from './staff-starter-nuggets.js';
+import { handleStaffStarterNuggets, isSystemWebAdminAccount } from './staff-starter-nuggets.js';
 import {
   canonicalLanternStaffDisplayName,
   ensureBlCompatIdentityForLanternStaff,
@@ -266,7 +266,11 @@ function corsForPilot(request) {
 function jsonResponse(obj, status, corsHeaders) {
   return new Response(JSON.stringify(obj), {
     status: status || 200,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'private, no-store',
+      ...corsHeaders,
+    },
   });
 }
 
@@ -5771,6 +5775,10 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
 
   if (request.method === 'GET' && path === '/api/economy/balance') {
     const requestedCharacterName = (url.searchParams.get('character_name') || '').trim();
+    const usernameQuery = (url.searchParams.get('username') || '').trim();
+    if (usernameQuery) {
+      return jsonResponse({ ok: false, error: 'forbidden', code: 'forbidden' }, 403, cors);
+    }
     const pilotAccount = await getPilotAccountFromRequest(request, env);
     const readAuth = resolveEconomyBalanceRead(
       pilotAccount,
@@ -5778,9 +5786,21 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       pilotEconomyCharacterName
     );
     if (!readAuth.ok) {
-      return jsonResponse({ ok: false, error: readAuth.error }, readAuth.code || 403, cors);
+      return jsonResponse({ ok: false, error: readAuth.error, code: readAuth.error }, readAuth.code || 403, cors);
     }
     const characterName = readAuth.characterName;
+
+    // Prompt #170 — Web Admin has no spendable Nugget principal. Self-read must not
+    // inherit Rick / Radle (or any other staff) balance. Target lookups stay admin tools.
+    if (readAuth.session_scoped && isSystemWebAdminAccount(pilotAccount)) {
+      return jsonResponse({
+        ok: false,
+        error: 'no_nugget_account',
+        code: 'no_nugget_account',
+        message: 'No Nugget account',
+        principal_type: 'none',
+      }, 403, cors);
+    }
 
     // Prompt #107 — staff self wallet uses staff:<username> → tms_identity_links → TMS staff ledger.
     // Never fabricate a student row or show a misleading 0 for unlinked staff.
@@ -5790,8 +5810,10 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         return jsonResponse({
           ok: false,
           error: 'tms_identity_not_linked',
+          code: 'needs_link',
           message: 'Nugget account needs linking',
           character_name: characterName,
+          principal_type: 'staff',
         }, 403, cors);
       }
       const staffBal = await tmsStaffEconomyBalance(env, staffPrincipal.tmsStaffId);
@@ -5799,10 +5821,12 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         return jsonResponse({
           ok: false,
           error: staffBal.error || 'staff_balance_unavailable',
+          code: 'unavailable',
           character_name: characterName,
+          principal_type: 'staff',
         }, staffBal.httpStatus && staffBal.httpStatus >= 400 ? staffBal.httpStatus : 502, cors);
       }
-      return jsonResponse({
+      const staffPayload = {
         ok: true,
         character_name: characterName,
         balance: staffBal.available,
@@ -5811,15 +5835,16 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         available: staffBal.available,
         recent_transactions: mapTmsHistoryToTransactions(characterName, staffBal.recentHistory),
         economy_authority: 'tms_nuggets_staff',
-        tms_staff_id: staffPrincipal.tmsStaffId,
-      }, 200, cors);
+        principal_type: 'staff',
+      };
+      // Target-account admin/teacher lookups may keep the TMS staff id; signed-in self does not.
+      if (!readAuth.session_scoped) staffPayload.tms_staff_id = staffPrincipal.tmsStaffId;
+      return jsonResponse(staffPayload, 200, cors);
     }
 
     // Prompt #96: TMS Nuggets is the one authoritative ledger for every real student. Try it
-    // first; only fall back to the legacy Lantern-only wallet when TMS genuinely does not
-    // recognize this id as a real student (demo/persona characters, local dev/test fixtures) or
-    // on a best-effort-degrade basis if the bridge itself is unreachable -- a transient read
-    // failure should not take down the whole Locker/Store balance display.
+    // first; only fall back to the legacy Lantern-only wallet for demo/persona characters.
+    // Prompt #170: a real authenticated student must never display lantern_wallets as authority.
     const tms = await tmsEconomyBalance(env, characterName);
     if (tms.ok) {
       return jsonResponse({
@@ -5831,7 +5856,33 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         available: tms.available,
         recent_transactions: mapTmsHistoryToTransactions(characterName, tms.recentHistory),
         economy_authority: 'tms_nuggets',
+        principal_type: 'student',
       }, 200, cors);
+    }
+
+    const realStudentSelf = !!(
+      readAuth.session_scoped &&
+      pilotAccount &&
+      String(pilotAccount.role || '').trim().toLowerCase() === 'student' &&
+      String(pilotAccount.mtss_student_id || '').trim()
+    );
+    if (realStudentSelf && !isKnownDemoPersonaName(characterName)) {
+      if (tms.notFound) {
+        return jsonResponse({
+          ok: false,
+          error: 'tms_student_not_found',
+          code: 'needs_link',
+          character_name: characterName,
+          principal_type: 'student',
+        }, 404, cors);
+      }
+      return jsonResponse({
+        ok: false,
+        error: tms.error || 'balance_unavailable',
+        code: 'unavailable',
+        character_name: characterName,
+        principal_type: 'student',
+      }, tms.httpStatus && tms.httpStatus >= 400 ? tms.httpStatus : 502, cors);
     }
 
     const row = await db.prepare('SELECT balance, updated_at FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();
@@ -5863,6 +5914,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       available: balance,
       recent_transactions: recent_transactions,
       economy_authority: 'lantern_legacy',
+      principal_type: 'demo',
     }, 200, cors);
   }
 

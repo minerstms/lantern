@@ -18,6 +18,7 @@
     gameMeta: null,
     sponsoredFreeMission: false,
   };
+  var pregameUnsub = null;
 
   function el(id) {
     return document.getElementById(id);
@@ -160,6 +161,32 @@
     setPregameStatus('');
   }
 
+  function applyPregameBalance(cost, snap) {
+    if (!state.open || state.phase !== 'pregame') return;
+    if (!snap) return;
+    if (snap.status === 'needs_link' || snap.needs_linking) {
+      setPregameCost(cost + ' Nugget = 1 Play');
+      setPregameStatus('Nugget account needs link', 'error');
+      return;
+    }
+    if (snap.status === 'no_nugget_account' || snap.no_nugget_account) {
+      setPregameCost(cost + ' Nugget = 1 Play');
+      setPregameStatus('No Nugget account', 'error');
+      return;
+    }
+    if (snap.status === 'ok' && snap.available != null) {
+      var avail = Number(snap.available);
+      setPregameCost(cost + ' Nugget = 1 Play. You currently have ' + avail + ' Nugget' + (avail === 1 ? '' : 's') + '.');
+      if (Number.isFinite(avail) && avail < cost) {
+        setPregameStatus('You need 1 Nugget to play.', 'insufficient');
+      }
+      return;
+    }
+    if (snap.status === 'error' && snap.lastGoodAvailable == null) {
+      setPregameCost(cost + ' Nugget = 1 Play');
+    }
+  }
+
   function refreshPregameCostHint(gameName) {
     if (state.sponsoredFreeMission) {
       setSponsoredMissionPregameCost();
@@ -171,6 +198,19 @@
       cost = paid.playCostForGame(gameName || (state.gameMeta && state.gameMeta.title) || '') || 1;
     }
     setPregameCost(cost + ' Nugget = 1 Play');
+    if (global.LanternWallet && typeof global.LanternWallet.subscribe === 'function') {
+      if (pregameUnsub) {
+        pregameUnsub();
+        pregameUnsub = null;
+      }
+      pregameUnsub = global.LanternWallet.subscribe(function (snap) {
+        applyPregameBalance(cost, snap);
+      });
+      if (typeof global.LanternWallet.refreshBalance === 'function') {
+        global.LanternWallet.refreshBalance();
+      }
+      return;
+    }
     if (!paid || typeof paid.checkAffordable !== 'function') return;
     paid.checkAffordable(gameName || (state.gameMeta && state.gameMeta.title) || '').then(function (info) {
       if (!state.open || state.phase !== 'pregame') return;
@@ -473,6 +513,10 @@
     state.onPregameStart = null;
     state.gameMeta = null;
     state.sponsoredFreeMission = false;
+    if (pregameUnsub) {
+      pregameUnsub();
+      pregameUnsub = null;
+    }
 
     if (focusTarget && typeof focusTarget.focus === 'function') {
       try {

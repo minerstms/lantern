@@ -1135,6 +1135,21 @@
       var adopted = getAdopted();
       if (!adopted || !String(adopted.name || '').trim()) return;
       if (!el('balanceEl')) return;
+      if (window.LanternWallet && typeof window.LanternWallet.refreshBalance === 'function') {
+        var beBind = el('balanceEl');
+        if (beBind && typeof window.LanternWallet.bindElement === 'function' && !beBind.getAttribute('data-lantern-economy-bound')) {
+          beBind.setAttribute('data-lantern-economy-bound', '1');
+          window.LanternWallet.bindElement(beBind, { format: 'number' });
+          window.LanternWallet.subscribe(function (snap) {
+            if (snap && snap.ok && snap.available != null) {
+              var nv = Number(snap.available);
+              if (typeof studentProfileVM !== 'undefined' && studentProfileVM) studentProfileVM.nuggets = nv;
+              updateNuggetProgress(nv);
+            }
+          });
+        }
+        return window.LanternWallet.refreshBalance({ force: true });
+      }
       callGetBalance().then(function(res){
         safeProfileStep('balanceVisibility', function(){
           if (!res || !res.ok || res.available == null) return;

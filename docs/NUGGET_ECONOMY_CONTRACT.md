@@ -83,3 +83,39 @@ Do **not** mass-backfill under #169. Votes with a `lantern_poll_voter_rewards` r
 ## Parallel wallets
 
 Staff must never write `lantern_wallets`. Students write it only when TMS returns student-not-found (demo/persona). Locker/balance reads for staff use the TMS staff ledger.
+
+## CANONICAL BALANCE READ CONTRACT
+
+Prompt #170. There is exactly one spendable Nugget balance per authenticated real account.
+
+```
+SIGNED-IN ACCOUNT
+  → session identity (never a client username / student_id / staff_id picker)
+  → exact TMS student or staff principal
+  → TMS authoritative ledger
+  → GET /api/economy/balance
+  → LanternWallet / LanternEconomy shared helper
+  → every personal meter
+```
+
+| Surface | Role | Source |
+|---------|------|--------|
+| Games pill, pregame, Missions pill | signed-in self | `LanternWallet.refreshBalance()` / `bindElement` |
+| Teacher Tools sidebar | signed-in self | same helper |
+| Locker Store hero / available | signed-in self | same helper |
+| Avatar crop affordability | signed-in self | same helper |
+| Admin Nugget Adjustment | **selected target** | `GET /api/economy/balance?character_name=<target key>` (TMS) |
+| Teacher Rewards / Redeemer | **selected student target** | TMS Nuggets bridge (`/api/tms-nuggets/*`) |
+
+Rules:
+
+- Client must not send `username`, `student_id`, or `staff_id` to choose whose signed-in balance to read.
+- `?username=` on the signed-in balance endpoint is forbidden.
+- Unlinked staff: `{ ok: false, code: "needs_link" }` — UI shows **Needs Link**, never a fake 0.
+- Web Admin self-read: `{ ok: false, code: "no_nugget_account" }` — **N/A** / **No Nugget account**. Does not inherit Rick / Radle.
+- Real authenticated students/staff never display `lantern_wallets` as authority.
+- Failed reads must not overwrite a known number with 0. Prefer last known (marked stale) or **Balance unavailable**.
+- After a successful authoritative transaction, refresh from the server. Do not `balance +=` / `balance -=`.
+- Refresh on page load, after local transactions, and on `visibilitychange` (debounced). Do not poll every second.
+- Balance responses are `Cache-Control: private, no-store`. TMS PWA `shouldBypassCache` already excludes `/api/`.
+- Display wording may differ (`55 Nuggets available` vs `55 Nuggets`); the number must be identical.

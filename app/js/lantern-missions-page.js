@@ -324,19 +324,14 @@
   function refreshWalletDisplay() {
     var amt = el('missionsPageWalletAmt');
     if (!amt || !global.LanternWallet) return Promise.resolve();
-    return global.LanternWallet.fetchMyBalance().then(function (res) {
-      if (res && res.needs_linking) {
-        amt.textContent = 'link';
-        amt.title = 'Nugget account needs linking';
-        return;
-      }
-      if (res && res.ok && res.available != null) {
-        amt.textContent = String(res.available);
-        amt.title = '';
-      } else if (amt.textContent === '' || amt.textContent === '…') {
-        amt.textContent = '—';
-      }
-    });
+    if (typeof global.LanternWallet.bindElement === 'function' && !amt.getAttribute('data-lantern-economy-bound')) {
+      amt.setAttribute('data-lantern-economy-bound', '1');
+      global.LanternWallet.bindElement(amt, { format: 'number' });
+    }
+    if (typeof global.LanternWallet.refreshBalance === 'function') {
+      return global.LanternWallet.refreshBalance({ force: true });
+    }
+    return global.LanternWallet.fetchMyBalance();
   }
 
   function setItems(items, loading, teacherFetchFailed) {

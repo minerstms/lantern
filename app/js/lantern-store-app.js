@@ -278,10 +278,21 @@
     }
 
     function callEconomyTransact(characterName, delta, kind, source, note, meta){
+      if (window.LanternWallet && typeof window.LanternWallet.postEconomyTransact === 'function' && window.LanternWallet.canUseHttpEconomy()) {
+        return window.LanternWallet.postEconomyTransact({
+          character_name: characterName,
+          delta: delta,
+          kind: kind || 'misc',
+          source: source || '',
+          note: note || '',
+          meta: meta || {}
+        });
+      }
       if (economyApiBase == null) return Promise.resolve({ ok: false });
       return fetch(economyApiBase + '/api/economy/transact', {
         method: 'POST',
         credentials: 'include',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: meta || {} })
       }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false }; });
@@ -454,8 +465,18 @@
           return null;
         }
         setWalletRefreshing(true);
-        var res = await callGetBalance();
+        var res = (window.LanternWallet && typeof window.LanternWallet.refreshBalance === 'function')
+          ? await window.LanternWallet.refreshBalance({ force: !!opts.force })
+          : await callGetBalance();
         setWalletRefreshing(false);
+        if (res && (res.needs_linking || res.status === 'needs_link')) {
+          setBalanceUI({ earned: '—', spent: '—', available: 'Needs Link' });
+          return res;
+        }
+        if (res && (res.no_nugget_account || res.status === 'no_nugget_account')) {
+          setBalanceUI({ earned: '—', spent: '—', available: 'N/A' });
+          return res;
+        }
         if (!res.ok){
           if (!walletHasKnownValues()) {
             setBalanceUI({ earned: '—', spent: '—', available: '—' });
@@ -730,6 +751,19 @@
         renderCosmetics('', 0, { owned: [], equipped: {} });
       }
       renderFeaturedRail();
+    }
+
+    if (window.LanternWallet && typeof window.LanternWallet.bindElement === 'function') {
+      var heroAmt = el('storeHeroAvail');
+      if (heroAmt && !heroAmt.getAttribute('data-lantern-economy-bound')) {
+        heroAmt.setAttribute('data-lantern-economy-bound', '1');
+        window.LanternWallet.bindElement(heroAmt, { format: 'number' });
+      }
+      var availAmt = el('avail');
+      if (availAmt && !availAmt.getAttribute('data-lantern-economy-bound')) {
+        availAmt.setAttribute('data-lantern-economy-bound', '1');
+        window.LanternWallet.bindElement(availAmt, { format: 'number' });
+      }
     }
 
     var walletBtn = el('refreshStoreWalletBtn');

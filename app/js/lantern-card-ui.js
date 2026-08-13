@@ -2061,6 +2061,9 @@
               r2.style.display = 'block';
             }
             applyPollRewardCopy(n2, voteRes);
+            if (voteRes && voteRes.ok && global.LanternWallet && typeof global.LanternWallet.refreshBalance === 'function') {
+              global.LanternWallet.refreshBalance({ force: true });
+            }
           })
           .catch(function () {
             lockBtn._busy = false;

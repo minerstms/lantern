@@ -1128,6 +1128,24 @@
       border: 1px solid rgba(255,77,109,.5);
       color: #fff;
     }
+    .teacherSidebarBalance{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,204,102,.35);
+      background: rgba(255,204,102,.08);
+    }
+    .teacherSidebarBalance img{ width: 22px; height: 22px; flex-shrink: 0; }
+    .teacherSidebarBalanceAmt{
+      color: #ffcc66;
+      font-weight: 900;
+      font-size: 22px;
+      min-width: 1ch;
+    }
+    .teacherSidebarBalanceLbl{ color: var(--muted); font-size: 16px; font-weight: 800; }
     .teacherMain{ min-width: 0; }
     .teacherWorkspaceHd{ margin-bottom: 12px; }
     .teacherWorkspaceTitle{ font-weight: 1000; font-size: 30px; letter-spacing: .2px; }
@@ -1505,6 +1523,11 @@
       <div class="teacherSidebarScrim" id="teacherSidebarScrim"></div>
       <aside class="teacherSidebar" id="teacherSidebar" aria-label="Teacher workspaces">
         <nav class="teacherSidebarNav">
+          <div class="teacherSidebarBalance" id="teacherSidebarBalance" aria-live="polite">
+            <img src="assets/icons/nugget.png" alt="" width="22" height="22">
+            <span id="teacherSidebarBalanceAmt" class="teacherSidebarBalanceAmt">…</span>
+            <span class="teacherSidebarBalanceLbl">Nuggets</span>
+          </div>
           <button type="button" class="teacherSidebarItem" data-workspace-link="economy" data-help="teacher_nuggets"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview" data-help="teacher_overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Submissions</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
@@ -2452,7 +2475,20 @@
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-teacher-reward-redeem.js"></script>
+  <script>
+    (function () {
+      var amt = document.getElementById('teacherSidebarBalanceAmt');
+      if (!amt || !window.LanternWallet) return;
+      if (typeof window.LanternWallet.bindElement === 'function') {
+        window.LanternWallet.bindElement(amt, { format: 'number' });
+      }
+      if (typeof window.LanternWallet.refreshBalance === 'function') {
+        window.LanternWallet.refreshBalance();
+      }
+    })();
+  </script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
     (function(){

@@ -1367,6 +1367,9 @@
                 callClaimDailyCheckIn(choice).then(function(res){
                   if (res && res.ok){
                     toast(res.idempotent ? 'Already checked in today.' : 'Daily check-in recorded. +1 Nugget');
+                    if (window.LanternWallet && typeof window.LanternWallet.refreshBalance === 'function') {
+                      window.LanternWallet.refreshBalance({ force: true });
+                    }
                     loadMissions();
                   } else {
                     toast((res && res.error) || 'Could not claim check-in. Try again.');

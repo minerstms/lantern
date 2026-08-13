@@ -1067,36 +1067,41 @@
     }
 
     function refreshBalance(){
+      var applyLocks = function(n){
+        if (n == null) return;
+        // Prompt #151 — do not disable off-DOM play triggers on low balance.
+        // Card click selects/opens pregame; Start enforces 1 Nugget spend.
+        ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+          var lockEl = el(g + 'Locked');
+          var playBtn = el(g + 'PlayBtn');
+          var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+          if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
+          if (playBtn) playBtn.disabled = false;
+        });
+      };
+      if (window.LanternWallet && typeof window.LanternWallet.refreshBalance === 'function') {
+        var wAmt = document.getElementById('gamesPageWalletAmt');
+        if (wAmt && typeof window.LanternWallet.bindElement === 'function' && !wAmt.getAttribute('data-lantern-economy-bound')) {
+          wAmt.setAttribute('data-lantern-economy-bound', '1');
+          window.LanternWallet.bindElement(wAmt, { format: 'number' });
+          window.LanternWallet.subscribe(function(snap){
+            if (snap && snap.ok && snap.available != null) applyLocks(snap.available);
+          });
+        }
+        return window.LanternWallet.refreshBalance({ force: true }).then(function(snap){
+          if (snap && snap.ok && snap.available != null) applyLocks(snap.available);
+        });
+      }
       getBalance().then(function(n){
         var wAmt = document.getElementById('gamesPageWalletAmt');
         if (wAmt) {
           if (n == null) {
             if (wAmt.textContent === '' || wAmt.textContent === '…') wAmt.textContent = '—';
           } else {
-            var oldN = NaN;
-            if (wAmt.textContent) {
-              var p = parseInt(String(wAmt.textContent).trim(), 10);
-              if (Number.isFinite(p)) oldN = p;
-            }
-            if (Number.isFinite(oldN) && Number.isFinite(Number(n)) && Number(n) > oldN) {
-              wAmt.classList.remove('nuggetHit');
-              void wAmt.offsetWidth;
-              wAmt.classList.add('nuggetHit');
-            }
             wAmt.textContent = String(n);
           }
         }
-        if (n != null) {
-          // Prompt #151 — do not disable off-DOM play triggers on low balance.
-          // Card click selects/opens pregame; Start enforces 1 Nugget spend.
-          ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
-            var lockEl = el(g + 'Locked');
-            var playBtn = el(g + 'PlayBtn');
-            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
-            if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
-            if (playBtn) playBtn.disabled = false;
-          });
-        }
+        applyLocks(n);
         if (window.LanternGamesPage && typeof window.LanternGamesPage.refreshWalletDisplay === 'function') {
           window.LanternGamesPage.refreshWalletDisplay();
         }

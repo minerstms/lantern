@@ -1640,7 +1640,7 @@
       keyEl.style.display = 'block';
       balEl.textContent = 'Loading balance…';
       balEl.style.display = 'block';
-      fetch(api + '/api/economy/balance?character_name=' + encodeURIComponent(picked.wallet_key), { credentials: 'include' })
+      fetch(api + '/api/economy/balance?character_name=' + encodeURIComponent(picked.wallet_key), { credentials: 'include', cache: 'no-store' })
         .then(function(r){ return r.json().then(function(j){ return { okHttp: r.ok, body: j }; }); })
         .then(function(w){
           if (!w || !w.body || !w.body.ok) {

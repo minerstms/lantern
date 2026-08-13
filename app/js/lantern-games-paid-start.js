@@ -54,6 +54,9 @@
   }
 
   function refreshWalletDisplays() {
+    if (global.LanternWallet && typeof global.LanternWallet.refreshBalance === 'function') {
+      global.LanternWallet.refreshBalance({ force: true });
+    }
     if (global.LanternGamesPage && typeof global.LanternGamesPage.refreshWalletDisplay === 'function') {
       global.LanternGamesPage.refreshWalletDisplay();
     }
