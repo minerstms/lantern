@@ -1,0 +1,188 @@
+/* Minecart Switch — mobile-first, single column, 22–36px type */
+
+.mcsRoot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: min(72vh, 720px);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overflow-x: hidden;
+  background: #07080d;
+  color: #eaf0ff;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  box-sizing: border-box;
+}
+
+.lanternGamePlayerStage .mcsRoot {
+  display: flex !important;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-height: min(72vh, 720px);
+  height: 100%;
+}
+
+.mcsHud {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.mcsHudScore,
+.mcsHudDist,
+.mcsHudLives {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.mcsHudScore {
+  color: #f0d36a;
+}
+
+.mcsHudLives {
+  letter-spacing: 0.18em;
+  color: #ffb066;
+  font-size: 24px;
+}
+
+.mcsHudDist {
+  color: #b9c6ea;
+}
+
+.mcsStage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.mcsStage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.mcsTapLeft,
+.mcsTapRight {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+  z-index: 2;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mcsTapLeft {
+  left: 0;
+}
+
+.mcsTapRight {
+  right: 0;
+}
+
+.mcsHint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 12px 12px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #b9c6ea;
+}
+
+.mcsOver {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 16px;
+  background: rgba(7, 8, 13, 0.86);
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.mcsOver[hidden] {
+  display: none !important;
+}
+
+.mcsOverTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #f0d36a;
+}
+
+.mcsOverScore {
+  margin: 0;
+  font-size: 36px;
+  font-weight: 900;
+  color: #eaf0ff;
+}
+
+.mcsOverMeta {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #b9c6ea;
+}
+
+.mcsOverActions {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 360px);
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.mcsOverActions .btn {
+  width: 100%;
+  min-height: 56px;
+  font-size: 24px;
+}
+
+@media (min-width: 720px) {
+  .mcsHud {
+    font-size: 24px;
+    padding: 12px 18px 8px;
+  }
+  .mcsOverTitle {
+    font-size: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcsRoot,
+  .mcsStage canvas {
+    scroll-behavior: auto;
+  }
+}

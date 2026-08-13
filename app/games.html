@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/lantern-feed.css">
   <link rel="stylesheet" href="css/lantern-games-page.css">
   <link rel="stylesheet" href="css/lantern-game-player.css">
+  <link rel="stylesheet" href="css/lantern-minecart-switch.css">
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="explore.html">
   <link rel="prefetch" href="explore.html">
@@ -789,6 +790,7 @@
       <button type="button" id="clickrushPlayBtn"></button>
       <button type="button" id="memoryPlayBtn"></button>
       <button type="button" id="nuggetHuntPlayBtn"></button>
+      <button type="button" id="minecartSwitchPlayBtn"></button>
     </div>
 
     </div>
@@ -804,6 +806,29 @@
       <div class="gameLocked" id="memoryLocked" style="display:none;">Need at least 1 nugget to play.</div>
       <div class="gameArea" id="memoryArea" style="display:none;"><div class="memHud" id="memoryHud"><span>Moves: <span class="memHudVal" id="memoryMovesVal">0</span></span><span>Pairs left: <span class="memHudVal" id="memoryPairsVal">6</span></span></div><div class="memGrid" id="memoryGrid"></div><div class="playAgainRow" id="memoryPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="memoryPlayAgainBtn">Play Again</button></div></div>
       <div class="gameLocked" id="nuggetHuntLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameLocked" id="minecartSwitchLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="mcsRoot" id="minecartSwitchArea" style="display:none;" hidden>
+        <div class="mcsHud">
+          <div class="mcsHudScore">Score <span id="mcsScore">0</span></div>
+          <div class="mcsHudLives" id="mcsLives" aria-label="3 lives">●●●</div>
+          <div class="mcsHudDist">Dist <span id="mcsDist">0m</span></div>
+        </div>
+        <div class="mcsStage">
+          <canvas id="mcsCanvas" width="360" height="520" aria-label="Minecart Switch track"></canvas>
+          <button type="button" class="mcsTapLeft" id="mcsTapLeft" aria-label="Switch left"></button>
+          <button type="button" class="mcsTapRight" id="mcsTapRight" aria-label="Switch right"></button>
+          <div class="mcsOver" id="mcsOver" hidden>
+            <h2 class="mcsOverTitle">MINECART SWITCH</h2>
+            <p class="mcsOverScore">Score <span id="mcsOverScore">0</span></p>
+            <p class="mcsOverMeta">Distance <span id="mcsOverDist">0m</span></p>
+            <div class="mcsOverActions">
+              <button type="button" class="btn good" id="mcsPlayAgain">Play Again</button>
+              <button type="button" class="btn" id="mcsViewLb">Leaderboard</button>
+            </div>
+          </div>
+        </div>
+        <p class="mcsHint" id="mcsHint">Swipe or tap sides. Arrow keys work too.</p>
+      </div>
     </div>
     <!-- Nugget Hunt fullscreen overlay -->
     <div class="nuggetHuntOverlay lanternOverlayBelowNav" id="nuggetHuntOverlay">
@@ -895,6 +920,7 @@
   <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-game-player.js"></script>
   <script src="js/lantern-games-page.js"></script>
+  <script src="js/lantern-minecart-switch.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
@@ -1089,10 +1115,10 @@
         if (n != null) {
           // Prompt #151 — do not disable off-DOM play triggers on low balance.
           // Card click selects/opens pregame; Start enforces 1 Nugget spend.
-          ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+          ['reaction','clickrush','memory','nuggetHunt','minecartSwitch'].forEach(function(g){
             var lockEl = el(g + 'Locked');
             var playBtn = el(g + 'PlayBtn');
-            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : g === 'minecartSwitch' ? 'Minecart Switch' : 'Reaction Tap');
             if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
             if (playBtn) playBtn.disabled = false;
           });
@@ -1841,6 +1867,78 @@
           startNuggetHuntGame();
         }, { surface: overlay, onExit: closeNuggetHuntOverlay, returnFocus: el('nuggetHuntPlayBtn') });
       });
+    })();
+
+    // ---- Minecart Switch: paid start → rAF run → one result → Play Again recharges ----
+    (function(){
+      var playBtn = el('minecartSwitchPlayBtn');
+      var area = el('minecartSwitchArea');
+      var MCS = window.LANTERN_MINECART_SWITCH;
+      var mounted = false;
+      var scorePosted = false;
+
+      function resetMinecartGame(){
+        if (MCS && typeof MCS.stopRun === 'function') MCS.stopRun();
+        if (area) {
+          area.style.display = 'none';
+          area.setAttribute('hidden', '');
+        }
+      }
+
+      function submitMinecartResult(result){
+        if (scorePosted) return;
+        var runId = window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function'
+          ? window.LanternGamesPaidStart.getLastRunId()
+          : '';
+        if (!runId) {
+          toast('Score couldn\'t be saved. Try again.');
+          return;
+        }
+        scorePosted = true;
+        var adopted = loadAdopted();
+        postLeaderboardScore('Minecart Switch', adopted && adopted.name, result.score, result.score_display, function(ok){
+          if (ok) toast('Score recorded on leaderboard.');
+        }, runId);
+      }
+
+      function ensureMounted(){
+        if (mounted || !MCS || !area) return;
+        MCS.mount(area, {
+          onGameOver: submitMinecartResult,
+          onPlayAgain: startMinecartRound,
+          onLeaderboard: function(){
+            if (window.LanternGamePlayer) window.LanternGamePlayer.close({ skipExit: true });
+          }
+        });
+        mounted = true;
+      }
+
+      function startMinecartRound(){
+        tryPlay('Minecart Switch', function(){
+          if (!MCS) { toast('Couldn\'t start the game. Try again.'); return; }
+          scorePosted = false;
+          if (area) {
+            area.style.display = 'flex';
+            area.removeAttribute('hidden');
+          }
+          ensureMounted();
+          MCS.startRun();
+        }, { surface: area, onExit: resetMinecartGame, returnFocus: playBtn, title: 'Minecart Switch' });
+      }
+
+      if (playBtn) playBtn.addEventListener('click', startMinecartRound);
+
+      // Preserve Mission launch context (?game=minecart-switch[&mission=]) without completing a Mission.
+      // Direct /games catalog play does not auto-start and never writes Mission progress.
+      try {
+        var params = new URLSearchParams(location.search);
+        var triviaMission = window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.candidateFromLocation === 'function'
+          ? window.LANTERN_EDU_TRIVIA.candidateFromLocation(location)
+          : null;
+        if (params.get('game') === 'minecart-switch' && !triviaMission && playBtn) {
+          setTimeout(function(){ playBtn.click(); }, 0);
+        }
+      } catch (_) {}
     })();
 
     var gamesApiBase = (function () {

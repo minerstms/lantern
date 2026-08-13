@@ -228,6 +228,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Minecart Switch',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
@@ -276,7 +277,7 @@ if (leaderboardGameNames().length === 9) ok('production leaderboard name list is
 else bad('leaderboardGameNames', leaderboardGameNames());
 
 // ---------------------------------------------------------------------------
-// Client contract: eight games post without client-authoritative character_name
+// Client contract: catalog games post without client-authoritative character_name
 // ---------------------------------------------------------------------------
 const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 const paidStartJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-paid-start.js'), 'utf8');
