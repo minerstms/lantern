@@ -1026,11 +1026,11 @@
     }
     drawScene();
     paintHud();
-    if (after.ended && !before.ended) {
-      if (host.audio) host.audio.over();
-      showGameOver();
-    }
-    if (!after.ended) {
+    if (after.ended) {
+      if (!before.ended && host.audio) host.audio.over();
+      var overEl = host.root ? el('mcsOver', host.root) : null;
+      if (overEl && overEl.hidden) showGameOver();
+    } else {
       host.raf = global.requestAnimationFrame(loop);
     }
   }
@@ -1042,8 +1042,16 @@
     var touchStartX = 0;
     var touchStartY = 0;
     var gestureUsed = false;
+    var inputLockUntil = 0;
+    function acceptInput() {
+      var now = Date.now();
+      if (now < inputLockUntil) return false;
+      inputLockUntil = now + 90;
+      return true;
+    }
     function left(e) {
       if (e && e.preventDefault) e.preventDefault();
+      if (!acceptInput()) return;
       if (host.sim) {
         var moved = host.sim.inputLeft();
         if (moved && host.audio) host.audio.switch();
@@ -1051,6 +1059,7 @@
     }
     function right(e) {
       if (e && e.preventDefault) e.preventDefault();
+      if (!acceptInput()) return;
       if (host.sim) {
         var moved = host.sim.inputRight();
         if (moved && host.audio) host.audio.switch();
@@ -1088,18 +1097,8 @@
     }
     var tapL = el('mcsTapLeft', root);
     var tapR = el('mcsTapRight', root);
-    if (tapL) {
-      tapL.addEventListener('click', left);
-      tapL.addEventListener('pointerdown', function (e) {
-        if (e.pointerType === 'mouse') left(e);
-      });
-    }
-    if (tapR) {
-      tapR.addEventListener('click', right);
-      tapR.addEventListener('pointerdown', function (e) {
-        if (e.pointerType === 'mouse') right(e);
-      });
-    }
+    if (tapL) tapL.addEventListener('click', left);
+    if (tapR) tapR.addEventListener('click', right);
     root.addEventListener('touchstart', onTouchStart, { passive: false });
     root.addEventListener('touchend', onTouchEnd, { passive: false });
     root.addEventListener('touchmove', onTouchMove, { passive: false });
