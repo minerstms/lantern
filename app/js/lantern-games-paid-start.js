@@ -165,9 +165,16 @@
       }
       return transactGamePlay(gameName, cost, runId).then(function (tRes) {
         if (tRes && tRes.ok) {
+          var after = tRes.balance_after != null ? tRes.balance_after : tRes.available;
+          var w = walletApi();
+          if (after != null && w && typeof w.applyVisibleBalance === 'function') {
+            w.applyVisibleBalance(after);
+          } else if (after != null && global.LanternGamesPage && typeof global.LanternGamesPage.applyWalletAmount === 'function') {
+            global.LanternGamesPage.applyWalletAmount(after);
+          }
           return completeFirstGameLocal(loadAdopted()).then(function () {
             refreshWalletDisplays();
-            return finish(true);
+            return finish(true, null, { available: after });
           });
         }
         if (tRes && (tRes.error === 'insufficient' || tRes.code === 'insufficient_balance')) {

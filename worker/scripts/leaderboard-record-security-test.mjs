@@ -228,6 +228,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Stack Lab',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
@@ -239,9 +240,9 @@ if (resolveRegisteredLeaderboardGame('clickrush') && resolveRegisteredLeaderboar
   ok('game id clickrush resolves to canonical display name');
 } else bad('id resolution');
 
-if (!resolveRegisteredLeaderboardGame('tower') && !resolveRegisteredLeaderboardGame('Tower')) {
-  ok('Tower is not registered until explicitly added to the server catalog');
-} else bad('Tower should not be in production catalog yet');
+if (resolveRegisteredLeaderboardGame('tower') && resolveRegisteredLeaderboardGame('Stack Lab') && resolveRegisteredLeaderboardGame('tower').name === 'Stack Lab') {
+  ok('Stack Lab is registered in the server catalog as id tower / name Stack Lab');
+} else bad('Stack Lab missing from server catalog');
 
 if (!resolveRegisteredLeaderboardGame('lab-game') && !resolveRegisteredLeaderboardGame('<script>')) {
   ok('arbitrary / injection game names are not registered');
@@ -369,9 +370,9 @@ async function main() {
     const state = { accounts: { '20889': studentAccount() }, entries: [] };
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
-    const { status, json } = await postRecord(env, cookie, { game_name: 'Tower', score: 999 });
+    const { status, json } = await postRecord(env, cookie, { game_name: 'Unregistered Lab Game', score: 999 });
     if (status === 400 && json.error === 'invalid_game' && state.entries.length === 0) {
-      ok('D. unregistered game ID (Tower) rejected');
+      ok('D. unregistered game ID rejected');
     } else bad('D. invalid game', { status, json, n: state.entries.length });
   }
 
@@ -438,6 +439,41 @@ async function main() {
     if (first.status === 200 && second.status === 200 && second.json.idempotent === true && state.entries.length === 1 && second.json.id === first.json.id) {
       ok('I. duplicate run_id does not insert a second leaderboard row');
     } else bad('I. idempotency', { first, second, n: state.entries.length });
+  }
+
+  // Stack Lab registered record + retry + score bound
+  {
+    const state = { accounts: { '20889': studentAccount() }, entries: [] };
+    const env = makeEnv(state);
+    const cookie = await cookieFor(studentAccount());
+    const body = {
+      game_id: 'tower',
+      score: 250,
+      score_display: '250 pts',
+      run_id: 'tower-run-1',
+      character_name: 'spoof_ignored',
+    };
+    const first = await postRecord(env, cookie, body);
+    const second = await postRecord(env, cookie, body);
+    const row = state.entries[0];
+    if (
+      first.status === 200 &&
+      first.json.ok &&
+      first.json.game_name === 'Stack Lab' &&
+      first.json.character_name === '20889' &&
+      row &&
+      row.character_name === '20889' &&
+      row.score === 250 &&
+      second.json.idempotent === true &&
+      state.entries.length === 1
+    ) {
+      ok('Stack Lab authenticated record uses session identity; retry is idempotent');
+    } else bad('Stack Lab record', { first, second, row, n: state.entries.length });
+
+    const over = await postRecord(env, cookie, { game_id: 'tower', score: 2501, run_id: 'tower-run-over' });
+    if (over.status === 400 && over.json && over.json.error === 'score_out_of_range') {
+      ok('Stack Lab score above 2500 rejected');
+    } else bad('Stack Lab score ceiling', over);
   }
 
   // J. Tower-shaped call: authenticated, no identity fields

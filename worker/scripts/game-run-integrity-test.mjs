@@ -151,6 +151,10 @@ if (gamesHtml.match(/again\.addEventListener\('click', function\(\)\{\s*\n\s*el\
   ok('Trivia family Play Again re-clicks the original Play button (fresh paid run through the same fetch/validate-before-charge path), not a free replay');
 } else bad('Trivia family Play Again does not re-charge');
 
+if (gamesHtml.match(/playAgainBtn\.addEventListener\('click', startTowerRound\)/) || gamesHtml.match(/if \(playAgainBtn\) playAgainBtn\.addEventListener\('click', startTowerRound\)/)) {
+  ok('Stack Lab Play Again re-enters tryPlay (fresh paid run), not a free donor replay');
+} else bad('Stack Lab Play Again does not re-charge');
+
 // ---------------------------------------------------------------------------
 // Demo persona exclusion reconfirmed for the leaderboard path every game submits scores through
 // ---------------------------------------------------------------------------

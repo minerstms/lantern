@@ -5,7 +5,7 @@
  * GET /api/leaderboards combined views only return these names.
  *
  * Keep IDs and display names aligned with app/js/lantern-game-catalog.js.
- * To register a future donor game (e.g. Tower): add one object here AND in the frontend catalog.
+ * To register a future game: add one object here AND in the frontend catalog.
  * Do not accept unlisted/lab game names until they are registered.
  *
  * Score max values are generous gameplay ceilings derived from current client math, not
@@ -91,6 +91,15 @@ export const LANTERN_LEADERBOARD_GAMES = [
     lowerIsBetter: true,
     scoreMin: 0,
     scoreMax: 120,
+    leaderboard: true,
+    status: 'playable',
+  },
+  {
+    id: 'tower',
+    name: 'Stack Lab',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 2500,
     leaderboard: true,
     status: 'playable',
   },

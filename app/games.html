@@ -789,6 +789,7 @@
       <button type="button" id="clickrushPlayBtn"></button>
       <button type="button" id="memoryPlayBtn"></button>
       <button type="button" id="nuggetHuntPlayBtn"></button>
+      <button type="button" id="towerPlayBtn"></button>
     </div>
 
     </div>
@@ -849,6 +850,22 @@
       </div>
       <div class="gameBody" id="cultureGameBody"></div>
     </div>
+    <div id="towerGameSurface" class="towerGameSurface">
+      <iframe
+        id="towerPlayFrame"
+        class="towerPlayFrame"
+        title="Stack Lab"
+        src="about:blank"
+        allow="autoplay"
+      ></iframe>
+      <div id="towerGameResult" class="towerGameResult" hidden>
+        <p id="towerGameResultScore" class="towerGameResultScore"></p>
+        <p id="towerGameResultMsg" class="towerGameResultMsg"></p>
+        <div class="playAgainRow">
+          <button type="button" class="btn good" id="towerPlayAgainBtn">Play Again</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -894,6 +911,7 @@
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-game-player.js"></script>
+  <script src="js/lantern-game-bridge.js"></script>
   <script src="js/lantern-games-page.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
@@ -1031,6 +1049,10 @@
       if (window.LanternWallet && window.LanternWallet.canUseHttpEconomy && window.LanternWallet.canUseHttpEconomy()) {
         callEconomyTransact(characterName, nuggets, 'game_win', 'GAME', (gameName || 'Game') + ' win', runId).then(function(tRes){
           if (!tRes || !tRes.ok) { if (onFailure) onFailure(); return; }
+          var after = tRes.balance_after != null ? tRes.balance_after : tRes.available;
+          if (after != null && window.LanternWallet && typeof window.LanternWallet.applyVisibleBalance === 'function') {
+            window.LanternWallet.applyVisibleBalance(after);
+          }
           if (run) run.withSuccessHandler(function(){ if (onSuccess) onSuccess(); }).withFailureHandler(function(){ if (onSuccess) onSuccess(); }).awardGameWin({ character_name: characterName, game_name: gameName, nuggets: nuggets, economy_backend_charged: true });
           else if (onSuccess) onSuccess();
         });
@@ -1089,10 +1111,10 @@
         if (n != null) {
           // Prompt #151 — do not disable off-DOM play triggers on low balance.
           // Card click selects/opens pregame; Start enforces 1 Nugget spend.
-          ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+          ['reaction','clickrush','memory','nuggetHunt','tower'].forEach(function(g){
             var lockEl = el(g + 'Locked');
             var playBtn = el(g + 'PlayBtn');
-            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+            var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : g === 'tower' ? 'Stack Lab' : 'Reaction Tap');
             if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
             if (playBtn) playBtn.disabled = false;
           });
@@ -1917,6 +1939,128 @@
         return false;
       });
     }
+
+    // ---- Stack Lab (id tower): same-origin iframe in the shared Game Player ----
+    (function(){
+      var QUALIFYING_FLOORS = 10;
+      var SCORE_MAX = 2500;
+      var playBtn = el('towerPlayBtn');
+      var surface = el('towerGameSurface');
+      var iframe = el('towerPlayFrame');
+      var resultEl = el('towerGameResult');
+      var resultScore = el('towerGameResultScore');
+      var resultMsg = el('towerGameResultMsg');
+      var playAgainBtn = el('towerPlayAgainBtn');
+      if (!playBtn || !surface || !iframe) return;
+
+      var catGame = window.LANTERN_GAME_CATALOG && typeof window.LANTERN_GAME_CATALOG.getGameById === 'function'
+        ? window.LANTERN_GAME_CATALOG.getGameById('tower')
+        : null;
+      if (catGame && catGame.qualifyingWin && catGame.qualifyingWin.floors != null) {
+        var qn = Math.floor(Number(catGame.qualifyingWin.floors));
+        if (Number.isFinite(qn) && qn > 0) QUALIFYING_FLOORS = qn;
+      }
+
+      var towerRunId = '';
+      var endedOnce = false;
+      var playing = false;
+
+      function hideResult(){
+        if (!resultEl) return;
+        resultEl.hidden = true;
+        resultEl.setAttribute('hidden', '');
+      }
+      function showResult(score, floors, won){
+        if (resultScore) resultScore.textContent = String(score) + ' pts';
+        if (resultMsg) {
+          resultMsg.textContent = won
+            ? ('You reached ' + floors + ' floors. +1 Nugget!')
+            : ('Stacked ' + floors + ' floor' + (floors === 1 ? '' : 's') + '. Reach ' + QUALIFYING_FLOORS + ' floors to earn +1 Nugget.');
+        }
+        if (resultEl) {
+          resultEl.hidden = false;
+          resultEl.removeAttribute('hidden');
+        }
+      }
+      function sendBeginPlay(){
+        try {
+          if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              source: 'lantern-parent',
+              type: 'lantern-game',
+              event: 'beginPlay'
+            }, window.location.origin);
+          }
+        } catch (e) {}
+      }
+      function loadPlayableIframe(){
+        hideResult();
+        endedOnce = false;
+        iframe.src = '/games/tower/index.html?lanternPlay=1';
+      }
+      function unloadIframe(){
+        playing = false;
+        hideResult();
+        iframe.src = 'about:blank';
+      }
+      function startTowerRound(){
+        tryPlay('Stack Lab', function(){
+          playing = true;
+          towerRunId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function')
+            ? window.LanternGamesPaidStart.getLastRunId()
+            : '';
+          loadPlayableIframe();
+        }, {
+          surface: surface,
+          title: 'Stack Lab',
+          gameName: 'Stack Lab',
+          gameId: 'tower',
+          onExit: unloadIframe,
+          returnFocus: playBtn
+        });
+      }
+
+      iframe.addEventListener('load', function(){
+        if (!playing) return;
+        var src = String(iframe.getAttribute('src') || iframe.src || '');
+        if (src.indexOf('/games/tower/index.html') === -1) return;
+        sendBeginPlay();
+      });
+
+      if (window.LanternGameBridge && typeof window.LanternGameBridge.attach === 'function') {
+        window.LanternGameBridge.attach(iframe, {
+          onGameStarted: function(){
+            endedOnce = false;
+            hideResult();
+          },
+          onGameEnded: function(payload){
+            if (endedOnce) return;
+            endedOnce = true;
+            var score = payload && payload.score != null ? payload.score : 0;
+            score = Math.floor(Number(score));
+            if (!Number.isFinite(score) || score < 0) score = 0;
+            if (score > SCORE_MAX) score = SCORE_MAX;
+            var floors = payload && payload.floors != null ? payload.floors : 0;
+            floors = Math.floor(Number(floors));
+            if (!Number.isFinite(floors) || floors < 0) floors = 0;
+            var won = floors >= QUALIFYING_FLOORS;
+            var adopted = loadAdopted();
+            postLeaderboardScore('Stack Lab', adopted && adopted.name, score, score + ' pts', function(){}, towerRunId);
+            if (won && adopted) {
+              awardGameWinWithEconomy(adopted.name, 'Stack Lab', 1, function(){
+                refreshBalance();
+              }, function(){
+                toast('Nugget award failed. Contact your teacher if this persists.');
+              }, towerRunId);
+            }
+            showResult(score, floors, won);
+          }
+        });
+      }
+
+      playBtn.addEventListener('click', startTowerRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startTowerRound);
+    })();
 
     (function(){
       var overlay = el('cultureGameOverlay');

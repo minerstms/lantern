@@ -119,6 +119,7 @@ const gameNames = [
   'Handbook Trivia',
   'Lantern Live Trivia',
   'Local History Trivia',
+  'Stack Lab',
 ];
 gameNames.forEach(function (name) {
   const re = new RegExp(
@@ -144,7 +145,7 @@ if (playerCss.includes('safe-area-inset')) {
 if (
   !playerJs.includes('history.pushState') &&
   !playerJs.includes('history.replaceState') &&
-  !gamesHtml.match(/tryPlay[\s\S]*history\.(push|replace)State/)
+  !(tryPlayBlock && /history\.(push|replace)State/.test(tryPlayBlock[0]))
 ) {
   ok('Game Player does not navigate away from /games');
 } else bad('history navigation on player');

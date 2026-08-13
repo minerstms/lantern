@@ -1,0 +1,78 @@
+{
+  "gameId": "tower",
+  "workingTitle": "Stack Lab",
+  "note": "Working title is development-only. Internal id remains tower. Public name is not final.",
+  "presentation": "Lantern-owned canvas sprites (lantern-sprites.js) and Web Audio SFX (lantern-sfx.js). Donor media files are not in the shipping tree.",
+  "slots": [
+    {
+      "engineKey": "background.png",
+      "purpose": "Night skyline backdrop",
+      "replacement": "LanternTowerAssets.background (canvas data URL)"
+    },
+    {
+      "engineKey": "hook.png",
+      "purpose": "Crane hook",
+      "replacement": "LanternTowerAssets.hook"
+    },
+    {
+      "engineKey": "block.png",
+      "purpose": "Dropping floor",
+      "replacement": "LanternTowerAssets.block"
+    },
+    {
+      "engineKey": "block-perfect.png",
+      "purpose": "Perfect-placement floor",
+      "replacement": "LanternTowerAssets.blockPerfect"
+    },
+    {
+      "engineKey": "block-rope.png",
+      "purpose": "Rope on dropping floor",
+      "replacement": "LanternTowerAssets.blockRope"
+    },
+    {
+      "engineKey": "c1.png-c8.png",
+      "purpose": "Cloud layers",
+      "replacement": "LanternTowerAssets.c1-c8"
+    },
+    {
+      "engineKey": "f1.png-f7.png",
+      "purpose": "Decorative flying objects",
+      "replacement": "LanternTowerAssets.f1-f7"
+    },
+    {
+      "engineKey": "tutorial.png / tutorial-arrow.png",
+      "purpose": "In-canvas drop hint",
+      "replacement": "LanternTowerAssets.tutorial / tutorialArrow"
+    },
+    {
+      "engineKey": "heart.png",
+      "purpose": "Lives HUD",
+      "replacement": "LanternTowerAssets.heart"
+    },
+    {
+      "engineKey": "score.png",
+      "purpose": "In-canvas score plate",
+      "replacement": "LanternTowerAssets.score"
+    },
+    {
+      "engineKey": "main-index-*.png / main-game-*.png / main-loading-logo.png",
+      "purpose": "Donor chrome (title, start, replay, share, game-over, logos)",
+      "replacement": "Removed. Lantern Game Player / lab CSS owns chrome."
+    },
+    {
+      "engineKey": "drop.mp3 / drop-perfect.mp3 / rotate.mp3 / gameover.mp3 / bgm.mp3",
+      "purpose": "Audio",
+      "replacement": "LanternTowerSfx Web Audio. No BGM. No media files."
+    },
+    {
+      "engineKey": "wenxue.ttf",
+      "purpose": "Canvas HUD font",
+      "replacement": "Arial, Helvetica, sans-serif. Font file never shipped."
+    },
+    {
+      "playCard": "app/assets/tower-card.png",
+      "purpose": "Games library card",
+      "replacement": "Original Lantern PNG (navy stacked floors)."
+    }
+  ]
+}
