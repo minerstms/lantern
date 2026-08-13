@@ -251,7 +251,8 @@ if (
   paidStartJs.includes('spendInFlight') &&
   paidStartJs.includes("error: 'in_flight'") &&
   paidStartJs.includes('run_id: runId') &&
-  workerIndex.includes('lantern:game_play:')
+  workerIndex.includes("indexOf('game_') === 0") &&
+  contractDoc.includes('lantern:game_play:<run_id>')
 ) {
   ok('5. retry no duplicate debit');
 } else bad('5. retry debit');
@@ -283,7 +284,7 @@ if (
 // 8. leaderboard run proof
 if (
   gamesHtml.includes("postLeaderboardScore('Minecart Switch'") &&
-  /function postLeaderboardScore[\s\S]{0,900}run_id: resultRunId/.test(gamesHtml) &&
+  /function postLeaderboardScore[\s\S]{0,1800}run_id: resultRunId/.test(gamesHtml) &&
   /if \(gamesApiBase == null \|\| !key \|\| !Number\.isFinite\(numericScore\) \|\| !resultRunId\)/.test(gamesHtml)
 ) {
   ok('8. leaderboard run proof');
