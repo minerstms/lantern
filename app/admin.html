@@ -134,6 +134,18 @@
     .nuggetAdjDirRow { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 8px 0 12px; font-weight: 800; }
     .nuggetAdjDirRow label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
     .nuggetAdjPreview { margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(90,167,255,.35); background: rgba(90,167,255,.08); font-weight: 800; font-size: 20px; line-height: 1.4; }
+    .staffStarterList { max-height: 320px; overflow: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 6px 8px; margin: 8px 0 10px; }
+    .staffStarterRow { display: flex; align-items: center; gap: 10px; padding: 8px 6px; font-size: 20px; font-weight: 700; line-height: 1.3; }
+    .staffStarterRow.is-disabled { opacity: 0.72; }
+    .staffStarterRow label { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+    .staffStarterName { flex: 1; min-width: 0; }
+    .staffStarterLink { font-size: 16px; font-weight: 800; white-space: nowrap; }
+    .staffStarterLink.is-ok { color: #7dffb4; }
+    .staffStarterLink.is-warn { color: #ffcc66; }
+    .staffStarterCount { font-weight: 800; margin: 4px 0 10px; }
+    .staffStarterResult { margin-top: 14px; padding: 12px; border-radius: 12px; border: 1px solid rgba(56,208,124,.4); background: rgba(56,208,124,.1); font-weight: 800; font-size: 20px; line-height: 1.45; }
+    .staffStarterResult.is-partial { border-color: rgba(255,204,102,.5); background: rgba(255,204,102,.1); }
+    .staffStarterResult.is-err { border-color: rgba(255,107,107,.5); background: rgba(255,107,107,.1); }
     .marqueeSpeedRow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
     .marqueeSpeedRow input[type="range"] { flex: 1; min-width: 220px; max-width: 420px; margin: 0; }
     .marqueeSpeedRow input[type="number"] { width: 120px; max-width: 120px; margin: 0; }
@@ -700,6 +712,44 @@
     </div>
   </details>
 
+  <details class="card teacherCollapsibleList" id="staffStarterNuggetsCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Staff Starter Nuggets</div></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+    <p class="acctPanelHint">Give the same starter Nuggets to many active linked staff in one batch. Creates one ADD transaction per person on the authoritative TMS ledger. Unlinked staff stay visible but cannot be selected.</p>
+    <p id="staffStarterLoadMsg" class="usersMsg" role="status" aria-live="polite" style="display:none;"></p>
+    <label for="staffStarterSearch">Search staff</label>
+    <input type="search" id="staffStarterSearch" placeholder="Name or username…" autocomplete="off" />
+    <label class="staffStarterRow" style="margin-top:10px;">
+      <input type="checkbox" id="staffStarterSelectAll" />
+      <span>Select All Eligible Staff</span>
+    </label>
+    <div id="staffStarterList" class="staffStarterList" role="group" aria-label="Staff starter targets"></div>
+    <p id="staffStarterCount" class="staffStarterCount" aria-live="polite">0 staff selected</p>
+    <p style="font-weight:800;margin:12px 0 4px;">Amount each</p>
+    <div class="nuggetAdjQuickRow" id="staffStarterQuickRow" role="group" aria-label="Starter amounts">
+      <button type="button" class="btn is-selected" data-staff-starter-amt="1">+1</button>
+      <button type="button" class="btn" data-staff-starter-amt="5">+5</button>
+      <button type="button" class="btn" data-staff-starter-amt="10">+10</button>
+      <button type="button" class="btn" data-staff-starter-amt="25">+25</button>
+      <button type="button" class="btn" data-staff-starter-amt="custom" id="staffStarterCustomPickBtn">Custom</button>
+    </div>
+    <label for="staffStarterAmount">Custom amount (whole Nuggets)</label>
+    <input id="staffStarterAmount" type="number" min="1" max="100" step="1" value="1" />
+    <p class="pendingMeta" style="margin-top:4px;">Add only. Maximum 100 Nuggets per staff member.</p>
+    <div id="staffStarterPreview" class="nuggetAdjPreview" aria-live="polite"></div>
+    <label for="staffStarterReason" style="margin-top:12px;display:block;">Reason <span style="color:var(--bad);">(required)</span></label>
+    <textarea id="staffStarterReason" rows="3" maxlength="2000">Staff starter Nuggets</textarea>
+    <div class="acctPanelActions" style="margin-top:14px;">
+      <button type="button" class="btn good" id="staffStarterSubmit">Give Nuggets</button>
+      <button type="button" class="btn" id="staffStarterNewBatch">Start new batch</button>
+    </div>
+    <div id="staffStarterMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+    <div id="staffStarterResult" class="staffStarterResult" style="display:none;"></div>
+    </div>
+  </details>
+
   <details class="card teacherCollapsibleList" id="feedModerationCard">
     <summary class="cardHd teacherCollapsibleListHd">
       <div class="teacherCollapsibleListTitle"><div class="h">Feed visibility (students)</div></div>
@@ -1163,6 +1213,7 @@
           setTmsCount(links.length);
           renderStaffTable();
           renderStaffNeedsAttention();
+          renderStaffStarterList();
           if (links.length === 0) {
             if (emptyEl) emptyEl.style.display = 'block';
             if (table) table.style.display = 'none';
@@ -1745,6 +1796,326 @@
       });
     });
     setWalletAdjQuickSelection(1);
+
+    var staffStarterSelected = {};
+    var staffStarterQuickAmt = 1;
+    var staffStarterBatchId = '';
+    var staffStarterBatchFingerprint = '';
+    function isSystemWebAdminUser(u) {
+      return String(u && u.username || '').trim().toLowerCase() === 'admin';
+    }
+    function staffStarterPublicLabel(u) {
+      var pub = u && u.public_display_name != null ? String(u.public_display_name).trim() : '';
+      if (pub) return pub;
+      return formatStaffDisplayName(u) || String(u && u.username || '').trim();
+    }
+    function staffStarterNuggetLinked(u) {
+      return !!(u && linkForLanternUsername(u.username));
+    }
+    function staffStarterEligible(u) {
+      return !!(u && isActiveStaffUser(u) && !isSystemWebAdminUser(u) && staffStarterNuggetLinked(u));
+    }
+    function staffStarterSkipReason(u) {
+      if (!u) return 'Not found';
+      if (isSystemWebAdminUser(u)) return 'System account';
+      if (!isStaffUser(u)) return 'Students excluded';
+      if (!accountIsActive(u)) return 'Inactive';
+      if (!staffStarterNuggetLinked(u)) return 'Needs Link';
+      return '';
+    }
+    function getStaffStarterAmount() {
+      if (staffStarterQuickAmt !== 'custom' && staffStarterQuickAmt > 0) return Math.floor(Number(staffStarterQuickAmt));
+      var raw = document.getElementById('staffStarterAmount') && document.getElementById('staffStarterAmount').value;
+      if (raw == null || String(raw).trim() === '' || !/^\s*\d+\s*$/.test(String(raw))) return null;
+      var n = Math.floor(Number(raw));
+      if (!isFinite(n) || n < 1 || n > 100) return null;
+      return n;
+    }
+    function selectedStaffStarterUsernames() {
+      return Object.keys(staffStarterSelected).filter(function(k){ return staffStarterSelected[k]; }).sort();
+    }
+    function staffStarterFingerprint(usernames, amount, reason) {
+      return String(amount) + '|' + String(reason || '') + '|' + (usernames || []).join(',');
+    }
+    function newStaffStarterBatchId() {
+      var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2));
+      return 'staff_starter:' + String(id).replace(/[^A-Za-z0-9_-]/g, '');
+    }
+    function showStaffStarterMsg(text, kind) {
+      var el = document.getElementById('staffStarterMsg');
+      if (!el) return;
+      el.style.display = text ? 'block' : 'none';
+      el.className = 'usersMsg' + (kind ? ' ' + kind : '');
+      el.textContent = text || '';
+    }
+    function updateStaffStarterPreview() {
+      var preview = document.getElementById('staffStarterPreview');
+      var countEl = document.getElementById('staffStarterCount');
+      var btn = document.getElementById('staffStarterSubmit');
+      var selected = selectedStaffStarterUsernames();
+      var amount = getStaffStarterAmount();
+      var unavailable = (lastUsersList || []).filter(function(u){
+        return isStaffUser(u) && accountIsActive(u) && !staffStarterEligible(u);
+      }).length;
+      if (countEl) countEl.textContent = selected.length + ' staff selected';
+      if (preview) {
+        if (usersLoadState === 'error') {
+          preview.textContent = 'Could not load staff accounts';
+        } else if (amount == null) {
+          preview.textContent = selected.length + ' staff selected\nEnter a whole number from 1 to 100';
+        } else {
+          preview.innerHTML = selected.length + ' staff selected<br>' +
+            amount + ' Nuggets each<br>' +
+            (selected.length * amount) + ' Nuggets total' +
+            (unavailable ? '<br>' + unavailable + ' staff unavailable — Needs Link or system account' : '');
+        }
+      }
+      if (btn) {
+        btn.textContent = (amount && selected.length)
+          ? ('Give ' + amount + ' Nuggets to ' + selected.length + ' Staff')
+          : 'Give Nuggets';
+      }
+    }
+    function renderStaffStarterList() {
+      var host = document.getElementById('staffStarterList');
+      var loadMsg = document.getElementById('staffStarterLoadMsg');
+      if (!host) return;
+      host.innerHTML = '';
+      if (loadMsg) {
+        loadMsg.style.display = 'none';
+        loadMsg.textContent = '';
+      }
+      if (usersLoadState === 'loading') {
+        host.innerHTML = '<p class="pendingMeta">Loading staff…</p>';
+        updateStaffStarterPreview();
+        return;
+      }
+      if (usersLoadState === 'error') {
+        if (loadMsg) {
+          loadMsg.style.display = 'block';
+          loadMsg.className = 'usersMsg err';
+          loadMsg.textContent = 'Could not load staff accounts';
+        }
+        host.innerHTML = '';
+        Object.keys(staffStarterSelected).forEach(function(k){ delete staffStarterSelected[k]; });
+        updateStaffStarterPreview();
+        return;
+      }
+      var q = (document.getElementById('staffStarterSearch') && document.getElementById('staffStarterSearch').value || '').trim().toLowerCase();
+      var rows = (lastUsersList || []).filter(isStaffUser).filter(function(u){
+        if (!accountIsActive(u) && !isSystemWebAdminUser(u)) return false;
+        if (isSystemWebAdminUser(u) && !accountIsActive(u)) return false;
+        if (!q) return true;
+        var hay = [u.username, u.display_name, u.public_display_name, u.first_name, u.last_name]
+          .map(function(x){ return x != null ? String(x) : ''; }).join(' ').toLowerCase();
+        return hay.indexOf(q) !== -1;
+      }).sort(function(a, b){
+        var an = staffStarterPublicLabel(a).localeCompare(staffStarterPublicLabel(b));
+        if (an !== 0) return an;
+        return String(a.username || '').localeCompare(String(b.username || ''));
+      });
+      rows.forEach(function(u){
+        var un = String(u.username || '').trim();
+        var eligible = staffStarterEligible(u);
+        var skip = staffStarterSkipReason(u);
+        if (!eligible) delete staffStarterSelected[un];
+        var row = document.createElement('div');
+        row.className = 'staffStarterRow' + (eligible ? '' : ' is-disabled');
+        var lab = document.createElement('label');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.setAttribute('data-staff-starter-user', un);
+        cb.disabled = !eligible;
+        cb.checked = !!(eligible && staffStarterSelected[un]);
+        cb.addEventListener('change', function(){
+          if (!eligible) return;
+          if (cb.checked) staffStarterSelected[un] = true;
+          else delete staffStarterSelected[un];
+          syncStaffStarterSelectAll();
+          updateStaffStarterPreview();
+        });
+        var name = document.createElement('span');
+        name.className = 'staffStarterName';
+        name.textContent = staffStarterPublicLabel(u);
+        var link = document.createElement('span');
+        link.className = 'staffStarterLink ' + (eligible ? 'is-ok' : 'is-warn');
+        link.textContent = eligible ? 'Linked' : (skip || 'Needs Link');
+        lab.appendChild(cb);
+        lab.appendChild(name);
+        row.appendChild(lab);
+        row.appendChild(link);
+        host.appendChild(row);
+      });
+      if (!rows.length) {
+        host.innerHTML = '<p class="pendingMeta">' + (q ? 'No matching staff' : 'No active staff') + '</p>';
+      }
+      syncStaffStarterSelectAll();
+      updateStaffStarterPreview();
+    }
+    function syncStaffStarterSelectAll() {
+      var all = document.getElementById('staffStarterSelectAll');
+      if (!all) return;
+      var eligible = (lastUsersList || []).filter(staffStarterEligible);
+      var selected = selectedStaffStarterUsernames();
+      all.checked = eligible.length > 0 && selected.length === eligible.length;
+    }
+    function setStaffStarterQuick(amt) {
+      staffStarterQuickAmt = amt;
+      Array.prototype.forEach.call(document.querySelectorAll('#staffStarterQuickRow [data-staff-starter-amt]'), function(btn){
+        var v = btn.getAttribute('data-staff-starter-amt');
+        btn.classList.toggle('is-selected', String(v) === String(amt));
+      });
+      var amountEl = document.getElementById('staffStarterAmount');
+      if (amountEl && amt !== 'custom') amountEl.value = String(amt);
+      updateStaffStarterPreview();
+    }
+    var staffStarterSearchEl = document.getElementById('staffStarterSearch');
+    if (staffStarterSearchEl) {
+      staffStarterSearchEl.addEventListener('input', function(){ renderStaffStarterList(); });
+    }
+    var staffStarterSelectAll = document.getElementById('staffStarterSelectAll');
+    if (staffStarterSelectAll) {
+      staffStarterSelectAll.addEventListener('change', function(){
+        var eligible = (lastUsersList || []).filter(staffStarterEligible);
+        if (staffStarterSelectAll.checked) {
+          eligible.forEach(function(u){ staffStarterSelected[String(u.username || '').trim()] = true; });
+        } else {
+          eligible.forEach(function(u){ delete staffStarterSelected[String(u.username || '').trim()]; });
+        }
+        renderStaffStarterList();
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#staffStarterQuickRow [data-staff-starter-amt]'), function(btn){
+      btn.addEventListener('click', function(){
+        var v = btn.getAttribute('data-staff-starter-amt');
+        setStaffStarterQuick(v === 'custom' ? 'custom' : Number(v));
+        if (v === 'custom') {
+          var amountEl = document.getElementById('staffStarterAmount');
+          if (amountEl) amountEl.focus();
+        }
+      });
+    });
+    var staffStarterAmountEl = document.getElementById('staffStarterAmount');
+    if (staffStarterAmountEl) {
+      staffStarterAmountEl.addEventListener('input', function(){
+        staffStarterQuickAmt = 'custom';
+        Array.prototype.forEach.call(document.querySelectorAll('#staffStarterQuickRow [data-staff-starter-amt]'), function(b){
+          b.classList.toggle('is-selected', b.getAttribute('data-staff-starter-amt') === 'custom');
+        });
+        updateStaffStarterPreview();
+      });
+    }
+    var staffStarterReasonEl = document.getElementById('staffStarterReason');
+    if (staffStarterReasonEl) {
+      staffStarterReasonEl.addEventListener('input', updateStaffStarterPreview);
+    }
+    var staffStarterNewBatch = document.getElementById('staffStarterNewBatch');
+    if (staffStarterNewBatch) {
+      staffStarterNewBatch.addEventListener('click', function(){
+        staffStarterBatchId = '';
+        staffStarterBatchFingerprint = '';
+        var resultEl = document.getElementById('staffStarterResult');
+        if (resultEl) {
+          resultEl.style.display = 'none';
+          resultEl.innerHTML = '';
+        }
+        showStaffStarterMsg('New batch ready. Previous batch ID will not be reused.', 'ok');
+      });
+    }
+    var staffStarterSubmit = document.getElementById('staffStarterSubmit');
+    if (staffStarterSubmit) {
+      staffStarterSubmit.addEventListener('click', function(){
+        var usernames = selectedStaffStarterUsernames();
+        var amount = getStaffStarterAmount();
+        var reason = (document.getElementById('staffStarterReason') && document.getElementById('staffStarterReason').value || '').trim();
+        if (usersLoadState === 'error') {
+          showStaffStarterMsg('Could not load staff accounts', 'err');
+          return;
+        }
+        if (!usernames.length) {
+          showStaffStarterMsg('Select at least one eligible linked staff member.', 'err');
+          return;
+        }
+        if (amount == null) {
+          showStaffStarterMsg('Enter a whole number from 1 to 100.', 'err');
+          return;
+        }
+        if (!reason) {
+          showStaffStarterMsg('Reason is required.', 'err');
+          return;
+        }
+        var total = usernames.length * amount;
+        var confirmText = [
+          'Give ' + amount + ' Nuggets to ' + usernames.length + ' staff?',
+          '',
+          'Total grant: ' + total + ' Nuggets',
+          '',
+          'Reason:',
+          reason
+        ].join('\n');
+        if (!window.confirm(confirmText)) return;
+        var fp = staffStarterFingerprint(usernames, amount, reason);
+        if (!staffStarterBatchId || staffStarterBatchFingerprint !== fp) {
+          staffStarterBatchId = newStaffStarterBatchId();
+          staffStarterBatchFingerprint = fp;
+        }
+        var btn = staffStarterSubmit;
+        btn.disabled = true;
+        showStaffStarterMsg('Granting…', '');
+        postAdminJson('/api/admin/staff-starter-nuggets', {
+          batch_id: staffStarterBatchId,
+          usernames: usernames,
+          amount: amount,
+          reason: reason
+        }).then(function(res){
+          if (res && res.blocked) return;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            var body = res.body;
+            var resultEl = document.getElementById('staffStarterResult');
+            var heading = (body.failed || body.skipped)
+              ? 'STAFF STARTER NUGGETS PARTIAL'
+              : 'STAFF STARTER NUGGETS COMPLETE';
+            var details = (body.results || []).filter(function(r){ return r.status === 'skipped' || r.status === 'failed'; });
+            var html = '<div><strong>' + heading + '</strong></div>' +
+              '<div>Batch: ' + String(body.batch_id || staffStarterBatchId).replace(/^staff_starter:/, '') + '</div>' +
+              '<div>Selected: ' + (body.selected != null ? body.selected : usernames.length) + '</div>' +
+              '<div>Credited: ' + (body.credited || 0) + '</div>' +
+              '<div>Skipped: ' + (body.skipped || 0) + '</div>' +
+              '<div>Failed: ' + (body.failed || 0) + '</div>' +
+              '<div>Amount each: +' + amount + '</div>' +
+              '<div>Total credited: +' + (body.total_credited || 0) + ' Nuggets</div>';
+            if (details.length) {
+              html += '<details style="margin-top:8px;"><summary>Skipped / failed details</summary><ul>' +
+                details.map(function(r){
+                  return '<li>' + String(r.display_name || r.username || '') + ' — ' + String(r.reason || r.error || '') + '</li>';
+                }).join('') + '</ul></details>';
+            }
+            if (resultEl) {
+              resultEl.style.display = 'block';
+              resultEl.className = 'staffStarterResult' + ((body.failed || body.skipped) ? ' is-partial' : '');
+              resultEl.innerHTML = html;
+            }
+            showStaffStarterMsg((body.failed || body.skipped) ? 'Batch finished with skipped or failed targets.' : 'Batch complete.', (body.failed || body.skipped) ? 'err' : 'ok');
+            if (body.failed === 0) {
+              staffStarterBatchId = '';
+              staffStarterBatchFingerprint = '';
+            }
+            if (typeof loadWalletBalanceForSelection === 'function') loadWalletBalanceForSelection();
+            return;
+          }
+          var err = res && res.body && res.body.error ? String(res.body.error) : 'Request failed';
+          if (err === 'reason_required') showStaffStarterMsg('Reason is required.', 'err');
+          else if (err === 'invalid_amount' || err === 'amount_too_large') showStaffStarterMsg('Enter a whole number from 1 to 100.', 'err');
+          else if (err === 'forbidden') showStaffStarterMsg('Not authorized. Sign in again as admin.', 'err');
+          else showStaffStarterMsg(err, 'err');
+        }).catch(function(){
+          showStaffStarterMsg('Network error. Retry will reuse the same batch ID.', 'err');
+        }).finally(function(){
+          btn.disabled = false;
+        });
+      });
+    }
+    setStaffStarterQuick(1);
 
     function parkAdminEditor(panel) {
       var park = document.getElementById('adminEditorPark');
@@ -2614,6 +2985,7 @@
           populateWalletStudentSelect();
           populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
           renderStaffTable();
+          renderStaffStarterList();
           return;
         }
         usersLoadState = 'ok';
@@ -2624,6 +2996,7 @@
         populateWalletStudentSelect();
         populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
         renderStaffTable();
+        renderStaffStarterList();
       }).catch(function(){
         usersLoadState = 'error';
         lastUsersList = [];
@@ -2636,6 +3009,7 @@
         populateWalletStudentSelect();
         populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
         renderStaffTable();
+        renderStaffStarterList();
       });
     }
 

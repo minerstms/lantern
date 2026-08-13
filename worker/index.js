@@ -47,6 +47,7 @@ import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun } from './game-paid-ru
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
+import { handleStaffStarterNuggets } from './staff-starter-nuggets.js';
 import {
   canonicalLanternStaffDisplayName,
   ensureBlCompatIdentityForLanternStaff,
@@ -2055,6 +2056,10 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
   if (pilotAccountRequiresChangePassword(account)) {
     return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/staff-starter-nuggets') {
+    return handleStaffStarterNuggets(request, env, cors, account);
   }
 
   if (request.method === 'GET' && path === '/api/admin/users') {

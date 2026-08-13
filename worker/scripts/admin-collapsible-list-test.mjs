@@ -40,6 +40,7 @@ const requiredPanels = [
   ['adminStaffCard', 'Staff'],
   ['tmsStaffLinksCard', 'TMS Staff Links'],
   ['walletAdjustmentCard', 'Nugget Adjustment'],
+  ['staffStarterNuggetsCard', 'Staff Starter Nuggets'],
   ['feedModerationCard', 'Feed visibility'],
   ['marqueeSpeedCard', 'Marquee speed'],
   ['adminPendingApprovalsCard', 'Pending approvals'],
@@ -100,6 +101,7 @@ if (/\/api\/admin\/tms-staff/.test(html) && /loadTmsStaffDirectory/.test(html)) 
 /* Prompt #137 — former always-open form cards now use shared disclosure, collapsed by default */
 const defaultCollapsedIds = [
   'walletAdjustmentCard',
+  'staffStarterNuggetsCard',
   'feedModerationCard',
   'marqueeSpeedCard',
   'adminPendingApprovalsCard',
