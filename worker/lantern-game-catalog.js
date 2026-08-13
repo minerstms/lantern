@@ -85,6 +85,15 @@ export const LANTERN_LEADERBOARD_GAMES = [
     leaderboard: true,
     status: 'playable',
   },
+  {
+    id: 'orbit-lock',
+    name: 'Orbit Lock',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 6000,
+    leaderboard: true,
+    status: 'playable',
+  },
 ];
 
 const BY_ID = Object.create(null);

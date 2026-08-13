@@ -70,7 +70,7 @@ sandbox.window = sandbox.globalThis = sandbox;
 vm.runInNewContext(catalogJs, sandbox);
 const cat = sandbox.LANTERN_GAME_CATALOG;
 const games = cat.listGames();
-if (games.length === 8) ok('eight canonical games');
+if (games.length === 9) ok('nine canonical games');
 else bad('canonical count', games.length);
 
 const expected = [
@@ -82,6 +82,7 @@ const expected = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Orbit Lock',
 ];
 expected.forEach(function (name) {
   const g = cat.getGameByName(name);
