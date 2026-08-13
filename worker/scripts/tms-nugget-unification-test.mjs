@@ -381,8 +381,8 @@ async function testEarlyEncouragerRewardThroughTms() {
       ok('early encourager reward: grants through TMS and never touches the legacy Lantern wallet for a real TMS student');
     } else bad('early encourager reward TMS grant path', { res, wallets: state.wallets });
     const call = getCalls()[0];
-    if (call && call.body.reference === 'lantern:early_encourager:feed:item1') {
-      ok('early encourager reward: uses a stable lantern:early_encourager:<item_type>:<item_id> reference');
+    if (call && call.body.reference === 'lantern:early_encourager:feed:item1:20889') {
+      ok('early encourager reward: uses a stable lantern:early_encourager:<item_type>:<item_id>:<account> reference');
     } else bad('early encourager reward reference shape', call);
   });
 

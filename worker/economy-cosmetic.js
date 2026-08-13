@@ -5,7 +5,8 @@
 import { getCosmeticById, isPurchasableCosmetic, serverCosmeticPrice } from './cosmetic-catalog.js';
 import { awardAchievementsForCosmeticPurchase } from './locker-achievements.js';
 import { fetchCosmeticOwnershipRow } from './locker-storage.js';
-import { tmsEconomyTransact } from './tms-economy-bridge.js';
+import { tmsEconomyTransact, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
+import { isStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
 
 function uniqueStrings(list) {
   const out = [];
@@ -89,20 +90,40 @@ export async function executeCosmeticPurchase(db, characterName, cosmeticId, opt
   const note = (item.name || cid) + ' purchase';
 
   let tmsResult = null;
+  if (isStaffEconomyKey(key) && !env) {
+    return { ok: false, error: 'bridge_not_configured', message: 'Nugget account needs linking' };
+  }
   if (env) {
     const reference = 'lantern:store_purchase:' + (idempotencyKey || txId);
-    tmsResult = await tmsEconomyTransact(env, key, delta, 'cosmetic', '', note, reference);
-    if (tmsResult.ok) {
-      // Fall through to grant the item -- currency already moved on the authoritative ledger.
-    } else if (!tmsResult.notFound) {
-      const insufficient = tmsResult.code === 'insufficient_balance' || tmsResult.error === 'insufficient_balance';
-      if (insufficient) {
-        return { ok: false, error: 'insufficient', need: cost, available: null, cosmetic_id: cid };
+    if (isStaffEconomyKey(key)) {
+      const staffPrincipal = await resolveStaffTmsPrincipal(db, key);
+      if (!staffPrincipal.ok) {
+        return { ok: false, error: 'tms_identity_not_linked', message: 'Nugget account needs linking' };
       }
-      return { ok: false, error: tmsResult.error || 'purchase_failed', cosmetic_id: cid };
+      tmsResult = await tmsStaffEconomyTransact(env, staffPrincipal.tmsStaffId, delta, 'cosmetic', '', note, reference);
+      if (tmsResult.ok) {
+        // Fall through to grant.
+      } else {
+        const insufficient = tmsResult.code === 'insufficient_balance' || tmsResult.error === 'insufficient_balance';
+        if (insufficient) {
+          return { ok: false, error: 'insufficient', need: cost, available: null, cosmetic_id: cid };
+        }
+        return { ok: false, error: tmsResult.error || 'purchase_failed', cosmetic_id: cid };
+      }
+    } else {
+      tmsResult = await tmsEconomyTransact(env, key, delta, 'cosmetic', '', note, reference);
+      if (tmsResult.ok) {
+        // Fall through to grant the item -- currency already moved on the authoritative ledger.
+      } else if (!tmsResult.notFound) {
+        const insufficient = tmsResult.code === 'insufficient_balance' || tmsResult.error === 'insufficient_balance';
+        if (insufficient) {
+          return { ok: false, error: 'insufficient', need: cost, available: null, cosmetic_id: cid };
+        }
+        return { ok: false, error: tmsResult.error || 'purchase_failed', cosmetic_id: cid };
+      }
+      // tmsResult.notFound === true -> not a real TMS student; fall through to the legacy wallet
+      // path below exactly as before Prompt #96 (demo/dev fixtures only -- no real currency).
     }
-    // tmsResult.notFound === true -> not a real TMS student; fall through to the legacy wallet
-    // path below exactly as before Prompt #96 (demo/dev fixtures only -- no real currency).
   }
 
   let balanceAfter;

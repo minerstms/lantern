@@ -1788,6 +1788,22 @@
     return html;
   }
 
+  function applyPollRewardCopy(nuggetEl, voteRes) {
+    if (!nuggetEl) return;
+    if (voteRes && voteRes.voter_nuggets) {
+      nuggetEl.textContent = '+1 nugget for participating!';
+      nuggetEl.style.display = 'block';
+    } else if (voteRes && voteRes.reward_status === 'needs_link') {
+      nuggetEl.textContent = 'Vote saved. Nugget account needs linking.';
+      nuggetEl.style.display = 'block';
+    } else if (voteRes && voteRes.reward_status === 'failed') {
+      nuggetEl.textContent = 'Vote saved. Nugget reward will retry.';
+      nuggetEl.style.display = 'block';
+    } else {
+      nuggetEl.style.display = 'none';
+    }
+  }
+
   /**
    * Explore interactive poll: same shell as openNews (detail overlay + detail media for fullscreen).
    * payload: { pollId, apiBase, characterName, fetchRes } — fetchRes is JSON from GET /api/polls/:id or { ok: false } on error.
@@ -1956,7 +1972,7 @@
       choicesEl.innerHTML = '';
       resultsEl.innerHTML = buildPollResultsBarsHtml(results, votedIdx);
       resultsEl.style.display = 'block';
-      nuggetEl.style.display = 'none';
+      applyPollRewardCopy(nuggetEl, res);
     } else if (choicesEl && resultsEl && nuggetEl) {
       resultsEl.style.display = 'none';
       nuggetEl.style.display = 'none';
@@ -2044,10 +2060,7 @@
               r2.innerHTML = buildPollResultsBarsHtml(voteRes.results || [], voteRes.voted_choice_index);
               r2.style.display = 'block';
             }
-            if (n2) {
-              if (voteRes.voter_nuggets) n2.textContent = '+1 nugget for participating!';
-              n2.style.display = voteRes.voter_nuggets ? 'block' : 'none';
-            }
+            applyPollRewardCopy(n2, voteRes);
           })
           .catch(function () {
             lockBtn._busy = false;

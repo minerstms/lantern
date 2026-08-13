@@ -13,7 +13,9 @@
  *    different character_name in the request body is ignored (mirrors the game_play identity
  *    fix), so a student cannot vote/earn Nuggets as another student.
  *  - The +1 participation reward is granted through the TMS Nuggets bridge (mocked), with a
- *    stable reference `lantern:poll_vote:<poll_id>`, not a second local ledger.
+ *    per-account reference `lantern:poll_complete:<poll_id>:<account_key>`, not a second local ledger.
+ *  - Linked staff votes credit the TMS staff principal. Unlinked staff save the vote but return
+ *    needs_link / voter_nuggets: 0 (never a fake lantern_wallets success).
  *  - A student_id the TMS bridge does not recognize (demo/persona character) falls back to the
  *    legacy local wallet instead of silently dropping the reward.
  *
@@ -79,6 +81,7 @@ function makeEnv(state) {
   state.voterRewards = state.voterRewards || []; // { id, poll_id, character_name }
   state.transactions = state.transactions || [];
   state.wallets = state.wallets || {};
+  state.identityLinks = state.identityLinks || {}; // lantern_username lower → { tms_staff_id }
 
   function prepare(sql) {
     const s = String(sql);
@@ -89,6 +92,14 @@ function makeEnv(state) {
         if (s.includes('FROM lantern_pilot_accounts WHERE lower(trim(username))')) {
           const key = String(binds[0] || '').trim().toLowerCase();
           return state.accounts[key] || null;
+        }
+        if (s.includes('FROM tms_identity_links WHERE lower(trim(lantern_username))')) {
+          const key = String(binds[0] || '').trim().toLowerCase();
+          return state.identityLinks[key] || null;
+        }
+        if (s.includes('FROM tms_identity_links WHERE lantern_staff_id')) {
+          const sid = Number(binds[0]);
+          return Object.values(state.identityLinks).find((l) => Number(l.lantern_staff_id) === sid) || null;
         }
         if (s.includes('FROM lantern_polls WHERE id = ?')) {
           return state.polls[binds[0]] || null;
@@ -202,9 +213,10 @@ async function main() {
       transactCall &&
       transactCall.body.student_id === '20889' &&
       transactCall.body.delta === 1 &&
-      transactCall.body.reference === 'lantern:poll_vote:poll_2'
+      transactCall.body.kind === 'poll_complete' &&
+      transactCall.body.reference === 'lantern:poll_complete:poll_2:20889'
     ) {
-      ok('poll vote reward granted through TMS bridge with stable lantern:poll_vote:<poll_id> reference');
+      ok('poll vote reward granted through TMS bridge with lantern:poll_complete:<poll_id>:<account> reference');
     } else bad('TMS bridge economy/transact call shape', transactCall);
 
     if (json.voter_nuggets === 1) ok('poll vote response reports voter_nuggets: 1 on TMS-backed grant');
@@ -236,13 +248,13 @@ async function main() {
     } else bad('demo persona fallback wallet credit', { status, json, walletBal });
   });
 
-  // 4. Teacher/admin vote uses session staff economy key (Prompt #107) — never client-supplied student id.
+  // 4. Unlinked teacher: vote saves, no fake wallet success, needs_link.
   await withMockedBridge((call) => {
     if (call.url.endsWith('/economy/transact')) {
       return { body: { ok: true, student_id: call.body.student_id, student_name: call.body.student_id, delta: 1, earned: 1, spent: 0, available: 1 } };
     }
     return { body: { ok: false, error: 'unexpected_call' } };
-  }, async () => {
+  }, async (getCalls) => {
     const teacherAccount = {
       username: 'ms_carter',
       display_name: 'Ms. Carter',
@@ -262,6 +274,69 @@ async function main() {
     if (status === 200 && json.ok && vote && vote.character_name === 'staff:ms_carter') {
       ok('teacher session vote uses staff economy key; ignores client character_name');
     } else bad('teacher explicit character_name vote', { status, json, vote });
+    if (json.voter_nuggets === 0 && json.reward_status === 'needs_link' && !state.wallets['staff:ms_carter']) {
+      ok('unlinked teacher poll vote does not fake a Nugget success');
+    } else bad('unlinked teacher must needs_link with no wallet credit', { json, wallets: state.wallets });
+    const calls = getCalls();
+    if (!calls.some((c) => c.body && c.body.principal_type === 'staff')) {
+      ok('unlinked teacher never calls TMS staff transact');
+    } else bad('unlinked teacher should not hit staff transact', calls);
+  });
+
+  // 5. Linked teacher: TMS staff principal +1, per-account reference, no student_id.
+  await withMockedBridge((call) => {
+    if (call.url.endsWith('/economy/transact') && call.body && call.body.principal_type === 'staff') {
+      if (call.body.tms_staff_id !== 'Carter') return { body: { ok: false, error: 'unexpected_staff' } };
+      return { body: { ok: true, tms_staff_id: 'Carter', delta: 1, earned: 1, spent: 0, available: 4 } };
+    }
+    if (call.url.endsWith('/economy/transact')) {
+      return { body: { ok: false, error: 'student_path_not_allowed_for_staff' } };
+    }
+    return { body: { ok: false, error: 'unexpected_call' } };
+  }, async (getCalls) => {
+    const teacherAccount = {
+      username: 'ms_carter',
+      display_name: 'Ms. Carter',
+      role: 'teacher',
+      teacher_id: 't_carter',
+      is_active: 1,
+      must_change_password: 0,
+    };
+    const state = {
+      accounts: { ms_carter: teacherAccount },
+      identityLinks: { ms_carter: { tms_staff_id: 'Carter', lantern_username: 'ms_carter' } },
+      polls: { poll_5: { id: 'poll_5', choices_json: JSON.stringify(['A', 'B']) } },
+    };
+    const env = makeEnv(state);
+    const cookie = await cookieFor(teacherAccount);
+    const { status, json } = await postVote(env, cookie, { poll_id: 'poll_5', choice_index: 1 });
+    const vote = state.votes.find((v) => v.poll_id === 'poll_5');
+    const calls = getCalls();
+    const staffCall = calls.find((c) => c.body && c.body.principal_type === 'staff');
+    if (
+      status === 200 &&
+      json.ok &&
+      json.voter_nuggets === 1 &&
+      vote &&
+      vote.character_name === 'staff:ms_carter' &&
+      staffCall &&
+      staffCall.body.delta === 1 &&
+      staffCall.body.kind === 'poll_complete' &&
+      staffCall.body.reference === 'lantern:poll_complete:poll_5:staff:ms_carter' &&
+      !state.wallets['staff:ms_carter']
+    ) {
+      ok('linked teacher poll completion credits TMS staff ledger once with per-account reference');
+    } else bad('linked teacher poll TMS staff credit', { status, json, vote, staffCall, wallets: state.wallets });
+
+    const replay = await postVote(env, cookie, { poll_id: 'poll_5', choice_index: 0 });
+    if (
+      replay.status === 400 &&
+      replay.json.already_voted &&
+      replay.json.voted_choice_index === 1 &&
+      replay.json.voter_nuggets === 0
+    ) {
+      ok('linked teacher reload/change-after-lock does not award a second Nugget');
+    } else bad('linked teacher duplicate poll reward', replay);
   });
 
   console.log(`\npoll-vote-identity-test: ${pass} PASS ${fail} FAIL`);
