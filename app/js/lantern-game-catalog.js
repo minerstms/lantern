@@ -66,7 +66,7 @@
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
-      description: 'Multiple-choice on local history and community pride.',
+      description: 'Multiple-choice on Trinidad, Colorado history.',
     },
     {
       id: 'reaction',

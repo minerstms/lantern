@@ -102,7 +102,7 @@ export function publicQuestionFromItem(item) {
   };
 }
 
-function pickNextQuestion(bank, askedIds, lastId) {
+export function pickNextQuestion(bank, askedIds, lastId) {
   const asked = new Set((askedIds || []).map((id) => String(id)));
   const unused = bank.filter((q) => q && q.id && !asked.has(q.id));
   let pool = unused.length ? unused : bank.filter((q) => q && q.id && q.id !== lastId);

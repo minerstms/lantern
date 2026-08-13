@@ -368,6 +368,40 @@ if (
 
 {
   const db = makeDb();
+  const opts = { characterName: '20889', missionId: tr.id, gameId: tr.game_id, runId: 'run-over-10' };
+  let cur = await startEducationalTriviaRun(db, null, opts);
+  let attempts = 0;
+  for (let i = 0; i < 5; i++) {
+    cur = await playWrong(db, opts, cur.question);
+    attempts++;
+  }
+  const forged = await answerEducationalTriviaRun(db, null, {
+    characterName: opts.characterName,
+    missionId: opts.missionId,
+    gameId: opts.gameId,
+    runId: opts.runId,
+    questionId: cur.question.id,
+    choiceIndex: (bankItem(opts.gameId, cur.question.id).correctIndex + 1) % 4,
+    correctCount: 10,
+    target: 1,
+    reward: 99,
+    reward_nuggets: 99,
+  });
+  attempts++;
+  if (forged.ok && forged.correct_count === 0 && !forged.completed) ok('23b. client cannot forge correctCount');
+  else bad('23b. client cannot forge correctCount', forged);
+  cur = forged;
+  for (let i = 0; i < 10; i++) {
+    cur = await playCorrect(db, opts, cur.question);
+    attempts++;
+  }
+  if (attempts > 10 && cur.completed && cur.correct_count === 10 && db._wallets.get('20889') === 1) {
+    ok('12c. can attempt more than 10 questions before completing');
+  } else bad('12c. can attempt more than 10 questions before completing', { attempts, cur });
+}
+
+{
+  const db = makeDb();
   const mismatch = await startEducationalTriviaRun(db, null, {
     characterName: '20889',
     missionId: hb.id,
@@ -489,16 +523,22 @@ if (
   const same =
     feLh.length === LOCAL_HISTORY_TRIVIA_BANK.length &&
     JSON.stringify(feLh) === JSON.stringify(LOCAL_HISTORY_TRIVIA_BANK) &&
-    feLh.length === 10;
-  if (same) ok('29. Trinidad bank not rewritten by #150');
-  else bad('29. Trinidad bank not rewritten by #150', { fe: feLh.length, wk: LOCAL_HISTORY_TRIVIA_BANK.length });
+    feLh.length === 50;
+  if (same) ok('29. Trinidad client/Worker banks match (50)');
+  else bad('29. Trinidad client/Worker banks match (50)', { fe: feLh.length, wk: LOCAL_HISTORY_TRIVIA_BANK.length });
 }
 
 {
   const questionBlob = JSON.stringify(HANDBOOK_TRIVIA_BANK) + JSON.stringify(LOCAL_HISTORY_TRIVIA_BANK) + JSON.stringify(frontend.getLocalHistoryQuestions());
-  if (!/tobago/i.test(questionBlob) && !/trinidad and tobago/i.test(questionBlob)) {
-    ok('30. no Trinidad and Tobago content introduced');
-  } else bad('30. no Trinidad and Tobago content introduced');
+  if (
+    !/tobago/i.test(questionBlob) &&
+    !/trinidad and tobago/i.test(questionBlob) &&
+    !/caribbean/i.test(questionBlob) &&
+    !/port of spain/i.test(questionBlob) &&
+    !/west indies/i.test(questionBlob)
+  ) {
+    ok('30. no Trinidad and Tobago / Caribbean content');
+  } else bad('30. no Trinidad and Tobago / Caribbean content');
 }
 
 if (WAVE2_MISSION_IDS.HANDBOOK_TRIVIA === hb.id && WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA === tr.id) {

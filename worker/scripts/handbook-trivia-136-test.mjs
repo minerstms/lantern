@@ -122,8 +122,8 @@ if (
 ) ok('16. Leaderboard behavior remains unchanged');
 else bad('16. leaderboard');
 
-const localFirst = localHistory[0] && localHistory[0].id === 'lh1' && localHistory[0].question === 'Trinidad, Colorado is in which county?';
-if (Array.isArray(localHistory) && localHistory.length === 10 && localFirst) ok('17. Local History Trivia bank remains unchanged (10 questions)');
+const localFirst = localHistory[0] && localHistory[0].id === 'lh1' && localHistory[0].question === 'What bluff overlooks Trinidad from the north?';
+if (Array.isArray(localHistory) && localHistory.length === 50 && localFirst) ok('17. Local History Trivia uses approved Trinidad, Colorado 50');
 else bad('17. local history bank', localHistory && localHistory.length);
 if (gamesHtml.includes("tryPlay('Lantern Live Trivia'") && gamesHtml.includes("tryPlay('Local History Trivia'")) {
   ok('17b. Other trivia games still use the shared runTriviaGame/tryPlay path');
