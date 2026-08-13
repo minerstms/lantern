@@ -155,7 +155,7 @@ export const addScore = (engine, isPerfect) => {
 
 export const drawYellowString = (engine, option) => {
   const {
-    string, size, x, y, textAlign, fontName = 'wenxue', fontWeight = 'normal'
+    string, size, x, y, textAlign, fontName = 'Arial,Helvetica,sans-serif', fontWeight = 'normal'
   } = option
   const { ctx } = engine
   const fontSize = size

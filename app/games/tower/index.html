@@ -3,118 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,minimal-ui">
-  <title>Tower Building</title>
-  <!-- Resolve donor assets/scripts under ./donor/ so dist/main.js can keep its ./assets/ paths. -->
-  <base href="./donor/">
-  <link rel="icon" type="image/png" href="./assets/favicon.png">
+  <title>Stack Lab</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
   <style>
-    *{margin:0;padding:0}
-    img{width:100%}
-    html{background:#fff;height:100%;font-size:17.6vh;overflow:hidden}
-    body{
-      font-family:"Helvetica Neue",Arial,Helvetica,sans-serif;
-      margin:0 auto;
-      text-align:center;
-      width:100%;
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{
       height:100%;
+      width:100%;
       overflow:hidden;
-      background:#f95240 url(assets/main-bg.png);
+      background:#0b1220;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:#eaf0ff;
     }
-    @media screen and (min-height:560px){html{font-size:100px}}
-    @media screen and (min-height:640px){html{font-size:112.5px}}
-    @media screen and (min-height:720px){html{font-size:125px}}
-    @media screen and (min-height:800px){html{font-size:137.5px}}
-    @media screen and (min-height:880px){html{font-size:150px}}
-    @media screen and (min-height:960px){html{font-size:162.5px}}
-    @media screen and (min-height:1040px){html{font-size:180px}}
-    @media screen and (min-height:1200px){html{font-size:200px}}
-    #canvas{position:fixed;left:0;top:0;right:0;bottom:0;margin:auto}
-    a{text-decoration:none}
-    li,ol,ul{list-style-type:none;padding:0;margin:0}
+    #canvas{position:fixed;left:0;top:0;right:0;bottom:0;margin:auto;display:block}
     .hide{display:none}
-    .loading{background-color:#f05a50;height:100%;width:100%}
-    .loading .main{width:60%;margin:0 auto;color:#fff}
-    .loading .main img{width:60%;margin:1rem auto 0}
-    .loading .main .title{font-size:.3rem}
-    .loading .main .text{font-size:.15rem}
-    .loading .main .bar{height:.12rem;width:100%;border:3px solid #fff;border-radius:.6rem;margin:.1rem 0}
-    .loading .main .bar .sub{height:.1rem;width:98%;margin:.008rem auto 0}
-    .loading .main .bar .percent{height:100%;width:0;background-color:#fff;border-radius:.6rem}
-    .content{height:100vh;margin:0 auto;position:relative}
-    .landing .title{width:60%}
-    .landing .action-2{position:absolute;bottom:.2rem;width:100%}
-    .landing .start{width:65%}
-    .slideTop{-webkit-animation:st 1s ease-in-out;animation:st 1s ease-in-out}
-    @-webkit-keyframes st{0%{transform:translateZ(0)}100%{transform:translate3d(0,-100%,0)}}
-    @keyframes st{0%{transform:translateZ(0)}100%{transform:translate3d(0,-100%,0)}}
-    .slideBottom{-webkit-animation:sb 1s ease-in-out;animation:sb 1s ease-in-out}
-    @-webkit-keyframes sb{0%{transform:translateZ(0)}100%{transform:translate3d(0,200%,0)}}
-    @keyframes sb{0%{transform:translateZ(0)}100%{transform:translate3d(0,200%,0)}}
-    .swing{-webkit-animation:sw 2s ease-in-out alternate infinite;animation:sw 2s ease-in-out alternate infinite}
-    @-webkit-keyframes sw{0%{transform:rotate(5deg);transform-origin:top center}100%{transform:rotate(-5deg);transform-origin:top center}}
-    @keyframes sw{0%{transform:rotate(5deg);transform-origin:top center}100%{transform:rotate(-5deg);transform-origin:top center}}
-    .modal .mask{background-color:#000;opacity:.6;position:fixed;height:100%;width:100%;top:0;left:0}
-    .modal .modal-content{position:fixed;height:100%;width:90%;margin-top:.3rem;top:0}
-    .modal .main{width:85%;margin:0 auto}
-    .modal .container{position:relative}
-    .modal .bg{width:100%;position:absolute;top:0;left:0}
-    .modal .modal-main{width:100%;position:absolute;top:0;left:0;margin-top:-.4rem}
-    .modal .over-img{width:80%;margin:.8rem auto 0}
-    .modal .over-score{margin-top:-.2rem;font-size:.5rem;color:#ff735c;text-shadow:-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff,2px 2px 0 #fff}
-    .modal .tip{font-size:.16rem;color:#9b724e}
-    .modal .over-button-b{width:70%;margin:.1rem auto 0}
-    .font-wenxue{font-family:Arial,Helvetica,sans-serif}
+    .loading{
+      position:fixed;inset:0;
+      background:#0b1220;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;
+      font-size:22px;
+      font-weight:700;
+    }
+    .loading .bar{
+      height:12px;width:min(70%, 280px);
+      border:2px solid #5aa7ff;border-radius:8px;overflow:hidden;
+    }
+    .loading .percent{height:100%;width:0;background:#5aa7ff}
+    .labStart{
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+      z-index:4;
+      font-size:28px;font-weight:900;
+      padding:12px 28px;
+      border:0;border-radius:14px;
+      background:#5aa7ff;color:#0b1220;
+      max-width:calc(100% - 24px);
+    }
+    .labOver{
+      position:fixed;inset:0;
+      background:rgba(11,18,32,.82);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:16px;
+      z-index:5;
+      font-size:24px;font-weight:800;
+      padding:24px;text-align:center;
+    }
+    .labOver button{
+      font-size:26px;font-weight:900;
+      padding:12px 24px;border:0;border-radius:14px;
+      background:#5aa7ff;color:#0b1220;
+    }
   </style>
 </head>
 <body>
   <canvas id="canvas" class="hide"></canvas>
-  <div class="content">
-    <div class="loading">
-      <div class="main">
-        <img src="./assets/main-loading.gif" alt="">
-        <div class="progress">
-          <div class="title font-wenxue">0%</div>
-          <div class="bar"><div class="sub"><div class="percent"></div></div></div>
-          <div class="text">Loading...</div>
-        </div>
-      </div>
-    </div>
-    <div class="landing hide">
-      <div class="action-1">
-        <img src="./assets/main-index-title.png" class="title swing" alt="Tower Building">
-      </div>
-      <div class="action-2">
-        <img id="start" src="./assets/main-index-start.png" class="start" alt="Start">
-      </div>
-    </div>
-    <div id="modal" class="modal hide">
-      <div class="mask"></div>
-      <div class="js-modal-content modal-content">
-        <div class="main">
-          <div class="container">
-            <img src="./assets/main-modal-bg.png" class="bg" alt="">
-            <div class="modal-main">
-              <div id="over-modal" class="hide js-modal-card">
-                <img src="./assets/main-modal-over.png" class="over-img" alt="">
-                <div id="score" class="over-score font-wenxue"></div>
-                <div id="over-zero" class="hide">
-                  <div class="tip">
-                    <p>Try Again!</p>
-                    <img src="./assets/main-modal-again-b.png" class="over-button-b js-reload" alt="Try again">
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="loading" id="loading">
+    <div>Loading Stack Lab…</div>
+    <div class="bar"><div class="percent" id="loadPercent"></div></div>
+    <div id="loadLabel">0%</div>
   </div>
-  <script src="./dist/main.js"></script>
-  <script src="./assets/zepto-1.1.6.min.js"></script>
+  <button type="button" class="labStart hide" id="labStart">Begin</button>
+  <div class="labOver hide" id="labOver">
+    <p>Game over</p>
+    <p id="labOverScore"></p>
+    <button type="button" id="labReload">Reload lab</button>
+  </div>
+  <script src="/games/tower/lantern-sprites.js"></script>
+  <script src="/games/tower/lantern-sfx.js"></script>
+  <script src="/games/tower/donor/dist/main.js"></script>
+  <script src="/games/tower/vendor/zepto-1.1.6.min.js"></script>
   <script src="/games/tower/lantern-adapter.js"></script>
   <script>
-    var domReady, loadFinish, canvasReady, loadError, gameStart, game, score, successCount;
+    var canvasReady, loadError, gameStart, game, score, successCount;
     var lanternPlay = /(?:\?|&)lanternPlay=1(?:&|$)/.test(String(window.location.search || ''));
     var gameWidth = window.innerWidth;
     var gameHeight = window.innerHeight;
@@ -122,21 +82,18 @@
     if (gameHeight / gameWidth < ratio) {
       gameWidth = Math.ceil(gameHeight / ratio);
     }
-    $('.content').css({ height: gameHeight + 'px', width: gameWidth + 'px' });
-    $('.js-modal-content').css({ width: gameWidth + 'px' });
+
+    if (window.LanternTowerAssets) window.LanternTowerAssets.build();
 
     function hideLoading() {
-      if (domReady && canvasReady) {
+      if (canvasReady) {
         $('#canvas').show();
-        loadFinish = true;
-        setTimeout(function () {
-          $('.loading').hide();
-          if (lanternPlay) {
-            $('.landing').hide();
-          } else {
-            $('.landing').show();
-          }
-        }, 1000);
+        $('#loading').hide();
+        if (lanternPlay) {
+          $('#labStart').addClass('hide');
+        } else {
+          $('#labStart').removeClass('hide');
+        }
       }
     }
 
@@ -146,7 +103,7 @@
       var failed = status.failed;
       if (failed > 0 && !loadError) {
         loadError = true;
-        alert('Network error... Please try again.');
+        alert('Could not load Stack Lab assets.');
         return;
       }
       var percent = parseInt((success / total) * 100, 10);
@@ -155,31 +112,27 @@
         hideLoading();
       }
       percent = percent > 98 ? 98 : percent;
-      percent = percent + '%';
-      $('.loading .title').text(percent);
-      $('.loading .percent').css({ width: percent });
-    }
-
-    function overShowOver() {
-      $('#modal').show();
-      $('#over-modal').show();
-      $('#over-zero').show();
+      $('#loadLabel').text(percent + '%');
+      $('#loadPercent').css({ width: percent + '%' });
     }
 
     var option = {
       width: gameWidth,
       height: gameHeight,
       canvasId: 'canvas',
-      soundOn: true,
+      soundOn: false,
       setGameScore: function (s) {
         score = s;
       },
       setGameSuccess: function (s) {
         successCount = s;
+        if (s === 10 && window.LanternTowerSfx) window.LanternTowerSfx.play('win');
       },
       setGameFailed: function (f) {
-        $('#score').text(score);
-        if (f >= 3) overShowOver();
+        if (f >= 3 && !lanternPlay) {
+          $('#labOverScore').text((score || 0) + ' pts');
+          $('#labOver').removeClass('hide');
+        }
       }
     };
     if (window.LanternDonorAdapter && typeof window.LanternDonorAdapter.wrapOptions === 'function') {
@@ -189,17 +142,15 @@
     function startDonorPlay() {
       if (gameStart) return;
       gameStart = true;
+      $('#labStart').addClass('hide');
       if (window.LanternDonorAdapter) window.LanternDonorAdapter.notifyGameStarted();
-      setTimeout(function () {
-        game.playBgm();
-      });
-      indexHide();
       setTimeout(game.start, 400);
     }
     window.__lanternTowerBeginPlay = startDonorPlay;
 
     function gameReady() {
       game = TowerGame(option);
+      if (window.LanternTowerSfx) window.LanternTowerSfx.attach(game);
       game.load(function () {
         game.init();
         if (lanternPlay) {
@@ -210,27 +161,13 @@
 
     gameReady();
 
-    function indexHide() {
-      $('.landing .action-1').addClass('slideTop');
-      $('.landing .action-2').addClass('slideBottom');
-      setTimeout(function () {
-        $('.landing').hide();
-      }, 950);
-    }
-
-    $('#start').on('click', function () {
+    $('#labStart').on('click', function () {
       startDonorPlay();
     });
-
-    $('.js-reload').on('click', function () {
+    $('#labReload').on('click', function () {
       if (lanternPlay) return;
       window.location.reload();
     });
-
-    window.addEventListener('load', function () {
-      domReady = true;
-      hideLoading();
-    }, false);
   </script>
 </body>
 </html>
