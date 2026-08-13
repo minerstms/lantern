@@ -114,9 +114,33 @@ if (eduSrc.includes('completeMissionByEvent') && EDUCATIONAL_TRIVIA_REWARD_NUGGE
   ok('45/46. TMS remains Nugget authority; no D1 migration');
 } else bad('45/46 authority/migration');
 
-if (cardsSrc.includes("perm_srp_safety: 'assets/srp-safety-trivia-card.png'") && fs.existsSync(path.join(root, 'app/assets/srp-safety-trivia-card.png'))) {
-  ok('game/mission cover art present');
-} else bad('cover art');
+const srpMissionArt = path.join(root, 'app/assets/srp-safety.png');
+const srpGameArt = path.join(root, 'app/assets/srp-safety-trivia-card.png');
+if (
+  cardsSrc.includes("perm_srp_safety: 'assets/srp-safety.png'") &&
+  eduSrc.includes("cover: 'assets/srp-safety.png'") &&
+  fs.existsSync(srpMissionArt)
+) {
+  ok('1/2. perm_srp_safety uses approved srp-safety.png');
+} else bad('1/2 mission artwork');
+if (catalogSrc.includes("image: 'assets/srp-safety-trivia-card.png'") && fs.existsSync(srpGameArt)) {
+  ok('game-card artwork unchanged (srp-safety-trivia-card.png)');
+} else bad('game-card artwork');
+if (cardsSrc.includes("perm_handbook_trivia: 'assets/handbook-triva-card.png'") && cardsSrc.includes("perm_local_history_trivia: 'assets/history-trivia-card.png'")) {
+  ok('12. unrelated Mission artwork unchanged');
+} else bad('12 other mission art');
+if (missionsPageJs.includes("item.id === 'perm_srp_safety'") && missionsPageJs.includes('FREE · <img src="assets/icons/nugget.png"') && missionsPageJs.includes('+1 Nugget')) {
+  ok('5/6/7. Mission still paints FREE + canonical Nugget icon + +1 Nugget');
+} else bad('overlays');
+try {
+  const png = fs.readFileSync(srpMissionArt);
+  const w = png.readUInt32BE(16);
+  const h = png.readUInt32BE(20);
+  if (png[0] === 0x89 && Math.abs(w / h - 16 / 9) < 0.02) ok('3. approved asset is 16:9 PNG (' + w + 'x' + h + ')');
+  else bad('3 asset ratio', w + 'x' + h);
+} catch (eArt) {
+  bad('3 asset read', eArt && eArt.message);
+}
 
 if (missionsHtml.includes("srpSafety: 'perm_srp_safety'") && clientSrc.includes("sponsored_free: true")) {
   ok('missions.html WAVE2 + client sponsored_free');

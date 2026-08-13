@@ -51,7 +51,7 @@ export const EDUCATIONAL_TRIVIA_MISSIONS = {
     reward_nuggets: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
     trigger_type: 'srp_safety_trivia',
     icon: '🛡️',
-    cover: 'assets/srp-safety-trivia-card.png',
+    cover: 'assets/srp-safety.png',
   },
 };
 
