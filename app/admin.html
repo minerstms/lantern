@@ -780,6 +780,7 @@
     });
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
     var lastUsersList = [];
+    var usersLoadState = 'loading';
     var lastTmsIdentityLinks = [];
     var lastTmsStaffDirectory = [];
     var lastTmsStaffNeedsAttention = [];
@@ -1411,13 +1412,28 @@
       var sessionUser = String(adminSessionMeta.username || '').trim();
       var q = (document.getElementById('walletAdjSearch') && document.getElementById('walletAdjSearch').value || '').trim().toLowerCase();
       sel.innerHTML = '<option value="">— Select account —</option>';
+      if (usersLoadState === 'loading') {
+        var loadingOpt = document.createElement('option');
+        loadingOpt.value = '';
+        loadingOpt.textContent = 'Loading accounts…';
+        loadingOpt.disabled = true;
+        sel.appendChild(loadingOpt);
+        return;
+      }
+      if (usersLoadState === 'error') {
+        var errOpt = document.createElement('option');
+        errOpt.value = '';
+        errOpt.textContent = 'Could not load accounts';
+        errOpt.disabled = true;
+        sel.appendChild(errOpt);
+        return;
+      }
       var count = 0;
       var rows = (lastUsersList || []).filter(function(u){
         if (!accountIsActive(u)) return false;
-        if (!walletEconomyCharacterName(u)) return false;
         if (!q) return true;
         var hay = [
-          u.username, u.display_name, u.first_name, u.last_name, u.role,
+          u.username, u.display_name, u.public_display_name, u.first_name, u.last_name, u.role,
           u.mtss_student_id, u.student_character_name, u.teacher_id, u.staff_id
         ].map(function(x){ return x != null ? String(x) : ''; }).join(' ').toLowerCase();
         return hay.indexOf(q) !== -1;
@@ -1435,7 +1451,8 @@
       rows.forEach(function(u){
         var opt = document.createElement('option');
         opt.value = String(u.username || '');
-        opt.textContent = nuggetAdjOptionLabel(u);
+        var linked = !!walletEconomyCharacterName(u);
+        opt.textContent = nuggetAdjOptionLabel(u) + (linked ? '' : ' · Needs Link');
         sel.appendChild(opt);
         count++;
       });
@@ -2116,12 +2133,15 @@
       var r = String(role || '').trim().toLowerCase();
       return r === 'teacher' || r === 'admin';
     }
+    function isStaffUser(u) {
+      return !!(u && isStaffRole(u.role));
+    }
 
     var staffPowerUi = null;
 
     function buildStaffPowerItems() {
       var StaffPL = window.LanternStaffPowerList;
-      return lastUsersList.filter(isStaffRole).map(function(u){
+      return lastUsersList.filter(isStaffUser).map(function(u){
         var active = !(u.is_active === 0 || u.is_active === '0');
         var needsName = staffNeedsNameSetup(u);
         var needsTitle = staffNeedsTitle(u);
@@ -2489,10 +2509,62 @@
       return staffPowerUi;
     }
 
+    function loadUsers(){
+      fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r){
+        return r.json().then(function(j){ return { status: r.status, body: j }; });
+      }).then(function(w){
+        if (window.LanternAuth && w.status === 403 && w.body && typeof window.LanternAuth.redirectIfPasswordChangeRequired === 'function') {
+          if (window.LanternAuth.redirectIfPasswordChangeRequired({ status: w.status }, w.body)) return;
+        }
+        var res = w.body;
+        var staffPill = document.getElementById('adminStaffCountPill');
+        function setStaffCount(n, failed) {
+          if (!staffPill) return;
+          if (failed) {
+            staffPill.textContent = '—';
+            staffPill.title = 'Could not load accounts';
+            return;
+          }
+          staffPill.textContent = String(n);
+          staffPill.title = '';
+        }
+        if (!res || !res.ok || !Array.isArray(res.users) || w.status >= 400) {
+          usersLoadState = 'error';
+          lastUsersList = [];
+          setStaffCount(0, true);
+          showUsersMsg('Could not load accounts', 'err');
+          populateWalletStudentSelect();
+          populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
+          renderStaffTable();
+          return;
+        }
+        usersLoadState = 'ok';
+        lastUsersList = res.users.slice();
+        var staffAll = lastUsersList.filter(isStaffUser);
+        setStaffCount(staffAll.length, false);
+        showUsersMsg('', '');
+        populateWalletStudentSelect();
+        populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
+        renderStaffTable();
+      }).catch(function(){
+        usersLoadState = 'error';
+        lastUsersList = [];
+        var staffPill = document.getElementById('adminStaffCountPill');
+        if (staffPill) {
+          staffPill.textContent = '—';
+          staffPill.title = 'Could not load accounts';
+        }
+        showUsersMsg('Could not load accounts', 'err');
+        populateWalletStudentSelect();
+        populateTmsLanternSelect(document.getElementById('tmsLinkLanternFilter') && document.getElementById('tmsLinkLanternFilter').value);
+        renderStaffTable();
+      });
+    }
+
     function filteredStaffList() {
       var ui = ensureStaffPowerList();
       if (ui) return ui.getVisibleItems().map(function(it){ return it.user; });
-      return lastUsersList.filter(isStaffRole);
+      return lastUsersList.filter(isStaffUser);
     }
 
     function renderStaffTable() {
@@ -3144,9 +3216,18 @@
       return '—';
     }
 
-    function renderStudentsCounts(counts) {
+    function renderStudentsCounts(counts, failed) {
       var el = document.getElementById('studentsRosterCounts');
       var pill = document.getElementById('adminStudentsCountPill');
+      if (failed) {
+        if (el) el.textContent = 'Could not load accounts';
+        if (pill) {
+          pill.textContent = '—';
+          pill.title = 'Could not load accounts';
+        }
+        return;
+      }
+      if (pill) pill.title = '';
       if (!counts) {
         if (el) el.textContent = '';
         if (pill) pill.textContent = '0';
@@ -3525,12 +3606,12 @@
           return r.json().then(function(body) { return { status: r.status, body: body }; });
         })
         .then(function(res) {
-          if (!res.body || !res.body.ok) {
+          if (!res.body || !res.body.ok || res.status >= 400) {
             lastStudentsRoster = [];
             lastStudentsCounts = null;
-            renderStudentsCounts({ active_tms: 0, missing_id: 0, lantern_linked: 0, lantern_missing: 0, locker_ready: 0, lantern_broken: 0, lantern_ambiguous: 0 });
+            renderStudentsCounts(null, true);
             renderStudentsRosterTable();
-            showStudentsRosterMsg((res.body && res.body.error) || 'Could not load TMS roster', 'err');
+            showStudentsRosterMsg('Could not load accounts', 'err');
             return;
           }
           showStudentsRosterMsg('', '');
@@ -3541,9 +3622,10 @@
         })
         .catch(function() {
           lastStudentsRoster = [];
-          renderStudentsCounts({ active_tms: 0, missing_id: 0, lantern_linked: 0, lantern_missing: 0, locker_ready: 0, lantern_broken: 0, lantern_ambiguous: 0 });
+          lastStudentsCounts = null;
+          renderStudentsCounts(null, true);
           renderStudentsRosterTable();
-          showStudentsRosterMsg('Network error loading TMS roster.', 'err');
+          showStudentsRosterMsg('Could not load accounts', 'err');
         });
     }
 
