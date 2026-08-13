@@ -151,9 +151,7 @@
           var avatarKey = String(it.authorAvatarKey || it.author_avatar_key || it.authorId || it.author_id || it.actor_id || '').trim();
           var displayNm = String(it.authorDisplayName || it.author_name || '').trim();
           if (avatarKey) it.character_name = avatarKey;
-          else if (displayNm && !it.character_name) it.character_name = displayNm;
           if (displayNm) it.author_name = displayNm;
-          else if (!it.author_name && it.character_name) it.author_name = String(it.character_name).trim();
         });
         var attach = global.LanternAvatar && typeof global.LanternAvatar.attachCanonicalAvatarsToItems === 'function'
           ? global.LanternAvatar.attachCanonicalAvatarsToItems(state.items)

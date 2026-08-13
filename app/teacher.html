@@ -2676,20 +2676,17 @@
     }
     function smallAvatarHtml(avatarUrl, displayName, studentAccountKey){
       var url = (avatarUrl && String(avatarUrl).trim()) || '';
-      var label = String(displayName || '').trim();
       var acc = studentAccountKey != null ? String(studentAccountKey).trim() : '';
-      var fallbackText = '';
-      if (acc) {
-        var em = '';
-        if (window.teacherAvatarEmojiCache && window.teacherAvatarEmojiCache[acc]) em = window.teacherAvatarEmojiCache[acc];
-        else if (window.LanternAvatar && typeof window.LanternAvatar.getLegacyEmojiForCharacter === 'function') em = window.LanternAvatar.getLegacyEmojiForCharacter(acc) || '';
-        if (!em && window.LanternAvatar && window.LanternAvatar.DEFAULT_EMOJI) em = window.LanternAvatar.DEFAULT_EMOJI;
-        fallbackText = em || getInitials(label);
-      } else {
-        fallbackText = getInitials(label);
+      if (window.LanternCards && typeof window.LanternCards.buildExploreAuthorAvatarHtml === 'function') {
+        return window.LanternCards.buildExploreAuthorAvatarHtml({
+          authorAvatarKey: acc,
+          _canonicalAvatar: url ? { imageUrl: url } : null,
+          identitySize: 'sm',
+          frame: 'none'
+        });
       }
-      if (!url) return '<span class="avatarSmallWrap show-fallback"><span class="avatarSmallFallback">' + esc(fallbackText) + '</span></span>';
-      return '<span class="avatarSmallWrap"><img src="' + esc(url) + '" alt="" onerror="this.parentElement.classList.add(\'show-fallback\')"><span class="avatarSmallFallback">' + esc(fallbackText) + '</span></span>';
+      if (!url) return '<span class="avatarSmallWrap"></span>';
+      return '<span class="avatarSmallWrap"><img src="' + esc(url) + '" alt="" onerror="this.parentElement.classList.add(\'show-fallback\')"><span class="avatarSmallFallback"></span></span>';
     }
 
     function showOverlay(){ /* no overlay for now */ }

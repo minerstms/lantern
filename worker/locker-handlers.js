@@ -234,8 +234,11 @@ async function fetchAvatarProfile(db, origin, characterName) {
     )
     .bind(characterName, 'pending')
     .first();
+  const activeV = profile && profile.updated_at
+    ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
+    : '';
   const activeImage = profile
-    ? origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key)
+    ? origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : '')
     : null;
   const pendingImage = pending
     ? origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key)

@@ -7508,6 +7508,17 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     let choices = [];
     try { choices = JSON.parse(row.choices_json || '[]'); } catch (_) {}
     if (!Array.isArray(choices)) choices = [];
+    const avatarIndex = await loadPilotAvatarKeyIndex(db);
+    const authorAvatarKey = resolveAuthorAvatarKey(avatarIndex, {
+      character_name: row.character_name,
+      author_name: row.character_name,
+    }) || null;
+    const staffNameIndex = await loadStaffPublicNameIndex(db);
+    const authorPublicLabel = resolveAuthorPublicLabel(staffNameIndex, {
+      actor_id: row.character_name,
+      author_name: row.character_name,
+      author_type: '',
+    }) || null;
     // Prompt #215 — voter identity + result privacy from authenticated session only.
     // Do NOT trust ?character_name= to unlock aggregate results for an unvoted viewer.
     const pilotAccount = await getPilotAccountFromRequest(request, env);
@@ -7536,7 +7547,16 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     }
     return jsonResponse({
       ok: true,
-      poll: { id: row.id, question: row.question, choices, image_url: row.image_url || null, character_name: row.character_name, created_at: row.created_at },
+      poll: {
+        id: row.id,
+        question: row.question,
+        choices,
+        image_url: row.image_url || null,
+        character_name: row.character_name,
+        author_avatar_key: authorAvatarKey,
+        author_public_label: authorPublicLabel,
+        created_at: row.created_at,
+      },
       has_voted: hasVoted,
       voted_choice_index: hasVoted ? votedChoiceIndex : null,
       results,

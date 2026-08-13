@@ -64,11 +64,19 @@ export async function loadPilotAvatarKeyIndex(db) {
 /**
  * Resolve avatar profile character_name for feed/ticker/LLHC (current Locker avatar key).
  */
+function stripStaffPrefix(raw) {
+  const s = trimStr(raw);
+  const low = s.toLowerCase();
+  if (low.startsWith('staff_id:')) return '';
+  if (low.startsWith('staff:')) return s.slice(6).trim();
+  return s;
+}
+
 export function resolveAuthorAvatarKey(index, fields) {
   const idx = index || buildPilotAvatarKeyIndex([]);
-  const authorId = trimStr(fields && (fields.authorId || fields.author_id || fields.actor_id));
+  const authorId = stripStaffPrefix(fields && (fields.authorId || fields.author_id || fields.actor_id));
   const display = trimStr(fields && (fields.authorDisplayName || fields.author_display_name || fields.author_name));
-  const characterName = trimStr(fields && fields.character_name);
+  const characterName = stripStaffPrefix(fields && fields.character_name);
   const staffId = trimStr(fields && (fields.staff_id || fields.authorStaffId));
 
   if (authorId) {

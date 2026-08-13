@@ -314,12 +314,12 @@
     var avatarHtml = '';
     if (exploreOverlay) {
       avatarHtml = buildExploreAuthorAvatarHtml({
-        character_name: model.character_name || model.authorAvatarKey || model.author_name || authorRaw,
-        author_name: model.author_name || authorRaw,
+        character_name: model.character_name || model.authorAvatarKey,
         authorAvatarKey: model.authorAvatarKey,
+        author_name: model.author_name || authorRaw,
         _canonicalAvatar: model._canonicalAvatar,
         frame: model.frame,
-        avatar: model.avatar,
+        identitySize: 'md',
       });
     }
     var metaParts = [];
@@ -398,8 +398,8 @@
     var avatarAccountKey = String(
       item.authorAvatarKey || item.author_avatar_key || item.authorId || item.author_id || item.actor_id || item.character_name || ''
     ).trim();
-    if (!avatarAccountKey) {
-      avatarAccountKey = String(item.authorDisplayName || item.author_name || authorRaw || '').trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.normalizeAvatarAccountKey === 'function') {
+      avatarAccountKey = global.LanternAvatar.normalizeAvatarAccountKey(avatarAccountKey);
     }
     var isGameAchievement =
       type === 'game_score' || type === 'achievement' || type === 'leaderboard' ||
@@ -723,53 +723,35 @@
 
   function accountKeyFromCardModel(p) {
     p = p || {};
-    return String(p.character_name || p.author_name || '').trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.accountKeyFromItem === 'function') {
+      return global.LanternAvatar.accountKeyFromItem(p);
+    }
+    return String(p.authorAvatarKey || p.author_avatar_key || p.authorId || p.character_name || '').trim();
   }
 
   /**
    * Row-3 avatar chip: identity rows MUST use LanternAvatar — pre-resolve `_canonicalAvatar` on the model
    * (see LanternAvatar.attachCanonicalAvatarsToItems). Do not pass custom_avatar / avatar_image / URL fields here.
    * Non-account rails (games, missions label) omit character_name and use decorative emoji only.
+   * Prompt #149 — approved image or ONE canonical placeholder. No sun/initials/Anonymous icon mix.
    */
   function buildExploreAuthorAvatarHtml(p) {
     p = p || {};
     var def = getDefaultAvatarImageUrl();
     var svgFb = svgDefaultAvatarDataUri();
     var frameVal = String(p.frame || 'none').trim().replace(/_/g, '-').replace(/[^a-z0-9-]/gi, '') || 'none';
+    var size = String(p.identitySize || p.avatarSize || 'md').trim().toLowerCase();
+    if (size !== 'xs' && size !== 'sm' && size !== 'lg') size = 'md';
     var ak = accountKeyFromCardModel(p);
-    var defEm = global.LanternAvatar && global.LanternAvatar.DEFAULT_EMOJI ? global.LanternAvatar.DEFAULT_EMOJI : '🌟';
     if (ak && !p._canonicalAvatar && global.LANTERN_AVATAR_STRICT_IDENTITY && global.console && global.console.warn) {
       global.console.warn('[LanternCards] Identity chip missing _canonicalAvatar — call LanternAvatar.attachCanonicalAvatarsToItems first:', ak);
     }
-    if (ak && p._canonicalAvatar && typeof p._canonicalAvatar === 'object') {
-      var canon = p._canonicalAvatar;
-      var primary = (canon.imageUrl && String(canon.imageUrl).trim()) ? String(canon.imageUrl).trim() : '';
-      var em = (canon.emoji && String(canon.emoji).trim()) ? String(canon.emoji).trim() : defEm;
-      var emojiUri = '';
-      if (!primary) emojiUri = emojiAvatarSvgDataUri(em);
-      var src = primary || emojiUri || def;
-      return '<span class="identity-chip frame-' + frameVal + '">' +
-        '<img class="exploreCardAvatarImg" src="' + esc(src) + '" alt="" data-lc-av-def="' + esc(def) + '" data-lc-av-svg="' + esc(svgFb) + '" ' +
-        'onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');var s=el.getAttribute(\'data-lc-av-svg\');if(el.dataset.lc===\'1\'){el.onerror=null;el.src=s;return;}el.dataset.lc=\'1\';el.src=d||s;">' +
-        '</span>';
+    var primary = '';
+    if (p._canonicalAvatar && typeof p._canonicalAvatar === 'object') {
+      primary = (p._canonicalAvatar.imageUrl && String(p._canonicalAvatar.imageUrl).trim()) ? String(p._canonicalAvatar.imageUrl).trim() : '';
     }
-    if (ak) {
-      var legForAk = global.LanternAvatar && typeof global.LanternAvatar.getLegacyEmojiForCharacter === 'function'
-        ? global.LanternAvatar.getLegacyEmojiForCharacter(ak)
-        : defEm;
-      var srcMissing = emojiAvatarSvgDataUri(legForAk) || def;
-      return '<span class="identity-chip frame-' + frameVal + '">' +
-        '<img class="exploreCardAvatarImg" src="' + esc(srcMissing) + '" alt="" data-lc-av-def="' + esc(def) + '" data-lc-av-svg="' + esc(svgFb) + '" ' +
-        'onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');var s=el.getAttribute(\'data-lc-av-svg\');if(el.dataset.lc===\'1\'){el.onerror=null;el.src=s;return;}el.dataset.lc=\'1\';el.src=d||s;">' +
-        '</span>';
-    }
-    var rawAv = String(p.avatar != null ? p.avatar : '').trim();
-    var emojiUri = '';
-    if (rawAv && rawAv.length <= 12 && !/^https?:\/\//i.test(rawAv) && rawAv.indexOf('data:') !== 0 && !(rawAv.charAt(0) === '/' && rawAv.length > 1)) {
-      emojiUri = emojiAvatarSvgDataUri(rawAv);
-    }
-    var src = emojiUri || def;
-    return '<span class="identity-chip frame-' + frameVal + '">' +
+    var src = primary || def;
+    return '<span class="identity-chip frame-' + frameVal + '" data-identity-size="' + size + '">' +
       '<img class="exploreCardAvatarImg" src="' + esc(src) + '" alt="" data-lc-av-def="' + esc(def) + '" data-lc-av-svg="' + esc(svgFb) + '" ' +
       'onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');var s=el.getAttribute(\'data-lc-av-svg\');if(el.dataset.lc===\'1\'){el.onerror=null;el.src=s;return;}el.dataset.lc=\'1\';el.src=d||s;">' +
       '</span>';
@@ -1108,7 +1090,11 @@
   function specNewsRailCard(n, escFn, authorLabelText, isActive) {
     var iso = n.approved_at || n.created_at || '';
     var mediaItem = normalizeNewsMediaItemForExplore(n);
-    var displayNm = String((n.author_name || '').trim() || authorLabelText || 'Anonymous');
+    var displayNm = String((n.author_public_label || n.authorPublicLabel || n.author_name || '').trim() || authorLabelText || '');
+    var avatarKey = String(n.author_avatar_key || n.authorAvatarKey || n.character_name || n.actor_id || '').trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.normalizeAvatarAccountKey === 'function') {
+      avatarKey = global.LanternAvatar.normalizeAvatarAccountKey(avatarKey);
+    }
     var desc = getExploreDescriptionPreview({
       title: n.title,
       summary: n.summary || '',
@@ -1117,10 +1103,13 @@
     });
     return compactFaceSpec({
       id: n.id,
-      type: 'news',
+      type: String(n.type || '').toLowerCase() === 'shout_out' || String(n.type || '').toLowerCase() === 'shoutout' ? 'shout_out' : 'news',
       title: n.title || 'Untitled',
       author: displayNm,
-      character_name: displayNm,
+      authorPublicLabel: String(n.author_public_label || n.authorPublicLabel || '').trim(),
+      authorRole: String(n.author_type || n.authorRole || '').trim(),
+      character_name: avatarKey,
+      authorAvatarKey: avatarKey,
       author_name: displayNm,
       _canonicalAvatar: n._canonicalAvatar,
       dateIso: iso,
@@ -1158,8 +1147,13 @@
     options = options || {};
     var p = poll || {};
     var iso = p.approved_at || p.created_at || '';
-    var pollAuthorRaw = String((p.author_name || p.display_name || p.character_name || '').trim());
+    var pollAuthorRaw = String((p.author_public_label || p.authorPublicLabel || p.author_name || p.display_name || '').trim());
     if (pollAuthorRaw.toLowerCase() === 'poll') pollAuthorRaw = '';
+    var pollAvatarKey = String(p.author_avatar_key || p.authorAvatarKey || p.character_name || '').trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.normalizeAvatarAccountKey === 'function') {
+      pollAvatarKey = global.LanternAvatar.normalizeAvatarAccountKey(pollAvatarKey);
+    }
+    if (pollAvatarKey.toLowerCase() === 'poll') pollAvatarKey = '';
     // Prompt #215 — compact rail/card: question + art only; do not flatten choices into description.
     var desc = getExploreDescriptionPreview({
       title: p.question || 'Poll',
@@ -1173,7 +1167,10 @@
       type: 'poll',
       title: p.question || 'Poll',
       author: pollAuthorRaw,
-      character_name: pollAuthorRaw,
+      authorPublicLabel: String(p.author_public_label || p.authorPublicLabel || '').trim(),
+      authorRole: String(p.author_type || p.authorRole || '').trim(),
+      character_name: pollAvatarKey,
+      authorAvatarKey: pollAvatarKey,
       author_name: pollAuthorRaw,
       _canonicalAvatar: p._canonicalAvatar,
       dateIso: iso,

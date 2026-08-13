@@ -840,6 +840,10 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .exploreCardAvatar--fallback{ display: none; }
 .exploreCardAvatar--fallback.avatar-show{ display: flex; }
 .exploreCardAvatarImg--hidden{ display: none; }
+.identity-chip[data-identity-size="xs"]{ --lantern-card-identity-avatar-size: 20px; }
+.identity-chip[data-identity-size="sm"]{ --lantern-card-identity-avatar-size: 24px; }
+.identity-chip[data-identity-size="md"]{ --lantern-card-identity-avatar-size: 32px; }
+.identity-chip[data-identity-size="lg"]{ --lantern-card-identity-avatar-size: 40px; }
 .identity-chip.frame-gold .exploreCardAvatarImg,
 .identity-chip.frame-gold .exploreCardAvatar{ border-radius: 50%; box-shadow: 0 0 0 2px rgba(242,194,48,.5); }
 .identity-chip.frame-blue .exploreCardAvatarImg,

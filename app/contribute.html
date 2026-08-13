@@ -1467,6 +1467,35 @@
       } catch (e2) {}
       return at === 'admin' ? 'Admin' : at === 'staff' ? 'Staff' : 'Teacher';
     }
+    /** Prompt #149 — signed-in Create identity (name + durable avatar key). Never Anonymous while authenticated. */
+    function resolveSessionPublicIdentity(){
+      var authorType = resolveSessionAuthorType();
+      var me = null;
+      try { me = window.LANTERN_PILOT_ME; } catch (eMe) { me = null; }
+      var authenticated = !!(me && me.ok && me.authenticated !== false);
+      var authorName = resolveSessionAuthorName(authorType);
+      var avatarKey = '';
+      var publicLabel = '';
+      if (authorType === 'student') {
+        avatarKey = getAdoptedAccountKey();
+        publicLabel = getAdoptedPublicDisplayName() || authorName;
+      } else {
+        try {
+          avatarKey = (me && me.username) ? String(me.username).trim() : '';
+          publicLabel = (me && me.public_staff_label) ? String(me.public_staff_label).trim() : authorName;
+        } catch (eKey) {}
+      }
+      if (!authorName) authorName = publicLabel;
+      if (!publicLabel) publicLabel = authorName;
+      return {
+        author_type: authorType,
+        author_name: authorName,
+        author_public_label: publicLabel,
+        author_avatar_key: avatarKey,
+        character_name: avatarKey,
+        authenticated: authenticated
+      };
+    }
 
     function resetContributeFormPartial(){
       if (el('newsCategorySelect')) el('newsCategorySelect').value = '';
@@ -1982,14 +2011,18 @@
         if (mSt === 'poll' && currentMissionForSubmit){
           var mpq = (el('missionSubmitPollQuestion') && el('missionSubmitPollQuestion').value || '').trim() || 'Poll question';
           var mchoices = [1,2,3,4].map(function(i){ return (el('missionSubmitPollChoice' + i) && el('missionSubmitPollChoice' + i).value || '').trim(); }).filter(Boolean);
+          var identMPoll = resolveSessionPublicIdentity();
           var pollDraftM = {
             id: 'preview-mission-poll',
             question: mpq,
             choices: mchoices.length >= 2 ? mchoices : ['Choice 1', 'Choice 2'],
             image_url: (el('missionSubmitPollImageUrl') && el('missionSubmitPollImageUrl').value || '').trim(),
             fallback_key: 'poll',
-            character_name: getAdoptedAccountKey(),
-            author_name: getAdoptedPublicDisplayName() || ''
+            character_name: identMPoll.character_name,
+            author_name: identMPoll.author_name,
+            author_public_label: identMPoll.author_public_label,
+            author_avatar_key: identMPoll.author_avatar_key,
+            author_type: identMPoll.author_type
           };
           function finishMissionPollPreview(){
             renderStudioLeftDraft(buildStudioPollCardNode(pollDraftM, { isActive: true }), esc);
@@ -2088,19 +2121,22 @@
       if (!window.LanternCards) return;
       var LC = window.LanternCards;
       if (ct === 'poll'){
-        var adPollStudio = getAdopted();
         var pq = (el('pollQuestion') && el('pollQuestion').value || '').trim() || 'Your question';
         var choices = getPollChoices();
         var pollImg = (newsLinkUrl && String(newsLinkUrl).trim()) || (croppedNewsImageDataUrl || '');
         var fb = el('pollFallbackSelect') ? el('pollFallbackSelect').value : 'poll';
+        var identPoll = resolveSessionPublicIdentity();
         var pollDraft = {
           id: 'preview-draft',
           question: pq,
           choices: choices.length ? choices : ['Choice 1', 'Choice 2', 'Choice 3'],
           image_url: pollImg,
           fallback_key: fb,
-          character_name: getAdoptedAccountKey(),
-          author_name: getAdoptedPublicDisplayName() || (adPollStudio && adPollStudio.name) || ''
+          character_name: identPoll.character_name,
+          author_name: identPoll.author_name,
+          author_public_label: identPoll.author_public_label,
+          author_avatar_key: identPoll.author_avatar_key,
+          author_type: identPoll.author_type
         };
         function finishPollStudio(){
           renderStudioLeftDraft(buildStudioPollCardNode(pollDraft, { isActive: true }), esc);
@@ -2175,7 +2211,8 @@
       var title = (el('newsTitle') && el('newsTitle').value || '').trim();
       var body = (el('newsBody') && el('newsBody').value || '').trim();
       var category = ct === 'shoutout' ? 'Student Spotlight' : ((el('contributeDerivedCategory') && el('contributeDerivedCategory').value) || 'School News').trim();
-      var authorType = resolveSessionAuthorType();
+      var ident = resolveSessionPublicIdentity();
+      var authorType = ident.author_type;
       if (el('newsAuthorType')) el('newsAuthorType').value = authorType;
       var photoCredit = (el('newsPhotoCredit') && el('newsPhotoCredit').value || '').trim();
       var videoSrc = (el('newsVideoPreviewEl') && el('newsVideoPreviewEl').src || '').trim();
@@ -2184,7 +2221,7 @@
       var videoUrl = hasVideo ? videoSrc : '';
       var linkUrl = (newsLinkUrl && String(newsLinkUrl).trim()) || '';
       var headline = title || (ct === 'shoutout' ? 'Shout-Out!' : '');
-      var authorName = resolveSessionAuthorName(authorType);
+      var authorName = ident.author_name;
       var nowIso = new Date().toISOString();
       var previewBody = body;
       if (ct === 'shoutout') {
@@ -2203,20 +2240,9 @@
         body: previewBody,
         category: category,
         author_name: authorName,
-        character_name: authorType === 'student'
-          ? getAdoptedAccountKey()
-          : (function () {
-              try {
-                return (window.LANTERN_PILOT_ME && window.LANTERN_PILOT_ME.username) ? String(window.LANTERN_PILOT_ME.username).trim() : '';
-              } catch (eKey) { return ''; }
-            })(),
-        author_avatar_key: authorType === 'student'
-          ? getAdoptedAccountKey()
-          : (function () {
-              try {
-                return (window.LANTERN_PILOT_ME && window.LANTERN_PILOT_ME.username) ? String(window.LANTERN_PILOT_ME.username).trim() : '';
-              } catch (eKey2) { return ''; }
-            })(),
+        character_name: ident.character_name,
+        author_avatar_key: ident.author_avatar_key,
+        author_public_label: ident.author_public_label,
         author_type: authorType,
         type: ct === 'shoutout' ? 'shout_out' : 'news',
         created_at: nowIso,

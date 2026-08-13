@@ -47,7 +47,7 @@
    * @returns {Promise<{ imageUrl: string|null, emoji: string }>}
    */
   function getCanonicalAvatar(characterName, legacyEmoji) {
-    var name = String(characterName || '').trim();
+    var name = normalizeAvatarAccountKey(characterName);
     var emoji = String(legacyEmoji || '').trim() || DEFAULT_EMOJI;
     var base = getAvatarApiBase();
     if (base === null || !name) {
@@ -117,12 +117,22 @@
     return DEFAULT_EMOJI;
   }
 
-  /** Prompt #218/#221 — durable Locker avatar key first; never prefer "Rick R." / display labels. */
+  /** Strip staff: prefix so avatar profiles (username PK) resolve. */
+  function normalizeAvatarAccountKey(raw) {
+    var s = String(raw || '').trim();
+    if (!s) return '';
+    var low = s.toLowerCase();
+    if (low.indexOf('staff_id:') === 0) return '';
+    if (low.indexOf('staff:') === 0) return s.slice(6).trim();
+    return s;
+  }
+
+  /** Prompt #218/#221/#149 — durable Locker avatar key first; never prefer display labels. */
   function avatarLookupKeysFromItem(p) {
     if (!p || typeof p !== 'object') return [];
     var keys = [];
     function push(v) {
-      var s = String(v || '').trim();
+      var s = normalizeAvatarAccountKey(v);
       if (!s) return;
       if (keys.indexOf(s) < 0) keys.push(s);
     }
@@ -132,8 +142,6 @@
     push(p.author_id);
     push(p.actor_id);
     push(p[CANONICAL_IDENTITY_KEY]);
-    push(p.author_name);
-    push(p.authorDisplayName);
     return keys;
   }
 
@@ -193,6 +201,7 @@
     attachCanonicalAvatarsToItems: attachCanonicalAvatarsToItems,
     accountKeyFromItem: accountKeyFromItem,
     avatarLookupKeysFromItem: avatarLookupKeysFromItem,
+    normalizeAvatarAccountKey: normalizeAvatarAccountKey,
     getAvatarApiBase: getAvatarApiBase,
     toSameOriginAvatarUrl: toSameOriginAvatarUrl,
     CANONICAL_IDENTITY_KEY: CANONICAL_IDENTITY_KEY,

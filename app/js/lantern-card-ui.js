@@ -15,6 +15,70 @@
     });
   }
 
+  /** Prompt #149 — durable account key for avatar (not display labels). */
+  function durableAccountKeyFromItem(item) {
+    item = item || {};
+    if (global.LanternAvatar && typeof global.LanternAvatar.accountKeyFromItem === 'function') {
+      return global.LanternAvatar.accountKeyFromItem(item);
+    }
+    var raw = String(
+      item.authorAvatarKey || item.author_avatar_key || item.authorId || item.author_id || item.actor_id || item.character_name || ''
+    ).trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.normalizeAvatarAccountKey === 'function') {
+      return global.LanternAvatar.normalizeAvatarAccountKey(raw);
+    }
+    return raw;
+  }
+
+  /** Prompt #149 — same public name as Explore cards (formatExploreAuthorLabel). Never railIdentityFirstName. */
+  function publicAuthorLabelFromItem(item) {
+    item = item || {};
+    if (global.LanternCards && typeof global.LanternCards.formatExploreAuthorLabel === 'function') {
+      return String(global.LanternCards.formatExploreAuthorLabel(item) || '').trim();
+    }
+    return String(item.authorPublicLabel || item.author_public_label || item.authorDisplayName || item.author_name || '').trim();
+  }
+
+  /**
+   * Same identity chip the card uses: approved avatar + public author label.
+   * Fetches canonical avatar when missing so card and modal cannot diverge.
+   */
+  function paintCanonicalPersonIdentity(idw, item, opts) {
+    opts = opts || {};
+    var LC = global.LanternCards;
+    if (!idw || !LC || typeof LC.buildExploreAuthorAvatarHtml !== 'function') return;
+    item = item || {};
+    var accountKey = durableAccountKeyFromItem(item);
+    var label = publicAuthorLabelFromItem(item);
+    if (!accountKey && !label) {
+      idw.innerHTML = '';
+      return;
+    }
+    var size = opts.size || 'md';
+    idw.innerHTML =
+      '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
+      LC.buildExploreAuthorAvatarHtml({
+        character_name: accountKey,
+        authorAvatarKey: accountKey,
+        author_name: label,
+        _canonicalAvatar: item._canonicalAvatar,
+        frame: 'none',
+        identitySize: size
+      }) +
+      (label ? '<span class="exploreAuthor exploreAuthor--identity">' + esc(label) + '</span>' : '') +
+      '</div>';
+    var hasImg = item._canonicalAvatar && item._canonicalAvatar.imageUrl && String(item._canonicalAvatar.imageUrl).trim();
+    if (!hasImg && accountKey && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function' && !item._lanternIdentityAvatarFetch) {
+      item._lanternIdentityAvatarFetch = true;
+      var leg = global.LanternAvatar.getLegacyEmojiForCharacter ? global.LanternAvatar.getLegacyEmojiForCharacter(accountKey) : '';
+      global.LanternAvatar.getCanonicalAvatar(accountKey, leg || undefined).then(function (canon) {
+        item._canonicalAvatar = canon || item._canonicalAvatar;
+        if (!idw.parentNode) return;
+        paintCanonicalPersonIdentity(idw, item, opts);
+      });
+    }
+  }
+
   var overlay = null;
   var escapeWired = false;
   var mediaFsOverlay = null;
@@ -1036,57 +1100,11 @@
     } catch (e2) {}
     var metaWho = String(p.display_name || p.author_name || '').trim();
     var idwC = modalRoot.querySelector('.lanternCardDetailIdentityWrap');
-    var displayNmC = String(p.display_name || p.author_name || '').trim();
-    var accountKeyC = String(p.character_name || p.author_name || '').trim();
-    if (idwC && LC && LC.buildExploreAuthorAvatarHtml && (accountKeyC || displayNmC)) {
-      var idFirstC = LC.railIdentityFirstName ? LC.railIdentityFirstName(displayNmC || 'Anonymous') : displayNmC;
-      idwC.innerHTML = '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
-        LC.buildExploreAuthorAvatarHtml({
-          character_name: accountKeyC,
-          author_name: displayNmC,
-          _canonicalAvatar: p._canonicalAvatar,
-          frame: 'none'
-        }) +
-        '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirstC) + '</span></div>';
+    paintCanonicalPersonIdentity(idwC, p, { size: 'md' });
+    if (idwC && idwC.innerHTML) {
       m.textContent = time;
     } else {
-      if (idwC) idwC.innerHTML = '';
       m.textContent = [metaWho, time].filter(Boolean).join(' · ');
-    }
-    var embeddedPrevC = !!(opts && opts.embeddedPreview);
-    if (embeddedPrevC && idwC && LC && LC.buildExploreAuthorAvatarHtml && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function' && (accountKeyC || displayNmC)) {
-      var hasCanonImgC = p._canonicalAvatar && p._canonicalAvatar.imageUrl && String(p._canonicalAvatar.imageUrl).trim();
-      if (!hasCanonImgC) {
-        var keysC = [];
-        if (accountKeyC) keysC.push(accountKeyC);
-        if (displayNmC && displayNmC !== accountKeyC) keysC.push(displayNmC);
-        Promise.all(keysC.map(function (k) {
-          var leg = global.LanternAvatar.getLegacyEmojiForCharacter ? global.LanternAvatar.getLegacyEmojiForCharacter(k) : '';
-          return global.LanternAvatar.getCanonicalAvatar(k, leg || undefined);
-        })).then(function (results) {
-          var pickedC = null;
-          for (var ci = 0; ci < results.length; ci++) {
-            if (results[ci] && results[ci].imageUrl && String(results[ci].imageUrl).trim()) {
-              pickedC = results[ci];
-              break;
-            }
-          }
-          if (!pickedC) return;
-          p._canonicalAvatar = pickedC;
-          if (!modalRoot.parentNode) return;
-          var idw3 = modalRoot.querySelector('.lanternCardDetailIdentityWrap');
-          if (!idw3 || !LC.buildExploreAuthorAvatarHtml) return;
-          var idFirst3 = LC.railIdentityFirstName ? LC.railIdentityFirstName(displayNmC || 'Anonymous') : displayNmC;
-          idw3.innerHTML = '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
-            LC.buildExploreAuthorAvatarHtml({
-              character_name: accountKeyC,
-              author_name: displayNmC,
-              _canonicalAvatar: p._canonicalAvatar,
-              frame: 'none'
-            }) +
-            '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirst3) + '</span></div>';
-        });
-      }
     }
     var cap = String(p.caption || '').trim();
     b.innerHTML = cap ? '<div class="lanternCardDetailCaption">' + esc(cap).replace(/\n/g, '<br>') + '</div>' : '';
@@ -1278,21 +1296,7 @@
       var dt = new Date(n.approved_at || n.created_at || '');
       if (!isNaN(dt.getTime())) time = dt.toLocaleDateString();
     } catch (e3) {}
-    var displayNm = String(n.author_name || '').trim();
-    var accountKey = String(n.character_name || n.author_name || '').trim();
-    if (idw && LC && LC.buildExploreAuthorAvatarHtml && (accountKey || displayNm)) {
-      var idFirst = LC.railIdentityFirstName ? LC.railIdentityFirstName(displayNm || 'Anonymous') : displayNm;
-      idw.innerHTML = '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
-        LC.buildExploreAuthorAvatarHtml({
-          character_name: accountKey,
-          author_name: displayNm,
-          _canonicalAvatar: n._canonicalAvatar,
-          frame: 'none'
-        }) +
-        '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirst) + '</span></div>';
-    } else if (idw) {
-      idw.innerHTML = '';
-    }
+    paintCanonicalPersonIdentity(idw, n, { size: 'md' });
     var roleLabel = newsRoleLabelFromAuthorType(n.author_type);
     var cat = String(n.category || '').trim();
     m.textContent = [roleLabel, cat, time].filter(Boolean).join(' · ');
@@ -1390,40 +1394,7 @@
         });
       });
     }
-    function hasCanonImage(canon) {
-      return !!(canon && canon.imageUrl && String(canon.imageUrl).trim());
-    }
-    if (embeddedPreview && idw && LC && LC.buildExploreAuthorAvatarHtml && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function' && (accountKey || displayNm) && !hasCanonImage(n._canonicalAvatar)) {
-      var keysTry = [];
-      if (accountKey) keysTry.push(accountKey);
-      if (displayNm && displayNm !== accountKey) keysTry.push(displayNm);
-      Promise.all(keysTry.map(function (k) {
-        var legN = global.LanternAvatar.getLegacyEmojiForCharacter ? global.LanternAvatar.getLegacyEmojiForCharacter(k) : '';
-        return global.LanternAvatar.getCanonicalAvatar(k, legN || undefined);
-      })).then(function (results) {
-        var picked = null;
-        for (var ri = 0; ri < results.length; ri++) {
-          if (results[ri] && results[ri].imageUrl && String(results[ri].imageUrl).trim()) {
-            picked = results[ri];
-            break;
-          }
-        }
-        if (!picked) return;
-        n._canonicalAvatar = picked;
-        if (!modalRoot.parentNode) return;
-        var idw2 = modalRoot.querySelector('.lanternCardDetailIdentityWrap');
-        if (!idw2 || !LC.buildExploreAuthorAvatarHtml) return;
-        var idFirst2 = LC.railIdentityFirstName ? LC.railIdentityFirstName(displayNm || 'Anonymous') : displayNm;
-        idw2.innerHTML = '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
-          LC.buildExploreAuthorAvatarHtml({
-            character_name: accountKey,
-            author_name: displayNm,
-            _canonicalAvatar: n._canonicalAvatar,
-            frame: 'none'
-          }) +
-          '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirst2) + '</span></div>';
-      });
-    }
+    /* Prompt #149 — paintCanonicalPersonIdentity already fetches canonical avatar when missing. */
     if (previewDraft && wrap) {
       wrap.innerHTML = '<p class="lanternCardDetailMuted">Preview — praise and reactions appear after teacher approval.</p>';
     } else if (global.LANTERN_REACTIONS && global.LANTERN_REACTIONS.getApiBase && global.LANTERN_REACTIONS.getApiBase() && itemId && wrap) {
@@ -1611,6 +1582,11 @@
       linkUrl: media.link_url
     });
     var avatarKey = String(n.author_avatar_key || n.authorAvatarKey || n.character_name || n.actor_id || '').trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.normalizeAvatarAccountKey === 'function') {
+      avatarKey = global.LanternAvatar.normalizeAvatarAccountKey(avatarKey);
+    }
+    var publicLabel = String(n.author_public_label || n.authorPublicLabel || '').trim();
+    var displayName = String(n.author_name || publicLabel || '').trim();
     return {
       id: String(n.id || 'preview-draft'),
       type: feedType,
@@ -1618,8 +1594,8 @@
       title: n.title || (ct === 'shoutout' ? ((LC && LC.SHOUT_OUT_DISPLAY_NAME) || 'Shout-Out!') : 'Untitled'),
       body: n.body || '',
       summary: n.body || '',
-      authorDisplayName: String(n.author_name || 'Anonymous').trim(),
-      authorPublicLabel: n.author_public_label || n.authorPublicLabel || '',
+      authorDisplayName: displayName,
+      authorPublicLabel: publicLabel || displayName,
       authorRole: n.author_type || 'student',
       authorAvatarKey: avatarKey,
       authorId: avatarKey || null,
@@ -1651,6 +1627,11 @@
     var model = parts.model || {};
     var type = p.type || 'create';
     var iso = p.created_at || new Date().toISOString();
+    var avatarKey = String(p.author_avatar_key || p.authorAvatarKey || p.character_name || p.actor_id || '').trim();
+    if (global.LanternAvatar && typeof global.LanternAvatar.normalizeAvatarAccountKey === 'function') {
+      avatarKey = global.LanternAvatar.normalizeAvatarAccountKey(avatarKey);
+    }
+    var displayName = String(p.display_name || p.author_name || p.author_public_label || '').trim();
     return {
       id: String(p.id || 'preview-draft'),
       type: inferStudioFeedTypeFromDraft({
@@ -1663,8 +1644,13 @@
       title: model.title || p.title || 'Untitled',
       body: p.caption || '',
       summary: p.caption || '',
-      authorDisplayName: String(p.display_name || p.author_name || 'Anonymous').trim(),
-      authorRole: 'student',
+      authorDisplayName: displayName,
+      authorPublicLabel: String(p.author_public_label || p.authorPublicLabel || displayName).trim(),
+      authorRole: p.author_type || 'student',
+      authorAvatarKey: avatarKey,
+      authorId: avatarKey || null,
+      character_name: avatarKey,
+      _canonicalAvatar: p._canonicalAvatar,
       createdAt: iso,
       approvedAt: iso,
       imageUrl: p.image_url || '',
@@ -1721,11 +1707,21 @@
     wireStudioPreviewClose(modal);
     var v = modal.querySelector('.lanternCardDetailVisual');
     var t = modal.querySelector('.lanternCardDetailTitle');
+    var idw = modal.querySelector('.lanternCardDetailIdentityWrap');
     var m = modal.querySelector('.lanternCardDetailMeta');
     var b = modal.querySelector('.lanternCardDetailBody');
     var a = modal.querySelector('.lanternCardDetailActions');
     var r = modal.querySelector('.lanternCardDetailReactions');
     if (t) t.textContent = poll.question || 'Poll';
+    paintCanonicalPersonIdentity(idw, {
+      authorAvatarKey: poll.author_avatar_key || poll.authorAvatarKey || poll.character_name,
+      author_avatar_key: poll.author_avatar_key || poll.authorAvatarKey,
+      character_name: poll.character_name,
+      author_name: poll.author_name || poll.display_name,
+      authorPublicLabel: poll.author_public_label || poll.authorPublicLabel,
+      author_type: poll.author_type,
+      _canonicalAvatar: poll._canonicalAvatar
+    }, { size: 'md' });
     if (m) {
       var nch = (poll.choices || []).length;
       m.textContent = ['Poll', nch ? (nch + ' choices') : ''].filter(Boolean).join(' · ');
@@ -1835,17 +1831,18 @@
 
     function pollAdminFooter() {
       fillAdminModeration(modalRoot, {
-        removable: !!(pollId && !opts.previewDraft),
+        removable: !!(pollId && !payload.previewDraft),
         itemType: 'poll',
         endpoint: '/api/polls/hide',
         id: pollId,
         body: { id: pollId },
         detail: !pollId ? 'No poll id.' : null,
       });
-      var ownsPoll = !opts.previewDraft && viewerOwnsAuthorFields({
-        character_name: (res && res.poll && res.poll.character_name) || opts.character_name || opts.author,
-        author_name: (res && res.poll && res.poll.character_name) || opts.author,
-        authorDisplayName: opts.authorDisplayName,
+      var ownsPoll = !payload.previewDraft && viewerOwnsAuthorFields({
+        character_name: (res && res.poll && res.poll.character_name) || payload.character_name || payload.author,
+        author_name: (res && res.poll && res.poll.character_name) || payload.author,
+        authorDisplayName: payload.authorDisplayName,
+        authorAvatarKey: (res && res.poll && res.poll.author_avatar_key) || (payload.sourceItem && payload.sourceItem.authorAvatarKey),
       });
       fillAuthorActions(modalRoot, {
         show: !!(ownsPoll && pollId),
@@ -1923,30 +1920,19 @@
     wireOpenedPostMediaInteractions(modalRoot);
 
     t.textContent = p.question || 'Poll';
-    var cn = String((p.character_name || '').trim() || '');
-    function renderPollAuthorIdentity(canon) {
-      if (!idw || !LC || !LC.buildExploreAuthorAvatarHtml) return;
-      if (!cn) {
-        idw.innerHTML = '';
-        return;
-      }
-      var idFirst = LC.railIdentityFirstName ? LC.railIdentityFirstName(cn) : cn;
-      var pm = { character_name: cn, author_name: cn, frame: 'none' };
-      if (canon && typeof canon === 'object') pm._canonicalAvatar = canon;
-      idw.innerHTML =
-        '<div class="lanternCardDetailIdentity exploreCardIdentity exploreCardIdentity--rail">' +
-        LC.buildExploreAuthorAvatarHtml(pm) +
-        '<span class="exploreAuthor exploreAuthor--identity">' + esc(idFirst) + '</span></div>';
-    }
-    if (cn && global.LanternAvatar && typeof global.LanternAvatar.getCanonicalAvatar === 'function') {
-      renderPollAuthorIdentity(null);
-      var legP = global.LanternAvatar.getLegacyEmojiForCharacter ? global.LanternAvatar.getLegacyEmojiForCharacter(cn) : '';
-      global.LanternAvatar.getCanonicalAvatar(cn, legP || undefined).then(function (canon) {
-        renderPollAuthorIdentity(canon);
-      });
-    } else {
-      renderPollAuthorIdentity(null);
-    }
+    var sourceItem = payload.sourceItem || {};
+    var pollIdentity = {
+      authorAvatarKey: p.author_avatar_key || sourceItem.authorAvatarKey || sourceItem.author_avatar_key || p.character_name,
+      author_avatar_key: p.author_avatar_key || sourceItem.authorAvatarKey,
+      authorId: sourceItem.authorId || sourceItem.author_id,
+      character_name: p.character_name,
+      author_name: sourceItem.authorDisplayName || sourceItem.author_name || p.author_name,
+      authorDisplayName: sourceItem.authorDisplayName,
+      authorPublicLabel: p.author_public_label || sourceItem.authorPublicLabel || sourceItem.author_public_label,
+      authorRole: sourceItem.authorRole || sourceItem.author_role,
+      _canonicalAvatar: sourceItem._canonicalAvatar || p._canonicalAvatar
+    };
+    paintCanonicalPersonIdentity(idw, pollIdentity, { size: 'md' });
     var nch = (p.choices || []).length;
     var time = '';
     try {
@@ -2125,18 +2111,18 @@
     showDetailOverlay(el);
 
     if (apiBase === null) {
-      fillPollDetailModal(modal, { pollId: pollId, apiBase: '', characterName: characterName, fetchRes: { ok: false, error: 'no_api' } });
+      fillPollDetailModal(modal, { pollId: pollId, apiBase: '', characterName: characterName, fetchRes: { ok: false, error: 'no_api' }, sourceItem: opts.sourceItem, previewDraft: opts.previewDraft });
       return;
     }
     global.fetch(apiBase + '/api/polls/' + encodeURIComponent(pollId), { credentials: 'include', cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!modal.parentNode) return;
-        fillPollDetailModal(modal, { pollId: pollId, apiBase: apiBase, characterName: characterName, fetchRes: res });
+        fillPollDetailModal(modal, { pollId: pollId, apiBase: apiBase, characterName: characterName, fetchRes: res, sourceItem: opts.sourceItem, previewDraft: opts.previewDraft });
       })
       .catch(function () {
         if (!modal.parentNode) return;
-        fillPollDetailModal(modal, { pollId: pollId, apiBase: apiBase, characterName: characterName, fetchRes: { ok: false } });
+        fillPollDetailModal(modal, { pollId: pollId, apiBase: apiBase, characterName: characterName, fetchRes: { ok: false }, sourceItem: opts.sourceItem, previewDraft: opts.previewDraft });
       });
   }
 
@@ -2390,19 +2376,10 @@
     }
 
     t.textContent = item.title || 'Untitled';
-    var author = '';
-    if (global.LanternCards && typeof global.LanternCards.formatExploreAuthorLabel === 'function') {
-      author = global.LanternCards.formatExploreAuthorLabel({
-        author: item.authorDisplayName || item.author_name,
-        authorPublicLabel: item.authorPublicLabel || item.author_public_label,
-        authorRole: item.authorRole || item.author_role || item.authorType || item.author_type
-      });
-    }
-    if (!author) author = String(item.authorPublicLabel || item.author_public_label || item.authorDisplayName || 'Anonymous').trim();
+    paintCanonicalPersonIdentity(idw, item, { size: 'md' });
     var dateStr = formatFeedItemDate(item);
     var typeLabel = feedItemTypeBadge(item);
-    if (idw) idw.innerHTML = '';
-    m.textContent = [author, typeLabel, dateStr].filter(Boolean).join(' · ');
+    m.textContent = [typeLabel, dateStr].filter(Boolean).join(' · ');
 
     var body = String(item.body || item.summary || '').trim();
     b.innerHTML = body ? '<div class="lanternCardDetailCaption">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '';
@@ -2511,7 +2488,7 @@
     if (type === 'poll') {
       var pollId = resolveFeedPollId(item);
       if (pollId) {
-        openPoll(pollId, opts);
+        openPoll(pollId, Object.assign({}, opts, { sourceItem: item }));
         return;
       }
     }
