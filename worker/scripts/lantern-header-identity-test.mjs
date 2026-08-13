@@ -33,18 +33,18 @@ if (/function applySignedInHeaderIdentity/.test(navJs) && /function resolveSigne
   ok('nav defines shared signed-in header helpers');
 } else bad('helpers missing');
 
-if (/studentFriendlyDisplayNameFromAdopted/.test(navJs) && /display_name/.test(navJs) && !/Lucas Radle|Rick Radle/.test(navJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''))) {
-  ok('header identity uses session display_name helper — no hard-coded Lucas/Rick in executable nav code');
-} else if (/studentFriendlyDisplayNameFromAdopted/.test(navJs)) {
-  ok('header identity uses session display_name helper');
+if (/public_display_name/.test(navJs) && /public_display_label/.test(navJs) && !/Lucas Radle|Rick Radle/.test(navJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''))) {
+  ok('header identity uses public_display_name — no hard-coded Lucas/Rick in executable nav code');
+} else if (/public_display_name/.test(navJs)) {
+  ok('header identity uses public_display_name');
 } else bad('identity source wrong');
 
 if (/applySignedInHeaderIdentity\(data\)/.test(navJs) && /LANTERN_PILOT_ME/.test(navJs)) {
   ok('identity applied from /api/auth/me response and cached LANTERN_PILOT_ME');
 } else bad('auth/me hydration wiring missing');
 
-if (/studentFriendlyDisplayNameFromAdopted/.test(pilotAuthJs) && /display_name/.test(pilotAuthJs)) {
-  ok('pilot-auth exposes the canonical display_name priority helper');
+if (/public_display_name/.test(pilotAuthJs) && /studentFriendlyDisplayNameFromAdopted/.test(pilotAuthJs)) {
+  ok('pilot-auth prefers public_display_name for ordinary identity');
 } else bad('pilot-auth helper missing');
 
 const fullHeaderPages = [

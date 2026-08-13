@@ -14,6 +14,7 @@ import {
   resolveAuthorPublicLabel,
   resolveMissionCreatorPublicLabel,
   resolveMissionSubmitterPublicLabel,
+  resolvePublicDisplayName,
 } from './staff-public-name.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { isLowerIsBetterGame } from './lantern-game-catalog.js';
@@ -175,15 +176,13 @@ async function loadStudentLabelIndex(db) {
   try {
     const res = await db
       .prepare(
-        `SELECT username, display_name, student_character_name, mtss_student_id, identity_display, role
+        `SELECT username, display_name, public_display_name, first_name, last_name, student_character_name, mtss_student_id, identity_display, role
          FROM lantern_pilot_accounts
          WHERE lower(trim(role)) = 'student'`
       )
       .all();
     (res.results || []).forEach((row) => {
-      const label =
-        formatCompactPersonName(row.identity_display || row.display_name || row.student_character_name) ||
-        'A student';
+      const label = resolvePublicDisplayName(row) || 'A student';
       ['username', 'mtss_student_id', 'student_character_name', 'display_name'].forEach((k) => {
         const v = trimStr(row[k]).toLowerCase();
         if (v) byKey[v] = label;
@@ -221,8 +220,7 @@ function publicActorLabel(characterName, staffIndex, studentIndex) {
   }
   const mapped = studentIndex && studentIndex[key.toLowerCase()];
   if (mapped) return mapped;
-  const compact = formatCompactPersonName(key);
-  if (compact) return compact;
+  if (staff) return staff;
   return 'A student';
 }
 

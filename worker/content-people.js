@@ -4,7 +4,7 @@
  */
 
 import { resolveTmsStaffIdForLanternAccount } from './staff-economy.js';
-import { formatPublicStaffName } from './staff-public-name.js';
+import { formatPublicStaffName, defaultPublicDisplayName, formatCompactPersonName } from './staff-public-name.js';
 
 export const CONTENT_PEOPLE_MAX_TAGS = 40;
 export const CONTENT_PEOPLE_RELATIONSHIPS = new Set(['recognized', 'tagged']);
@@ -38,13 +38,18 @@ export function parsePeopleToken(tokenRaw) {
 
 export function privacySafeStudentLabel(row) {
   if (!row) return '';
+  const pdn = trimStr(row.public_display_name);
+  if (pdn) return pdn;
+  if (trimStr(row.first_name)) {
+    return defaultPublicDisplayName(Object.assign({}, row, { role: row.role || 'student' }));
+  }
   const idn = trimStr(row.identity_display);
   if (idn) return idn;
-  const dn = trimStr(row.display_name);
-  if (dn) return dn;
+  const compact = formatCompactPersonName(row.display_name);
+  if (compact) return compact;
   const sc = trimStr(row.student_character_name);
-  if (sc) return sc;
-  return trimStr(row.username);
+  if (sc && !/^\d{3,}$/.test(sc)) return formatCompactPersonName(sc) || sc;
+  return '';
 }
 
 export function privacySafeStaffLabel(row) {

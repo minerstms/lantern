@@ -287,7 +287,7 @@
   /**
    * Prompt #121 — ONE shared signed-in name in #lanternAppBarContext for every full-header page.
    * Same identity source Explore/Locker already rely on: /api/auth/me → LANTERN_PILOT_ME →
-   * LanternAuth.studentFriendlyDisplayNameFromAdopted (display_name first). No hard-coded names.
+   * Prompt #147 — signed-in header uses public_display_name / public_display_label only.
    * Display (page-marquee-only) never mounts this bar, so it stays marquee-only.
    */
   function resolveSignedInDisplayName(me) {
@@ -295,16 +295,20 @@
     if (me && auth && typeof auth.applyStudentStorageFromSession === 'function') {
       auth.applyStudentStorageFromSession(me);
     }
+    if (me && typeof me === 'object') {
+      var label = me.public_display_label != null ? String(me.public_display_label).trim() : '';
+      if (label) return label;
+      label = me.public_display_name != null ? String(me.public_display_name).trim() : '';
+      if (label) return label;
+      label = me.public_staff_label != null ? String(me.public_staff_label).trim() : '';
+      if (label) return label;
+    }
     if (auth && typeof auth.adoptedFromPilotMe === 'function' && typeof auth.studentFriendlyDisplayNameFromAdopted === 'function') {
       var adopted = auth.adoptedFromPilotMe();
       var fromAdopted = auth.studentFriendlyDisplayNameFromAdopted(adopted);
       if (fromAdopted) return fromAdopted;
     }
-    if (!me || typeof me !== 'object') return '';
-    var dn = me.display_name != null ? String(me.display_name).trim() : '';
-    if (dn) return dn;
-    var un = me.username != null ? String(me.username).trim() : '';
-    return un;
+    return '';
   }
 
   function applySignedInHeaderIdentity(me) {

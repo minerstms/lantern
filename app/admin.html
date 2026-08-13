@@ -262,6 +262,10 @@
       <input id="studentsEditFirst" type="text" maxlength="64" autocomplete="off" required />
       <label for="studentsEditLast">Last Name</label>
       <input id="studentsEditLast" type="text" maxlength="64" autocomplete="off" />
+      <input type="hidden" id="studentsEditLanternUsername" value="" />
+      <label for="studentsEditPublicDisplay">Public Display Name</label>
+      <input id="studentsEditPublicDisplay" type="text" maxlength="80" autocomplete="off" placeholder="Lucas R." />
+      <p class="acctPanelHint">Ordinary Lantern identity. If blank, Lantern uses First L. when a last name exists. Requires a linked Lantern login to save.</p>
       <label for="studentsEditGrade">Grade</label>
       <select id="studentsEditGrade" aria-label="Grade">
         <option value="6">6th Grade</option>
@@ -3241,6 +3245,10 @@
       document.getElementById('studentsEditIdInput').value = s.student_id || '';
       document.getElementById('studentsEditFirst').value = s.first_name || '';
       document.getElementById('studentsEditLast').value = s.last_name || '';
+      var pdnEl = document.getElementById('studentsEditPublicDisplay');
+      var luEl = document.getElementById('studentsEditLanternUsername');
+      if (pdnEl) pdnEl.value = s.public_display_name != null ? String(s.public_display_name).trim() : '';
+      if (luEl) luEl.value = s.lantern_username != null ? String(s.lantern_username).trim() : '';
       var gradeEl = document.getElementById('studentsEditGrade');
       if (gradeEl) {
         var g = String(s.grade || '').replace(/^grade-/, '').trim();
@@ -3305,6 +3313,7 @@
             '<p class="lanternMgmtRecordMeta">' +
               'Roster: ' + escapeRosterHtml(s.tms_status || '—') +
               (s.lantern_username ? ' · Login: ' + escapeRosterHtml(s.lantern_username) : '') +
+              (s.public_display_name ? ' · Public display: ' + escapeRosterHtml(s.public_display_name) : '') +
               ' · Lantern state: ' + escapeRosterHtml(s.lantern_account || '—') +
               ' · Media/Publicity: ' + (Number(s.media_publicity_restricted) === 1 ? '🛡 Restricted' : 'Allowed') +
               ' · Must change password: ' + mcpLabel +
@@ -3611,12 +3620,36 @@
           var mediaMsg = mediaRestricted
             ? ' Media/Publicity set to Restricted. Hallway TV will stop displaying student-identifying content for this student.'
             : ' Media/Publicity: Allowed.';
-          showStudentsRosterMsg(
-            'Saved ' + savedName + ' · ID ' + savedId + ' · Grade ' + savedGrade + '.' + mediaMsg,
-            'ok'
-          );
-          closeStudentsEditPanels();
-          loadStudentsRoster();
+          var lanternUser = String((document.getElementById('studentsEditLanternUsername') || {}).value || '').trim();
+          var publicDisplay = String((document.getElementById('studentsEditPublicDisplay') || {}).value || '').trim();
+          var finishOk = function(extra) {
+            showStudentsRosterMsg(
+              'Saved ' + savedName + ' · ID ' + savedId + ' · Grade ' + savedGrade + '.' + mediaMsg + (extra || ''),
+              'ok'
+            );
+            closeStudentsEditPanels();
+            loadStudentsRoster();
+          };
+          if (!lanternUser) {
+            finishOk(publicDisplay ? ' Public Display Name is stored on the Lantern login (link an account first).' : '');
+            return;
+          }
+          return postAdminJson('/api/admin/users/update', {
+            username: lanternUser,
+            public_display_name: publicDisplay || null
+          }).then(function(pdnRes) {
+            if (pdnRes && pdnRes.blocked) return;
+            if (!(pdnRes && pdnRes.okHttp && pdnRes.body && pdnRes.body.ok)) {
+              showStudentsRosterMsg(
+                'Saved identity for ' + savedName + ', but Public Display Name update failed: ' +
+                  ((pdnRes && pdnRes.body && (pdnRes.body.message || pdnRes.body.error)) || 'error'),
+                'err'
+              );
+              loadStudentsRoster();
+              return;
+            }
+            finishOk(publicDisplay ? ' Public display: ' + publicDisplay + '.' : '');
+          });
         });
       }).catch(function() {
         showStudentsRosterMsg('Network error while saving student.', 'err');

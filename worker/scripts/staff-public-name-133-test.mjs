@@ -209,7 +209,7 @@ assert(/formatTickerStaffName/.test(fs.readFileSync(path.join(root, 'worker/staf
 const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');
 assert(/u\.display_name/.test(adminHtml) && /u\.first_name/.test(adminHtml), '8. Admin Staff still uses full account name fields');
 
-assert(privacySafeStudentLabel(student) === 'Lucas Radle', '9c. student privacySafe label unchanged');
+assert(privacySafeStudentLabel(student) === 'Lucas R.', '9c. student privacySafe label is public First L.');
 assert(privacySafeStaffLabel(kristina) === 'Mrs. Vezzani', '9d. staff picker uses professional label');
 
 assert(validateStaffHonorific('Ms.', { required: false }).ok === true, '10a. explicit Ms. still valid');

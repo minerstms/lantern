@@ -22,6 +22,8 @@ import {
   loadStaffPublicNameIndex,
   resolveAuthorPublicLabel,
   formatPublicStaffName,
+  defaultPublicDisplayName,
+  resolvePublicDisplayName,
   overlayNewsRowRecognizedStaff,
   overlayRecognitionListRow,
 } from './staff-public-name.js';
@@ -64,6 +66,7 @@ import {
   parsePollChoices,
 } from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
+import { buildAvatarMatchPool, uniqueAvatarMatchByLabel } from './avatar-match-pool.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -1500,6 +1503,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
       must_change_password: false,
       locker: 'Not Ready',
       exact_match_linkable: false,
+      public_display_name: null,
     };
   }
 
@@ -1518,6 +1522,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
       must_change_password: false,
       locker: 'Error',
       exact_match_linkable: false,
+      public_display_name: null,
     };
   }
   if (byMtss.length === 1) {
@@ -1532,6 +1537,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
       must_change_password: mcp,
       locker: active ? 'Ready' : 'Not Ready',
       exact_match_linkable: false,
+      public_display_name: row.public_display_name != null ? String(row.public_display_name).trim() || null : null,
     };
   }
 
@@ -1549,6 +1555,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
         must_change_password: mcp,
         locker: 'Error',
         exact_match_linkable: false,
+        public_display_name: row.public_display_name != null ? String(row.public_display_name).trim() || null : null,
       };
     }
     return {
@@ -1558,6 +1565,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
       must_change_password: mcp,
       locker: 'Not Ready',
       exact_match_linkable: Number(row.is_active) === 1,
+      public_display_name: row.public_display_name != null ? String(row.public_display_name).trim() || null : null,
     };
   }
   if (byUsernameExact.length > 1) {
@@ -1568,6 +1576,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
       must_change_password: false,
       locker: 'Error',
       exact_match_linkable: false,
+      public_display_name: null,
     };
   }
 
@@ -1578,6 +1587,7 @@ function classifyLanternAccountStatus(tmsStudentId, studentAccounts) {
     must_change_password: false,
     locker: 'Not Ready',
     exact_match_linkable: false,
+    public_display_name: null,
   };
 }
 
@@ -1986,7 +1996,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       env,
       tmsStaffId,
       account.username,
-      canonicalLanternStaffDisplayName(account)
+      resolvePublicDisplayName(account)
     );
     if (!minted.ok) {
       if (minted.error === 'bridge_not_configured') return tmsDeviceAuthorizeFailurePage('bridge_not_configured', cors);
@@ -2159,6 +2169,18 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         generatedTempPassword = generateStaffTempPassword();
         passwordPlain = generatedTempPassword;
       }
+    }
+
+    if (!publicDisplayName) {
+      publicDisplayName =
+        defaultPublicDisplayName({
+          username: u,
+          role,
+          first_name: firstName,
+          last_name: lastName,
+          honorific,
+          display_name: displayName,
+        }) || null;
     }
 
     let salt = null;
@@ -2443,8 +2465,8 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       await propagateHonorificToLinkedAccounts(db, targetUser, honCheck.value);
     }
 
-    // Prompt #223 — optional public display override (exact; blank clears to Honorific + Last fallback).
-    if (body.public_display_name !== undefined && isStaffAccountRole(existing.role)) {
+    // Prompt #147 — public_display_name override for any human account (staff or student).
+    if (body.public_display_name !== undefined) {
       const pdnCheck = validateStaffPublicDisplayName(body.public_display_name);
       if (!pdnCheck.ok) {
         return jsonResponse({ ok: false, error: pdnCheck.error, max: pdnCheck.max }, 400, cors);
@@ -3035,12 +3057,13 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const tmsStudents = Array.isArray(bridge.students) ? bridge.students : [];
     const acctRows = await db
       .prepare(
-        `SELECT username, display_name, role, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(role)) = 'student'`
+        `SELECT username, display_name, public_display_name, role, mtss_student_id, is_active, must_change_password FROM lantern_pilot_accounts WHERE lower(trim(role)) = 'student'`
       )
       .all();
     const studentAccounts = (acctRows.results || []).map((r) => ({
       username: String(r.username || '').trim(),
       display_name: String(r.display_name || '').trim(),
+      public_display_name: r.public_display_name != null ? String(r.public_display_name).trim() : '',
       role: String(r.role || '').trim().toLowerCase(),
       mtss_student_id: r.mtss_student_id != null ? String(r.mtss_student_id).trim() : '',
       is_active: r.is_active != null ? Number(r.is_active) : 1,
@@ -3067,6 +3090,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         is_active: isActive ? 1 : 0,
         lantern_account: status.lantern_account,
         lantern_username: status.lantern_username,
+        public_display_name: status.public_display_name || null,
         lantern_is_active: status.lantern_is_active,
         must_change_password: !!status.must_change_password,
         locker: status.locker,
@@ -3634,8 +3658,9 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     const mcp = row.must_change_password != null && Number(row.must_change_password) !== 0;
     const rlow = String(row.role || '').trim().toLowerCase();
     const isStaffMe = rlow === 'teacher' || rlow === 'admin' || rlow === 'staff';
-    // Prompt #223 — public_staff_label for content previews; display_name remains session/header identity (Web Admin).
-    const publicStaffLabel = isStaffMe ? formatPublicStaffName(row) || null : null;
+    // Prompt #147 — ordinary header/UI identity is resolvePublicDisplayName.
+    const publicDisplayLabel = resolvePublicDisplayName(row) || null;
+    const publicStaffLabel = isStaffMe ? publicDisplayLabel : null;
     return jsonResponse(
       {
         ok: true,
@@ -3646,6 +3671,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         last_name: row.last_name != null ? row.last_name : null,
         honorific: row.honorific != null ? row.honorific : null,
         public_display_name: row.public_display_name != null ? row.public_display_name : null,
+        public_display_label: publicDisplayLabel,
         public_staff_label: publicStaffLabel,
         role: row.role,
         student_character_name: row.student_character_name || null,
@@ -7740,31 +7766,32 @@ async function handleBugReportsRoutes(request, url, path, env, cors) {
 async function handleGamesRoutes(request, url, path, env, cors) {
   const origin = url.origin || '';
   if (request.method === 'GET' && path === '/api/games/characters') {
-    const students = (VERIFY_CONFIG && VERIFY_CONFIG.students) ? VERIFY_CONFIG.students : [];
+    const db = env.DB;
+    if (!db) return jsonResponse({ ok: true, characters: [] }, 200, cors);
+    let accounts = [];
     let avatarByChar = {};
-    if (env.DB) {
-      try {
-        const profiles = await env.DB.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
-        (profiles.results || []).forEach((p) => {
-          if (p.character_name && p.current_avatar_key) avatarByChar[p.character_name] = p.current_avatar_key;
-        });
-      } catch (_) {}
+    try {
+      const acc = await db
+        .prepare(
+          `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, is_active, student_character_name, mtss_student_id, teacher_id
+           FROM lantern_pilot_accounts
+           WHERE COALESCE(is_active, 1) = 1`
+        )
+        .all();
+      accounts = acc.results || [];
+    } catch (_) {
+      return jsonResponse({ ok: true, characters: [] }, 200, cors);
     }
-    const list = students.map((s) => {
-      const charName = (s.character_name || '').trim();
-      const uploadedKey = avatarByChar[charName];
-      const avatarUrl = (uploadedKey && origin)
-        ? origin + '/api/avatar/image?key=' + encodeURIComponent(uploadedKey)
-        : (s.avatarPath && origin)
-          ? origin + '/api/avatar/image?key=' + encodeURIComponent(s.avatarPath)
-          : null;
-      return {
-        character_name: charName,
-        display_name: s.displayName || s.character_name || charName,
-        avatar_url: avatarUrl,
-      };
-    });
-    return jsonResponse({ ok: true, characters: list }, 200, cors);
+    try {
+      const profiles = await db.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
+      (profiles.results || []).forEach((p) => {
+        if (p.character_name && p.current_avatar_key) avatarByChar[p.character_name] = p.current_avatar_key;
+      });
+    } catch (_) {}
+    const pool = uniqueAvatarMatchByLabel(
+      buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount)
+    );
+    return jsonResponse({ ok: true, characters: pool }, 200, cors);
   }
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
@@ -7920,13 +7947,26 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     // worker/demo-persona-guard.js. Game leaderboards had never applied this filter, so a known
     // fake/demo persona name could still surface as though it were a real student's score.
     const filteredRows = filterOutDemoPersonas(rows.results || [], 'character_name');
-    const entries = filteredRows.map((r, i) => ({
-      rank: i + 1,
-      character_name: r.character_name || '',
-      game_name: gameName || '',
-      score: Number(r.score) || 0,
-      score_display: r.score_display != null ? r.score_display : String(Number(r.score) || 0),
-    }));
+    const nameIndex = await loadStaffPublicNameIndex(db);
+    const entries = filteredRows.map((r, i) => {
+      const key = String(r.character_name || '').trim();
+      const low = key.toLowerCase();
+      const row =
+        (nameIndex.byUsername && nameIndex.byUsername[low]) ||
+        (nameIndex.byStudentKey && nameIndex.byStudentKey[low]) ||
+        (nameIndex.byTeacherId && nameIndex.byTeacherId[low]) ||
+        null;
+      const label = row ? resolvePublicDisplayName(row) : '';
+      return {
+        rank: i + 1,
+        character_name: key,
+        public_display_name: label || null,
+        display_name: label || null,
+        game_name: gameName || '',
+        score: Number(r.score) || 0,
+        score_display: r.score_display != null ? r.score_display : String(Number(r.score) || 0),
+      };
+    });
     return jsonResponse({ ok: true, period, entries }, 200, cors);
   }
 

@@ -1943,36 +1943,23 @@
           startRound();
         }
         function fetchThenStart(){
+          function failClosedPool(){
+            characters = [];
+            failGamePlayerStart('Avatar Match needs at least four approved avatars from active accounts.');
+          }
           if (gamesApiBase) {
             fetch(gamesApiBase + '/api/games/characters').then(function(r){ return r.json(); }).then(function(res){
-              if (res && res.ok && res.characters && res.characters.length >= 4) characters = res.characters;
-              else characters = [
-                { character_name: 'zane_morrison', display_name: 'Zane Morrison' },
-                { character_name: 'winnie_addair', display_name: 'Winnie Addair' },
-                { character_name: 'brett_simms', display_name: 'Brett Simms' },
-                { character_name: 'kimber_pace', display_name: 'Kimber Pace' },
-                { character_name: 'velma_voss', display_name: 'Velma Voss' },
-              ];
-              beginRoundsAfterCanonical();
+              if (res && res.ok && res.characters && res.characters.length >= 4) {
+                characters = res.characters;
+                beginRoundsAfterCanonical();
+              } else {
+                failClosedPool();
+              }
             }).catch(function(){
-              characters = [
-                { character_name: 'zane_morrison', display_name: 'Zane Morrison' },
-                { character_name: 'winnie_addair', display_name: 'Winnie Addair' },
-                { character_name: 'brett_simms', display_name: 'Brett Simms' },
-                { character_name: 'kimber_pace', display_name: 'Kimber Pace' },
-                { character_name: 'velma_voss', display_name: 'Velma Voss' },
-              ];
-              beginRoundsAfterCanonical();
+              failClosedPool();
             });
           } else {
-            characters = [
-              { character_name: 'zane_morrison', display_name: 'Zane Morrison' },
-              { character_name: 'winnie_addair', display_name: 'Winnie Addair' },
-              { character_name: 'brett_simms', display_name: 'Brett Simms' },
-              { character_name: 'kimber_pace', display_name: 'Kimber Pace' },
-              { character_name: 'velma_voss', display_name: 'Velma Voss' },
-            ];
-            beginRoundsAfterCanonical();
+            failClosedPool();
           }
         }
         function pickOptions(){

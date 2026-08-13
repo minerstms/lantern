@@ -80,6 +80,9 @@ function makeDb(tables) {
             }
             return { results: rows };
           }
+          if (s.includes('FROM lantern_pilot_accounts') && s.includes("'student'") && s.includes("'teacher'")) {
+            return { results: [].concat(tables.staff || [], tables.students || []) };
+          }
           if (s.includes('FROM lantern_pilot_accounts') && s.includes("'student'")) return { results: tables.students || [] };
           if (s.includes('FROM lantern_pilot_accounts')) return { results: tables.staff || [] };
           if (s.includes('FROM tms_identity_links')) return { results: tables.links || [] };

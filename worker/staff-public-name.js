@@ -2,7 +2,8 @@
  * Prompt #220/#223/#133 — Staff public names (presentation only).
  * Priority: public_display_name override → Honorific + Last → established professional
  * label already stored on display_name → last_name (never inferred honorific, never first+last).
- * Students remain First L. Free-text recognition unchanged. Web Admin stays Web Admin.
+ * Prompt #147 — ordinary UI identity is resolvePublicDisplayName (stored public_display_name).
+ * Default generation is for provisioning/legacy only, not a competing render policy.
  * Ticker/marquee must call formatPublicStaffName (alias formatTickerStaffName) — do not
  * format staff first names from upstream records.
  */
@@ -83,11 +84,20 @@ export function isEstablishedProfessionalStaffLabel(name) {
  * 4) last_name (no first-name leak; no honorific inference)
  * Web Admin system account → "Web Admin" (session/account identity)
  */
-export function formatPublicStaffName(row) {
+/** Provisioning / legacy default. Not used when public_display_name is already stored. */
+export function defaultPublicDisplayName(row) {
   if (!row) return '';
   if (isSystemWebAdminAccount(row)) return 'Web Admin';
-  const override = trimStr(row.public_display_name);
-  if (override) return override;
+  const role = lower(row.role);
+  if (role === 'student') {
+    const first = trimStr(row.first_name);
+    const last = trimStr(row.last_name);
+    if (first && last && /[A-Za-z]/.test(last.charAt(0))) {
+      return first + ' ' + last.charAt(0).toUpperCase() + '.';
+    }
+    if (first) return first;
+    return formatCompactPersonName(row.display_name) || trimStr(row.display_name);
+  }
   const honorific = trimStr(row.honorific);
   const last = trimStr(row.last_name);
   if (honorific && STAFF_HONORIFICS.indexOf(honorific) >= 0 && last) {
@@ -96,9 +106,24 @@ export function formatPublicStaffName(row) {
   const dn = trimStr(row.display_name);
   if (isEstablishedProfessionalStaffLabel(dn)) return dn;
   if (last) return last;
-  // last_name absent: use stored display_name only (do not concatenate first+last; do not guess honorific).
   if (dn) return dn;
   return '';
+}
+
+/**
+ * Canonical ordinary UI identity. Stored public_display_name wins.
+ * Reconstructs only when the stored field is empty (legacy / pre-population).
+ */
+export function resolvePublicDisplayName(row) {
+  if (!row) return '';
+  if (isSystemWebAdminAccount(row)) return 'Web Admin';
+  const stored = trimStr(row.public_display_name);
+  if (stored) return stored;
+  return defaultPublicDisplayName(row);
+}
+
+export function formatPublicStaffName(row) {
+  return resolvePublicDisplayName(row);
 }
 
 /** Same canonical formatter for ticker / marquee / event-feed work. */
@@ -125,6 +150,7 @@ export function buildStaffPublicNameIndex(rows, linkRows) {
   const byStaffId = Object.create(null);
   const byTmsStaffId = Object.create(null);
   const byTeacherId = Object.create(null);
+  const byStudentKey = Object.create(null);
   (rows || []).forEach((row) => {
     if (!row) return;
     const u = lower(row.username);
@@ -133,6 +159,10 @@ export function buildStaffPublicNameIndex(rows, linkRows) {
     if (sid) byStaffId[sid] = row;
     const tid = lower(row.teacher_id);
     if (tid) byTeacherId[tid] = row;
+    const scn = lower(row.student_character_name);
+    if (scn) byStudentKey[scn] = row;
+    const mid = row.mtss_student_id != null ? String(row.mtss_student_id).trim().toLowerCase() : '';
+    if (mid) byStudentKey[mid] = row;
   });
   (linkRows || []).forEach((link) => {
     if (!link) return;
@@ -144,7 +174,7 @@ export function buildStaffPublicNameIndex(rows, linkRows) {
     const primary = Number(link.is_primary) === 1;
     if (!byTmsStaffId[k] || primary) byTmsStaffId[k] = row;
   });
-  return { byUsername, byStaffId, byTmsStaffId, byTeacherId };
+  return { byUsername, byStaffId, byTmsStaffId, byTeacherId, byStudentKey };
 }
 
 export async function loadStaffPublicNameIndex(db) {
@@ -153,9 +183,9 @@ export async function loadStaffPublicNameIndex(db) {
   try {
     const res = await db
       .prepare(
-        `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, staff_id, teacher_id
+        `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, staff_id, teacher_id, student_character_name, mtss_student_id
          FROM lantern_pilot_accounts
-         WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff')`
+         WHERE lower(trim(role)) IN ('teacher', 'admin', 'staff', 'student')`
       )
       .all();
     accountRows = res.results || [];
@@ -261,11 +291,17 @@ export function resolveMissionSubmitterPublicLabel(index, characterName, student
   if (low.startsWith('staff:')) {
     const u = key.slice(6).trim();
     const row = u ? idx.byUsername[lower(u)] : null;
-    if (row) return formatPublicStaffName(row);
+    if (row) return resolvePublicDisplayName(row);
     return '';
   }
   if (low.startsWith('staff_id:')) return '';
-  return formatCompactPersonName(studentDisplayName || key);
+  const studentRow =
+    (idx.byUsername && idx.byUsername[low]) ||
+    (idx.byStudentKey && idx.byStudentKey[low]) ||
+    null;
+  if (studentRow) return resolvePublicDisplayName(studentRow);
+  if (studentDisplayName) return formatCompactPersonName(studentDisplayName);
+  return '';
 }
 
 export function resolveMissionCreatorPublicLabel(index, teacherId, teacherName) {
@@ -299,10 +335,15 @@ export function resolveAuthorPublicLabel(index, fields) {
   }
   if (!row && lookupDisplay && idx.byUsername[lower(lookupDisplay)]) row = idx.byUsername[lower(lookupDisplay)];
 
+  if (!row && authorId && idx.byStudentKey && idx.byStudentKey[lower(authorId)]) {
+    row = idx.byStudentKey[lower(authorId)];
+  }
+  if (!row && lookupDisplay && idx.byStudentKey && idx.byStudentKey[lower(lookupDisplay)]) {
+    row = idx.byStudentKey[lower(lookupDisplay)];
+  }
+
   if (row) {
-    const rRole = lower(row.role);
-    if (rRole === 'student') return '';
-    return formatPublicStaffName(row);
+    return resolvePublicDisplayName(row);
   }
 
   if (role === 'teacher' || role === 'admin' || role === 'staff') {

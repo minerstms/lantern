@@ -159,8 +159,17 @@
     return '#' + rank;
   }
 
+  function leaderboardPublicLabel(ent) {
+    if (!ent) return '';
+    var pdn = ent.public_display_name != null && String(ent.public_display_name).trim() ? String(ent.public_display_name).trim() : '';
+    if (pdn) return pdn;
+    pdn = ent.display_name != null && String(ent.display_name).trim() ? String(ent.display_name).trim() : '';
+    if (pdn) return pdn;
+    return 'Player';
+  }
+
   function formatEntryLine(ent, lowerBetter) {
-    var name = ent.character_name || '';
+    var name = leaderboardPublicLabel(ent);
     var val = ent.score_display != null ? String(ent.score_display) : String(ent.score || '');
     return medalForRank(ent.rank) + ' ' + name + ' · ' + val;
   }
@@ -195,7 +204,7 @@
           '<div class="gamesLbRow">' +
             medalForRank(rank) +
             ' <span class="gamesLbPlayer">' +
-            escapeHtml(ent.character_name || '') +
+            escapeHtml(leaderboardPublicLabel(ent)) +
             '</span> · <span class="gamesLbScore">' +
             escapeHtml(ent.score_display != null ? String(ent.score_display) : String(ent.score || '')) +
             '</span></div>'
@@ -415,7 +424,7 @@
           '<li><span class="gamesLbModalRank">' +
           rank +
           '</span> ' +
-          escapeHtml(ent.character_name || '') +
+          escapeHtml(leaderboardPublicLabel(ent)) +
           ' · ' +
           escapeHtml(ent.score_display != null ? String(ent.score_display) : String(ent.score || '')) +
           '</li>';

@@ -106,6 +106,7 @@
         last_name: data.last_name != null ? data.last_name : null,
         honorific: data.honorific != null ? data.honorific : null,
         public_display_name: data.public_display_name != null ? data.public_display_name : null,
+        public_display_label: data.public_display_label != null ? data.public_display_label : null,
         public_staff_label: data.public_staff_label != null ? data.public_staff_label : null,
         role: data.role,
         student_character_name: data.student_character_name || null,
@@ -140,6 +141,8 @@
       character_id: key,
       name: key,
       display_name: me.display_name || me.username || key,
+      public_display_name: me.public_display_name || me.public_display_label || '',
+      public_display_label: me.public_display_label || me.public_display_name || '',
       student_character_name: me.student_character_name || '',
       username: me.username || '',
       role: me.role || '',
@@ -148,11 +151,22 @@
   }
 
   /**
-   * Human-facing label for student UI only (Locker, Profile, bylines). Does not change wallet/API keys (name / character_id stay the economy key).
-   * Priority: display_name → student_character_name → login username → wallet key (name).
+   * Prompt #147 — ordinary human-facing identity is public_display_name.
+   * Wallet/API keys (name / character_id) stay the economy key.
    */
   function studentFriendlyDisplayNameFromAdopted(a) {
     if (!a || typeof a !== 'object') return '';
+    var pdn = a.public_display_label != null && String(a.public_display_label).trim() ? String(a.public_display_label).trim() : '';
+    if (pdn) return pdn;
+    pdn = a.public_display_name != null && String(a.public_display_name).trim() ? String(a.public_display_name).trim() : '';
+    if (pdn) return pdn;
+    var me = getCachedPilotMe();
+    if (me) {
+      pdn = me.public_display_label != null && String(me.public_display_label).trim() ? String(me.public_display_label).trim() : '';
+      if (pdn) return pdn;
+      pdn = me.public_display_name != null && String(me.public_display_name).trim() ? String(me.public_display_name).trim() : '';
+      if (pdn) return pdn;
+    }
     var dn = a.display_name != null && String(a.display_name).trim() ? String(a.display_name).trim() : '';
     if (dn) return dn;
     var scn = a.student_character_name != null && String(a.student_character_name).trim() ? String(a.student_character_name).trim() : '';
