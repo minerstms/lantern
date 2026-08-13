@@ -1,0 +1,6 @@
+Donor: https://github.com/iamkun/tower_game
+Commit: c6fa84afe179b661fa71cf7cc8788d0c47ca2875
+Date: 2025-08-29
+License: MIT (Copyright (c) 2018 BMQB, Inc)
+Vendored into Lantern as a bounded local copy. The game is served by Lantern,
+not loaded from github.io or any other external game host.

@@ -7523,6 +7523,11 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     } catch (e) {
       return jsonResponse({ ok: false, error: 'Leaderboard table not ready' }, 503, cors);
     }
+    // Marquee integration point (generic — not Tower-specific):
+    // A newly inserted lantern_leaderboard_entries row is the canonical event
+    // "student entered the {gameName} leaderboard". Idempotent retries above
+    // (same character + game + run_id) must not re-fire. Upcoming marquee work
+    // should hook this successful-insert path, not a per-game Play hack.
     return jsonResponse({ ok: true, id, character_name: characterName, game_name: gameName }, 200, cors);
   }
 
