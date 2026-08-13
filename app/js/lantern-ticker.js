@@ -100,18 +100,16 @@
     }
     (slides || []).forEach(function (s) {
       var m = s.meta || {};
-      if (m.character_name) addName(m.character_name, m.avatar);
-      if (m.author_avatar_key) addName(m.author_avatar_key, m.avatar);
-      if (m.actor_id) addName(m.actor_id, m.avatar);
+      if (m.author_avatar_key) addName(m.author_avatar_key);
+      if (m.actor_id) addName(m.actor_id);
     });
     (recognitionList || []).forEach(function (r) {
-      if (r.character_name) addName(r.character_name);
+      if (r.author_avatar_key) addName(r.author_avatar_key);
       if (r.created_by_teacher_id) addName(r.created_by_teacher_id);
     });
     (newsList || []).forEach(function (n) {
-      var ak = String(n.author_avatar_key || n.actor_id || n.author_name || (n.meta && n.meta.character_name) || '').trim();
-      if (ak) addName(ak, n.meta && n.meta.avatar);
-      if (n.author_name) addName(n.author_name, n.meta && n.meta.avatar);
+      var ak = String(n.author_avatar_key || n.actor_id || '').trim();
+      if (ak) addName(ak);
     });
     if (req.length === 0) return Promise.resolve();
     return LA.getCanonicalAvatarMap(req).then(function (map) {
@@ -129,16 +127,16 @@
       }
       (slides || []).forEach(function (s) {
         s.meta = s.meta || {};
-        var hit = pick([s.meta.author_avatar_key, s.meta.actor_id, s.meta.character_name]);
+        var hit = pick([s.meta.author_avatar_key, s.meta.actor_id]);
         if (hit) s.meta._canonicalAvatar = hit;
       });
       (recognitionList || []).forEach(function (r) {
-        var hit = pick([r.created_by_teacher_id, r.character_name]);
+        var hit = pick([r.author_avatar_key, r.created_by_teacher_id]);
         if (hit) r._canonicalAvatar = hit;
       });
       (newsList || []).forEach(function (n) {
         n.meta = n.meta || {};
-        var hit = pick([n.author_avatar_key, n.actor_id, n.author_name, n.meta.character_name]);
+        var hit = pick([n.author_avatar_key, n.actor_id]);
         if (hit) n.meta._canonicalAvatar = hit;
       });
     });
@@ -156,7 +154,7 @@
     var subtitle = String((s && s.subtitle) || '').trim();
     var meta = (s && s.meta) || {};
     var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
-    var emFb = !urlFb && meta._canonicalAvatar && meta._canonicalAvatar.emoji ? String(meta._canonicalAvatar.emoji).trim() : '';
+    var emFb = '';
     var icon =
       type === 'teacher_recognition'
         ? '⭐'
@@ -242,19 +240,30 @@
     return items;
   }
 
+  function canonicalPersonFallbackUrl() {
+    if (global.LanternCards && typeof global.LanternCards.getDefaultAvatarImageUrl === 'function') {
+      var cardFb = String(global.LanternCards.getDefaultAvatarImageUrl() || '').trim();
+      if (cardFb) return cardFb;
+    }
+    if (global.LanternAvatar && typeof global.LanternAvatar.svgDefaultAvatarDataUri === 'function') {
+      return String(global.LanternAvatar.svgDefaultAvatarDataUri() || '').trim();
+    }
+    return '';
+  }
+
   function itemToHtml(it) {
-    // Prompt #217 — second icon is always the content author avatar (real image or neutral fallback).
+    // Prompt #217/#161 — person chip is the current approved avatar, else #149 placeholder.
+    var approved = it.avatarUrl && String(it.avatarUrl).trim() ? String(it.avatarUrl).trim() : '';
+    var fb = canonicalPersonFallbackUrl();
+    var src = approved || fb;
     var avatar = '';
-    if (it.avatarUrl && String(it.avatarUrl).trim()) {
+    if (src) {
       avatar =
-        '<img src="' + esc(it.avatarUrl) + '" alt="" class="lanternTickerItemAvatar" onerror="this.style.display=\'none\';this.nextElementSibling&&(this.nextElementSibling.style.display=\'inline-flex\')">' +
-        '<span class="lanternTickerItemAvatar lanternTickerItemAvatar--emoji" aria-hidden="true" style="display:none">🌟</span>';
-    } else {
-      var em = (it.avatarEmoji && String(it.avatarEmoji).trim()) ? String(it.avatarEmoji).trim() : '🌟';
-      avatar =
-        '<span class="lanternTickerItemAvatar lanternTickerItemAvatar--emoji" aria-hidden="true">' +
-        esc(em) +
-        '</span>';
+        '<img src="' +
+        esc(src) +
+        '" alt="" class="lanternTickerItemAvatar"' +
+        (fb ? ' data-lc-av-def="' + esc(fb) + '"' : '') +
+        ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;return;}el.style.display=\'none\';">';
     }
     var iconHtml = it.icon || '✨';
     var text = it.text != null && it.text !== '' ? it.text : '';

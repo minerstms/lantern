@@ -269,7 +269,12 @@
       var m = s.meta || {};
       var canon = m._canonicalAvatar;
       var avatarImage = canon && canon.imageUrl ? String(canon.imageUrl).trim() : '';
-      var avatar = canon && canon.emoji ? esc(canon.emoji) : (m.avatar ? esc(m.avatar) : '🌟');
+      var personFb = (window.LanternCards && typeof window.LanternCards.getDefaultAvatarImageUrl === 'function')
+        ? String(window.LanternCards.getDefaultAvatarImageUrl() || '').trim()
+        : ((window.LanternAvatar && typeof window.LanternAvatar.svgDefaultAvatarDataUri === 'function')
+          ? String(window.LanternAvatar.svgDefaultAvatarDataUri() || '').trim()
+          : '');
+      if (!avatarImage) avatarImage = personFb;
       var frameVal = (s.meta && s.meta.frame) ? String(s.meta.frame).replace(/_/g, '-').replace(/[^a-z0-9-]/gi, '') || 'none' : 'none';
       var img = '';
       if (s.image && s.image.trim()){
@@ -278,8 +283,10 @@
       var avatarBlock = '';
       if (s.type !== 'fallback' && s.type !== 'arcade_leader' && s.type !== 'nugget_rumor') {
         var inner = avatarImage
-          ? '<img src="' + esc(avatarImage) + '" alt="" class="slideAvatarImg" onerror="this.style.display=\'none\';this.nextElementSibling&&(this.nextElementSibling.style.display=\'block\');"><div class="slideAvatar" style="display:none;">' + avatar + '</div>'
-          : '<div class="slideAvatar">' + avatar + '</div>';
+          ? '<img src="' + esc(avatarImage) + '" alt="" class="slideAvatarImg"' +
+            (personFb ? ' data-lc-av-def="' + esc(personFb) + '"' : '') +
+            ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;return;}el.style.display=\'none\';">'
+          : '';
         avatarBlock = '<div class="slideAvatarWrap frame-' + frameVal + '">' + inner + '</div>';
       }
       var listBlock = '';

@@ -1629,6 +1629,7 @@
     builtInMissionCoverUrl: builtInMissionCoverUrl,
     missionCoverFallbackUrl: missionCoverFallbackUrl,
     getDefaultAvatarImageUrl: getDefaultAvatarImageUrl,
+    svgDefaultAvatarDataUri: svgDefaultAvatarDataUri,
     buildExploreAuthorAvatarHtml: buildExploreAuthorAvatarHtml,
     accountKeyFromCardModel: accountKeyFromCardModel,
     getTypeFallbackMediaDataUri: svgTypeFallbackDataUri,

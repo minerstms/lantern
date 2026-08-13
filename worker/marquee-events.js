@@ -15,6 +15,7 @@ import {
   resolveMissionCreatorPublicLabel,
   resolveMissionSubmitterPublicLabel,
   resolvePublicDisplayName,
+  resolveStaffRowByPersonKey,
 } from './staff-public-name.js';
 import { filterOutDemoPersonas } from './demo-persona-guard.js';
 import { isLowerIsBetterGame } from './lantern-game-catalog.js';
@@ -151,6 +152,59 @@ export function withBoardEntryMeta(meta, entered) {
   return out;
 }
 
+function stripStaffAvatarPrefix(raw) {
+  const s = trimStr(raw);
+  const low = s.toLowerCase();
+  if (low.startsWith('staff_id:')) return '';
+  if (low.startsWith('staff:')) return s.slice(6).trim();
+  return s;
+}
+
+/** Same profile PK Locker uses: students → economy/MTSS key; staff/admin → username. */
+export function avatarProfileKeyForAccountRow(row) {
+  if (!row) return '';
+  const role = trimStr(row.role).toLowerCase();
+  if (role === 'student') {
+    return trimStr(row.mtss_student_id) || trimStr(row.student_character_name) || trimStr(row.username);
+  }
+  return trimStr(row.username);
+}
+
+/**
+ * Prompt #161 — durable-account avatar identity only.
+ * Candidates must already be account keys (username, teacher_id, mtss id, person_key).
+ * Never pass public display names. No fuzzy "Mr. Radle" → rick.radle.
+ */
+export function resolveMarqueeActorIdentity(staffIndex, candidates) {
+  const idx = staffIndex || {};
+  const list = Array.isArray(candidates) ? candidates : [candidates];
+  for (let i = 0; i < list.length; i++) {
+    const key = stripStaffAvatarPrefix(list[i]);
+    if (!key) continue;
+    const low = key.toLowerCase();
+    const row =
+      (idx.byUsername && idx.byUsername[low]) ||
+      (idx.byTeacherId && idx.byTeacherId[low]) ||
+      (idx.byStudentKey && idx.byStudentKey[low]) ||
+      (idx.byStaffId && idx.byStaffId[key]) ||
+      (idx.byTmsStaffId && idx.byTmsStaffId[low]) ||
+      resolveStaffRowByPersonKey(idx, key) ||
+      null;
+    if (row) {
+      return {
+        author_avatar_key: avatarProfileKeyForAccountRow(row),
+        public_display_name: resolvePublicDisplayName(row) || '',
+      };
+    }
+  }
+  return { author_avatar_key: '', public_display_name: '' };
+}
+
+function firstRecognizedPersonKey(people) {
+  const rec = (people || []).find((p) => String(p.relationship || '').trim().toLowerCase() === 'recognized');
+  return rec ? trimStr(rec.person_key) : '';
+}
+
 function eventRecord(partial) {
   const type = partial.type;
   const id = partial.id || marqueeEventId(type, partial.source_id);
@@ -167,6 +221,8 @@ function eventRecord(partial) {
     source_id: String(partial.source_id || ''),
     source_title: trimStr(partial.source_title),
     excluded_reason: partial.excluded_reason || null,
+    public_display_name: trimStr(partial.public_display_name),
+    author_avatar_key: trimStr(partial.author_avatar_key),
   };
 }
 
@@ -404,6 +460,8 @@ export function eventsToTickerSlides(events) {
         marquee_event_id: e.id,
         marquee_type: e.type,
         source_id: e.source_id,
+        author_avatar_key: trimStr(e.author_avatar_key),
+        public_display_name: trimStr(e.public_display_name),
       },
     };
   });
@@ -457,6 +515,7 @@ export async function collectMarqueeEvents(db, opts) {
   polls.forEach((row) => {
     if (!row.approved_at || isHiddenAtSet(row)) return;
     const q = trimStr(row.question) || 'a new poll';
+    const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.POLL_CREATED,
@@ -465,6 +524,8 @@ export async function collectMarqueeEvents(db, opts) {
         source_title: q,
         created_at: row.approved_at || row.created_at,
         public_text: 'New poll: ' + q,
+        author_avatar_key: actor.author_avatar_key,
+        public_display_name: actor.public_display_name,
       })
     );
   });
@@ -474,6 +535,7 @@ export async function collectMarqueeEvents(db, opts) {
     const title = trimStr(row.title) || 'a new mission';
     const author = resolveMissionCreatorPublicLabel(staffIndex, row.teacher_id, row.teacher_name);
     const line = author ? 'New mission from ' + author + ': ' + title : 'New mission: ' + title;
+    const actor = resolveMarqueeActorIdentity(staffIndex, [row.teacher_id]);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.MISSION_CREATED,
@@ -482,6 +544,8 @@ export async function collectMarqueeEvents(db, opts) {
         source_title: title,
         created_at: row.created_at,
         public_text: line,
+        author_avatar_key: actor.author_avatar_key,
+        public_display_name: actor.public_display_name || author,
       })
     );
   });
@@ -490,6 +554,7 @@ export async function collectMarqueeEvents(db, opts) {
     if (isExcludedMissionCompletion(row)) return;
     const title = trimStr(row.mission_title) || 'a mission';
     const who = publicActorLabel(row.character_name, staffIndex, studentIndex);
+    const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.MISSION_COMPLETED,
@@ -498,6 +563,8 @@ export async function collectMarqueeEvents(db, opts) {
         source_title: title,
         created_at: row.reviewed_at || row.created_at,
         public_text: who + ' completed ' + title,
+        author_avatar_key: actor.author_avatar_key,
+        public_display_name: actor.public_display_name || who,
       })
     );
   });
@@ -524,6 +591,15 @@ export async function collectMarqueeEvents(db, opts) {
     } else {
       publicText = author ? title + ' · ' + author : title;
     }
+    /* Shout-Out sentence leads with the recognized person when a durable person_key exists.
+       Otherwise the chip is the author. Never fuzzy-match recognized display text. */
+    const recognizedKey = firstRecognizedPersonKey(people);
+    const actor = isShout
+      ? resolveMarqueeActorIdentity(staffIndex, recognized ? [recognizedKey, overlaid.actor_id] : [overlaid.actor_id])
+      : resolveMarqueeActorIdentity(staffIndex, [overlaid.actor_id]);
+    const actorName = isShout && recognized && actor.author_avatar_key && recognizedKey
+      ? actor.public_display_name || recognized
+      : actor.public_display_name || author;
     push(
       eventRecord({
         type: isShout ? MARQUEE_EVENT_TYPES.SHOUT_OUT : MARQUEE_EVENT_TYPES.NEWS,
@@ -532,6 +608,8 @@ export async function collectMarqueeEvents(db, opts) {
         source_title: title,
         created_at: overlaid.reviewed_at || overlaid.created_at,
         public_text: publicText,
+        author_avatar_key: actor.author_avatar_key,
+        public_display_name: actorName,
       })
     );
   });
@@ -547,6 +625,12 @@ export async function collectMarqueeEvents(db, opts) {
     const publicText = author
       ? who + ' — ' + (msg || 'recognized') + ' · ' + author
       : who + (msg ? ' — ' + msg : '');
+    const recognizedKey = firstRecognizedPersonKey(people);
+    const actor = resolveMarqueeActorIdentity(staffIndex, [
+      recognizedKey,
+      overlaid.character_name,
+      overlaid.created_by_teacher_id,
+    ]);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.RECOGNITION,
@@ -555,6 +639,8 @@ export async function collectMarqueeEvents(db, opts) {
         source_title: who,
         created_at: overlaid.created_at,
         public_text: publicText,
+        author_avatar_key: actor.author_avatar_key,
+        public_display_name: actor.public_display_name || who,
       })
     );
   });
@@ -562,6 +648,7 @@ export async function collectMarqueeEvents(db, opts) {
   filterOutDemoPersonas(lbRows, 'character_name').forEach((row) => {
     const who = publicActorLabel(row.character_name, staffIndex, studentIndex);
     const game = trimStr(row.game_name) || 'a game';
+    const actor = resolveMarqueeActorIdentity(staffIndex, [row.character_name]);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.LEADERBOARD_ENTRY,
@@ -570,6 +657,8 @@ export async function collectMarqueeEvents(db, opts) {
         source_title: game,
         created_at: row.created_at,
         public_text: who + ' joined the ' + game + ' leaderboard',
+        author_avatar_key: actor.author_avatar_key,
+        public_display_name: actor.public_display_name || who,
       })
     );
   });
