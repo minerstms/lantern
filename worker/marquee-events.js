@@ -70,12 +70,27 @@ export function isInternalConfirmationContent(raw) {
   return false;
 }
 
+export function isHiddenAtSet(row) {
+  return !!trimStr(row && row.hidden_at);
+}
+
+/** Student-facing mission listing: active=1 AND archived=0. Missing flags are treated as listed. */
+export function isMissionPubliclyListed(row) {
+  if (!row) return false;
+  if (row.archived != null && Number(row.archived) === 1) return false;
+  if (row.active != null && Number(row.active) !== 1) return false;
+  return true;
+}
+
 export function isExcludedMissionCompletion(row) {
   if (!row) return true;
+  if (isHiddenAtSet(row)) return true;
   if (isSystemMissionEventMarkerSubmission(row)) return true;
   const status = trimStr(row.status).toLowerCase();
   if (status && status !== 'accepted') return true;
   if (isInternalConfirmationContent(row.submission_content)) return true;
+  if (row.mission_archived != null && Number(row.mission_archived) === 1) return true;
+  if (row.mission_active != null && Number(row.mission_active) !== 1) return true;
   return false;
 }
 
@@ -215,26 +230,15 @@ async function fetchPolls(db, limit) {
   try {
     const rows = await db
       .prepare(
-        `SELECT id, question, character_name, created_at, approved_at FROM lantern_polls
+        `SELECT id, question, character_name, created_at, approved_at, hidden_at FROM lantern_polls
          WHERE approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')
          ORDER BY approved_at DESC LIMIT ?`
       )
       .bind(limit)
       .all();
-    return rows.results || [];
+    return (rows.results || []).filter((r) => r.approved_at && !isHiddenAtSet(r));
   } catch (_) {
-    try {
-      const rows = await db
-        .prepare(
-          `SELECT id, question, character_name, created_at, approved_at FROM lantern_polls
-           WHERE approved_at IS NOT NULL ORDER BY approved_at DESC LIMIT ?`
-        )
-        .bind(limit)
-        .all();
-      return rows.results || [];
-    } catch (e2) {
-      return [];
-    }
+    return [];
   }
 }
 
@@ -249,20 +253,9 @@ async function fetchMissionsCreated(db, limit) {
       )
       .bind(limit)
       .all();
-    return rows.results || [];
+    return (rows.results || []).filter(isMissionPubliclyListed);
   } catch (_) {
-    try {
-      const rows = await db
-        .prepare(
-          `SELECT id, title, teacher_id, teacher_name, created_at
-           FROM lantern_missions ORDER BY created_at DESC LIMIT ?`
-        )
-        .bind(limit)
-        .all();
-      return rows.results || [];
-    } catch (e2) {
-      return [];
-    }
+    return [];
   }
 }
 
@@ -271,10 +264,12 @@ async function fetchMissionCompletions(db, limit) {
     const rows = await db
       .prepare(
         `SELECT s.id, s.mission_id, s.character_name, s.submission_type, s.submission_content, s.status,
-                s.created_at, s.reviewed_at, s.reviewed_by, m.title AS mission_title
+                s.created_at, s.reviewed_at, s.reviewed_by, s.hidden_at,
+                m.title AS mission_title, m.active AS mission_active, m.archived AS mission_archived
          FROM lantern_mission_submissions s
          LEFT JOIN lantern_missions m ON m.id = s.mission_id
          WHERE LOWER(TRIM(s.status)) = 'accepted'
+           AND (s.hidden_at IS NULL OR s.hidden_at = '')
          ORDER BY COALESCE(s.reviewed_at, s.created_at) DESC LIMIT ?`
       )
       .bind(limit * 3)
@@ -296,7 +291,7 @@ async function fetchApprovedNews(db, limit) {
       )
       .bind(limit)
       .all();
-    return rows.results || [];
+    return (rows.results || []).filter((r) => String(r.status || '').trim().toLowerCase() === 'approved' && !isHiddenAtSet(r));
   } catch (_) {
     return [];
   }
@@ -462,6 +457,7 @@ export async function collectMarqueeEvents(db, opts) {
   }
 
   polls.forEach((row) => {
+    if (!row.approved_at || isHiddenAtSet(row)) return;
     const q = trimStr(row.question) || 'a new poll';
     push(
       eventRecord({
@@ -476,6 +472,7 @@ export async function collectMarqueeEvents(db, opts) {
   });
 
   missions.forEach((row) => {
+    if (!isMissionPubliclyListed(row)) return;
     const title = trimStr(row.title) || 'a new mission';
     const author = resolveMissionCreatorPublicLabel(staffIndex, row.teacher_id, row.teacher_name);
     const line = author ? 'New mission from ' + author + ': ' + title : 'New mission: ' + title;
@@ -508,6 +505,7 @@ export async function collectMarqueeEvents(db, opts) {
   });
 
   newsList.forEach((row) => {
+    if (isHiddenAtSet(row) || String(row.status || '').trim().toLowerCase() !== 'approved') return;
     const people = peopleIndex.get('news|' + trimStr(row.id)) || [];
     const overlaid = overlayNewsRowRecognizedStaff({ ...row }, staffIndex, people);
     const isShout = isPeerShoutOutNewsSubmission(overlaid) || /shout/i.test(String(overlaid.category || ''));

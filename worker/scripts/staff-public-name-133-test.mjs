@@ -195,8 +195,15 @@ assert(recRow.created_by_teacher_public_label === 'Mr. Radle', '7d. recognition 
 assert(recRow.character_name === 'Kristina Vezzani', '7e. stored character_name not rewritten');
 
 const tickerJs = fs.readFileSync(path.join(root, 'app/js/lantern-ticker.js'), 'utf8');
-assert(/character_public_label/.test(tickerJs), '7f. ticker consumes character_public_label');
-assert(/author_public_label/.test(tickerJs), '7g. ticker consumes author_public_label');
+const marqueeEventsJs = fs.readFileSync(path.join(root, 'worker/marquee-events.js'), 'utf8');
+assert(
+  /overlayRecognitionListRow/.test(marqueeEventsJs) && /character_public_label/.test(marqueeEventsJs),
+  '7f. marquee applies character_public_label server-side (ticker no longer reads recognition/list)'
+);
+assert(
+  /\/api\/marquee\/events/.test(tickerJs) && !/fallbackRecognitionNews/.test(tickerJs),
+  '7g. ticker uses canonical marquee events (professional names already in public_text)'
+);
 assert(/formatTickerStaffName/.test(fs.readFileSync(path.join(root, 'worker/staff-public-name.js'), 'utf8')), '7h. marquee helper exported');
 
 const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');

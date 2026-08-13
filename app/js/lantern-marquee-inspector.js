@@ -51,7 +51,7 @@
           '<h2 id="marqueeFeedTitle">Marquee Feed</h2>' +
           '<button type="button" class="marqueeFeedCloseBtn" id="marqueeFeedCloseBtn">Close</button>' +
         '</div>' +
-        '<p class="marqueeFeedHint">Read-only. Newest first. Same events the public ticker can show.</p>' +
+        '<p class="marqueeFeedHint">Read-only. Newest first. Eligible public ticker events only — hidden, archived, and unapproved items are excluded.</p>' +
         '<div id="marqueeFeedListMount"></div>' +
       '</div>';
     document.body.appendChild(overlay);

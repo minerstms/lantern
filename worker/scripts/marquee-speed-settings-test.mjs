@@ -449,8 +449,11 @@ function testMarqueeBuildsFromUnifiedSlidesOnly() {
   if (!/function buildDisplayTickerItems\(slides\)/.test(js)) {
     return bad('buildDisplayTickerItems should take unified slides only');
   }
-  if (!/Merge recognition \+ news INTO slides once/.test(js)) {
-    return bad('fetchDisplayTickerState should merge recognition+news into slides once');
+  if (!/Fail closed/.test(js) || !/Do NOT fall back/.test(js)) {
+    return bad('fetchDisplayTickerState should fail closed instead of merging recognition+news');
+  }
+  if (/fallbackRecognitionNews/.test(js) || /var recognitionUrl/.test(js) || /var newsUrl/.test(js)) {
+    return bad('ticker must not fall back to /api/recognition/list or /api/news/approved');
   }
   if (!/must NOT consume LANTERN_API\.getDisplaySlides/.test(js)) {
     return bad('Prompt #125: ticker must document exclusion of LANTERN_API localStorage slides');

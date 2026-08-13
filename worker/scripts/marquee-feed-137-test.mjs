@@ -486,6 +486,8 @@ function depsFor(account, caps) {
   assert(/renderExpanded/.test(inspector) && /Public sentence/.test(inspector), '22. compact/expand diagnostic details');
   assert(/defaultSort:\s*\{\s*key:\s*'date',\s*dir:\s*'desc'/.test(inspector), '20. newest-first default sort');
   assert(/\/api\/marquee\/events/.test(ticker) && /for_display=1/.test(ticker), '27/28. ticker consumes /api/marquee/events; Hallway passes for_display');
+  assert(!/fallbackRecognitionNews/.test(ticker) && !/var recognitionUrl/.test(ticker), '20. ticker fail-closed; no recognition/news fallback');
+  assert(/Eligible public ticker events only/.test(inspector), '21. inspector default is eligible public events');
   assert(/page-marquee-only/.test(display) && /lantern-ticker\.js/.test(display), '28. Hallway TV still uses lantern-ticker');
   assert(/detectLeaderboardEntryTransition/.test(workerIndex) && /withBoardEntryMeta/.test(workerIndex), '8. POST record flags entry transition only');
   const getLbIdx = workerIndex.indexOf("request.method === 'GET' && path === '/api/leaderboards'");

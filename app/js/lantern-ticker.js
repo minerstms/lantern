@@ -367,10 +367,10 @@
 
   function fetchDisplayTickerState(createRun, apiBase) {
     var base = apiBase || defaultApiBase();
-    /* Prompt #111/#125/#137 — ONE marquee source: Worker /api/marquee/events
-       (polls, missions, shout-outs, news, leaderboard entries, recognition).
-       Merge recognition + news INTO slides once as fallback if the expanded feed is unavailable.
-       LANTERN_API.getDisplaySlides (localStorage seed/demo world) is intentionally NOT a source. */
+    /* Prompt #111/#125/#137/#146 — ONE marquee source: Worker /api/marquee/events.
+       Fail closed: if that endpoint is unavailable or not ok, show no community content.
+       Do NOT fall back to /api/recognition/list or /api/news/approved (those can diverge
+       from canonical eligibility). LANTERN_API.getDisplaySlides is not a source. */
     void createRun;
     var forDisplay =
       (typeof document !== 'undefined' &&
@@ -379,108 +379,23 @@
         document.body.classList.contains('page-marquee-only')) ||
       (typeof location !== 'undefined' && /\/display\.html/i.test(String(location.pathname || '')));
     var marqueeUrl = base + '/api/marquee/events?limit=40' + (forDisplay ? '&for_display=1' : '');
-    var recognitionUrl = base + '/api/recognition/list?limit=50' + (forDisplay ? '&for_display=1' : '');
-    var newsUrl = base + '/api/news/approved' + (forDisplay ? '?for_display=1' : '');
 
-    function fallbackRecognitionNews() {
-      return Promise.all([
-        fetch(recognitionUrl)
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (recRes) {
-            return recRes && recRes.ok && recRes.recognition ? recRes.recognition : [];
-          })
-          .catch(function () {
-            return [];
-          }),
-        fetch(newsUrl)
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (nr) {
-            return nr && nr.ok && nr.news ? nr.news : [];
-          })
-          .catch(function () {
-            return [];
-          })
-      ]).then(function (results) {
-        var recognitionList = results[0] || [];
-        var newsList = results[1] || [];
-        var slides = [];
-        var seenRec = {};
-        recognitionList.forEach(function (r) {
-          var msg = String(r.message || '').trim().slice(0, 250);
-          if ((r.message || '').length > 250) msg += '…';
-          var title = String(r.character_public_label || r.character_name || '').trim() || 'Recognition';
-          var subtitle = msg || (r.created_by_teacher_public_label || r.created_by_teacher_name ? 'From ' + (r.created_by_teacher_public_label || r.created_by_teacher_name) : '');
-          var key = title.toLowerCase() + '\n' + subtitle.toLowerCase();
-          if (seenRec[key]) return;
-          seenRec[key] = true;
-          slides.push({
-            type: 'teacher_recognition',
-            title: title,
-            subtitle: subtitle,
-            meta: { character_name: String(r.character_name || '').trim(), avatar: '⭐' },
-            created_at: r.created_at || ''
-          });
-        });
-        var seenNews = {};
-        newsList.forEach(function (n) {
-          var t = String(n.title || '').trim();
-          if (!t || seenNews[t.toLowerCase()]) return;
-          seenNews[t.toLowerCase()] = true;
-          var author = String(n.author_public_label || n.author_name || (n.meta && n.meta.character_name) || '').trim();
-          if (author && !n.author_public_label && global.LanternCards && typeof global.LanternCards.formatExploreAuthorLabel === 'function') {
-            author = global.LanternCards.formatExploreAuthorLabel({
-              author: author,
-              authorRole: n.author_type || n.author_role || ''
-            }) || author;
-          }
-          var avatarKey = String(n.author_avatar_key || n.actor_id || '').trim();
-          if (!avatarKey) avatarKey = String(n.author_name || '').trim();
-          var newsType = 'news';
-          var cat = String(n.category || '').toLowerCase();
-          var bodyPrev = String(n.body || '').slice(0, 120);
-          if (cat.indexOf('shout') >= 0 || /^Shout-out/i.test(bodyPrev) || /Recognizing:/i.test(bodyPrev)) {
-            newsType = 'shout_out';
-          }
-          slides.push({
-            type: 'student_news',
-            contentType: newsType,
-            title: t,
-            subtitle: author ? ((newsType === 'shout_out' ? 'Shout-Out' : 'News') + ' · ' + author) : (newsType === 'shout_out' ? 'Shout-Out' : 'News'),
+    function emptySafeState() {
+      return {
+        slides: [
+          {
+            type: 'fallback',
+            title: 'Lantern',
+            subtitle: 'Celebrating our community',
             image: null,
-            actor_name: author,
-            meta: {
-              character_name: avatarKey,
-              actor_id: n.actor_id || null,
-              author_avatar_key: avatarKey || null,
-              content_type: newsType,
-              category: n.category || '',
-              avatar: (n.meta && n.meta.avatar) || (newsType === 'shout_out' ? '📣' : '📰'),
-              body_preview: bodyPrev
-            },
-            created_at: n.approved_at || n.created_at || ''
-          });
-        });
-        return enrichTickerPayloadCanonical(slides, recognitionList, newsList).then(function () {
-          if (slides.length === 0) {
-            slides = [
-              {
-                type: 'fallback',
-                title: 'Lantern',
-                subtitle: 'Celebrating our community',
-                image: null,
-                actor_name: '',
-                meta: {},
-                created_at: ''
-              }
-            ];
+            actor_name: '',
+            meta: {},
+            created_at: ''
           }
-          return { slides: slides, recognitionList: recognitionList, newsList: newsList };
-        });
-      });
+        ],
+        recognitionList: [],
+        newsList: []
+      };
     }
 
     return fetch(marqueeUrl, { credentials: 'include', cache: 'no-store' })
@@ -488,33 +403,15 @@
         return r.json();
       })
       .then(function (mr) {
-        if (!mr || !mr.ok || !((mr.slides && mr.slides.length) || (mr.events && mr.events.length))) {
-          return fallbackRecognitionNews();
-        }
+        if (!mr || mr.ok !== true) return emptySafeState();
         var slides = mr.slides && mr.slides.length ? mr.slides : [];
+        if (!slides.length) return emptySafeState();
         return enrichTickerPayloadCanonical(slides, [], []).then(function () {
           return { slides: slides, recognitionList: [], newsList: [] };
         });
       })
       .catch(function () {
-        return fallbackRecognitionNews();
-      })
-      .catch(function () {
-        return {
-          slides: [
-            {
-              type: 'fallback',
-              title: 'Lantern',
-              subtitle: 'Celebrating our community',
-              image: null,
-              actor_name: '',
-              meta: {},
-              created_at: ''
-            }
-          ],
-          recognitionList: [],
-          newsList: []
-        };
+        return emptySafeState();
       });
   }
 
