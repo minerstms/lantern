@@ -25,7 +25,7 @@ export const EDUCATIONAL_TRIVIA_MISSIONS = {
     reward_nuggets: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
     trigger_type: 'handbook_trivia',
     icon: '📖',
-    cover: 'assets/handbook-triva-card.png',
+    cover: 'assets/handbook-triva-card.webp',
   },
   perm_local_history_trivia: {
     id: 'perm_local_history_trivia',
@@ -38,7 +38,7 @@ export const EDUCATIONAL_TRIVIA_MISSIONS = {
     reward_nuggets: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
     trigger_type: 'local_history_trivia',
     icon: '🏛️',
-    cover: 'assets/history-trivia-card.png',
+    cover: 'assets/history-trivia-card.webp',
   },
   perm_srp_safety: {
     id: 'perm_srp_safety',
