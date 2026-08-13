@@ -1,5 +1,21 @@
 # Tower Building Game — Lantern vendor notices
 
+**Superseded for commercial-clearance work.** The 2026-08-13 independent
+audit lives in:
+
+- [`GAME_PROVENANCE.md`](./GAME_PROVENANCE.md) — donor pin, code/asset inventory, keep/replace matrix
+- [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) — notices required or recommended by licenses of material actually present
+
+This file is retained so earlier lab notes are not deleted. It is **not**
+complete: it treated donor PNG/MP3/OGG as covered by the repo MIT license.
+That assumption is **not** reliable. In particular, `donor/assets/bgm.mp3`
+is tagged as Matthew Pablo’s “Caketown” (CC-BY-SA 3.0 on OpenGameArt), which
+is not MIT.
+
+Do not remove `LICENSE` or `donor/LICENSE`.
+
+---
+
 This directory vendors a bounded copy of the MIT-licensed Tower Building Game
 for an **experimental, unlinked Lantern lab prototype**.
 
