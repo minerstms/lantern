@@ -176,8 +176,8 @@ else bad('higher-is-better');
 if (bestLower([40, 28, 35]) === 28) ok('lower-is-better keeps 28');
 else bad('lower-is-better');
 
-if (workerIndex.includes("LOWER_IS_BETTER = ['Reaction Tap', 'Nugget Hunt', 'Memory Match']")) {
-  ok('Worker lower-is-better list includes Memory Match');
+if (workerIndex.includes('isLowerIsBetterGame') && workerIndex.includes('resolveRegisteredLeaderboardGame')) {
+  ok('Worker uses server catalog for lower-is-better / game validation');
 } else bad('LOWER_IS_BETTER list');
 
 if (workerIndex.includes('MAX(score)') && workerIndex.includes('MIN(score)') && workerIndex.includes('GROUP BY character_name')) {
@@ -227,11 +227,11 @@ const postFnSrc = `
   function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
     var key = canonicalLeaderboardKey(gameName);
     var numericScore = Math.floor(Number(score));
-    if (gamesApiBase == null || !characterName || !key || !Number.isFinite(numericScore)) {
+    if (gamesApiBase == null || !key || !Number.isFinite(numericScore)) {
       if (onDone) onDone(false);
       return Promise.resolve(false);
     }
-    var guardKey = key + '|' + String(characterName) + '|' + String(numericScore) + '|' + String(scoreDisplay || '');
+    var guardKey = key + '|' + String(numericScore) + '|' + String(scoreDisplay || '');
     if (leaderboardSubmitGuard[guardKey]) {
       if (onDone) onDone(true);
       return Promise.resolve(true);
@@ -243,7 +243,6 @@ const postFnSrc = `
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         game_name: key,
-        character_name: characterName,
         score: numericScore,
         score_display: scoreDisplay || String(numericScore)
       })
@@ -275,11 +274,11 @@ else bad('Click Rush once', 'calls=' + recordCalls);
 if (
   lastBody &&
   lastBody.game_name === 'Nugget Click Rush' &&
-  lastBody.character_name === '20889' &&
+  lastBody.character_name == null &&
   lastBody.score === 123 &&
   lastBody.score_display === '123 taps'
 ) {
-  ok('Click Rush record body uses canonical key + economy identity');
+  ok('Click Rush record body uses canonical key and omits client identity');
 } else bad('Click Rush body', JSON.stringify(lastBody));
 
 if (cat.leaderboardKey('Nugget Click Rush') === 'Nugget Click Rush') {

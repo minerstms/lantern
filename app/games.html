@@ -1017,7 +1017,11 @@
 
     function callEconomyTransact(characterName, delta, kind, source, note, runId){
       if (window.LanternWallet && typeof window.LanternWallet.postEconomyTransact === 'function' && window.LanternWallet.canUseHttpEconomy()) {
-        return window.LanternWallet.postEconomyTransact({ character_name: characterName, delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: runId ? { run_id: runId } : {} });
+        var body = { delta: delta, kind: kind || 'misc', source: source || '', note: note || '', meta: runId ? { run_id: runId } : {} };
+        // Prompt #128 — game_win identity is session-derived on the Worker. Do not send a
+        // client-authoritative character_name for game result rewards.
+        if (kind !== 'game_win' && characterName) body.character_name = characterName;
+        return window.LanternWallet.postEconomyTransact(body);
       }
       return Promise.resolve({ ok: false });
     }
@@ -1744,7 +1748,7 @@
                   if (run && run.recordGameResult) {
                     run.withSuccessHandler(function(){}).withFailureHandler(function(){}).recordGameResult({ character_name: adopted.name, game_name: 'Nugget Hunt', meta: { score: completionTimeSec, score_display: completionTimeSec + 's', difficulty: difficulty, nuggets: reward } });
                   }
-                  postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){});
+                  postLeaderboardScore('Nugget Hunt', adopted.name, completionTimeSec, completionTimeSec + 's', function(){}, huntRunId);
                 }
               }
               celebrateAndContinue(isRewardedFirstFind);
@@ -1834,30 +1838,32 @@
       }
       return gameName;
     }
-    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
+    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone, runId){
       var key = canonicalLeaderboardKey(gameName);
       var numericScore = Math.floor(Number(score));
-      if (gamesApiBase == null || !characterName || !key || !Number.isFinite(numericScore)) {
+      if (gamesApiBase == null || !key || !Number.isFinite(numericScore)) {
         toast('Score couldn\'t be saved. Try again.');
         if (onDone) onDone(false);
         return Promise.resolve(false);
       }
-      var guardKey = key + '|' + String(characterName) + '|' + String(numericScore) + '|' + String(scoreDisplay || '');
+      var resultRunId = runId || (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function' ? window.LanternGamesPaidStart.getLastRunId() : '') || '';
+      var guardKey = key + '|' + String(numericScore) + '|' + String(scoreDisplay || '') + '|' + String(resultRunId || '');
       if (leaderboardSubmitGuard[guardKey]) {
         if (onDone) onDone(true);
         return Promise.resolve(true);
       }
       leaderboardSubmitGuard[guardKey] = true;
+      var payload = {
+        game_name: key,
+        score: numericScore,
+        score_display: scoreDisplay || String(numericScore)
+      };
+      if (resultRunId) payload.run_id = resultRunId;
       return fetch(gamesApiBase + '/api/leaderboards/record', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          game_name: key,
-          character_name: characterName,
-          score: numericScore,
-          score_display: scoreDisplay || String(numericScore)
-        })
+        body: JSON.stringify(payload)
       }).then(function(r){
         return r.json().then(function(res){ return { httpOk: r.ok, res: res }; }).catch(function(){
           return { httpOk: r.ok, res: null };

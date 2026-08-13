@@ -5,6 +5,7 @@
   'use strict';
 
   var spendInFlight = false;
+  var lastRunId = '';
 
   function walletApi() {
     return global.LanternWallet || null;
@@ -136,8 +137,9 @@
     function finish(ok, err, extra) {
       spendInFlight = false;
       setPlayStarting(false);
-      if (ok && typeof onSuccess === 'function') onSuccess();
-      var out = { ok: !!ok, error: err || null, cost: cost };
+      if (ok) lastRunId = runId;
+      if (ok && typeof onSuccess === 'function') onSuccess(runId);
+      var out = { ok: !!ok, error: err || null, cost: cost, run_id: runId };
       if (extra && typeof extra === 'object') {
         if (extra.available != null) out.available = extra.available;
       }
@@ -200,6 +202,9 @@
     isAffordable: isAffordable,
     isInFlight: function () {
       return spendInFlight;
+    },
+    getLastRunId: function () {
+      return lastRunId;
     },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

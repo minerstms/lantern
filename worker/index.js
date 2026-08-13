@@ -31,6 +31,14 @@ import { handleMissionsRoutes } from './missions-handlers.js';
 import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './missions-auth.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
+import {
+  resolveRegisteredLeaderboardGame,
+  leaderboardGameNames,
+  isLowerIsBetterGame,
+  validateLeaderboardScore,
+  sanitizeScoreDisplay,
+  sanitizeRunId,
+} from './lantern-game-catalog.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
@@ -264,6 +272,7 @@ export default {
         path.startsWith('/api/class-access') ||
         path.startsWith('/api/tms-nuggets') ||
         path.startsWith('/api/economy') ||
+        path.startsWith('/api/leaderboards') ||
         path.startsWith('/api/integrations') ||
         path.startsWith('/api/approvals') ||
         path === '/api/news/hide' ||
@@ -511,10 +520,12 @@ export default {
     }
     if (path.startsWith('/api/leaderboards')) {
       try {
-        return await handleLeaderboardRoutes(request, url, path, env, cors);
+        const lbCors = request.method === 'POST' ? corsForPilot(request) : cors;
+        return await handleLeaderboardRoutes(request, url, path, env, lbCors);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
+        const lbCors = request.method === 'POST' ? corsForPilot(request) : cors;
+        return jsonResponse({ ok: false, error: message }, 400, lbCors);
       }
     }
     if (path.startsWith('/api/games')) {
@@ -5456,7 +5467,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     const pilotAccount = await getPilotAccountFromRequest(request, env);
     const kindEarly = String(body.kind || '').trim() || 'misc';
     let characterName = (body.character_name || '').trim();
-    if (kindEarly === 'game_play') {
+    if (kindEarly === 'game_play' || kindEarly === 'game_win') {
       const playAuth = resolveEconomyGamePlayTransact(
         pilotAccount,
         characterName,
@@ -7457,15 +7468,52 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
 
   if (request.method === 'POST' && path === '/api/leaderboards/record') {
+    // Prompt #128 — identity is session-owned. Client may send game id/name, score, score_display,
+    // and optional run_id. Client character_name / account id / reward fields are ignored.
+    const pilotAccount = await getPilotAccountFromRequest(request, env);
+    const identityAuth = resolveEconomyGamePlayTransact(pilotAccount, '', pilotEconomyCharacterName);
+    if (!identityAuth.ok) {
+      return jsonResponse({ ok: false, error: identityAuth.error }, identityAuth.code || 403, cors);
+    }
+    const characterName = identityAuth.characterName;
+
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const gameName = (body.game_name || '').trim().slice(0, 100);
-    const characterName = (body.character_name || '').trim();
-    const score = Math.floor(Number(body.score));
-    if (!gameName || !characterName) return jsonResponse({ ok: false, error: 'Missing game_name or character_name' }, 400, cors);
-    const scoreDisplay = (body.score_display || '').trim().slice(0, 100) || null;
-    const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+
+    const game = resolveRegisteredLeaderboardGame(body.game_id || body.game_name);
+    if (!game || !game.leaderboard || game.status !== 'playable') {
+      return jsonResponse({ ok: false, error: 'invalid_game' }, 400, cors);
+    }
+    const gameName = game.name;
+
+    const scoreCheck = validateLeaderboardScore(game, body.score);
+    if (!scoreCheck.ok) {
+      return jsonResponse({ ok: false, error: scoreCheck.error }, 400, cors);
+    }
+    const score = scoreCheck.score;
+    const scoreDisplay = sanitizeScoreDisplay(body.score_display, score);
+    const runId = sanitizeRunId(body.run_id || (body.meta && body.meta.run_id));
+    const meta = body.meta && typeof body.meta === 'object' ? { ...body.meta } : {};
+    delete meta.character_name;
+    delete meta.username;
+    delete meta.account_id;
+    delete meta.nuggets;
+    delete meta.reward;
+    delete meta.delta;
+    if (runId) meta.run_id = runId;
+
+    if (runId) {
+      try {
+        const existing = await db.prepare(
+          "SELECT id FROM lantern_leaderboard_entries WHERE character_name = ? AND game_name = ? AND json_extract(meta_json, '$.run_id') = ? LIMIT 1"
+        ).bind(characterName, gameName, runId).first();
+        if (existing && existing.id) {
+          return jsonResponse({ ok: true, id: existing.id, idempotent: true, character_name: characterName, game_name: gameName }, 200, cors);
+        }
+      } catch (_) {}
+    }
+
     const now = new Date().toISOString();
     const id = 'lb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
     try {
@@ -7475,12 +7523,18 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     } catch (e) {
       return jsonResponse({ ok: false, error: 'Leaderboard table not ready' }, 503, cors);
     }
-    return jsonResponse({ ok: true, id }, 200, cors);
+    return jsonResponse({ ok: true, id, character_name: characterName, game_name: gameName }, 200, cors);
   }
 
   if (request.method === 'GET' && path === '/api/leaderboards') {
     const period = (url.searchParams.get('period') || 'weekly').trim();
-    const gameName = (url.searchParams.get('game_name') || '').trim();
+    const requestedGame = (url.searchParams.get('game_name') || url.searchParams.get('game_id') || '').trim();
+    const registered = requestedGame ? resolveRegisteredLeaderboardGame(requestedGame) : null;
+    if (requestedGame && !registered) {
+      return jsonResponse({ ok: true, period, entries: [] }, 200, cors);
+    }
+    const gameName = registered ? registered.name : '';
+    const catalogNames = leaderboardGameNames();
     const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10)));
     const now = new Date();
     let since;
@@ -7501,10 +7555,10 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     } else {
       since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     }
-    const LOWER_IS_BETTER = ['Reaction Tap', 'Nugget Hunt', 'Memory Match'];
-    const lowerBetter = gameName && LOWER_IS_BETTER.includes(gameName);
+    const lowerBetter = gameName && isLowerIsBetterGame(gameName);
     const agg = lowerBetter ? 'MIN(score)' : 'MAX(score)';
     const orderBy = lowerBetter ? 'ORDER BY score ASC' : 'ORDER BY score DESC';
+    const inPlaceholders = catalogNames.map(() => '?').join(',');
     let rows;
     try {
       // Prompt #99: also select score_display as a bare column alongside the single MIN()/MAX()
@@ -7527,18 +7581,19 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
           ).bind(gameName, since, limit).all();
         }
       } else {
+        // Combined view: only registered production games (unlisted/lab names cannot leak).
         if (since == null && !until) {
           rows = await db.prepare(
-            'SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries GROUP BY character_name ORDER BY score DESC LIMIT ?'
-          ).bind(limit).all();
+            `SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE game_name IN (${inPlaceholders}) GROUP BY character_name ORDER BY score DESC LIMIT ?`
+          ).bind(...catalogNames, limit).all();
         } else if (until) {
           rows = await db.prepare(
-            'SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? AND created_at <= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
-          ).bind(since, until, limit).all();
+            `SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE game_name IN (${inPlaceholders}) AND created_at >= ? AND created_at <= ? GROUP BY character_name ORDER BY score DESC LIMIT ?`
+          ).bind(...catalogNames, since, until, limit).all();
         } else {
           rows = await db.prepare(
-            'SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE created_at >= ? GROUP BY character_name ORDER BY score DESC LIMIT ?'
-          ).bind(since, limit).all();
+            `SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE game_name IN (${inPlaceholders}) AND created_at >= ? GROUP BY character_name ORDER BY score DESC LIMIT ?`
+          ).bind(...catalogNames, since, limit).all();
         }
       }
     } catch (e) {

@@ -141,7 +141,7 @@ const workerIndexSrc = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
 const leaderboardsGetBlock = (() => {
   const startIdx = workerIndexSrc.indexOf("request.method === 'GET' && path === '/api/leaderboards'");
   if (startIdx === -1) return '';
-  return workerIndexSrc.slice(startIdx, startIdx + 4500);
+  return workerIndexSrc.slice(startIdx, startIdx + 9000);
 })();
 
 if (
