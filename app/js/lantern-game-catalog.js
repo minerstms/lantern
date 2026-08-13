@@ -124,6 +124,20 @@
       leaderboard: true,
       description: 'Find the special icon among decoys. Full-screen search.',
     },
+    {
+      id: 'minecart-switch',
+      name: 'Minecart Switch',
+      type: 'arcade',
+      playBtnId: 'minecartSwitchPlayBtn',
+      play_cost: 1,
+      icon: '🛒',
+      image: 'assets/minecart-switch-card.png',
+      featured: true,
+      status: 'playable',
+      scoring: { lowerIsBetter: false },
+      leaderboard: true,
+      description: 'Switch tracks to dodge rocks, gaps, and gates in a Trinidad mine tunnel.',
+    },
   ];
 
   var BY_ID = {};

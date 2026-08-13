@@ -64,13 +64,13 @@ if (gamesHtml.includes("postLeaderboardScore('Memory Match'")) {
   ok('Memory Match records leaderboard score on completion');
 } else bad('Memory Match score post');
 
-// --- catalog: 8 games, record key === query key === display name ---
+// --- catalog: 9 games, record key === query key === display name ---
 const sandbox = { window: {}, globalThis: {} };
 sandbox.window = sandbox.globalThis = sandbox;
 vm.runInNewContext(catalogJs, sandbox);
 const cat = sandbox.LANTERN_GAME_CATALOG;
 const games = cat.listGames();
-if (games.length === 8) ok('eight canonical games');
+if (games.length === 9) ok('nine canonical games');
 else bad('canonical count', games.length);
 
 const expected = [
@@ -82,6 +82,7 @@ const expected = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Minecart Switch',
 ];
 expected.forEach(function (name) {
   const g = cat.getGameByName(name);

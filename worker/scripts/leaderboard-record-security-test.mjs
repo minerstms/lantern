@@ -186,7 +186,7 @@ async function postTransact(env, cookie, body) {
 // ---------------------------------------------------------------------------
 // Catalog unit checks
 // ---------------------------------------------------------------------------
-if (LANTERN_LEADERBOARD_GAMES.length === 8) ok('server catalog has eight production games');
+if (LANTERN_LEADERBOARD_GAMES.length === 9) ok('server catalog has nine production games');
 else bad('server catalog count', LANTERN_LEADERBOARD_GAMES.length);
 
 const expectedNames = [
@@ -198,6 +198,7 @@ const expectedNames = [
   'Nugget Click Rush',
   'Memory Match',
   'Nugget Hunt',
+  'Minecart Switch',
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
@@ -242,11 +243,11 @@ if (sanitizeRunId('run_abc-123') === 'run_abc-123' && sanitizeRunId('bad run;dro
   ok('run_id sanitizer allows uuid-like tokens only');
 } else bad('run_id sanitize');
 
-if (leaderboardGameNames().length === 8) ok('production leaderboard name list is the eight catalog games');
+if (leaderboardGameNames().length === 9) ok('production leaderboard name list is the nine catalog games');
 else bad('leaderboardGameNames', leaderboardGameNames());
 
 // ---------------------------------------------------------------------------
-// Client contract: eight games post without client-authoritative character_name
+// Client contract: catalog games post without client-authoritative character_name
 // ---------------------------------------------------------------------------
 const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 const paidStartJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-paid-start.js'), 'utf8');

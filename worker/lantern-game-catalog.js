@@ -85,6 +85,15 @@ export const LANTERN_LEADERBOARD_GAMES = [
     leaderboard: true,
     status: 'playable',
   },
+  {
+    id: 'minecart-switch',
+    name: 'Minecart Switch',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 15000,
+    leaderboard: true,
+    status: 'playable',
+  },
 ];
 
 const BY_ID = Object.create(null);
