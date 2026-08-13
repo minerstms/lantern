@@ -32,20 +32,17 @@
     return '';
   }
 
-  /** Chevron menu: NAVIGATION + STAFF + Log out. Full menu from LanternStaffNav (#152). */
+  /** Chevron menu: fail-closed student core until /api/auth/me applies role + capabilities (#163). */
   function buildLanternNavDropdownHtml(current) {
     var sections =
       global.LanternStaffNav && typeof global.LanternStaffNav.buildMenuSectionsHtml === 'function'
-        ? global.LanternStaffNav.buildMenuSectionsHtml(current, 'lantern')
+        ? global.LanternStaffNav.buildMenuSectionsHtml(current, 'lantern', null, null)
         : '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
+          '<a href="explore.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="explore">Lantern</a>' +
           '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">Locker</a>' +
           '<a href="contribute.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="create">Create</a>' +
           '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Play</a>' +
           '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="missions">Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span></a>' +
-          '</div>' +
-          '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
-          '<a href="/teacher.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="teacher">Teacher Tools</a>' +
-          '<a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Ftmsnuggets.pages.dev%2Findex.html%3Fintent%3Dremember" role="menuitem" class="lanternAppBarDropdownLink" data-page="behavior" data-lantern-behavior-nav="1">Behavior Logger</a>' +
           '</div>';
     return (
       '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
@@ -379,25 +376,32 @@
     });
   }
 
+  var _menuCloseFn = null;
+
   /**
-   * Prompt #199 — refresh STAFF links after /api/auth/me so Admin appears only for role=admin
-   * (same gate as app/admin.html). Does not change auth or broaden access.
+   * Prompt #163 — rebuild the full Lantern ▼ from role + TMS capabilities after /api/auth/me.
+   * Fail closed: missing role/caps never expose STAFF or ADMIN / TOOLS.
    */
-  function applyStaffNavForRole(role) {
+  function applyCanonicalLanternMenu(role, caps) {
     var dd = document.getElementById('lanternMenuDropdown');
-    if (!dd || !global.LanternStaffNav || typeof global.LanternStaffNav.buildStaffSectionLinksHtml !== 'function') {
+    if (!dd || !global.LanternStaffNav || typeof global.LanternStaffNav.buildMenuSectionsHtml !== 'function') {
       return;
     }
-    var sections = dd.querySelectorAll('.lanternAppBarDropdownSection');
-    var staffSec = null;
-    Array.prototype.forEach.call(sections, function (sec) {
-      var label = sec.querySelector('.lanternAppBarDropdownGroupLabel');
-      if (label && String(label.textContent || '').trim() === 'STAFF') staffSec = sec;
+    var logout = dd.querySelector('#lanternNavLogoutSection') || dd.querySelector('.lanternAppBarDropdownSection--logout');
+    var sectionsHtml = global.LanternStaffNav.buildMenuSectionsHtml(getCurrentPage(), 'lantern', caps || null, role || null);
+    var keep = [];
+    Array.prototype.forEach.call(dd.children, function (child) {
+      if (child === logout || (child.classList && child.classList.contains('lanternAppBarDropdownSection--logout'))) {
+        keep.push(child);
+      }
     });
-    if (!staffSec) return;
-    staffSec.innerHTML =
-      '<div class="lanternAppBarDropdownGroupLabel">STAFF</div>' +
-      global.LanternStaffNav.buildStaffSectionLinksHtml(getCurrentPage(), 'lantern', role);
+    keep.forEach(function (node) {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    });
+    dd.innerHTML = sectionsHtml;
+    keep.forEach(function (node) {
+      dd.appendChild(node);
+    });
     wireBehaviorNavClicks(dd);
   }
 
@@ -423,6 +427,7 @@
       dropdown.setAttribute('hidden', '');
       menuTrigger.setAttribute('aria-expanded', 'false');
     }
+    _menuCloseFn = close;
     function toggle() {
       if (dropdown.classList.contains('is-open')) close(); else open();
     }
@@ -456,7 +461,7 @@
           global.LanternAuth && typeof global.LanternAuth.normalizeRole === 'function'
             ? global.LanternAuth.normalizeRole(cachedMe.role)
             : String(cachedMe.role || '').trim().toLowerCase();
-        if (cachedRole === 'admin') applyStaffNavForRole('admin');
+        applyCanonicalLanternMenu(cachedRole, cachedMe.capabilities || null);
       }
     } catch (eCache) {}
     (function pilotSessionShellGate(){
@@ -482,13 +487,10 @@
             ? global.LanternAuth.normalizeRole(data.role)
             : String(data.role || '').trim().toLowerCase();
         if (role === 'student') {
-          var dd = document.getElementById('lanternMenuDropdown');
-          if (!dd) return;
-          var secs = dd.querySelectorAll('.lanternAppBarDropdownSection');
-          if (secs.length >= 2) secs[1].style.display = 'none';
+          applyCanonicalLanternMenu('student', null);
           return;
         }
-        applyStaffNavForRole(role);
+        applyCanonicalLanternMenu(role, data.capabilities || null);
       }).catch(function(){});
     })();
     document.addEventListener('lantern-needs-attention-count', function (e) {

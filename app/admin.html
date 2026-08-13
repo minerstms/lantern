@@ -108,6 +108,22 @@
     .acctPanelHd { font-weight: 900; font-size: 24px; margin: 0 0 10px; color: var(--accent); }
     .acctPanelActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
     .acctPanelHint { color: var(--muted); font-size: 20px; margin: 0 0 12px; line-height: 1.4; }
+    .staffReportingAccess {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 10px; margin: 10px 0 14px; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--line); background: rgba(0,0,0,.18); max-width: 440px;
+    }
+    .staffReportingAccessLabel { font-weight: 800; font-size: 20px; color: var(--ink); }
+    .staffReportingAccessHint { width: 100%; margin: 0; color: var(--muted); font-size: 16px; font-weight: 700; }
+    .staffReportingToggle {
+      min-width: 72px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(255,255,255,.08); color: var(--ink); font-size: 18px; font-weight: 900;
+      cursor: pointer; font-family: inherit;
+    }
+    .staffReportingToggle[aria-pressed="true"] {
+      border-color: rgba(56,208,124,.55); background: rgba(56,208,124,.2); color: #b4ffd4;
+    }
+    .staffReportingToggle:disabled { opacity: .55; cursor: not-allowed; }
     .walletTxList { font-size: 18px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; background: rgba(0,0,0,.2); }
     .walletTxList table { font-size: 18px; }
     .walletKeyLine { font-size: 20px; color: var(--muted); margin: 8px 0 12px; word-break: break-all; }
@@ -2185,6 +2201,68 @@
         (pdnLabel ? ' · Public display: ' + pdnLabel : '') +
         (u.display_name && needsName ? ' · Current display: ' + String(u.display_name) : '');
       detail.appendChild(meta);
+
+      var tmsIdForCaps = existingLink ? String(existingLink.tms_staff_id || '').trim() : '';
+      var tmsDirRow = null;
+      if (tmsIdForCaps) {
+        lastTmsStaffDirectory.forEach(function (s) {
+          if (String(s.tms_staff_id || '').trim() === tmsIdForCaps) tmsDirRow = s;
+        });
+      }
+      var reportingOn = !!(tmsDirRow && tmsDirRow.report_maker);
+      var reportingRow = document.createElement('div');
+      reportingRow.className = 'staffReportingAccess';
+      var reportingLabel = document.createElement('span');
+      reportingLabel.className = 'staffReportingAccessLabel';
+      reportingLabel.textContent = 'Reporting Access';
+      reportingRow.appendChild(reportingLabel);
+      var reportingBtn = document.createElement('button');
+      reportingBtn.type = 'button';
+      reportingBtn.className = 'staffReportingToggle';
+      reportingBtn.setAttribute('aria-pressed', reportingOn ? 'true' : 'false');
+      reportingBtn.textContent = reportingOn ? 'ON' : 'OFF';
+      if (!tmsIdForCaps) {
+        reportingBtn.disabled = true;
+        var reportingHint = document.createElement('p');
+        reportingHint.className = 'staffReportingAccessHint';
+        reportingHint.textContent = 'Needs Behavior Logger link';
+        reportingRow.appendChild(reportingHint);
+      } else {
+        reportingBtn.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var nextOn = reportingBtn.getAttribute('aria-pressed') !== 'true';
+          reportingBtn.disabled = true;
+          postAdminJson('/api/admin/staff-reporting-access', {
+            lantern_username: u.username,
+            tms_staff_id: tmsIdForCaps,
+            report_maker: nextOn
+          }).then(function (res) {
+            if (res && res.blocked) return;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              var nowOn = !!res.body.report_maker;
+              reportingBtn.setAttribute('aria-pressed', nowOn ? 'true' : 'false');
+              reportingBtn.textContent = nowOn ? 'ON' : 'OFF';
+              if (tmsDirRow) tmsDirRow.report_maker = nowOn;
+              showUsersMsg(
+                nowOn
+                  ? 'Reporting Access ON — Reports appears after that staff member refreshes.'
+                  : 'Reporting Access OFF — Reports is hidden after that staff member refreshes.',
+                'ok'
+              );
+              loadTmsStaffDirectory();
+              return;
+            }
+            showUsersMsg((res && res.body && (res.body.message || res.body.error)) || 'Could not update Reporting Access.', 'err');
+          }).catch(function () {
+            showUsersMsg('Network error while updating Reporting Access.', 'err');
+          }).finally(function () {
+            reportingBtn.disabled = false;
+          });
+        });
+      }
+      reportingRow.appendChild(reportingBtn);
+      detail.appendChild(reportingRow);
 
       var actions = document.createElement('div');
       actions.className = 'lanternPowerListActions acctActions';

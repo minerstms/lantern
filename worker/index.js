@@ -2810,6 +2810,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         teacher_email: String(s.teacher_email || '').trim(),
         role: String(s.role || '').trim(),
         is_admin: !!s.is_admin,
+        report_maker: !!s.report_maker,
         link_count: linked.length,
         lantern_usernames: linked.map((x) => x.lantern_username).filter(Boolean),
         has_primary: linked.some((x) => x.is_primary === 1),
@@ -2827,6 +2828,52 @@ async function handleAdminRoutes(request, url, path, env, cors) {
           linked: staff.filter((s) => s.lantern_linked).length,
           needs_attention: needsAttention.length,
         },
+      },
+      200,
+      cors
+    );
+  }
+
+  // Prompt #163 — SYSTEM_ADMIN-equivalent Lantern Admin toggles REPORT_MAKER on a linked TMS staff.
+  if (request.method === 'POST' && path === '/api/admin/staff-reporting-access') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    let tmsStaffId = String(body.tms_staff_id || '').trim();
+    const lanternUsername = String(body.lantern_username || '').trim();
+    if (!tmsStaffId && lanternUsername) {
+      tmsStaffId = (await getTmsStaffIdForLanternAccount(db, lanternUsername)) || '';
+    }
+    if (!tmsStaffId) {
+      return jsonResponse({ ok: false, error: 'missing_tms_staff_id' }, 400, cors);
+    }
+    const want =
+      body.report_maker === true ||
+      body.report_maker === 1 ||
+      body.report_maker === '1' ||
+      body.report_maker === 'true';
+    const bridge = await callTmsRosterBridge(env, 'staff/set-reporting-access', {
+      tms_staff_id: tmsStaffId,
+      report_maker: want,
+    });
+    if (!bridge.ok) {
+      const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      return jsonResponse(
+        { ok: false, error: bridge.error || 'bridge_failed', code: bridge.code || null, message: bridge.message || null },
+        status,
+        cors
+      );
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        tms_staff_id: tmsStaffId,
+        report_maker: !!bridge.report_maker,
+        capabilities: Array.isArray(bridge.capabilities) ? bridge.capabilities : null,
       },
       200,
       cors
@@ -3662,6 +3709,34 @@ async function handlePilotRoutes(request, url, path, env, cors) {
     // Prompt #147 — ordinary header/UI identity is resolvePublicDisplayName.
     const publicDisplayLabel = resolvePublicDisplayName(row) || null;
     const publicStaffLabel = isStaffMe ? publicDisplayLabel : null;
+    // Prompt #163 — attach authoritative TMS capabilities for staff nav (fail closed on bridge miss).
+    let capabilities = null;
+    if (isStaffMe) {
+      capabilities = {
+        teacher: false,
+        report_maker: false,
+        system_admin: false,
+        behavior_admin: false,
+        secretary: false,
+      };
+      try {
+        const tmsStaffId = await getTmsStaffIdForLanternAccount(db, row.username);
+        if (tmsStaffId) {
+          const capRes = await callTmsNuggetsBridge(env, 'staff/capabilities', tmsStaffId, {});
+          if (capRes && capRes.ok && capRes.capabilities && typeof capRes.capabilities === 'object') {
+            capabilities = {
+              teacher: !!capRes.capabilities.teacher,
+              report_maker: !!capRes.capabilities.report_maker,
+              system_admin: !!capRes.capabilities.system_admin,
+              behavior_admin: !!capRes.capabilities.behavior_admin,
+              secretary: !!capRes.capabilities.secretary,
+            };
+          }
+        }
+      } catch (_) {
+        /* keep empty caps — do not fail-open Reports/System */
+      }
+    }
     return jsonResponse(
       {
         ok: true,
@@ -3680,6 +3755,7 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         economy_character_name: rlow === 'student' ? pilotEconomyCharacterName(row) || null : null,
         teacher_id: row.teacher_id || null,
         must_change_password: mcp,
+        capabilities,
       },
       200,
       cors

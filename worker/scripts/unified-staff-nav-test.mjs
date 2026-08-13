@@ -159,16 +159,18 @@ async function main() {
     await page.click('#lanternMenuTrigger');
     await page.waitForSelector('#lanternMenuDropdown.is-open, #lanternMenuDropdown:not([hidden])', { timeout: 5000 }).catch(() => {});
     await page.waitForFunction(() => {
-      const a = document.querySelector('#lanternMenuDropdown a[data-page="admin"]');
-      return !!(a && /Admin/.test(a.textContent || ''));
+      const a = document.querySelector('#lanternMenuDropdown a[data-page="system"]');
+      return !!(a && /System/.test(a.textContent || ''));
     }, { timeout: 8000 }).catch(() => {});
 
     const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
     const staffLabels = (await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) => t.trim());
-    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Behavior Logger', 'Admin']), 'Admin-capable STAFF order: ' + JSON.stringify(staffLabels));
-    const adminLink = page.locator('#lanternMenuDropdown a[data-page="admin"]');
-    assert(await adminLink.count() === 1, 'Admin menuitem present for role=admin');
-    assert((await adminLink.getAttribute('href')) === '/admin', 'Admin points to /admin');
+    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Behavior Logger']), 'Web Admin STAFF order: ' + JSON.stringify(staffLabels));
+    const systemLink = page.locator('#lanternMenuDropdown a[data-page="system"]');
+    assert(await systemLink.count() === 1, 'System menuitem present for role=admin');
+    assert((await systemLink.getAttribute('href')) === '/admin#system', 'System points to /admin#system');
+    const reportsLink = page.locator('#lanternMenuDropdown a[data-page="reports"]');
+    assert(await reportsLink.count() === 1, 'Reports menuitem present for role=admin');
     assert(!(await page.locator('#lanternMenuDropdown').innerText()).match(/Display Board|Hallway TV/i), 'Admin menu still omits Hallway TV / Display Board');
     await page.close();
   }
