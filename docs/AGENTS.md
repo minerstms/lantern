@@ -5,7 +5,8 @@
 
 **Roadmap / re-entry:** **`docs/ACTIVE_BUILD_PLAN.md`**  
 **Locked decisions log:** **`docs/CHANGELOG_LOCKED.md`**  
-**Cursor discipline:** **`docs/CURSOR_RUN_PROMPT.md`**
+**Cursor discipline:** **`docs/CURSOR_RUN_PROMPT.md`**  
+**New Lantern games:** **`docs/LANTERN_GAME_STARTER_KIT.md`** (do not invent a second economy or leaderboard)
 
 ---
 
