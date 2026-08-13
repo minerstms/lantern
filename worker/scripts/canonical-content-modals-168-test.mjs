@@ -58,6 +58,7 @@ assert(overlayHtml.indexOf('lanternCardDetailTitle') < overlayHtml.indexOf('lant
 assert(overlayHtml.indexOf('lanternCardDetailIdentityWrap') < overlayHtml.indexOf('lanternCardDetailMeta'), '6. meta follows name');
 assert(overlayHtml.indexOf('lanternCardDetailMeta') < rxIdx, '7. reactions follow meta');
 assert(/Shout-Out!/.test(cardUi) && /isShout/.test(cardUi), '6. Shout-Out! · Date meta path');
+assert(/isShoutFeed/.test(cardUi) && /SHOUT_OUT_DISPLAY_NAME/.test(cardUi), '6b. feed Shout-Out modal uses canonical Shout-Out! label');
 assert(/stageOrder[\s\S]{0,280}lanternCardDetailReactions[\s\S]{0,80}lanternCardDetailBody/.test(cardUi), 'I. shell reorder keeps reactions before body');
 
 assert(/el\.scrollTop = 0/.test(cardUi), 'R. opening a modal starts at top');

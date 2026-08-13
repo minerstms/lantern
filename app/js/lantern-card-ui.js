@@ -1290,7 +1290,8 @@
     paintCanonicalPersonIdentity(idw, n, { size: 'md' });
     var roleLabel = newsRoleLabelFromAuthorType(n.author_type);
     var cat = String(n.category || '').trim();
-    var isShout = /shout/i.test(cat) || /shout/i.test(String(n.type || n.content_type || ''));
+    var isShout = /shout/i.test(cat) || /shout/i.test(String(n.type || n.content_type || '')) ||
+      /Recognizing:\s*/i.test(String(n.body || '')) || /^Shout[\s-]?out\b/i.test(String(n.title || ''));
     if (isShout) {
       var shoutLabel = (LC && LC.SHOUT_OUT_DISPLAY_NAME) || 'Shout-Out!';
       m.textContent = [shoutLabel, time].filter(Boolean).join(' · ');
@@ -2375,7 +2376,12 @@
     t.textContent = item.title || 'Untitled';
     paintCanonicalPersonIdentity(idw, item, { size: 'md' });
     var dateStr = formatFeedItemDate(item);
-    var typeLabel = feedItemTypeBadge(item);
+    var typeKey = String(item.type || item.typeLabel || '').toLowerCase();
+    var isShoutFeed = /shout/.test(typeKey) || typeKey === 'recognition' ||
+      /Recognizing:\s*/i.test(String(item.body || item.summary || ''));
+    var typeLabel = isShoutFeed
+      ? ((LC && LC.SHOUT_OUT_DISPLAY_NAME) || 'Shout-Out!')
+      : feedItemTypeBadge(item);
     m.textContent = [typeLabel, dateStr].filter(Boolean).join(' · ');
 
     var body = String(item.body || item.summary || '').trim();
