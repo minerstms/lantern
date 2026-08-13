@@ -422,8 +422,8 @@ async function main() {
   {
     const state = { accounts: { '20889': me } };
     const env = makeEnv(state);
-    const r = await postRecord(env, cookie, { game_name: 'Stack Lab', score: 10, run_id: 'run-x' });
-    if (r.status === 400 && r.json.error === 'invalid_game') ok('19/34. invalid / unregistered Stack Lab fails');
+    const r = await postRecord(env, cookie, { game_name: 'Unregistered Lab Game', score: 10, run_id: 'run-x' });
+    if (r.status === 400 && r.json.error === 'invalid_game') ok('19/34. invalid / unregistered game fails');
     else bad('19 invalid game', r);
   }
 

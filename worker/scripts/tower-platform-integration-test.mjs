@@ -146,10 +146,13 @@ if (
 } else bad('12/13. balance contract');
 
 // 8 / 9 / 10 — score requires valid run proof; one result/run; game id cannot be forged
+const proofJs = read('worker/game-paid-run-proof.js');
+const postFn = gamesHtml.slice(gamesHtml.indexOf('function postLeaderboardScore'), gamesHtml.indexOf('function postLeaderboardScore') + 2800);
 if (
   gamesHtml.includes("postLeaderboardScore('Stack Lab'") &&
-  /function postLeaderboardScore[\s\S]{0,500}!resultRunId/.test(gamesHtml) &&
-  /function postLeaderboardScore[\s\S]{0,900}run_id: resultRunId/.test(gamesHtml)
+  postFn.includes('!resultRunId') &&
+  postFn.includes('run_id: resultRunId') &&
+  postFn.includes('getLastRunId')
 ) {
   ok('8. Stack Lab score POST requires paid getLastRunId / run_id');
 } else bad('8. score run proof');
@@ -159,7 +162,7 @@ if (workerIndex.includes('evaluatePaidGamePlayRun') && workerIndex.includes("err
 if (workerIndex.includes("json_extract(meta_json, '$.run_id')") && gamesHtml.includes('leaderboardSubmitGuard')) {
   ok('9. one leaderboard result per run (server run_id + client submit guard)');
 } else bad('9. one result/run');
-if (paidStartJs.includes('game_id:') && workerIndex.includes('paidRunGameMatches')) {
+if (paidStartJs.includes('game_id:') && proofJs.includes('paidRunGameMatches') && workerIndex.includes('evaluatePaidGamePlayRun')) {
   ok('10. game id is bound on paid start and matched at record time (cannot forge)');
 } else bad('10. game id binding');
 
@@ -256,6 +259,12 @@ if (
 if (gameHtml.includes('lanternPlay') && gameHtml.includes('if (lanternPlay) return')) {
   ok('production iframe disables donor free-replay reload');
 } else bad('donor replay gate');
+if (gameHtml.includes('engineReady') && gameHtml.includes('pendingBegin') && gameHtml.includes('__lanternTowerBeginPlay')) {
+  ok('Play beginPlay waits until the donor engine is inited');
+} else bad('beginPlay init gate');
+if (gameHtml.includes('.labOver.hide') && gameHtml.includes('display:none!important')) {
+  ok('lab overlay hide class cannot be overridden by .labOver display:flex');
+} else bad('lab overlay hide specificity');
 if (gamesHtml.includes('__LANTERN_TOWER_PLAYTEST__') && gameHtml.includes('__LANTERN_TOWER_TEST__')) {
   ok('deterministic win/miss test hooks exist for playtest');
 } else bad('test hooks');

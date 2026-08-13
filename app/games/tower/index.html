@@ -30,6 +30,7 @@
       -webkit-user-select:none;
     }
     .hide{display:none}
+    .labOver.hide,.labStart.hide,.labHint.hide{display:none!important}
     .loading{
       position:fixed;inset:0;
       background:#0b1220;
@@ -105,6 +106,8 @@
     var SCORE_MAX = 2500;
     var QUALIFYING_FLOORS = 10;
     var lastPlaceAt = 0;
+    var engineReady = false;
+    var pendingBegin = false;
     var lanternPlay = /(?:\?|&)lanternPlay=1(?:&|$)/.test(String(window.location.search || ''));
     var gameWidth = window.innerWidth;
     var gameHeight = window.innerHeight;
@@ -199,13 +202,26 @@
 
     function startDonorPlay() {
       if (gameStart) return;
+      if (!engineReady || !game || typeof game.start !== 'function') {
+        pendingBegin = true;
+        return;
+      }
       gameStart = true;
+      pendingBegin = false;
       $('#labStart').addClass('hide');
+      $('#labOver').addClass('hide');
       if (lanternPlay) $('#labHint').removeClass('hide');
       if (window.LanternDonorAdapter) window.LanternDonorAdapter.notifyGameStarted();
-      setTimeout(game.start, 400);
+      setTimeout(function () {
+        if (game && typeof game.start === 'function') game.start();
+      }, 400);
     }
-    window.__lanternTowerBeginPlay = startDonorPlay;
+    window.__lanternTowerBeginPlay = function () {
+      lanternPlay = true;
+      $('#labStart').addClass('hide');
+      $('#labOver').addClass('hide');
+      startDonorPlay();
+    };
 
     function lanternPlace(ev) {
       var now = Date.now();
@@ -244,7 +260,8 @@
       bindLanternControls();
       game.load(function () {
         game.init();
-        if (lanternPlay) {
+        engineReady = true;
+        if (lanternPlay || pendingBegin) {
           setTimeout(startDonorPlay, 400);
         }
       }, updateLoading);
