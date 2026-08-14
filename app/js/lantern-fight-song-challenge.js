@@ -225,9 +225,6 @@
       overlay.hidden = true;
       overlay.setAttribute('aria-hidden', 'true');
     }
-    if (typeof document !== 'undefined') {
-      document.body.classList.remove('mission-detail-open');
-    }
     var focusBack = state.returnFocus;
     state.returnFocus = null;
     if (focusBack && typeof focusBack.focus === 'function') {
@@ -385,10 +382,12 @@
       '<ol id="fightSongList" class="fightSongList" role="listbox" aria-label="Fight song lines"></ol>' +
       '<p id="fightSongFeedback" class="fightSongFeedback" role="status" aria-live="polite"></p>' +
       '<div class="fightSongActions">' +
-      '<button type="button" class="btn" id="fightSongUpBtn">Move Up</button>' +
-      '<button type="button" class="btn" id="fightSongDownBtn">Move Down</button>' +
-      '<button type="button" class="btn" id="fightSongShuffleBtn">Shuffle Again</button>' +
       '<button type="button" class="btn good" id="fightSongCheckBtn">Check Order</button>' +
+      '<div class="fightSongSecondary">' +
+      '<button type="button" class="btn small" id="fightSongUpBtn">Move Up</button>' +
+      '<button type="button" class="btn small" id="fightSongDownBtn">Move Down</button>' +
+      '<button type="button" class="btn small" id="fightSongShuffleBtn">Shuffle Again</button>' +
+      '</div>' +
       '</div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -454,7 +453,6 @@
     overlay.hidden = false;
     overlay.setAttribute('aria-hidden', 'false');
     overlay.classList.add('is-open');
-    if (typeof document !== 'undefined') document.body.classList.add('mission-detail-open');
     if (checkBtn && checkBtn.focus) checkBtn.focus();
   }
 

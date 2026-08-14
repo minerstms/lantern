@@ -452,5 +452,99 @@ if (LOCKED_LINES[6].includes('\u2019') && LOCKED_LINES[7].includes('\u2019') && 
   ok('locked apostrophes are the school-provided curly marks');
 } else bad('apostrophes', LOCKED_LINES.slice(6));
 
+const fightSongRoute = handlersSrc.slice(
+  handlersSrc.indexOf("path === '/api/missions/fight-song/check'"),
+  handlersSrc.indexOf("path === '/api/missions/teacher'")
+);
+const triviaStartRoute = handlersSrc.slice(
+  handlersSrc.indexOf("path === '/api/missions/trivia/run/start'"),
+  handlersSrc.indexOf("path === '/api/missions/trivia/answer'")
+);
+const thankYouSrc = fs.readFileSync(path.join(root, 'worker/thank-you-mission.js'), 'utf8');
+const pollVoteSrc = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
+const overlaid = overlayFightSongMission([]);
+const fightMeta = overlaid.find((m) => m.id === FIGHT_SONG_MISSION_ID);
+
+{
+  const studentDb = makeDb();
+  const student = await checkFightSongOrder(studentDb, null, {
+    characterName: '20889',
+    order: FIGHT_SONG_CANONICAL_IDS.slice(),
+  });
+  if (student.ok && student.correct && student.rewarded) ok('1c. student can check Fight Song');
+  else bad('1c. student check', student);
+}
+
+{
+  const roles = [
+    ['teacher', 'staff:mrradle'],
+    ['staff', 'staff:office'],
+    ['admin', 'staff:admin'],
+  ];
+  let allOk = true;
+  for (const [label, key] of roles) {
+    const db = makeDb();
+    const res = await checkFightSongOrder(db, null, {
+      characterName: key,
+      order: FIGHT_SONG_CANONICAL_IDS.slice(),
+    });
+    if (!(res.ok && res.correct && res.completed && res.rewarded && db._txs.size === 1)) {
+      allOk = false;
+      bad('role check ' + label, res);
+    }
+  }
+  if (allOk) {
+    ok('2c. teacher can check Fight Song');
+    ok('3c. staff can check Fight Song');
+    ok('4c. admin can check Fight Song');
+  }
+}
+
+if (
+  fightSongRoute.includes('requireMissionSession') &&
+  fightSongRoute.includes('resolveParticipantMissionIdentity') &&
+  fightSongRoute.includes('checkFightSongOrder') &&
+  !fightSongRoute.includes('students_only') &&
+  !fightSongRoute.includes("participantKind !== 'student'")
+) {
+  ok('5c. no role gets students_only solely for Fight Song');
+} else bad('5c. fight-song students_only leftover', fightSongRoute.slice(0, 400));
+
+if (fightMeta && fightMeta.participant_scope === 'everyone') {
+  ok('Fight Song overlay scope is everyone');
+} else bad('overlay scope', fightMeta && fightMeta.participant_scope);
+
+if (
+  /#fightSongChallengeOverlay[\s\S]*max-height:\s*none/.test(missionsCss) &&
+  /#fightSongChallengeOverlay[\s\S]*overflow:\s*visible/.test(missionsCss) &&
+  !/#fightSongChallengeOverlay[\s\S]{0,400}max-height:\s*min\(92vh/.test(missionsCss)
+) {
+  ok('15c. natural scrolling CSS has no Fight Song inner max-height pane');
+} else bad('15c. fight song scroll css');
+
+if (
+  !clientSrc.includes('mission-detail-open') &&
+  missionsCss.includes('.missionDetailPanel') &&
+  missionsCss.includes('max-height: min(92vh, 92dvh)')
+) {
+  ok('16c. Fight Song no longer uses body mission-detail-open scroll lock');
+} else bad('16c. body lock');
+
+if (
+  triviaStartRoute.includes("participantKind !== 'student'") &&
+  triviaStartRoute.includes('students_only') &&
+  handlersSrc.includes("path === '/api/missions/trivia/answer'")
+) {
+  ok('17c. trivia student-only behavior remains unchanged');
+} else bad('17c. trivia gate');
+
+if (thankYouSrc.includes("role !== 'student'") && thankYouSrc.includes('students_only')) {
+  ok('18c. Thank a Teacher behavior remains unchanged');
+} else bad('18c. thank-you');
+
+if (pollVoteSrc.includes('already_voted: true') && pollVoteSrc.includes('lantern_poll_votes') && pollVoteSrc.includes('creditPollCompletionReward')) {
+  ok('19c. poll already_voted semantics remain unchanged');
+} else bad('19c. polls');
+
 console.log('\nFight Song Challenge #174:', passed, 'passed,', failed, 'failed');
 process.exit(failed ? 1 : 0);

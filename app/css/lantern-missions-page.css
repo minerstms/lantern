@@ -307,6 +307,18 @@ body.mission-detail-open {
   margin: 0 0.12em;
 }
 
+#fightSongChallengeOverlay.missionDetailOverlay {
+  overflow: auto;
+  align-items: flex-start;
+}
+
+#fightSongChallengeOverlay .fightSongPanel,
+#fightSongChallengeOverlay .missionDetailPanel {
+  max-height: none;
+  height: auto;
+  overflow: visible;
+}
+
 .fightSongList {
   display: flex;
   flex-direction: column;
@@ -321,11 +333,11 @@ body.mission-detail-open {
   width: 100%;
   min-height: 56px;
   padding: 14px 18px;
-  border-radius: 999px;
-  border: 2px solid rgba(90, 167, 255, 0.5);
-  background: rgba(90, 167, 255, 0.16);
+  border-radius: var(--r, 18px);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.06);
   color: var(--ink, #eaf0ff);
-  font-size: clamp(22px, 4vw, 28px);
+  font-size: clamp(22px, 4vw, 26px);
   font-weight: 800;
   line-height: 1.35;
   cursor: grab;
@@ -335,8 +347,8 @@ body.mission-detail-open {
 }
 
 .fightSongPill.is-selected {
-  border-color: rgba(255, 204, 102, 0.8);
-  background: rgba(255, 204, 102, 0.2);
+  border-color: rgba(90, 167, 255, 0.65);
+  background: rgba(90, 167, 255, 0.16);
 }
 
 .fightSongPill.is-dragging {
@@ -354,11 +366,22 @@ body.mission-detail-open {
   gap: 10px;
 }
 
-.fightSongActions .btn {
+.fightSongActions > .btn.good {
   width: 100%;
   min-height: 52px;
   font-size: 22px;
   font-weight: 800;
+}
+
+.fightSongSecondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fightSongSecondary .btn {
+  min-height: 44px;
+  flex: 1 1 auto;
 }
 
 .fightSongFeedback {
@@ -389,5 +412,12 @@ body.mission-detail-open {
     border-radius: 0;
     border-left: none;
     border-right: none;
+  }
+
+  #fightSongChallengeOverlay .fightSongPanel,
+  #fightSongChallengeOverlay .missionDetailPanel {
+    max-height: none;
+    height: auto;
+    overflow: visible;
   }
 }

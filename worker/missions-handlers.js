@@ -647,9 +647,6 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!identity.ok) {
       return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
     }
-    if (identity.participantKind !== 'student') {
-      return jsonResponse({ ok: false, error: 'students_only' }, 403, cors);
-    }
     let body;
     try {
       body = JSON.parse((await request.text()) || '{}');
