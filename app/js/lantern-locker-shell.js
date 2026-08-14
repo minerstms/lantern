@@ -237,11 +237,7 @@
         : account.username || '';
     var avatarUrl = profile.avatar || '';
     var bio = currentBio(locker);
-    var milestone = progress.next_milestone || {};
     var missions = progress.missions_completed != null ? progress.missions_completed : '—';
-    var earned = progress.nuggets_earned_lifetime != null ? progress.nuggets_earned_lifetime : '—';
-    var milestoneLabel = milestone.label || '—';
-    var milestonePct = milestone.progress != null ? milestone.progress : 0;
     host.innerHTML =
       '<div class="lockerHeaderGrid">' +
       '<section class="lockerHeaderProgress" aria-labelledby="lockerHeaderProgressTitle">' +
@@ -249,17 +245,8 @@
       '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">Missions Completed</span><span class="lockerHeaderMetricValue">' +
       escapeHtml(missions) +
       '</span></div>' +
-      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">Nuggets Earned</span><span class="lockerHeaderMetricValue">' +
-      escapeHtml(earned) +
-      '</span></div>' +
-      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">Next Milestone</span><span class="lockerHeaderMetricValue">' +
-      escapeHtml(milestoneLabel) +
-      '</span></div>' +
-      '<div class="lockerHeaderProgressBar" role="progressbar" aria-valuenow="' +
-      milestonePct +
-      '" aria-valuemin="0" aria-valuemax="100"><div class="lockerHeaderProgressFill" style="width:' +
-      milestonePct +
-      '%"></div></div>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">Nugget Balance</span><span class="lockerHeaderMetricValue" data-locker-nugget-balance>—</span></div>' +
+      '<div class="lockerHeaderMetric" data-locker-lifetime-row hidden><span class="lockerHeaderMetricLabel">Lifetime Nuggets Earned</span><span class="lockerHeaderMetricValue" data-locker-lifetime-earned>—</span></div>' +
       '</section>' +
       '<section class="lockerHeaderIdentity" aria-label="Profile">' +
       '<div class="lockerHeaderAvatarWrap">' +
@@ -302,6 +289,7 @@
     renderBioDisplay(host.querySelector('.lockerHeaderBio'), bio);
     bindBioEditor(aboutSection, locker);
     bindLockerOptionsUi(host);
+    bindLockerWalletMetrics(host);
     try {
       var hash = String((global.location && global.location.hash) || '');
       var tab = 'overview';
@@ -309,6 +297,30 @@
       else if (hash === '#store') tab = 'store';
       setActiveLockerOption(tab);
     } catch (e) {}
+  }
+
+  function bindLockerWalletMetrics(host) {
+    if (!host || !global.LanternWallet) return;
+    var balEl = host.querySelector('[data-locker-nugget-balance]');
+    if (balEl && typeof global.LanternWallet.bindElement === 'function') {
+      global.LanternWallet.bindElement(balEl, { format: 'number' });
+    }
+    var earnedEl = host.querySelector('[data-locker-lifetime-earned]');
+    var earnedRow = host.querySelector('[data-locker-lifetime-row]');
+    if (earnedEl && typeof global.LanternWallet.subscribe === 'function') {
+      global.LanternWallet.subscribe(function (snap) {
+        if (snap && snap.ok && snap.earned != null) {
+          earnedEl.textContent = String(snap.earned);
+          if (earnedRow) earnedRow.hidden = false;
+        } else {
+          earnedEl.textContent = '—';
+          if (earnedRow) earnedRow.hidden = true;
+        }
+      });
+    }
+    if (typeof global.LanternWallet.refreshBalance === 'function') {
+      global.LanternWallet.refreshBalance({ force: true });
+    }
   }
 
   function openAboutBioEditor() {

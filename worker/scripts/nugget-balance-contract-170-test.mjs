@@ -219,7 +219,7 @@ if (/usernameQuery/.test(indexSrc) && /searchParams.get\('username'\)/.test(inde
 if (/Cache-Control': 'private, no-store'/.test(indexSrc)) ok('16. JSON responses no-store');
 else bad('json no-store');
 
-if (/realStudentSelf/.test(indexSrc) && /lantern_wallets/.test(indexSrc)) {
+if ((/realStudentSelf/.test(indexSrc) || /productionSelf/.test(indexSrc)) && /lantern_wallets/.test(indexSrc)) {
   ok('11/33. real student/staff self never falls through to lantern_wallets as authority');
 } else bad('wallet fallback gate');
 

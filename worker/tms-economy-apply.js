@@ -7,8 +7,70 @@
  * Students use TMS student_id. Only genuine TMS "student not found" (demo/persona)
  * may fall back to the legacy Lantern wallet.
  */
-import { tmsEconomyTransact, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
+import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { isStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
+
+function finiteLedgerNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * One read of the authoritative TMS snapshot for a Lantern economy key.
+ * Never invents 0 from a miss. Real TMS 0 is returned as 0.
+ */
+export async function fetchAuthoritativeEconomySnapshot(env, db, characterName) {
+  const key = String(characterName || '').trim();
+  if (!key || !env) {
+    return { ok: false, error: 'missing_identity', available: null, earned: null, spent: null };
+  }
+  if (isStaffEconomyKey(key)) {
+    if (!db) return { ok: false, error: 'db_required', available: null, earned: null, spent: null };
+    const staffPrincipal = await resolveStaffTmsPrincipal(db, key);
+    if (!staffPrincipal.ok) {
+      return { ok: false, error: 'tms_identity_not_linked', available: null, earned: null, spent: null };
+    }
+    const staffBal = await tmsStaffEconomyBalance(env, staffPrincipal.tmsStaffId);
+    if (!staffBal.ok) {
+      return {
+        ok: false,
+        error: staffBal.error || 'staff_balance_unavailable',
+        notFound: !!staffBal.notFound,
+        available: null,
+        earned: null,
+        spent: null,
+      };
+    }
+    return {
+      ok: true,
+      available: finiteLedgerNumber(staffBal.available),
+      earned: finiteLedgerNumber(staffBal.earned),
+      spent: finiteLedgerNumber(staffBal.spent),
+      authority: 'tms_nuggets_staff',
+      history: staffBal.recentHistory || [],
+    };
+  }
+  const tms = await tmsEconomyBalance(env, key);
+  if (!tms.ok) {
+    return {
+      ok: false,
+      error: tms.error || 'balance_unavailable',
+      notFound: !!tms.notFound,
+      available: null,
+      earned: null,
+      spent: null,
+    };
+  }
+  return {
+    ok: true,
+    available: finiteLedgerNumber(tms.available),
+    earned: finiteLedgerNumber(tms.earned),
+    spent: finiteLedgerNumber(tms.spent),
+    authority: 'tms_nuggets',
+    history: tms.recentHistory || [],
+  };
+}
 
 export async function applyAuthoritativeNuggetDelta(db, env, spec) {
   spec = spec || {};

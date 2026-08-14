@@ -422,6 +422,34 @@
     };
   }
 
+  function clearWalletState() {
+    inFlight = null;
+    lastFetchAt = 0;
+    state.status = 'idle';
+    state.ok = false;
+    state.available = null;
+    state.earned = null;
+    state.spent = null;
+    state.lastGoodAvailable = null;
+    state.stale = false;
+    state.error = null;
+    state.code = null;
+    state.principal_type = null;
+    state.economy_authority = null;
+    state.needs_linking = false;
+    state.no_nugget_account = false;
+    notify();
+  }
+
+  function invalidateWallet() {
+    lastFetchAt = 0;
+    inFlight = null;
+    if (state.status === 'ok') {
+      state.stale = true;
+    }
+    return refreshBalance({ force: true });
+  }
+
   function refreshAllVisibleWalletDisplays(opts) {
     opts = opts || {};
     var shared = refreshBalance({ force: true });
@@ -461,6 +489,8 @@
     fetchBalance: fetchAuthoritativeBalance,
     fetchMyBalance: fetchMyBalance,
     refreshAllVisible: refreshAllVisibleWalletDisplays,
+    clear: clearWalletState,
+    invalidate: invalidateWallet,
     getState: getState,
     getBalance: getBalance,
     refreshBalance: refreshBalance,

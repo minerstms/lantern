@@ -10,7 +10,7 @@ Default product amount is **1 Nugget** unless a feature explicitly configures an
 |-------|------|
 | TMS Nuggets | Authoritative balance + transactions |
 | Lantern Worker | Initiates earn/spend; mirrors `lantern_transactions` for history/achievements |
-| `lantern_wallets` | Demo/persona fallback for unrecognized **students only**. Never for staff. |
+| `lantern_wallets` | Isolated demo/persona fallback only. Never authenticated production self-economy. Never staff. |
 | Client / localStorage | Display only. Never spendable authority. |
 
 Student principal: session MTSS `student_id` (exact).  
@@ -102,7 +102,8 @@ SIGNED-IN ACCOUNT
 |---------|------|--------|
 | Games pill, pregame, Missions pill | signed-in self | `LanternWallet.refreshBalance()` / `bindElement` |
 | Teacher Tools sidebar | signed-in self | same helper |
-| Locker Store hero / available | signed-in self | same helper |
+| Locker Nugget Balance + Store hero / available | signed-in self | same helper |
+| Locker Lifetime Nuggets Earned | signed-in self | same helper `earned` (hidden if TMS unavailable) |
 | Avatar crop affordability | signed-in self | same helper |
 | Admin Nugget Adjustment | **selected target** | `GET /api/economy/balance?character_name=<target key>` (TMS) |
 | Teacher Rewards / Redeemer | **selected student target** | TMS Nuggets bridge (`/api/tms-nuggets/*`) |

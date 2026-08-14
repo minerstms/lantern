@@ -227,7 +227,7 @@ async function testStudentResponseShape() {
   if (body.account.username !== 'lucas') return bad('student username', body.account);
   if (body.identity.economy_character_name !== '20889') return bad('economy key', body.identity);
   if (body.identity.economy_key !== '20889') return bad('economy_key field', body.identity);
-  if (body.wallet.available !== true || body.wallet.balance !== 12) return bad('wallet balance', body.wallet);
+  if (body.wallet.available !== false || body.wallet.balance != null) return bad('wallet without TMS must not use lantern_wallets', body.wallet);
   if (!body.submissions.available || !Array.isArray(body.submissions.items)) return bad('submissions category', body.submissions);
   if (body.achievements.available !== true) return bad('achievements available', body.achievements);
   if (!Array.isArray(body.achievements.items) || body.achievements.items.length < 18) return bad('achievement catalog size', body.achievements);
@@ -268,8 +268,8 @@ async function testTeacherResponseShape() {
   const body = await buildLockerMeResponse(account, { DB: makeDb(state) }, 'https://example.test');
   if (!body.ok) return bad('teacher response ok', body);
   if (body.identity.student_character_name !== null) return bad('teacher no student_character_name', body.identity);
-  if (body.identity.economy_key !== 'teacher_lee') return bad('teacher economy_key', body.identity);
-  if (body.wallet.available !== true || body.wallet.balance !== 5) return bad('teacher wallet', body.wallet);
+  if (body.identity.economy_key !== 'staff:mslee') return bad('teacher economy_key', body.identity);
+  if (body.wallet.available !== false || body.wallet.balance != null) return bad('teacher wallet must not use lantern_wallets', body.wallet);
   if (body.achievements.available !== true) return bad('teacher achievements available', body.achievements);
   if (body.equipped_items.available !== true) return bad('teacher equipped available', body.equipped_items);
   if (body.recognitions.available !== false) return bad('teacher recognitions n/a', body.recognitions);

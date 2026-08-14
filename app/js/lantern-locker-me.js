@@ -113,7 +113,7 @@
     var acct = locker.account || {};
     var role = String(acct.role || '').trim().toLowerCase();
     if (role === 'teacher' || role === 'admin') {
-      return String(id.teacher_id || acct.username || '').trim();
+      return '';
     }
     return String(id.economy_character_name || id.student_character_name || acct.username || '').trim();
   }

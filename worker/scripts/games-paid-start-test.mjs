@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import {
   resolveEconomyGamePlayTransact,
   pilotSelfEconomyKey,
+  SELF_ECONOMY_TRANSACT_KINDS,
 } from '../economy-balance-auth.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -68,10 +69,10 @@ if (playAuthDisplay.ok && playAuthDisplay.characterName === '20889') {
   ok('game_play transact resolves key when client omits character_name');
 } else bad('game_play omit character_name', playAuthDisplay);
 
-if (workerIndex.includes('resolveEconomyGamePlayTransact') && workerIndex.includes("kindEarly === 'game_play'")) {
+if (workerIndex.includes('isSelfEconomyTransactKind(kindEarly)') && workerIndex.includes('resolveEconomySelfTransact')) {
   ok('worker transact routes game_play through session resolver');
 } else bad('worker game_play hook');
-if (workerIndex.includes("kindEarly === 'game_play' || kindEarly === 'game_win'")) {
+if (SELF_ECONOMY_TRANSACT_KINDS.includes('game_play') && SELF_ECONOMY_TRANSACT_KINDS.includes('game_win')) {
   ok('worker transact routes game_win through the same session resolver');
 } else bad('worker game_win hook');
 if (workerIndex.includes('ensureFirstGameMissionCompletion')) {

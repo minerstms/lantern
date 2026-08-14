@@ -8,6 +8,7 @@
  * fake lantern_wallets success. Vote persistence is independent of reward.
  */
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
+import { isKnownDemoPersonaName } from './demo-persona-guard.js';
 
 export function pollCompleteReference(pollId, characterName) {
   const poll = String(pollId || '').trim();
@@ -44,6 +45,9 @@ export async function creditPollCompletionReward(db, env, pollId, characterName)
     note: 'Poll participation',
     reference: pollCompleteReference(poll, who),
     meta: { poll_id: poll },
+    // Production authenticated principals fail closed. Known demo personas may still
+    // use isolated lantern_wallets; they are never a production spendable authority.
+    allowLegacyWallet: isKnownDemoPersonaName(who),
   });
 
   if (!applied.ok) {

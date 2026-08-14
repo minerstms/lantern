@@ -55,6 +55,29 @@ export function resolveEconomyBalanceRead(account, requestedCharacterName, pilot
   return { ok: false, code: 403, error: 'forbidden' };
 }
 
+/** Self-directed kinds that must use the signed-in session principal, never a client name. */
+export const SELF_ECONOMY_TRANSACT_KINDS = [
+  'game_play',
+  'game_win',
+  'daily_hunt',
+  'hidden_nugget',
+  'daily_checkin',
+  'avatar_upload',
+  'cosmetic',
+];
+
+export function isSelfEconomyTransactKind(kind) {
+  return SELF_ECONOMY_TRANSACT_KINDS.includes(String(kind || '').trim());
+}
+
+/**
+ * Resolve economy character for self-directed charges/rewards (play, win, hunt, avatar, cosmetic).
+ * Session-derived for students and staff; ignores client-supplied display names.
+ */
+export function resolveEconomySelfTransact(account, requestedCharacterName, pilotEconomyCharacterName) {
+  return resolveEconomyGamePlayTransact(account, requestedCharacterName, pilotEconomyCharacterName);
+}
+
 /**
  * Resolve economy character for game_play charges.
  * Session-derived for students and staff; ignores client-supplied display names for self-spend.

@@ -36,7 +36,7 @@ import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './mis
 import { durableAccountKeyFromPilotAccount } from './durable-account-key.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { creditPollCompletionReward, pollRewardResponseFields } from './poll-completion-reward.js';
-import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact } from './economy-balance-auth.js';
+import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact, resolveEconomySelfTransact, isSelfEconomyTransactKind } from './economy-balance-auth.js';
 import {
   resolveRegisteredLeaderboardGame,
   leaderboardGameNames,
@@ -5965,13 +5965,12 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       }, 200, cors);
     }
 
-    const realStudentSelf = !!(
+    const productionSelf = !!(
       readAuth.session_scoped &&
       pilotAccount &&
-      String(pilotAccount.role || '').trim().toLowerCase() === 'student' &&
-      String(pilotAccount.mtss_student_id || '').trim()
+      !isKnownDemoPersonaName(characterName)
     );
-    if (realStudentSelf && !isKnownDemoPersonaName(characterName)) {
+    if (productionSelf) {
       if (tms.notFound) {
         return jsonResponse({
           ok: false,
@@ -6030,8 +6029,9 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     const pilotAccount = await getPilotAccountFromRequest(request, env);
     const kindEarly = String(body.kind || '').trim() || 'misc';
     let characterName = (body.character_name || '').trim();
-    if (kindEarly === 'game_play' || kindEarly === 'game_win') {
-      const playAuth = resolveEconomyGamePlayTransact(
+    let selfSessionScoped = false;
+    if (isSelfEconomyTransactKind(kindEarly)) {
+      const playAuth = resolveEconomySelfTransact(
         pilotAccount,
         characterName,
         pilotEconomyCharacterName
@@ -6040,6 +6040,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         return jsonResponse({ ok: false, error: playAuth.error }, playAuth.code || 403, cors);
       }
       characterName = playAuth.characterName;
+      selfSessionScoped = !!playAuth.session_scoped;
     } else if (!characterName) {
       return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
     }
@@ -6111,7 +6112,11 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       }
       // Prompt #96 Atomic Purchase Rule: TMS Nuggets spends first (authoritative, idempotent by
       // idempotencyKey); the cosmetic is only granted after that succeeds. See economy-cosmetic.js.
-      const purchase = await executeCosmeticPurchase(db, characterName, cosmeticId, { idempotencyKey, env });
+      const purchase = await executeCosmeticPurchase(db, characterName, cosmeticId, {
+        idempotencyKey,
+        env,
+        allowLegacyWallet: !(selfSessionScoped && !isKnownDemoPersonaName(characterName)),
+      });
       if (!purchase.ok) {
         return jsonResponse(purchase, 400, cors);
       }
@@ -6239,6 +6244,15 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     if (!tms.notFound) {
       const status = tms.code === 'insufficient_balance' ? 400 : (tms.httpStatus && tms.httpStatus >= 400 ? tms.httpStatus : 502);
       return jsonResponse({ ok: false, error: tms.error || 'tms_transact_failed', code: tms.code }, status, cors);
+    }
+
+    if (selfSessionScoped && !isKnownDemoPersonaName(characterName)) {
+      return jsonResponse({
+        ok: false,
+        error: 'tms_student_not_found',
+        code: 'needs_link',
+        character_name: characterName,
+      }, 404, cors);
     }
 
     const walletRow = await db.prepare('SELECT balance FROM lantern_wallets WHERE character_name = ?').bind(characterName).first();

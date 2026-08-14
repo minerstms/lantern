@@ -84,6 +84,16 @@
     try {
       delete global.LANTERN_PILOT_ME;
     } catch (e3) {}
+    try {
+      if (global.LanternWallet && typeof global.LanternWallet.clear === 'function') {
+        global.LanternWallet.clear();
+      }
+    } catch (e4) {}
+    try {
+      if (global.LanternLockerMe && typeof global.LanternLockerMe.invalidateLockerMe === 'function') {
+        global.LanternLockerMe.invalidateLockerMe();
+      }
+    } catch (e5) {}
   }
 
   /** Sync session cache only — do not write LANTERN_ADOPTED_CHARACTER (production identity is server session). */

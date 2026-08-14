@@ -302,7 +302,7 @@ if (paidStartJs.includes('getLastRunId') && paidStartJs.includes('run_id: runId'
   ok('paid-start exposes run_id for leaderboard idempotency');
 } else bad('paid-start run_id');
 
-if (workerIndex.includes('resolveEconomyGamePlayTransact') && workerIndex.includes("kindEarly === 'game_play' || kindEarly === 'game_win'")) {
+if (workerIndex.includes('isSelfEconomyTransactKind(kindEarly)') && workerIndex.includes('resolveEconomySelfTransact')) {
   ok('game_play and game_win both use session-derived identity');
 } else bad('game_win session identity hook');
 

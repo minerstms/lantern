@@ -120,9 +120,10 @@ export async function executeCosmeticPurchase(db, characterName, cosmeticId, opt
           return { ok: false, error: 'insufficient', need: cost, available: null, cosmetic_id: cid };
         }
         return { ok: false, error: tmsResult.error || 'purchase_failed', cosmetic_id: cid };
+      } else if (options.allowLegacyWallet === false) {
+        return { ok: false, error: 'tms_student_not_found', cosmetic_id: cid };
       }
-      // tmsResult.notFound === true -> not a real TMS student; fall through to the legacy wallet
-      // path below exactly as before Prompt #96 (demo/dev fixtures only -- no real currency).
+      // tmsResult.notFound === true -> demo/persona fixtures only may use lantern_wallets.
     }
   }
 

@@ -16,7 +16,8 @@ import { syncDerivedAchievements } from './locker-achievements.js';
 import { fetchLockerProgress } from './locker-progress.js';
 import { buildLockerPersonalFeed } from './locker-personal-feed.js';
 import { normalizeBioFromDb, sanitizeBioInput, resolveProfileBio } from './locker-bio.js';
-import { tmsEconomyBalance } from './tms-economy-bridge.js';
+import { staffEconomyKey } from './economy-balance-auth.js';
+import { fetchAuthoritativeEconomySnapshot } from './tms-economy-apply.js';
 
 const LOCKER_FORBIDDEN_QUERY_PARAMS = [
   'character_name',
@@ -107,7 +108,7 @@ function resolveEconomyKey(account) {
     return account._economy_character_name || account.student_character_name || account.username || null;
   }
   if (role === 'teacher' || role === 'admin') {
-    return account.teacher_id || account.username || null;
+    return staffEconomyKey(account) || null;
   }
   return null;
 }
@@ -181,37 +182,27 @@ function mapTmsHistoryToWalletTransactions(characterName, recentHistory) {
 // not resolve to a real TMS student (demo/persona characters, local dev/test fixtures).
 async function fetchWalletBundle(db, characterName, env) {
   if (!characterName) {
-    return lockerCategory(false, 'account_link_missing', [], { balance: 0, transactions: [] });
+    return lockerCategory(false, 'account_link_missing', [], { balance: null, earned: null, spent: null, transactions: [] });
   }
   if (env) {
-    const tms = await tmsEconomyBalance(env, characterName);
-    if (tms && tms.ok) {
-      const transactions = mapTmsHistoryToWalletTransactions(characterName, tms.recentHistory);
-      return lockerCategory(true, null, transactions, { balance: Number(tms.available) || 0, transactions });
+    const snap = await fetchAuthoritativeEconomySnapshot(env, db, characterName);
+    if (snap && snap.ok && snap.available != null) {
+      const transactions = mapTmsHistoryToWalletTransactions(characterName, snap.history);
+      return lockerCategory(true, null, transactions, {
+        balance: snap.available,
+        earned: snap.earned,
+        spent: snap.spent,
+        transactions,
+      });
     }
+    return lockerCategory(false, (snap && snap.error) || 'unavailable', [], {
+      balance: null,
+      earned: null,
+      spent: null,
+      transactions: [],
+    });
   }
-  const row = await db
-    .prepare('SELECT balance, updated_at FROM lantern_wallets WHERE character_name = ?')
-    .bind(characterName)
-    .first();
-  const balance = row ? Number(row.balance) || 0 : 0;
-  const recent = await db
-    .prepare(
-      'SELECT id, character_name, delta, kind, source, note, created_at, meta_json FROM lantern_transactions WHERE character_name = ? ORDER BY created_at DESC LIMIT 50'
-    )
-    .bind(characterName)
-    .all();
-  const transactions = (recent.results || []).map((r) => ({
-    id: r.id,
-    character_name: r.character_name,
-    delta: r.delta,
-    kind: r.kind || '',
-    source: r.source || '',
-    note: r.note || '',
-    created_at: r.created_at,
-    meta: parseTxMeta(r.meta_json),
-  }));
-  return lockerCategory(true, null, transactions, { balance, transactions });
+  return lockerCategory(false, 'unavailable', [], { balance: null, earned: null, spent: null, transactions: [] });
 }
 
 async function fetchAvatarProfile(db, origin, characterName) {
@@ -526,7 +517,9 @@ export async function buildLockerMeResponse(account, env, origin) {
     economyKey
       ? fetchWalletBundle(db, economyKey, env)
       : lockerCategory(false, role === 'student' ? 'account_link_missing' : 'not_applicable_for_role', [], {
-          balance: 0,
+          balance: null,
+          earned: null,
+          spent: null,
           transactions: [],
         }),
     economyKey ? fetchCosmeticSpendRows(db, economyKey) : Promise.resolve([]),
@@ -576,7 +569,9 @@ export async function buildLockerMeResponse(account, env, origin) {
   const walletCategory = {
     available: walletBundle.available,
     reason: walletBundle.reason,
-    balance: walletBundle.balance != null ? walletBundle.balance : 0,
+    balance: walletBundle.balance != null ? walletBundle.balance : null,
+    earned: walletBundle.earned != null ? walletBundle.earned : null,
+    spent: walletBundle.spent != null ? walletBundle.spent : null,
     transactions: walletBundle.transactions || [],
   };
 
