@@ -383,6 +383,29 @@
     </div>
   </div>
 
+  <!-- Prompt #33 — Delete / Archive student (inspect first; typed DELETE confirms) -->
+  <div class="overlay" id="studentDeleteOverlay" aria-hidden="true">
+    <div class="modal" style="max-width:560px;" role="dialog" aria-labelledby="studentDeleteTitle" aria-modal="true">
+      <div class="modalHd">
+        <div class="h" id="studentDeleteTitle">Delete student</div>
+        <button type="button" class="x" id="studentDeleteCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <p id="studentDeleteIdentity" class="acctPanelHint"></p>
+      <div id="studentDeleteBody"></div>
+      <p id="studentDeleteMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
+      <div id="studentDeleteConfirmWrap" style="display:none;margin:12px 0 0;">
+        <label for="studentDeleteConfirmInput">Type DELETE to confirm permanent deletion</label>
+        <input id="studentDeleteConfirmInput" type="text" autocomplete="off" maxlength="16" />
+        <div id="studentDeleteLoginChoices" style="display:none;margin:10px 0 0;"></div>
+      </div>
+      <div class="acctPanelActions" style="margin-top:12px;">
+        <button type="button" class="btn" id="studentDeleteCancelBtn">Cancel</button>
+        <button type="button" class="btn" id="studentDeleteArchiveBtn" hidden>Archive Student</button>
+        <button type="button" class="btn" id="studentDeleteConfirmBtn" hidden>Permanently Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Exact Locker avatar crop overlay (shared LanternAvatarCropper) -->
   <div class="overlay" id="avatarCropOverlay">
     <div class="modal" style="max-width:520px;">
@@ -3852,7 +3875,7 @@
               ' · Must change password: ' + mcpLabel +
               (inconsistency ? ' · <span class="rosterStatusChip rosterStatusChip--bad">' + escapeRosterHtml(inconsistency) + '</span>' : '') +
             '</p>' +
-            '<p class="acctPanelHint" style="margin:0 0 10px;">Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Lantern login and Archive stay as separate actions.</p>' +
+            '<p class="acctPanelHint" style="margin:0 0 10px;">Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Delete is only for mistaken rows with no history. Archive keeps history and removes the student from the active roster. Lantern login Archive stays separate.</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
@@ -3869,6 +3892,31 @@
           openEditStudentId(s, editorMount);
         });
         actions.appendChild(bEdit);
+
+        if (s.student_id) {
+          var bDel = document.createElement('button');
+          bDel.type = 'button';
+          bDel.className = 'btn';
+          bDel.textContent = 'Delete';
+          bDel.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openStudentDeleteModal(s);
+          });
+          actions.appendChild(bDel);
+          if (String(s.tms_status || '') === 'Active' || Number(s.is_active) === 1) {
+            var bTmsArch = document.createElement('button');
+            bTmsArch.type = 'button';
+            bTmsArch.className = 'btn';
+            bTmsArch.textContent = 'Archive Student';
+            bTmsArch.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              openStudentDeleteModal(s, { preferArchive: true });
+            });
+            actions.appendChild(bTmsArch);
+          }
+        }
 
         if (s.exact_match_linkable) {
           var bLink = document.createElement('button');
@@ -4044,6 +4092,218 @@
       if (window.LanternCollapsibleList && typeof window.LanternCollapsibleList.wireRecords === 'function') {
         window.LanternCollapsibleList.wireRecords(body);
       }
+    }
+
+    var studentDeleteState = { student: null, inspect: null, busy: false };
+
+    function closeStudentDeleteModal() {
+      var overlay = document.getElementById('studentDeleteOverlay');
+      if (overlay) {
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+      studentDeleteState.student = null;
+      studentDeleteState.inspect = null;
+      studentDeleteState.busy = false;
+      var input = document.getElementById('studentDeleteConfirmInput');
+      if (input) input.value = '';
+      var msg = document.getElementById('studentDeleteMsg');
+      if (msg) msg.textContent = '';
+    }
+
+    function setStudentDeleteMsg(text, kind) {
+      var el = document.getElementById('studentDeleteMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'acctPanelHint' + (kind === 'err' ? ' usersMsg--err' : '');
+    }
+
+    function renderStudentDeleteInspect(inspect, opts) {
+      opts = opts || {};
+      var body = document.getElementById('studentDeleteBody');
+      var confirmWrap = document.getElementById('studentDeleteConfirmWrap');
+      var confirmBtn = document.getElementById('studentDeleteConfirmBtn');
+      var archiveBtn = document.getElementById('studentDeleteArchiveBtn');
+      var loginChoices = document.getElementById('studentDeleteLoginChoices');
+      if (!body) return;
+      if (!inspect || !inspect.ok) {
+        body.innerHTML = '<p class="acctPanelHint">Could not inspect this student.</p>';
+        if (confirmWrap) confirmWrap.style.display = 'none';
+        if (confirmBtn) confirmBtn.hidden = true;
+        if (archiveBtn) archiveBtn.hidden = !(inspect && inspect.can_archive);
+        return;
+      }
+      var cats = Array.isArray(inspect.categories) ? inspect.categories : [];
+      var login = inspect.lantern_login || {};
+      var lines = [];
+      if (inspect.can_permanently_delete) {
+        lines.push('<p><strong>This student appears safe to delete:</strong></p><ul>');
+        lines.push('<li>No behavior history</li><li>No Nugget history</li><li>No store history</li>');
+        lines.push('<li>Lantern login: ' + (login.linked ? escapeRosterHtml(login.username || 'Linked') : 'None') + '</li>');
+        lines.push('</ul><p>This cannot be undone.</p>');
+      } else {
+        lines.push('<p><strong>Cannot permanently delete this student because historical records exist.</strong></p>');
+        if (cats.length) {
+          lines.push('<ul>' + cats.map(function(c) { return '<li>' + escapeRosterHtml(c) + '</li>'; }).join('') + '</ul>');
+        }
+        lines.push('<p>Use Archive Student to keep history and remove them from the active roster.</p>');
+      }
+      if (login.linked) {
+        lines.push('<p>Linked Lantern login: <strong>' + escapeRosterHtml(login.username || '') + '</strong>' + (login.has_history ? ' — has Lantern activity (will not be hard-deleted).' : ' — no Lantern activity.') + '</p>');
+      }
+      body.innerHTML = lines.join('');
+      if (confirmWrap) confirmWrap.style.display = inspect.can_permanently_delete ? 'block' : 'none';
+      if (confirmBtn) confirmBtn.hidden = !inspect.can_permanently_delete;
+      if (archiveBtn) archiveBtn.hidden = !inspect.can_archive;
+      if (loginChoices) {
+        if (inspect.can_permanently_delete && login.linked && login.can_delete_login) {
+          loginChoices.style.display = 'block';
+          loginChoices.innerHTML =
+            '<p class="acctPanelHint">This roster row is linked to a Lantern login. Choose one:</p>' +
+            '<label><input type="radio" name="studentDeleteLoginAction" value="delete_login" /> Delete roster + linked mistaken Lantern login</label><br/>' +
+            '<label><input type="radio" name="studentDeleteLoginAction" value="unlink" /> Delete roster only and unlink Lantern account</label>';
+        } else if (inspect.can_permanently_delete && login.linked && login.has_history) {
+          loginChoices.style.display = 'block';
+          loginChoices.innerHTML = '<p class="acctPanelHint">The linked Lantern login has activity, so it will be unlinked — not deleted.</p>';
+        } else {
+          loginChoices.style.display = 'none';
+          loginChoices.innerHTML = '';
+        }
+      }
+      if (opts.preferArchive && inspect.can_archive && archiveBtn) archiveBtn.focus();
+    }
+
+    function openStudentDeleteModal(student, opts) {
+      opts = opts || {};
+      var sid = student && student.student_id ? String(student.student_id).trim() : '';
+      if (!sid) return;
+      studentDeleteState.student = student;
+      studentDeleteState.inspect = null;
+      var overlay = document.getElementById('studentDeleteOverlay');
+      var ident = document.getElementById('studentDeleteIdentity');
+      var body = document.getElementById('studentDeleteBody');
+      var confirmWrap = document.getElementById('studentDeleteConfirmWrap');
+      var confirmBtn = document.getElementById('studentDeleteConfirmBtn');
+      var archiveBtn = document.getElementById('studentDeleteArchiveBtn');
+      var input = document.getElementById('studentDeleteConfirmInput');
+      if (ident) {
+        ident.textContent = (student.student_name || 'Student') + ' · School ID: ' + sid;
+      }
+      if (body) body.innerHTML = '<p class="acctPanelHint">Checking history…</p>';
+      if (confirmWrap) confirmWrap.style.display = 'none';
+      if (confirmBtn) confirmBtn.hidden = true;
+      if (archiveBtn) archiveBtn.hidden = true;
+      if (input) input.value = '';
+      setStudentDeleteMsg('', '');
+      if (overlay) {
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+      }
+      postAdminJson('/api/admin/students/delete-inspect', { student_id: sid }).then(function(res) {
+        if (!studentDeleteState.student || String(studentDeleteState.student.student_id || '') !== sid) return;
+        if (!res || !res.body || !res.body.ok) {
+          setStudentDeleteMsg((res && res.body && (res.body.message || res.body.error)) || 'Inspect failed.', 'err');
+          renderStudentDeleteInspect(res && res.body, opts);
+          return;
+        }
+        studentDeleteState.inspect = res.body;
+        renderStudentDeleteInspect(res.body, opts);
+      }).catch(function() {
+        setStudentDeleteMsg('Inspect failed.', 'err');
+      });
+    }
+
+    function selectedStudentDeleteLoginAction() {
+      var chosen = document.querySelector('input[name="studentDeleteLoginAction"]:checked');
+      return chosen ? String(chosen.value || '') : '';
+    }
+
+    var studentDeleteOverlay = document.getElementById('studentDeleteOverlay');
+    if (studentDeleteOverlay) {
+      studentDeleteOverlay.addEventListener('click', function(ev) {
+        if (ev.target === studentDeleteOverlay) closeStudentDeleteModal();
+      });
+    }
+    var studentDeleteCloseBtn = document.getElementById('studentDeleteCloseBtn');
+    if (studentDeleteCloseBtn) studentDeleteCloseBtn.addEventListener('click', closeStudentDeleteModal);
+    var studentDeleteCancelBtn = document.getElementById('studentDeleteCancelBtn');
+    if (studentDeleteCancelBtn) studentDeleteCancelBtn.addEventListener('click', closeStudentDeleteModal);
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key !== 'Escape') return;
+      var overlay = document.getElementById('studentDeleteOverlay');
+      if (overlay && overlay.classList.contains('show')) {
+        ev.preventDefault();
+        closeStudentDeleteModal();
+      }
+    });
+    var studentDeleteConfirmBtn = document.getElementById('studentDeleteConfirmBtn');
+    if (studentDeleteConfirmBtn) {
+      studentDeleteConfirmBtn.addEventListener('click', function() {
+        if (studentDeleteState.busy) return;
+        var student = studentDeleteState.student;
+        var inspect = studentDeleteState.inspect;
+        if (!student || !inspect || !inspect.can_permanently_delete) return;
+        var typed = String((document.getElementById('studentDeleteConfirmInput') || {}).value || '').trim();
+        if (typed !== 'DELETE') {
+          setStudentDeleteMsg('Type DELETE to confirm.', 'err');
+          return;
+        }
+        var payload = { student_id: String(student.student_id || '').trim(), confirm: 'DELETE' };
+        var login = inspect.lantern_login || {};
+        if (login.linked && login.can_delete_login) {
+          var action = selectedStudentDeleteLoginAction();
+          if (!action) {
+            setStudentDeleteMsg('Choose whether to delete or unlink the Lantern login.', 'err');
+            return;
+          }
+          payload.lantern_login_action = action;
+        } else if (login.linked && login.has_history) {
+          payload.lantern_login_action = 'unlink';
+        }
+        studentDeleteState.busy = true;
+        studentDeleteConfirmBtn.disabled = true;
+        postAdminJson('/api/admin/students/delete', payload).then(function(res) {
+          studentDeleteState.busy = false;
+          studentDeleteConfirmBtn.disabled = false;
+          if (!res || !res.body || !res.body.ok) {
+            setStudentDeleteMsg((res && res.body && (res.body.message || res.body.error)) || 'Delete failed.', 'err');
+            return;
+          }
+          closeStudentDeleteModal();
+          showStudentsRosterMsg('Deleted student ' + payload.student_id + '.', 'ok');
+          loadStudentsRoster();
+          loadUsers();
+        }).catch(function() {
+          studentDeleteState.busy = false;
+          studentDeleteConfirmBtn.disabled = false;
+          setStudentDeleteMsg('Delete failed.', 'err');
+        });
+      });
+    }
+    var studentDeleteArchiveBtn = document.getElementById('studentDeleteArchiveBtn');
+    if (studentDeleteArchiveBtn) {
+      studentDeleteArchiveBtn.addEventListener('click', function() {
+        if (studentDeleteState.busy) return;
+        var student = studentDeleteState.student;
+        if (!student || !student.student_id) return;
+        studentDeleteState.busy = true;
+        studentDeleteArchiveBtn.disabled = true;
+        postAdminJson('/api/admin/students/archive', { student_id: String(student.student_id).trim() }).then(function(res) {
+          studentDeleteState.busy = false;
+          studentDeleteArchiveBtn.disabled = false;
+          if (!res || !res.body || !res.body.ok) {
+            setStudentDeleteMsg((res && res.body && (res.body.message || res.body.error)) || 'Archive failed.', 'err');
+            return;
+          }
+          closeStudentDeleteModal();
+          showStudentsRosterMsg('Archived student ' + student.student_id + '. History was kept.', 'ok');
+          loadStudentsRoster();
+        }).catch(function() {
+          studentDeleteState.busy = false;
+          studentDeleteArchiveBtn.disabled = false;
+          setStudentDeleteMsg('Archive failed.', 'err');
+        });
+      });
     }
 
     function loadStudentsRoster() {

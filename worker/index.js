@@ -16,6 +16,14 @@ import {
 } from './admin-account-utils.js';
 import { ADD_STUDENT_PATH, addAuthoritativeStudent } from './admin-add-student.js';
 import {
+  STUDENT_ARCHIVE_PATH,
+  STUDENT_DELETE_INSPECT_PATH,
+  STUDENT_DELETE_PATH,
+  archiveStudent,
+  inspectStudentDelete,
+  permanentlyDeleteStudent,
+} from './admin-student-delete.js';
+import {
   validateStaffHonorific,
   validateStaffPublicDisplayName,
   propagateHonorificToLinkedAccounts,
@@ -2892,6 +2900,17 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }
     const action = String(body.action || '').trim();
     if (!action) return jsonResponse({ ok: false, error: 'action_required' }, 400, cors);
+    if (action === 'deleteStudent') {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'use_safe_delete',
+          message: 'Use Students → Delete. Permanent delete requires a server-side history inspection.',
+        },
+        400,
+        cors
+      );
+    }
     const bridge = await callTmsRosterBridge(env, 'admin/action', body);
     if (!bridge.ok) {
       const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
@@ -3351,6 +3370,56 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       callTmsRosterBridge,
       hashPassword: pilotHashPassword,
       randomSalt: pilotRandomSaltHex,
+      adminUsername: String(account.username || '').trim() || 'admin',
+    });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
+  }
+
+  // Prompt #33 — inspect / permanent-delete / archive mistaken TMS students.
+  if (request.method === 'POST' && path === STUDENT_DELETE_INSPECT_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await inspectStudentDelete(db, env, body, { callTmsRosterBridge });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
+  }
+  if (request.method === 'POST' && path === STUDENT_DELETE_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await permanentlyDeleteStudent(db, env, body, {
+      callTmsRosterBridge,
+      adminUsername: String(account.username || '').trim() || 'admin',
+    });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
+  }
+  if (request.method === 'POST' && path === STUDENT_ARCHIVE_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await archiveStudent(db, env, body, {
+      callTmsRosterBridge,
       adminUsername: String(account.username || '').trim() || 'admin',
     });
     const status = result.status || (result.ok ? 200 : 400);
