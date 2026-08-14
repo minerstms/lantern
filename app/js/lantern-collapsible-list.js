@@ -91,21 +91,26 @@
 
       var summary = rec.querySelector(':scope > summary.lanternMgmtRecordHd');
       if (summary && !summary.hasAttribute('tabindex')) summary.setAttribute('tabindex', '0');
+      function stopInteractiveBubble(e) {
+        if (e && e.target && e.target.closest && e.target.closest('button, a, input, select, textarea, label, [role=button]')) {
+          e.stopPropagation();
+        }
+      }
       if (summary) {
-        Array.prototype.forEach.call(summary.querySelectorAll('button, a, input, select, textarea'), function (ctrl) {
-          ctrl.addEventListener('click', function (e) {
-            e.stopPropagation();
+        Array.prototype.forEach.call(summary.querySelectorAll('button, a, input, select, textarea, [role=button]'), function (ctrl) {
+          ['click', 'pointerdown', 'mousedown'].forEach(function (type) {
+            ctrl.addEventListener(type, function (e) {
+              e.stopPropagation();
+            });
           });
         });
       }
 
-      // Action buttons live in the body — stop them from bubbling oddly; details only toggles via summary.
+      // Action buttons live in the body — stop them from bubbling into details toggle.
       var body = rec.querySelector(':scope > .lanternMgmtRecordBd');
       if (body) {
-        body.addEventListener('click', function (e) {
-          if (e.target && e.target.closest && e.target.closest('button, a, input, select, textarea, label')) {
-            e.stopPropagation();
-          }
+        ['click', 'pointerdown', 'mousedown'].forEach(function (type) {
+          body.addEventListener(type, stopInteractiveBubble);
         });
       }
     });

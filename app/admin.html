@@ -919,6 +919,11 @@
       window.initTeacherCollapsibleLists(document);
     }
     document.addEventListener('lantern-collapsible-collapse', function () {
+      if (typeof keepStudentEditorOpen === 'function' && keepStudentEditorOpen()) {
+        var studentsCard = document.getElementById('adminStudentsCard');
+        if (studentsCard) studentsCard.open = true;
+        return;
+      }
       if (typeof closeAllFloatingEditors === 'function') closeAllFloatingEditors();
       else {
         var edit = document.getElementById('editUserPanel');
@@ -928,6 +933,7 @@
       }
     });
     document.addEventListener('lantern-mgmt-record-collapse', function () {
+      if (typeof keepStudentEditorOpen === 'function' && keepStudentEditorOpen()) return;
       if (typeof closeAllFloatingEditors === 'function') closeAllFloatingEditors();
     });
     var api = window.LANTERN_AVATAR_API ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : '';
@@ -3695,6 +3701,58 @@
     var studentsHealthFilter = 'all';
     var studentsAddConflictState = null;
     var studentsEditConflictState = null;
+    var studentEditorState = { open: false, recordKey: '', studentId: '' };
+
+    function markStudentEditorOpen(s) {
+      studentEditorState.open = true;
+      studentEditorState.recordKey = String((s && (s.student_name || s.student_id)) || '');
+      studentEditorState.studentId = String((s && s.student_id) || '');
+    }
+
+    function markStudentEditorClosed() {
+      studentEditorState.open = false;
+      studentEditorState.recordKey = '';
+      studentEditorState.studentId = '';
+    }
+
+    function keepStudentEditorOpen() {
+      if (!studentEditorState.open) return false;
+      var panel = document.getElementById('studentsEditIdPanel');
+      if (!panel) return false;
+      var host = panel.closest ? panel.closest('details.lanternMgmtRecord') : null;
+      if (host && !host.open) host.open = true;
+      var studentsCard = document.getElementById('adminStudentsCard');
+      if (studentsCard && !studentsCard.open) studentsCard.open = true;
+      var mount = host ? host.querySelector('.lanternMgmtRecordEditor') : null;
+      if (mount) {
+        mount.hidden = false;
+        mount.style.display = 'block';
+        mount.setAttribute('aria-hidden', 'false');
+        if (panel.parentNode !== mount) mount.appendChild(panel);
+      }
+      panel.hidden = false;
+      panel.style.display = 'block';
+      panel.setAttribute('aria-hidden', 'false');
+      return true;
+    }
+
+    function isolateStudentRowAction(btn, handler) {
+      if (!btn) return;
+      function stopBubble(ev) {
+        if (!ev) return;
+        ev.stopPropagation();
+        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+      }
+      btn.addEventListener('pointerdown', stopBubble);
+      btn.addEventListener('mousedown', stopBubble);
+      btn.addEventListener('click', function(ev) {
+        if (ev) {
+          ev.preventDefault();
+          stopBubble(ev);
+        }
+        handler(ev);
+      });
+    }
 
     function showStudentsRosterMsg(text, kind) {
       var el = document.getElementById('studentsRosterMsg');
@@ -3908,6 +3966,7 @@
     }
 
     function closeStudentsEditPanels() {
+      markStudentEditorClosed();
       var edit = document.getElementById('studentsEditIdPanel');
       if (edit) {
         edit.style.display = 'none';
@@ -3973,12 +4032,19 @@
       var reviewBtn = document.getElementById('studentsEditReviewConflictBtn');
       if (reviewBtn) reviewBtn.hidden = true;
       setStudentsEditServerConfirm('');
+      markStudentEditorOpen(s);
       mountAdminEditor(panel, mountEl || null);
+      var host = mountEl && mountEl.closest ? mountEl.closest('details.lanternMgmtRecord') : null;
+      if (host) host.open = true;
       var first = document.getElementById('studentsEditFirst');
-      if (first) first.focus();
+      if (first) {
+        try { first.focus({ preventScroll: true }); }
+        catch (_) { first.focus(); }
+      }
     }
 
     function renderStudentsRosterTable() {
+      if (studentEditorState.open) return;
       var body = document.getElementById('studentsRosterBody');
       var empty = document.getElementById('studentsRosterEmpty');
       var loading = document.getElementById('studentsRosterLoading');
@@ -4055,15 +4121,21 @@
           '</div>';
         var actions = rec.querySelector('.lanternMgmtRecordActions');
         var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
+        function stopRowNav(ev) {
+          if (!ev) return;
+          ev.stopPropagation();
+          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+        }
+        actions.addEventListener('pointerdown', stopRowNav);
+        actions.addEventListener('mousedown', stopRowNav);
+        actions.addEventListener('click', stopRowNav);
 
         if (studentNeedsAttention(s)) {
           var bResolveHub = document.createElement('button');
           bResolveHub.type = 'button';
           bResolveHub.className = 'btn good';
           bResolveHub.textContent = 'Resolve';
-          bResolveHub.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bResolveHub, function() {
             openStudentIdentityHub(s, editorMount);
           });
           actions.appendChild(bResolveHub);
@@ -4073,9 +4145,7 @@
         bEdit.type = 'button';
         bEdit.className = s.student_id ? 'btn' : 'btn good';
         bEdit.textContent = 'Edit';
-        bEdit.addEventListener('click', function(ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
+        isolateStudentRowAction(bEdit, function() {
           openEditStudentId(s, editorMount);
         });
         actions.appendChild(bEdit);
@@ -4085,9 +4155,7 @@
           bDel.type = 'button';
           bDel.className = 'btn';
           bDel.textContent = 'Delete';
-          bDel.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bDel, function() {
             openStudentDeleteModal(s);
           });
           actions.appendChild(bDel);
@@ -4096,9 +4164,7 @@
             bTmsArch.type = 'button';
             bTmsArch.className = 'btn';
             bTmsArch.textContent = 'Archive Student';
-            bTmsArch.addEventListener('click', function(ev) {
-              ev.preventDefault();
-              ev.stopPropagation();
+            isolateStudentRowAction(bTmsArch, function() {
               openStudentDeleteModal(s, { preferArchive: true });
             });
             actions.appendChild(bTmsArch);
@@ -4108,12 +4174,13 @@
           bSetId.type = 'button';
           bSetId.className = 'btn good';
           bSetId.textContent = 'Set Student ID';
-          bSetId.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bSetId, function() {
             openEditStudentId(s, editorMount);
             var idInput = document.getElementById('studentsEditIdInput');
-            if (idInput) idInput.focus();
+            if (idInput) {
+              try { idInput.focus({ preventScroll: true }); }
+              catch (_) { idInput.focus(); }
+            }
           });
           actions.appendChild(bSetId);
           var canonicalDup = findCanonicalDuplicate(s);
@@ -4122,9 +4189,7 @@
             bResolve.type = 'button';
             bResolve.className = 'btn good';
             bResolve.textContent = 'Resolve Duplicate';
-            bResolve.addEventListener('click', function(ev) {
-              ev.preventDefault();
-              ev.stopPropagation();
+            isolateStudentRowAction(bResolve, function() {
               openStudentResolveModal(s, canonicalDup);
             });
             actions.appendChild(bResolve);
@@ -4133,9 +4198,7 @@
           bDelBlank.type = 'button';
           bDelBlank.className = 'btn';
           bDelBlank.textContent = 'Delete Mistaken Row';
-          bDelBlank.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bDelBlank, function() {
             openStudentDeleteModal(s);
           });
           actions.appendChild(bDelBlank);
@@ -4146,9 +4209,7 @@
           bLink.type = 'button';
           bLink.className = 'btn good';
           bLink.textContent = 'Link Existing Account';
-          bLink.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bLink, function() {
             var sid = s.student_id || '';
             if (!sid) return;
             if (!window.confirm('Link Existing Account?\n\nTMS ID: ' + sid + '\nStudent: ' + (s.student_name || '') + '\n\nSets mtss_student_id only. Does not change password, username, or Locker.')) return;
@@ -4180,9 +4241,7 @@
           bCreate.type = 'button';
           bCreate.className = 'btn good';
           bCreate.textContent = 'Create Lantern Login';
-          bCreate.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bCreate, function() {
             var sid = String(s.student_id || '').trim();
             if (!sid) {
               showStudentsRosterMsg('Cannot create Lantern login without a permanent Student ID.', 'err');
@@ -4236,9 +4295,7 @@
           bTemp.type = 'button';
           bTemp.className = 'btn good';
           bTemp.textContent = 'Reset Temporary Password';
-          bTemp.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bTemp, function() {
             openTempPwPanel(s.lantern_username, editorMount);
           });
           actions.appendChild(bTemp);
@@ -4247,9 +4304,7 @@
           bAvatar.type = 'button';
           bAvatar.className = 'btn';
           bAvatar.textContent = 'Manage Avatar';
-          bAvatar.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bAvatar, function() {
             openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
           });
           actions.appendChild(bAvatar);
@@ -4258,9 +4313,7 @@
           bArch.type = 'button';
           bArch.className = 'btn';
           bArch.textContent = 'Archive Login';
-          bArch.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bArch, function() {
             var user = s.lantern_username;
             var name = s.student_name || '';
             if (!window.confirm('Archive Lantern Login for ' + name + ' (' + user + ')?\n\nBlocks Lantern sign-in only. TMS roster status and Student ID stay unchanged. History and Locker ownership remain.')) return;
@@ -4281,9 +4334,7 @@
           bRest.type = 'button';
           bRest.className = 'btn good';
           bRest.textContent = 'Restore Login';
-          bRest.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bRest, function() {
             var user = s.lantern_username;
             var name = s.student_name || '';
             if (!window.confirm('Restore Lantern Login for ' + name + ' (' + user + ')?\n\nReactivates the same Lantern account. TMS roster is not modified.')) return;
@@ -4302,9 +4353,7 @@
           bAvatarArch.type = 'button';
           bAvatarArch.className = 'btn';
           bAvatarArch.textContent = 'Manage Avatar';
-          bAvatarArch.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            ev.stopPropagation();
+          isolateStudentRowAction(bAvatarArch, function() {
             openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
           });
           actions.appendChild(bAvatarArch);
