@@ -145,11 +145,13 @@ if (buildFnMatch) {
       handbookTrivia: 'perm_handbook_trivia',
       localHistoryTrivia: 'perm_local_history_trivia',
       srpSafety: 'perm_srp_safety',
+      fightSong: 'perm_fight_song',
     },
     window: {
       LanternCards: null,
       LanternCardUI: null,
       LANTERN_EDU_TRIVIA: null,
+      LANTERN_FIGHT_SONG: { open: function () {} },
     },
     DAILY_CHECKIN_CHOICES: ['Ready', 'Okay', 'Tired', 'Need a reset'],
     openDailyCheckInPicker: function () {},

@@ -307,6 +307,75 @@ body.mission-detail-open {
   margin: 0 0.12em;
 }
 
+.fightSongList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.fightSongPill {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(90, 167, 255, 0.5);
+  background: rgba(90, 167, 255, 0.16);
+  color: var(--ink, #eaf0ff);
+  font-size: clamp(22px, 4vw, 28px);
+  font-weight: 800;
+  line-height: 1.35;
+  cursor: grab;
+  font-family: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.fightSongPill.is-selected {
+  border-color: rgba(255, 204, 102, 0.8);
+  background: rgba(255, 204, 102, 0.2);
+}
+
+.fightSongPill.is-dragging {
+  opacity: 0.72;
+}
+
+.fightSongPill:focus {
+  outline: 3px solid rgba(90, 167, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.fightSongActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fightSongActions .btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.fightSongFeedback {
+  font-size: 22px;
+  font-weight: 800;
+  min-height: 1.4em;
+  margin: 0 0 12px;
+}
+
+.fightSongFeedback.is-wrong {
+  color: var(--warn, #ffcc66);
+}
+
+.fightSongFeedback.is-ok {
+  color: var(--good, #38d07c);
+}
+
 @media (max-width: 640px) {
   .missionDetailOverlay {
     align-items: stretch;

@@ -44,6 +44,12 @@ import {
   answerEducationalTriviaRun,
   isTriviaRunPendingSubmission,
 } from './educational-trivia-missions.js';
+import {
+  FIGHT_SONG_MISSION_ID,
+  ensureFightSongMission,
+  overlayFightSongMission,
+  checkFightSongOrder,
+} from './fight-song-challenge.js';
 import { isStaffEconomyKey } from './staff-economy.js';
 import {
   loadStaffPublicNameIndex,
@@ -438,7 +444,11 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     try {
       await ensureEducationalTriviaMissions(db);
     } catch (_) {}
+    try {
+      await ensureFightSongMission(db);
+    } catch (_) {}
     list = overlayEducationalTriviaMissions(list);
+    list = overlayFightSongMission(list);
     list = list.filter((m) => missionInCatalogForParticipant(m, identity));
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
@@ -622,6 +632,34 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       runId: body.run_id,
       questionId: body.question_id,
       choiceIndex: body.choice_index,
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error }, result._httpStatus || 400, cors);
+    }
+    return jsonResponse(result, 200, cors);
+  }
+
+  // Prompt #174 — Fight Song Challenge. Server owns order; client `correct` is ignored.
+  if (request.method === 'POST' && path === '/api/missions/fight-song/check') {
+    const auth = await requireMissionSession(deps, request, env, cors);
+    if (auth.response) return auth.response;
+    const identity = resolveParticipantMissionIdentity(auth.account, pilotEconomyCharacterName);
+    if (!identity.ok) {
+      return jsonResponse({ ok: false, error: identity.error }, identity.code || 403, cors);
+    }
+    if (identity.participantKind !== 'student') {
+      return jsonResponse({ ok: false, error: 'students_only' }, 403, cors);
+    }
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await checkFightSongOrder(db, env, {
+      characterName: identity.characterName,
+      missionId: body.mission_id || body.mission || FIGHT_SONG_MISSION_ID,
+      order: body.order || body.line_ids || body.lines,
     });
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.error }, result._httpStatus || 400, cors);
