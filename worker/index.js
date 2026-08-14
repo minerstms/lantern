@@ -14,6 +14,7 @@ import {
   validateStaffEmail,
   validateStaffNamePart,
 } from './admin-account-utils.js';
+import { ADD_STUDENT_PATH, addAuthoritativeStudent } from './admin-add-student.js';
 import {
   validateStaffHonorific,
   validateStaffPublicDisplayName,
@@ -3335,6 +3336,27 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: result.error || 'write_failed', detail: result.detail || null }, 503, cors);
     }
     return jsonResponse(result, 200, cors);
+  }
+
+  // Prompt #32 — one Admin Add Student action: TMS roster first, then Lantern login.
+  if (request.method === 'POST' && path === ADD_STUDENT_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await addAuthoritativeStudent(db, env, body, {
+      callTmsRosterBridge,
+      hashPassword: pilotHashPassword,
+      randomSalt: pilotRandomSaltHex,
+      adminUsername: String(account.username || '').trim() || 'admin',
+    });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
   }
 
   if (request.method === 'POST' && path === '/api/admin/tms-roster/set-student-id') {

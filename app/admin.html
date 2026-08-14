@@ -242,8 +242,8 @@
       </div>
       <div id="studentsAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden>
         <p class="acctPanelHd">Add student</p>
-        <label for="studentsAddId">Student ID (optional)</label>
-        <input id="studentsAddId" type="text" maxlength="256" autocomplete="off" />
+        <label for="studentsAddId">School Student ID</label>
+        <input id="studentsAddId" type="text" maxlength="256" autocomplete="off" required />
         <label for="studentsAddFirst">First Name</label>
         <input id="studentsAddFirst" type="text" maxlength="64" autocomplete="off" required />
         <label for="studentsAddLast">Last Name</label>
@@ -254,9 +254,9 @@
           <option value="7">7th Grade</option>
           <option value="8">8th Grade</option>
         </select>
-        <p class="acctPanelHint">Lantern login is not created until a permanent Student ID is set. Do not invent IDs.</p>
+        <p class="acctPanelHint">Creates the TMS roster identity first, then a Lantern login whose username is this Student ID. Do not invent IDs. Geppetto can import the student on the next roster sync.</p>
         <div class="acctPanelActions">
-          <button type="button" class="btn good" id="studentsAddSaveBtn">Create student</button>
+          <button type="button" class="btn good" id="studentsAddSaveBtn">Add Student</button>
           <button type="button" class="btn" id="studentsAddCancelBtn">Cancel</button>
         </div>
       </div>
@@ -4198,13 +4198,17 @@
       var sid = String((document.getElementById('studentsAddId') || {}).value || '').trim();
       var gradeEl = document.getElementById('studentsAddGrade');
       var grade = gradeEl ? String(gradeEl.value || '6').trim() : '6';
+      if (!sid) {
+        showStudentsRosterMsg('School Student ID is required.', 'err');
+        return;
+      }
       if (!first) {
         showStudentsRosterMsg('First name is required.', 'err');
         return;
       }
       var btn = document.getElementById('studentsAddSaveBtn');
       if (btn) btn.disabled = true;
-      postAdminJson('/api/admin/tms-roster/create', {
+      postAdminJson('/api/admin/students/add', {
         first_name: first,
         last_name: last,
         student_id: sid,
@@ -4212,16 +4216,37 @@
       }).then(function(res) {
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
-          showStudentsRosterMsg('Created TMS student ' + (res.body.student_name || first) + ' (Grade ' + (res.body.grade || grade) + '). Lantern Missing / Locker Not Ready.', 'ok');
+          var tmsLabel = res.body.tms_roster === 'existing' ? 'Existing' : 'Created';
+          var loginLabel = res.body.lantern_login === 'created' ? 'Created' : (res.body.lantern_login === 'linked' ? 'Linked' : String(res.body.lantern_login || ''));
+          showStudentsRosterMsg(
+            'Student added. School ID: ' + (res.body.student_id || sid) +
+              ' · TMS roster: ' + tmsLabel +
+              ' · Lantern login: ' + loginLabel +
+              ' · Geppetto: Available on next roster sync.',
+            'ok'
+          );
+          var once = document.getElementById('studentsTempPwOnce');
+          var onceText = document.getElementById('studentsTempPwOnceText');
+          if (res.body.temporary_password && once && onceText) {
+            onceText.textContent = 'Username: ' + (res.body.lantern_username || sid) + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
+            once.style.display = 'block';
+            once.setAttribute('aria-hidden', 'false');
+          }
           closeStudentsEditPanels();
           document.getElementById('studentsAddFirst').value = '';
           document.getElementById('studentsAddLast').value = '';
           document.getElementById('studentsAddId').value = '';
           if (gradeEl) gradeEl.value = '6';
           loadStudentsRoster();
+          loadUsers();
           return;
         }
-        showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Create failed', 'err');
+        var failBody = res && res.body ? res.body : {};
+        var failMsg = failBody.message || failBody.error || 'Add student failed';
+        if (failBody.tms_roster === 'created' && failBody.lantern_login === 'not_created') {
+          failMsg = 'TMS roster created. Lantern login not created. Retry/link required. School ID: ' + (failBody.student_id || sid);
+        }
+        showStudentsRosterMsg(failMsg, 'err');
       }).catch(function() {
         showStudentsRosterMsg('Network error while creating student.', 'err');
       }).finally(function() {
