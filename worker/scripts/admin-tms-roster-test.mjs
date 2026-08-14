@@ -651,7 +651,7 @@ async function run() {
         env
       );
       const body = await res.json();
-      if (res.status === 409 && (body.code === 'destination_name_taken' || body.error === 'destination_name_taken') && /already uses this name/i.test(body.message || body.error || '')) {
+      if (res.status === 409 && (body.code === 'destination_name_taken' || body.error === 'destination_name_taken') && /blocking this change|already uses this name/i.test(body.message || body.error || '')) {
         ok('9. duplicate name returns visible failure');
       } else bad('dup name', JSON.stringify(body));
       if (state.tmsStudents.some((s) => s.student_id === '20889' && s.student_name === 'Lucas James')) {

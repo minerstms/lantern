@@ -58,6 +58,19 @@
       margin: 0 0 12px; color: var(--muted); font-size: 18px; font-weight: 700;
     }
     .rosterCounts strong { color: var(--ink); font-weight: 900; }
+    .studentsHealthBar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px;
+    }
+    .studentsHealthChip {
+      height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+      background: #0a1428; color: var(--ink); font-size: 18px; font-family: inherit; font-weight: 800; cursor: pointer;
+    }
+    .studentsHealthChip.is-on { border-color: rgba(90,167,255,.55); background: rgba(90,167,255,.16); }
+    .studentsHealthPanel {
+      margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(10,20,40,.45);
+    }
+    .studentsHealthPanel p { margin: 0 0 6px; font-size: 18px; }
+    .studentsTechDetails { margin-top: 10px; font-size: 16px; color: var(--muted); }
     .rosterToolbar {
       display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px;
     }
@@ -216,6 +229,11 @@
     <div class="cardBd teacherCollapsibleListBd">
       <div id="studentsRosterMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
       <div id="studentsRosterCounts" class="rosterCounts" aria-live="polite">Loading roster…</div>
+      <div class="studentsHealthBar" role="group" aria-label="Student health filter">
+        <button type="button" class="studentsHealthChip is-on" data-health-filter="all" id="studentsHealthFilterAll">All</button>
+        <button type="button" class="studentsHealthChip" data-health-filter="needs_attention" id="studentsHealthFilterNeeds">Needs Attention</button>
+        <button type="button" class="studentsHealthChip" data-health-filter="healthy" id="studentsHealthFilterHealthy">Healthy</button>
+      </div>
       <div class="rosterToolbar">
         <label for="studentsRosterSearch" class="visuallyHidden">Search students</label>
         <input id="studentsRosterSearch" type="search" autocomplete="off" placeholder="Search ID, first, or last name…" />
@@ -226,6 +244,8 @@
           <option value="missing_id">Missing Student ID</option>
           <option value="lantern_missing">No Lantern Login</option>
           <option value="linked">Has Lantern Login</option>
+          <option value="needs_attention">Needs Attention</option>
+          <option value="healthy">Healthy</option>
           <option value="problems">Problems</option>
           <option value="media_restricted">Media/Publicity Restricted</option>
           <option value="all">All loaded</option>
@@ -255,8 +275,10 @@
           <option value="8">8th Grade</option>
         </select>
         <p class="acctPanelHint">Creates the TMS roster identity first, then a Lantern login whose username is this Student ID. Do not invent IDs. Geppetto can import the student on the next roster sync.</p>
+        <div id="studentsAddConflictBox" class="studentsHealthPanel" style="display:none;" hidden></div>
         <div class="acctPanelActions">
           <button type="button" class="btn good" id="studentsAddSaveBtn">Add Student</button>
+          <button type="button" class="btn" id="studentsAddUseExistingBtn" hidden>Use Existing Student</button>
           <button type="button" class="btn" id="studentsAddCancelBtn">Cancel</button>
         </div>
       </div>
@@ -306,8 +328,11 @@
         <option value="Restricted">Restricted</option>
       </select>
       <p class="acctPanelHint">Restricted students may still use internal Lantern. Identifiable content is excluded from Hallway TV and external hosting (e.g. YouTube).</p>
+      <div id="studentsEditConflictBox" class="studentsHealthPanel" style="display:none;" hidden></div>
       <div class="acctPanelActions">
         <button type="button" class="btn good" id="studentsEditIdSaveBtn">Save Changes</button>
+        <button type="button" class="btn" id="studentsEditRetryBtn" hidden>Retry</button>
+        <button type="button" class="btn" id="studentsEditReviewConflictBtn" hidden>Review Conflicting Record</button>
         <button type="button" class="btn" id="studentsEditIdCancelBtn">Cancel</button>
       </div>
     </div>
@@ -423,6 +448,23 @@
         <button type="button" class="btn" id="studentResolveCancelBtn">Cancel</button>
         <button type="button" class="btn good" id="studentResolveConfirmBtn" hidden>Resolve Duplicate</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Prompt #40 — guided student identity Resolve hub -->
+  <div class="overlay" id="studentIdentityHubOverlay" aria-hidden="true">
+    <div class="modal" style="max-width:620px;" role="dialog" aria-labelledby="studentIdentityHubTitle" aria-modal="true">
+      <div class="modalHd">
+        <div class="h" id="studentIdentityHubTitle">Resolve student record</div>
+        <button type="button" class="x" id="studentIdentityHubCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="studentIdentityHubBody"></div>
+      <p id="studentIdentityHubMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
+      <div id="studentIdentityHubConfirmWrap" style="display:none;margin:12px 0 0;">
+        <label for="studentIdentityHubConfirmInput" id="studentIdentityHubConfirmLabel">Type to confirm</label>
+        <input id="studentIdentityHubConfirmInput" type="text" autocomplete="off" maxlength="16" />
+      </div>
+      <div class="acctPanelActions" style="margin-top:12px;" id="studentIdentityHubActions"></div>
     </div>
   </div>
 
@@ -3649,6 +3691,9 @@
     var lastStudentsRoster = [];
     var lastStudentsCounts = null;
     var studentsRosterIncludeInactive = false;
+    var studentsHealthFilter = 'all';
+    var studentsAddConflictState = null;
+    var studentsEditConflictState = null;
 
     function showStudentsRosterMsg(text, kind) {
       var el = document.getElementById('studentsRosterMsg');
@@ -3675,8 +3720,8 @@
     function studentsStatusClass(kind, value) {
       var v = String(value || '');
       if (kind === 'status') {
-        if (v === 'Active') return 'rosterStatusChip rosterStatusChip--ok';
-        if (v === 'Missing Student ID' || v === 'No Lantern Login' || v === 'Login Archived') return 'rosterStatusChip rosterStatusChip--warn';
+        if (v === 'Active' || v === 'Healthy') return 'rosterStatusChip rosterStatusChip--ok';
+        if (v === 'Missing Student ID' || v === 'Missing School ID' || v === 'No Lantern Login' || v === 'Missing Lantern Login' || v === 'Login Archived' || v === 'Unlinked Lantern Login' || v === 'Active Roster / Archived Login') return 'rosterStatusChip rosterStatusChip--warn';
         if (v === 'Archived') return 'rosterStatusChip rosterStatusChip--muted';
         return 'rosterStatusChip rosterStatusChip--bad';
       }
@@ -3695,12 +3740,24 @@
 
     function studentCanonicalStatus(s) {
       if (!s) return '—';
+      if (s.health_label) return s.health_label;
       if (Number(s.is_active) !== 1) return 'Archived';
       if (!s.student_id) return 'Missing Student ID';
       if (s.lantern_account === 'Missing') return 'No Lantern Login';
       if (s.lantern_account === 'Linked Archived') return 'Login Archived';
       if (s.lantern_account === 'Broken' || s.lantern_account === 'Ambiguous') return s.lantern_account;
       return 'Active';
+    }
+
+    function studentNeedsAttention(s) {
+      if (!s) return false;
+      if (s.needs_attention === true || s.needs_attention === 1) return true;
+      var label = studentCanonicalStatus(s);
+      return label !== 'Healthy' && label !== 'Active' && label !== 'Archived';
+    }
+
+    function isWebSystemAdminSession() {
+      return String((adminSessionMeta && adminSessionMeta.username) || '').trim().toLowerCase() === 'admin';
     }
 
     function studentLanternLoginLabel(s) {
@@ -3732,6 +3789,8 @@
       if (pill) pill.textContent = String(active);
       if (!el) return;
       el.innerHTML =
+        '<span>Healthy: <strong>' + (counts.healthy != null ? counts.healthy : 0) + '</strong></span>' +
+        '<span>Needs Attention: <strong>' + (counts.needs_attention != null ? counts.needs_attention : 0) + '</strong></span>' +
         '<span>Active: <strong>' + active + '</strong></span>' +
         '<span>Missing Student ID: <strong>' + (counts.missing_id || 0) + '</strong></span>' +
         '<span>Lantern Login: <strong>' + (counts.lantern_linked || 0) + '/' + active + '</strong></span>' +
@@ -3755,6 +3814,10 @@
         if (filter === 'missing_id' && (s.student_id || !active)) return false;
         if (filter === 'lantern_missing' && (s.lantern_account !== 'Missing' || !s.student_id || !active)) return false;
         if (filter === 'linked' && s.lantern_account !== 'Linked') return false;
+        if (studentsHealthFilter === 'needs_attention' && !studentNeedsAttention(s)) return false;
+        if (studentsHealthFilter === 'healthy' && studentNeedsAttention(s)) return false;
+        if (filter === 'needs_attention' && !studentNeedsAttention(s)) return false;
+        if (filter === 'healthy' && studentNeedsAttention(s)) return false;
         if (filter === 'problems' && s.lantern_account !== 'Broken' && s.lantern_account !== 'Ambiguous' && s.lantern_account !== 'Linked Archived' && s.locker !== 'Error') return false;
         if (filter === 'media_restricted' && Number(s.media_publicity_restricted) !== 1) return false;
         if (filter !== 'archived' && filter !== 'all' && !active && !studentsRosterIncludeInactive) return false;
@@ -3842,6 +3905,17 @@
           ? ('Editing school identity for ' + (s.student_name || '') + '.')
           : ('Assign Student ID and confirm name/grade for ' + (s.student_name || '') + '.');
       }
+      studentsEditConflictState = null;
+      var conflictBox = document.getElementById('studentsEditConflictBox');
+      if (conflictBox) {
+        conflictBox.hidden = true;
+        conflictBox.style.display = 'none';
+        conflictBox.innerHTML = '';
+      }
+      var retryBtn = document.getElementById('studentsEditRetryBtn');
+      if (retryBtn) retryBtn.hidden = true;
+      var reviewBtn = document.getElementById('studentsEditReviewConflictBtn');
+      if (reviewBtn) reviewBtn.hidden = true;
       mountAdminEditor(panel, mountEl || null);
       var first = document.getElementById('studentsEditFirst');
       if (first) first.focus();
@@ -3888,15 +3962,28 @@
             '<span class="lanternMgmtRecordChev" aria-hidden="true"></span>' +
           '</summary>' +
           '<div class="lanternMgmtRecordBd">' +
-            '<p class="lanternMgmtRecordMeta">' +
-              'Roster: ' + escapeRosterHtml(s.tms_status || '—') +
-              (s.lantern_username ? ' · Login: ' + escapeRosterHtml(s.lantern_username) : '') +
-              (s.public_display_name ? ' · Public display: ' + escapeRosterHtml(s.public_display_name) : '') +
-              ' · Lantern state: ' + escapeRosterHtml(s.lantern_account || '—') +
-              ' · Media/Publicity: ' + (Number(s.media_publicity_restricted) === 1 ? '🛡 Restricted' : 'Allowed') +
-              ' · Must change password: ' + mcpLabel +
-              (inconsistency ? ' · <span class="rosterStatusChip rosterStatusChip--bad">' + escapeRosterHtml(inconsistency) + '</span>' : '') +
-            '</p>' +
+            '<div class="studentsHealthPanel">' +
+              '<p><strong>Roster:</strong> ' + escapeRosterHtml(s.tms_status || '—') + '</p>' +
+              '<p><strong>School ID:</strong> ' + escapeRosterHtml(s.student_id || 'Missing') + '</p>' +
+              '<p><strong>Lantern Login:</strong> ' + escapeRosterHtml(s.lantern_account === 'Missing' ? 'Missing' : (s.lantern_username || s.lantern_account || '—')) + '</p>' +
+              '<p><strong>STEM Period:</strong> available downstream</p>' +
+              '<p><strong>Status:</strong> ' + escapeRosterHtml(studentNeedsAttention(s) ? 'Needs Attention' : 'Healthy') +
+                ' · ' + escapeRosterHtml(statusLabel) + '</p>' +
+              (s.health_detail ? '<p>' + escapeRosterHtml(s.health_detail) + '</p>' : '') +
+              (s.possible_duplicate && s.possible_duplicate.student_id
+                ? '<p>Possible duplicate: School ID ' + escapeRosterHtml(s.possible_duplicate.student_id) + '</p>'
+                : '') +
+              (inconsistency ? '<p class="rosterStatusChip rosterStatusChip--bad">' + escapeRosterHtml(inconsistency) + '</p>' : '') +
+              (isWebSystemAdminSession()
+                ? '<details class="studentsTechDetails"><summary>Technical details</summary>' +
+                  '<p>School ID: ' + escapeRosterHtml(s.student_id || '') + '</p>' +
+                  '<p>Roster state: ' + escapeRosterHtml(s.tms_status || '') + '</p>' +
+                  '<p>Login link: ' + escapeRosterHtml(s.lantern_account || '') +
+                    (s.lantern_username ? ' · ' + escapeRosterHtml(s.lantern_username) : '') + '</p>' +
+                  '<p>Health: ' + escapeRosterHtml(s.health_state || '') + '</p>' +
+                  '</details>'
+                : '') +
+            '</div>' +
             '<p class="acctPanelHint" style="margin:0 0 10px;">' +
               (s.student_id
                 ? 'Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Delete is only for mistaken rows with no history. Archive keeps history and removes the student from the active roster. Lantern login Archive stays separate.'
@@ -3909,6 +3996,19 @@
           '</div>';
         var actions = rec.querySelector('.lanternMgmtRecordActions');
         var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
+
+        if (studentNeedsAttention(s)) {
+          var bResolveHub = document.createElement('button');
+          bResolveHub.type = 'button';
+          bResolveHub.className = 'btn good';
+          bResolveHub.textContent = 'Resolve';
+          bResolveHub.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openStudentIdentityHub(s, editorMount);
+          });
+          actions.appendChild(bResolveHub);
+        }
 
         var bEdit = document.createElement('button');
         bEdit.type = 'button';
@@ -4169,6 +4269,12 @@
 
     function findCanonicalDuplicate(s) {
       if (!s || s.student_id) return null;
+      if (s.possible_duplicate && s.possible_duplicate.student_id) {
+        var hinted = (lastStudentsRoster || []).filter(function(o) {
+          return String((o && o.student_id) || '').trim() === String(s.possible_duplicate.student_id).trim();
+        });
+        if (hinted.length === 1) return hinted[0];
+      }
       var name = normalizeRosterName(rosterRowDisplayName(s));
       if (!name) return null;
       var identified = (lastStudentsRoster || []).filter(function(o) {
@@ -4177,6 +4283,253 @@
       });
       if (identified.length !== 1) return null;
       return identified[0];
+    }
+
+    var studentIdentityHubState = { student: null, mount: null, busy: false };
+
+    function setStudentIdentityHubMsg(text, kind) {
+      var el = document.getElementById('studentIdentityHubMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'acctPanelHint' + (kind === 'err' ? ' usersMsg--err' : '');
+    }
+
+    function closeStudentIdentityHub() {
+      var overlay = document.getElementById('studentIdentityHubOverlay');
+      if (overlay) {
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+      studentIdentityHubState.student = null;
+      studentIdentityHubState.mount = null;
+      studentIdentityHubState.busy = false;
+      var actions = document.getElementById('studentIdentityHubActions');
+      if (actions) actions.innerHTML = '';
+      var wrap = document.getElementById('studentIdentityHubConfirmWrap');
+      if (wrap) wrap.style.display = 'none';
+      var input = document.getElementById('studentIdentityHubConfirmInput');
+      if (input) input.value = '';
+      setStudentIdentityHubMsg('', '');
+    }
+
+    function addHubButton(label, kind, onClick) {
+      var actions = document.getElementById('studentIdentityHubActions');
+      if (!actions) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = kind === 'good' ? 'btn good' : 'btn';
+      btn.textContent = label;
+      btn.addEventListener('click', onClick);
+      actions.appendChild(btn);
+      return btn;
+    }
+
+    function openStudentIdentityHub(s, mountEl) {
+      studentIdentityHubState.student = s;
+      studentIdentityHubState.mount = mountEl || null;
+      studentIdentityHubState.busy = false;
+      var title = document.getElementById('studentIdentityHubTitle');
+      var body = document.getElementById('studentIdentityHubBody');
+      var actions = document.getElementById('studentIdentityHubActions');
+      if (actions) actions.innerHTML = '';
+      var wrap = document.getElementById('studentIdentityHubConfirmWrap');
+      if (wrap) wrap.style.display = 'none';
+      setStudentIdentityHubMsg('', '');
+      var state = String((s && s.health_state) || '');
+      var name = rosterRowDisplayName(s);
+      var sid = String((s && s.student_id) || '').trim();
+      if (title) title.textContent = 'Resolve — ' + (s.health_label || studentCanonicalStatus(s));
+      var html = '<p><strong>' + escapeRosterHtml(name || 'Student') + '</strong></p>' +
+        '<p>' + escapeRosterHtml(s.health_detail || 'This record needs attention.') + '</p>';
+      if (s.possible_duplicate && s.possible_duplicate.student_id) {
+        html += '<p>Possible duplicate: School ID ' + escapeRosterHtml(s.possible_duplicate.student_id) + '</p>';
+      }
+      if (body) body.innerHTML = html;
+      addHubButton('Cancel', '', function() { closeStudentIdentityHub(); });
+
+      if (state === 'missing_school_id' || state === 'duplicate_roster') {
+        addHubButton('Assign School ID', 'good', function() {
+          closeStudentIdentityHub();
+          openEditStudentId(s, mountEl);
+          var idInput = document.getElementById('studentsEditIdInput');
+          if (idInput) idInput.focus();
+        });
+        var canonical = findCanonicalDuplicate(s);
+        if (canonical) {
+          addHubButton('This is a duplicate of an existing student', 'good', function() {
+            closeStudentIdentityHub();
+            openStudentResolveModal(s, canonical);
+          });
+        }
+        addHubButton('This record was entered by mistake', '', function() {
+          closeStudentIdentityHub();
+          openStudentDeleteModal(s);
+        });
+      } else if (state === 'missing_lantern_login') {
+        addHubButton('Create Login', 'good', function() {
+          closeStudentIdentityHub();
+          if (!sid) return;
+          var displayName = name || sid;
+          if (!window.confirm(
+            'Create Lantern Login?\n\nUsername (Student ID): ' + sid +
+            '\nStudent: ' + displayName +
+            '\n\nA one-time temporary password will be shown once. Student ID is never used as the password.'
+          )) return;
+          postAdminJson('/api/admin/users', {
+            username: sid,
+            display_name: displayName,
+            first_name: s.first_name || '',
+            last_name: s.last_name || '',
+            role: 'student',
+            mtss_student_id: sid
+          }).then(function(res) {
+            if (res && res.blocked) return;
+            if (!(res && res.okHttp && res.body && res.body.ok)) {
+              showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Create login failed', 'err');
+              return;
+            }
+            showStudentsRosterMsg('Created Lantern login ' + sid + ' for ' + displayName + '.', 'ok');
+            var once = document.getElementById('studentsTempPwOnce');
+            var onceText = document.getElementById('studentsTempPwOnceText');
+            if (res.body.temporary_password && once && onceText) {
+              onceText.textContent = 'Username: ' + sid + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
+              once.style.display = 'block';
+              once.setAttribute('aria-hidden', 'false');
+            }
+            loadStudentsRoster();
+            loadUsers();
+          }).catch(function() {
+            showStudentsRosterMsg('Network error while creating Lantern login.', 'err');
+          });
+        });
+      } else if (state === 'unlinked_lantern_login') {
+        addHubButton('Link Existing Login', 'good', function() {
+          closeStudentIdentityHub();
+          if (!sid) return;
+          if (!window.confirm('Link Existing Login?\n\nSchool ID: ' + sid + '\nStudent: ' + name + '\n\nLinks the login that already uses this School ID. Does not change the password.')) return;
+          postAdminJson('/api/admin/tms-roster/link-exact', { student_id: sid }).then(function(res) {
+            if (res && res.blocked) return;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              showStudentsRosterMsg('Linked Lantern login ' + (res.body.username || sid) + '.', 'ok');
+              loadStudentsRoster();
+              return;
+            }
+            showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Link failed', 'err');
+          }).catch(function() {
+            showStudentsRosterMsg('Network error while linking account.', 'err');
+          });
+        });
+      } else if (state === 'identity_needs_review' && s.lantern_username) {
+        addHubButton('Unlink Incorrect Login', '', function() {
+          var user = s.lantern_username;
+          if (!window.confirm('Unlink Lantern login ' + user + ' from School ID ' + sid + '?\n\nThe login stays. It will no longer be treated as this student.')) return;
+          var wrapEl = document.getElementById('studentIdentityHubConfirmWrap');
+          var label = document.getElementById('studentIdentityHubConfirmLabel');
+          var input = document.getElementById('studentIdentityHubConfirmInput');
+          if (wrapEl) wrapEl.style.display = 'block';
+          if (label) label.textContent = 'Type UNLINK to confirm';
+          if (input) { input.value = ''; input.focus(); }
+          addHubButton('Confirm Unlink', 'good', function() {
+            if (!input || String(input.value || '').trim() !== 'UNLINK') {
+              setStudentIdentityHubMsg('Type UNLINK to confirm.', 'err');
+              return;
+            }
+            postAdminJson('/api/admin/tms-roster/unlink', { username: user, student_id: sid, confirm: 'UNLINK' }).then(function(res) {
+              if (res && res.blocked) return;
+              if (!(res && res.okHttp && res.body && res.body.ok && res.body.verified)) {
+                setStudentIdentityHubMsg((res && res.body && (res.body.message || res.body.error)) || 'We couldn\'t save this change. Nothing was reported as saved.', 'err');
+                return;
+              }
+              closeStudentIdentityHub();
+              showStudentsRosterMsg('Unlinked Lantern login ' + user + '.', 'ok');
+              loadStudentsRoster();
+            }).catch(function() {
+              setStudentIdentityHubMsg('Network error while unlinking.', 'err');
+            });
+          });
+        });
+      } else if (state === 'active_roster_archived_login' && s.lantern_username) {
+        addHubButton('Restore Login', 'good', function() {
+          closeStudentIdentityHub();
+          if (!window.confirm('Restore Lantern Login for ' + name + ' (' + s.lantern_username + ')?')) return;
+          setAccountActive(s.lantern_username, true, function(err) {
+            if (err) { showStudentsRosterMsg(err, 'err'); return; }
+            showStudentsRosterMsg('Restored Lantern login ' + s.lantern_username + '.', 'ok');
+            loadStudentsRoster();
+            loadUsers();
+          });
+        });
+      } else if (state === 'archived_roster_active_login' && s.lantern_username) {
+        addHubButton('Archive Duplicate Login', '', function() {
+          closeStudentIdentityHub();
+          if (!window.confirm('Archive Lantern Login for ' + name + ' (' + s.lantern_username + ')?\n\nBlocks sign-in only. History remains.')) return;
+          setAccountActive(s.lantern_username, false, function(err) {
+            if (err) { showStudentsRosterMsg(err, 'err'); return; }
+            showStudentsRosterMsg('Archived Lantern login ' + s.lantern_username + '.', 'ok');
+            loadStudentsRoster();
+            loadUsers();
+          });
+        });
+      } else if (state === 'name_conflict') {
+        var peers = Array.isArray(s.name_peers) ? s.name_peers : [];
+        peers.forEach(function(peer) {
+          addHubButton('Review ' + (peer.student_id || peer.student_name || 'conflicting record'), 'good', function() {
+            closeStudentIdentityHub();
+            reviewConflictingStudent(peer);
+          });
+        });
+        addHubButton('Edit this student', '', function() {
+          closeStudentIdentityHub();
+          openEditStudentId(s, mountEl);
+        });
+      } else {
+        addHubButton('Edit', '', function() {
+          closeStudentIdentityHub();
+          openEditStudentId(s, mountEl);
+        });
+        if (sid) {
+          addHubButton('Archive', '', function() {
+            closeStudentIdentityHub();
+            openStudentDeleteModal(s, { preferArchive: true });
+          });
+        }
+      }
+
+      var overlay = document.getElementById('studentIdentityHubOverlay');
+      if (overlay) {
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+      }
+    }
+
+    function reviewConflictingStudent(peer) {
+      if (!peer) return;
+      var wantId = String(peer.student_id || '').trim();
+      var wantName = normalizeRosterName(peer.student_name || '');
+      var match = (lastStudentsRoster || []).filter(function(o) {
+        if (wantId && String(o.student_id || '').trim() === wantId) return true;
+        return wantName && normalizeRosterName(rosterRowDisplayName(o)) === wantName;
+      })[0];
+      if (!match) {
+        showStudentsRosterMsg('Could not open the conflicting record. Try Refresh, then search the name.', 'err');
+        return;
+      }
+      studentsHealthFilter = 'all';
+      syncStudentsHealthChips();
+      var search = document.getElementById('studentsRosterSearch');
+      if (search) search.value = wantId || (match.first_name || '');
+      renderStudentsRosterTable();
+      var key = String(match.student_name || match.student_id || '');
+      var rec = document.querySelector('[data-record-key="' + key.replace(/"/g, '') + '"]');
+      if (rec && rec.tagName === 'DETAILS') rec.open = true;
+      openStudentIdentityHub(match, rec ? rec.querySelector('.lanternMgmtRecordEditor') : null);
+    }
+
+    function syncStudentsHealthChips() {
+      var chips = document.querySelectorAll('[data-health-filter]');
+      chips.forEach(function(chip) {
+        chip.classList.toggle('is-on', String(chip.getAttribute('data-health-filter') || '') === studentsHealthFilter);
+      });
     }
 
     var studentResolveState = { source: null, keep: null, busy: false };
@@ -4213,11 +4566,11 @@
       var body = document.getElementById('studentResolveBody');
       if (body) {
         body.innerHTML =
-          '<p><strong>REMOVE duplicate roster row:</strong><br>' +
-            escapeRosterHtml(sourceName) + '<br>Missing Student ID</p>' +
           '<p><strong>KEEP canonical student:</strong><br>' +
             escapeRosterHtml(keepName) + '<br>School ID ' + escapeRosterHtml(keepId) + '</p>' +
-          '<p>Historical records will be preserved.</p>';
+          '<p><strong>REMOVE duplicate roster row:</strong><br>' +
+            escapeRosterHtml(sourceName) + '<br>Missing Student ID</p>' +
+          '<p>What happens:<br>Behavior history will be preserved.<br>Nugget history will be preserved.<br>Cases will be preserved.<br>Store history will be preserved.<br>The duplicate roster entry will be removed.<br>The student will keep School ID ' + escapeRosterHtml(keepId) + '.</p>';
       }
       var wrap = document.getElementById('studentResolveConfirmWrap');
       var confirmBtn = document.getElementById('studentResolveConfirmBtn');
@@ -4440,6 +4793,11 @@
         ev.preventDefault();
         closeStudentResolveModal();
       }
+      var hubOverlay = document.getElementById('studentIdentityHubOverlay');
+      if (hubOverlay && hubOverlay.classList.contains('show')) {
+        ev.preventDefault();
+        closeStudentIdentityHub();
+      }
     });
     var studentResolveOverlay = document.getElementById('studentResolveOverlay');
     if (studentResolveOverlay) {
@@ -4536,7 +4894,7 @@
     function loadStudentsRoster() {
       var filterEl = document.getElementById('studentsRosterFilter');
       var filter = filterEl ? String(filterEl.value || 'active') : 'active';
-      studentsRosterIncludeInactive = filter === 'archived' || filter === 'all';
+      studentsRosterIncludeInactive = filter === 'archived' || filter === 'all' || filter === 'needs_attention' || studentsHealthFilter === 'needs_attention';
       var loading = document.getElementById('studentsRosterLoading');
       if (loading) loading.style.display = 'block';
       var q = studentsRosterIncludeInactive ? '?include_inactive=1' : '';
@@ -4619,10 +4977,27 @@
           var failCode = res && res.body && (res.body.code || res.body.error);
           var msg = (res && res.body && (res.body.message || res.body.error)) || 'Save failed';
           if (failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name') {
-            msg = 'Another roster row already uses this name.';
+            msg = 'Another student record is blocking this change.';
+            studentsEditConflictState = res.body.conflicting_student || null;
+            var conflictBox = document.getElementById('studentsEditConflictBox');
+            var reviewBtn = document.getElementById('studentsEditReviewConflictBtn');
+            if (conflictBox) {
+              conflictBox.hidden = false;
+              conflictBox.style.display = 'block';
+              conflictBox.innerHTML = '<p>Another student record is blocking this change.</p>' +
+                (studentsEditConflictState
+                  ? '<p>' + escapeRosterHtml(studentsEditConflictState.student_name || '') +
+                    (studentsEditConflictState.student_id ? ' · School ID ' + escapeRosterHtml(studentsEditConflictState.student_id) : '') +
+                    '</p>'
+                  : '') +
+                '<p>Another roster row already uses this name.</p>';
+            }
+            if (reviewBtn) reviewBtn.hidden = !studentsEditConflictState;
           }
           if (failCode === 'authoritative_update_not_applied') {
-            msg = 'Save failed: the authoritative roster did not keep the new name. The editor is still open.';
+            msg = 'We couldn\'t save this change. Nothing was reported as saved. The editor is still open.';
+            var retryBtn = document.getElementById('studentsEditRetryBtn');
+            if (retryBtn) retryBtn.hidden = false;
           }
           showStudentsRosterMsg(msg, 'err');
           return;
@@ -4632,7 +5007,9 @@
         var requestedNorm = nextName.replace(/\s+/g, ' ').toLowerCase();
         var savedNorm = savedName.replace(/\s+/g, ' ').toLowerCase();
         if (!res.body.verified || !savedName || savedId !== next || savedNorm !== requestedNorm) {
-          showStudentsRosterMsg('Save failed: the authoritative roster did not keep the new name. The editor is still open.', 'err');
+          showStudentsRosterMsg('We couldn\'t save this change. Nothing was reported as saved. The editor is still open.', 'err');
+          var retryBtn2 = document.getElementById('studentsEditRetryBtn');
+          if (retryBtn2) retryBtn2.hidden = false;
           return;
         }
         var savedGrade = res.body.grade || grade;
@@ -4708,45 +5085,74 @@
       }
       var btn = document.getElementById('studentsAddSaveBtn');
       if (btn) btn.disabled = true;
-      postAdminJson('/api/admin/students/add', {
+      postAdminJson('/api/admin/students/preflight-create', {
         first_name: first,
         last_name: last,
         student_id: sid,
         grade: grade
-      }).then(function(res) {
-        if (res && res.blocked) return;
-        if (res && res.okHttp && res.body && res.body.ok) {
-          var tmsLabel = res.body.tms_roster === 'existing' ? 'Existing' : 'Created';
-          var loginLabel = res.body.lantern_login === 'created' ? 'Created' : (res.body.lantern_login === 'linked' ? 'Linked' : String(res.body.lantern_login || ''));
-          showStudentsRosterMsg(
-            'Student added. School ID: ' + (res.body.student_id || sid) +
-              ' · TMS roster: ' + tmsLabel +
-              ' · Lantern login: ' + loginLabel +
-              ' · Geppetto: Available on next roster sync.',
-            'ok'
-          );
-          var once = document.getElementById('studentsTempPwOnce');
-          var onceText = document.getElementById('studentsTempPwOnceText');
-          if (res.body.temporary_password && once && onceText) {
-            onceText.textContent = 'Username: ' + (res.body.lantern_username || sid) + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
-            once.style.display = 'block';
-            once.setAttribute('aria-hidden', 'false');
-          }
-          closeStudentsEditPanels();
-          document.getElementById('studentsAddFirst').value = '';
-          document.getElementById('studentsAddLast').value = '';
-          document.getElementById('studentsAddId').value = '';
-          if (gradeEl) gradeEl.value = '6';
-          loadStudentsRoster();
-          loadUsers();
+      }).then(function(pre) {
+        if (pre && pre.blocked) return;
+        if (!(pre && pre.okHttp && pre.body && pre.body.ok)) {
+          showStudentsRosterMsg((pre && pre.body && (pre.body.message || pre.body.error)) || 'Could not check for existing students.', 'err');
           return;
         }
-        var failBody = res && res.body ? res.body : {};
-        var failMsg = failBody.message || failBody.error || 'Add student failed';
-        if (failBody.tms_roster === 'created' && failBody.lantern_login === 'not_created') {
-          failMsg = 'TMS roster created. Lantern login not created. Retry/link required. School ID: ' + (failBody.student_id || sid);
+        if (pre.body.has_conflict) {
+          studentsAddConflictState = pre.body;
+          var box = document.getElementById('studentsAddConflictBox');
+          var useBtn = document.getElementById('studentsAddUseExistingBtn');
+          var lines = (pre.body.conflicts || []).map(function(c) { return '<p>' + escapeRosterHtml(c.message || '') + '</p>'; }).join('');
+          if (box) {
+            box.hidden = false;
+            box.style.display = 'block';
+            box.innerHTML = lines || '<p>A matching student already exists.</p>';
+          }
+          if (useBtn) useBtn.hidden = !pre.body.use_existing;
+          if (pre.body.use_existing) {
+            showStudentsRosterMsg((pre.body.existing_student && (pre.body.existing_student.student_name + ' already exists with School ID ' + sid + '.')) || 'This School ID already exists.', 'err');
+            return;
+          }
+          if (!window.confirm('A similar student record already exists. Create another record anyway?')) return;
         }
-        showStudentsRosterMsg(failMsg, 'err');
+        return postAdminJson('/api/admin/students/add', {
+          first_name: first,
+          last_name: last,
+          student_id: sid,
+          grade: grade
+        }).then(function(res) {
+          if (res && res.blocked) return;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            var tmsLabel = res.body.tms_roster === 'existing' ? 'Existing' : 'Created';
+            var loginLabel = res.body.lantern_login === 'created' ? 'Created' : (res.body.lantern_login === 'linked' ? 'Linked' : String(res.body.lantern_login || ''));
+            showStudentsRosterMsg(
+              'Student added. School ID: ' + (res.body.student_id || sid) +
+                ' · TMS roster: ' + tmsLabel +
+                ' · Lantern login: ' + loginLabel +
+                ' · Geppetto: Available on next roster sync.',
+              'ok'
+            );
+            var once = document.getElementById('studentsTempPwOnce');
+            var onceText = document.getElementById('studentsTempPwOnceText');
+            if (res.body.temporary_password && once && onceText) {
+              onceText.textContent = 'Username: ' + (res.body.lantern_username || sid) + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
+              once.style.display = 'block';
+              once.setAttribute('aria-hidden', 'false');
+            }
+            closeStudentsEditPanels();
+            document.getElementById('studentsAddFirst').value = '';
+            document.getElementById('studentsAddLast').value = '';
+            document.getElementById('studentsAddId').value = '';
+            if (gradeEl) gradeEl.value = '6';
+            loadStudentsRoster();
+            loadUsers();
+            return;
+          }
+          var failBody = res && res.body ? res.body : {};
+          var failMsg = failBody.message || failBody.error || 'Add student failed';
+          if (failBody.tms_roster === 'created' && failBody.lantern_login === 'not_created') {
+            failMsg = 'TMS roster created. Lantern login not created. Retry/link required. School ID: ' + (failBody.student_id || sid);
+          }
+          showStudentsRosterMsg(failMsg, 'err');
+        });
       }).catch(function() {
         showStudentsRosterMsg('Network error while creating student.', 'err');
       }).finally(function() {
@@ -4760,9 +5166,47 @@
     if (studentsRosterFilter) {
       studentsRosterFilter.addEventListener('change', function() {
         var v = String(studentsRosterFilter.value || '');
-        var nextInactive = v === 'archived' || v === 'all';
+        var nextInactive = v === 'archived' || v === 'all' || v === 'needs_attention' || studentsHealthFilter === 'needs_attention';
         if (nextInactive !== studentsRosterIncludeInactive) loadStudentsRoster();
         else renderStudentsRosterTable();
+      });
+    }
+    document.querySelectorAll('[data-health-filter]').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        studentsHealthFilter = String(chip.getAttribute('data-health-filter') || 'all');
+        syncStudentsHealthChips();
+        var nextInactive = studentsHealthFilter === 'needs_attention' || (studentsRosterFilter && (studentsRosterFilter.value === 'archived' || studentsRosterFilter.value === 'all' || studentsRosterFilter.value === 'needs_attention'));
+        if (nextInactive !== studentsRosterIncludeInactive) loadStudentsRoster();
+        else renderStudentsRosterTable();
+      });
+    });
+    var studentsAddUseExistingBtn = document.getElementById('studentsAddUseExistingBtn');
+    if (studentsAddUseExistingBtn) {
+      studentsAddUseExistingBtn.addEventListener('click', function() {
+        var existing = studentsAddConflictState && studentsAddConflictState.existing_student;
+        closeStudentsEditPanels();
+        if (!existing) return;
+        var search = document.getElementById('studentsRosterSearch');
+        if (search) search.value = existing.student_id || existing.student_name || '';
+        studentsHealthFilter = 'all';
+        syncStudentsHealthChips();
+        renderStudentsRosterTable();
+      });
+    }
+    var studentsEditRetryBtn = document.getElementById('studentsEditRetryBtn');
+    if (studentsEditRetryBtn) studentsEditRetryBtn.addEventListener('click', saveStudentIdEdit);
+    var studentsEditReviewConflictBtn = document.getElementById('studentsEditReviewConflictBtn');
+    if (studentsEditReviewConflictBtn) {
+      studentsEditReviewConflictBtn.addEventListener('click', function() {
+        reviewConflictingStudent(studentsEditConflictState);
+      });
+    }
+    var studentIdentityHubCloseBtn = document.getElementById('studentIdentityHubCloseBtn');
+    if (studentIdentityHubCloseBtn) studentIdentityHubCloseBtn.addEventListener('click', closeStudentIdentityHub);
+    var studentIdentityHubOverlay = document.getElementById('studentIdentityHubOverlay');
+    if (studentIdentityHubOverlay) {
+      studentIdentityHubOverlay.addEventListener('click', function(ev) {
+        if (ev.target === studentIdentityHubOverlay) closeStudentIdentityHub();
       });
     }
     var studentsRosterGradeFilter = document.getElementById('studentsRosterGradeFilter');

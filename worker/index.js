@@ -29,6 +29,8 @@ import {
   inspectResolveDuplicate,
   resolveDuplicate,
 } from './admin-student-resolve-duplicate.js';
+import { attachStudentHealth, findConflictingNamePeer, summarizeStudentHealth } from './admin-student-health.js';
+import { STUDENT_PREFLIGHT_PATH, preflightCreateStudent } from './admin-student-preflight.js';
 import {
   validateStaffHonorific,
   validateStaffPublicDisplayName,
@@ -3315,8 +3317,10 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       };
     });
 
-    const activeStudents = students.filter((s) => Number(s.is_active) === 1);
-    const scope = includeInactive ? students : activeStudents;
+    const healthyStudents = attachStudentHealth(students);
+    const activeStudents = healthyStudents.filter((s) => Number(s.is_active) === 1);
+    const scope = includeInactive ? healthyStudents : activeStudents;
+    const healthCounts = summarizeStudentHealth(scope);
     const counts = {
       active_tms: activeStudents.length,
       missing_id: activeStudents.filter((s) => !s.student_id).length,
@@ -3328,6 +3332,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       locker_ready: activeStudents.filter((s) => s.locker === 'Ready').length,
       media_publicity_restricted: activeStudents.filter((s) => Number(s.media_publicity_restricted) === 1).length,
       total_shown: scope.length,
+      healthy: healthCounts.healthy,
+      needs_attention: healthCounts.needs_attention,
+      by_health_state: healthCounts.by_state,
     };
 
     return jsonResponse({ ok: true, students: scope, counts, include_inactive: includeInactive }, 200, cors);
@@ -3361,6 +3368,22 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: result.error || 'write_failed', detail: result.detail || null }, 503, cors);
     }
     return jsonResponse(result, 200, cors);
+  }
+
+  // Prompt #40 — preview Add Student conflicts before creating another row.
+  if (request.method === 'POST' && path === STUDENT_PREFLIGHT_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await preflightCreateStudent(db, env, body, { callTmsRosterBridge });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
   }
 
   // Prompt #32 — one Admin Add Student action: TMS roster first, then Lantern login.
@@ -3629,6 +3652,76 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, username, mtss_student_id: studentId }, 200, cors);
   }
 
+  if (request.method === 'POST' && path === '/api/admin/tms-roster/unlink') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const username = String((body && body.username) || '').trim();
+    const studentId = String((body && (body.student_id || body.tms_student_id)) || '').trim();
+    const confirm = String((body && (body.confirm || body.confirm_text)) || '').trim();
+    if (!username) return jsonResponse({ ok: false, error: 'username_required', message: 'Choose the Lantern login to unlink.' }, 400, cors);
+    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required', message: 'School ID is required.' }, 400, cors);
+    if (confirm !== 'UNLINK') {
+      return jsonResponse({ ok: false, error: 'confirm_required', message: 'Type UNLINK to confirm.' }, 400, cors);
+    }
+    const row = await db
+      .prepare(
+        `SELECT username, role, mtss_student_id, is_active FROM lantern_pilot_accounts
+         WHERE lower(trim(username)) = lower(trim(?))`
+      )
+      .bind(username)
+      .first();
+    if (!row) return jsonResponse({ ok: false, error: 'not_found', message: 'That Lantern login was not found.' }, 404, cors);
+    if (String(row.role || '').trim().toLowerCase() !== 'student') {
+      return jsonResponse({ ok: false, error: 'not_student_role', message: 'Only student logins can be unlinked here.' }, 409, cors);
+    }
+    const linkedId = row.mtss_student_id != null ? String(row.mtss_student_id).trim() : '';
+    if (!linkedId) {
+      return jsonResponse({ ok: true, already_unlinked: true, username: String(row.username || '').trim(), student_id: studentId }, 200, cors);
+    }
+    if (linkedId.toLowerCase() !== studentId.toLowerCase()) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'account_has_different_mtss_student_id',
+          message: 'That login is linked to a different School ID. Nothing was changed.',
+        },
+        409,
+        cors
+      );
+    }
+    await db
+      .prepare(
+        `UPDATE lantern_pilot_accounts SET mtss_student_id = NULL, updated_at = datetime('now')
+         WHERE lower(trim(username)) = lower(trim(?)) AND lower(trim(COALESCE(mtss_student_id, ''))) = lower(trim(?))`
+      )
+      .bind(username, studentId)
+      .run();
+    const reread = await db
+      .prepare(
+        `SELECT username, mtss_student_id FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+      )
+      .bind(username)
+      .first();
+    const stillLinked = reread && reread.mtss_student_id != null && String(reread.mtss_student_id).trim() !== '';
+    if (stillLinked) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'authoritative_update_not_applied',
+          message: 'We couldn\'t save this change. Nothing was reported as saved.',
+        },
+        409,
+        cors
+      );
+    }
+    return jsonResponse({ ok: true, verified: true, username: String(row.username || '').trim(), student_id: studentId, unlinked: true }, 200, cors);
+  }
+
   if (request.method === 'POST' && path === '/api/admin/tms-roster/create') {
     const text = await request.text();
     let body;
@@ -3810,8 +3903,15 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
       const code = bridge.code || bridge.error || 'bridge_failed';
       let message = bridge.message || bridge.error || null;
+      let conflicting_student = null;
       if (code === 'destination_name_taken' || code === 'ambiguous_student_name') {
-        message = 'Another roster row already uses this name.';
+        message = 'Another student record is blocking this change.';
+        try {
+          const list = await callTmsRosterBridge(env, 'roster/list', { include_inactive: true });
+          if (list && list.ok) {
+            conflicting_student = findConflictingNamePeer(list.students || [], nextName, studentId);
+          }
+        } catch (_) {}
       }
       return jsonResponse(
         {
@@ -3819,6 +3919,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
           error: code === 'destination_name_taken' || code === 'ambiguous_student_name' ? 'destination_name_taken' : (bridge.error || code),
           code,
           message,
+          conflicting_student,
         },
         status,
         cors
@@ -3834,7 +3935,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
           ok: false,
           error: 'authoritative_update_not_applied',
           code: 'authoritative_update_not_applied',
-          message: 'The authoritative TMS row did not match the requested update.',
+          message: 'We couldn\'t save this change. Nothing was reported as saved.',
         },
         409,
         cors
