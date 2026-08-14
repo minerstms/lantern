@@ -1290,6 +1290,21 @@ function getTmsNuggetsApiBaseUrl(env) {
   return (env.TMS_NUGGETS_API_BASE_URL || 'https://mtss-behavior-log.mrradle.workers.dev').trim().replace(/\/$/, '');
 }
 
+const STUDENT_EDIT_DEBUG_REVISION = 'student-edit-42';
+
+function studentEditDebugFields(fields) {
+  const f = fields || {};
+  return {
+    debug_revision: STUDENT_EDIT_DEBUG_REVISION,
+    requested_student_id: f.requested_student_id != null ? String(f.requested_student_id) : '',
+    requested_student_name: f.requested_student_name != null ? String(f.requested_student_name) : '',
+    authoritative_student_id: f.authoritative_student_id != null ? String(f.authoritative_student_id) : null,
+    authoritative_student_name: f.authoritative_student_name != null ? String(f.authoritative_student_name) : null,
+    verified: f.verified === true,
+    tms_base: f.tms_base || null,
+  };
+}
+
 /**
  * Prompt #139/#182 — allow only known Behavior Logger origins for device-authorize return.
  * Canonical public hostname: log.tmslantern.org (Pages hostname retained for compatibility).
@@ -2200,6 +2215,23 @@ async function handleAuthRoutes(request, url, path, env, cors) {
 async function handleAdminRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+
+  // Prompt #42 — non-mutating probe so custom-domain routing can be proven without editing a student.
+  if (request.method === 'GET' && path === '/api/admin/tms-roster/update') {
+    return jsonResponse(
+      {
+        ok: true,
+        probe: true,
+        mutating: false,
+        ...studentEditDebugFields({
+          verified: false,
+          tms_base: getTmsNuggetsApiBaseUrl(env),
+        }),
+      },
+      200,
+      cors
+    );
+  }
 
   const account = await getPilotAccountFromRequest(request, env);
   if (!account || String(account.role || '').trim().toLowerCase() !== 'admin') {
@@ -3821,7 +3853,15 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     try {
       body = JSON.parse(text || '{}');
     } catch (_) {
-      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'Invalid JSON',
+          ...studentEditDebugFields({ verified: false, tms_base: getTmsNuggetsApiBaseUrl(env) }),
+        },
+        400,
+        cors
+      );
     }
     const previousName = String(body.previous_student_name || body.student_name || '').trim();
     const previousId = String(body.previous_student_id ?? '').trim();
@@ -3832,15 +3872,22 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const studentId = String(body.student_id ?? '').trim();
     const gradeRaw = body.grade_slug != null ? body.grade_slug : body.grade;
     const gradeSlug = normalizeAdminTmsGradeSlug(gradeRaw);
-    if (!previousName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
-    if (!first) return jsonResponse({ ok: false, error: 'first_name_required', message: 'First name is required.' }, 400, cors);
-    if (!nextName) return jsonResponse({ ok: false, error: 'student_name_required' }, 400, cors);
-    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required' }, 400, cors);
+    const debugBase = () =>
+      studentEditDebugFields({
+        requested_student_id: studentId,
+        requested_student_name: nextName,
+        verified: false,
+        tms_base: getTmsNuggetsApiBaseUrl(env),
+      });
+    if (!previousName) return jsonResponse({ ok: false, error: 'student_name_required', ...debugBase() }, 400, cors);
+    if (!first) return jsonResponse({ ok: false, error: 'first_name_required', message: 'First name is required.', ...debugBase() }, 400, cors);
+    if (!nextName) return jsonResponse({ ok: false, error: 'student_name_required', ...debugBase() }, 400, cors);
+    if (!studentId) return jsonResponse({ ok: false, error: 'student_id_required', ...debugBase() }, 400, cors);
     if (studentId.length > ADMIN_TMS_STUDENT_ID_MAX_LEN) {
-      return jsonResponse({ ok: false, error: 'student_id_too_long', max: ADMIN_TMS_STUDENT_ID_MAX_LEN }, 400, cors);
+      return jsonResponse({ ok: false, error: 'student_id_too_long', max: ADMIN_TMS_STUDENT_ID_MAX_LEN, ...debugBase() }, 400, cors);
     }
     if (!gradeSlug) {
-      return jsonResponse({ ok: false, error: 'invalid_grade', message: 'grade must be 6, 7, or 8' }, 400, cors);
+      return jsonResponse({ ok: false, error: 'invalid_grade', message: 'grade must be 6, 7, or 8', ...debugBase() }, 400, cors);
     }
 
     if (previousId && previousId !== studentId) {
@@ -3852,6 +3899,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
             previous_student_id: previousId,
             student_id: studentId,
             message: 'Changing a non-blank Student ID requires explicit confirmation.',
+            ...debugBase(),
           },
           400,
           cors
@@ -3882,6 +3930,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
             })),
             previous_student_id: previousId,
             student_id: studentId,
+            ...debugBase(),
           },
           409,
           cors
@@ -3920,6 +3969,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
           code,
           message,
           conflicting_student,
+          ...debugBase(),
+          authoritative_student_id: bridge.authoritative_student_id != null ? String(bridge.authoritative_student_id) : null,
+          authoritative_student_name: bridge.authoritative_student_name != null ? String(bridge.authoritative_student_name) : null,
         },
         status,
         cors
@@ -3936,6 +3988,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
           error: 'authoritative_update_not_applied',
           code: 'authoritative_update_not_applied',
           message: 'We couldn\'t save this change. Nothing was reported as saved.',
+          ...debugBase(),
+          authoritative_student_id: savedId || null,
+          authoritative_student_name: savedName || null,
         },
         409,
         cors
@@ -3994,7 +4049,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         grade_slug: bridge.grade_slug || gradeSlug,
         identity_changed: !!bridge.identity_changed,
         lantern_display_updated,
-        verified: true,
+        ...studentEditDebugFields({
+          requested_student_id: studentId,
+          requested_student_name: nextName,
+          authoritative_student_id: savedId,
+          authoritative_student_name: savedName,
+          verified: true,
+          tms_base: getTmsNuggetsApiBaseUrl(env),
+        }),
       },
       200,
       cors
