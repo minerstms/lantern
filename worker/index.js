@@ -147,6 +147,16 @@ import {
   studentPublicLabel,
 } from './access-preauthorize.js';
 import { handleSettingsRoutes } from './lantern-settings.js';
+import {
+  GEPPETTO_STUDENT_AUDIENCE,
+  sanitizeGeppettoStudentReturn,
+  appendHandoffCodeToReturn,
+  lanternStudentDisplaySnapshot,
+  geppettoStudentAuthorizeFailurePage,
+  bearerTokenFromRequest,
+  mintGeppettoStudentHandoff,
+  redeemGeppettoStudentHandoff,
+} from './geppetto-student-handoff.js';
 import { handleMarqueeRoutes } from './marquee-handlers.js';
 import {
   detectLeaderboardEntryTransition,
@@ -995,7 +1005,12 @@ function timingSafeEqualStrings(a, b) {
   const ba = enc.encode(String(a));
   const bb = enc.encode(String(b));
   if (ba.length !== bb.length) return false;
-  return crypto.subtle.timingSafeEqual(ba, bb);
+  if (crypto.subtle && typeof crypto.subtle.timingSafeEqual === 'function') {
+    return crypto.subtle.timingSafeEqual(ba, bb);
+  }
+  let out = 0;
+  for (let i = 0; i < ba.length; i++) out |= ba[i] ^ bb[i];
+  return out === 0;
 }
 
 async function handleSetupRoutes(request, url, path, env, cors) {
@@ -2041,6 +2056,96 @@ async function handleAuthRoutes(request, url, path, env, cors) {
         linked: !!tmsStaffId,
         // Never expose bridge secrets; tms_staff_id is the server-resolved link id only.
         tms_staff_id: tmsStaffId || null,
+      },
+      200,
+      cors
+    );
+  }
+
+  // Geppetto student SSO — first-party authorize. Dedicated handoff table/audience.
+  // Do not overload tms-device-authorize or TMS lantern_handoffs.
+  if (request.method === 'GET' && path === '/api/auth/geppetto-student-authorize') {
+    const safeReturn = sanitizeGeppettoStudentReturn(url.searchParams.get('return'));
+    if (!safeReturn) return geppettoStudentAuthorizeFailurePage('return_not_allowed', cors);
+    const authorizeSelf =
+      url.pathname +
+      '?return=' +
+      encodeURIComponent(url.searchParams.get('return') || safeReturn);
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) {
+      const loginLoc = '/login.html?return=' + encodeURIComponent(authorizeSelf);
+      return new Response(null, {
+        status: 302,
+        headers: { ...cors, Location: loginLoc, 'Cache-Control': 'no-store' },
+      });
+    }
+    if (pilotAccountRequiresChangePassword(account)) {
+      const cpLoc = '/change-password.html?return=' + encodeURIComponent(authorizeSelf);
+      return new Response(null, {
+        status: 302,
+        headers: { ...cors, Location: cpLoc, 'Cache-Control': 'no-store' },
+      });
+    }
+    const isActive = account.is_active != null ? Number(account.is_active) : 1;
+    if (isActive === 0) return geppettoStudentAuthorizeFailurePage('lantern_account_disabled', cors);
+    const role = String(account.role || '').trim().toLowerCase();
+    if (role !== 'student') return geppettoStudentAuthorizeFailurePage('lantern_account_not_student', cors);
+    const mtssStudentId = account.mtss_student_id != null ? String(account.mtss_student_id).trim() : '';
+    if (!mtssStudentId) return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors);
+
+    const minted = await mintGeppettoStudentHandoff(db, {
+      lanternUsername: account.username,
+      mtssStudentId,
+      displayName: lanternStudentDisplaySnapshot(account),
+    });
+    if (!minted.ok) {
+      if (minted.error === 'missing_roster_id') return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors);
+      return geppettoStudentAuthorizeFailurePage('mint_failed', cors);
+    }
+    const dest = appendHandoffCodeToReturn(safeReturn, minted.code);
+    return new Response(null, {
+      status: 302,
+      headers: { ...cors, Location: dest, 'Cache-Control': 'no-store' },
+    });
+  }
+
+  // Server-to-server redeem. Bearer LANTERN_GEPPETTO_BRIDGE_SECRET only.
+  if (request.method === 'POST' && path === '/api/auth/geppetto-student-handoff/redeem') {
+    const configured = String(env.LANTERN_GEPPETTO_BRIDGE_SECRET || '').trim();
+    if (!configured) {
+      return jsonResponse({ ok: false, error: 'bridge_not_configured' }, 503, cors);
+    }
+    const provided = bearerTokenFromRequest(request);
+    if (!provided || !timingSafeEqualStrings(configured, provided)) {
+      return jsonResponse({ ok: false, error: 'unauthorized' }, 401, cors);
+    }
+    let body = {};
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const redeemed = await redeemGeppettoStudentHandoff(
+      db,
+      body && body.code,
+      body && body.audience ? body.audience : GEPPETTO_STUDENT_AUDIENCE
+    );
+    if (!redeemed.ok) {
+      const status =
+        redeemed.error === 'missing_code' || redeemed.error === 'Invalid JSON'
+          ? 400
+          : redeemed.error === 'wrong_audience'
+            ? 403
+            : 401;
+      return jsonResponse({ ok: false, error: redeemed.error }, status, cors);
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        audience: redeemed.audience,
+        mtss_student_id: redeemed.mtss_student_id,
+        lantern_username: redeemed.lantern_username,
+        display_name: redeemed.display_name,
       },
       200,
       cors

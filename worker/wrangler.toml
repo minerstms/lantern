@@ -50,6 +50,9 @@ bucket_name = "lantern-media"
 # POST /api/auth/lantern-handoff/redeem as a service, authenticated with a shared secret (same
 # value must also be set as TMS_LANTERN_BRIDGE_SECRET in the mtss-behavior-log Worker):
 #   npx wrangler secret put TMS_LANTERN_BRIDGE_SECRET
+# Geppetto student SSO (Lantern -> Geppetto). Separate from TMS staff bridge. Do not reuse
+# TMS_LANTERN_BRIDGE_SECRET. Set the value only when production activation is approved:
+#   npx wrangler secret put LANTERN_GEPPETTO_BRIDGE_SECRET
 # Optional [vars] override for the Nuggets Worker base URL (defaults to the known production URL):
 # TMS_NUGGETS_API_BASE_URL = "https://mtss-behavior-log.mrradle.workers.dev"
 # School Access Foundation (Prompt #30): SCHOOL_SCHEDULE_ENFORCEMENT_ENABLED gates the NEW
