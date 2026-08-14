@@ -24,6 +24,12 @@ import {
   permanentlyDeleteStudent,
 } from './admin-student-delete.js';
 import {
+  STUDENT_RESOLVE_INSPECT_PATH,
+  STUDENT_RESOLVE_PATH,
+  inspectResolveDuplicate,
+  resolveDuplicate,
+} from './admin-student-resolve-duplicate.js';
+import {
   validateStaffHonorific,
   validateStaffPublicDisplayName,
   propagateHonorificToLinkedAccounts,
@@ -3410,6 +3416,34 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     delete payload.status;
     return jsonResponse(payload, status, cors);
   }
+  if (request.method === 'POST' && path === STUDENT_RESOLVE_INSPECT_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await inspectResolveDuplicate(env, body, { callTmsRosterBridge });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
+  }
+  if (request.method === 'POST' && path === STUDENT_RESOLVE_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await resolveDuplicate(env, body, { callTmsRosterBridge });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
+  }
   if (request.method === 'POST' && path === STUDENT_ARCHIVE_PATH) {
     const text = await request.text();
     let body;
@@ -3790,8 +3824,22 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         cors
       );
     }
-    const savedName = String(bridge.student_name || nextName).trim();
-    const savedId = bridge.student_id != null ? String(bridge.student_id).trim() : studentId;
+    const savedName = String(bridge.student_name || '').trim();
+    const savedId = bridge.student_id != null ? String(bridge.student_id).trim() : '';
+    const requestedNorm = nextName.replace(/\s+/g, ' ').toLowerCase();
+    const savedNorm = savedName.replace(/\s+/g, ' ').toLowerCase();
+    if (!bridge.verified || !savedName || savedId !== studentId || savedNorm !== requestedNorm) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'authoritative_update_not_applied',
+          code: 'authoritative_update_not_applied',
+          message: 'The authoritative TMS row did not match the requested update.',
+        },
+        409,
+        cors
+      );
+    }
     const names = splitRosterDisplayName(savedName);
     let lantern_display_updated = false;
     if (savedId) {
@@ -3845,6 +3893,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         grade_slug: bridge.grade_slug || gradeSlug,
         identity_changed: !!bridge.identity_changed,
         lantern_display_updated,
+        verified: true,
       },
       200,
       cors

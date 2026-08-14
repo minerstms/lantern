@@ -406,6 +406,26 @@
     </div>
   </div>
 
+  <!-- Prompt #38 — Resolve blank-ID duplicate (typed RESOLVE confirms; backdrop/Escape cancel) -->
+  <div class="overlay" id="studentResolveOverlay" aria-hidden="true">
+    <div class="modal" style="max-width:560px;" role="dialog" aria-labelledby="studentResolveTitle" aria-modal="true">
+      <div class="modalHd">
+        <div class="h" id="studentResolveTitle">Resolve duplicate student?</div>
+        <button type="button" class="x" id="studentResolveCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="studentResolveBody"></div>
+      <p id="studentResolveMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
+      <div id="studentResolveConfirmWrap" style="display:none;margin:12px 0 0;">
+        <label for="studentResolveConfirmInput">Type RESOLVE to confirm</label>
+        <input id="studentResolveConfirmInput" type="text" autocomplete="off" maxlength="16" />
+      </div>
+      <div class="acctPanelActions" style="margin-top:12px;">
+        <button type="button" class="btn" id="studentResolveCancelBtn">Cancel</button>
+        <button type="button" class="btn good" id="studentResolveConfirmBtn" hidden>Resolve Duplicate</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Exact Locker avatar crop overlay (shared LanternAvatarCropper) -->
   <div class="overlay" id="avatarCropOverlay">
     <div class="modal" style="max-width:520px;">
@@ -3880,7 +3900,9 @@
             '<p class="acctPanelHint" style="margin:0 0 10px;">' +
               (s.student_id
                 ? 'Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Delete is only for mistaken rows with no history. Archive keeps history and removes the student from the active roster. Lantern login Archive stays separate.'
-                : 'This row has no School Student ID, so ordinary Delete cannot target it safely. Use Set Student ID to assign the real school ID, or Delete Mistaken Row only when this exact blank-ID name is unique and has no history.') +
+                : (findCanonicalDuplicate(s)
+                  ? 'This row has no School Student ID, but an identified student with the same name exists. Use Resolve Duplicate to keep that School ID and remove this extra row. History is preserved.'
+                  : 'This row has no School Student ID, so ordinary Delete cannot target it safely. Use Set Student ID to assign the real school ID, or Delete Mistaken Row only when this exact blank-ID name is unique and has no history.')) +
             '</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
@@ -3935,6 +3957,19 @@
             if (idInput) idInput.focus();
           });
           actions.appendChild(bSetId);
+          var canonicalDup = findCanonicalDuplicate(s);
+          if (canonicalDup) {
+            var bResolve = document.createElement('button');
+            bResolve.type = 'button';
+            bResolve.className = 'btn good';
+            bResolve.textContent = 'Resolve Duplicate';
+            bResolve.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              openStudentResolveModal(s, canonicalDup);
+            });
+            actions.appendChild(bResolve);
+          }
           var bDelBlank = document.createElement('button');
           bDelBlank.type = 'button';
           bDelBlank.className = 'btn';
@@ -4123,6 +4158,129 @@
       }
     }
 
+    function normalizeRosterName(name) {
+      return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function rosterRowDisplayName(s) {
+      if (!s) return '';
+      return String(s.student_name || ((s.first_name || '') + ' ' + (s.last_name || ''))).trim();
+    }
+
+    function findCanonicalDuplicate(s) {
+      if (!s || s.student_id) return null;
+      var name = normalizeRosterName(rosterRowDisplayName(s));
+      if (!name) return null;
+      var identified = (lastStudentsRoster || []).filter(function(o) {
+        if (!o || !String(o.student_id || '').trim()) return false;
+        return normalizeRosterName(rosterRowDisplayName(o)) === name;
+      });
+      if (identified.length !== 1) return null;
+      return identified[0];
+    }
+
+    var studentResolveState = { source: null, keep: null, busy: false };
+
+    function closeStudentResolveModal() {
+      var overlay = document.getElementById('studentResolveOverlay');
+      if (overlay) {
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+      studentResolveState.source = null;
+      studentResolveState.keep = null;
+      studentResolveState.busy = false;
+      var input = document.getElementById('studentResolveConfirmInput');
+      if (input) input.value = '';
+      var msg = document.getElementById('studentResolveMsg');
+      if (msg) msg.textContent = '';
+    }
+
+    function setStudentResolveMsg(text, kind) {
+      var el = document.getElementById('studentResolveMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'acctPanelHint' + (kind === 'err' ? ' usersMsg--err' : '');
+    }
+
+    function openStudentResolveModal(source, keep) {
+      studentResolveState.source = source;
+      studentResolveState.keep = keep;
+      studentResolveState.busy = false;
+      var sourceName = rosterRowDisplayName(source);
+      var keepName = rosterRowDisplayName(keep);
+      var keepId = String((keep && keep.student_id) || '').trim();
+      var body = document.getElementById('studentResolveBody');
+      if (body) {
+        body.innerHTML =
+          '<p><strong>REMOVE duplicate roster row:</strong><br>' +
+            escapeRosterHtml(sourceName) + '<br>Missing Student ID</p>' +
+          '<p><strong>KEEP canonical student:</strong><br>' +
+            escapeRosterHtml(keepName) + '<br>School ID ' + escapeRosterHtml(keepId) + '</p>' +
+          '<p>Historical records will be preserved.</p>';
+      }
+      var wrap = document.getElementById('studentResolveConfirmWrap');
+      var confirmBtn = document.getElementById('studentResolveConfirmBtn');
+      if (wrap) wrap.style.display = 'block';
+      if (confirmBtn) confirmBtn.hidden = false;
+      setStudentResolveMsg('', '');
+      var overlay = document.getElementById('studentResolveOverlay');
+      if (overlay) {
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+      }
+      var input = document.getElementById('studentResolveConfirmInput');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+      postAdminJson('/api/admin/students/resolve-duplicate-inspect', {
+        student_name: sourceName,
+        keep_student_id: keepId
+      }).then(function(res) {
+        if (res && res.blocked) return;
+        if (!(res && res.okHttp && res.body && res.body.ok && res.body.can_resolve)) {
+          var msg = (res && res.body && (res.body.message || res.body.error)) || 'Cannot resolve this duplicate.';
+          setStudentResolveMsg(msg, 'err');
+          if (confirmBtn) confirmBtn.hidden = true;
+        }
+      }).catch(function() {
+        setStudentResolveMsg('Could not inspect this duplicate.', 'err');
+      });
+    }
+
+    function submitStudentResolve() {
+      if (studentResolveState.busy) return;
+      var input = document.getElementById('studentResolveConfirmInput');
+      var typed = input ? String(input.value || '').trim() : '';
+      if (typed !== 'RESOLVE') {
+        setStudentResolveMsg('Type RESOLVE to confirm.', 'err');
+        return;
+      }
+      var source = studentResolveState.source;
+      var keep = studentResolveState.keep;
+      if (!source || !keep) return;
+      studentResolveState.busy = true;
+      postAdminJson('/api/admin/students/resolve-duplicate', {
+        student_name: rosterRowDisplayName(source),
+        keep_student_id: String(keep.student_id || '').trim(),
+        confirm: 'RESOLVE'
+      }).then(function(res) {
+        studentResolveState.busy = false;
+        if (res && res.blocked) return;
+        if (!(res && res.okHttp && res.body && res.body.ok)) {
+          setStudentResolveMsg((res && res.body && (res.body.message || res.body.error)) || 'Resolve failed.', 'err');
+          return;
+        }
+        closeStudentResolveModal();
+        showStudentsRosterMsg(res.body.message || 'Duplicate resolved.', 'ok');
+        loadStudentsRoster();
+      }).catch(function() {
+        studentResolveState.busy = false;
+        setStudentResolveMsg('Network error while resolving duplicate.', 'err');
+      });
+    }
+
     var studentDeleteState = { student: null, inspect: null, busy: false };
 
     function closeStudentDeleteModal() {
@@ -4277,7 +4435,24 @@
         ev.preventDefault();
         closeStudentDeleteModal();
       }
+      var resolveOverlay = document.getElementById('studentResolveOverlay');
+      if (resolveOverlay && resolveOverlay.classList.contains('show')) {
+        ev.preventDefault();
+        closeStudentResolveModal();
+      }
     });
+    var studentResolveOverlay = document.getElementById('studentResolveOverlay');
+    if (studentResolveOverlay) {
+      studentResolveOverlay.addEventListener('click', function(ev) {
+        if (ev.target === studentResolveOverlay) closeStudentResolveModal();
+      });
+    }
+    var studentResolveCloseBtn = document.getElementById('studentResolveCloseBtn');
+    if (studentResolveCloseBtn) studentResolveCloseBtn.addEventListener('click', closeStudentResolveModal);
+    var studentResolveCancelBtn = document.getElementById('studentResolveCancelBtn');
+    if (studentResolveCancelBtn) studentResolveCancelBtn.addEventListener('click', closeStudentResolveModal);
+    var studentResolveConfirmBtn = document.getElementById('studentResolveConfirmBtn');
+    if (studentResolveConfirmBtn) studentResolveConfirmBtn.addEventListener('click', submitStudentResolve);
     var studentDeleteConfirmBtn = document.getElementById('studentDeleteConfirmBtn');
     if (studentDeleteConfirmBtn) {
       studentDeleteConfirmBtn.addEventListener('click', function() {
@@ -4446,11 +4621,20 @@
           if (failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name') {
             msg = 'Another roster row already uses this name.';
           }
+          if (failCode === 'authoritative_update_not_applied') {
+            msg = 'Save failed: the authoritative roster did not keep the new name. The editor is still open.';
+          }
           showStudentsRosterMsg(msg, 'err');
           return;
         }
-        var savedName = res.body.student_name || nextName;
-        var savedId = res.body.student_id || next;
+        var savedName = String(res.body.student_name || '').trim();
+        var savedId = String(res.body.student_id || '').trim();
+        var requestedNorm = nextName.replace(/\s+/g, ' ').toLowerCase();
+        var savedNorm = savedName.replace(/\s+/g, ' ').toLowerCase();
+        if (!res.body.verified || !savedName || savedId !== next || savedNorm !== requestedNorm) {
+          showStudentsRosterMsg('Save failed: the authoritative roster did not keep the new name. The editor is still open.', 'err');
+          return;
+        }
         var savedGrade = res.body.grade || grade;
         return postAdminJson('/api/admin/students/media-publicity', {
           student_id: savedId,

@@ -306,6 +306,7 @@ async function run() {
         row.grade = g;
         return {
           ok: true,
+          verified: true,
           previous_student_name: previousName,
           previous_student_id: prevId,
           student_name: name,
