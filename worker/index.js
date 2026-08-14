@@ -151,7 +151,7 @@ import {
   GEPPETTO_STUDENT_AUDIENCE,
   sanitizeGeppettoStudentReturn,
   appendHandoffCodeToReturn,
-  lanternStudentDisplaySnapshot,
+  resolveGeppettoStudentDisplayName,
   geppettoStudentAuthorizeFailurePage,
   bearerTokenFromRequest,
   mintGeppettoStudentHandoff,
@@ -2096,7 +2096,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     const minted = await mintGeppettoStudentHandoff(db, {
       lanternUsername: account.username,
       mtssStudentId,
-      displayName: lanternStudentDisplaySnapshot(account),
+      displayName: await resolveGeppettoStudentDisplayName(db, account),
     });
     if (!minted.ok) {
       if (minted.error === 'missing_roster_id') return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors);

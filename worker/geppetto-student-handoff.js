@@ -57,12 +57,59 @@ export function appendHandoffCodeToReturn(returnUrl, code) {
   return base + sep + 'code=' + encodeURIComponent(String(code || ''));
 }
 
+/** True when a string is only a school roster ID (digits), not a human name. */
+export function isRosterIdLikeDisplayToken(value) {
+  return /^\d{3,}$/.test(String(value || '').trim());
+}
+
+/**
+ * Presentation-only. Never treat roster/login IDs as a student name.
+ * student_character_name is an identity/economy key and is not used here.
+ */
+export function isHumanStudentDisplayName(value, mtssStudentId, username) {
+  const v = String(value || '').trim();
+  if (!v) return false;
+  const id = String(mtssStudentId || '').trim();
+  const user = String(username || '').trim();
+  if (id && v === id) return false;
+  if (user && v === user && isRosterIdLikeDisplayToken(user)) return false;
+  if (isRosterIdLikeDisplayToken(v) && id && v === id) return false;
+  return true;
+}
+
 export function lanternStudentDisplaySnapshot(account) {
   if (!account) return '';
-  const character = String(account.student_character_name || '').trim();
+  const mtss = account.mtss_student_id != null ? String(account.mtss_student_id).trim() : '';
+  const user = String(account.username || '').trim();
   const display = String(account.display_name || '').trim();
-  const username = String(account.username || '').trim();
-  return character || display || username;
+  if (isHumanStudentDisplayName(display, mtss, user)) return display;
+  const first = String(account.first_name || '').trim();
+  const last = String(account.last_name || '').trim();
+  const composed = [first, last].filter(Boolean).join(' ');
+  if (isHumanStudentDisplayName(composed, mtss, user)) return composed;
+  return '';
+}
+
+/** After exact mtss_student_id resolution, pick a human display name for Geppetto UI only. */
+export async function resolveGeppettoStudentDisplayName(db, account) {
+  const snapshot = lanternStudentDisplaySnapshot(account);
+  if (snapshot) return snapshot;
+  const mtss = account && account.mtss_student_id != null ? String(account.mtss_student_id).trim() : '';
+  if (db && mtss) {
+    try {
+      const row = await db
+        .prepare(
+          `SELECT display_name FROM lantern_student_identities WHERE lower(trim(character_name)) = lower(trim(?))`
+        )
+        .bind(mtss)
+        .first();
+      const ident = row && row.display_name != null ? String(row.display_name).trim() : '';
+      if (isHumanStudentDisplayName(ident, mtss, account && account.username)) return ident;
+    } catch (_) {
+      /* identities table missing in some test envs */
+    }
+  }
+  return 'Student';
 }
 
 export function geppettoStudentAuthorizeFailurePage(errorCode, cors) {

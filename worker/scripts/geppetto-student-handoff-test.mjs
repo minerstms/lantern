@@ -81,6 +81,11 @@ function makeEnv(state) {
           const key = String(binds[0] || '').trim().toLowerCase();
           return state.accounts[key] || null;
         }
+        if (s.includes('FROM lantern_student_identities')) {
+          const key = String(binds[0] || '').trim().toLowerCase();
+          const identities = state.identities || {};
+          return identities[key] || null;
+        }
         if (s.includes('FROM geppetto_student_handoffs WHERE code_hash')) {
           const row = state.handoffs[String(binds[0] || '')];
           return row || null;
@@ -314,7 +319,45 @@ async function testNoSessionRedirectsToLogin() {
   ok('no session redirects through existing login flow');
 }
 
+async function testHumanDisplayNotRosterId() {
+  const state = {};
+  const env = makeEnv(state);
+  const acc = account({
+    username: '20889',
+    display_name: 'Lucas',
+    student_character_name: '20889',
+    mtss_student_id: '20889',
+  });
+  state.accounts['20889'] = acc;
+  const res = await authorize(env, await cookieFor(acc), SAFE_RETURN);
+  if (res.status !== 302) return bad('linked 20889 student must mint', res.status);
+  const row = Object.values(state.handoffs)[0];
+  if (!row || row.mtss_student_id !== '20889') return bad('roster id must remain 20889', row);
+  if (row.display_name !== 'Lucas') return bad('display_name must be human account name, not roster id', row);
+  ok('linked student display_name uses human Lantern display_name');
+}
+
+async function testIdentitiesDisplayWhenAccountNameIsRosterId() {
+  const state = { identities: { '20889': { character_name: '20889', display_name: 'Lucas R.' } } };
+  const env = makeEnv(state);
+  const acc = account({
+    username: '20889',
+    display_name: '20889',
+    student_character_name: '20889',
+    mtss_student_id: '20889',
+  });
+  state.accounts['20889'] = acc;
+  const res = await authorize(env, await cookieFor(acc), SAFE_RETURN);
+  if (res.status !== 302) return bad('identities fallback must still mint', res.status);
+  const row = Object.values(state.handoffs)[0];
+  if (!row || row.mtss_student_id !== '20889') return bad('roster id must remain 20889', row);
+  if (row.display_name !== 'Lucas R.') return bad('identities display_name should be used when account name is roster id', row);
+  ok('exact mtss_student_id identities display_name is used when account name is numeric');
+}
+
 await testStudentWithRosterMints();
+await testHumanDisplayNotRosterId();
+await testIdentitiesDisplayWhenAccountNameIsRosterId();
 await testMissingRosterFails();
 await testTeacherAdminFailClosed();
 await testExpiredHandoff();
