@@ -149,6 +149,8 @@ import {
 import { handleSettingsRoutes } from './lantern-settings.js';
 import {
   GEPPETTO_STUDENT_AUDIENCE,
+  GEPPETTO_STUDENT_ROSTER_PATH,
+  GEPPETTO_S2S_HEADERS,
   sanitizeGeppettoStudentReturn,
   appendHandoffCodeToReturn,
   resolveGeppettoStudentDisplayName,
@@ -156,6 +158,7 @@ import {
   bearerTokenFromRequest,
   mintGeppettoStudentHandoff,
   redeemGeppettoStudentHandoff,
+  buildGeppettoStudentRosterPayload,
 } from './geppetto-student-handoff.js';
 import { handleMarqueeRoutes } from './marquee-handlers.js';
 import {
@@ -314,6 +317,9 @@ export default {
     const pathname = String(url.pathname || '/').replace(/\/+/g, '/');
     const path = pathname.replace(/\/$/, '') || '/';
     if (request.method === 'OPTIONS') {
+      if (path === GEPPETTO_STUDENT_ROSTER_PATH) {
+        return new Response(null, { status: 204, headers: { ...GEPPETTO_S2S_HEADERS } });
+      }
       let o = corsHeaders;
       if (
         path.startsWith('/api/pilot') ||
@@ -1778,6 +1784,25 @@ async function issueLanternSessionFromTmsHandoff(env, db, codeRaw) {
 }
 
 async function handleAuthRoutes(request, url, path, env, cors) {
+  // S2S roster read — no Lantern D1, no browser session, no CORS.
+  if (request.method === 'GET' && path === GEPPETTO_STUDENT_ROSTER_PATH) {
+    const s2s = { ...GEPPETTO_S2S_HEADERS };
+    const configured = String(env.LANTERN_GEPPETTO_BRIDGE_SECRET || '').trim();
+    if (!configured) {
+      return jsonResponse({ ok: false, error: 'bridge_not_configured' }, 503, s2s);
+    }
+    const provided = bearerTokenFromRequest(request);
+    if (!provided || !timingSafeEqualStrings(configured, provided)) {
+      return jsonResponse({ ok: false, error: 'unauthorized' }, 401, s2s);
+    }
+    const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: false });
+    if (!bridge || bridge.ok === false) {
+      const status = bridge && bridge._httpStatus ? Number(bridge._httpStatus) || 502 : 502;
+      return jsonResponse({ ok: false, error: 'roster_unavailable' }, status, s2s);
+    }
+    return jsonResponse(buildGeppettoStudentRosterPayload(bridge.students), 200, s2s);
+  }
+
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
 

@@ -8,6 +8,8 @@ import { generateOpaqueSecret, hashOpaqueSecret } from './device-enrollment.js';
 
 export const GEPPETTO_STUDENT_AUDIENCE = 'geppetto_student';
 export const GEPPETTO_STUDENT_HANDOFF_TTL_SEC = 90;
+export const GEPPETTO_STUDENT_ROSTER_PATH = '/api/auth/geppetto-student-roster';
+export const GEPPETTO_S2S_HEADERS = { 'Cache-Control': 'no-store' };
 
 export const GEPPETTO_STUDENT_CALLBACK_ALLOWLIST = [
   'https://mrradle.us/api/stem-daily/student/lantern-callback',
@@ -75,6 +77,70 @@ export function isHumanStudentDisplayName(value, mtssStudentId, username) {
   if (user && v === user && isRosterIdLikeDisplayToken(user)) return false;
   if (isRosterIdLikeDisplayToken(v) && id && v === id) return false;
   return true;
+}
+
+function splitGeppettoRosterDisplayName(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { first_name: '', last_name: '' };
+  if (parts.length === 1) return { first_name: parts[0], last_name: '' };
+  return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
+}
+
+/**
+ * Strip TMS roster/list rows down to Geppetto prepopulation identities.
+ * Active + non-empty student_id only. Duplicate IDs are omitted, not resolved by name.
+ */
+export function buildGeppettoStudentRosterPayload(tmsStudents) {
+  const rows = Array.isArray(tmsStudents) ? tmsStudents : [];
+  let skipped_missing_id = 0;
+  const byId = new Map();
+
+  for (let i = 0; i < rows.length; i++) {
+    const s = rows[i] || {};
+    const isActive = s.is_active != null ? Number(s.is_active) === 1 : true;
+    if (!isActive) continue;
+    const sid = String(s.student_id ?? '').trim();
+    if (!sid) {
+      skipped_missing_id += 1;
+      continue;
+    }
+    if (!byId.has(sid)) byId.set(sid, []);
+    byId.get(sid).push(s);
+  }
+
+  const students = [];
+  const conflicts = [];
+  byId.forEach((group, sid) => {
+    if (group.length > 1) {
+      conflicts.push({ student_id: sid, count: group.length });
+      return;
+    }
+    const s = group[0];
+    const givenFirst = String(s.first_name || '').trim();
+    const givenLast = String(s.last_name || '').trim();
+    const display = String(s.student_name || s.display_name || '').trim()
+      || [givenFirst, givenLast].filter(Boolean).join(' ');
+    const split = splitGeppettoRosterDisplayName(display);
+    const first_name = givenFirst || split.first_name;
+    const last_name = givenLast || split.last_name;
+    students.push({
+      student_id: sid,
+      first_name,
+      last_name,
+      display_name: display || [first_name, last_name].filter(Boolean).join(' '),
+    });
+  });
+
+  return {
+    ok: true,
+    students,
+    counts: {
+      active_with_id: students.length,
+      skipped_missing_id,
+      duplicate_id_conflicts: conflicts.length,
+    },
+    conflicts,
+  };
 }
 
 export function lanternStudentDisplaySnapshot(account) {
