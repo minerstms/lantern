@@ -3774,30 +3774,77 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     });
     if (!bridge.ok) {
       const status = bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 502;
+      const code = bridge.code || bridge.error || 'bridge_failed';
+      let message = bridge.message || bridge.error || null;
+      if (code === 'destination_name_taken' || code === 'ambiguous_student_name') {
+        message = 'Another roster row already uses this name.';
+      }
       return jsonResponse(
         {
           ok: false,
-          error: bridge.error || bridge.code || 'bridge_failed',
-          code: bridge.code || null,
-          message: bridge.message || bridge.error || null,
+          error: code === 'destination_name_taken' || code === 'ambiguous_student_name' ? 'destination_name_taken' : (bridge.error || code),
+          code,
+          message,
         },
         status,
         cors
       );
     }
-    const names = splitRosterDisplayName(bridge.student_name || nextName);
+    const savedName = String(bridge.student_name || nextName).trim();
+    const savedId = bridge.student_id != null ? String(bridge.student_id).trim() : studentId;
+    const names = splitRosterDisplayName(savedName);
+    let lantern_display_updated = false;
+    if (savedId) {
+      try {
+        await db
+          .prepare(
+            `INSERT INTO lantern_student_identities (character_name, display_name, created_at)
+             VALUES (?, ?, ?)
+             ON CONFLICT(character_name) DO UPDATE SET display_name = excluded.display_name`
+          )
+          .bind(savedId, savedName, new Date().toISOString())
+          .run();
+      } catch (_) {}
+      const linkedRows = await db
+        .prepare(
+          `SELECT username FROM lantern_pilot_accounts
+           WHERE mtss_student_id IS NOT NULL
+             AND lower(trim(mtss_student_id)) = lower(trim(?))
+             AND lower(trim(role)) = 'student'`
+        )
+        .bind(savedId)
+        .all();
+      const linked = linkedRows.results || [];
+      if (linked.length === 1) {
+        const username = String(linked[0].username || '').trim();
+        if (username) {
+          await db
+            .prepare(
+              `UPDATE lantern_pilot_accounts
+               SET display_name = ?, first_name = ?, last_name = ?, updated_at = datetime('now')
+               WHERE username = ?
+                 AND lower(trim(role)) = 'student'
+                 AND lower(trim(mtss_student_id)) = lower(trim(?))`
+            )
+            .bind(savedName, names.first_name, names.last_name, username, savedId)
+            .run();
+          lantern_display_updated = true;
+        }
+      }
+    }
     return jsonResponse(
       {
         ok: true,
-        previous_student_name: previousName,
-        previous_student_id: previousId,
-        student_name: bridge.student_name || nextName,
-        student_id: bridge.student_id != null ? String(bridge.student_id) : studentId,
+        previous_student_name: bridge.previous_student_name || previousName,
+        previous_student_id: bridge.previous_student_id != null ? String(bridge.previous_student_id) : previousId,
+        student_name: savedName,
+        student_id: savedId,
         first_name: bridge.first_name != null ? String(bridge.first_name) : names.first_name,
         last_name: bridge.last_name != null ? String(bridge.last_name) : names.last_name,
         grade: bridge.grade != null ? String(bridge.grade) : gradeSlug.replace(/^grade-/, ''),
         grade_slug: bridge.grade_slug || gradeSlug,
         identity_changed: !!bridge.identity_changed,
+        lantern_display_updated,
       },
       200,
       cors

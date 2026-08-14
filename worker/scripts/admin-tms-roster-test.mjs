@@ -130,6 +130,15 @@ function makeEnv(state) {
           }
           return { success: true, meta: { changes: 1 } };
         }
+        if (s.includes('UPDATE lantern_pilot_accounts') && s.includes('display_name = ?') && s.includes('first_name = ?')) {
+          const username = String(binds[3] || '').trim().toLowerCase();
+          if (state.accounts[username]) {
+            state.accounts[username].display_name = binds[0];
+            state.accounts[username].first_name = binds[1];
+            state.accounts[username].last_name = binds[2];
+          }
+          return { success: true, meta: { changes: 1 } };
+        }
         return { success: true, meta: { changes: 0 } };
       },
     };
@@ -206,21 +215,36 @@ async function run() {
       [lucas.username.toLowerCase()]: lucas,
       [janeMissing.username.toLowerCase()]: janeMissing,
     },
+    tmsStudents: [
+      { student_name: 'Lucas Radle', student_id: '20889', is_active: 1, grade: '8' },
+      { student_name: 'Jane Smith', student_id: '', is_active: 1, grade: '7' },
+      { student_name: 'Archived Kid', student_id: '99999', is_active: 0, grade: '' },
+    ],
     bridgeHandlers: {
-      'roster/list': async () => ({
-        ok: true,
-        students: [
-          { student_name: 'Lucas Radle', student_id: '20889', is_active: 1, grade: '8' },
-          { student_name: 'Jane Smith', student_id: '', is_active: 1, grade: '7' },
-          { student_name: 'Archived Kid', student_id: '99999', is_active: 0, grade: '' },
-        ],
-        counts: { total: 3, active: 2, inactive: 1, missing_id: 1 },
-      }),
+      'roster/list': async (body) => {
+        const includeInactive = !!(body && body.include_inactive);
+        const students = state.tmsStudents.filter((s) => includeInactive || Number(s.is_active) !== 0);
+        return {
+          ok: true,
+          students,
+          counts: {
+            total: state.tmsStudents.length,
+            active: state.tmsStudents.filter((s) => Number(s.is_active) !== 0).length,
+            inactive: state.tmsStudents.filter((s) => Number(s.is_active) === 0).length,
+            missing_id: state.tmsStudents.filter((s) => Number(s.is_active) !== 0 && !String(s.student_id || '').trim()).length,
+          },
+        };
+      },
       'roster/set-student-id': async (body) => {
         if (!body.student_id) return { ok: false, error: 'student_id is required.', code: 'student_id_required', _httpStatus: 400 };
         if (body.student_id === '20889' && body.student_name !== 'Lucas Radle') {
           return { ok: false, error: 'Student ID already assigned', code: 'duplicate_student_id', _httpStatus: 409 };
         }
+        const prevId = String(body.previous_student_id ?? '').trim();
+        const row = state.tmsStudents.find(
+          (s) => s.student_name === body.student_name && String(s.student_id || '') === prevId
+        );
+        if (row) row.student_id = String(body.student_id).trim();
         return {
           ok: true,
           student_name: body.student_name,
@@ -261,22 +285,36 @@ async function run() {
         }
         const sid = String(body.student_id || '').trim();
         if (!sid) return { ok: false, error: 'student_id is required.', code: 'student_id_required', _httpStatus: 400 };
-        if (sid === '20889' && String(body.previous_student_name || '') !== 'Lucas Radle' && String(body.previous_student_id || '') !== '20889') {
-          return { ok: false, error: 'Student ID already assigned', code: 'duplicate_student_id', _httpStatus: 409 };
-        }
         const name = String(body.next_student_name || '').trim() || [first, last].filter(Boolean).join(' ').trim();
+        const prevId = String(body.previous_student_id || sid).trim();
+        const destTaken = state.tmsStudents.some(
+          (s) => s.student_name === name && String(s.student_id || '') !== prevId
+        );
+        if (destTaken) {
+          return {
+            ok: false,
+            error: 'Another roster row already uses this name.',
+            code: 'destination_name_taken',
+            _httpStatus: 409,
+          };
+        }
+        const row = state.tmsStudents.find((s) => String(s.student_id || '') === prevId && String(s.student_id || '').trim());
+        if (!row) return { ok: false, error: 'Student row not found.', code: 'not_found', _httpStatus: 404 };
+        const previousName = row.student_name;
+        row.student_name = name;
+        row.student_id = sid;
+        row.grade = g;
         return {
           ok: true,
-          previous_student_name: body.previous_student_name,
-          previous_student_id: body.previous_student_id,
+          previous_student_name: previousName,
+          previous_student_id: prevId,
           student_name: name,
           student_id: sid,
           first_name: first,
           last_name: last,
           grade: g,
           grade_slug: 'grade-' + g,
-          identity_changed:
-            String(body.previous_student_name || '') !== name || String(body.previous_student_id || '') !== sid,
+          identity_changed: previousName !== name || prevId !== sid,
         };
       },
     },
@@ -484,8 +522,8 @@ async function run() {
       if (res.status === 200 && body.ok && body.student_id === '20889' && String(body.grade) === '7') {
         ok('admin can update name/grade together via tms-roster/update');
       } else bad('roster update', JSON.stringify(body));
-      if (state.accounts['20889'].mtss_student_id === '20889' && state.accounts['20889'].password_hash === 'HASH_SHOULD_NEVER_APPEAR') {
-        ok('roster update did not touch Lantern link or password');
+      if (state.accounts['20889'].mtss_student_id === '20889' && state.accounts['20889'].password_hash === 'HASH_SHOULD_NEVER_APPEAR' && state.accounts['20889'].username === '20889') {
+        ok('roster update did not touch Lantern link, username, or password');
       } else bad('roster update mutated lantern account');
     }
     {
@@ -559,6 +597,88 @@ async function run() {
       );
       if (res.status === 403) ok('non-admin cannot update roster identity');
       else bad('teacher update forbidden', res.status);
+    }
+
+    {
+      const beforeHash = state.accounts['20889'].password_hash;
+      const beforeUser = state.accounts['20889'].username;
+      const beforeMtss = state.accounts['20889'].mtss_student_id;
+      const janeBefore = state.tmsStudents.find((s) => s.student_name === 'Jane Smith');
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/update', {
+          previous_student_name: 'Stale Cached Name',
+          previous_student_id: '20889',
+          first_name: 'Lucas',
+          last_name: 'James',
+          student_id: '20889',
+          grade: '7',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      const updateCall = state.bridgeCalls.filter((c) => c.url.includes('roster/update')).pop();
+      if (res.status === 200 && body.ok && body.student_name === 'Lucas James' && body.student_id === '20889' && updateCall && updateCall.body.student_id === '20889') {
+        ok('1/2/3. admin name edit targets exact student_id and TMS student_name updates');
+      } else bad('authoritative rename', JSON.stringify(body));
+      const list = await worker.fetch(adminReq('GET', '/api/admin/tms-roster', undefined, adminCookie), env);
+      const listBody = await list.json();
+      const row = (listBody.students || []).find((s) => s.student_id === '20889');
+      if (list.status === 200 && row && row.student_name === 'Lucas James' && row.first_name === 'Lucas' && row.last_name === 'James') {
+        ok('4/5. admin list / refetch returns the new authoritative name');
+      } else bad('list after rename', JSON.stringify(row));
+      if (state.accounts['20889'].username === beforeUser && state.accounts['20889'].password_hash === beforeHash && state.accounts['20889'].mtss_student_id === beforeMtss) {
+        ok('6/7/8. linked mtss_student_id, username, and password unchanged');
+      } else bad('identity mutated');
+      if (state.accounts['20889'].display_name === 'Lucas James') {
+        ok('linked Lantern display_name follows authoritative TMS name');
+      } else bad('display_name', state.accounts['20889'].display_name);
+      if (janeBefore && state.tmsStudents.some((s) => s.student_name === 'Jane Smith' && String(s.student_id || '') === String(janeBefore.student_id || ''))) {
+        ok('12. unrelated student unchanged');
+      } else bad('unrelated mutated');
+    }
+
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/update', {
+          previous_student_name: 'Lucas James',
+          previous_student_id: '20889',
+          first_name: 'Jane',
+          last_name: 'Smith',
+          student_id: '20889',
+          grade: '7',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (res.status === 409 && (body.code === 'destination_name_taken' || body.error === 'destination_name_taken') && /already uses this name/i.test(body.message || body.error || '')) {
+        ok('9. duplicate name returns visible failure');
+      } else bad('dup name', JSON.stringify(body));
+      if (state.tmsStudents.some((s) => s.student_id === '20889' && s.student_name === 'Lucas James')) {
+        ok('10. failed TMS update does not persist a rename');
+      } else bad('false success persist', JSON.stringify(state.tmsStudents));
+    }
+
+    {
+      const janeReset = state.tmsStudents.find((s) => s.student_name === 'Jane Smith');
+      if (janeReset) janeReset.student_id = '';
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/tms-roster/set-student-id', {
+          student_name: 'Jane Smith',
+          previous_student_id: '',
+          student_id: '33100',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      const list = await worker.fetch(adminReq('GET', '/api/admin/tms-roster', undefined, adminCookie), env);
+      const listBody = await list.json();
+      const jane = (listBody.students || []).find((s) => s.student_name === 'Jane Smith');
+      if (res.status === 200 && body.ok && jane && jane.student_id === '33100') {
+        ok('15. assigning a real School ID refreshes the missing-ID row');
+      } else bad('set id refresh', JSON.stringify({ body, jane }));
+      if (jane && jane.student_id === '33100' && jane.student_id !== '00000') {
+        ok('16/17. normal ID is now present; no fake/default ID assigned');
+      } else bad('fake id', jane);
     }
   });
 

@@ -3846,7 +3846,9 @@
         var mediaBadge = Number(s.media_publicity_restricted) === 1
           ? ' <span class="rosterStatusChip rosterStatusChip--warn" title="Media/Publicity Restricted">🛡 Restricted</span>'
           : '';
-        var sidLabel = s.student_id ? escapeRosterHtml(s.student_id) : '<span class="rosterStatusChip rosterStatusChip--warn">—</span>';
+        var sidLabel = s.student_id
+          ? escapeRosterHtml(s.student_id)
+          : '<span class="rosterStatusChip rosterStatusChip--warn">Missing Student ID</span>';
         var loginLabel = escapeRosterHtml(studentLanternLoginLabel(s));
         var mcpLabel = s.must_change_password ? 'Yes' : '—';
         var inconsistency = '';
@@ -3875,7 +3877,11 @@
               ' · Must change password: ' + mcpLabel +
               (inconsistency ? ' · <span class="rosterStatusChip rosterStatusChip--bad">' + escapeRosterHtml(inconsistency) + '</span>' : '') +
             '</p>' +
-            '<p class="acctPanelHint" style="margin:0 0 10px;">Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Delete is only for mistaken rows with no history. Archive keeps history and removes the student from the active roster. Lantern login Archive stays separate.</p>' +
+            '<p class="acctPanelHint" style="margin:0 0 10px;">' +
+              (s.student_id
+                ? 'Edit opens Student ID, First Name, Last Name, Grade, and Media/Publicity together. Delete is only for mistaken rows with no history. Archive keeps history and removes the student from the active roster. Lantern login Archive stays separate.'
+                : 'This row has no School Student ID, so ordinary Delete cannot target it safely. Use Set Student ID to assign the real school ID, or Delete Mistaken Row only when this exact blank-ID name is unique and has no history.') +
+            '</p>' +
             '<div class="acctActions lanternMgmtRecordActions"></div>' +
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
@@ -3916,6 +3922,29 @@
             });
             actions.appendChild(bTmsArch);
           }
+        } else {
+          var bSetId = document.createElement('button');
+          bSetId.type = 'button';
+          bSetId.className = 'btn good';
+          bSetId.textContent = 'Set Student ID';
+          bSetId.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openEditStudentId(s, editorMount);
+            var idInput = document.getElementById('studentsEditIdInput');
+            if (idInput) idInput.focus();
+          });
+          actions.appendChild(bSetId);
+          var bDelBlank = document.createElement('button');
+          bDelBlank.type = 'button';
+          bDelBlank.className = 'btn';
+          bDelBlank.textContent = 'Delete Mistaken Row';
+          bDelBlank.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openStudentDeleteModal(s);
+          });
+          actions.appendChild(bDelBlank);
         }
 
         if (s.exact_match_linkable) {
@@ -4146,7 +4175,9 @@
         if (cats.length) {
           lines.push('<ul>' + cats.map(function(c) { return '<li>' + escapeRosterHtml(c) + '</li>'; }).join('') + '</ul>');
         }
-        lines.push('<p>Use Archive Student to keep history and remove them from the active roster.</p>');
+        lines.push(inspect.missing_id
+          ? '<p>Use Set Student ID / Resolve instead of deleting. Ordinary Archive requires a School Student ID.</p>'
+          : '<p>Use Archive Student to keep history and remove them from the active roster.</p>');
       }
       if (login.linked) {
         lines.push('<p>Linked Lantern login: <strong>' + escapeRosterHtml(login.username || '') + '</strong>' + (login.has_history ? ' — has Lantern activity (will not be hard-deleted).' : ' — no Lantern activity.') + '</p>');
@@ -4154,7 +4185,7 @@
       body.innerHTML = lines.join('');
       if (confirmWrap) confirmWrap.style.display = inspect.can_permanently_delete ? 'block' : 'none';
       if (confirmBtn) confirmBtn.hidden = !inspect.can_permanently_delete;
-      if (archiveBtn) archiveBtn.hidden = !inspect.can_archive;
+      if (archiveBtn) archiveBtn.hidden = !inspect.can_archive || !!inspect.missing_id;
       if (loginChoices) {
         if (inspect.can_permanently_delete && login.linked && login.can_delete_login) {
           loginChoices.style.display = 'block';
@@ -4176,7 +4207,8 @@
     function openStudentDeleteModal(student, opts) {
       opts = opts || {};
       var sid = student && student.student_id ? String(student.student_id).trim() : '';
-      if (!sid) return;
+      var sname = student && student.student_name ? String(student.student_name).trim() : '';
+      if (!sid && !sname) return;
       studentDeleteState.student = student;
       studentDeleteState.inspect = null;
       var overlay = document.getElementById('studentDeleteOverlay');
@@ -4187,7 +4219,9 @@
       var archiveBtn = document.getElementById('studentDeleteArchiveBtn');
       var input = document.getElementById('studentDeleteConfirmInput');
       if (ident) {
-        ident.textContent = (student.student_name || 'Student') + ' · School ID: ' + sid;
+        ident.textContent = sid
+          ? ((student.student_name || 'Student') + ' · School ID: ' + sid)
+          : (sname + ' · Missing Student ID');
       }
       if (body) body.innerHTML = '<p class="acctPanelHint">Checking history…</p>';
       if (confirmWrap) confirmWrap.style.display = 'none';
@@ -4199,8 +4233,16 @@
         overlay.classList.add('show');
         overlay.setAttribute('aria-hidden', 'false');
       }
-      postAdminJson('/api/admin/students/delete-inspect', { student_id: sid }).then(function(res) {
-        if (!studentDeleteState.student || String(studentDeleteState.student.student_id || '') !== sid) return;
+      var inspectPayload = sid ? { student_id: sid } : { student_id: '', student_name: sname };
+      postAdminJson('/api/admin/students/delete-inspect', inspectPayload).then(function(res) {
+        if (!studentDeleteState.student) return;
+        var curSid = String(studentDeleteState.student.student_id || '').trim();
+        var curName = String(studentDeleteState.student.student_name || '').trim();
+        if (sid) {
+          if (curSid !== sid) return;
+        } else if (curName !== sname || curSid) {
+          return;
+        }
         if (!res || !res.body || !res.body.ok) {
           setStudentDeleteMsg((res && res.body && (res.body.message || res.body.error)) || 'Inspect failed.', 'err');
           renderStudentDeleteInspect(res && res.body, opts);
@@ -4248,7 +4290,9 @@
           setStudentDeleteMsg('Type DELETE to confirm.', 'err');
           return;
         }
-        var payload = { student_id: String(student.student_id || '').trim(), confirm: 'DELETE' };
+        var payload = String(student.student_id || '').trim()
+          ? { student_id: String(student.student_id || '').trim(), confirm: 'DELETE' }
+          : { student_id: '', student_name: String(student.student_name || '').trim(), confirm: 'DELETE' };
         var login = inspect.lantern_login || {};
         if (login.linked && login.can_delete_login) {
           var action = selectedStudentDeleteLoginAction();
@@ -4270,7 +4314,12 @@
             return;
           }
           closeStudentDeleteModal();
-          showStudentsRosterMsg('Deleted student ' + payload.student_id + '.', 'ok');
+          showStudentsRosterMsg(
+            payload.student_id
+              ? ('Deleted student ' + payload.student_id + '.')
+              : ('Deleted mistaken missing-ID row ' + (payload.student_name || '') + '.'),
+            'ok'
+          );
           loadStudentsRoster();
           loadUsers();
         }).catch(function() {
@@ -4285,7 +4334,10 @@
       studentDeleteArchiveBtn.addEventListener('click', function() {
         if (studentDeleteState.busy) return;
         var student = studentDeleteState.student;
-        if (!student || !student.student_id) return;
+        if (!student || !student.student_id) {
+          setStudentDeleteMsg('Archive requires a School Student ID. Use Set Student ID first.', 'err');
+          return;
+        }
         studentDeleteState.busy = true;
         studentDeleteArchiveBtn.disabled = true;
         postAdminJson('/api/admin/students/archive', { student_id: String(student.student_id).trim() }).then(function(res) {
@@ -4313,7 +4365,7 @@
       var loading = document.getElementById('studentsRosterLoading');
       if (loading) loading.style.display = 'block';
       var q = studentsRosterIncludeInactive ? '?include_inactive=1' : '';
-      fetch(api + '/api/admin/tms-roster' + q, { credentials: 'include' })
+      fetch(api + '/api/admin/tms-roster' + q, { credentials: 'include', cache: 'no-store' })
         .then(function(r) {
           return r.json().then(function(body) { return { status: r.status, body: body }; });
         })
@@ -4389,7 +4441,11 @@
       postAdminJson('/api/admin/tms-roster/update', payload).then(function(res) {
         if (res && res.blocked) return;
         if (!(res && res.okHttp && res.body && res.body.ok)) {
+          var failCode = res && res.body && (res.body.code || res.body.error);
           var msg = (res && res.body && (res.body.message || res.body.error)) || 'Save failed';
+          if (failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name') {
+            msg = 'Another roster row already uses this name.';
+          }
           showStudentsRosterMsg(msg, 'err');
           return;
         }

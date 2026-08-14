@@ -71,6 +71,36 @@ function account(overrides) {
   };
 }
 
+function tmsInspectMissingId(state, studentName) {
+  const matches = (state.tmsStudents || []).filter((s) => s.student_name === studentName && !String(s.student_id || '').trim());
+  if (!matches.length) {
+    return { ok: true, already_removed: true, student_id: '', student_name: studentName, missing_id: true, classification: 'already_removed', can_permanently_delete: false, can_archive: false, categories: [] };
+  }
+  if (matches.length > 1) {
+    return { ok: false, error: 'ambiguous_blank_id_name', _httpStatus: 409, missing_id: true, student_name: studentName };
+  }
+  const row = matches[0];
+  const hist = (state.tmsHistory && (state.tmsHistory[studentName] || state.tmsHistory[''])) || {};
+  const categories = [];
+  if (hist.behavior_logs) categories.push('Behavior history');
+  if (hist.nugget_transactions) categories.push('Nugget transactions');
+  if (hist.store_redeems) categories.push('Store history');
+  const has = categories.length > 0;
+  return {
+    ok: true,
+    already_removed: false,
+    student_id: '',
+    student_name: studentName,
+    missing_id: true,
+    is_active: row.is_active != null ? Number(row.is_active) : 1,
+    classification: has ? 'cannot_delete_has_history' : 'safe_mistake',
+    can_permanently_delete: !has,
+    can_archive: row.is_active == null || Number(row.is_active) === 1,
+    categories,
+    history: hist,
+  };
+}
+
 function tmsInspectFromState(state, studentId) {
   const matches = (state.tmsStudents || []).filter((s) => String(s.student_id || '') === String(studentId));
   if (!matches.length) {
@@ -232,11 +262,25 @@ async function withMockedBridge(env, fn) {
       return new Response(JSON.stringify({ ok: true, ...row }), { status: 200 });
     }
     if (sub === 'roster/inspect-delete') {
-      const inspect = tmsInspectFromState(env._state, String(body.student_id || '').trim());
+      const sid = String(body.student_id || '').trim();
+      const inspect = sid
+        ? tmsInspectFromState(env._state, sid)
+        : tmsInspectMissingId(env._state, String(body.student_name || '').trim());
       return new Response(JSON.stringify(inspect), { status: inspect.ok ? 200 : inspect._httpStatus || 400 });
     }
     if (sub === 'roster/safe-delete') {
       const sid = String(body.student_id || '').trim();
+      if (!sid) {
+        const name = String(body.student_name || '').trim();
+        const inspect = tmsInspectMissingId(env._state, name);
+        if (!inspect.ok) return new Response(JSON.stringify(inspect), { status: inspect._httpStatus || 400 });
+        if (inspect.already_removed) return new Response(JSON.stringify({ ok: true, already_removed: true, student_id: '', student_name: name, missing_id: true }), { status: 200 });
+        if (!inspect.can_permanently_delete) {
+          return new Response(JSON.stringify({ ok: false, error: 'cannot_delete_has_history', categories: inspect.categories, missing_id: true }), { status: 409 });
+        }
+        env._state.tmsStudents = env._state.tmsStudents.filter((s) => !(s.student_name === name && !String(s.student_id || '').trim()));
+        return new Response(JSON.stringify({ ok: true, action: 'permanent_delete', student_id: '', student_name: name, missing_id: true }), { status: 200 });
+      }
       const inspect = tmsInspectFromState(env._state, sid);
       if (!inspect.ok) return new Response(JSON.stringify(inspect), { status: inspect._httpStatus || 400 });
       if (inspect.already_removed) return new Response(JSON.stringify({ ok: true, already_removed: true, student_id: sid }), { status: 200 });
@@ -276,6 +320,9 @@ async function run() {
   if (adminHtml.includes("textContent = 'Delete'") && adminHtml.includes('/api/admin/students/delete-inspect')) {
     ok('UI exposes compact Delete and inspect-first modal');
   } else bad('UI delete wiring');
+  if (adminHtml.includes('Missing Student ID') && adminHtml.includes("textContent = 'Set Student ID'") && adminHtml.includes("textContent = 'Delete Mistaken Row'")) {
+    ok('13/14. missing-ID row shows Missing Student ID + Set Student ID + Delete Mistaken Row');
+  } else bad('missing-id UI');
   if (adminHtml.includes('Type DELETE to confirm') && adminHtml.includes('closeStudentDeleteModal')) {
     ok('13. typed DELETE confirmation; backdrop/Escape close only');
   } else bad('confirm UX');
@@ -312,10 +359,15 @@ async function run() {
       { student_name: 'History Login', student_id: '91002', is_active: 1 },
       { student_name: 'Behavior Kid', student_id: '91003', is_active: 1 },
       { student_name: 'Other Linked', student_id: '99999', is_active: 1 },
+      { student_name: 'Blank Unique', student_id: '', is_active: 1 },
+      { student_name: 'Blank History', student_id: '', is_active: 1 },
+      { student_name: 'Blank Dup', student_id: '', is_active: 1 },
+      { student_name: 'Blank Dup', student_id: '', is_active: 1 },
     ],
     tmsMemberships: [{ student_name: 'Jamie Smith', student_id: '91000', group_id: 61 }],
     tmsHistory: {
       91003: { behavior_logs: 2 },
+      'Blank History': { behavior_logs: 1 },
     },
     lanternHistory: {
       91002: { lantern_mission_submissions: 1 },
@@ -477,6 +529,36 @@ async function run() {
 
     if (env._state.ledgerWipes === 0) ok('16. no historical ledger rows cascade-wiped');
     else bad('ledger wipes', env._state.ledgerWipes);
+
+    const blankInspect = await call(env, adminCookie, STUDENT_DELETE_INSPECT_PATH, { student_name: 'Blank Unique', student_id: '' });
+    if (blankInspect.status === 200 && blankInspect.json.ok && blankInspect.json.missing_id && blankInspect.json.can_permanently_delete) {
+      ok('19. unique blank-ID no-history row can be inspected');
+    } else bad('19 blank inspect', blankInspect);
+
+    const blankNoConfirm = await call(env, adminCookie, STUDENT_DELETE_PATH, { student_name: 'Blank Unique', student_id: '' });
+    if (blankNoConfirm.status === 400 && blankNoConfirm.json.error === 'confirmation_required') {
+      ok('20. typed DELETE required for missing-ID delete');
+    } else bad('20 blank confirm', blankNoConfirm);
+
+    const blankDel = await call(env, adminCookie, STUDENT_DELETE_PATH, { student_name: 'Blank Unique', student_id: '', confirm: 'DELETE' });
+    if (blankDel.status === 200 && blankDel.json.ok && !env._state.tmsStudents.some((s) => s.student_name === 'Blank Unique')) {
+      ok('21. exact unique blank-ID row removed');
+    } else bad('21 blank delete', blankDel);
+
+    const blankDup = await call(env, adminCookie, STUDENT_DELETE_PATH, { student_name: 'Blank Dup', student_id: '', confirm: 'DELETE' });
+    if (blankDup.status === 409 && blankDup.json.error === 'ambiguous_blank_id_name' && env._state.tmsStudents.filter((s) => s.student_name === 'Blank Dup').length === 2) {
+      ok('22. ambiguous duplicate blank-name rows refuse deletion');
+    } else bad('22 blank dup', blankDup);
+
+    const blankHist = await call(env, adminCookie, STUDENT_DELETE_PATH, { student_name: 'Blank History', student_id: '', confirm: 'DELETE' });
+    if (blankHist.status === 409 && blankHist.json.error === 'cannot_delete_has_history' && env._state.tmsStudents.some((s) => s.student_name === 'Blank History')) {
+      ok('23. history blocks missing-ID deletion');
+    } else bad('23 blank history', blankHist);
+
+    const identifiedViaName = await call(env, adminCookie, STUDENT_DELETE_PATH, { student_name: 'Wrong Name', confirm: 'DELETE' });
+    if (identifiedViaName.status === 200 && identifiedViaName.json.already_removed && env._state.tmsStudents.some((s) => s.student_id === '91010')) {
+      ok('24. identified rows cannot use missing-ID delete path');
+    } else bad('24 identified via name', identifiedViaName);
 
     const secretLeak = JSON.stringify(inspect.json) + JSON.stringify(del.json);
     if (!secretLeak.includes(TEST_BRIDGE_SECRET) && !secretLeak.includes(TEST_GEPPETTO_SECRET)) {

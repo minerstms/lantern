@@ -148,12 +148,7 @@ function auditStudentAction(action, studentId, actor) {
   } catch (_) {}
 }
 
-export async function inspectStudentDelete(db, env, body, deps) {
-  deps = deps || {};
-  const studentId = String((body && body.student_id) || '').trim();
-  if (!studentId) return fail('student_id_required', 400);
-  if (!deps.callTmsRosterBridge) return fail('server_misconfigured', 500);
-
+async function inspectIdentifiedStudentDelete(db, env, studentId, deps) {
   const tms = await deps.callTmsRosterBridge(env, 'roster/inspect-delete', { student_id: studentId });
   if (!tms || tms.ok === false) {
     return fail((tms && (tms.error || tms.code)) || 'tms_inspect_failed', (tms && tms._httpStatus) || 502, {
@@ -204,6 +199,56 @@ export async function inspectStudentDelete(db, env, body, deps) {
   };
 }
 
+async function inspectMissingIdStudentDelete(db, env, studentName, deps) {
+  const tms = await deps.callTmsRosterBridge(env, 'roster/inspect-delete', {
+    student_id: '',
+    student_name: studentName,
+  });
+  if (!tms || tms.ok === false) {
+    return fail((tms && (tms.error || tms.code)) || 'tms_inspect_failed', (tms && tms._httpStatus) || 502, {
+      tms,
+      missing_id: true,
+      student_name: studentName,
+      message: (tms && (tms.message || tms.error)) || 'TMS delete inspection failed.',
+    });
+  }
+  return {
+    ok: true,
+    student_id: '',
+    student_name: tms.student_name || studentName,
+    missing_id: true,
+    already_removed: !!tms.already_removed,
+    classification: tms.classification || 'safe_mistake',
+    can_permanently_delete: !!tms.can_permanently_delete && !tms.already_removed,
+    can_archive: !!tms.can_archive,
+    tms,
+    lantern_login: lanternLoginShape([], { has_history: false, categories: [], counts: {} }),
+    geppetto: {
+      inspected: false,
+      reason: 'no_s2s_lookup',
+      will_leave_future_roster_sync: true,
+      local_history_not_deleted: true,
+    },
+    categories: Array.isArray(tms.categories) ? tms.categories : [],
+    message: tms.message
+      || (tms.already_removed
+        ? 'No blank-ID roster row matches this exact name.'
+        : tms.can_permanently_delete
+          ? 'This missing-ID row appears safe to delete.'
+          : 'Cannot permanently delete this student because historical records exist.'),
+  };
+}
+
+export async function inspectStudentDelete(db, env, body, deps) {
+  deps = deps || {};
+  const studentId = String((body && body.student_id) || '').trim();
+  const studentName = String((body && body.student_name) || '').trim();
+  if (!deps.callTmsRosterBridge) return fail('server_misconfigured', 500);
+  if (studentId) return inspectIdentifiedStudentDelete(db, env, studentId, deps);
+  if (studentName) return inspectMissingIdStudentDelete(db, env, studentName, deps);
+  return fail('student_id_required', 400);
+}
+
 async function unlinkLanternLogin(db, username, studentId) {
   await db
     .prepare(
@@ -228,13 +273,65 @@ async function deleteLanternLogin(db, username, studentId) {
 export async function permanentlyDeleteStudent(db, env, body, deps) {
   deps = deps || {};
   const studentId = String((body && body.student_id) || '').trim();
+  const studentName = String((body && body.student_name) || '').trim();
   const confirm = String((body && body.confirm) || '').trim();
   const loginAction = String((body && body.lantern_login_action) || '').trim().toLowerCase();
-  if (!studentId) return fail('student_id_required', 400);
+  if (!studentId && !studentName) return fail('student_id_required', 400);
   if (confirm !== DELETE_CONFIRM_TEXT) {
     return fail('confirmation_required', 400, { message: 'Type DELETE to confirm permanent deletion.' });
   }
   if (!deps.callTmsRosterBridge) return fail('server_misconfigured', 500);
+
+  if (!studentId && studentName) {
+    const inspect = await inspectStudentDelete(db, env, { student_name: studentName, student_id: '' }, deps);
+    if (!inspect.ok) return inspect;
+    if (inspect.already_removed) {
+      auditStudentAction('permanent_delete_already_removed', '', deps.adminUsername);
+      return {
+        ok: true,
+        already_removed: true,
+        action: 'permanent_delete',
+        student_id: '',
+        student_name: inspect.student_name,
+        missing_id: true,
+        lantern_login: 'none',
+        message: 'Student already removed.',
+      };
+    }
+    if (!inspect.can_permanently_delete) {
+      return fail('cannot_delete_has_history', 409, {
+        student_id: '',
+        student_name: inspect.student_name,
+        missing_id: true,
+        categories: inspect.categories,
+        can_archive: inspect.can_archive,
+        message: inspect.message,
+      });
+    }
+    const tms = await deps.callTmsRosterBridge(env, 'roster/safe-delete', {
+      student_id: '',
+      student_name: inspect.student_name,
+    });
+    if (!tms || tms.ok === false) {
+      return fail((tms && (tms.error || tms.code)) || 'tms_delete_failed', (tms && tms._httpStatus) || 502, {
+        tms,
+        missing_id: true,
+        message: (tms && (tms.message || tms.error)) || 'TMS roster was not deleted.',
+      });
+    }
+    auditStudentAction('permanent_delete_missing_id', inspect.student_name, deps.adminUsername);
+    return {
+      ok: true,
+      already_removed: !!tms.already_removed,
+      action: 'permanent_delete',
+      student_id: '',
+      student_name: tms.student_name || inspect.student_name,
+      missing_id: true,
+      lantern_login: 'none',
+      geppetto: 'removed_from_future_roster_sync',
+      message: tms.already_removed ? 'Student already removed.' : 'Mistaken missing-ID roster row removed.',
+    };
+  }
 
   const inspect = await inspectStudentDelete(db, env, { student_id: studentId }, deps);
   if (!inspect.ok) return inspect;
@@ -314,8 +411,36 @@ export async function permanentlyDeleteStudent(db, env, body, deps) {
 export async function archiveStudent(db, env, body, deps) {
   deps = deps || {};
   const studentId = String((body && body.student_id) || '').trim();
-  if (!studentId) return fail('student_id_required', 400);
+  const studentName = String((body && body.student_name) || '').trim();
+  if (!studentId && !studentName) return fail('student_id_required', 400);
   if (!deps.callTmsRosterBridge) return fail('server_misconfigured', 500);
+
+  if (!studentId && studentName) {
+    const tms = await deps.callTmsRosterBridge(env, 'roster/archive', {
+      student_id: '',
+      student_name: studentName,
+      reason: 'lantern_admin_archive',
+    });
+    if (!tms || tms.ok === false) {
+      return fail((tms && (tms.error || tms.code)) || 'tms_archive_failed', (tms && tms._httpStatus) || 502, {
+        tms,
+        missing_id: true,
+        message: (tms && (tms.message || tms.error)) || 'TMS archive failed.',
+      });
+    }
+    auditStudentAction('archive_missing_id', studentName, deps.adminUsername);
+    return {
+      ok: true,
+      action: 'archive',
+      already_archived: !!tms.already_archived,
+      student_id: '',
+      student_name: tms.student_name || studentName,
+      missing_id: true,
+      tms_active: 0,
+      lantern_login: 'unchanged',
+      message: tms.message || 'Student archived. History is preserved.',
+    };
+  }
 
   const tms = await deps.callTmsRosterBridge(env, 'roster/archive', {
     student_id: studentId,
