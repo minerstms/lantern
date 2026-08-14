@@ -1,0 +1,8 @@
+Upstream: https://github.com/iamkun/tower_game
+Commit: c6fa84afe179b661fa71cf7cc8788d0c47ca2875
+Date: 2018-07-12
+License (code): MIT — Copyright (c) 2018 BMQB, Inc
+Local path: app/games/tower/donor/
+
+Media from this commit is NOT retained under app/ (Cloudflare Pages shipping root).
+See GAME_PROVENANCE.md for removed filenames and replacement notes.

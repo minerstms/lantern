@@ -203,8 +203,8 @@ if (hunt.scoreMin === 0 && validateLeaderboardScore(hunt, 0).ok) {
 } else bad('Nugget Hunt 0 still legitimate');
 
 const catalogIds = LANTERN_LEADERBOARD_GAMES.map((g) => g.id).sort();
-const expectedIds = ['avatar-match', 'clickrush', 'handbook-trivia', 'lantern-live-trivia', 'local-history-trivia', 'memory', 'nuggetHunt', 'reaction', 'srp-safety-trivia'];
-if (catalogIds.join() === expectedIds.sort().join()) ok('33. all nine catalog games remain the production set');
+const expectedIds = ['avatar-match', 'clickrush', 'handbook-trivia', 'lantern-live-trivia', 'local-history-trivia', 'memory', 'nuggetHunt', 'reaction', 'srp-safety-trivia', 'tower'];
+if (catalogIds.join() === expectedIds.sort().join()) ok('33. all ten catalog games remain the production set');
 else bad('catalog ids', catalogIds);
 
 if (
@@ -422,8 +422,8 @@ async function main() {
   {
     const state = { accounts: { '20889': me } };
     const env = makeEnv(state);
-    const r = await postRecord(env, cookie, { game_name: 'Stack Lab', score: 10, run_id: 'run-x' });
-    if (r.status === 400 && r.json.error === 'invalid_game') ok('19/34. invalid / unregistered Stack Lab fails');
+    const r = await postRecord(env, cookie, { game_name: 'Unregistered Lab Game', score: 10, run_id: 'run-x' });
+    if (r.status === 400 && r.json.error === 'invalid_game') ok('19/34. invalid / unregistered game fails');
     else bad('19 invalid game', r);
   }
 
