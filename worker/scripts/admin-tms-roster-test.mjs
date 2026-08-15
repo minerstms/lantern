@@ -254,7 +254,9 @@ async function run() {
       },
       'roster/create': async (body) => ({
         ok: true,
-        student_name: body.student_name,
+        student_name: body.student_name || [body.first_name, body.last_name].filter(Boolean).join(' ').trim(),
+        first_name: body.first_name || null,
+        last_name: body.last_name || null,
         student_id: body.student_id || '',
         grade: body.grade || String(body.grade_slug || 'grade-6').replace(/^grade-/, '') || '6',
         grade_slug: body.grade_slug || ('grade-' + (body.grade || '6')),

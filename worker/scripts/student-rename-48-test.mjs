@@ -12,7 +12,9 @@ import { STUDENT_RENAME_PATH, STUDENT_RENAME_REVISION, buildRenameRequestedName,
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const tmsCandidates = [
   process.env.TMS_WORKER_PATH,
+  path.resolve(root, '..', 'mtss-p49', 'worker', 'index.js'),
   path.resolve(root, '..', 'tms-48-rename', 'worker', 'index.js'),
+  'C:/Users/mrrad/AppData/Local/Temp/mtss-p49/worker/index.js',
   'C:/Users/mrrad/AppData/Local/Temp/tms-48-rename/worker/index.js',
 ].filter(Boolean);
 
@@ -196,10 +198,13 @@ function compileSave(harness) {
   const src = [
     'var studentsEditConflictState = null;',
     extractFunction(adminHtml, 'studentsRosterVisibleName'),
+    extractFunction(adminHtml, 'rosterNamePartsFromRow'),
+    extractFunction(adminHtml, 'formatNamePartsLine'),
     extractFunction(adminHtml, 'buildStudentIdEditPayload'),
     extractFunction(adminHtml, 'studentEditRequestedName'),
     extractFunction(adminHtml, 'namesEqualForSaveProof'),
     extractFunction(adminHtml, 'studentRenameFourStateAccepted'),
+    extractFunction(adminHtml, 'studentRenamePartsAccepted'),
     extractFunction(adminHtml, 'showStudentsEditSaveProof'),
     extractFunction(adminHtml, 'hideStudentsEditSaveProof'),
     extractFunction(adminHtml, 'fetchFreshStudentsRosterForVerify'),
@@ -376,6 +381,8 @@ await runEditorCase('happy path', {
           before_name: 'Phay Son Son Khuu',
           requested_name: 'Phay Son Khuu',
           authoritative_name: 'Phay Son Khuu',
+          first_name: 'Phay',
+          last_name: 'Son Khuu',
           changes: 1,
         },
       };
@@ -458,6 +465,8 @@ await runEditorCase('C roster stale', {
           revision: 'student-rename-48',
           student_id: '21004',
           authoritative_name: 'Phay Son Khuu',
+          first_name: 'Phay',
+          last_name: 'Son Khuu',
         },
       };
     }
@@ -470,7 +479,7 @@ await runEditorCase('C roster stale', {
     };
   },
 }, (log, els) => {
-  if (log.closed !== true && /Phay Son Khuu/.test(els.studentsEditSaveProofBody.innerHTML) && /Phay Son Son Khuu/.test(els.studentsEditSaveProofBody.innerHTML)) {
+  if (log.closed !== true && /First: Phay \| Last: Son Khuu/.test(els.studentsEditSaveProofBody.innerHTML) && /First: Phay \| Last: Son Son Khuu/.test(els.studentsEditSaveProofBody.innerHTML)) {
     ok('C. TMS new / roster old keeps editor open and shows both values');
   } else bad('C', { closed: log.closed, html: els.studentsEditSaveProofBody.innerHTML });
 });
@@ -551,6 +560,17 @@ if (!tmsWorkerPath) {
         },
         async run() {
           state.sql.push({ sql: s, binds: binds.slice() });
+          if (s.includes('UPDATE students SET first_name')) {
+            let n = 0;
+            state.students.forEach((r) => {
+              if (String(r.student_id ?? '') === String(binds[2] ?? '') && String(r.student_id || '').trim()) {
+                r.first_name = binds[0];
+                r.last_name = binds[1];
+                n += 1;
+              }
+            });
+            return { success: true, meta: { changes: n } };
+          }
           if (s.includes('UPDATE students SET student_name')) {
             if (options.skipNameWrite) return { success: true, meta: { changes: 0 } };
             const newName = binds[0];

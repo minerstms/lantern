@@ -11,7 +11,9 @@ import lanternWorker from '../index.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const tmsCandidates = [
   process.env.TMS_WORKER_PATH,
+  path.resolve(root, '..', 'mtss-p49', 'worker', 'index.js'),
   path.resolve(root, '..', 'tms-42-save', 'worker', 'index.js'),
+  'C:/Users/mrrad/AppData/Local/Temp/mtss-p49/worker/index.js',
 ].filter(Boolean);
 
 let tmsWorkerPath = tmsCandidates.find((p) => {
@@ -235,6 +237,17 @@ function makeTmsDb(state, opts) {
       },
       async run() {
         state.sql.push({ sql: s, binds: binds.slice() });
+        if (s.includes('UPDATE students SET first_name')) {
+          let n = 0;
+          state.students.forEach((r) => {
+            if (String(r.student_id ?? '') === String(binds[2] ?? '') && String(r.student_id || '').trim()) {
+              r.first_name = binds[0];
+              r.last_name = binds[1];
+              n += 1;
+            }
+          });
+          return { success: true, meta: { changes: n } };
+        }
         if (s.includes('UPDATE students SET student_name')) {
           if (options.skipNameWrite) return { success: true, meta: { changes: 0 } };
           const newName = binds[0];

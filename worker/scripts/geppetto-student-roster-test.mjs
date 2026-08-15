@@ -167,11 +167,27 @@ async function testNoCorsPreflight() {
   ok('roster OPTIONS has no CORS exposure');
 }
 
+async function testAuthoritativeMultiWordFirstName() {
+  const payload = buildGeppettoStudentRosterPayload([
+    { student_id: '21004', student_name: 'Phay Son Khuu', first_name: 'Phay Son', last_name: 'Khuu', is_active: 1 },
+    { student_id: '20889', student_name: 'Lucas Radle', first_name: null, last_name: null, is_active: 1 },
+  ]);
+  const phay = payload.students.find((s) => s.student_id === '21004');
+  const lucas = payload.students.find((s) => s.student_id === '20889');
+  if (phay && phay.first_name === 'Phay Son' && phay.last_name === 'Khuu' && phay.display_name === 'Phay Son Khuu') {
+    ok('6. Geppetto keeps authoritative multi-word first name');
+  } else bad('geppetto 21004 parts', phay);
+  if (lucas && lucas.first_name === 'Lucas' && lucas.last_name === 'Radle') {
+    ok('7. Geppetto still falls back to split for null TMS parts');
+  } else bad('geppetto legacy fallback', lucas);
+}
+
 await testNoSecretRejected();
 await testValidSecretAccepted();
 await testDuplicateIdsOmitted();
 await testMinimumPii();
 await testNoCorsPreflight();
+await testAuthoritativeMultiWordFirstName();
 
 console.log(pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);

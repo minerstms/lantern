@@ -1548,6 +1548,18 @@ function splitRosterDisplayName(fullName) {
   return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
 }
 
+/** Prefer TMS first/last. Legacy split is fallback only when both parts are null. */
+function rosterNamePartsFromRow(row) {
+  const hasParts = !!(row && (row.first_name != null || row.last_name != null));
+  if (hasParts) {
+    return {
+      first_name: String(row.first_name || '').trim().replace(/\s+/g, ' '),
+      last_name: String(row.last_name || '').trim().replace(/\s+/g, ' '),
+    };
+  }
+  return splitRosterDisplayName(row && (row.student_name || row.display_name));
+}
+
 /**
  * Prompt #127/#130 — Lantern account status vs TMS student_id (never auto-creates accounts).
  * Missing | Linked | Linked Archived | Broken | Ambiguous
@@ -3323,7 +3335,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const students = tmsStudents.map((s) => {
       const name = String(s.student_name || '').trim();
       const sid = String(s.student_id ?? '').trim() || '';
-      const names = splitRosterDisplayName(name);
+      const names = rosterNamePartsFromRow(s);
       const status = classifyLanternAccountStatus(sid, studentAccounts);
       const isActive = s.is_active != null ? Number(s.is_active) === 1 : true;
       const media = sid ? mediaMap[String(sid).trim().toLowerCase()] : null;
@@ -3792,6 +3804,8 @@ async function handleAdminRoutes(request, url, path, env, cors) {
 
     const bridge = await callTmsRosterBridge(env, 'roster/create', {
       student_name: studentName,
+      first_name: first,
+      last_name: last,
       student_id: studentId,
       grade: gradeSlug.replace(/^grade-/, ''),
       grade_slug: gradeSlug,
@@ -3804,11 +3818,18 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         cors
       );
     }
+    const createdParts = rosterNamePartsFromRow({
+      first_name: bridge.first_name != null ? bridge.first_name : first,
+      last_name: bridge.last_name != null ? bridge.last_name : last,
+      student_name: bridge.student_name || studentName,
+    });
     return jsonResponse(
       {
         ok: true,
         student_name: bridge.student_name || studentName,
         student_id: bridge.student_id != null ? String(bridge.student_id) : studentId,
+        first_name: createdParts.first_name,
+        last_name: createdParts.last_name,
         grade: bridge.grade != null ? String(bridge.grade) : gradeSlug.replace(/^grade-/, ''),
         grade_slug: bridge.grade_slug || gradeSlug,
         lantern_account: 'Missing',
@@ -4013,7 +4034,11 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         cors
       );
     }
-    const names = splitRosterDisplayName(savedName);
+    const names = rosterNamePartsFromRow({
+      first_name: bridge.first_name != null ? bridge.first_name : first,
+      last_name: bridge.last_name != null ? bridge.last_name : last,
+      student_name: savedName,
+    });
     let lantern_display_updated = false;
     if (savedId) {
       try {

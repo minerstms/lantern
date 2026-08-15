@@ -34,9 +34,22 @@ function splitDisplayName(fullName) {
   return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
 }
 
-async function syncLanternDisplayName(db, studentId, authoritativeName) {
+function rosterNamePartsFromBridge(bridge, fallbackName) {
+  if (bridge && (bridge.first_name != null || bridge.last_name != null)) {
+    return {
+      first_name: normalizeName(bridge.first_name),
+      last_name: normalizeName(bridge.last_name),
+    };
+  }
+  return splitDisplayName(fallbackName);
+}
+
+async function syncLanternDisplayName(db, studentId, authoritativeName, firstName, lastName) {
   if (!db || !studentId || !authoritativeName) return false;
-  const names = splitDisplayName(authoritativeName);
+  const names =
+    firstName != null || lastName != null
+      ? { first_name: normalizeName(firstName), last_name: normalizeName(lastName) }
+      : splitDisplayName(authoritativeName);
   try {
     await db
       .prepare(
@@ -110,11 +123,14 @@ export async function renameAuthoritativeStudent(db, env, body, deps) {
   const beforeName = bridge && bridge.before_name != null ? normalizeName(bridge.before_name) : '';
   const changes = bridge && bridge.changes != null ? Number(bridge.changes) : 0;
   const tmsVerified = !!(bridge && bridge.ok === true && bridge.verified === true);
-  const namesMatch =
+  const names = rosterNamePartsFromBridge(bridge, authoritativeName);
+  const partsMatch =
+    names.first_name === first &&
+    names.last_name === last &&
     !!authoritativeName &&
     authoritativeName.toLowerCase() === requestedName.toLowerCase();
   const idMatch = String((bridge && bridge.student_id) || '').trim() === studentId;
-  const verified = !!(tmsVerified && namesMatch && idMatch);
+  const verified = !!(tmsVerified && partsMatch && idMatch);
 
   if (!verified) {
     const status = bridge && bridge._httpStatus && bridge._httpStatus >= 400 ? bridge._httpStatus : 409;
@@ -134,18 +150,19 @@ export async function renameAuthoritativeStudent(db, env, body, deps) {
 
   let lantern_display_updated = false;
   try {
-    lantern_display_updated = await syncLanternDisplayName(db, studentId, authoritativeName);
+    lantern_display_updated = await syncLanternDisplayName(db, studentId, authoritativeName, names.first_name, names.last_name);
   } catch (_) {
     lantern_display_updated = false;
   }
 
-  const names = splitDisplayName(authoritativeName);
   return {
     ok: true,
     revision: STUDENT_RENAME_REVISION,
     student_id: studentId,
     before_name: beforeName,
     requested_name: requestedName,
+    requested_first_name: first,
+    requested_last_name: last,
     authoritative_name: authoritativeName,
     student_name: authoritativeName,
     first_name: names.first_name,

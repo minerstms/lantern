@@ -116,13 +116,14 @@ export function buildGeppettoStudentRosterPayload(tmsStudents) {
       return;
     }
     const s = group[0];
+    const hasParts = s.first_name != null || s.last_name != null;
     const givenFirst = String(s.first_name || '').trim();
     const givenLast = String(s.last_name || '').trim();
     const display = String(s.student_name || s.display_name || '').trim()
       || [givenFirst, givenLast].filter(Boolean).join(' ');
     const split = splitGeppettoRosterDisplayName(display);
-    const first_name = givenFirst || split.first_name;
-    const last_name = givenLast || split.last_name;
+    const first_name = hasParts ? givenFirst : (givenFirst || split.first_name);
+    const last_name = hasParts ? givenLast : (givenLast || split.last_name);
     students.push({
       student_id: sid,
       first_name,

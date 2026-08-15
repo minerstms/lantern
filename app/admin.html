@@ -3710,13 +3710,34 @@
     var studentsHealthFilter = 'all';
     var studentsAddConflictState = null;
     var studentsEditConflictState = null;
-    var studentEditorState = { open: false, recordKey: '', studentId: '', beforeName: '', beforeGrade: '', beforeMedia: '', beforePublicDisplay: '' };
+    var studentEditorState = { open: false, recordKey: '', studentId: '', beforeName: '', beforeFirst: '', beforeLast: '', beforeGrade: '', beforeMedia: '', beforePublicDisplay: '' };
+
+    function rosterNamePartsFromRow(s) {
+      var hasParts = !!(s && (s.first_name != null || s.last_name != null));
+      if (hasParts) {
+        return {
+          first_name: String(s.first_name || '').trim().replace(/\s+/g, ' '),
+          last_name: String(s.last_name || '').trim().replace(/\s+/g, ' ')
+        };
+      }
+      var parts = String((s && s.student_name) || '').trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return { first_name: '', last_name: '' };
+      if (parts.length === 1) return { first_name: parts[0], last_name: '' };
+      return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
+    }
+
+    function formatNamePartsLine(first, last) {
+      return 'First: ' + (first || '—') + ' | Last: ' + (last || '—');
+    }
 
     function markStudentEditorOpen(s) {
       studentEditorState.open = true;
       studentEditorState.recordKey = String((s && (s.student_name || s.student_id)) || '');
       studentEditorState.studentId = String((s && s.student_id) || '');
       studentEditorState.beforeName = String((s && s.student_name) || '').trim();
+      var parts = rosterNamePartsFromRow(s);
+      studentEditorState.beforeFirst = parts.first_name;
+      studentEditorState.beforeLast = parts.last_name;
       var g = String((s && s.grade) || '').replace(/^grade-/, '').trim();
       studentEditorState.beforeGrade = (g === '6' || g === '7' || g === '8') ? g : '6';
       studentEditorState.beforeMedia = Number(s && s.media_publicity_restricted) === 1 ? 'Restricted' : 'Allowed';
@@ -3728,6 +3749,8 @@
       studentEditorState.recordKey = '';
       studentEditorState.studentId = '';
       studentEditorState.beforeName = '';
+      studentEditorState.beforeFirst = '';
+      studentEditorState.beforeLast = '';
       studentEditorState.beforeGrade = '';
       studentEditorState.beforeMedia = '';
       studentEditorState.beforePublicDisplay = '';
@@ -4172,16 +4195,35 @@
       return String(requestedId || '').trim() === String(reloadedId || '').trim();
     }
 
+    function studentRenamePartsAccepted(reqFirst, reqLast, confFirst, confLast, reloadFirst, reloadLast, requestedId, reloadedId) {
+      if (!String(reqFirst || '').trim()) return false;
+      if (!namesEqualForSaveProof(reqFirst, confFirst) || !namesEqualForSaveProof(reqLast, confLast)) return false;
+      if (!namesEqualForSaveProof(reqFirst, reloadFirst) || !namesEqualForSaveProof(reqLast, reloadLast)) return false;
+      return String(requestedId || '').trim() === String(reloadedId || '').trim();
+    }
+
     function showStudentsEditSaveProof(proof) {
       var box = document.getElementById('studentsEditSaveProof');
       var body = document.getElementById('studentsEditSaveProofBody');
       if (!box || !body) return;
       var p = proof || {};
+      var beforeLine = (p.beforeFirst != null || p.beforeLast != null)
+        ? formatNamePartsLine(p.beforeFirst, p.beforeLast)
+        : (p.before || '—');
+      var requestedLine = (p.requestedFirst != null || p.requestedLast != null)
+        ? formatNamePartsLine(p.requestedFirst, p.requestedLast)
+        : (p.requested || '—');
+      var confirmedLine = (p.confirmedFirst != null || p.confirmedLast != null)
+        ? formatNamePartsLine(p.confirmedFirst, p.confirmedLast)
+        : (p.confirmed || '—');
+      var reloadedLine = (p.reloadedFirst != null || p.reloadedLast != null)
+        ? formatNamePartsLine(p.reloadedFirst, p.reloadedLast)
+        : (p.reloaded || '—');
       body.innerHTML =
-        '<p>Before:<br>' + escapeRosterHtml(p.before || '—') + '</p>' +
-        '<p>Requested:<br>' + escapeRosterHtml(p.requested || '—') + '</p>' +
-        '<p>TMS confirmed:<br>' + escapeRosterHtml(p.confirmed || '—') + '</p>' +
-        '<p>Roster reload:<br>' + escapeRosterHtml(p.reloaded || '—') + '</p>' +
+        '<p>Before:<br>' + escapeRosterHtml(beforeLine) + '</p>' +
+        '<p>Requested:<br>' + escapeRosterHtml(requestedLine) + '</p>' +
+        '<p>TMS confirmed:<br>' + escapeRosterHtml(confirmedLine) + '</p>' +
+        '<p>Roster reload:<br>' + escapeRosterHtml(reloadedLine) + '</p>' +
         '<p>Status:<br>' + escapeRosterHtml(p.status || 'FAILED') + '</p>';
       box.hidden = false;
       box.style.display = 'block';
@@ -4367,8 +4409,9 @@
       document.getElementById('studentsEditPrevName').value = s.student_name || '';
       document.getElementById('studentsEditPrevId').value = s.student_id || '';
       document.getElementById('studentsEditIdInput').value = s.student_id || '';
-      document.getElementById('studentsEditFirst').value = s.first_name || '';
-      document.getElementById('studentsEditLast').value = s.last_name || '';
+      var editParts = rosterNamePartsFromRow(s);
+      document.getElementById('studentsEditFirst').value = editParts.first_name || '';
+      document.getElementById('studentsEditLast').value = editParts.last_name || '';
       var pdnEl = document.getElementById('studentsEditPublicDisplay');
       var luEl = document.getElementById('studentsEditLanternUsername');
       if (pdnEl) pdnEl.value = s.public_display_name != null ? String(s.public_display_name).trim() : '';
@@ -4453,8 +4496,8 @@
         rec.innerHTML =
           '<summary class="lanternMgmtRecordHd">' +
             '<span class="lanternMgmtRecordCol">' + sidLabel + '</span>' +
-            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(s.first_name || '—') + mediaBadge + '</span>' +
-            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(s.last_name || '—') + '</span>' +
+            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(rosterNamePartsFromRow(s).first_name || '—') + mediaBadge + '</span>' +
+            '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(rosterNamePartsFromRow(s).last_name || '—') + '</span>' +
             '<span class="lanternMgmtRecordCol">' + escapeRosterHtml(formatStudentGradeLabel(s.grade)) + '</span>' +
             '<span class="lanternMgmtRecordCol">' + loginLabel + '</span>' +
             '<span class="lanternMgmtRecordCol ' + studentsStatusClass('status', statusLabel) + '">' + escapeRosterHtml(statusLabel) + '</span>' +
@@ -5185,6 +5228,8 @@
       var lanternUser = String((document.getElementById('studentsEditLanternUsername') || {}).value || '').trim();
       var publicDisplay = String((document.getElementById('studentsEditPublicDisplay') || {}).value || '').trim();
       var beforeName = String(studentEditorState.beforeName || prevName || '').trim();
+      var beforeFirst = String(studentEditorState.beforeFirst || '').trim();
+      var beforeLast = String(studentEditorState.beforeLast || '').trim();
       var requestedName = studentEditRequestedName(first, last);
       if (!prevName && !beforeName) return;
       if (!first) {
@@ -5200,7 +5245,9 @@
         return;
       }
       var idUnchanged = !!(prev && prev === next);
-      var nameChanged = !namesEqualForSaveProof(requestedName, beforeName);
+      var nameChanged = !namesEqualForSaveProof(requestedName, beforeName) ||
+        !namesEqualForSaveProof(first, beforeFirst) ||
+        !namesEqualForSaveProof(last, beforeLast);
       var gradeChanged = String(grade || '') !== String(studentEditorState.beforeGrade || grade);
       var mediaChanged = mediaStatus !== String(studentEditorState.beforeMedia || mediaStatus);
       var pdnChanged = publicDisplay !== String(studentEditorState.beforePublicDisplay || '');
@@ -5224,9 +5271,17 @@
         var msg = message || 'Name save failed. The editor is still open.';
         showStudentsEditSaveProof({
           before: proof.before,
+          beforeFirst: proof.beforeFirst,
+          beforeLast: proof.beforeLast,
           requested: proof.requested,
+          requestedFirst: proof.requestedFirst,
+          requestedLast: proof.requestedLast,
           confirmed: proof.confirmed || '—',
+          confirmedFirst: proof.confirmedFirst,
+          confirmedLast: proof.confirmedLast,
           reloaded: proof.reloaded || '—',
+          reloadedFirst: proof.reloadedFirst,
+          reloadedLast: proof.reloadedLast,
           status: proof.status || 'FAILED'
         });
         if (extra && extra.conflict) {
@@ -5256,22 +5311,48 @@
         return fetchFreshStudentsRosterForVerify().then(function(listRes) {
           var row = listRes && listRes.body && findRosterStudentByExactId(listRes.body.students, next);
           var reloadedName = row ? studentsRosterVisibleName(row) : '';
-          var accepted = !!(row && studentRenameFourStateAccepted(proof.requested, proof.confirmed, reloadedName, next, row.student_id));
+          var reloadParts = row ? rosterNamePartsFromRow(row) : { first_name: '', last_name: '' };
+          var accepted = !!(row && (
+            (proof.requestedFirst != null || proof.requestedLast != null)
+              ? studentRenamePartsAccepted(
+                  proof.requestedFirst, proof.requestedLast,
+                  proof.confirmedFirst, proof.confirmedLast,
+                  reloadParts.first_name, reloadParts.last_name,
+                  next, row.student_id
+                )
+              : studentRenameFourStateAccepted(proof.requested, proof.confirmed, reloadedName, next, row.student_id)
+          ));
           if (!accepted) {
             failRenameOpen({
               before: proof.before,
+              beforeFirst: proof.beforeFirst,
+              beforeLast: proof.beforeLast,
               requested: proof.requested,
+              requestedFirst: proof.requestedFirst,
+              requestedLast: proof.requestedLast,
               confirmed: proof.confirmed,
+              confirmedFirst: proof.confirmedFirst,
+              confirmedLast: proof.confirmedLast,
               reloaded: reloadedName || '—',
+              reloadedFirst: reloadParts.first_name,
+              reloadedLast: reloadParts.last_name,
               status: 'FAILED'
             }, 'TMS confirmed and the fresh roster do not match. The editor is still open.');
             return;
           }
           showStudentsEditSaveProof({
             before: proof.before,
+            beforeFirst: proof.beforeFirst,
+            beforeLast: proof.beforeLast,
             requested: proof.requested,
+            requestedFirst: proof.requestedFirst,
+            requestedLast: proof.requestedLast,
             confirmed: proof.confirmed,
+            confirmedFirst: proof.confirmedFirst,
+            confirmedLast: proof.confirmedLast,
             reloaded: reloadedName,
+            reloadedFirst: reloadParts.first_name,
+            reloadedLast: reloadParts.last_name,
             status: 'Saved'
           });
           showStudentsRosterMsg('Saved ' + reloadedName + ' · ID ' + next + '.', 'ok');
@@ -5283,7 +5364,11 @@
       if (idUnchanged && nameChanged) {
         showStudentsEditSaveProof({
           before: beforeName,
+          beforeFirst: beforeFirst,
+          beforeLast: beforeLast,
           requested: requestedName,
+          requestedFirst: first,
+          requestedLast: last,
           confirmed: '—',
           reloaded: '—',
           status: 'Saving'
@@ -5295,8 +5380,10 @@
         }).then(function(res) {
           if (res && res.blocked) return;
           var confirmed = res && res.body ? String(res.body.authoritative_name || '').trim() : '';
+          var confirmedFirst = res && res.body && res.body.first_name != null ? String(res.body.first_name).trim() : '';
+          var confirmedLast = res && res.body && res.body.last_name != null ? String(res.body.last_name).trim() : '';
           var failCode = res && res.body && (res.body.code || res.body.error);
-          if (!(res && res.okHttp && res.body && res.body.ok === true && res.body.verified === true && res.body.revision === 'student-rename-48' && namesEqualForSaveProof(confirmed, requestedName))) {
+          if (!(res && res.okHttp && res.body && res.body.ok === true && res.body.verified === true && res.body.revision === 'student-rename-48' && namesEqualForSaveProof(confirmed, requestedName) && namesEqualForSaveProof(confirmedFirst, first) && namesEqualForSaveProof(confirmedLast, last))) {
             var msg = (res && res.body && (res.body.message || res.body.error)) || 'Name save failed. The editor is still open.';
             if (failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name') {
               msg = 'Another student record is blocking this change.';
@@ -5309,8 +5396,14 @@
             }
             failRenameOpen({
               before: beforeName,
+              beforeFirst: beforeFirst,
+              beforeLast: beforeLast,
               requested: requestedName,
+              requestedFirst: first,
+              requestedLast: last,
               confirmed: confirmed || '—',
+              confirmedFirst: confirmedFirst,
+              confirmedLast: confirmedLast,
               reloaded: '—',
               status: 'FAILED'
             }, msg, {
@@ -5323,8 +5416,14 @@
           var afterName = function() {
             return verifyFreshRosterThenClose({
               before: beforeName,
+              beforeFirst: beforeFirst,
+              beforeLast: beforeLast,
               requested: requestedName,
-              confirmed: confirmed
+              requestedFirst: first,
+              requestedLast: last,
+              confirmed: confirmed,
+              confirmedFirst: confirmedFirst,
+              confirmedLast: confirmedLast
             });
           };
           var chain = Promise.resolve();
