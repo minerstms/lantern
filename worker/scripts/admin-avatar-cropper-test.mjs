@@ -34,8 +34,16 @@ if (adminHtml.includes('id="adminAvatarOverlay"') && adminHtml.includes('adminAv
   ok('admin.html: Manage Avatar opens fixed overlay (not destroyed by Staff re-render)');
 } else bad('admin.html missing fixed adminAvatarOverlay open path');
 
-if (adminHtml.includes('closeAdminAvatarPanel()') && /closeAdminAvatarPanel\(\);\s*\n\s*tb\.innerHTML/.test(adminHtml)) {
-  ok('admin.html: Staff re-render parks/closes Manage Avatar before wiping rows');
+const overlayIdx = adminHtml.indexOf('id="adminAvatarOverlay"');
+const staffMountIdx = adminHtml.indexOf('id="staffPowerListMount"');
+const staffRenderClosesBeforeRebuild = /function renderStaffTable\(\)\s*\{[\s\S]*?closeAdminAvatarPanel\(\);[\s\S]*?(?:ui\.setItems|setItems\()/.test(adminHtml);
+if (
+  overlayIdx !== -1 &&
+  staffMountIdx !== -1 &&
+  overlayIdx < staffMountIdx &&
+  staffRenderClosesBeforeRebuild
+) {
+  ok('admin.html: Staff re-render closes page-level Manage Avatar before list rebuild');
 } else bad('admin.html Staff re-render may still destroy avatar UI');
 
 if (adminHtml.includes('id="avatarCropOverlay"') && adminHtml.includes('lantern-avatar-cropper.js') && adminHtml.includes('cropper.min.js')) {
@@ -78,7 +86,18 @@ if (/new window\.Cropper|new Cropper\(/.test(profileJs) === false) {
   ok('profile-app: no second inline Cropper construction');
 } else bad('profile-app still constructs Cropper inline');
 
-if (adminHtml.includes('openAdminAvatarPanel(u.username') && adminHtml.includes('openAdminAvatarPanel(s.lantern_username')) {
+const staffUsesUsername = adminHtml.includes('openAdminAvatarPanel(u.username');
+const studentUsesResolvedLanternUsername = adminHtml.includes('openAdminAvatarPanel(student.lantern_username');
+const linkedAvatarGate = /lantern_account === 'Linked' && s\.lantern_username[\s\S]{0,250}manage-avatar/.test(adminHtml);
+const linkedArchivedAvatarGate = /lantern_account === 'Linked Archived' && s\.lantern_username[\s\S]{0,250}manage-avatar/.test(adminHtml);
+const missingUsernameBlocked = /if \(action === 'manage-avatar'\)[\s\S]{0,220}if \(!student\.lantern_username\)/.test(adminHtml);
+if (
+  staffUsesUsername &&
+  studentUsesResolvedLanternUsername &&
+  linkedAvatarGate &&
+  linkedArchivedAvatarGate &&
+  missingUsernameBlocked
+) {
   ok('admin.html: Staff uses username; Students use lantern_username target');
 } else bad('admin.html target identity wiring incomplete');
 
