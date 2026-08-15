@@ -25,10 +25,10 @@ if (adminHtml.includes("Type RESOLVE to confirm") && adminHtml.includes("typed !
 if (adminHtml.includes('studentResolveOverlay') && adminHtml.includes("ev.key !== 'Escape'")) {
   ok('backdrop/Escape cancel exists');
 } else bad('cancel');
-if (adminHtml.includes('authoritative_update_not_applied') && adminHtml.includes('The editor is still open')) {
+if (adminHtml.includes('authoritative_update_not_applied') && adminHtml.includes('confirm that this change was saved. Please try again.')) {
   ok('19. UI cannot show success on read-back mismatch');
 } else bad('false success UI');
-if (adminHtml.includes('res.body.verified') && adminHtml.includes('savedNorm !== requestedNorm')) {
+if (adminHtml.includes('res.body.verified') && adminHtml.includes('savedNorm === requestedNorm')) {
   ok('success toast requires verified reread name');
 } else bad('verified toast');
 if (indexSrc.includes('authoritative_update_not_applied') && indexSrc.includes('bridge.verified')) {

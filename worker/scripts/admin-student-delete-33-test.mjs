@@ -320,8 +320,8 @@ async function run() {
   if ((adminHtml.includes("textContent = 'Delete'") || adminHtml.includes("studentRowActionAttrs(s, 'delete')")) && adminHtml.includes('/api/admin/students/delete-inspect')) {
     ok('UI exposes compact Delete and inspect-first modal');
   } else bad('UI delete wiring');
-  if (adminHtml.includes('Missing Student ID') && adminHtml.includes('Set Student ID') && adminHtml.includes('Delete Mistaken Row')) {
-    ok('13/14. missing-ID row shows Missing Student ID + Set Student ID + Delete Mistaken Row');
+  if (adminHtml.includes('Missing School ID') && adminHtml.includes('Set Student ID') && adminHtml.includes('Delete Mistaken Row')) {
+    ok('13/14. missing-ID row shows Missing School ID + Set Student ID + Delete Mistaken Row');
   } else bad('missing-id UI');
   if (adminHtml.includes('Type DELETE to confirm') && adminHtml.includes('closeStudentDeleteModal')) {
     ok('13. typed DELETE confirmation; backdrop/Escape close only');

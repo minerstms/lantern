@@ -59,8 +59,8 @@ function extractFunction(src, name) {
 
 if (adminHtml.split('function saveStudentIdEdit').length === 2) ok('exactly one saveStudentIdEdit');
 else bad('duplicate saveStudentIdEdit');
-if (adminHtml.includes('id="studentsEditSaveProof"') && adminHtml.includes('Save verification')) {
-  ok('persistent Save verification box is in the editor');
+if (adminHtml.includes('id="studentsEditSaveProof"') && adminHtml.includes('studentsEditSaveProofBody') && adminHtml.includes('Technical details')) {
+  ok('persistent Technical details proof box is in the editor');
 } else bad('proof box missing');
 if (
   adminHtml.includes('/api/admin/students/rename') &&
@@ -412,6 +412,8 @@ await runEditorCase('happy path', {
   } else bad('fresh fetch', log.fetches);
   if (log.closed === true) ok('editor closes after REQUESTED == CONFIRMED == RELOADED');
   else bad('happy close', log);
+  if (log.msgs.some((m) => m === 'Changes saved.')) ok('happy path shows simple confirmation');
+  else bad('simple confirmation', log.msgs);
 });
 
 await runEditorCase('A zero changes', {
@@ -427,7 +429,7 @@ await runEditorCase('A zero changes', {
     };
   },
 }, (log) => {
-  if (log.closed !== true && log.msgs.some((m) => /still open|couldn\'t save|failed/i.test(m))) {
+  if (log.closed !== true && log.msgs.some((m) => /couldn\'t confirm|couldn\'t save|still open|failed/i.test(m))) {
     ok('A. TMS zero changes keeps editor open');
   } else bad('A', log);
 });

@@ -32,7 +32,7 @@ function run() {
   } else bad('dup name copy');
 
   if (
-    adminHtml.includes('Missing Student ID') &&
+    adminHtml.includes('Missing School ID') &&
     adminHtml.includes("studentRowActionAttrs(s, 'set-id')") &&
     adminHtml.includes('Set Student ID') &&
     adminHtml.includes('Delete Mistaken Row')

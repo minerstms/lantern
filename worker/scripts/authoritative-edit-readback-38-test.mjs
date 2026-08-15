@@ -110,7 +110,7 @@ async function withBridge(handler, fn) {
 const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');
 const indexSrc = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 
-if (adminHtml.includes('authoritative_update_not_applied') && adminHtml.includes('The editor is still open') && adminHtml.includes('res.body.verified')) {
+if (adminHtml.includes('authoritative_update_not_applied') && adminHtml.includes('confirm that this change was saved. Please try again.') && adminHtml.includes('res.body.verified')) {
   ok('19. UI cannot show success on mismatch');
 } else bad('UI mismatch gate');
 if (indexSrc.includes('bridge.verified') && indexSrc.includes('authoritative_update_not_applied')) {

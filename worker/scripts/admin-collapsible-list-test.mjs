@@ -90,7 +90,7 @@ if (/Behavior Logger Link/.test(html) && /Link Behavior Logger identity|Make Pri
   ok('Staff inline Behavior Logger link + Needs Attention present');
 } else bad('Staff Behavior Logger integration incomplete');
 
-if (/Create Lantern Login/.test(html) && /Missing Student ID/.test(html) && /studentsRosterFilter[\s\S]{0,400}value="active" selected/.test(html)) {
+if (/Create Lantern Login/.test(html) && /Missing School ID/.test(html) && /studentsRosterFilter[\s\S]{0,400}value="active" selected/.test(html)) {
   ok('Students canonical status + Create Lantern Login + Active default filter');
 } else bad('Students canonical UX incomplete');
 

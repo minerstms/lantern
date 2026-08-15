@@ -247,13 +247,16 @@ const ctx = {
 };
 vm.createContext(ctx);
 vm.runInContext(
-  extractFunction(adminHtml, 'markStudentEditorOpen') +
+  extractFunction(adminHtml, 'rosterNamePartsFromRow') +
+    '\n' +
+    extractFunction(adminHtml, 'markStudentEditorOpen') +
     '\n' +
     extractFunction(adminHtml, 'markStudentEditorClosed') +
     '\n' +
     extractFunction(adminHtml, 'keepStudentEditorOpen') +
     '\n' +
     extractFunction(adminHtml, 'isStudentEditorActuallyVisible') +
+    '\nthis.rosterNamePartsFromRow = rosterNamePartsFromRow;' +
     '\nthis.markStudentEditorOpen = markStudentEditorOpen;' +
     '\nthis.markStudentEditorClosed = markStudentEditorClosed;' +
     '\nthis.keepStudentEditorOpen = keepStudentEditorOpen;' +

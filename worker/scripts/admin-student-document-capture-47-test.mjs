@@ -53,13 +53,13 @@ if (!adminHtml.includes('function wireStudentRosterActions') &&
   ok('roster-body and per-button student-action listeners are gone');
 } else bad('competing student-action listeners remain');
 
-if (adminHtml.includes('Edit click received: ') &&
-    adminHtml.includes('Opening editor: ') &&
-    adminHtml.includes('Editor open: ') &&
-    adminHtml.includes('Edit click received, but student ') &&
-    adminHtml.includes('Edit handler ran, but the editor did not open.')) {
-  ok('visible Edit diagnostics are present');
-} else bad('diagnostic strings missing');
+if (!adminHtml.includes('studentsActionDiag') &&
+    !adminHtml.includes('showStudentActionDiag') &&
+    !adminHtml.includes('Edit click received') &&
+    !adminHtml.includes('Opening editor:') &&
+    !adminHtml.includes('Editor open:')) {
+  ok('temporary Edit-click diagnostic text is gone');
+} else bad('temporary Edit-click diagnostics remain');
 
 if (adminHtml.includes('id="studentsEditStableHost"') &&
     adminHtml.includes("getElementById('studentsEditStableHost')")) {
@@ -231,11 +231,6 @@ editorPanel.style.display = 'none';
 editorPanel.setAttribute('aria-hidden', 'true');
 park.appendChild(editorPanel);
 
-const diag = createEl('p');
-diag.id = 'studentsActionDiag';
-diag.setAttribute('id', 'studentsActionDiag');
-diag.style.display = 'none';
-
 const firstInput = createEl('input');
 firstInput.id = 'studentsEditFirst';
 firstInput.setAttribute('id', 'studentsEditFirst');
@@ -253,7 +248,6 @@ const byId = {
   studentsEditStableHost: stableHost,
   adminEditorPark: park,
   studentsEditIdPanel: editorPanel,
-  studentsActionDiag: diag,
   studentsEditFirst: firstInput,
   studentsEditPrevName: field('studentsEditPrevName'),
   studentsEditPrevId: field('studentsEditPrevId'),
@@ -276,7 +270,6 @@ byId.studentsEditIdHint.id = 'studentsEditIdHint';
 byId.studentsEditConflictBox.id = 'studentsEditConflictBox';
 byId.studentsAddPanel.id = 'studentsAddPanel';
 
-studentsCard.appendChild(diag);
 studentsCard.appendChild(stableHost);
 studentsCard.appendChild(rosterBody);
 
@@ -306,7 +299,7 @@ const ctx = {
       .replace(/"/g, '&quot;');
   },
   findCanonicalDuplicate() { return null; },
-  showStudentsRosterMsg() {},
+  showStudentsRosterMsg(text, kind) { calls.rosterMsg = { text: String(text || ''), kind: kind || '' }; },
   closeEditUserPanel() {},
   closeTempPwPanel() {},
   closeAdminAvatarPanel() {},
@@ -329,7 +322,7 @@ vm.runInContext(
     'studentRowActionsHtml',
     'resolveStudentForAction',
     'studentRowEditorMount',
-    'showStudentActionDiag',
+    'rosterNamePartsFromRow',
     'adminEventElement',
     'isStudentEditorActuallyVisible',
     'onAdminStudentActionCapture',
@@ -391,9 +384,9 @@ if (editBtn && editBtn.getAttribute('type') === 'button' && editBtn.getAttribute
 
 const textTarget = { nodeType: 3, parentElement: editBtn, parentNode: editBtn };
 clickThroughDocument(textTarget);
-if (diag.textContent.indexOf('Edit click received: 21004') >= 0 || diag.textContent.indexOf('Editor open: 21004') >= 0) {
-  ok('6-7. text-node click still reaches capture and shows Edit click received: 21004');
-} else bad('text-node click was silent', diag.textContent);
+if (calls.openEdit === 1 && ctx.isStudentEditorActuallyVisible()) {
+  ok('6-7. text-node click still reaches capture and opens the editor');
+} else bad('text-node click did not open editor', { calls: calls.openEdit, visible: ctx.isStudentEditorActuallyVisible() });
 
 if (calls.openEdit === 1) ok('8. openEditStudentId invoked once');
 else bad('openEditStudentId count', calls.openEdit);
@@ -406,11 +399,11 @@ if (ctx.isStudentEditorActuallyVisible() && ctx.studentEditorState.open && edito
   parent: editorPanel.parentNode && editorPanel.parentNode.id,
 });
 
-if (diag.textContent === 'Editor open: 21004') ok('diagnostic reached Editor open: 21004');
-else bad('final diagnostic wrong', diag.textContent);
+if (ctx.studentEditorState.open && ctx.isStudentEditorActuallyVisible()) ok('Edit opened without temporary diagnostic copy');
+else bad('editor did not stay open after capture');
 
 await new Promise((r) => setTimeout(r, 1000));
-if (ctx.isStudentEditorActuallyVisible() && calls.openEdit === 1 && diag.textContent === 'Editor open: 21004') {
+if (ctx.isStudentEditorActuallyVisible() && calls.openEdit === 1) {
   ok('10-11. after 1s editor still visible');
 } else bad('editor lost after 1s');
 
@@ -420,20 +413,20 @@ editorPanel.hidden = true;
 editorPanel.style.display = 'none';
 editorPanel.setAttribute('aria-hidden', 'true');
 calls.openEdit = 0;
-diag.textContent = '';
+calls.rosterMsg = null;
 rosterBody.children = [];
 renderRow(student21004);
 const editBtn2 = rosterBody.querySelector('[data-student-action="edit"]');
 clickThroughDocument(editBtn2);
-if (calls.openEdit === 1 && ctx.isStudentEditorActuallyVisible() && diag.textContent === 'Editor open: 21004') {
+if (calls.openEdit === 1 && ctx.isStudentEditorActuallyVisible()) {
   ok('rerender: new Edit works without rebinding because document listener survived');
-} else bad('rerender broke Edit', { calls: calls.openEdit, diag: diag.textContent, visible: ctx.isStudentEditorActuallyVisible() });
+} else bad('rerender broke Edit', { calls: calls.openEdit, visible: ctx.isStudentEditorActuallyVisible() });
 
 ctx.lastStudentsRoster = [];
 clickThroughDocument(editBtn2);
-if (diag.textContent.indexOf('could not be resolved') >= 0) {
-  ok('unresolved student shows a visible diagnostic');
-} else bad('unresolved lookup was silent', diag.textContent);
+if (calls.rosterMsg && /Could not open this student record/.test(calls.rosterMsg.text)) {
+  ok('unresolved student shows a visible error');
+} else bad('unresolved lookup was silent', calls.rosterMsg);
 
 console.log('\nadmin-student-document-capture-47-test:', pass, 'PASS', fail, 'FAIL');
 if (fail) process.exit(1);
