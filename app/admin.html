@@ -334,6 +334,10 @@
       <p class="acctPanelHint">Restricted students may still use internal Lantern. Identifiable content is excluded from Hallway TV and external hosting (e.g. YouTube).</p>
       <div id="studentsEditConflictBox" class="studentsHealthPanel" style="display:none;" hidden></div>
       <p id="studentsEditServerConfirm" class="acctPanelHint" hidden></p>
+      <div id="studentsEditSaveProof" class="studentsHealthPanel" style="display:none;" hidden>
+        <p class="acctPanelHd">Save verification</p>
+        <div id="studentsEditSaveProofBody"></div>
+      </div>
       <div class="acctPanelActions">
         <button type="button" class="btn good" id="studentsEditIdSaveBtn">Save Changes</button>
         <button type="button" class="btn" id="studentsEditRetryBtn" hidden>Retry</button>
@@ -3706,18 +3710,27 @@
     var studentsHealthFilter = 'all';
     var studentsAddConflictState = null;
     var studentsEditConflictState = null;
-    var studentEditorState = { open: false, recordKey: '', studentId: '' };
+    var studentEditorState = { open: false, recordKey: '', studentId: '', beforeName: '', beforeGrade: '', beforeMedia: '', beforePublicDisplay: '' };
 
     function markStudentEditorOpen(s) {
       studentEditorState.open = true;
       studentEditorState.recordKey = String((s && (s.student_name || s.student_id)) || '');
       studentEditorState.studentId = String((s && s.student_id) || '');
+      studentEditorState.beforeName = String((s && s.student_name) || '').trim();
+      var g = String((s && s.grade) || '').replace(/^grade-/, '').trim();
+      studentEditorState.beforeGrade = (g === '6' || g === '7' || g === '8') ? g : '6';
+      studentEditorState.beforeMedia = Number(s && s.media_publicity_restricted) === 1 ? 'Restricted' : 'Allowed';
+      studentEditorState.beforePublicDisplay = s && s.public_display_name != null ? String(s.public_display_name).trim() : '';
     }
 
     function markStudentEditorClosed() {
       studentEditorState.open = false;
       studentEditorState.recordKey = '';
       studentEditorState.studentId = '';
+      studentEditorState.beforeName = '';
+      studentEditorState.beforeGrade = '';
+      studentEditorState.beforeMedia = '';
+      studentEditorState.beforePublicDisplay = '';
     }
 
     function keepStudentEditorOpen() {
@@ -4144,7 +4157,64 @@
     }
 
     function studentEditRequestedName(first, last) {
-      return [first, last].filter(Boolean).join(' ').trim();
+      return [String(first || '').trim(), String(last || '').trim()].filter(Boolean).join(' ').trim();
+    }
+
+    function namesEqualForSaveProof(a, b) {
+      return String(a || '').trim().replace(/\s+/g, ' ').toLowerCase() ===
+        String(b || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function studentRenameFourStateAccepted(requested, confirmed, reloaded, requestedId, reloadedId) {
+      if (!String(requested || '').trim()) return false;
+      if (!namesEqualForSaveProof(requested, confirmed)) return false;
+      if (!namesEqualForSaveProof(requested, reloaded)) return false;
+      return String(requestedId || '').trim() === String(reloadedId || '').trim();
+    }
+
+    function showStudentsEditSaveProof(proof) {
+      var box = document.getElementById('studentsEditSaveProof');
+      var body = document.getElementById('studentsEditSaveProofBody');
+      if (!box || !body) return;
+      var p = proof || {};
+      body.innerHTML =
+        '<p>Before:<br>' + escapeRosterHtml(p.before || '—') + '</p>' +
+        '<p>Requested:<br>' + escapeRosterHtml(p.requested || '—') + '</p>' +
+        '<p>TMS confirmed:<br>' + escapeRosterHtml(p.confirmed || '—') + '</p>' +
+        '<p>Roster reload:<br>' + escapeRosterHtml(p.reloaded || '—') + '</p>' +
+        '<p>Status:<br>' + escapeRosterHtml(p.status || 'FAILED') + '</p>';
+      box.hidden = false;
+      box.style.display = 'block';
+    }
+
+    function hideStudentsEditSaveProof() {
+      var box = document.getElementById('studentsEditSaveProof');
+      var body = document.getElementById('studentsEditSaveProofBody');
+      if (body) body.innerHTML = '';
+      if (box) {
+        box.hidden = true;
+        box.style.display = 'none';
+      }
+    }
+
+    function fetchFreshStudentsRosterForVerify() {
+      return fetch(api + '/api/admin/tms-roster?include_inactive=1', {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' }
+      }).then(function(r) {
+        return r.json().then(function(j) {
+          return { okHttp: r.ok, status: r.status, body: j };
+        });
+      });
+    }
+
+    function findRosterStudentByExactId(students, studentId) {
+      var sid = String(studentId || '').trim();
+      var matches = (students || []).filter(function(s) {
+        return String((s && s.student_id) || '').trim() === sid;
+      });
+      return matches.length === 1 ? matches[0] : null;
     }
 
     function studentEditSaveAccepted(body, requestedName, requestedId) {
@@ -4332,6 +4402,7 @@
       var reviewBtn = document.getElementById('studentsEditReviewConflictBtn');
       if (reviewBtn) reviewBtn.hidden = true;
       setStudentsEditServerConfirm('');
+      hideStudentsEditSaveProof();
       markStudentEditorOpen(s);
       var stable = document.getElementById('studentsEditStableHost');
       mountAdminEditor(panel, stable || mountEl || null);
@@ -5108,7 +5179,14 @@
       var last = String((document.getElementById('studentsEditLast') || {}).value || '').trim();
       var gradeEl = document.getElementById('studentsEditGrade');
       var grade = gradeEl ? String(gradeEl.value || '6').trim() : '6';
-      if (!prevName) return;
+      var mediaEl = document.getElementById('studentsEditMediaPublicity');
+      var mediaStatus = mediaEl ? String(mediaEl.value || 'Allowed').trim() : 'Allowed';
+      var mediaRestricted = mediaStatus === 'Restricted';
+      var lanternUser = String((document.getElementById('studentsEditLanternUsername') || {}).value || '').trim();
+      var publicDisplay = String((document.getElementById('studentsEditPublicDisplay') || {}).value || '').trim();
+      var beforeName = String(studentEditorState.beforeName || prevName || '').trim();
+      var requestedName = studentEditRequestedName(first, last);
+      if (!prevName && !beforeName) return;
       if (!first) {
         showStudentsRosterMsg('First name is required.', 'err');
         return;
@@ -5117,7 +5195,15 @@
         showStudentsRosterMsg('Student ID cannot be blank.', 'err');
         return;
       }
-      var nextName = studentEditRequestedName(first, last);
+      if (!requestedName) {
+        showStudentsRosterMsg('A nonblank human name is required.', 'err');
+        return;
+      }
+      var idUnchanged = !!(prev && prev === next);
+      var nameChanged = !namesEqualForSaveProof(requestedName, beforeName);
+      var gradeChanged = String(grade || '') !== String(studentEditorState.beforeGrade || grade);
+      var mediaChanged = mediaStatus !== String(studentEditorState.beforeMedia || mediaStatus);
+      var pdnChanged = publicDisplay !== String(studentEditorState.beforePublicDisplay || '');
       if (prev && prev !== next) {
         var summary =
           'Confirm Student ID change?\n\n' +
@@ -5129,8 +5215,178 @@
           '\n\nIf a Lantern account already depends on the old ID, this will be refused.';
         if (!window.confirm(summary)) return;
       } else if (!prev) {
-        if (!window.confirm('Set Student ID for ' + nextName + ' to:\n\n' + next + '\n\nThis must be the real school/TMS ID (not invented).')) return;
+        if (!window.confirm('Set Student ID for ' + requestedName + ' to:\n\n' + next + '\n\nThis must be the real school/TMS ID (not invented).')) return;
       }
+      var btn = document.getElementById('studentsEditIdSaveBtn');
+      if (btn) btn.disabled = true;
+
+      function failRenameOpen(proof, message, extra) {
+        var msg = message || 'Name save failed. The editor is still open.';
+        showStudentsEditSaveProof({
+          before: proof.before,
+          requested: proof.requested,
+          confirmed: proof.confirmed || '—',
+          reloaded: proof.reloaded || '—',
+          status: proof.status || 'FAILED'
+        });
+        if (extra && extra.conflict) {
+          studentsEditConflictState = extra.conflict;
+          var conflictBox = document.getElementById('studentsEditConflictBox');
+          var reviewBtn = document.getElementById('studentsEditReviewConflictBtn');
+          if (conflictBox) {
+            conflictBox.hidden = false;
+            conflictBox.style.display = 'block';
+            conflictBox.innerHTML = '<p>Another student record is blocking this change.</p>' +
+              (studentsEditConflictState
+                ? '<p>' + escapeRosterHtml(studentsEditConflictState.student_name || '') +
+                  (studentsEditConflictState.student_id ? ' · School ID ' + escapeRosterHtml(studentsEditConflictState.student_id) : '') +
+                  '</p>'
+                : '') +
+              '<p>Another roster row already uses this name.</p>';
+          }
+          if (reviewBtn) reviewBtn.hidden = !studentsEditConflictState;
+        }
+        var retryBtn = document.getElementById('studentsEditRetryBtn');
+        if (retryBtn) retryBtn.hidden = false;
+        setStudentsEditServerConfirm(msg);
+        showStudentsRosterMsg(msg, 'err');
+      }
+
+      function verifyFreshRosterThenClose(proof) {
+        return fetchFreshStudentsRosterForVerify().then(function(listRes) {
+          var row = listRes && listRes.body && findRosterStudentByExactId(listRes.body.students, next);
+          var reloadedName = row ? studentsRosterVisibleName(row) : '';
+          var accepted = !!(row && studentRenameFourStateAccepted(proof.requested, proof.confirmed, reloadedName, next, row.student_id));
+          if (!accepted) {
+            failRenameOpen({
+              before: proof.before,
+              requested: proof.requested,
+              confirmed: proof.confirmed,
+              reloaded: reloadedName || '—',
+              status: 'FAILED'
+            }, 'TMS confirmed and the fresh roster do not match. The editor is still open.');
+            return;
+          }
+          showStudentsEditSaveProof({
+            before: proof.before,
+            requested: proof.requested,
+            confirmed: proof.confirmed,
+            reloaded: reloadedName,
+            status: 'Saved'
+          });
+          showStudentsRosterMsg('Saved ' + reloadedName + ' · ID ' + next + '.', 'ok');
+          closeStudentsEditPanels();
+          loadStudentsRoster();
+        });
+      }
+
+      if (idUnchanged && nameChanged) {
+        showStudentsEditSaveProof({
+          before: beforeName,
+          requested: requestedName,
+          confirmed: '—',
+          reloaded: '—',
+          status: 'Saving'
+        });
+        return postAdminJson('/api/admin/students/rename', {
+          student_id: next,
+          first_name: first,
+          last_name: last
+        }).then(function(res) {
+          if (res && res.blocked) return;
+          var confirmed = res && res.body ? String(res.body.authoritative_name || '').trim() : '';
+          var failCode = res && res.body && (res.body.code || res.body.error);
+          if (!(res && res.okHttp && res.body && res.body.ok === true && res.body.verified === true && res.body.revision === 'student-rename-48' && namesEqualForSaveProof(confirmed, requestedName))) {
+            var msg = (res && res.body && (res.body.message || res.body.error)) || 'Name save failed. The editor is still open.';
+            if (failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name') {
+              msg = 'Another student record is blocking this change.';
+            }
+            if (failCode === 'duplicate_student_id' || failCode === 'ambiguous_student_id') {
+              msg = 'More than one TMS roster row uses this Student ID. The editor is still open.';
+            }
+            if (failCode === 'roster_name_not_updated' || failCode === 'authoritative_update_not_applied') {
+              msg = (res && res.body && res.body.message) || 'We couldn\'t save this change. Nothing was reported as saved. The editor is still open.';
+            }
+            failRenameOpen({
+              before: beforeName,
+              requested: requestedName,
+              confirmed: confirmed || '—',
+              reloaded: '—',
+              status: 'FAILED'
+            }, msg, {
+              conflict: failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name'
+                ? (res.body && res.body.conflicting_student) || { student_name: requestedName }
+                : null
+            });
+            return;
+          }
+          var afterName = function() {
+            return verifyFreshRosterThenClose({
+              before: beforeName,
+              requested: requestedName,
+              confirmed: confirmed
+            });
+          };
+          var chain = Promise.resolve();
+          if (gradeChanged) {
+            chain = chain.then(function() {
+              return postAdminJson('/api/admin/tms-roster/set-grade', {
+                student_name: confirmed,
+                student_id: next,
+                grade: grade
+              }).then(function(gradeRes) {
+                if (gradeRes && gradeRes.blocked) return;
+                if (!(gradeRes && gradeRes.okHttp && gradeRes.body && gradeRes.body.ok)) {
+                  failRenameOpen({
+                    before: beforeName,
+                    requested: requestedName,
+                    confirmed: confirmed,
+                    reloaded: '—',
+                    status: 'FAILED'
+                  }, 'Name was confirmed by TMS, but grade save failed. The editor is still open.');
+                  throw new Error('grade_save_failed');
+                }
+              });
+            });
+          }
+          if (mediaChanged) {
+            chain = chain.then(function() {
+              return postAdminJson('/api/admin/students/media-publicity', {
+                student_id: next,
+                student_name: confirmed,
+                restricted: mediaRestricted
+              }).then(function(mediaRes) {
+                if (mediaRes && mediaRes.blocked) return;
+                if (!(mediaRes && mediaRes.okHttp && mediaRes.body && mediaRes.body.ok)) {
+                  failRenameOpen({
+                    before: beforeName,
+                    requested: requestedName,
+                    confirmed: confirmed,
+                    reloaded: '—',
+                    status: 'FAILED'
+                  }, 'Name was confirmed by TMS, but Media/Publicity save failed. The editor is still open.');
+                  throw new Error('media_save_failed');
+                }
+              });
+            });
+          }
+          if (pdnChanged && lanternUser) {
+            chain = chain.then(function() {
+              return postAdminJson('/api/admin/users/update', {
+                username: lanternUser,
+                public_display_name: publicDisplay || null
+              });
+            });
+          }
+          return chain.then(afterName);
+        }).catch(function(err) {
+          if (err && (err.message === 'grade_save_failed' || err.message === 'media_save_failed')) return;
+          showStudentsRosterMsg('Network error while saving student.', 'err');
+        }).finally(function() {
+          if (btn) btn.disabled = false;
+        });
+      }
+
       var payload = buildStudentIdEditPayload({
         previous_student_name: prevName,
         previous_student_id: prev,
@@ -5139,14 +5395,9 @@
         student_id: next,
         grade: grade
       });
-      var btn = document.getElementById('studentsEditIdSaveBtn');
-      if (btn) btn.disabled = true;
-      var mediaEl = document.getElementById('studentsEditMediaPublicity');
-      var mediaStatus = mediaEl ? String(mediaEl.value || 'Allowed').trim() : 'Allowed';
-      var mediaRestricted = mediaStatus === 'Restricted';
       postAdminJson('/api/admin/tms-roster/update', payload).then(function(res) {
         if (res && res.blocked) return;
-        if (!(res && res.okHttp && res.body && studentEditSaveAccepted(res.body, nextName, next))) {
+        if (!(res && res.okHttp && res.body && studentEditSaveAccepted(res.body, requestedName, next))) {
           var failCode = res && res.body && (res.body.code || res.body.error);
           var msg = (res && res.body && (res.body.message || res.body.error)) || 'Save failed';
           if (failCode === 'destination_name_taken' || failCode === 'ambiguous_student_name') {
@@ -5200,8 +5451,6 @@
           var mediaMsg = mediaRestricted
             ? ' Media/Publicity set to Restricted. Hallway TV will stop displaying student-identifying content for this student.'
             : ' Media/Publicity: Allowed.';
-          var lanternUser = String((document.getElementById('studentsEditLanternUsername') || {}).value || '').trim();
-          var publicDisplay = String((document.getElementById('studentsEditPublicDisplay') || {}).value || '').trim();
           var finishOk = function(extra) {
             var confirmLine = isWebSystemAdminSession() ? ' Server confirmed: ' + savedName + '.' : '';
             showStudentsRosterMsg(

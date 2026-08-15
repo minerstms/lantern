@@ -318,6 +318,49 @@ async function run() {
           identity_changed: previousName !== name || prevId !== sid,
         };
       },
+      'roster/rename': async (body) => {
+        const first = String(body.first_name || '').trim();
+        const last = String(body.last_name || '').trim();
+        if (!first) {
+          return { ok: false, error: 'First name is required.', code: 'first_name_required', _httpStatus: 400 };
+        }
+        const sid = String(body.student_id || '').trim();
+        if (!sid) return { ok: false, error: 'student_id is required.', code: 'student_id_required', _httpStatus: 400 };
+        const requested = [first, last].filter(Boolean).join(' ').trim();
+        const matches = state.tmsStudents.filter((s) => String(s.student_id || '') === sid && String(s.student_id || '').trim());
+        if (matches.length > 1) {
+          return { ok: false, error: 'duplicate student_id', code: 'duplicate_student_id', verified: false, _httpStatus: 409 };
+        }
+        const row = matches[0];
+        if (!row) return { ok: false, error: 'Student row not found.', code: 'not_found', _httpStatus: 404 };
+        const destTaken = state.tmsStudents.some(
+          (s) => s.student_name === requested && String(s.student_id || '') !== sid
+        );
+        if (destTaken) {
+          return {
+            ok: false,
+            error: 'Another roster row already uses this name.',
+            code: 'destination_name_taken',
+            verified: false,
+            before_name: row.student_name,
+            requested_name: requested,
+            authoritative_name: row.student_name,
+            _httpStatus: 409,
+          };
+        }
+        const before = row.student_name;
+        row.student_name = requested;
+        return {
+          ok: true,
+          verified: true,
+          revision: 'student-rename-48',
+          student_id: sid,
+          before_name: before,
+          requested_name: requested,
+          authoritative_name: row.student_name,
+          changes: before === requested ? 0 : 1,
+        };
+      },
     },
   };
   const env = makeEnv(state);
@@ -680,6 +723,46 @@ async function run() {
       if (jane && jane.student_id === '33100' && jane.student_id !== '00000') {
         ok('16/17. normal ID is now present; no fake/default ID assigned');
       } else bad('fake id', jane);
+    }
+
+    // Prompt #48 — dedicated exact-ID rename
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/students/rename', {
+          student_id: '20889',
+          first_name: 'Lucas',
+          last_name: 'Radle Renamed',
+        }, adminCookie),
+        env
+      );
+      const body = await res.json();
+      if (
+        res.status === 200 &&
+        body.ok &&
+        body.verified === true &&
+        body.revision === 'student-rename-48' &&
+        body.authoritative_name === 'Lucas Radle Renamed' &&
+        body.requested_name === 'Lucas Radle Renamed' &&
+        body.student_id === '20889'
+      ) {
+        ok('admin can rename by exact student_id via /students/rename');
+      } else bad('students/rename', JSON.stringify(body));
+      const renameCall = state.bridgeCalls.filter((c) => c.url.includes('roster/rename')).pop();
+      if (renameCall && renameCall.body.student_id === '20889' && renameCall.body.first_name === 'Lucas' && !('grade' in renameCall.body)) {
+        ok('rename bridge call is name-only');
+      } else bad('rename bridge payload', renameCall);
+    }
+    {
+      const res = await worker.fetch(
+        adminReq('POST', '/api/admin/students/rename', {
+          student_id: '20889',
+          first_name: 'Lucas',
+          last_name: 'Radle Renamed',
+        }, teacherCookie),
+        env
+      );
+      if (res.status === 403) ok('teacher cannot POST students/rename');
+      else bad('teacher rename', res.status);
     }
   });
 

@@ -93,15 +93,17 @@ if (adminHtml.includes('function closeStudentsEditPanels()') &&
 } else bad('close does not clear editor state');
 
 const saveFn = extractFunction(adminHtml, 'saveStudentIdEdit');
-if (saveFn.includes('studentEditSaveAccepted') &&
+if (saveFn.includes('/api/admin/students/rename') &&
+    saveFn.includes('studentRenameFourStateAccepted') &&
     saveFn.includes('closeStudentsEditPanels()') &&
-    saveFn.includes('loadStudentsRoster()')) {
+    saveFn.includes('loadStudentsRoster()') &&
+    saveFn.includes('studentEditSaveAccepted')) {
   const closeIdx = saveFn.indexOf('closeStudentsEditPanels()');
-  const acceptIdx = saveFn.indexOf('studentEditSaveAccepted');
   const failReturn = saveFn.indexOf("showStudentsRosterMsg(msg, 'err')");
-  if (acceptIdx >= 0 && closeIdx > acceptIdx && failReturn >= 0 && failReturn < closeIdx) {
-    ok('Save closes editor only after verified=true; failure leaves it open');
-  } else bad('Save close/failure order wrong', { acceptIdx, closeIdx, failReturn });
+  const fourIdx = saveFn.indexOf('studentRenameFourStateAccepted');
+  if (fourIdx >= 0 && closeIdx > fourIdx && failReturn >= 0 && failReturn < closeIdx) {
+    ok('Save closes editor only after four-state proof; failure leaves it open');
+  } else bad('Save close/failure order wrong', { fourIdx, closeIdx, failReturn });
 } else bad('saveStudentIdEdit missing verified close path');
 
 if (collapsibleJs.includes('function isInteractiveTarget') &&

@@ -340,6 +340,7 @@ vm.runInContext(
     'keepStudentEditorOpen',
     'parkAdminEditor',
     'mountAdminEditor',
+    'hideStudentsEditSaveProof',
     'openEditStudentId',
     'dispatchStudentRowAction',
   ].map((name) => extractFunction(adminHtml, name) + '\nthis.' + name + ' = ' + name + ';').join('\n'),

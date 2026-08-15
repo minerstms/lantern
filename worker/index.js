@@ -31,6 +31,7 @@ import {
 } from './admin-student-resolve-duplicate.js';
 import { attachStudentHealth, findConflictingNamePeer, summarizeStudentHealth } from './admin-student-health.js';
 import { STUDENT_PREFLIGHT_PATH, preflightCreateStudent } from './admin-student-preflight.js';
+import { STUDENT_RENAME_PATH, renameAuthoritativeStudent } from './admin-student-rename.js';
 import {
   validateStaffHonorific,
   validateStaffPublicDisplayName,
@@ -3480,6 +3481,22 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
     const result = await inspectResolveDuplicate(env, body, { callTmsRosterBridge });
+    const status = result.status || (result.ok ? 200 : 400);
+    const payload = { ...result };
+    delete payload.status;
+    return jsonResponse(payload, status, cors);
+  }
+
+  // Prompt #48 — exact-ID human-name rename (no grade / media / identity migration).
+  if (request.method === 'POST' && path === STUDENT_RENAME_PATH) {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON', revision: 'student-rename-48', verified: false }, 400, cors);
+    }
+    const result = await renameAuthoritativeStudent(db, env, body, { callTmsRosterBridge });
     const status = result.status || (result.ok ? 200 : 400);
     const payload = { ...result };
     delete payload.status;
