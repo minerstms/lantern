@@ -2795,7 +2795,7 @@
     }
     function callGetPendingAvatars(){
       if (avatarApiBase !== null) {
-        return fetch(avatarApiBase + '/api/avatar/pending').then(function(r){ return r.json(); }).then(function(res){
+        return fetch(avatarApiBase + '/api/avatar/pending', { credentials: 'include' }).then(function(r){ return r.json(); }).then(function(res){
           if (res && res.ok && res.pending) return { ok: true, avatars: res.pending };
           return { ok: false, avatars: [] };
         }).catch(function(){ return { ok: false, avatars: [] }; });
@@ -2813,6 +2813,7 @@
       if (avatarApiBase !== null) {
         return fetch(avatarApiBase + '/api/avatar/approve', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: id })
         }).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok ? res : { ok: false }; }).catch(function(){ return { ok: false }; });
@@ -2830,6 +2831,7 @@
       if (avatarApiBase !== null) {
         return fetch(avatarApiBase + '/api/avatar/reject', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: id, reason: reason || '' })
         }).then(function(r){ return r.json(); }).then(function(res){ return res && res.ok ? res : { ok: false }; }).catch(function(){ return { ok: false }; });

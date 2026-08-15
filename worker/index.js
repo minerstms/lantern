@@ -6027,12 +6027,22 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/avatar/upload') {
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) {
+      return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    }
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+    }
+    // Server-derived identity only — never trust body.character_name for the write target.
+    const characterName = avatarCharacterNameForPilotAccount(account);
+    if (!characterName) {
+      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
+    }
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const characterName = (body.character_name || '').trim();
     const imageData = body.image;
-    if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
     if (!imageData || typeof imageData !== 'string') return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
     const base64 = stripBase64Payload(imageData);
     if (!base64) return jsonResponse({ ok: false, error: 'Missing image payload' }, 400, cors);
@@ -6057,7 +6067,22 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     const characterName = (url.searchParams.get('character_name') || '').trim();
     if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
     const profile = await db.prepare('SELECT current_avatar_key, updated_at FROM lantern_avatar_profiles WHERE character_name = ?').bind(characterName).first();
-    const pending = await db.prepare('SELECT id, image_key, created_at FROM lantern_avatar_submissions WHERE character_name = ? AND status = ? ORDER BY created_at DESC LIMIT 1').bind(characterName, 'pending').first();
+    const account = await getPilotAccountFromRequest(request, env);
+    let canSeePending = false;
+    if (account && !pilotAccountRequiresChangePassword(account)) {
+      if (isTeacherLike(account.role)) {
+        canSeePending = true;
+      } else {
+        const ownKey = avatarCharacterNameForPilotAccount(account);
+        if (ownKey && ownKey.toLowerCase() === characterName.toLowerCase()) {
+          canSeePending = true;
+        }
+      }
+    }
+    let pending = null;
+    if (canSeePending) {
+      pending = await db.prepare('SELECT id, image_key, created_at FROM lantern_avatar_submissions WHERE character_name = ? AND status = ? ORDER BY created_at DESC LIMIT 1').bind(characterName, 'pending').first();
+    }
     const activeV = profile && profile.updated_at
       ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
       : '';
@@ -6078,6 +6103,8 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'GET' && path === '/api/avatar/pending') {
+    const staff = await requireStaffPilotSession(request, env, cors);
+    if (staff.response) return staff.response;
     const rows = await db.prepare(
       'SELECT id, character_name, image_key, created_at FROM lantern_avatar_submissions WHERE status = ? ORDER BY created_at ASC'
     ).bind('pending').all();
@@ -6091,6 +6118,9 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/avatar/approve') {
+    const staff = await requireStaffPilotSession(request, env, cors);
+    if (staff.response) return staff.response;
+    const reviewer = reviewerLabelFromAccount(staff.account);
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
@@ -6102,7 +6132,7 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     const now = new Date().toISOString();
     await db.prepare(
       'UPDATE lantern_avatar_submissions SET status = ?, approved_at = ?, approved_by = ? WHERE id = ?'
-    ).bind('approved', now, (body.approved_by || 'teacher').trim() || 'teacher', id).run();
+    ).bind('approved', now, reviewer, id).run();
     await db.prepare(
       'INSERT INTO lantern_avatar_profiles (character_name, current_avatar_key, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET current_avatar_key = ?, updated_at = ?'
     ).bind(row.character_name, row.image_key, now, row.image_key, now).run();
@@ -6110,6 +6140,9 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/avatar/reject') {
+    const staff = await requireStaffPilotSession(request, env, cors);
+    if (staff.response) return staff.response;
+    const reviewer = reviewerLabelFromAccount(staff.account);
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
@@ -6122,7 +6155,7 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     const reason = (body.reason || '').trim();
     await db.prepare(
       'UPDATE lantern_avatar_submissions SET status = ?, rejected_at = ?, rejected_by = ?, rejected_reason = ? WHERE id = ?'
-    ).bind('rejected', now, (body.rejected_by || 'teacher').trim() || 'teacher', reason, id).run();
+    ).bind('rejected', now, reviewer, reason, id).run();
     return jsonResponse({ ok: true, id }, 200, cors);
   }
 
