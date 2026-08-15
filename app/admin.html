@@ -2313,12 +2313,17 @@
       }
       return null;
     }
+    function hideAdminAvatarNextMissing() {
+      var nextBtn = document.getElementById('adminAvatarNextMissingBtn');
+      if (!nextBtn) return;
+      nextBtn.style.display = 'none';
+      nextBtn.disabled = true;
+    }
     function syncAdminAvatarNextMissing(currentKey) {
       var nextBtn = document.getElementById('adminAvatarNextMissingBtn');
       if (!nextBtn) return;
       if (!adminAvatarContext.fromStudents) {
-        nextBtn.style.display = 'none';
-        nextBtn.disabled = true;
+        hideAdminAvatarNextMissing();
         return;
       }
       var next = findNextMissingAvatarStudent(currentKey || adminAvatarContext.key);
@@ -2537,6 +2542,10 @@
                 : 'Avatar updated for ' + user + ' (0 Nuggets).',
               'ok'
             );
+          }
+          if (adminAvatarContext.fromStudents && res && res.staged) {
+            hideAdminAvatarNextMissing();
+            return;
           }
           if (adminAvatarContext.fromStudents && !(res && res.staged)) {
             refreshRosterAvatarRow(user, true);
