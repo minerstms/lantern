@@ -121,6 +121,20 @@
     .acctPanelHd { font-weight: 900; font-size: 24px; margin: 0 0 10px; color: var(--accent); }
     .acctPanelActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
     .acctPanelHint { color: var(--muted); font-size: 20px; margin: 0 0 12px; line-height: 1.4; }
+    .adminAvatarDrop {
+      margin: 0 0 12px;
+      padding: 16px;
+      border: 2px dashed rgba(255,255,255,.22);
+      border-radius: 14px;
+      background: rgba(0,0,0,.18);
+      text-align: center;
+    }
+    .adminAvatarDrop.is-dragover {
+      border-color: rgba(90,167,255,.75);
+      background: rgba(90,167,255,.14);
+    }
+    .adminAvatarDrop p { margin: 0 0 8px; font-size: 22px; font-weight: 800; line-height: 1.35; }
+    .adminAvatarDrop p.adminAvatarDropAlt { font-size: 20px; font-weight: 700; color: var(--muted); }
     .staffReportingAccess {
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
       gap: 10px; margin: 10px 0 14px; padding: 10px 12px; border-radius: 12px;
@@ -409,11 +423,16 @@
         <p id="adminAvatarNone" class="acctPanelHint" style="margin:0;">No Avatar</p>
       </div>
       <input id="adminAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/jpg" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" />
+      <div id="adminAvatarDrop" class="adminAvatarDrop" tabindex="0">
+        <p>Drop or paste a student photo here</p>
+        <p class="adminAvatarDropAlt">or choose an image</p>
+        <button type="button" class="btn good" id="adminAvatarChooseBtn">Choose File</button>
+      </div>
       <p id="adminAvatarMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
       <p id="adminAvatarPolicyHint" class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper.</p>
       <div class="acctPanelActions">
-        <button type="button" class="btn good" id="adminAvatarChooseBtn">Upload / Replace Avatar</button>
         <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Activate staged avatar</button>
+        <button type="button" class="btn good" id="adminAvatarNextMissingBtn" style="display:none;">Next Missing Avatar</button>
         <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
       </div>
     </div>
@@ -2256,6 +2275,62 @@
         parkAdminEditor(p);
       }
     }
+    var adminAvatarContext = { fromStudents: false, key: '' };
+    function studentAvatarKey(s) {
+      return String((s && (s.lantern_username || s.student_id)) || '').trim();
+    }
+    function markRosterHasAvatar(username) {
+      var key = String(username || '').trim().toLowerCase();
+      if (!key) return;
+      (lastStudentsRoster || []).forEach(function(s) {
+        var k1 = String(s.lantern_username || '').trim().toLowerCase();
+        var k2 = String(s.student_id || '').trim().toLowerCase();
+        if (k1 === key || k2 === key) s.has_avatar = 1;
+      });
+    }
+    function findNextMissingAvatarStudent(currentKey) {
+      var key = String(currentKey || '').trim().toLowerCase();
+      var all = typeof filteredStudentsRoster === 'function' ? filteredStudentsRoster() : [];
+      var start = 0;
+      for (var i = 0; i < all.length; i++) {
+        if (studentAvatarKey(all[i]).toLowerCase() === key) {
+          start = i + 1;
+          break;
+        }
+      }
+      function isMissing(s) {
+        if (!s || Number(s.is_active) !== 1) return false;
+        if (Number(s.has_avatar) === 1) return false;
+        var sk = studentAvatarKey(s);
+        return !!(sk && sk.toLowerCase() !== key);
+      }
+      var j;
+      for (j = start; j < all.length; j++) {
+        if (isMissing(all[j])) return all[j];
+      }
+      for (j = 0; j < start; j++) {
+        if (isMissing(all[j])) return all[j];
+      }
+      return null;
+    }
+    function syncAdminAvatarNextMissing(currentKey) {
+      var nextBtn = document.getElementById('adminAvatarNextMissingBtn');
+      if (!nextBtn) return;
+      if (!adminAvatarContext.fromStudents) {
+        nextBtn.style.display = 'none';
+        nextBtn.disabled = true;
+        return;
+      }
+      var next = findNextMissingAvatarStudent(currentKey || adminAvatarContext.key);
+      nextBtn.style.display = next ? 'inline-block' : 'none';
+      nextBtn.disabled = !next;
+    }
+    function refreshRosterAvatarRow(username, hasAvatar) {
+      if (hasAvatar) markRosterHasAvatar(username);
+      var y = window.scrollY || document.documentElement.scrollTop || 0;
+      if (typeof renderStudentsRosterTable === 'function') renderStudentsRosterTable();
+      window.scrollTo(0, y);
+    }
     function closeAdminAvatarPanel() {
       var overlay = document.getElementById('adminAvatarOverlay');
       var file = document.getElementById('adminAvatarFile');
@@ -2270,12 +2345,18 @@
       if (hid) hid.value = '';
       if (chooseBtn) {
         chooseBtn.disabled = false;
-        chooseBtn.textContent = 'Upload / Replace Avatar';
+        chooseBtn.textContent = 'Choose File';
       }
       if (activateBtn) {
         activateBtn.style.display = 'none';
         activateBtn.disabled = false;
       }
+      var nextBtn = document.getElementById('adminAvatarNextMissingBtn');
+      if (nextBtn) {
+        nextBtn.style.display = 'none';
+        nextBtn.disabled = false;
+      }
+      adminAvatarContext = { fromStudents: false, key: '' };
       if (img) {
         img.removeAttribute('src');
         img.style.display = 'none';
@@ -2296,14 +2377,14 @@
           img.style.display = 'block';
         }
         if (none) none.style.display = 'none';
-        if (chooseBtn) chooseBtn.textContent = 'Replace Avatar';
+        if (chooseBtn) chooseBtn.textContent = 'Choose File';
       } else {
         if (img) {
           img.removeAttribute('src');
           img.style.display = 'none';
         }
         if (none) none.style.display = 'block';
-        if (chooseBtn) chooseBtn.textContent = 'Upload Avatar';
+        if (chooseBtn) chooseBtn.textContent = 'Choose File';
       }
     }
     function applyAdminAvatarStatus(body) {
@@ -2342,7 +2423,7 @@
         ? 'Replace with a new image, or keep the current avatar.'
         : 'No avatar yet — upload one to assign immediately.';
     }
-    function openAdminAvatarPanel(username, label) {
+    function openAdminAvatarPanel(username, label, opts) {
       closeEditUserPanel();
       closeTempPwPanel();
       closeStudentsEditPanels();
@@ -2351,11 +2432,16 @@
         showUsersMsg('Manage Avatar: missing account username.', 'err');
         return;
       }
+      adminAvatarContext = {
+        fromStudents: !!(opts && opts.fromStudents),
+        key: user,
+      };
       var overlay = document.getElementById('adminAvatarOverlay');
       var hint = document.getElementById('adminAvatarHint');
       var hid = document.getElementById('adminAvatarUsername');
       var msg = document.getElementById('adminAvatarMsg');
       var file = document.getElementById('adminAvatarFile');
+      var nextBtn = document.getElementById('adminAvatarNextMissingBtn');
       if (!overlay) {
         showUsersMsg('Manage Avatar UI is missing. Refresh the page.', 'err');
         return;
@@ -2364,6 +2450,10 @@
       if (hid) hid.value = user;
       if (msg) msg.textContent = 'Loading current avatar…';
       if (file) file.value = '';
+      if (nextBtn) {
+        nextBtn.style.display = 'none';
+        nextBtn.disabled = true;
+      }
       setAdminAvatarPreview(null);
       overlay.classList.add('show');
       overlay.setAttribute('aria-hidden', 'false');
@@ -2448,6 +2538,10 @@
               'ok'
             );
           }
+          if (adminAvatarContext.fromStudents && !(res && res.staged)) {
+            refreshRosterAvatarRow(user, true);
+          }
+          syncAdminAvatarNextMissing(user);
         },
       });
     }
@@ -2655,6 +2749,8 @@
             if (typeof showStudentsRosterMsg === 'function') {
               showStudentsRosterMsg('Avatar activated for ' + username + '.', 'ok');
             }
+            if (adminAvatarContext.fromStudents) refreshRosterAvatarRow(username, true);
+            syncAdminAvatarNextMissing(username);
             return;
           }
           if (msg) {
@@ -2665,6 +2761,55 @@
           if (msg) msg.textContent = 'Network error activating avatar.';
         });
       });
+    }
+    function acceptAdminAvatarFile(file) {
+      var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+      var msg = document.getElementById('adminAvatarMsg');
+      if (!username) {
+        if (msg) msg.textContent = 'Missing account username.';
+        return false;
+      }
+      if (!file) {
+        if (msg) msg.textContent = 'Please choose an image file.';
+        return false;
+      }
+      var CropperApi = window.LanternAvatarCropper;
+      if (CropperApi && typeof CropperApi.validateFile === 'function') {
+        var verr = CropperApi.validateFile(file);
+        if (verr) {
+          if (msg) msg.textContent = verr;
+          return false;
+        }
+      } else if (!/^image\//i.test(file.type || '')) {
+        if (msg) msg.textContent = 'Please drop or paste an image file.';
+        return false;
+      } else if (file.size > 3 * 1024 * 1024) {
+        if (msg) msg.textContent = 'Image is too large. Please keep it under 3MB.';
+        return false;
+      }
+      if (msg) msg.textContent = 'Opening cropper…';
+      openAdminAvatarCropper(file, username);
+      return true;
+    }
+    function firstImageFromDataTransfer(dt) {
+      if (!dt) return { error: 'Please drop or paste an image file.' };
+      var files = [];
+      if (dt.files && dt.files.length) {
+        for (var i = 0; i < dt.files.length; i++) files.push(dt.files[i]);
+      }
+      if (!files.length && dt.items) {
+        for (var j = 0; j < dt.items.length; j++) {
+          var item = dt.items[j];
+          if (item && item.kind === 'file' && typeof item.getAsFile === 'function') {
+            var got = item.getAsFile();
+            if (got) files.push(got);
+          }
+        }
+      }
+      var images = files.filter(function(f) { return f && /^image\//i.test(f.type || ''); });
+      if (images.length > 1) return { error: 'Drop one image at a time.' };
+      if (!images.length) return { error: 'Please drop or paste an image file.' };
+      return { file: images[0] };
     }
     var adminAvatarChooseBtn = document.getElementById('adminAvatarChooseBtn');
     var adminAvatarFile = document.getElementById('adminAvatarFile');
@@ -2680,27 +2825,66 @@
         adminAvatarFile.click();
       });
       adminAvatarFile.addEventListener('change', function() {
-        var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
-        var msg = document.getElementById('adminAvatarMsg');
         var file = adminAvatarFile.files && adminAvatarFile.files[0] ? adminAvatarFile.files[0] : null;
         if (!file) return;
-        if (!username) {
-          if (msg) msg.textContent = 'Missing account username.';
+        acceptAdminAvatarFile(file);
+      });
+    }
+    var adminAvatarDrop = document.getElementById('adminAvatarDrop');
+    if (adminAvatarDrop) {
+      ['dragenter', 'dragover'].forEach(function(type) {
+        adminAvatarDrop.addEventListener(type, function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          adminAvatarDrop.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'dragend'].forEach(function(type) {
+        adminAvatarDrop.addEventListener(type, function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          adminAvatarDrop.classList.remove('is-dragover');
+        });
+      });
+      adminAvatarDrop.addEventListener('drop', function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        adminAvatarDrop.classList.remove('is-dragover');
+        var picked = firstImageFromDataTransfer(ev.dataTransfer);
+        var msg = document.getElementById('adminAvatarMsg');
+        if (picked.error) {
+          if (msg) msg.textContent = picked.error;
           return;
         }
-        var CropperApi = window.LanternAvatarCropper;
-        if (CropperApi && typeof CropperApi.validateFile === 'function') {
-          var verr = CropperApi.validateFile(file);
-          if (verr) {
-            if (msg) msg.textContent = verr;
-            return;
-          }
-        } else if (file.size > 3 * 1024 * 1024) {
-          if (msg) msg.textContent = 'Image is too large. Please keep it under 3MB.';
+        acceptAdminAvatarFile(picked.file);
+      });
+    }
+    document.addEventListener('paste', function(ev) {
+      var overlay = document.getElementById('adminAvatarOverlay');
+      if (!overlay || !overlay.classList.contains('show')) return;
+      var crop = document.getElementById('avatarCropOverlay');
+      if (crop && crop.classList.contains('show')) return;
+      var picked = firstImageFromDataTransfer(ev.clipboardData);
+      if (picked.error) {
+        var msg = document.getElementById('adminAvatarMsg');
+        if (msg && ev.clipboardData && ((ev.clipboardData.files && ev.clipboardData.files.length) || (ev.clipboardData.items && ev.clipboardData.items.length))) {
+          msg.textContent = picked.error;
+        }
+        return;
+      }
+      ev.preventDefault();
+      acceptAdminAvatarFile(picked.file);
+    });
+    var adminAvatarNextMissingBtn = document.getElementById('adminAvatarNextMissingBtn');
+    if (adminAvatarNextMissingBtn) {
+      adminAvatarNextMissingBtn.addEventListener('click', function() {
+        var current = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+        var next = findNextMissingAvatarStudent(current);
+        if (!next) {
+          adminAvatarNextMissingBtn.style.display = 'none';
           return;
         }
-        if (msg) msg.textContent = 'Opening cropper…';
-        openAdminAvatarCropper(file, username);
+        openAdminAvatarPanel(studentAvatarKey(next), studentsRosterVisibleName(next) || next.student_name || studentAvatarKey(next), { fromStudents: true });
       });
     }
 
@@ -4129,7 +4313,7 @@
           showStudentsRosterMsg('This student needs a School ID or Lantern login before an avatar can be assigned.', 'err');
           return;
         }
-        openAdminAvatarPanel(avatarUser, studentsRosterVisibleName(student) || student.student_name || avatarUser);
+        openAdminAvatarPanel(avatarUser, studentsRosterVisibleName(student) || student.student_name || avatarUser, { fromStudents: true });
         return;
       }
       if (action === 'archive-login' || action === 'restore-login') {

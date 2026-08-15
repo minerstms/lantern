@@ -316,15 +316,30 @@
         </div>
         <button type="button" id="fightSongCloseBtn" class="missionDetailClose" aria-label="Close fight song challenge">× Close</button>
       </div>
-      <p id="fightSongInstruction" class="missionDetailDesc">Put the lines of the school fight song in the correct order.</p>
-      <ol id="fightSongList" class="fightSongList" role="listbox" aria-label="Fight song lines"></ol>
-      <p id="fightSongFeedback" class="fightSongFeedback" role="status" aria-live="polite"></p>
-      <div class="fightSongActions">
-        <button type="button" class="btn good" id="fightSongCheckBtn">Check Order</button>
-        <div class="fightSongSecondary">
-          <button type="button" class="btn small" id="fightSongUpBtn">Move Up</button>
-          <button type="button" class="btn small" id="fightSongDownBtn">Move Down</button>
-          <button type="button" class="btn small" id="fightSongShuffleBtn">Shuffle Again</button>
+      <div id="fightSongPreview" class="fightSongPreview">
+        <p id="fightSongPreviewInstruction" class="missionDetailDesc">Put the lines of the school fight song in the correct order.</p>
+        <div class="fightSongStartChoices">
+          <button type="button" class="btn good" id="fightSongStartSoundBtn">🔊 Start with Sound</button>
+          <button type="button" class="btn" id="fightSongStartSilentBtn">🔇 Start Silently</button>
+        </div>
+      </div>
+      <div id="fightSongPlay" class="fightSongPlay" hidden>
+        <p id="fightSongInstruction" class="missionDetailDesc">Put the lines of the school fight song in the correct order.</p>
+        <div id="fightSongAudioBar" class="fightSongAudioBar">
+          <button type="button" id="fightSongMuteBtn" class="fightSongMuteBtn" aria-label="Mute fight song">🔊</button>
+          <input type="range" id="fightSongVolume" class="fightSongVolume" min="0" max="100" value="40" step="1" aria-label="Fight song volume">
+          <span id="fightSongVolumePct" class="fightSongVolumePct">40%</span>
+          <p id="fightSongAudioHint" class="fightSongAudioHint">No sound? Check your device volume.</p>
+        </div>
+        <ol id="fightSongList" class="fightSongList" role="listbox" aria-label="Fight song lines"></ol>
+        <p id="fightSongFeedback" class="fightSongFeedback" role="status" aria-live="polite"></p>
+        <div class="fightSongActions">
+          <button type="button" class="btn good" id="fightSongCheckBtn">Check Order</button>
+          <div class="fightSongSecondary">
+            <button type="button" class="btn small" id="fightSongUpBtn">Move Up</button>
+            <button type="button" class="btn small" id="fightSongDownBtn">Move Down</button>
+            <button type="button" class="btn small" id="fightSongShuffleBtn">Shuffle Again</button>
+          </div>
         </div>
       </div>
     </div>

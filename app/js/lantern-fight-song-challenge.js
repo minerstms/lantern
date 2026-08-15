@@ -2,6 +2,7 @@
  * Prompt #174 — Fight Song Challenge client.
  * Candidate line IDs and UI only. Server owns correctness, completion, and reward.
  * Shuffle Again never completes or awards.
+ * Prompt #224 — session audio for the existing rearrange-the-lines challenge.
  */
 (function (global) {
   'use strict';
@@ -11,6 +12,9 @@
   var INSTRUCTION = 'Put the lines of the school fight song in the correct order.';
   var WRONG_MESSAGE = 'Not quite — keep working.';
   var SUCCESS_MESSAGE = 'Nice work! You put the fight song in the correct order.';
+  /** Temporary canonical recording. Replace this file later without rewriting the game. */
+  var AUDIO_SRC = 'assets/stand-up-and-cheer.mp3';
+  var DEFAULT_VOLUME = 0.4;
 
   var LINES = [
     { id: 'fight_line_1', text: 'Stand up and cheer,' },
@@ -36,6 +40,16 @@
     alreadyCompleted: false,
     onDone: null,
     returnFocus: null,
+    phase: 'closed',
+  };
+
+  var audioState = {
+    el: null,
+    muted: true,
+    volume: DEFAULT_VOLUME,
+    started: false,
+    unavailable: false,
+    fadeTimer: null,
   };
 
   function lineById(id) {
@@ -194,7 +208,7 @@
   }
 
   function moveSelected(dir) {
-    if (state.completed) return;
+    if (state.completed || state.phase !== 'play') return;
     var ids = currentOrderFromDom();
     var idx = ids.indexOf(state.selectedId);
     if (idx < 0) return;
@@ -205,7 +219,7 @@
   }
 
   function shuffleAgain() {
-    if (state.checking) return;
+    if (state.checking || state.phase !== 'play') return;
     state.completed = false;
     state.order = shuffleOrder(CANONICAL_IDS);
     state.selectedId = '';
@@ -218,7 +232,226 @@
     renderList();
   }
 
+  function clearFadeTimer() {
+    if (audioState.fadeTimer) {
+      clearTimeout(audioState.fadeTimer);
+      audioState.fadeTimer = null;
+    }
+  }
+
+  function makeAudioStub() {
+    return {
+      src: '',
+      muted: true,
+      volume: DEFAULT_VOLUME,
+      currentTime: 0,
+      loop: true,
+      paused: true,
+      preload: 'auto',
+      play: function () {
+        this.paused = false;
+        return Promise.resolve();
+      },
+      pause: function () {
+        this.paused = true;
+      },
+      load: function () {},
+      addEventListener: function () {},
+      removeEventListener: function () {},
+    };
+  }
+
+  function ensureAudioEl() {
+    if (audioState.el) return audioState.el;
+    var node = null;
+    if (typeof Audio === 'function') {
+      try {
+        node = new Audio();
+      } catch (_) {
+        node = null;
+      }
+    }
+    if (!node) node = makeAudioStub();
+    node.preload = 'auto';
+    node.loop = true;
+    node.muted = true;
+    try {
+      node.volume = DEFAULT_VOLUME;
+    } catch (_) {}
+    if (typeof node.addEventListener === 'function') {
+      node.addEventListener('error', function () {
+        audioState.unavailable = true;
+        syncAudioControls();
+      });
+    }
+    audioState.el = node;
+    return node;
+  }
+
+  function applyAudioSettings() {
+    var node = audioState.el;
+    if (!node) return;
+    node.muted = !!audioState.muted;
+    try {
+      node.volume = audioState.volume;
+    } catch (_) {}
+    node.loop = true;
+  }
+
+  function syncAudioControls() {
+    var muteBtn = el('fightSongMuteBtn');
+    var slider = el('fightSongVolume');
+    var pct = el('fightSongVolumePct');
+    var hint = el('fightSongAudioHint');
+    var audible = !audioState.muted && audioState.volume > 0;
+    if (muteBtn) {
+      muteBtn.textContent = audible ? '🔊' : '🔇';
+      muteBtn.setAttribute('aria-label', audible ? 'Mute fight song' : 'Unmute fight song');
+      muteBtn.setAttribute('aria-pressed', audible ? 'false' : 'true');
+    }
+    if (slider) slider.value = String(Math.round(audioState.volume * 100));
+    if (pct) pct.textContent = String(Math.round(audioState.volume * 100)) + '%';
+    if (hint) {
+      hint.textContent = audioState.unavailable
+        ? 'Sound unavailable — the challenge still works.'
+        : 'No sound? Check your device volume.';
+    }
+  }
+
+  function prepareAudio() {
+    var node = ensureAudioEl();
+    audioState.unavailable = false;
+    audioState.started = false;
+    audioState.muted = true;
+    audioState.volume = DEFAULT_VOLUME;
+    clearFadeTimer();
+    try {
+      node.src = AUDIO_SRC;
+      node.loop = true;
+      node.preload = 'auto';
+      node.muted = true;
+      node.volume = DEFAULT_VOLUME;
+      node.currentTime = 0;
+      if (typeof node.load === 'function') node.load();
+      if (typeof node.pause === 'function') node.pause();
+      node.paused = true;
+    } catch (_) {
+      audioState.unavailable = true;
+    }
+    syncAudioControls();
+    return node;
+  }
+
+  function playAudioSafe() {
+    var node = audioState.el;
+    if (!node || typeof node.play !== 'function') return;
+    try {
+      var p = node.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(function () {
+          audioState.unavailable = true;
+          syncAudioControls();
+        });
+      }
+    } catch (_) {
+      audioState.unavailable = true;
+      syncAudioControls();
+    }
+  }
+
+  function stopAudio() {
+    clearFadeTimer();
+    audioState.started = false;
+    var node = audioState.el;
+    if (!node) return;
+    try {
+      if (typeof node.pause === 'function') node.pause();
+      node.paused = true;
+      node.currentTime = 0;
+    } catch (_) {}
+  }
+
+  function fadeOutThenStop() {
+    var node = audioState.el;
+    if (!node || node.paused) {
+      stopAudio();
+      return;
+    }
+    clearFadeTimer();
+    var startVol = node.muted ? 0 : Number(node.volume);
+    if (!(startVol > 0)) {
+      stopAudio();
+      return;
+    }
+    var t0 = Date.now();
+    var dur = 280;
+    function step() {
+      if (!audioState.el || audioState.el !== node) return;
+      var t = (Date.now() - t0) / dur;
+      if (t >= 1) {
+        stopAudio();
+        return;
+      }
+      try {
+        node.volume = Math.max(0, startVol * (1 - t));
+      } catch (_) {}
+      audioState.fadeTimer = setTimeout(step, 40);
+    }
+    step();
+  }
+
+  function setMuted(muted) {
+    audioState.muted = !!muted;
+    applyAudioSettings();
+    syncAudioControls();
+  }
+
+  function setVolume(pct) {
+    var n = Number(pct);
+    if (n !== n) return;
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    audioState.volume = n / 100;
+    if (n > 0) audioState.muted = false;
+    applyAudioSettings();
+    syncAudioControls();
+  }
+
+  function toggleMute() {
+    setMuted(!audioState.muted);
+  }
+
+  function getAudioState() {
+    var node = audioState.el;
+    return {
+      src: AUDIO_SRC,
+      muted: !!audioState.muted,
+      volume: audioState.volume,
+      started: !!audioState.started,
+      unavailable: !!audioState.unavailable,
+      loop: !!(node && node.loop),
+      currentTime: node && node.currentTime != null ? Number(node.currentTime) : 0,
+      paused: !node || node.paused !== false,
+      phase: state.phase,
+    };
+  }
+
+  function setPhase(phase) {
+    state.phase = phase;
+    var overlay = el('fightSongChallengeOverlay');
+    var preview = el('fightSongPreview');
+    var play = el('fightSongPlay');
+    if (preview) preview.hidden = phase !== 'preview';
+    if (play) play.hidden = phase !== 'play';
+    if (overlay) {
+      overlay.classList.toggle('is-preview', phase === 'preview');
+      overlay.classList.toggle('is-playing', phase === 'play');
+    }
+  }
+
   function closeOverlay() {
+    stopAudio();
+    setPhase('closed');
     var overlay = el('fightSongChallengeOverlay');
     if (overlay) {
       overlay.classList.remove('is-open');
@@ -236,6 +469,7 @@
 
   function finishSuccess(res) {
     state.completed = true;
+    fadeOutThenStop();
     setFeedback((res && res.message) || SUCCESS_MESSAGE, 'ok');
     var checkBtn = el('fightSongCheckBtn');
     if (checkBtn) {
@@ -246,7 +480,7 @@
   }
 
   function submitCheck() {
-    if (state.checking || state.completed) return;
+    if (state.checking || state.completed || state.phase !== 'play') return;
     var order = currentOrderFromDom();
     state.order = order;
     setFeedback('', '');
@@ -296,13 +530,13 @@
 
     list.addEventListener('click', function (e) {
       var pill = e.target && e.target.closest ? e.target.closest('[data-fight-line-id]') : null;
-      if (!pill || state.completed) return;
+      if (!pill || state.completed || state.phase !== 'play') return;
       selectId(pill.getAttribute('data-fight-line-id'));
     });
 
     list.addEventListener('keydown', function (e) {
       var pill = e.target && e.target.closest ? e.target.closest('[data-fight-line-id]') : null;
-      if (!pill || state.completed) return;
+      if (!pill || state.completed || state.phase !== 'play') return;
       var id = pill.getAttribute('data-fight-line-id');
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -319,7 +553,7 @@
     });
 
     list.addEventListener('dragstart', function (e) {
-      if (state.completed) {
+      if (state.completed || state.phase !== 'play') {
         e.preventDefault();
         return;
       }
@@ -337,14 +571,14 @@
     });
 
     list.addEventListener('dragover', function (e) {
-      if (state.completed) return;
+      if (state.completed || state.phase !== 'play') return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     });
 
     list.addEventListener('drop', function (e) {
       e.preventDefault();
-      if (state.completed) return;
+      if (state.completed || state.phase !== 'play') return;
       var pill = e.target && e.target.closest ? e.target.closest('[data-fight-line-id]') : null;
       if (!pill) return;
       var to = Number(pill.getAttribute('data-fight-index'));
@@ -360,16 +594,8 @@
     });
   }
 
-  function ensureOverlay() {
-    if (typeof document === 'undefined') return null;
-    var overlay = el('fightSongChallengeOverlay');
-    if (overlay) return overlay;
-    overlay = document.createElement('div');
-    overlay.id = 'fightSongChallengeOverlay';
-    overlay.className = 'missionDetailOverlay';
-    overlay.hidden = true;
-    overlay.setAttribute('aria-hidden', 'true');
-    overlay.innerHTML =
+  function overlayInnerHtml() {
+    return (
       '<div class="missionDetailPanel fightSongPanel" role="dialog" aria-modal="true" aria-labelledby="fightSongTitle">' +
       '<div class="missionDetailTopbar">' +
       '<div>' +
@@ -378,7 +604,21 @@
       '</div>' +
       '<button type="button" id="fightSongCloseBtn" class="missionDetailClose" aria-label="Close fight song challenge">× Close</button>' +
       '</div>' +
+      '<div id="fightSongPreview" class="fightSongPreview">' +
+      '<p id="fightSongPreviewInstruction" class="missionDetailDesc"></p>' +
+      '<div class="fightSongStartChoices">' +
+      '<button type="button" class="btn good" id="fightSongStartSoundBtn">🔊 Start with Sound</button>' +
+      '<button type="button" class="btn" id="fightSongStartSilentBtn">🔇 Start Silently</button>' +
+      '</div>' +
+      '</div>' +
+      '<div id="fightSongPlay" class="fightSongPlay" hidden>' +
       '<p id="fightSongInstruction" class="missionDetailDesc"></p>' +
+      '<div id="fightSongAudioBar" class="fightSongAudioBar">' +
+      '<button type="button" id="fightSongMuteBtn" class="fightSongMuteBtn" aria-label="Mute fight song">🔊</button>' +
+      '<input type="range" id="fightSongVolume" class="fightSongVolume" min="0" max="100" value="40" step="1" aria-label="Fight song volume">' +
+      '<span id="fightSongVolumePct" class="fightSongVolumePct">40%</span>' +
+      '<p id="fightSongAudioHint" class="fightSongAudioHint">No sound? Check your device volume.</p>' +
+      '</div>' +
       '<ol id="fightSongList" class="fightSongList" role="listbox" aria-label="Fight song lines"></ol>' +
       '<p id="fightSongFeedback" class="fightSongFeedback" role="status" aria-live="polite"></p>' +
       '<div class="fightSongActions">' +
@@ -389,9 +629,60 @@
       '<button type="button" class="btn small" id="fightSongShuffleBtn">Shuffle Again</button>' +
       '</div>' +
       '</div>' +
-      '</div>';
+      '</div>' +
+      '</div>'
+    );
+  }
+
+  function ensureOverlay() {
+    if (typeof document === 'undefined') return null;
+    var overlay = el('fightSongChallengeOverlay');
+    if (overlay) {
+      if (!el('fightSongStartSoundBtn') || !el('fightSongPlay')) {
+        overlay.innerHTML = overlayInnerHtml();
+        overlay._fightSongChrome = false;
+        var list = el('fightSongList');
+        if (list) list._fightSongBound = false;
+      }
+      return overlay;
+    }
+    overlay = document.createElement('div');
+    overlay.id = 'fightSongChallengeOverlay';
+    overlay.className = 'missionDetailOverlay';
+    overlay.hidden = true;
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.innerHTML = overlayInnerHtml();
     document.body.appendChild(overlay);
     return overlay;
+  }
+
+  function startChallenge(mode) {
+    var withSound = String(mode || '') === 'sound';
+    state.checking = false;
+    state.completed = false;
+    state.selectedId = '';
+    state.order = shuffleOrder(CANONICAL_IDS);
+    var checkBtn = el('fightSongCheckBtn');
+    if (checkBtn) {
+      checkBtn.disabled = false;
+      checkBtn.textContent = 'Check Order';
+    }
+    setFeedback('', '');
+    renderList();
+    setPhase('play');
+    audioState.volume = DEFAULT_VOLUME;
+    audioState.muted = !withSound;
+    audioState.started = true;
+    var node = ensureAudioEl();
+    try {
+      if (!node.src || String(node.src).indexOf('stand-up-and-cheer.mp3') === -1) node.src = AUDIO_SRC;
+      node.loop = true;
+      node.currentTime = 0;
+    } catch (_) {}
+    applyAudioSettings();
+    syncAudioControls();
+    playAudioSafe();
+    if (checkBtn && checkBtn.focus) checkBtn.focus();
   }
 
   function bindChrome() {
@@ -409,6 +700,35 @@
         closeOverlay();
       }
     });
+    var soundBtn = el('fightSongStartSoundBtn');
+    var silentBtn = el('fightSongStartSilentBtn');
+    if (soundBtn) soundBtn.addEventListener('click', function () { startChallenge('sound'); });
+    if (silentBtn) silentBtn.addEventListener('click', function () { startChallenge('silent'); });
+    var muteBtn = el('fightSongMuteBtn');
+    var slider = el('fightSongVolume');
+    var audioBar = el('fightSongAudioBar');
+    if (audioBar) {
+      ['pointerdown', 'touchstart', 'mousedown', 'dragstart'].forEach(function (type) {
+        audioBar.addEventListener(type, function (e) {
+          e.stopPropagation();
+        });
+      });
+    }
+    if (muteBtn) muteBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMute();
+    });
+    if (slider) {
+      slider.addEventListener('input', function (e) {
+        e.stopPropagation();
+        setVolume(slider.value);
+      });
+      slider.addEventListener('change', function (e) {
+        e.stopPropagation();
+        setVolume(slider.value);
+      });
+    }
     var upBtn = el('fightSongUpBtn');
     var downBtn = el('fightSongDownBtn');
     var shuffleBtn = el('fightSongShuffleBtn');
@@ -432,13 +752,15 @@
     state.checking = false;
     state.completed = false;
     state.selectedId = '';
-    state.order = shuffleOrder(CANONICAL_IDS);
+    state.order = [];
     var title = el('fightSongTitle');
     var meta = el('fightSongMeta');
     var instruction = el('fightSongInstruction');
+    var previewInstruction = el('fightSongPreviewInstruction');
     var checkBtn = el('fightSongCheckBtn');
     if (title) title.textContent = TITLE;
     if (instruction) instruction.textContent = INSTRUCTION;
+    if (previewInstruction) previewInstruction.textContent = INSTRUCTION;
     if (meta) {
       meta.textContent = state.alreadyCompleted
         ? '🟡 +1 Nugget · Reward already earned (redo allowed)'
@@ -449,11 +771,13 @@
       checkBtn.textContent = 'Check Order';
     }
     setFeedback('', '');
-    renderList();
+    prepareAudio();
+    setPhase('preview');
     overlay.hidden = false;
     overlay.setAttribute('aria-hidden', 'false');
     overlay.classList.add('is-open');
-    if (checkBtn && checkBtn.focus) checkBtn.focus();
+    var soundBtn = el('fightSongStartSoundBtn');
+    if (soundBtn && soundBtn.focus) soundBtn.focus();
   }
 
   global.LANTERN_FIGHT_SONG = {
@@ -462,6 +786,8 @@
     INSTRUCTION: INSTRUCTION,
     WRONG_MESSAGE: WRONG_MESSAGE,
     SUCCESS_MESSAGE: SUCCESS_MESSAGE,
+    AUDIO_SRC: AUDIO_SRC,
+    DEFAULT_VOLUME: DEFAULT_VOLUME,
     LINES: LINES,
     CANONICAL_IDS: CANONICAL_IDS,
     isCanonicalOrder: isCanonicalOrder,
@@ -470,6 +796,14 @@
     moveItem: moveItem,
     applyDrag: applyDrag,
     checkOrder: checkOrder,
+    prepareAudio: prepareAudio,
+    startChallenge: startChallenge,
+    startWithSound: function () { startChallenge('sound'); },
+    startSilently: function () { startChallenge('silent'); },
+    setMuted: setMuted,
+    setVolume: setVolume,
+    stopAudio: stopAudio,
+    getAudioState: getAudioState,
     open: open,
     close: closeOverlay,
   };

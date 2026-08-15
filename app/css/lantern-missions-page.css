@@ -319,6 +319,67 @@ body.mission-detail-open {
   overflow: visible;
 }
 
+.fightSongStartChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 0;
+}
+
+.fightSongStartChoices .btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.fightSongAudioBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  touch-action: manipulation;
+}
+
+.fightSongMuteBtn {
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fightSongVolume {
+  flex: 1 1 140px;
+  min-width: 120px;
+  min-height: 44px;
+  touch-action: none;
+}
+
+.fightSongVolumePct {
+  min-width: 3.2em;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.fightSongAudioHint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--muted, #b9c6ea);
+}
+
 .fightSongList {
   display: flex;
   flex-direction: column;
