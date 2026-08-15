@@ -123,6 +123,19 @@ import {
   assertExternalPublicationAllowed,
   knownRestrictedPeopleFromRows,
 } from './media-publicity.js';
+import {
+  isAvatarObjectKey,
+  isNewsImageObjectKey,
+  isNewsVideoObjectKey,
+  isMediaLibraryObjectKey,
+} from './r2-key-guards.js';
+import {
+  adminStagedAvatarMarker,
+  isAdminStagedAvatarMarker,
+  studentAvatarActivationBlocked,
+  studentAvatarIsRestricted,
+  writeCurrentAvatarKey,
+} from './avatar-media-gate.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -605,10 +618,11 @@ export default {
     }
     if (path.startsWith('/api/games')) {
       try {
-        return await handleGamesRoutes(request, url, path, env, cors);
+        const gamesCors = corsForPilot(request);
+        return await handleGamesRoutes(request, url, path, env, gamesCors);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        return jsonResponse({ ok: false, error: message }, 400, cors);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
     }
     // Prompt #110 — ONE canonical settings store (currently: marquee/ticker scroll speed).
@@ -794,11 +808,14 @@ async function handleVerifyRoutes(request, url, path, env, cors) {
   }
 
   if ((request.method === 'PUT' || request.method === 'POST') && path === '/api/verify/state') {
+    const writeCors = corsForPilot(request);
+    const staff = await requireStaffPilotSession(request, env, writeCors);
+    if (staff.response) return staff.response;
     let body = {};
     try {
       body = await request.json();
     } catch (_) {
-      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, writeCors);
     }
     const current = await loadVerifyState(env);
     const updated = { ...(current || {}), ...body };
@@ -809,7 +826,7 @@ async function handleVerifyRoutes(request, url, path, env, cors) {
        ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at`
     ).bind(VERIFY_STATE_ID, JSON.stringify(updated), now).run();
     const verify = await loadVerifyState(env);
-    return jsonResponse({ ok: true, state: verify }, 200, cors);
+    return jsonResponse({ ok: true, state: verify }, 200, writeCors);
   }
 
   if (request.method === 'POST' && path === '/api/verify/reset') {
@@ -2780,12 +2797,24 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       .prepare(`SELECT current_avatar_key, updated_at FROM lantern_avatar_profiles WHERE character_name = ?`)
       .bind(characterName)
       .first();
+    const pending = await db
+      .prepare(
+        `SELECT id, image_key, created_at, approved_by FROM lantern_avatar_submissions
+         WHERE character_name = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1`
+      )
+      .bind(characterName)
+      .first();
     const origin = new URL(request.url).origin;
     const activeV = profile && profile.updated_at
       ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
       : '';
+    const targetRole = String(target.role || '').trim().toLowerCase();
+    const mediaRestricted = targetRole === 'student' ? await studentAvatarIsRestricted(db, characterName) : false;
     const activeImage = profile && profile.current_avatar_key
       ? (origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : ''))
+      : null;
+    const stagedImage = pending && pending.image_key
+      ? (origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key))
       : null;
     return jsonResponse(
       {
@@ -2798,6 +2827,12 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         active_image: activeImage,
         current_avatar_key: profile && profile.current_avatar_key ? String(profile.current_avatar_key) : null,
         updated_at: profile && profile.updated_at ? String(profile.updated_at) : null,
+        staged: !!pending,
+        staged_id: pending && pending.id ? String(pending.id) : null,
+        staged_image: stagedImage,
+        staged_by: pending && pending.approved_by ? String(pending.approved_by) : null,
+        media_restricted: mediaRestricted ? 1 : 0,
+        can_activate: !!(pending && targetRole === 'student' && !mediaRestricted),
       },
       200,
       cors
@@ -2859,7 +2894,66 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     await bucket.put(key, bytes, { httpMetadata: { contentType: 'image/png' } });
     const now = new Date().toISOString();
     const adminLabel = adminAuditLabel(account);
-    // Direct administrative assignment: approved + equipped immediately. No Nugget path.
+    const targetRole = String(target.role || '').trim().toLowerCase();
+    const origin = new URL(request.url).origin;
+    const priorProfile = await db
+      .prepare(`SELECT current_avatar_key, updated_at FROM lantern_avatar_profiles WHERE character_name = ?`)
+      .bind(characterName)
+      .first();
+    const priorV = priorProfile && priorProfile.updated_at
+      ? String(priorProfile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
+      : '';
+    const priorActive = priorProfile && priorProfile.current_avatar_key
+      ? (origin + '/api/avatar/image?key=' + encodeURIComponent(priorProfile.current_avatar_key) + (priorV ? ('&v=' + encodeURIComponent(priorV)) : ''))
+      : null;
+
+    try {
+      await db
+        .prepare(
+          `UPDATE lantern_avatar_submissions
+           SET status = 'rejected', rejected_at = ?, rejected_by = ?, rejected_reason = ?
+           WHERE character_name = ? AND status = 'pending'`
+        )
+        .bind(now, adminLabel, 'Superseded by System Admin avatar assignment', characterName)
+        .run();
+    } catch (_) {}
+
+    // Students: stage privately. Default media_publicity=0 is not confirmed consent.
+    if (targetRole === 'student') {
+      await db
+        .prepare(
+          `INSERT INTO lantern_avatar_submissions (id, character_name, image_key, status, created_at, approved_by)
+           VALUES (?, ?, ?, 'pending', ?, ?)`
+        )
+        .bind(id, characterName, key, now, adminStagedAvatarMarker(adminLabel))
+        .run();
+      const mediaRestricted = await studentAvatarIsRestricted(db, characterName);
+      return jsonResponse(
+        {
+          ok: true,
+          username: String(target.username),
+          role: String(target.role || ''),
+          character_name: characterName,
+          submission_id: id,
+          image_key: key,
+          staged: true,
+          status: 'pending',
+          staged_image: origin + '/api/avatar/image?key=' + encodeURIComponent(key),
+          active_image: priorActive,
+          current_avatar_key: priorProfile && priorProfile.current_avatar_key ? String(priorProfile.current_avatar_key) : null,
+          admin_set: true,
+          nugget_charged: 0,
+          media_restricted: mediaRestricted ? 1 : 0,
+          can_activate: !mediaRestricted,
+          approved_by: adminStagedAvatarMarker(adminLabel),
+          message: 'Staged — not visible to students/public yet',
+        },
+        200,
+        cors
+      );
+    }
+
+    // Staff: established immediate assignment. No Nugget path.
     await db
       .prepare(
         `INSERT INTO lantern_avatar_submissions (id, character_name, image_key, status, created_at, approved_at, approved_by)
@@ -2867,28 +2961,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
       )
       .bind(id, characterName, key, now, now, adminLabel)
       .run();
-    await db
-      .prepare(
-        `INSERT INTO lantern_avatar_profiles (character_name, current_avatar_key, updated_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(character_name) DO UPDATE SET
-           current_avatar_key = excluded.current_avatar_key,
-           updated_at = excluded.updated_at`
-      )
-      .bind(characterName, key, now)
-      .run();
-    // Supersede any pending submissions for this identity (admin decision is final).
-    try {
-      await db
-        .prepare(
-          `UPDATE lantern_avatar_submissions
-           SET status = 'rejected', rejected_at = ?, rejected_by = ?, rejected_reason = ?
-           WHERE character_name = ? AND status = 'pending' AND id != ?`
-        )
-        .bind(now, adminLabel, 'Superseded by System Admin avatar assignment', characterName, id)
-        .run();
-    } catch (_) {}
-    const origin = new URL(request.url).origin;
+    await writeCurrentAvatarKey(db, characterName, key, now);
     const activeV = String(now).replace(/[^\d]/g, '').slice(0, 14);
     const activeImage =
       origin + '/api/avatar/image?key=' + encodeURIComponent(key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : '');
@@ -2902,6 +2975,78 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         image_key: key,
         active_image: activeImage,
         admin_set: true,
+        nugget_charged: 0,
+        approved_by: adminLabel,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/avatar/activate') {
+    let body;
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const username = String(body.username || '').trim();
+    if (!username) {
+      return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
+    }
+    const target = await db
+      .prepare(
+        `SELECT username, role, mtss_student_id, student_character_name, staff_id, is_active
+         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?)) LIMIT 1`
+      )
+      .bind(username)
+      .first();
+    if (!target) {
+      return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
+    }
+    if (String(target.role || '').trim().toLowerCase() !== 'student') {
+      return jsonResponse({ ok: false, error: 'student_target_required' }, 400, cors);
+    }
+    const characterName = avatarCharacterNameForPilotAccount(target);
+    if (!characterName) {
+      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
+    }
+    const gate = await studentAvatarActivationBlocked(db, characterName);
+    if (gate.blocked) {
+      return jsonResponse({ ok: false, error: gate.error }, 403, cors);
+    }
+    const pending = await db
+      .prepare(
+        `SELECT id, image_key, status FROM lantern_avatar_submissions
+         WHERE character_name = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1`
+      )
+      .bind(characterName)
+      .first();
+    if (!pending || !pending.image_key) {
+      return jsonResponse({ ok: false, error: 'no_staged_avatar' }, 400, cors);
+    }
+    const now = new Date().toISOString();
+    const adminLabel = adminAuditLabel(account);
+    await db
+      .prepare(
+        'UPDATE lantern_avatar_submissions SET status = ?, approved_at = ?, approved_by = ? WHERE id = ?'
+      )
+      .bind('approved', now, adminLabel, pending.id)
+      .run();
+    await writeCurrentAvatarKey(db, characterName, pending.image_key, now);
+    const origin = new URL(request.url).origin;
+    const activeV = String(now).replace(/[^\d]/g, '').slice(0, 14);
+    return jsonResponse(
+      {
+        ok: true,
+        username: String(target.username),
+        role: 'student',
+        character_name: characterName,
+        submission_id: pending.id,
+        active_image: origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : ''),
+        current_avatar_key: pending.image_key,
+        staged: false,
+        activated: true,
         nugget_charged: 0,
         approved_by: adminLabel,
       },
@@ -6003,6 +6148,14 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 
+async function canViewPrivateAvatar(request, env, characterName) {
+  const account = await getPilotAccountFromRequest(request, env);
+  if (!account || pilotAccountRequiresChangePassword(account)) return false;
+  if (isTeacherLike(account.role)) return true;
+  const ownKey = avatarCharacterNameForPilotAccount(account);
+  return !!(ownKey && characterName && ownKey.toLowerCase() === String(characterName).toLowerCase());
+}
+
 /** Lantern avatars */
 async function handleAvatarRoutes(request, url, path, env, cors) {
   const origin = url.origin || '';
@@ -6014,13 +6167,37 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/avatar/image') {
     const key = (url.searchParams.get('key') || '').trim();
     if (!key) return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+    if (!isAvatarObjectKey(key)) {
+      return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
+    }
+    const profile = await db
+      .prepare('SELECT character_name FROM lantern_avatar_profiles WHERE current_avatar_key = ? LIMIT 1')
+      .bind(key)
+      .first();
+    const pending = await db
+      .prepare(
+        `SELECT character_name, status, approved_by FROM lantern_avatar_submissions
+         WHERE image_key = ? ORDER BY created_at DESC LIMIT 1`
+      )
+      .bind(key)
+      .first();
+    const ownerName = (profile && profile.character_name) || (pending && pending.character_name) || '';
+    const isCurrentPublicKey = !!(profile && profile.character_name);
+    const restricted = ownerName ? await studentAvatarIsRestricted(db, ownerName) : false;
+    const privateReview = !isCurrentPublicKey || restricted;
+    if (privateReview) {
+      const allowed = ownerName ? await canViewPrivateAvatar(request, env, ownerName) : false;
+      if (!allowed) {
+        return new Response('Not Found', { status: 404, headers: cors });
+      }
+    }
     const obj = await bucket.get(key);
     if (!obj) return new Response('Not Found', { status: 404, headers: cors });
     return new Response(obj.body, {
       status: 200,
       headers: {
         'Content-Type': obj.httpMetadata?.contentType || 'image/png',
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': privateReview ? 'private, no-store' : 'public, max-age=86400',
         ...cors,
       },
     });
@@ -6083,10 +6260,12 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (canSeePending) {
       pending = await db.prepare('SELECT id, image_key, created_at FROM lantern_avatar_submissions WHERE character_name = ? AND status = ? ORDER BY created_at DESC LIMIT 1').bind(characterName, 'pending').first();
     }
+    const restricted = await studentAvatarIsRestricted(db, characterName);
     const activeV = profile && profile.updated_at
       ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
       : '';
-    const activeImage = profile
+    const advertiseActive = !!(profile && profile.current_avatar_key) && (!restricted || canSeePending);
+    const activeImage = advertiseActive
       ? (origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : ''))
       : null;
     const pendingImage = pending ? (origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key)) : null;
@@ -6106,9 +6285,11 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     const staff = await requireStaffPilotSession(request, env, cors);
     if (staff.response) return staff.response;
     const rows = await db.prepare(
-      'SELECT id, character_name, image_key, created_at FROM lantern_avatar_submissions WHERE status = ? ORDER BY created_at ASC'
+      'SELECT id, character_name, image_key, created_at, approved_by FROM lantern_avatar_submissions WHERE status = ? ORDER BY created_at ASC'
     ).bind('pending').all();
-    const list = (rows.results || []).map(r => ({
+    const list = (rows.results || [])
+      .filter((r) => !isAdminStagedAvatarMarker(r.approved_by))
+      .map(r => ({
       id: r.id,
       character_name: r.character_name,
       image_url: origin + '/api/avatar/image?key=' + encodeURIComponent(r.image_key),
@@ -6126,16 +6307,21 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
     const id = (body.id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
-    const row = await db.prepare('SELECT id, character_name, image_key, status FROM lantern_avatar_submissions WHERE id = ?').bind(id).first();
+    const row = await db.prepare('SELECT id, character_name, image_key, status, approved_by FROM lantern_avatar_submissions WHERE id = ?').bind(id).first();
     if (!row) return jsonResponse({ ok: false, error: 'Submission not found' }, 404, cors);
     if (row.status !== 'pending') return jsonResponse({ ok: false, error: 'Submission not pending' }, 400, cors);
+    if (isAdminStagedAvatarMarker(row.approved_by)) {
+      return jsonResponse({ ok: false, error: 'admin_activation_required' }, 403, cors);
+    }
+    const gate = await studentAvatarActivationBlocked(db, row.character_name);
+    if (gate.blocked) {
+      return jsonResponse({ ok: false, error: gate.error }, 403, cors);
+    }
     const now = new Date().toISOString();
     await db.prepare(
       'UPDATE lantern_avatar_submissions SET status = ?, approved_at = ?, approved_by = ? WHERE id = ?'
     ).bind('approved', now, reviewer, id).run();
-    await db.prepare(
-      'INSERT INTO lantern_avatar_profiles (character_name, current_avatar_key, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET current_avatar_key = ?, updated_at = ?'
-    ).bind(row.character_name, row.image_key, now, row.image_key, now).run();
+    await writeCurrentAvatarKey(db, row.character_name, row.image_key, now);
     return jsonResponse({ ok: true, id, character_name: row.character_name }, 200, cors);
   }
 
@@ -6491,8 +6677,14 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       }
       characterName = playAuth.characterName;
       selfSessionScoped = !!playAuth.session_scoped;
-    } else if (!characterName) {
-      return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+    } else {
+      const earlyAuthz = economyTransactAllowed(env, request, characterName || '', pilotAccount);
+      if (!earlyAuthz.ok) {
+        return jsonResponse({ ok: false, error: earlyAuthz.error }, earlyAuthz.code || 403, cors);
+      }
+      if (!characterName) {
+        return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
+      }
     }
     const authz = economyTransactAllowed(env, request, characterName, pilotAccount);
     if (!authz.ok) {
@@ -7236,6 +7428,9 @@ async function handleNewsRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/news/image') {
     const key = (url.searchParams.get('key') || '').trim();
     if (!key) return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+    if (!isNewsImageObjectKey(key)) {
+      return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
+    }
     const bucketForImage = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucketForImage) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const obj = await bucketForImage.get(key);
@@ -7253,6 +7448,9 @@ async function handleNewsRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/news/video') {
     const key = (url.searchParams.get('key') || '').trim();
     if (!key) return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+    if (!isNewsVideoObjectKey(key)) {
+      return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
+    }
     const bucketForVideo = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucketForVideo) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const obj = await bucketForVideo.get(key);
@@ -7602,6 +7800,19 @@ async function handleApprovalsRoutes(request, url, path, env) {
     if (approvalStatus !== 'pending') {
       return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     }
+    let avatarRow = null;
+    if (approval.item_type === 'avatar') {
+      avatarRow = await db.prepare('SELECT id, character_name, image_key, status, approved_by FROM lantern_avatar_submissions WHERE id = ?').bind(approval.item_id).first();
+      if (avatarRow && avatarRow.status === 'pending') {
+        if (isAdminStagedAvatarMarker(avatarRow.approved_by)) {
+          return jsonResponse({ ok: false, error: 'admin_activation_required' }, 403, approvalsCors);
+        }
+        const gate = await studentAvatarActivationBlocked(db, avatarRow.character_name);
+        if (gate.blocked) {
+          return jsonResponse({ ok: false, error: gate.error }, 403, approvalsCors);
+        }
+      }
+    }
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
     ).bind('approved', now, staffId || null, staffName, null, id).run();
@@ -7649,14 +7860,11 @@ async function handleApprovalsRoutes(request, url, path, env) {
         }
       } catch (_) {}
     } else if (approval.item_type === 'avatar') {
-      const row = await db.prepare('SELECT id, character_name, image_key, status FROM lantern_avatar_submissions WHERE id = ?').bind(approval.item_id).first();
-      if (row && row.status === 'pending') {
+      if (avatarRow && avatarRow.status === 'pending') {
         await db.prepare(
           'UPDATE lantern_avatar_submissions SET status = ?, approved_at = ?, approved_by = ? WHERE id = ?'
         ).bind('approved', now, staffName, approval.item_id).run();
-        await db.prepare(
-          'INSERT INTO lantern_avatar_profiles (character_name, current_avatar_key, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET current_avatar_key = ?, updated_at = ?'
-        ).bind(row.character_name, row.image_key, now, row.image_key, now).run();
+        await writeCurrentAvatarKey(db, avatarRow.character_name, avatarRow.image_key, now);
       }
     }
     return jsonResponse({ ok: true, id, status: 'approved' }, 200, approvalsCors);
@@ -8492,6 +8700,9 @@ async function handleMediaRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/media/image') {
     const key = (url.searchParams.get('key') || '').trim();
     if (!key) return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
+    if (!isMediaLibraryObjectKey(key)) {
+      return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
+    }
     const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucket) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const obj = await bucket.get(key);
@@ -8536,10 +8747,15 @@ async function handleBugReportsRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
 
-/** Games — culture/identity endpoints. FERPA-safe: public character list for Avatar Match only. */
+/** Games — culture/identity endpoints. Avatar Match pool is authenticated, not a public directory. */
 async function handleGamesRoutes(request, url, path, env, cors) {
   const origin = url.origin || '';
   if (request.method === 'GET' && path === '/api/games/characters') {
+    const account = await getPilotAccountFromRequest(request, env);
+    if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
+    if (pilotAccountRequiresChangePassword(account)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+    }
     const db = env.DB;
     if (!db) return jsonResponse({ ok: true, characters: [] }, 200, cors);
     let accounts = [];
@@ -8562,8 +8778,9 @@ async function handleGamesRoutes(request, url, path, env, cors) {
         if (p.character_name && p.current_avatar_key) avatarByChar[p.character_name] = p.current_avatar_key;
       });
     } catch (_) {}
+    const restrictedSet = await loadRestrictedStudentIdSet(db);
     const pool = uniqueAvatarMatchByLabel(
-      buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount)
+      buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet })
     );
     return jsonResponse({ ok: true, characters: pool }, 200, cors);
   }

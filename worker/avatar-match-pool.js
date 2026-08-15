@@ -4,6 +4,7 @@
  */
 import { resolvePublicDisplayName } from './staff-public-name.js';
 import { isKnownDemoPersonaName } from './demo-persona-guard.js';
+import { studentIdIsRestricted } from './media-publicity.js';
 
 function trimStr(v) {
   return v == null ? '' : String(v).trim();
@@ -30,20 +31,21 @@ export function isExcludedAvatarMatchAccount(row) {
  * @param {Record<string, string>} avatarByChar character_name → current_avatar_key
  * @param {string} origin
  * @param {(row: object) => string} avatarKeyFn
+ * @param {{ restrictedSet?: Set<string> }} [opts]
  */
-export function buildAvatarMatchPool(accounts, avatarByChar, origin, avatarKeyFn) {
+export function buildAvatarMatchPool(accounts, avatarByChar, origin, avatarKeyFn, opts) {
+  const restrictedSet = opts && opts.restrictedSet;
   const list = [];
   (accounts || []).forEach((row) => {
     if (isExcludedAvatarMatchAccount(row)) return;
     const charName = avatarKeyFn ? avatarKeyFn(row) : '';
     if (!charName) return;
+    if (studentIdIsRestricted(charName, restrictedSet)) return;
     const avatarKey = avatarByChar && avatarByChar[charName];
     if (!avatarKey) return;
     const label = resolvePublicDisplayName(row);
     if (!label) return;
     list.push({
-      character_name: charName,
-      username: row.username || '',
       display_name: label,
       public_display_name: label,
       avatar_url: origin ? origin + '/api/avatar/image?key=' + encodeURIComponent(avatarKey) : null,

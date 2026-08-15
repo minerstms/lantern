@@ -264,6 +264,11 @@ await withMockedBridge((call) => {
   const adminCookie = await cookieFor(admin);
   const tmsCalls = () => getCalls().filter((c) => String(c.url).includes('/economy/transact'));
 
+  const anonEmpty = await postTransact(env, null, {});
+  if (anonEmpty.status === 401 && anonEmpty.json.error === 'not_authenticated' && tmsCalls().length === 0) {
+    ok('anonymous empty transact blocked before payload validation');
+  } else bad('anonymous empty transact', anonEmpty);
+
   const anon = await postTransact(env, null, { character_name: '20889', delta: 99, kind: 'misc' });
   if (anon.status === 401 && anon.json.error === 'not_authenticated' && tmsCalls().length === 0) {
     ok('anonymous transact blocked before ledger');

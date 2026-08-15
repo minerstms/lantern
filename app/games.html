@@ -1978,7 +1978,7 @@
             failGamePlayerStart('Avatar Match needs at least four approved avatars from active accounts.');
           }
           if (gamesApiBase) {
-            fetch(gamesApiBase + '/api/games/characters').then(function(r){ return r.json(); }).then(function(res){
+            fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
               if (res && res.ok && res.characters && res.characters.length >= 4) {
                 characters = res.characters;
                 beginRoundsAfterCanonical();
@@ -2014,7 +2014,9 @@
           var startTime = Date.now();
           var correctName = (pick.correct.display_name || pick.correct.character_name || '').trim();
           var canonAm = pick.correct._canonicalAvatar;
-          var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim()) ? String(canonAm.imageUrl).trim() : '';
+          var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim())
+            ? String(canonAm.imageUrl).trim()
+            : String((pick.correct && pick.correct.avatar_url) || '').trim();
           var fallbackLetter = avatarFallbackChar(pick.correct.display_name || pick.correct.character_name);
           var html = '<p class="avatarMatchPrompt">Who is this?</p>';
           html += '<div class="avatarMatchScoreRow"><span class="round">Round ' + round + ' of ' + roundsTotal + '</span><span class="score">Score: ' + totalScore + '</span>' + streakBadgeHtml(streak) + '</div>';

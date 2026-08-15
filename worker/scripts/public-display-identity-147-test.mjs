@@ -183,6 +183,7 @@ assert(pool.some((p) => p.display_name === 'Mr. Radle'), '23b. Mr. Radle in pool
 assert(!pool.some((p) => /Brett Simms|Zane Morrison|Kimber Pace|Winnie Addair/.test(p.display_name)), '23c. no legacy roster names');
 assert(!pool.some((p) => p.username === 'inactive.lisa' || p.username === 'test_e2e'), '24. only active real accounts');
 assert(pool.every((p) => p.avatar_url && /\/api\/avatar\/image/.test(p.avatar_url)), '25. approved avatar key required');
+assert(pool.every((p) => p.username == null && p.character_name == null), '221. Avatar Match pool omits login username and Student ID');
 
 const dupPool = uniqueAvatarMatchByLabel([
   { display_name: 'Alex A.', character_name: 'a1' },

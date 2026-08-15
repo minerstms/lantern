@@ -408,9 +408,10 @@
       </div>
       <input id="adminAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/jpg" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" />
       <p id="adminAvatarMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
-      <p class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper. Image becomes active immediately.</p>
+      <p id="adminAvatarPolicyHint" class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper.</p>
       <div class="acctPanelActions">
         <button type="button" class="btn good" id="adminAvatarChooseBtn">Upload / Replace Avatar</button>
+        <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Activate staged avatar</button>
         <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
       </div>
     </div>
@@ -2261,12 +2262,17 @@
       var img = document.getElementById('adminAvatarPreview');
       var none = document.getElementById('adminAvatarNone');
       var chooseBtn = document.getElementById('adminAvatarChooseBtn');
+      var activateBtn = document.getElementById('adminAvatarActivateBtn');
       if (file) file.value = '';
       if (msg) msg.textContent = '';
       if (hid) hid.value = '';
       if (chooseBtn) {
         chooseBtn.disabled = false;
         chooseBtn.textContent = 'Upload / Replace Avatar';
+      }
+      if (activateBtn) {
+        activateBtn.style.display = 'none';
+        activateBtn.disabled = false;
       }
       if (img) {
         img.removeAttribute('src');
@@ -2297,6 +2303,42 @@
         if (none) none.style.display = 'block';
         if (chooseBtn) chooseBtn.textContent = 'Upload Avatar';
       }
+    }
+    function applyAdminAvatarStatus(body) {
+      var msg = document.getElementById('adminAvatarMsg');
+      var policy = document.getElementById('adminAvatarPolicyHint');
+      var activateBtn = document.getElementById('adminAvatarActivateBtn');
+      var role = String((body && body.role) || '').trim().toLowerCase();
+      var isStudent = role === 'student';
+      var staged = !!(body && (body.staged || body.staged_image));
+      var restricted = Number(body && body.media_restricted) === 1;
+      var preview = (body && (body.staged_image || body.active_image)) || null;
+      setAdminAvatarPreview(preview);
+      if (activateBtn) {
+        activateBtn.style.display = isStudent && staged && !restricted ? 'inline-block' : 'none';
+        activateBtn.disabled = !(body && body.can_activate);
+      }
+      if (policy) {
+        policy.textContent = isStudent
+          ? 'Student avatars are staged privately (0 Nuggets) until you activate them after checking media/publicity permission. They are not visible to students or the public yet.'
+          : 'Staff assignment costs 0 Nuggets. Uses the same Locker cropper. Image becomes active immediately.';
+      }
+      if (!msg) return;
+      if (isStudent && staged) {
+        msg.textContent = restricted
+          ? 'Staged — not visible to students/public yet. Cannot activate while Media/Publicity is Restricted.'
+          : 'Staged — not visible to students/public yet. Activate after you confirm media permission.';
+        return;
+      }
+      if (isStudent) {
+        msg.textContent = body && body.active_image
+          ? 'Current avatar is active. Upload a replacement to stage a new private image.'
+          : 'No avatar yet — upload one to stage it privately.';
+        return;
+      }
+      msg.textContent = body && body.active_image
+        ? 'Replace with a new image, or keep the current avatar.'
+        : 'No avatar yet — upload one to assign immediately.';
     }
     function openAdminAvatarPanel(username, label) {
       closeEditUserPanel();
@@ -2332,10 +2374,7 @@
         .then(function(res) {
           if (!msg) return;
           if (res && res.okHttp && res.body && res.body.ok) {
-            setAdminAvatarPreview(res.body.active_image || null);
-            msg.textContent = res.body.active_image
-              ? 'Replace with a new image, or keep the current avatar.'
-              : 'No avatar yet — upload one to assign immediately.';
+            applyAdminAvatarStatus(res.body);
             return;
           }
           msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not load avatar status.';
@@ -2372,7 +2411,9 @@
             if (res && res.okHttp && res.body && res.body.ok) {
               return {
                 ok: true,
-                active_image: res.body.active_image || null,
+                active_image: res.body.staged_image || res.body.active_image || null,
+                staged: !!res.body.staged,
+                statusBody: res.body,
                 username: user,
               };
             }
@@ -2383,11 +2424,27 @@
           });
         },
         onConfirmSuccess: function(res) {
-          setAdminAvatarPreview(res && res.active_image ? res.active_image : null);
-          if (msg) msg.textContent = 'Avatar assigned. 0 Nuggets charged. Active immediately.';
-          showUsersMsg('Avatar updated for ' + user + ' (0 Nuggets).', 'ok');
+          if (res && res.statusBody) {
+            applyAdminAvatarStatus(res.statusBody);
+          } else {
+            setAdminAvatarPreview(res && res.active_image ? res.active_image : null);
+            if (msg) msg.textContent = res && res.staged
+              ? 'Staged — not visible to students/public yet. 0 Nuggets charged.'
+              : 'Avatar assigned. 0 Nuggets charged. Active immediately.';
+          }
+          showUsersMsg(
+            res && res.staged
+              ? 'Avatar staged for ' + user + ' (private, 0 Nuggets).'
+              : 'Avatar updated for ' + user + ' (0 Nuggets).',
+            'ok'
+          );
           if (typeof showStudentsRosterMsg === 'function') {
-            showStudentsRosterMsg('Avatar updated for ' + user + ' (0 Nuggets).', 'ok');
+            showStudentsRosterMsg(
+              res && res.staged
+                ? 'Avatar staged for ' + user + ' (private, 0 Nuggets).'
+                : 'Avatar updated for ' + user + ' (0 Nuggets).',
+              'ok'
+            );
           }
         },
       });
@@ -2576,6 +2633,35 @@
     if (adminAvatarOverlay) {
       adminAvatarOverlay.addEventListener('click', function(ev) {
         if (ev.target === adminAvatarOverlay) closeAdminAvatarPanel();
+      });
+    }
+    var adminAvatarActivateBtn = document.getElementById('adminAvatarActivateBtn');
+    if (adminAvatarActivateBtn) {
+      adminAvatarActivateBtn.addEventListener('click', function() {
+        var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+        var msg = document.getElementById('adminAvatarMsg');
+        if (!username) {
+          if (msg) msg.textContent = 'Missing account username.';
+          return;
+        }
+        adminAvatarActivateBtn.disabled = true;
+        postAdminJson('/api/admin/avatar/activate', { username: username }).then(function(res) {
+          adminAvatarActivateBtn.disabled = false;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            applyAdminAvatarStatus(res.body);
+            showUsersMsg('Avatar activated for ' + username + '.', 'ok');
+            if (typeof showStudentsRosterMsg === 'function') {
+              showStudentsRosterMsg('Avatar activated for ' + username + '.', 'ok');
+            }
+            return;
+          }
+          if (msg) {
+            msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not activate staged avatar.';
+          }
+        }).catch(function() {
+          adminAvatarActivateBtn.disabled = false;
+          if (msg) msg.textContent = 'Network error activating avatar.';
+        });
       });
     }
     var adminAvatarChooseBtn = document.getElementById('adminAvatarChooseBtn');

@@ -2700,7 +2700,7 @@
         if (teacherVerifyApiBase) {
           approvalStaffId = v || DEFAULT_TEACHER_ID;
           teacherVerifyIdentitySource = 'Cloud';
-          fetch(teacherVerifyApiBase + '/api/verify/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'teacher', teacher_id: approvalStaffId, display_name: (TEACHER_PERSONAS.find(function(p){ return p.teacher_id === approvalStaffId; }) || {}).displayName || approvalStaffId }) }).then(function(){ if (typeof updateTeacherPersonaUI === 'function') updateTeacherPersonaUI(); if (typeof refresh === 'function') refresh(); if (typeof updateClassCodeDisplayLink === 'function') updateClassCodeDisplayLink(); }).catch(function(){ if (typeof updateTeacherPersonaUI === 'function') updateTeacherPersonaUI(); if (typeof refresh === 'function') refresh(); });
+          fetch(teacherVerifyApiBase + '/api/verify/state', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'teacher', teacher_id: approvalStaffId, display_name: (TEACHER_PERSONAS.find(function(p){ return p.teacher_id === approvalStaffId; }) || {}).displayName || approvalStaffId }) }).then(function(){ if (typeof updateTeacherPersonaUI === 'function') updateTeacherPersonaUI(); if (typeof refresh === 'function') refresh(); if (typeof updateClassCodeDisplayLink === 'function') updateClassCodeDisplayLink(); }).catch(function(){ if (typeof updateTeacherPersonaUI === 'function') updateTeacherPersonaUI(); if (typeof refresh === 'function') refresh(); });
           return;
         }
         try { localStorage.setItem('LANTERN_VERIFY_TEACHER_ID', v || DEFAULT_TEACHER_ID); } catch(e) {}
@@ -5828,7 +5828,7 @@
           var verifyRes = await fetch(avatarApiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return {}; });
           var state = (verifyRes && verifyRes.ok && verifyRes.state) ? verifyRes.state : {};
           state.class_access_simulation = mode === 'simulation' ? { mode: 'simulation', condition: simCondition } : { mode: 'live' };
-          var raw = await fetch(avatarApiBase + '/api/verify/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
+          var raw = await fetch(avatarApiBase + '/api/verify/state', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
           var res = await raw.json().catch(function(){ return {}; });
           if (!raw.ok || !res.ok) { toast('Failed to save simulation state. Try again.'); if (mode === 'live') { var simRadio = document.querySelector('input[name="accessControlMode"][value="simulation"]'); if (simRadio) simRadio.checked = true; } else { var liveRadio = document.querySelector('input[name="accessControlMode"][value="live"]'); if (liveRadio) liveRadio.checked = true; } return; }
           toast(mode === 'simulation' ? 'Simulation mode saved.' : 'Live mode saved.');
@@ -5848,7 +5848,7 @@
           var verifyRes = await fetch(avatarApiBase + '/api/verify/state').then(function(r){ return r.json(); }).catch(function(){ return {}; });
           var state = (verifyRes && verifyRes.ok && verifyRes.state) ? verifyRes.state : {};
           state.class_access_simulation = { mode: 'simulation', condition: simCondition };
-          var raw = await fetch(avatarApiBase + '/api/verify/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
+          var raw = await fetch(avatarApiBase + '/api/verify/state', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
           var res = await raw.json().catch(function(){ return {}; });
           if (!raw.ok || !res.ok) { toast('Failed to save condition. Try again.'); return; }
           toast('Simulation condition saved.');
