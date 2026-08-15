@@ -33,8 +33,9 @@ function run() {
 
   if (
     adminHtml.includes('Missing Student ID') &&
-    adminHtml.includes("textContent = 'Set Student ID'") &&
-    adminHtml.includes("textContent = 'Delete Mistaken Row'")
+    adminHtml.includes("studentRowActionAttrs(s, 'set-id')") &&
+    adminHtml.includes('Set Student ID') &&
+    adminHtml.includes('Delete Mistaken Row')
   ) {
     ok('13/14. missing-ID row explains the state and exposes Set Student ID');
   } else bad('missing-id UI');

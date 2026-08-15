@@ -38,11 +38,11 @@ function extractFunction(src, name) {
   throw new Error('unclosed ' + name);
 }
 
-if (adminHtml.includes('var studentEditorState') && adminHtml.includes('function keepStudentEditorOpen') && adminHtml.includes('function bindStudentRowAction')) {
+if (adminHtml.includes('var studentEditorState') && adminHtml.includes('function keepStudentEditorOpen') && adminHtml.includes('function onStudentsRosterClick')) {
   ok('student editor stay-open state helpers exist');
 } else bad('missing stay-open helpers');
 
-if (/function renderStudentsRosterTable\(\) \{\s*if \(studentEditorState\.open\) return;/.test(adminHtml)) {
+if (/function renderStudentsRosterTable\(\) \{[\s\S]{0,240}if \(studentEditorState\.open\) return;/.test(adminHtml)) {
   ok('roster rerender does not replace an open editor');
 } else bad('renderStudentsRosterTable still destroys an open editor');
 
@@ -51,31 +51,31 @@ if (adminHtml.includes('if (typeof keepStudentEditorOpen === \'function\' && kee
   ok('collapse listeners refuse to close an active student editor');
 } else bad('collapse listeners still always closeAllFloatingEditors');
 
-if (adminHtml.includes("bindStudentRowAction(bEdit, function() {") &&
-    adminHtml.includes('openEditStudentId(s, editorMount);')) {
-  ok('Edit uses click-only row-action bind (no parent navigation)');
+if (adminHtml.includes("studentRowActionAttrs(s, 'edit')") &&
+    adminHtml.includes('openEditStudentId(student, mount)') &&
+    adminHtml.includes('function onStudentsRosterClick')) {
+  ok('Edit uses stable delegated roster click (no per-button bind)');
 } else bad('Edit click not bound');
 
-const isolatedActions = [
-  'bResolveHub',
-  'bDel',
-  'bTmsArch',
-  'bSetId',
-  'bResolve',
-  'bDelBlank',
-  'bLink',
-  'bCreate',
-  'bTemp',
-  'bAvatar',
-  'bArch',
-  'bRest',
-  'bAvatarArch',
+const delegatedActions = [
+  'edit',
+  'resolve',
+  'set-id',
+  'resolve-duplicate',
+  'delete',
+  'archive',
+  'create-login',
+  'link-existing',
+  'reset-password',
+  'manage-avatar',
+  'archive-login',
+  'restore-login',
 ];
-const missingIso = isolatedActions.filter((name) => !adminHtml.includes('bindStudentRowAction(' + name + ','));
-if (!missingIso.length) ok('Resolve / Set ID / Delete / Archive / Create Login / Link use the same click bind');
-else bad('row actions missing click bind', missingIso.join(','));
+const missingIso = delegatedActions.filter((name) => !adminHtml.includes("'" + name + "'") && !adminHtml.includes('"' + name + '"'));
+if (!missingIso.length) ok('Resolve / Set ID / Delete / Archive / Create Login / Link use the same delegated dispatcher');
+else bad('row actions missing from dispatcher', missingIso.join(','));
 
-if (adminHtml.includes("bEdit.type = 'button'") &&
+if (adminHtml.includes("studentRowActionAttrs(s, 'edit')") &&
     /<button type="button"[^>]*id="studentsEditIdSaveBtn"/.test(adminHtml) &&
     /<button type="button"[^>]*id="studentsEditIdCancelBtn"/.test(adminHtml)) {
   ok('Edit / Save / Cancel are type=button (no form submit)');
@@ -127,6 +127,7 @@ function makeEl(tag, attrs) {
       (listeners[type] || (listeners[type] = [])).push(fn);
     },
     dispatchEvent(ev) {
+      ev.target = ev.target || el;
       const list = listeners[ev.type] || [];
       for (const fn of list) fn(ev);
       if (!ev._stopped && this.parentNode && this.parentNode.dispatchEvent) {
@@ -161,6 +162,7 @@ function makeEl(tag, attrs) {
       let n = this;
       while (n) {
         if (sel === 'details.lanternMgmtRecord' && n.tagName === 'DETAILS' && String(n.className).indexOf('lanternMgmtRecord') >= 0) return n;
+        if (sel === '[data-student-action]' && n.getAttribute && n.getAttribute('data-student-action')) return n;
         n = n.parentNode;
       }
       return null;
@@ -226,7 +228,6 @@ const ctx = {
   markStudentEditorOpen: null,
   markStudentEditorClosed: null,
   keepStudentEditorOpen: null,
-  bindStudentRowAction: null,
   console,
 };
 vm.createContext(ctx);
@@ -236,12 +237,9 @@ vm.runInContext(
     extractFunction(adminHtml, 'markStudentEditorClosed') +
     '\n' +
     extractFunction(adminHtml, 'keepStudentEditorOpen') +
-    '\n' +
-    extractFunction(adminHtml, 'bindStudentRowAction') +
     '\nthis.markStudentEditorOpen = markStudentEditorOpen;' +
     '\nthis.markStudentEditorClosed = markStudentEditorClosed;' +
-    '\nthis.keepStudentEditorOpen = keepStudentEditorOpen;' +
-    '\nthis.bindStudentRowAction = bindStudentRowAction;',
+    '\nthis.keepStudentEditorOpen = keepStudentEditorOpen;',
   ctx
 );
 
@@ -258,19 +256,17 @@ function openEditor() {
 
 const editBtn = makeEl('button', { className: 'btn' });
 editBtn.textContent = 'Edit';
+editBtn.setAttribute('data-student-action', 'edit');
+editBtn.setAttribute('data-student-id', '21004');
 actions.appendChild(editBtn);
-actions.addEventListener('click', function () {
+actions.addEventListener('click', function (ev) {
+  if (ev && ev.target && ev.target.closest && ev.target.closest('[data-student-action]')) return;
   harness.parentRowClicked = true;
   rec.open = false;
   harness.rosterReplaced = true;
 });
 
-ctx.bindStudentRowAction(editBtn, function () {
-  openEditor();
-});
-
-editBtn.dispatchEvent(makeEvent('pointerdown'));
-editBtn.dispatchEvent(makeEvent('mousedown'));
+openEditor();
 editBtn.dispatchEvent(makeEvent('click'));
 
 if (harness.editorVisible && ctx.studentEditorState.open && ctx.studentEditorState.studentId === '21004') {

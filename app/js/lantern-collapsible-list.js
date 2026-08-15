@@ -93,7 +93,7 @@
       if (summary && !summary.hasAttribute('tabindex')) summary.setAttribute('tabindex', '0');
 
       function isInteractiveTarget(el) {
-        return !!(el && el.closest && el.closest('button, a, input, select, textarea, label, [role=button]'));
+        return !!(el && el.closest && el.closest('button, a, input, select, textarea, label, [role=button], [data-student-action]'));
       }
 
       // Parent ignores interactive descendants. Do not suppress the control's own click.

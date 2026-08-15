@@ -152,8 +152,9 @@ if (
   adminHtml.includes('Another roster row already uses this name.') &&
   adminHtml.includes('Resolve Duplicate') &&
   adminHtml.includes('KEEP canonical student') &&
-  adminHtml.includes("textContent = 'Set Student ID'") &&
-  adminHtml.includes("textContent = 'Delete Mistaken Row'") &&
+  adminHtml.includes("studentRowActionAttrs(s, 'set-id')") &&
+  adminHtml.includes('Set Student ID') &&
+  adminHtml.includes('Delete Mistaken Row') &&
   adminHtml.includes('Technical details')
 ) {
   ok('UI exposes health filters, Resolve hub, conflict review, and existing safe actions');

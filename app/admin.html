@@ -3736,16 +3736,249 @@
       return true;
     }
 
-    function isStudentRowInteractive(el) {
-      return !!(el && el.closest && el.closest('button, a, input, select, textarea, label, [role=button]'));
+    function studentActionKey(s) {
+      return String((s && (s.student_id || s.student_name)) || '');
     }
 
-    function bindStudentRowAction(btn, handler) {
-      if (!btn) return;
-      btn.addEventListener('click', function(ev) {
-        if (ev && ev.stopPropagation) ev.stopPropagation();
-        handler(ev);
-      });
+    function studentRowActionAttrs(s, action) {
+      return ' type="button" data-student-action="' +
+        escapeRosterHtml(action) +
+        '" data-student-key="' +
+        escapeRosterHtml(studentActionKey(s)) +
+        '" data-student-id="' +
+        escapeRosterHtml(s && s.student_id ? s.student_id : '') +
+        '"';
+    }
+
+    function studentRowActionsHtml(s) {
+      if (!s) return '';
+      var html = '';
+      if (studentNeedsAttention(s)) {
+        html += '<button class="btn good"' + studentRowActionAttrs(s, 'resolve') + '>Resolve</button>';
+      }
+      html += '<button class="' + (s.student_id ? 'btn' : 'btn good') + '"' + studentRowActionAttrs(s, 'edit') + '>Edit</button>';
+      if (s.student_id) {
+        html += '<button class="btn"' + studentRowActionAttrs(s, 'delete') + '>Delete</button>';
+        if (String(s.tms_status || '') === 'Active' || Number(s.is_active) === 1) {
+          html += '<button class="btn"' + studentRowActionAttrs(s, 'archive') + '>Archive Student</button>';
+        }
+      } else {
+        html += '<button class="btn good"' + studentRowActionAttrs(s, 'set-id') + '>Set Student ID</button>';
+        if (findCanonicalDuplicate(s)) {
+          html += '<button class="btn good"' + studentRowActionAttrs(s, 'resolve-duplicate') + '>Resolve Duplicate</button>';
+        }
+        html += '<button class="btn"' + studentRowActionAttrs(s, 'delete') + '>Delete Mistaken Row</button>';
+      }
+      if (s.exact_match_linkable) {
+        html += '<button class="btn good"' + studentRowActionAttrs(s, 'link-existing') + '>Link Existing Account</button>';
+      }
+      if (Number(s.is_active) === 1 && s.student_id && s.lantern_account === 'Missing' && !s.exact_match_linkable) {
+        html += '<button class="btn good"' + studentRowActionAttrs(s, 'create-login') + '>Create Lantern Login</button>';
+      }
+      if (s.lantern_account === 'Linked' && s.lantern_username) {
+        html += '<button class="btn good"' + studentRowActionAttrs(s, 'reset-password') + '>Reset Temporary Password</button>';
+        html += '<button class="btn"' + studentRowActionAttrs(s, 'manage-avatar') + '>Manage Avatar</button>';
+        html += '<button class="btn"' + studentRowActionAttrs(s, 'archive-login') + '>Archive Login</button>';
+      }
+      if (s.lantern_account === 'Linked Archived' && s.lantern_username) {
+        html += '<button class="btn good"' + studentRowActionAttrs(s, 'restore-login') + '>Restore Login</button>';
+        html += '<button class="btn"' + studentRowActionAttrs(s, 'manage-avatar') + '>Manage Avatar</button>';
+      }
+      return html;
+    }
+
+    function resolveStudentForAction(el) {
+      if (!el) return null;
+      var sid = String(el.getAttribute('data-student-id') || '').trim();
+      var key = String(el.getAttribute('data-student-key') || '').trim();
+      var rec = el.closest ? el.closest('details.lanternMgmtRecord') : null;
+      if (rec) {
+        if (!sid) sid = String(rec.getAttribute('data-student-id') || '').trim();
+        if (!key) key = String(rec.getAttribute('data-record-key') || '').trim();
+      }
+      var list = lastStudentsRoster || [];
+      var hits;
+      if (sid) {
+        hits = list.filter(function(s) { return String((s && s.student_id) || '').trim() === sid; });
+        if (hits.length === 1) return hits[0];
+      }
+      if (key) {
+        hits = list.filter(function(s) { return studentActionKey(s) === key; });
+        if (hits.length === 1) return hits[0];
+      }
+      return null;
+    }
+
+    function studentRowEditorMount(el) {
+      var rec = el && el.closest ? el.closest('details.lanternMgmtRecord') : null;
+      return rec ? rec.querySelector('.lanternMgmtRecordEditor') : null;
+    }
+
+    function dispatchStudentRowAction(action, student, actionEl) {
+      var mount = studentRowEditorMount(actionEl);
+      if (action === 'edit') {
+        openEditStudentId(student, mount);
+        return;
+      }
+      if (action === 'resolve') {
+        openStudentIdentityHub(student, mount);
+        return;
+      }
+      if (action === 'set-id') {
+        openEditStudentId(student, mount);
+        var idInput = document.getElementById('studentsEditIdInput');
+        if (idInput) {
+          try { idInput.focus({ preventScroll: true }); }
+          catch (_) { idInput.focus(); }
+        }
+        return;
+      }
+      if (action === 'resolve-duplicate') {
+        var canonical = findCanonicalDuplicate(student);
+        if (!canonical) {
+          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+          return;
+        }
+        openStudentResolveModal(student, canonical);
+        return;
+      }
+      if (action === 'delete') {
+        openStudentDeleteModal(student);
+        return;
+      }
+      if (action === 'archive') {
+        openStudentDeleteModal(student, { preferArchive: true });
+        return;
+      }
+      if (action === 'link-existing') {
+        var linkSid = String((student && student.student_id) || '').trim();
+        if (!linkSid) {
+          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+          return;
+        }
+        if (!window.confirm('Link Existing Account?\n\nTMS ID: ' + linkSid + '\nStudent: ' + (student.student_name || '') + '\n\nSets mtss_student_id only. Does not change password, username, or Locker.')) return;
+        if (actionEl) actionEl.disabled = true;
+        postAdminJson('/api/admin/tms-roster/link-exact', { student_id: linkSid }).then(function(res) {
+          if (res && res.blocked) return;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            showStudentsRosterMsg('Linked Lantern account ' + (res.body.username || linkSid) + ' → mtss_student_id ' + linkSid + '.', 'ok');
+            loadStudentsRoster();
+            return;
+          }
+          showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Link failed', 'err');
+        }).catch(function() {
+          showStudentsRosterMsg('Network error while linking account.', 'err');
+        }).finally(function() {
+          if (actionEl) actionEl.disabled = false;
+        });
+        return;
+      }
+      if (action === 'create-login') {
+        var createSid = String((student && student.student_id) || '').trim();
+        if (!createSid) {
+          showStudentsRosterMsg('Cannot create Lantern login without a permanent Student ID.', 'err');
+          return;
+        }
+        var displayName = ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || student.student_name || createSid;
+        if (!window.confirm(
+          'Create Lantern Login?\n\nUsername (Student ID): ' + createSid +
+          '\nStudent: ' + displayName +
+          '\n\nA one-time temporary password will be shown once. Student ID is never used as the password.'
+        )) return;
+        if (actionEl) actionEl.disabled = true;
+        postAdminJson('/api/admin/users', {
+          username: createSid,
+          display_name: displayName,
+          first_name: student.first_name || '',
+          last_name: student.last_name || '',
+          role: 'student',
+          mtss_student_id: createSid
+        }).then(function(res) {
+          if (res && res.blocked) return;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            showStudentsRosterMsg('Created Lantern login ' + createSid + ' for ' + displayName + '.', 'ok');
+            var once = document.getElementById('studentsTempPwOnce');
+            var onceText = document.getElementById('studentsTempPwOnceText');
+            if (res.body.temporary_password && once && onceText) {
+              onceText.textContent = 'Username: ' + createSid + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
+              once.style.display = 'block';
+              once.setAttribute('aria-hidden', 'false');
+            }
+            loadStudentsRoster();
+            loadUsers();
+            return;
+          }
+          var err = (res && res.body && (res.body.message || res.body.error)) || 'Create login failed';
+          if (err === 'insert_failed' || /UNIQUE/i.test(String(err))) {
+            err = 'A Lantern account with that Student ID already exists.';
+          }
+          showStudentsRosterMsg(err, 'err');
+        }).catch(function() {
+          showStudentsRosterMsg('Network error while creating Lantern login.', 'err');
+        }).finally(function() {
+          if (actionEl) actionEl.disabled = false;
+        });
+        return;
+      }
+      if (action === 'reset-password') {
+        if (!student.lantern_username) {
+          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+          return;
+        }
+        openTempPwPanel(student.lantern_username, mount);
+        return;
+      }
+      if (action === 'manage-avatar') {
+        if (!student.lantern_username) {
+          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+          return;
+        }
+        openAdminAvatarPanel(student.lantern_username, student.student_name || student.lantern_username);
+        return;
+      }
+      if (action === 'archive-login' || action === 'restore-login') {
+        var user = student.lantern_username;
+        var name = student.student_name || '';
+        if (!user) {
+          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+          return;
+        }
+        var activating = action === 'restore-login';
+        if (!window.confirm(activating
+          ? ('Restore Lantern Login for ' + name + ' (' + user + ')?\n\nReactivates the same Lantern account. TMS roster is not modified.')
+          : ('Archive Lantern Login for ' + name + ' (' + user + ')?\n\nBlocks Lantern sign-in only. TMS roster status and Student ID stay unchanged. History and Locker ownership remain.')
+        )) return;
+        if (actionEl) actionEl.disabled = true;
+        setAccountActive(user, activating, function(err) {
+          if (actionEl) actionEl.disabled = false;
+          if (err) { showStudentsRosterMsg(err, 'err'); return; }
+          showStudentsRosterMsg((activating ? 'Restored' : 'Archived') + ' Lantern login ' + user + (activating ? '.' : '. TMS roster unchanged.'), 'ok');
+          loadStudentsRoster();
+          loadUsers();
+        });
+        return;
+      }
+      showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+    }
+
+    function onStudentsRosterClick(ev) {
+      var actionEl = ev && ev.target && ev.target.closest ? ev.target.closest('[data-student-action]') : null;
+      if (!actionEl) return;
+      if (ev.stopPropagation) ev.stopPropagation();
+      var action = String(actionEl.getAttribute('data-student-action') || '').trim();
+      var student = resolveStudentForAction(actionEl);
+      if (!student) {
+        showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+        return;
+      }
+      dispatchStudentRowAction(action, student, actionEl);
+    }
+
+    function wireStudentRosterActions() {
+      var body = document.getElementById('studentsRosterBody');
+      if (!body || body.getAttribute('data-student-actions-ready') === '1') return;
+      body.setAttribute('data-student-actions-ready', '1');
+      body.addEventListener('click', onStudentsRosterClick);
     }
 
     function showStudentsRosterMsg(text, kind) {
@@ -3987,7 +4220,10 @@
         add.hidden = true;
       }
       var panel = document.getElementById('studentsEditIdPanel');
-      if (!panel || !s) return;
+      if (!panel || !s) {
+        showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+        return;
+      }
       document.getElementById('studentsEditPrevName').value = s.student_name || '';
       document.getElementById('studentsEditPrevId').value = s.student_id || '';
       document.getElementById('studentsEditIdInput').value = s.student_id || '';
@@ -4038,11 +4274,11 @@
     }
 
     function renderStudentsRosterTable() {
+      var loading = document.getElementById('studentsRosterLoading');
+      if (loading) loading.style.display = 'none';
       if (studentEditorState.open) return;
       var body = document.getElementById('studentsRosterBody');
       var empty = document.getElementById('studentsRosterEmpty');
-      var loading = document.getElementById('studentsRosterLoading');
-      if (loading) loading.style.display = 'none';
       if (!body) return;
       closeStudentsEditPanels();
       body.innerHTML = '';
@@ -4114,239 +4350,7 @@
             '<div class="lanternMgmtRecordEditor" data-collapsible-editor hidden></div>' +
           '</div>';
         var actions = rec.querySelector('.lanternMgmtRecordActions');
-        var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
-        rec.addEventListener('click', function(ev) {
-          if (isStudentRowInteractive(ev && ev.target)) return;
-        });
-
-        if (studentNeedsAttention(s)) {
-          var bResolveHub = document.createElement('button');
-          bResolveHub.type = 'button';
-          bResolveHub.className = 'btn good';
-          bResolveHub.textContent = 'Resolve';
-          bindStudentRowAction(bResolveHub, function() {
-            openStudentIdentityHub(s, editorMount);
-          });
-          actions.appendChild(bResolveHub);
-        }
-
-        var bEdit = document.createElement('button');
-        bEdit.type = 'button';
-        bEdit.className = s.student_id ? 'btn' : 'btn good';
-        bEdit.textContent = 'Edit';
-        bindStudentRowAction(bEdit, function() {
-          openEditStudentId(s, editorMount);
-        });
-        actions.appendChild(bEdit);
-
-        if (s.student_id) {
-          var bDel = document.createElement('button');
-          bDel.type = 'button';
-          bDel.className = 'btn';
-          bDel.textContent = 'Delete';
-          bindStudentRowAction(bDel, function() {
-            openStudentDeleteModal(s);
-          });
-          actions.appendChild(bDel);
-          if (String(s.tms_status || '') === 'Active' || Number(s.is_active) === 1) {
-            var bTmsArch = document.createElement('button');
-            bTmsArch.type = 'button';
-            bTmsArch.className = 'btn';
-            bTmsArch.textContent = 'Archive Student';
-            bindStudentRowAction(bTmsArch, function() {
-              openStudentDeleteModal(s, { preferArchive: true });
-            });
-            actions.appendChild(bTmsArch);
-          }
-        } else {
-          var bSetId = document.createElement('button');
-          bSetId.type = 'button';
-          bSetId.className = 'btn good';
-          bSetId.textContent = 'Set Student ID';
-          bindStudentRowAction(bSetId, function() {
-            openEditStudentId(s, editorMount);
-            var idInput = document.getElementById('studentsEditIdInput');
-            if (idInput) {
-              try { idInput.focus({ preventScroll: true }); }
-              catch (_) { idInput.focus(); }
-            }
-          });
-          actions.appendChild(bSetId);
-          var canonicalDup = findCanonicalDuplicate(s);
-          if (canonicalDup) {
-            var bResolve = document.createElement('button');
-            bResolve.type = 'button';
-            bResolve.className = 'btn good';
-            bResolve.textContent = 'Resolve Duplicate';
-            bindStudentRowAction(bResolve, function() {
-              openStudentResolveModal(s, canonicalDup);
-            });
-            actions.appendChild(bResolve);
-          }
-          var bDelBlank = document.createElement('button');
-          bDelBlank.type = 'button';
-          bDelBlank.className = 'btn';
-          bDelBlank.textContent = 'Delete Mistaken Row';
-          bindStudentRowAction(bDelBlank, function() {
-            openStudentDeleteModal(s);
-          });
-          actions.appendChild(bDelBlank);
-        }
-
-        if (s.exact_match_linkable) {
-          var bLink = document.createElement('button');
-          bLink.type = 'button';
-          bLink.className = 'btn good';
-          bLink.textContent = 'Link Existing Account';
-          bindStudentRowAction(bLink, function() {
-            var sid = s.student_id || '';
-            if (!sid) return;
-            if (!window.confirm('Link Existing Account?\n\nTMS ID: ' + sid + '\nStudent: ' + (s.student_name || '') + '\n\nSets mtss_student_id only. Does not change password, username, or Locker.')) return;
-            bLink.disabled = true;
-            postAdminJson('/api/admin/tms-roster/link-exact', { student_id: sid }).then(function(res) {
-              if (res && res.blocked) return;
-              if (res && res.okHttp && res.body && res.body.ok) {
-                showStudentsRosterMsg('Linked Lantern account ' + (res.body.username || sid) + ' → mtss_student_id ' + sid + '.', 'ok');
-                loadStudentsRoster();
-                return;
-              }
-              showStudentsRosterMsg((res && res.body && (res.body.message || res.body.error)) || 'Link failed', 'err');
-            }).catch(function() {
-              showStudentsRosterMsg('Network error while linking account.', 'err');
-            }).finally(function() {
-              bLink.disabled = false;
-            });
-          });
-          actions.appendChild(bLink);
-        }
-
-        if (
-          Number(s.is_active) === 1 &&
-          s.student_id &&
-          s.lantern_account === 'Missing' &&
-          !s.exact_match_linkable
-        ) {
-          var bCreate = document.createElement('button');
-          bCreate.type = 'button';
-          bCreate.className = 'btn good';
-          bCreate.textContent = 'Create Lantern Login';
-          bindStudentRowAction(bCreate, function() {
-            var sid = String(s.student_id || '').trim();
-            if (!sid) {
-              showStudentsRosterMsg('Cannot create Lantern login without a permanent Student ID.', 'err');
-              return;
-            }
-            var displayName = ((s.first_name || '') + ' ' + (s.last_name || '')).trim() || s.student_name || sid;
-            if (!window.confirm(
-              'Create Lantern Login?\n\nUsername (Student ID): ' + sid +
-              '\nStudent: ' + displayName +
-              '\n\nA one-time temporary password will be shown once. Student ID is never used as the password.'
-            )) return;
-            bCreate.disabled = true;
-            postAdminJson('/api/admin/users', {
-              username: sid,
-              display_name: displayName,
-              first_name: s.first_name || '',
-              last_name: s.last_name || '',
-              role: 'student',
-              mtss_student_id: sid
-            }).then(function(res) {
-              if (res && res.blocked) return;
-              if (res && res.okHttp && res.body && res.body.ok) {
-                showStudentsRosterMsg('Created Lantern login ' + sid + ' for ' + displayName + '.', 'ok');
-                var once = document.getElementById('studentsTempPwOnce');
-                var onceText = document.getElementById('studentsTempPwOnceText');
-                if (res.body.temporary_password && once && onceText) {
-                  onceText.textContent = 'Username: ' + sid + ' · Temp password: ' + res.body.temporary_password + ' · Must change on next sign-in. Copy now — it will not be shown again.';
-                  once.style.display = 'block';
-                  once.setAttribute('aria-hidden', 'false');
-                }
-                loadStudentsRoster();
-                loadUsers();
-                return;
-              }
-              var err = (res && res.body && (res.body.message || res.body.error)) || 'Create login failed';
-              if (err === 'insert_failed' || /UNIQUE/i.test(String(err))) {
-                err = 'A Lantern account with that Student ID already exists.';
-              }
-              showStudentsRosterMsg(err, 'err');
-            }).catch(function() {
-              showStudentsRosterMsg('Network error while creating Lantern login.', 'err');
-            }).finally(function() {
-              bCreate.disabled = false;
-            });
-          });
-          actions.appendChild(bCreate);
-        }
-
-        if (s.lantern_account === 'Linked' && s.lantern_username) {
-          var bTemp = document.createElement('button');
-          bTemp.type = 'button';
-          bTemp.className = 'btn good';
-          bTemp.textContent = 'Reset Temporary Password';
-          bindStudentRowAction(bTemp, function() {
-            openTempPwPanel(s.lantern_username, editorMount);
-          });
-          actions.appendChild(bTemp);
-
-          var bAvatar = document.createElement('button');
-          bAvatar.type = 'button';
-          bAvatar.className = 'btn';
-          bAvatar.textContent = 'Manage Avatar';
-          bindStudentRowAction(bAvatar, function() {
-            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
-          });
-          actions.appendChild(bAvatar);
-
-          var bArch = document.createElement('button');
-          bArch.type = 'button';
-          bArch.className = 'btn';
-          bArch.textContent = 'Archive Login';
-          bindStudentRowAction(bArch, function() {
-            var user = s.lantern_username;
-            var name = s.student_name || '';
-            if (!window.confirm('Archive Lantern Login for ' + name + ' (' + user + ')?\n\nBlocks Lantern sign-in only. TMS roster status and Student ID stay unchanged. History and Locker ownership remain.')) return;
-            bArch.disabled = true;
-            setAccountActive(user, false, function(err) {
-              bArch.disabled = false;
-              if (err) { showStudentsRosterMsg(err, 'err'); return; }
-              showStudentsRosterMsg('Archived Lantern login ' + user + '. TMS roster unchanged.', 'ok');
-              loadStudentsRoster();
-              loadUsers();
-            });
-          });
-          actions.appendChild(bArch);
-        }
-
-        if (s.lantern_account === 'Linked Archived' && s.lantern_username) {
-          var bRest = document.createElement('button');
-          bRest.type = 'button';
-          bRest.className = 'btn good';
-          bRest.textContent = 'Restore Login';
-          bindStudentRowAction(bRest, function() {
-            var user = s.lantern_username;
-            var name = s.student_name || '';
-            if (!window.confirm('Restore Lantern Login for ' + name + ' (' + user + ')?\n\nReactivates the same Lantern account. TMS roster is not modified.')) return;
-            bRest.disabled = true;
-            setAccountActive(user, true, function(err) {
-              bRest.disabled = false;
-              if (err) { showStudentsRosterMsg(err, 'err'); return; }
-              showStudentsRosterMsg('Restored Lantern login ' + user + '.', 'ok');
-              loadStudentsRoster();
-              loadUsers();
-            });
-          });
-          actions.appendChild(bRest);
-
-          var bAvatarArch = document.createElement('button');
-          bAvatarArch.type = 'button';
-          bAvatarArch.className = 'btn';
-          bAvatarArch.textContent = 'Manage Avatar';
-          bindStudentRowAction(bAvatarArch, function() {
-            openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
-          });
-          actions.appendChild(bAvatarArch);
-        }
+        if (actions) actions.innerHTML = studentRowActionsHtml(s);
 
         body.appendChild(rec);
       });
@@ -5347,6 +5351,7 @@
       });
     }
 
+    wireStudentRosterActions();
     loadUsers();
     loadStudentsRoster();
     loadTmsIdentityLinks();

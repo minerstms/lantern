@@ -317,10 +317,10 @@ async function run() {
   const adminHtml = read('app/admin.html');
   const delSrc = read('worker/admin-student-delete.js');
   const indexSrc = read('worker/index.js');
-  if (adminHtml.includes("textContent = 'Delete'") && adminHtml.includes('/api/admin/students/delete-inspect')) {
+  if ((adminHtml.includes("textContent = 'Delete'") || adminHtml.includes("studentRowActionAttrs(s, 'delete')")) && adminHtml.includes('/api/admin/students/delete-inspect')) {
     ok('UI exposes compact Delete and inspect-first modal');
   } else bad('UI delete wiring');
-  if (adminHtml.includes('Missing Student ID') && adminHtml.includes("textContent = 'Set Student ID'") && adminHtml.includes("textContent = 'Delete Mistaken Row'")) {
+  if (adminHtml.includes('Missing Student ID') && adminHtml.includes('Set Student ID') && adminHtml.includes('Delete Mistaken Row')) {
     ok('13/14. missing-ID row shows Missing Student ID + Set Student ID + Delete Mistaken Row');
   } else bad('missing-id UI');
   if (adminHtml.includes('Type DELETE to confirm') && adminHtml.includes('closeStudentDeleteModal')) {
