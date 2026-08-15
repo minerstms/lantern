@@ -163,6 +163,8 @@
     .marqueeSpeedRow input[type="range"] { flex: 1; min-width: 220px; max-width: 420px; margin: 0; }
     .marqueeSpeedRow input[type="number"] { width: 120px; max-width: 120px; margin: 0; }
     #marqueeSpeedValue { font-weight: 900; color: var(--accent); min-width: 108px; display: inline-block; }
+    #studentsEditStableHost:empty { display: none; }
+    #studentsActionDiag { margin: 8px 0; font-weight: 800; font-size: 20px; line-height: 1.35; }
   </style>
 </head>
 <body class="page-has-ticker">
@@ -289,6 +291,8 @@
           <button type="button" class="btn" id="studentsTempPwOnceDismiss">Dismiss</button>
         </div>
       </div>
+      <p id="studentsActionDiag" role="status" aria-live="assertive" class="usersMsg" style="display:none;"></p>
+      <div id="studentsEditStableHost"></div>
       <div class="teacherCollapsibleListScroll">
         <div class="lanternMgmtRecordListHd lanternMgmtRecordListHd--students" aria-hidden="true">
           <span>Student ID</span><span>First Name</span><span>Last Name</span><span>Grade</span><span>Lantern Login</span><span>Status</span><span></span>
@@ -301,7 +305,7 @@
   </details>
 
   <div id="adminEditorPark" hidden aria-hidden="true">
-    <div id="studentsEditIdPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden data-admin-floating-editor="1">
+    <div id="studentsEditIdPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" hidden data-admin-floating-editor="1">
       <p class="acctPanelHd" id="studentsEditIdTitle">Edit Student</p>
       <p id="studentsEditIdHint" class="acctPanelHint"></p>
       <input type="hidden" id="studentsEditPrevName" value="" />
@@ -915,6 +919,7 @@
   <script src="js/lantern-avatar-cropper.js"></script>
   <script>
   (function(){
+    bootAdminStudentActions();
     if (typeof window.initTeacherCollapsibleLists === 'function') {
       window.initTeacherCollapsibleLists(document);
     }
@@ -3719,11 +3724,9 @@
       if (!studentEditorState.open) return false;
       var panel = document.getElementById('studentsEditIdPanel');
       if (!panel) return false;
-      var host = panel.closest ? panel.closest('details.lanternMgmtRecord') : null;
-      if (host && !host.open) host.open = true;
       var studentsCard = document.getElementById('adminStudentsCard');
       if (studentsCard && !studentsCard.open) studentsCard.open = true;
-      var mount = host ? host.querySelector('.lanternMgmtRecordEditor') : null;
+      var mount = document.getElementById('studentsEditStableHost');
       if (mount) {
         mount.hidden = false;
         mount.style.display = 'block';
@@ -3733,7 +3736,7 @@
       panel.hidden = false;
       panel.style.display = 'block';
       panel.setAttribute('aria-hidden', 'false');
-      return true;
+      return isStudentEditorActuallyVisible();
     }
 
     function studentActionKey(s) {
@@ -3810,8 +3813,95 @@
     }
 
     function studentRowEditorMount(el) {
+      var stable = document.getElementById('studentsEditStableHost');
+      if (stable) return stable;
       var rec = el && el.closest ? el.closest('details.lanternMgmtRecord') : null;
       return rec ? rec.querySelector('.lanternMgmtRecordEditor') : null;
+    }
+
+    function showStudentActionDiag(text, kind) {
+      var el = document.getElementById('studentsActionDiag');
+      if (!el) {
+        showStudentsRosterMsg(text, kind);
+        return;
+      }
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = 'usersMsg';
+        return;
+      }
+      el.style.display = 'block';
+      el.textContent = text;
+      el.className = 'usersMsg' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
+    }
+
+    function adminEventElement(ev) {
+      var t = ev && ev.target;
+      if (!t) return null;
+      if (t.nodeType === 3) t = t.parentElement || t.parentNode;
+      return t && t.closest ? t : null;
+    }
+
+    function isStudentEditorActuallyVisible() {
+      var panel = document.getElementById('studentsEditIdPanel');
+      if (!panel) return false;
+      if (panel.hidden) return false;
+      if (panel.getAttribute && panel.getAttribute('aria-hidden') === 'true') return false;
+      if (panel.style && panel.style.display === 'none') return false;
+      var park = document.getElementById('adminEditorPark');
+      if (park && park.contains && park.contains(panel)) return false;
+      return true;
+    }
+
+    function onAdminStudentActionCapture(ev) {
+      var t = adminEventElement(ev);
+      if (!t) return;
+      var actionEl = t.closest('[data-student-action]');
+      if (!actionEl) return;
+      var surface = document.getElementById('adminStudentsCard');
+      if (surface && actionEl.closest && !actionEl.closest('#adminStudentsCard')) return;
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      var action = String(actionEl.getAttribute('data-student-action') || '').trim();
+      var sid = String(actionEl.getAttribute('data-student-id') || '').trim();
+      if (action === 'edit') {
+        showStudentActionDiag('Edit click received: ' + (sid || 'unknown'));
+      }
+      var student = resolveStudentForAction(actionEl);
+      if (!student) {
+        if (action === 'edit') {
+          showStudentActionDiag('Edit click received, but student ' + (sid || 'unknown') + ' could not be resolved.', 'err');
+        } else {
+          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+        }
+        return;
+      }
+      if (action === 'edit') {
+        showStudentActionDiag('Opening editor: ' + (student.student_id || sid || 'unknown'));
+        var hostRow = actionEl.closest ? actionEl.closest('details.lanternMgmtRecord') : null;
+        if (hostRow) hostRow.open = true;
+        var studentsCard = document.getElementById('adminStudentsCard');
+        if (studentsCard) studentsCard.open = true;
+        openEditStudentId(student, document.getElementById('studentsEditStableHost'));
+        if (!studentEditorState.open || !isStudentEditorActuallyVisible()) {
+          showStudentActionDiag('Edit handler ran, but the editor did not open.', 'err');
+          return;
+        }
+        showStudentActionDiag('Editor open: ' + (student.student_id || sid || 'unknown'), 'ok');
+        return;
+      }
+      dispatchStudentRowAction(action, student, actionEl);
+    }
+
+    function installAdminStudentActionCapture() {
+      if (!document || !document.addEventListener) return;
+      if (document.documentElement && document.documentElement.getAttribute('data-admin-student-actions-ready') === '1') return;
+      if (document.documentElement) document.documentElement.setAttribute('data-admin-student-actions-ready', '1');
+      document.addEventListener('click', onAdminStudentActionCapture, true);
+    }
+
+    function bootAdminStudentActions() {
+      installAdminStudentActionCapture();
     }
 
     function dispatchStudentRowAction(action, student, actionEl) {
@@ -3959,26 +4049,6 @@
         return;
       }
       showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
-    }
-
-    function onStudentsRosterClick(ev) {
-      var actionEl = ev && ev.target && ev.target.closest ? ev.target.closest('[data-student-action]') : null;
-      if (!actionEl) return;
-      if (ev.stopPropagation) ev.stopPropagation();
-      var action = String(actionEl.getAttribute('data-student-action') || '').trim();
-      var student = resolveStudentForAction(actionEl);
-      if (!student) {
-        showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
-        return;
-      }
-      dispatchStudentRowAction(action, student, actionEl);
-    }
-
-    function wireStudentRosterActions() {
-      var body = document.getElementById('studentsRosterBody');
-      if (!body || body.getAttribute('data-student-actions-ready') === '1') return;
-      body.setAttribute('data-student-actions-ready', '1');
-      body.addEventListener('click', onStudentsRosterClick);
     }
 
     function showStudentsRosterMsg(text, kind) {
@@ -4263,7 +4333,10 @@
       if (reviewBtn) reviewBtn.hidden = true;
       setStudentsEditServerConfirm('');
       markStudentEditorOpen(s);
-      mountAdminEditor(panel, mountEl || null);
+      var stable = document.getElementById('studentsEditStableHost');
+      mountAdminEditor(panel, stable || mountEl || null);
+      var studentsCard = document.getElementById('adminStudentsCard');
+      if (studentsCard) studentsCard.open = true;
       var host = mountEl && mountEl.closest ? mountEl.closest('details.lanternMgmtRecord') : null;
       if (host) host.open = true;
       var first = document.getElementById('studentsEditFirst');
@@ -5351,7 +5424,7 @@
       });
     }
 
-    wireStudentRosterActions();
+    bootAdminStudentActions();
     loadUsers();
     loadStudentsRoster();
     loadTmsIdentityLinks();

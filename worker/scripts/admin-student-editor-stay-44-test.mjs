@@ -38,7 +38,7 @@ function extractFunction(src, name) {
   throw new Error('unclosed ' + name);
 }
 
-if (adminHtml.includes('var studentEditorState') && adminHtml.includes('function keepStudentEditorOpen') && adminHtml.includes('function onStudentsRosterClick')) {
+if (adminHtml.includes('var studentEditorState') && adminHtml.includes('function keepStudentEditorOpen') && adminHtml.includes('function onAdminStudentActionCapture')) {
   ok('student editor stay-open state helpers exist');
 } else bad('missing stay-open helpers');
 
@@ -53,7 +53,7 @@ if (adminHtml.includes('if (typeof keepStudentEditorOpen === \'function\' && kee
 
 if (adminHtml.includes("studentRowActionAttrs(s, 'edit')") &&
     adminHtml.includes('openEditStudentId(student, mount)') &&
-    adminHtml.includes('function onStudentsRosterClick')) {
+    adminHtml.includes('function onAdminStudentActionCapture')) {
   ok('Edit uses stable delegated roster click (no per-button bind)');
 } else bad('Edit click not bound');
 
@@ -195,7 +195,18 @@ rec.appendChild(actions);
 rec.appendChild(mount);
 const rosterBody = makeEl('div', { id: 'studentsRosterBody' });
 rosterBody.appendChild(rec);
+const stableHost = makeEl('div', { id: 'studentsEditStableHost' });
+const park = makeEl('div', { id: 'adminEditorPark' });
+park.contains = function (node) {
+  let n = node;
+  while (n) {
+    if (n === park) return true;
+    n = n.parentNode;
+  }
+  return false;
+};
 const studentsCard = makeEl('details', { id: 'adminStudentsCard', className: 'teacherCollapsibleList', open: true });
+studentsCard.appendChild(stableHost);
 studentsCard.appendChild(rosterBody);
 
 const student21004 = {
@@ -217,6 +228,8 @@ const harness = {
       if (id === 'studentsEditFirst') return first;
       if (id === 'adminStudentsCard') return studentsCard;
       if (id === 'studentsRosterBody') return rosterBody;
+      if (id === 'studentsEditStableHost') return stableHost;
+      if (id === 'adminEditorPark') return park;
       return null;
     },
   },
@@ -237,19 +250,23 @@ vm.runInContext(
     extractFunction(adminHtml, 'markStudentEditorClosed') +
     '\n' +
     extractFunction(adminHtml, 'keepStudentEditorOpen') +
+    '\n' +
+    extractFunction(adminHtml, 'isStudentEditorActuallyVisible') +
     '\nthis.markStudentEditorOpen = markStudentEditorOpen;' +
     '\nthis.markStudentEditorClosed = markStudentEditorClosed;' +
-    '\nthis.keepStudentEditorOpen = keepStudentEditorOpen;',
+    '\nthis.keepStudentEditorOpen = keepStudentEditorOpen;' +
+    '\nthis.isStudentEditorActuallyVisible = isStudentEditorActuallyVisible;',
   ctx
 );
 
 function openEditor() {
   ctx.markStudentEditorOpen(student21004);
-  mount.hidden = false;
-  mount.style.display = 'block';
-  mount.appendChild(panel);
+  stableHost.hidden = false;
+  stableHost.style.display = 'block';
+  stableHost.appendChild(panel);
   panel.hidden = false;
   panel.style.display = 'block';
+  panel.setAttribute('aria-hidden', 'false');
   rec.open = true;
   harness.editorVisible = true;
 }
@@ -281,9 +298,9 @@ rec.open = false;
 panel.hidden = true;
 panel.style.display = 'none';
 const kept = ctx.keepStudentEditorOpen();
-if (kept && rec.open && !panel.hidden && panel.style.display === 'block' && ctx.studentEditorState.open) {
-  ok('spurious record collapse restores editor instead of returning to list');
-} else bad('collapse still kills editor', { kept, open: rec.open, hidden: panel.hidden });
+if (kept && !panel.hidden && panel.style.display === 'block' && ctx.studentEditorState.open && panel.parentNode === stableHost) {
+  ok('spurious record collapse restores editor on the stable host');
+} else bad('collapse still kills editor', { kept, hidden: panel.hidden, parent: panel.parentNode && panel.parentNode.id });
 
 function renderStudentsRosterTableSim() {
   if (ctx.studentEditorState.open) return;
@@ -300,7 +317,7 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 await wait(500);
-if (Date.now() - start >= 500 && ctx.studentEditorState.open && harness.editorVisible && rec.open) {
+if (Date.now() - start >= 500 && ctx.studentEditorState.open && harness.editorVisible && !panel.hidden) {
   ok('4-6. after 500ms editor is still open and roster view has not replaced it');
 } else bad('editor did not survive 500ms window');
 

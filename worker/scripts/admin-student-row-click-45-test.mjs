@@ -49,11 +49,11 @@ if (!/actions\.addEventListener\('pointerdown'/.test(adminHtml) && !/stopRowNav/
   ok('actions container no longer swallows pointerdown/mousedown/click');
 } else bad('actions container still has stopRowNav / pointerdown');
 
-if (adminHtml.includes('function onStudentsRosterClick') &&
-    adminHtml.includes("body.addEventListener('click', onStudentsRosterClick)") &&
+if (adminHtml.includes('function onAdminStudentActionCapture') &&
+    adminHtml.includes("document.addEventListener('click', onAdminStudentActionCapture, true)") &&
     adminHtml.includes("studentRowActionAttrs(s, 'edit')")) {
-  ok('#46 delegated roster click is the single student-row dispatch path');
-} else bad('delegated dispatcher missing');
+  ok('#47 document capture is the single student-row dispatch path');
+} else bad('document capture dispatcher missing');
 
 if (collapsibleJs.includes("[data-student-action]") &&
     collapsibleJs.includes('function isInteractiveTarget') &&
