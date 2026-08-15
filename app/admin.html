@@ -250,6 +250,8 @@
           <option value="healthy">Healthy</option>
           <option value="problems">Problems</option>
           <option value="media_restricted">Media/Publicity Restricted</option>
+          <option value="no_avatar">No Avatar</option>
+          <option value="has_avatar">Has Avatar</option>
           <option value="all">All loaded</option>
         </select>
         <label for="studentsRosterGradeFilter" class="visuallyHidden">Grade</label>
@@ -2759,6 +2761,13 @@
         (u.display_name && needsName ? ' · Current display: ' + String(u.display_name) : '');
       detail.appendChild(meta);
 
+      if (typeof isWebSystemAdminSession === 'function' && isWebSystemAdminSession()) {
+        var avLine = document.createElement('p');
+        avLine.className = 'acctPanelHint';
+        avLine.textContent = Number(u.has_avatar) === 1 ? 'Has Avatar' : 'No Avatar';
+        detail.appendChild(avLine);
+      }
+
       var tmsIdForCaps = existingLink ? String(existingLink.tms_staff_id || '').trim() : '';
       var tmsDirRow = null;
       if (tmsIdForCaps) {
@@ -2857,17 +2866,19 @@
       });
       actions.appendChild(bTemp);
 
-      var bAvatar = document.createElement('button');
-      bAvatar.type = 'button';
-      bAvatar.className = 'btn';
-      bAvatar.textContent = 'Manage Avatar';
-      bAvatar.addEventListener('click', function(ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        var label = formatStaffDisplayName(u) || u.username;
-        openAdminAvatarPanel(u.username, label);
-      });
-      actions.appendChild(bAvatar);
+      if (typeof isWebSystemAdminSession === 'function' && isWebSystemAdminSession() && active) {
+        var bAvatar = document.createElement('button');
+        bAvatar.type = 'button';
+        bAvatar.className = 'btn';
+        bAvatar.textContent = 'Manage Avatar';
+        bAvatar.addEventListener('click', function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var label = formatStaffDisplayName(u) || u.username;
+          openAdminAvatarPanel(u.username, label);
+        });
+        actions.appendChild(bAvatar);
+      }
 
       if (active) {
         var bArch = document.createElement('button');
@@ -3901,11 +3912,12 @@
       }
       if (s.lantern_account === 'Linked' && s.lantern_username) {
         html += '<button class="btn good"' + studentRowActionAttrs(s, 'reset-password') + '>Reset Temporary Password</button>';
-        html += '<button class="btn"' + studentRowActionAttrs(s, 'manage-avatar') + '>Manage Avatar</button>';
         html += '<button class="btn"' + studentRowActionAttrs(s, 'archive-login') + '>Archive Login</button>';
       }
       if (s.lantern_account === 'Linked Archived' && s.lantern_username) {
         html += '<button class="btn good"' + studentRowActionAttrs(s, 'restore-login') + '>Restore Login</button>';
+      }
+      if (typeof isWebSystemAdminSession === 'function' && isWebSystemAdminSession() && Number(s.is_active) === 1) {
         html += '<button class="btn"' + studentRowActionAttrs(s, 'manage-avatar') + '>Manage Avatar</button>';
       }
       return html;
@@ -4108,11 +4120,16 @@
         return;
       }
       if (action === 'manage-avatar') {
-        if (!student.lantern_username) {
-          showStudentsRosterMsg('Could not open this student record. Refresh and try again.', 'err');
+        if (typeof isWebSystemAdminSession !== 'function' || !isWebSystemAdminSession()) {
+          showStudentsRosterMsg('Avatar management is limited to the system administrator.', 'err');
           return;
         }
-        openAdminAvatarPanel(student.lantern_username, student.student_name || student.lantern_username);
+        var avatarUser = String(student.lantern_username || student.student_id || '').trim();
+        if (!avatarUser) {
+          showStudentsRosterMsg('This student needs a School ID or Lantern login before an avatar can be assigned.', 'err');
+          return;
+        }
+        openAdminAvatarPanel(avatarUser, studentsRosterVisibleName(student) || student.student_name || avatarUser);
         return;
       }
       if (action === 'archive-login' || action === 'restore-login') {
@@ -4405,13 +4422,15 @@
         if (filter === 'healthy' && studentNeedsAttention(s)) return false;
         if (filter === 'problems' && s.lantern_account !== 'Broken' && s.lantern_account !== 'Ambiguous' && s.lantern_account !== 'Linked Archived' && s.locker !== 'Error') return false;
         if (filter === 'media_restricted' && Number(s.media_publicity_restricted) !== 1) return false;
+        if (filter === 'no_avatar' && (Number(s.has_avatar) === 1 || !active)) return false;
+        if (filter === 'has_avatar' && (Number(s.has_avatar) !== 1 || !active)) return false;
         if (filter !== 'archived' && filter !== 'all' && !active && !studentsRosterIncludeInactive) return false;
         if (gradeFilter !== 'all') {
           var g = String(s.grade || '').replace(/^grade-/, '').trim();
           if (g !== gradeFilter) return false;
         }
         if (!q) return true;
-        var hay = [s.student_id, s.first_name, s.last_name, s.student_name, s.grade, s.lantern_username, studentCanonicalStatus(s)].join(' ').toLowerCase();
+        var hay = [s.student_id, s.first_name, s.last_name, s.student_name, s.grade, s.lantern_username, studentCanonicalStatus(s), Number(s.has_avatar) === 1 ? 'has avatar' : 'no avatar'].join(' ').toLowerCase();
         return hay.indexOf(q) !== -1;
       });
     }
@@ -4570,6 +4589,7 @@
               '<p><strong>Roster:</strong> ' + escapeRosterHtml(s.tms_status || '—') + '</p>' +
               '<p><strong>School ID:</strong> ' + escapeRosterHtml(s.student_id || 'Missing') + '</p>' +
               '<p><strong>Lantern Login:</strong> ' + escapeRosterHtml(s.lantern_account === 'Missing' ? 'Missing' : (s.lantern_username || s.lantern_account || '—')) + '</p>' +
+              '<p><strong>Avatar:</strong> ' + (Number(s.has_avatar) === 1 ? 'Has Avatar' : 'No Avatar') + '</p>' +
               '<p><strong>Status:</strong> ' + escapeRosterHtml(studentNeedsAttention(s) ? 'Needs Attention' : 'Healthy') +
                 ' · ' + escapeRosterHtml(statusLabel) + '</p>' +
               (s.health_detail ? '<p>' + escapeRosterHtml(s.health_detail) + '</p>' : '') +

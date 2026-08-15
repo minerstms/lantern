@@ -131,7 +131,11 @@ import {
 } from './r2-key-guards.js';
 import {
   adminStagedAvatarMarker,
+  accountHasApprovedAvatar,
+  canManageLanternAvatars,
+  findAvatarTargetAccount,
   isAdminStagedAvatarMarker,
+  loadApprovedAvatarCharacterSet,
   studentAvatarActivationBlocked,
   studentAvatarIsRestricted,
   writeCurrentAvatarKey,
@@ -2287,7 +2291,11 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         `SELECT username, display_name, first_name, last_name, honorific, public_display_name, staff_id, email, role, student_character_name, teacher_id, mtss_student_id, is_active, updated_at, must_change_password, password_reset_at, password_reset_by FROM lantern_pilot_accounts ORDER BY username`
       )
       .all();
-    return jsonResponse({ ok: true, users: rows.results || [] }, 200, cors);
+    const avatarSet = await loadApprovedAvatarCharacterSet(db);
+    const users = (rows.results || []).map((u) =>
+      Object.assign({}, u, { has_avatar: accountHasApprovedAvatar(u, avatarSet) ? 1 : 0 })
+    );
+    return jsonResponse({ ok: true, users }, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/admin/users') {
@@ -2773,19 +2781,16 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse(responsePayload, 200, cors);
   }
 
-  // Prompt #211 — System Admin set/replace avatar for any account (0 Nuggets; no economy path).
+  // Prompt #211/#222 — privileged System Admin (username `admin`) set/replace avatar (0 Nuggets).
   if (request.method === 'GET' && path === '/api/admin/avatar/status') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const username = String(url.searchParams.get('username') || '').trim();
     if (!username) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const target = await db
-      .prepare(
-        `SELECT username, role, mtss_student_id, student_character_name, staff_id, is_active
-         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?)) LIMIT 1`
-      )
-      .bind(username)
-      .first();
+    const target = await findAvatarTargetAccount(db, username);
     if (!target) {
       return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
     }
@@ -2840,6 +2845,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/admin/avatar/set') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const bucket = env.AVATAR_BUCKET;
     if (!bucket) {
       return jsonResponse({ ok: false, error: 'Avatar bucket not configured' }, 503, cors);
@@ -2850,18 +2858,12 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     } catch (_) {
       return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
-    // Never honor client economy/privilege flags — admin session alone authorizes zero-cost set.
+    // Never honor client economy/privilege flags — privileged admin session alone authorizes zero-cost set.
     const username = String(body.username || '').trim();
     if (!username) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const target = await db
-      .prepare(
-        `SELECT username, role, mtss_student_id, student_character_name, staff_id, is_active
-         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?)) LIMIT 1`
-      )
-      .bind(username)
-      .first();
+    const target = await findAvatarTargetAccount(db, username);
     if (!target) {
       return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
     }
@@ -2984,6 +2986,9 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/admin/avatar/activate') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     let body;
     try {
       body = await request.json();
@@ -2994,13 +2999,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!username) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const target = await db
-      .prepare(
-        `SELECT username, role, mtss_student_id, student_character_name, staff_id, is_active
-         FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?)) LIMIT 1`
-      )
-      .bind(username)
-      .first();
+    const target = await findAvatarTargetAccount(db, username);
     if (!target) {
       return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
     }
@@ -3476,6 +3475,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     }));
 
     const mediaMap = await loadMediaPublicityMap(db);
+    const avatarSet = await loadApprovedAvatarCharacterSet(db);
 
     const students = tmsStudents.map((s) => {
       const name = String(s.student_name || '').trim();
@@ -3504,6 +3504,12 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         media_publicity_status: restricted ? 'Restricted' : 'Allowed',
         media_publicity_updated_at: media ? media.media_publicity_updated_at : null,
         media_publicity_updated_by: media ? media.media_publicity_updated_by : null,
+        has_avatar: accountHasApprovedAvatar(
+          { student_id: sid, lantern_username: status.lantern_username, mtss_student_id: sid },
+          avatarSet
+        )
+          ? 1
+          : 0,
       };
     });
 
@@ -6216,28 +6222,8 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (!characterName) {
       return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
     }
-    const text = await request.text();
-    let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const imageData = body.image;
-    if (!imageData || typeof imageData !== 'string') return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
-    const base64 = stripBase64Payload(imageData);
-    if (!base64) return jsonResponse({ ok: false, error: 'Missing image payload' }, 400, cors);
-    let bytes;
-    try { bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0)); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid base64 image' }, 400, cors); }
-    const id = 'av-' + crypto.randomUUID();
-    const key = 'avatars/' + id + '.png';
-    await bucket.put(key, bytes, { httpMetadata: { contentType: 'image/png' } });
-    const now = new Date().toISOString();
-    await db.prepare(
-      'INSERT INTO lantern_avatar_submissions (id, character_name, image_key, status, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(id, characterName, key, 'pending', now).run();
-    const approvalId = 'approval-' + crypto.randomUUID();
-    await db.prepare(
-      'INSERT INTO lantern_approvals (id, item_type, item_id, status, submitted_by_actor_id, submitted_by_actor_name, school_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(approvalId, 'avatar', id, 'pending', null, characterName, null, now).run();
-    const imageUrl = origin + '/api/avatar/image?key=' + encodeURIComponent(key);
-    return jsonResponse({ ok: true, id, image_url: imageUrl, status: 'pending', created_at: now }, 200, cors);
+    // Prompt #222 — self-service upload/request is closed. Rick assigns avatars from Admin.
+    return jsonResponse({ ok: false, error: 'forbidden', code: 'avatar_self_service_disabled' }, 403, cors);
   }
 
   if (request.method === 'GET' && path === '/api/avatar/status') {
@@ -6284,6 +6270,9 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/avatar/pending') {
     const staff = await requireStaffPilotSession(request, env, cors);
     if (staff.response) return staff.response;
+    if (!canManageLanternAvatars(staff.account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const rows = await db.prepare(
       'SELECT id, character_name, image_key, created_at, approved_by FROM lantern_avatar_submissions WHERE status = ? ORDER BY created_at ASC'
     ).bind('pending').all();
@@ -6301,6 +6290,9 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   if (request.method === 'POST' && path === '/api/avatar/approve') {
     const staff = await requireStaffPilotSession(request, env, cors);
     if (staff.response) return staff.response;
+    if (!canManageLanternAvatars(staff.account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const reviewer = reviewerLabelFromAccount(staff.account);
     const text = await request.text();
     let body;
@@ -6328,6 +6320,9 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
   if (request.method === 'POST' && path === '/api/avatar/reject') {
     const staff = await requireStaffPilotSession(request, env, cors);
     if (staff.response) return staff.response;
+    if (!canManageLanternAvatars(staff.account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
     const reviewer = reviewerLabelFromAccount(staff.account);
     const text = await request.text();
     let body;
@@ -7499,6 +7494,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
       rows = await db.prepare(baseSql + ' ORDER BY a.created_at ASC').bind('pending').all();
     }
     let list = rows.results || [];
+    if (!canManageLanternAvatars(account)) {
+      list = list.filter((a) => a.item_type !== 'avatar');
+    }
     const filters = filter.split(',').map(f => f.trim()).filter(Boolean);
     if (staffId && (filters.includes('mine') || filters.includes('unassigned'))) {
       const mine = filters.includes('mine');
@@ -7753,6 +7751,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
     const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if (approval.item_type === 'avatar' && !canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, approvalsCors);
+    }
     const approvalStatus = String(approval.status || '').trim().toLowerCase();
     if (approvalStatus !== 'pending' && approvalStatus !== 'approved') {
       return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
@@ -7882,6 +7883,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
     const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if (approval.item_type === 'avatar' && !canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, approvalsCors);
+    }
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
     await db.prepare(
@@ -7912,6 +7916,9 @@ async function handleApprovalsRoutes(request, url, path, env) {
     const staffId = sessionTeacherId(account);
     const approval = await db.prepare('SELECT id, item_type, item_id, status FROM lantern_approvals WHERE id = ?').bind(id).first();
     if (!approval) return jsonResponse({ ok: false, error: 'Approval not found' }, 404, approvalsCors);
+    if (approval.item_type === 'avatar' && !canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, approvalsCors);
+    }
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
     await db.prepare(

@@ -45,10 +45,12 @@ export function buildAvatarMatchPool(accounts, avatarByChar, origin, avatarKeyFn
     if (!avatarKey) return;
     const label = resolvePublicDisplayName(row);
     if (!label) return;
+    const role = lower(row.role);
     list.push({
       display_name: label,
       public_display_name: label,
       avatar_url: origin ? origin + '/api/avatar/image?key=' + encodeURIComponent(avatarKey) : null,
+      person_type: role === 'student' ? 'student' : 'staff',
     });
   });
   return list;

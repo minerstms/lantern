@@ -74,31 +74,27 @@ if (
   ok('shared cropper: exact Locker aspect/zoom/rotate/output encoding');
 } else bad('shared cropper options drifted from Locker');
 
-if (profileJs.includes('LanternAvatarCropper') && profileJs.includes('openLockerAvatarCropper') && profileJs.includes("callSubmitAvatarUpload")) {
-  ok('profile-app: Locker self-service uses shared cropper + existing upload/economy path');
-} else bad('profile-app not using shared cropper');
+if (profileJs.includes('Ask an administrator') && /openUploadBtn\.hidden = true/.test(profileJs)) {
+  ok('profile-app: Locker self-service upload hidden; display-only copy remains');
+} else bad('profile-app self-service upload still exposed');
 
-if (profileJs.includes('avatar_upload') && /AVATAR_UPLOAD_COST/.test(profileJs)) {
-  ok('profile-app: normal Nugget avatar cost preserved');
-} else bad('profile-app economy regression');
+if (profileJs.includes('callSubmitAvatarUpload')) {
+  ok('profile-app: leftover upload helper remains unused by UI (server closed)');
+} else {
+  ok('profile-app: leftover upload helper removed');
+}
 
 if (/new window\.Cropper|new Cropper\(/.test(profileJs) === false) {
   ok('profile-app: no second inline Cropper construction');
 } else bad('profile-app still constructs Cropper inline');
 
 const staffUsesUsername = adminHtml.includes('openAdminAvatarPanel(u.username');
-const studentUsesResolvedLanternUsername = adminHtml.includes('openAdminAvatarPanel(student.lantern_username');
-const linkedAvatarGate = /lantern_account === 'Linked' && s\.lantern_username[\s\S]{0,250}manage-avatar/.test(adminHtml);
-const linkedArchivedAvatarGate = /lantern_account === 'Linked Archived' && s\.lantern_username[\s\S]{0,250}manage-avatar/.test(adminHtml);
-const missingUsernameBlocked = /if \(action === 'manage-avatar'\)[\s\S]{0,220}if \(!student\.lantern_username\)/.test(adminHtml);
-if (
-  staffUsesUsername &&
-  studentUsesResolvedLanternUsername &&
-  linkedAvatarGate &&
-  linkedArchivedAvatarGate &&
-  missingUsernameBlocked
-) {
-  ok('admin.html: Staff uses username; Students use lantern_username target');
+const studentUsesFallback = /openAdminAvatarPanel\(avatarUser/.test(adminHtml) && /lantern_username \|\| student\.student_id/.test(adminHtml);
+const notLinkedGated = !/lantern_account === 'Linked' && s\.lantern_username[\s\S]{0,250}manage-avatar/.test(adminHtml);
+const notLucasSpecial = !/lucas/i.test(adminHtml.match(/function studentRowActionsHtml[\s\S]*?return html;/)?.[0] || '');
+const rickOnlyUi = /isWebSystemAdminSession\(\) && Number\(s\.is_active\) === 1/.test(adminHtml);
+if (staffUsesUsername && studentUsesFallback && notLinkedGated && notLucasSpecial && rickOnlyUi) {
+  ok('admin.html: Manage Avatar on every active student; staff uses username; Lucas not special-cased');
 } else bad('admin.html target identity wiring incomplete');
 
 console.log('\n--- admin-avatar-cropper-test: ' + passed + ' passed, ' + failed + ' failed ---');

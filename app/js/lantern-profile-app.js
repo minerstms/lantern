@@ -2106,13 +2106,10 @@
         currentAvatarStatus = avatarStatus && avatarStatus.status ? avatarStatus.status : {};
         var uploadStatusEl = el('avatarUploadStatus');
         if (uploadStatusEl){
-          if (currentAvatarStatus.has_pending){
-            uploadStatusEl.textContent = 'You already have an avatar awaiting approval.';
-            uploadStatusEl.style.color = 'var(--muted)';
-          } else {
-            uploadStatusEl.textContent = 'Avatar uploads cost 1 Nugget and must be school-appropriate.';
-            uploadStatusEl.style.color = 'var(--muted)';
-          }
+          uploadStatusEl.textContent = currentAvatarStatus.active_image
+            ? 'Your current avatar is shown on your profile. Ask an administrator to change it.'
+            : 'No avatar assigned yet. Ask an administrator if you need one.';
+          uploadStatusEl.style.color = 'var(--muted)';
         }
         buildFramePicker(profile.frame || 'none');
         buildThemePicker(normalizeThemeForPicker(profile.theme));
@@ -2233,21 +2230,13 @@
 
       var openUploadBtn = el('openAvatarUploadBtn');
       if (openUploadBtn){
-        openUploadBtn.addEventListener('click', openAvatarFileChooser);
+        openUploadBtn.hidden = true;
+        openUploadBtn.setAttribute('hidden', 'hidden');
       }
 
       var fileInput = el('avatarFileInput');
       if (fileInput){
-        fileInput.addEventListener('change', function(){
-          var file = fileInput.files && fileInput.files[0];
-          if (!file) return;
-          var adopted = getAdopted();
-          if (!adopted || !String(adopted.name || '').trim()){
-            toast('Adopt a character first.');
-            return;
-          }
-          openLockerAvatarCropper(file);
-        });
+        fileInput.hidden = true;
       }
 
       if (form){

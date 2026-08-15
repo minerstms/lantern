@@ -210,12 +210,15 @@ const restrictedStudent = {
 const teacher = {
   username: 'ms_carter', display_name: 'Ms. Carter', role: 'teacher', staff_id: 10, is_active: 1, must_change_password: 0,
 };
-const admin = {
+const otherAdmin = {
   username: 'rradle', display_name: 'Rick Radle', role: 'admin', staff_id: 4, is_active: 1, must_change_password: 0,
+};
+const privilegedAdmin = {
+  username: 'admin', display_name: 'Web Admin', role: 'admin', staff_id: 1, is_active: 1, must_change_password: 0,
 };
 
 const state = {
-  accounts: { '20889': student, '20890': restrictedStudent, ms_carter: teacher, rradle: admin },
+  accounts: { '20889': student, '20890': restrictedStudent, ms_carter: teacher, rradle: otherAdmin, admin: privilegedAdmin },
   identities: { '20890': { media_publicity_restricted: 1 } },
   profiles: { 'rick.radle': { character_name: 'rick.radle', current_avatar_key: 'avatars/staff-active.png', updated_at: '2026-08-15T00:00:00.000Z' } },
   objects: {
@@ -237,7 +240,8 @@ state.profiles['20890'] = { character_name: '20890', current_avatar_key: 'avatar
 const env = makeEnv(state);
 const studentCookie = await cookieFor(student);
 const teacherCookie = await cookieFor(teacher);
-const adminCookie = await cookieFor(admin);
+const adminCookie = await cookieFor(privilegedAdmin);
+const otherAdminCookie = await cookieFor(otherAdmin);
 
 const blocked = await studentAvatarActivationBlocked(env.DB, '20890');
 if (blocked.blocked && blocked.error === 'media_restricted') ok('Restricted student activation blocked in helper');
@@ -310,19 +314,27 @@ if (restrictedStatus.status === 200 && restrictedStatus.json && restrictedStatus
 } else bad('restricted status', restrictedStatus);
 
 const teacherAct = await req(env, 'POST', '/api/avatar/approve', teacherCookie, { id: 'av-pending' });
-if (teacherAct.status === 403 && teacherAct.json && teacherAct.json.error === 'admin_activation_required') {
+if (teacherAct.status === 403 && teacherAct.json && teacherAct.json.error === 'forbidden') {
   ok('teacher cannot activate admin-staged avatar');
 } else bad('teacher approve staged', teacherAct);
 
 const teacherRestrict = await req(env, 'POST', '/api/avatar/approve', teacherCookie, { id: 'av-self-restricted' });
-if (teacherRestrict.status === 403 && teacherRestrict.json && teacherRestrict.json.error === 'media_restricted') {
+if (teacherRestrict.status === 403 && teacherRestrict.json && teacherRestrict.json.error === 'forbidden') {
   ok('teacher cannot approve Restricted student avatar');
 } else bad('teacher approve restricted', teacherRestrict);
 
 const approvalsRestrict = await req(env, 'POST', '/api/approvals/approve', teacherCookie, { id: 'approval-restricted' });
-if (approvalsRestrict.status === 403 && approvalsRestrict.json && approvalsRestrict.json.error === 'media_restricted') {
+if (approvalsRestrict.status === 403 && approvalsRestrict.json && approvalsRestrict.json.error === 'forbidden') {
   ok('approvals path cannot activate Restricted student avatar');
 } else bad('approvals restricted', approvalsRestrict);
+
+const otherAdminSet = await req(env, 'POST', '/api/admin/avatar/set', otherAdminCookie, {
+  username: '20889',
+  image: TINY_PNG_B64,
+});
+if (otherAdminSet.status === 403 && otherAdminSet.json && otherAdminSet.json.error === 'forbidden') {
+  ok('other admin-role account cannot manage avatars');
+} else bad('other admin set', otherAdminSet);
 
 const selfAct = await req(env, 'POST', '/api/avatar/approve', studentCookie, { id: 'av-pending' });
 if (selfAct.status === 403) ok('student cannot self-activate');

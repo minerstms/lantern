@@ -42,6 +42,10 @@ if (workerIndex.includes("path === '/api/admin/avatar/status'")) {
   } else bad('worker admin avatar set not gated by handleAdminRoutes admin check');
 }
 
+if (workerIndex.includes('canManageLanternAvatars(account)') && workerIndex.includes("username") && /canManageLanternAvatars/.test(workerIndex)) {
+  ok('worker: admin avatar mutations also require canManageLanternAvatars');
+} else bad('worker missing Rick-only avatar manager predicate');
+
 if (
   workerIndex.includes('avatarCharacterNameForPilotAccount') &&
   workerIndex.includes("role === 'student'")
@@ -85,9 +89,12 @@ if (
   ok('worker: normal avatar_upload still locked to -1 Nugget');
 } else bad('worker normal avatar_upload price lock regresssed');
 
-if (/callEconomyTransact\(name, -costAmt, 'avatar_upload'/.test(profileJs)) {
-  ok('profile-app: normal self-service still charges avatar_upload');
-} else bad('profile-app normal avatar charge path missing');
+if (
+  profileJs.includes('Ask an administrator') &&
+  /openUploadBtn\.hidden = true/.test(profileJs)
+) {
+  ok('profile-app: self-service upload controls hidden');
+} else bad('profile-app self-service upload still wired');
 
 if (adminHtml.includes('adminAvatarOverlay') && adminHtml.includes('Manage Avatar') && adminHtml.includes('/api/admin/avatar/set')) {
   ok('admin.html: Manage Avatar UI wired to privileged set API');

@@ -1917,7 +1917,7 @@
                 <button type="button" class="approvalsKindChip" data-kind-filter="news">News</button>
                 <button type="button" class="approvalsKindChip" data-kind-filter="post">Post</button>
                 <button type="button" class="approvalsKindChip" data-kind-filter="mission">Mission</button>
-                <button type="button" class="approvalsKindChip" data-kind-filter="avatar">Avatar</button>
+                <button type="button" class="approvalsKindChip" data-kind-filter="avatar" hidden>Avatar</button>
                 <button type="button" class="approvalsKindChip" data-kind-filter="poll">Poll</button>
                 <button type="button" class="approvalsKindChip" data-kind-filter="thanks">Thanks</button>
                 <button type="button" class="approvalsKindChip" data-kind-filter="grade-reflection">Reflection</button>
@@ -4460,8 +4460,8 @@
         newsPending = (approvalPending || []).filter(function(a){ return (a.item_type || '') === 'news'; });
       }
       if (!useApprovalsApi) approvalPending = [];
-      var avatarRes = await callGetPendingAvatars();
-      pendingAvatars = (avatarRes && avatarRes.avatars) || [];
+      pendingAvatars = [];
+      approvalPending = (approvalPending || []).filter(function(a){ return (a.item_type || '') !== 'avatar'; });
       if (!useApprovalsApi) {
         approvalHistory = [];
       }

@@ -66,21 +66,24 @@ if (
   ok('upload: does not use body.character_name as write identity');
 }
 
-if (uploadSlice.includes("status, 'pending'") || uploadSlice.includes("status, created_at) VALUES")) {
-  ok('upload: still writes pending submission');
-} else bad('upload pending insert missing');
-
-if (uploadSlice.includes("item_type, item_id") || uploadSlice.includes("'avatar'")) {
-  ok('upload: still creates lantern_approvals avatar row');
-} else bad('upload approvals insert missing');
+if (
+  uploadSlice.includes("avatar_self_service_disabled") &&
+  uploadSlice.includes("error: 'forbidden'") &&
+  !/INSERT INTO lantern_avatar_submissions/.test(uploadSlice)
+) {
+  ok('upload: self-service closed with forbidden');
+} else bad('upload self-service not closed');
 
 if (
   pendingSlice.includes('requireStaffPilotSession') &&
   approveSlice.includes('requireStaffPilotSession') &&
-  rejectSlice.includes('requireStaffPilotSession')
+  rejectSlice.includes('requireStaffPilotSession') &&
+  pendingSlice.includes('canManageLanternAvatars') &&
+  approveSlice.includes('canManageLanternAvatars') &&
+  rejectSlice.includes('canManageLanternAvatars')
 ) {
-  ok('pending/approve/reject: requireStaffPilotSession');
-} else bad('legacy moderation routes missing staff gate');
+  ok('pending/approve/reject: requireStaffPilotSession + Rick-only canManageLanternAvatars');
+} else bad('legacy moderation routes missing staff/Rick gate');
 
 if (approveSlice.includes('reviewerLabelFromAccount') && rejectSlice.includes('reviewerLabelFromAccount')) {
   ok('approve/reject: reviewer from session via reviewerLabelFromAccount');

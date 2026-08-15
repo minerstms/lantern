@@ -1992,11 +1992,24 @@
             failClosedPool();
           }
         }
+        var unusedOwners = [];
+        function refillUnusedOwners(){
+          unusedOwners = window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray
+            ? window.LANTERN_GAME_CONTENT.shuffleArray(characters.slice())
+            : characters.slice().sort(function(){ return Math.random() - 0.5; });
+        }
         function pickOptions(){
           if (characters.length < 4) return null;
-          var shuffled = window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray ? window.LANTERN_GAME_CONTENT.shuffleArray(characters.slice()) : characters.slice();
-          var correct = shuffled[0];
-          var options = shuffled.slice(0, 4);
+          if (!unusedOwners.length) refillUnusedOwners();
+          var correct = unusedOwners.shift();
+          var correctName = String((correct && correct.display_name) || '').trim();
+          var others = characters.filter(function(c){
+            return String((c && c.display_name) || '').trim() && String(c.display_name).trim() !== correctName;
+          });
+          if (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray) others = window.LANTERN_GAME_CONTENT.shuffleArray(others);
+          else others = others.slice().sort(function(){ return Math.random() - 0.5; });
+          var options = [correct].concat(others.slice(0, 3));
+          if (options.length < 4) return null;
           for (var i = options.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var t = options[i]; options[i] = options[j]; options[j] = t; }
           return { correct: correct, options: options };
         }
@@ -2012,12 +2025,12 @@
           var answered = false;
           setScore('Round ' + round + ' / ' + roundsTotal);
           var startTime = Date.now();
-          var correctName = (pick.correct.display_name || pick.correct.character_name || '').trim();
+          var correctName = String((pick.correct.display_name) || '').trim();
           var canonAm = pick.correct._canonicalAvatar;
           var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim())
             ? String(canonAm.imageUrl).trim()
             : String((pick.correct && pick.correct.avatar_url) || '').trim();
-          var fallbackLetter = avatarFallbackChar(pick.correct.display_name || pick.correct.character_name);
+          var fallbackLetter = avatarFallbackChar(pick.correct.display_name);
           var html = '<p class="avatarMatchPrompt">Who is this?</p>';
           html += '<div class="avatarMatchScoreRow"><span class="round">Round ' + round + ' of ' + roundsTotal + '</span><span class="score">Score: ' + totalScore + '</span>' + streakBadgeHtml(streak) + '</div>';
           html += '<div class="avatarMatchImgWrap">';
@@ -2029,7 +2042,7 @@
           }
           html += '</div>';
           pick.options.forEach(function(opt){
-            var name = (opt.display_name || opt.character_name || '').trim();
+            var name = String((opt.display_name) || '').trim();
             html += '<button type="button" class="choiceBtn" data-name="' + esc(name) + '">' + esc(name) + '</button>';
           });
           gameBody.innerHTML = html;
