@@ -138,6 +138,20 @@
       leaderboard: true,
       description: 'Find the special icon among decoys. Full-screen search.',
     },
+    {
+      id: 'orbit-lock',
+      name: 'Orbit Lock',
+      type: 'arcade',
+      playBtnId: 'orbitLockPlayBtn',
+      play_cost: 1,
+      icon: '◉',
+      image: 'assets/orbit-lock-card.svg',
+      featured: true,
+      status: 'playable',
+      scoring: { lowerIsBetter: false },
+      leaderboard: true,
+      description: 'Tap when the marker is inside the target arc. Perfect locks score more as the orbit speeds up.',
+    },
   ];
 
   var BY_ID = {};
