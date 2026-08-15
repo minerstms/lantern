@@ -54,7 +54,7 @@ import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './mis
 import { durableAccountKeyFromPilotAccount } from './durable-account-key.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
 import { creditPollCompletionReward, pollRewardResponseFields } from './poll-completion-reward.js';
-import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact, resolveEconomySelfTransact, isSelfEconomyTransactKind } from './economy-balance-auth.js';
+import { resolveEconomyBalanceRead, resolveEconomyGamePlayTransact, resolveEconomySelfTransact, isSelfEconomyTransactKind, isStudentEconomyTransactKind } from './economy-balance-auth.js';
 import {
   resolveRegisteredLeaderboardGame,
   leaderboardGameNames,
@@ -63,7 +63,7 @@ import {
   sanitizeScoreDisplay,
   sanitizeRunId,
 } from './lantern-game-catalog.js';
-import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun } from './game-paid-run-proof.js';
+import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun, evaluatePaidRunForWinCredit } from './game-paid-run-proof.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
@@ -6502,14 +6502,15 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     let source = String(body.source || '').trim() || '';
     let note = String(body.note || '').trim() || '';
     let meta = body.meta && typeof body.meta === 'object' ? { ...body.meta } : {};
+    const configured = (env.LANTERN_ECONOMY_SECRET || '').trim();
+    const provided = getEconomyTransactSecretFromRequest(request);
+    const secretOk = !!(configured && provided && timingSafeEqualStrings(configured, provided));
+    const actorRole = pilotAccount ? String(pilotAccount.role || '').trim().toLowerCase() : '';
 
     // Prompt #172 — Nugget Adjustment (admin_adjustment): admin-only (or economy secret),
     // required reason, and server-derived actor metadata (never trust client initiated_by).
     if (kind === 'admin_adjustment') {
-      const configured = (env.LANTERN_ECONOMY_SECRET || '').trim();
-      const provided = getEconomyTransactSecretFromRequest(request);
-      const secretOk = !!(configured && provided && timingSafeEqualStrings(configured, provided));
-      const role = pilotAccount ? String(pilotAccount.role || '').trim().toLowerCase() : '';
+      const role = actorRole;
       if (!secretOk && role !== 'admin') {
         return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
       }
@@ -6539,6 +6540,20 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
           message: 'Poll Nuggets are awarded only by completing a Poll.',
         },
         400,
+        cors
+      );
+    }
+
+    // Prompt #220 — students cannot mint TMS Nuggets by choosing a kind/delta.
+    // Only server-locked student kinds remain on this generic route.
+    if (!secretOk && actorRole === 'student' && !isStudentEconomyTransactKind(kind)) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'kind_not_allowed',
+          message: 'This Nugget action is not available from the generic economy API.',
+        },
+        403,
         cors
       );
     }
@@ -6601,6 +6616,25 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         );
       }
       delta = 1;
+      // Prompt #220 — win credit requires an existing paid game_play for this session
+      // principal. Client transaction IDs / idempotency keys cannot mint a second credit.
+      if (!secretOk) {
+        const runId = sanitizeRunId((meta && meta.run_id) || body.run_id);
+        if (!runId) {
+          return jsonResponse(
+            { ok: false, error: 'invalid_run', message: 'game_win requires a valid paid run_id' },
+            400,
+            cors
+          );
+        }
+        const paidTx = await findPaidGamePlayByRunId(db, runId);
+        const proof = evaluatePaidRunForWinCredit(paidTx, { characterName, nowMs: Date.now() });
+        if (!proof.ok) {
+          return jsonResponse({ ok: false, error: proof.error || 'invalid_run' }, 400, cors);
+        }
+        meta.run_id = runId;
+        meta.idempotency_key = runId;
+      }
     } else if (kind === 'avatar_upload') {
       // Prompt #179 — ordinary avatar submission costs exactly 1 Nugget (server-authoritative).
       if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== -1) {
@@ -6772,6 +6806,19 @@ async function handlePeopleRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
 
+async function requireAuthenticatedNewsUpload(request, env, cors) {
+  const account = await getPilotAccountFromRequest(request, env);
+  if (!account) {
+    return { response: jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors) };
+  }
+  if (pilotAccountRequiresChangePassword(account)) {
+    return {
+      response: jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors),
+    };
+  }
+  return { account };
+}
+
 /** Lantern news */
 async function handleNewsRoutes(request, url, path, env, cors) {
   const origin = url.origin || '';
@@ -6779,6 +6826,8 @@ async function handleNewsRoutes(request, url, path, env, cors) {
   const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
   if (request.method === 'POST' && path === '/api/news/upload-image') {
+    const uploadAuth = await requireAuthenticatedNewsUpload(request, env, cors);
+    if (uploadAuth.response) return uploadAuth.response;
     if (!bucket) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const text = await request.text();
     let body;
@@ -6812,6 +6861,8 @@ async function handleNewsRoutes(request, url, path, env, cors) {
   const VIDEO_MAX_BYTES = 25 * 1024 * 1024;
   const VIDEO_ALLOWED_MIME = ['video/mp4', 'video/webm'];
   if (request.method === 'POST' && path === '/api/news/upload-video') {
+    const uploadAuth = await requireAuthenticatedNewsUpload(request, env, cors);
+    if (uploadAuth.response) return uploadAuth.response;
     if (!bucket) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const text = await request.text();
     let body;

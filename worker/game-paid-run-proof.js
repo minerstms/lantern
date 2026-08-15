@@ -82,6 +82,42 @@ export function evaluatePaidGamePlayRun(tx, opts) {
   return { ok: true, tx };
 }
 
+/**
+ * Prompt #220 — game_win may credit only when the session principal already
+ * paid for this exact run_id. Catalog game matching is not required: one paid
+ * play may produce at most one win credit for that run.
+ */
+export function evaluatePaidRunForWinCredit(tx, opts) {
+  const characterName = String((opts && opts.characterName) || '');
+  const nowMs = Number(opts && opts.nowMs);
+  const clock = Number.isFinite(nowMs) ? nowMs : Date.now();
+
+  if (!tx || !characterName) {
+    return { ok: false, error: 'invalid_run' };
+  }
+  if (String(tx.kind || '') !== 'game_play') {
+    return { ok: false, error: 'invalid_run' };
+  }
+  if (Math.floor(Number(tx.delta)) !== -1) {
+    return { ok: false, error: 'invalid_run' };
+  }
+  if (String(tx.character_name || '') !== characterName) {
+    return { ok: false, error: 'invalid_run' };
+  }
+
+  const createdMs = Date.parse(tx.created_at);
+  if (!Number.isFinite(createdMs)) {
+    return { ok: false, error: 'invalid_run' };
+  }
+  if (createdMs > clock + 120000) {
+    return { ok: false, error: 'invalid_run' };
+  }
+  if (clock - createdMs > PAID_RUN_RESULT_WINDOW_MS) {
+    return { ok: false, error: 'run_expired' };
+  }
+  return { ok: true, tx };
+}
+
 export async function findPaidGamePlayByRunId(db, runId) {
   if (!db || !runId) return null;
   try {

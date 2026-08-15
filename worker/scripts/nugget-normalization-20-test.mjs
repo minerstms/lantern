@@ -76,13 +76,32 @@ function makeEnv(state) {
           const bal = state.wallets[binds[0]];
           return bal != null ? { balance: bal } : null;
         }
+        if (s.includes('FROM lantern_transactions') && s.includes("json_extract(meta_json, '$.run_id')")) {
+          const runId = binds[0];
+          return (state.transactions || []).find((t) => {
+            let meta = {};
+            try { meta = JSON.parse(t.meta_json || '{}'); } catch (_) {}
+            return t.kind === 'game_play' && meta.run_id === runId;
+          }) || null;
+        }
         if (s.includes('SUM(CASE WHEN delta')) return { earned: 99, spent: 0 };
         return null;
       },
       async all() { return { results: [] }; },
       async run() {
         if (s.includes('INSERT INTO lantern_wallets')) state.legacyWalletWrites = (state.legacyWalletWrites || 0) + 1;
-        if (s.includes('INSERT INTO lantern_transactions')) state.transactions.push({ id: binds[0], kind: binds[3] });
+        if (s.includes('INSERT INTO lantern_transactions')) {
+          state.transactions.push({
+            id: binds[0],
+            character_name: binds[1],
+            delta: binds[2],
+            kind: binds[3],
+            source: binds[4],
+            note: binds[5],
+            created_at: binds[6],
+            meta_json: binds[7],
+          });
+        }
         return { success: true, meta: { changes: 1 } };
       },
     };
@@ -288,7 +307,7 @@ await withMockedBridge((call) => {
   else bad('6 win', win);
 
   const hunt = await postTransact(env, studentCookie, { character_name: 'Jane', delta: 1, kind: 'daily_hunt' });
-  if (hunt.json.ok && hunt.json.character_name === '20889' && hunt.json.economy_authority === 'tms_nuggets') ok('8. hunt uses student TMS principal');
+  if (hunt.status === 403 && hunt.json.error === 'kind_not_allowed') ok('8. student daily_hunt generic credit rejected');
   else bad('8 hunt', hunt);
 
   const avatar = await postTransact(env, studentCookie, { character_name: 'Jane', delta: -1, kind: 'avatar_upload' });

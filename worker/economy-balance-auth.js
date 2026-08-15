@@ -66,8 +66,25 @@ export const SELF_ECONOMY_TRANSACT_KINDS = [
   'cosmetic',
 ];
 
+/**
+ * Prompt #220 — student-callable generic transact kinds.
+ * Positive credits require independent Worker proof (game_win + paid run).
+ * Unsafe legacy credit kinds (misc, hidden_nugget, daily_hunt, daily_checkin)
+ * are rejected from POST /api/economy/transact for students.
+ */
+export const STUDENT_ECONOMY_TRANSACT_KINDS = [
+  'game_play',
+  'game_win',
+  'avatar_upload',
+  'cosmetic',
+];
+
 export function isSelfEconomyTransactKind(kind) {
   return SELF_ECONOMY_TRANSACT_KINDS.includes(String(kind || '').trim());
+}
+
+export function isStudentEconomyTransactKind(kind) {
+  return STUDENT_ECONOMY_TRANSACT_KINDS.includes(String(kind || '').trim());
 }
 
 /**
