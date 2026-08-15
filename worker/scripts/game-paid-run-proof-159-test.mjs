@@ -203,8 +203,8 @@ if (hunt.scoreMin === 0 && validateLeaderboardScore(hunt, 0).ok) {
 } else bad('Nugget Hunt 0 still legitimate');
 
 const catalogIds = LANTERN_LEADERBOARD_GAMES.map((g) => g.id).sort();
-const expectedIds = ['avatar-match', 'clickrush', 'handbook-trivia', 'lantern-live-trivia', 'local-history-trivia', 'memory', 'nuggetHunt', 'reaction', 'srp-safety-trivia'];
-if (catalogIds.join() === expectedIds.sort().join()) ok('33. all nine catalog games remain the production set');
+const expectedIds = ['avatar-match', 'clickrush', 'handbook-trivia', 'lantern-live-trivia', 'local-history-trivia', 'memory', 'minecart-switch', 'nuggetHunt', 'reaction', 'srp-safety-trivia'];
+if (catalogIds.join() === expectedIds.sort().join()) ok('33. all ten catalog games remain the production set');
 else bad('catalog ids', catalogIds);
 
 if (
@@ -452,10 +452,21 @@ async function main() {
 
   {
     const state = { accounts: { '20889': me } };
+    addPaidRun(state, { characterName: '20889', gameName: 'Minecart Switch', gameId: 'minecart-switch', runId: 'run-mine' });
     const env = makeEnv(state);
     const r = await postRecord(env, cookie, { game_name: 'Minecart Switch', score: 5, run_id: 'run-mine' });
-    if (r.status === 400 && r.json.error === 'invalid_game') ok('35. unregistered Minecart Switch cannot submit');
-    else bad('35 minecart', r);
+    if (r.status === 200 && r.json.ok && r.json.game_name === 'Minecart Switch') {
+      ok('35. registered Minecart Switch records with paid-run proof');
+    } else bad('35 minecart', r);
+  }
+
+  {
+    const state = { accounts: { '20889': me } };
+    const env = makeEnv(state);
+    const r = await postRecord(env, cookie, { game_name: 'Minecart Switch', score: 5, run_id: 'run-mine-unpaid' });
+    if (r.status === 400 && r.json.error === 'invalid_run') {
+      ok('35b. Minecart Switch without paid run is invalid_run, not a free submit');
+    } else bad('35b minecart unpaid', r);
   }
 
   {
