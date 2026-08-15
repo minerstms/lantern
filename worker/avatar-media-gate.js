@@ -44,6 +44,45 @@ export function accountHasApprovedAvatar(row, avatarSet) {
   });
 }
 
+export function matchRosterStudentsById(students, rawKey) {
+  const key = String(rawKey || '').trim().toLowerCase();
+  if (!key) return { error: 'roster_identity_unavailable' };
+  const hits = (students || []).filter((s) => String((s && s.student_id) || '').trim().toLowerCase() === key);
+  if (hits.length > 1) return { error: 'roster_identity_ambiguous' };
+  if (hits.length === 0) return { error: 'roster_identity_unavailable' };
+  return { student: hits[0] };
+}
+
+export function rosterStudentIsActive(row) {
+  if (!row) return false;
+  if (row.is_active != null) return Number(row.is_active) === 1;
+  const st = String(row.tms_status || '').trim().toLowerCase();
+  if (st === 'inactive' || st === 'archived') return false;
+  return true;
+}
+
+export function rosterStudentAvatarKeyCandidates(row) {
+  return [row && row.student_id, row && row.mtss_student_id, row && row.lantern_username, row && row.username]
+    .map((k) => String(k || '').trim())
+    .filter(Boolean);
+}
+
+export function resolveAvatarKeyFromMap(candidates, avatarByChar) {
+  if (!avatarByChar) return '';
+  const list = Array.isArray(candidates) ? candidates : [];
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (avatarByChar[c]) return c;
+  }
+  const keys = Object.keys(avatarByChar);
+  for (let i = 0; i < list.length; i++) {
+    const low = String(list[i] || '').toLowerCase();
+    const hit = keys.find((k) => k.toLowerCase() === low);
+    if (hit) return hit;
+  }
+  return '';
+}
+
 export async function findAvatarTargetAccount(db, rawKey) {
   const key = String(rawKey || '').trim();
   if (!db || !key) return null;

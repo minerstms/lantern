@@ -4366,7 +4366,7 @@
       if (!s) return '—';
       if (s.lantern_username) return String(s.lantern_username);
       if (!s.student_id) return '—';
-      if (s.lantern_account === 'Missing') return 'No login';
+      if (s.lantern_account === 'Missing') return 'Not Created';
       return '—';
     }
 
@@ -4588,7 +4588,7 @@
             '<div class="studentsHealthPanel">' +
               '<p><strong>Roster:</strong> ' + escapeRosterHtml(s.tms_status || '—') + '</p>' +
               '<p><strong>School ID:</strong> ' + escapeRosterHtml(s.student_id || 'Missing') + '</p>' +
-              '<p><strong>Lantern Login:</strong> ' + escapeRosterHtml(s.lantern_account === 'Missing' ? 'Missing' : (s.lantern_username || s.lantern_account || '—')) + '</p>' +
+              '<p><strong>Lantern Login:</strong> ' + escapeRosterHtml(s.lantern_account === 'Missing' ? 'Not Created' : (s.lantern_username || s.lantern_account || '—')) + '</p>' +
               '<p><strong>Avatar:</strong> ' + (Number(s.has_avatar) === 1 ? 'Has Avatar' : 'No Avatar') + '</p>' +
               '<p><strong>Status:</strong> ' + escapeRosterHtml(studentNeedsAttention(s) ? 'Needs Attention' : 'Healthy') +
                 ' · ' + escapeRosterHtml(statusLabel) + '</p>' +

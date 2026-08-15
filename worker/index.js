@@ -89,7 +89,7 @@ import {
   parsePollChoices,
 } from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
-import { buildAvatarMatchPool, uniqueAvatarMatchByLabel } from './avatar-match-pool.js';
+import { buildAvatarMatchPool, buildRosterStudentAvatarMatchPool, uniqueAvatarMatchByLabel } from './avatar-match-pool.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -136,6 +136,8 @@ import {
   findAvatarTargetAccount,
   isAdminStagedAvatarMarker,
   loadApprovedAvatarCharacterSet,
+  matchRosterStudentsById,
+  rosterStudentIsActive,
   studentAvatarActivationBlocked,
   studentAvatarIsRestricted,
   writeCurrentAvatarKey,
@@ -1262,6 +1264,80 @@ function pilotEconomyCharacterName(row) {
  */
 function avatarCharacterNameForPilotAccount(row) {
   return durableAccountKeyFromPilotAccount(row);
+}
+
+/**
+ * Prompt #223 — resolve an admin avatar target without creating a Lantern login.
+ * Staff stay on the pilot-account model. Students may resolve from the TMS roster student_id.
+ */
+async function resolveAdminAvatarTarget(db, env, rawKey, opts) {
+  const key = String(rawKey || '').trim();
+  if (!key) return { ok: false, error: 'username_required', status: 400 };
+  const allowInactive = !!(opts && opts.allowInactive);
+  const account = await findAvatarTargetAccount(db, key);
+  const accountRole = account ? String(account.role || '').trim().toLowerCase() : '';
+
+  if (account && accountRole !== 'student') {
+    const characterName = avatarCharacterNameForPilotAccount(account);
+    if (!characterName) return { ok: false, error: 'avatar_identity_unavailable', status: 400 };
+    return {
+      ok: true,
+      role: accountRole,
+      username: String(account.username || ''),
+      characterName,
+      is_active: Number(account.is_active) === 1 ? 1 : 0,
+      staff_id: account.staff_id != null ? String(account.staff_id) : null,
+      source: 'pilot',
+    };
+  }
+
+  if (account && accountRole === 'student') {
+    const characterName = avatarCharacterNameForPilotAccount(account);
+    if (!characterName) return { ok: false, error: 'avatar_identity_unavailable', status: 400 };
+    const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: true });
+    if (bridge.ok) {
+      const matched = matchRosterStudentsById(bridge.students, key);
+      if (matched.error === 'roster_identity_ambiguous') {
+        return { ok: false, error: 'roster_identity_ambiguous', status: 409 };
+      }
+      if (matched.student && !rosterStudentIsActive(matched.student) && !allowInactive) {
+        return { ok: false, error: 'student_inactive', status: 404 };
+      }
+    }
+    return {
+      ok: true,
+      role: 'student',
+      username: String(account.username || ''),
+      characterName,
+      is_active: Number(account.is_active) === 1 ? 1 : 0,
+      staff_id: null,
+      source: 'pilot',
+    };
+  }
+
+  const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: true });
+  if (!bridge.ok) {
+    return { ok: false, error: 'roster_identity_unavailable', status: 404 };
+  }
+  const matched = matchRosterStudentsById(bridge.students, key);
+  if (matched.error) {
+    return { ok: false, error: matched.error, status: matched.error === 'roster_identity_ambiguous' ? 409 : 404 };
+  }
+  const student = matched.student;
+  const sid = String((student && student.student_id) || '').trim();
+  if (!sid) return { ok: false, error: 'roster_identity_unavailable', status: 404 };
+  if (!rosterStudentIsActive(student) && !allowInactive) {
+    return { ok: false, error: 'student_inactive', status: 404 };
+  }
+  return {
+    ok: true,
+    role: 'student',
+    username: sid,
+    characterName: sid,
+    is_active: 1,
+    staff_id: null,
+    source: 'roster',
+  };
 }
 
 /**
@@ -2790,14 +2866,11 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!username) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const target = await findAvatarTargetAccount(db, username);
-    if (!target) {
-      return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
+    const target = await resolveAdminAvatarTarget(db, env, username);
+    if (!target.ok) {
+      return jsonResponse({ ok: false, error: target.error }, target.status || 404, cors);
     }
-    const characterName = avatarCharacterNameForPilotAccount(target);
-    if (!characterName) {
-      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
-    }
+    const characterName = target.characterName;
     const profile = await db
       .prepare(`SELECT current_avatar_key, updated_at FROM lantern_avatar_profiles WHERE character_name = ?`)
       .bind(characterName)
@@ -2863,14 +2936,11 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!username) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const target = await findAvatarTargetAccount(db, username);
-    if (!target) {
-      return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
+    const target = await resolveAdminAvatarTarget(db, env, username);
+    if (!target.ok) {
+      return jsonResponse({ ok: false, error: target.error }, target.status || 404, cors);
     }
-    const characterName = avatarCharacterNameForPilotAccount(target);
-    if (!characterName) {
-      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
-    }
+    const characterName = target.characterName;
     const imageData = body.image;
     if (!imageData || typeof imageData !== 'string') {
       return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
@@ -2999,17 +3069,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!username) {
       return jsonResponse({ ok: false, error: 'username_required' }, 400, cors);
     }
-    const target = await findAvatarTargetAccount(db, username);
-    if (!target) {
-      return jsonResponse({ ok: false, error: 'account_not_found' }, 404, cors);
+    const target = await resolveAdminAvatarTarget(db, env, username);
+    if (!target.ok) {
+      return jsonResponse({ ok: false, error: target.error }, target.status || 404, cors);
     }
     if (String(target.role || '').trim().toLowerCase() !== 'student') {
       return jsonResponse({ ok: false, error: 'student_target_required' }, 400, cors);
     }
-    const characterName = avatarCharacterNameForPilotAccount(target);
-    if (!characterName) {
-      return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
-    }
+    const characterName = target.characterName;
     const gate = await studentAvatarActivationBlocked(db, characterName);
     if (gate.blocked) {
       return jsonResponse({ ok: false, error: gate.error }, 403, cors);
@@ -8786,9 +8853,46 @@ async function handleGamesRoutes(request, url, path, env, cors) {
       });
     } catch (_) {}
     const restrictedSet = await loadRestrictedStudentIdSet(db);
-    const pool = uniqueAvatarMatchByLabel(
-      buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet })
-    );
+    let rosterStudents = null;
+    try {
+      const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: false });
+      if (bridge && bridge.ok && Array.isArray(bridge.students)) {
+        const bySid = Object.create(null);
+        accounts.forEach((a) => {
+          if (String(a.role || '').trim().toLowerCase() !== 'student') return;
+          const sid = String(a.mtss_student_id || a.username || '').trim().toLowerCase();
+          if (sid) bySid[sid] = a;
+        });
+        rosterStudents = bridge.students.map((s) => {
+          const sid = String(s.student_id || '').trim();
+          const acc = sid ? bySid[sid.toLowerCase()] : null;
+          return {
+            student_id: sid,
+            student_name: s.student_name || s.display_name || '',
+            first_name: s.first_name,
+            last_name: s.last_name,
+            public_display_name: (acc && acc.public_display_name) || s.public_display_name || '',
+            lantern_username: acc ? acc.username : '',
+            is_active: s.is_active != null ? Number(s.is_active) : 1,
+          };
+        });
+      }
+    } catch (_) {
+      rosterStudents = null;
+    }
+    let pool;
+    if (rosterStudents) {
+      const staffAccounts = accounts.filter((a) => String(a.role || '').trim().toLowerCase() !== 'student');
+      pool = uniqueAvatarMatchByLabel(
+        buildAvatarMatchPool(staffAccounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet }).concat(
+          buildRosterStudentAvatarMatchPool(rosterStudents, avatarByChar, origin, { restrictedSet })
+        )
+      );
+    } else {
+      pool = uniqueAvatarMatchByLabel(
+        buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet })
+      );
+    }
     return jsonResponse({ ok: true, characters: pool }, 200, cors);
   }
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

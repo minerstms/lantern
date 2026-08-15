@@ -56,6 +56,82 @@ export function buildAvatarMatchPool(accounts, avatarByChar, origin, avatarKeyFn
   return list;
 }
 
+export function isExcludedAvatarMatchRosterStudent(row) {
+  if (!row) return true;
+  const active = row.is_active != null ? Number(row.is_active) : 1;
+  if (active === 0) return true;
+  const sid = lower(row.student_id);
+  if (!sid) return true;
+  if (sid.startsWith('test_') || sid.startsWith('e2e_') || sid.startsWith('verify_')) return true;
+  if (isKnownDemoPersonaName(row.student_name) || isKnownDemoPersonaName(row.display_name) || isKnownDemoPersonaName(row.public_display_name)) {
+    return true;
+  }
+  return false;
+}
+
+function rosterStudentNameRow(row) {
+  const first = trimStr(row && row.first_name);
+  const last = trimStr(row && row.last_name);
+  let firstName = first;
+  let lastName = last;
+  const full = trimStr((row && (row.student_name || row.display_name)) || '');
+  if (!firstName && !lastName && full) {
+    const parts = full.split(/\s+/).filter(Boolean);
+    firstName = parts[0] || '';
+    lastName = parts.slice(1).join(' ');
+  }
+  return {
+    role: 'student',
+    first_name: firstName,
+    last_name: lastName,
+    display_name: full,
+    public_display_name: row && row.public_display_name,
+  };
+}
+
+/**
+ * Active TMS roster students with an approved avatar. No Lantern login required.
+ * Avatar key prefers immutable student_id, then legacy username keys (read-compatible).
+ */
+export function buildRosterStudentAvatarMatchPool(students, avatarByChar, origin, opts) {
+  const restrictedSet = opts && opts.restrictedSet;
+  const list = [];
+  (students || []).forEach((row) => {
+    if (isExcludedAvatarMatchRosterStudent(row)) return;
+    const sid = trimStr(row.student_id);
+    if (!sid || studentIdIsRestricted(sid, restrictedSet)) return;
+    const lookup = resolveRosterAvatarLookup(row, avatarByChar);
+    if (!lookup) return;
+    const label = resolvePublicDisplayName(rosterStudentNameRow(row));
+    if (!label) return;
+    list.push({
+      display_name: label,
+      public_display_name: label,
+      avatar_url: origin ? origin + '/api/avatar/image?key=' + encodeURIComponent(lookup) : null,
+      person_type: 'student',
+    });
+  });
+  return list;
+}
+
+function resolveRosterAvatarLookup(row, avatarByChar) {
+  if (!avatarByChar) return '';
+  const candidates = [row.student_id, row.mtss_student_id, row.lantern_username, row.username]
+    .map(trimStr)
+    .filter(Boolean);
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    if (avatarByChar[c]) return avatarByChar[c];
+  }
+  const keys = Object.keys(avatarByChar);
+  for (let i = 0; i < candidates.length; i++) {
+    const low = candidates[i].toLowerCase();
+    const hit = keys.find((k) => k.toLowerCase() === low);
+    if (hit) return avatarByChar[hit];
+  }
+  return '';
+}
+
 /** Unique public labels only. Ambiguous duplicate names are dropped from a question, not disambiguated with IDs. */
 export function uniqueAvatarMatchByLabel(characters) {
   const seen = Object.create(null);
