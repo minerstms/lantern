@@ -115,6 +115,8 @@ async function ensureTmsRosterIdentity(env, spec, callTmsRosterBridge) {
 
   const created = await callTmsRosterBridge(env, 'roster/create', {
     student_name: spec.studentName,
+    first_name: spec.firstName,
+    last_name: spec.lastName,
     student_id: spec.studentId,
     grade: spec.grade,
     grade_slug: spec.gradeSlug,
@@ -252,7 +254,7 @@ export async function addAuthoritativeStudent(db, env, body, deps) {
 
   const tms = await ensureTmsRosterIdentity(
     env,
-    { studentId, studentName, grade, gradeSlug },
+    { studentId, studentName, firstName, lastName, grade, gradeSlug },
     deps.callTmsRosterBridge
   );
   if (!tms.ok) return tms;
@@ -286,6 +288,9 @@ export async function addAuthoritativeStudent(db, env, body, deps) {
       student_id: canonicalId,
       lantern_username: uname,
       mtss_student_id: canonicalId,
+      first_name: firstName,
+      last_name: lastName,
+      student_name: studentName,
       display_name: tms.tms_student_name || studentName,
       tms_student_name: tms.tms_student_name,
       name_differs: !!tms.name_differs,
@@ -340,6 +345,9 @@ export async function addAuthoritativeStudent(db, env, body, deps) {
         student_id: canonicalId,
         lantern_username: uname,
         mtss_student_id: canonicalId,
+        first_name: firstName,
+        last_name: lastName,
+        student_name: studentName,
         display_name: tms.tms_student_name || studentName,
         tms_student_name: tms.tms_student_name,
         name_differs: !!tms.name_differs,
@@ -379,6 +387,9 @@ export async function addAuthoritativeStudent(db, env, body, deps) {
     student_id: canonicalId,
     lantern_username: usernameWanted,
     mtss_student_id: canonicalId,
+    first_name: firstName,
+    last_name: lastName,
+    student_name: studentName,
     display_name: dnCheck.value,
     tms_student_name: tms.tms_student_name,
     name_differs: !!tms.name_differs,

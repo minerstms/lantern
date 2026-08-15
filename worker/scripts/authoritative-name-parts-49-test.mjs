@@ -23,6 +23,14 @@ if (lanternSrc.includes('function rosterNamePartsFromRow') && /const names = ros
 if (renameSrc.includes('rosterNamePartsFromBridge') && !/const names = splitDisplayName\(authoritativeName\)/.test(renameSrc)) {
   ok('rename helper uses TMS parts, not a re-split of student_name');
 } else bad('rename still splits');
+const addSrc = fs.readFileSync(path.join(root, 'worker/admin-add-student.js'), 'utf8');
+if (
+  /callTmsRosterBridge\(env, 'roster\/create'/.test(addSrc) &&
+  /first_name: spec\.firstName/.test(addSrc) &&
+  /last_name: spec\.lastName/.test(addSrc)
+) {
+  ok('Add Student sends exact first_name and last_name to TMS roster/create');
+} else bad('add student still omits name parts');
 if (adminHtml.includes('function rosterNamePartsFromRow') && adminHtml.includes('studentRenamePartsAccepted') && adminHtml.includes('formatNamePartsLine')) {
   ok('Admin Edit prefill + verification use name parts');
 } else bad('admin html parts');

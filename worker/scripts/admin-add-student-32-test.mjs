@@ -179,6 +179,8 @@ async function withMockedBridge(env, fn) {
       }
       const row = {
         student_name: body.student_name,
+        first_name: body.first_name != null ? body.first_name : null,
+        last_name: body.last_name != null ? body.last_name : null,
         student_id: sid,
         is_active: 1,
         grade: body.grade || '6',
@@ -271,6 +273,19 @@ async function run() {
     if (createCalls.length === 1 && createCalls[0].auth === 'Bearer ' + TEST_BRIDGE_SECRET && createCalls[0].body.student_id === '33001') {
       ok('TMS create uses existing S2S bridge secret');
     } else bad('create bridge', createCalls);
+    if (
+      createCalls[0] &&
+      createCalls[0].body.first_name === 'New' &&
+      createCalls[0].body.last_name === 'Miner' &&
+      createCalls[0].body.student_name === 'New Miner' &&
+      tms &&
+      tms.first_name === 'New' &&
+      tms.last_name === 'Miner' &&
+      row.first_name === 'New' &&
+      row.last_name === 'Miner'
+    ) {
+      ok('TMS create and Lantern login keep exact first_name, last_name, and student_name');
+    } else bad('exact name parts', { create: createCalls[0] && createCalls[0].body, tms, row });
 
     const existingTms = await addStudent(env, adminCookie, {
       first_name: 'Pat',
