@@ -91,28 +91,25 @@
 
       var summary = rec.querySelector(':scope > summary.lanternMgmtRecordHd');
       if (summary && !summary.hasAttribute('tabindex')) summary.setAttribute('tabindex', '0');
-      function stopInteractiveBubble(e) {
-        if (e && e.target && e.target.closest && e.target.closest('button, a, input, select, textarea, label, [role=button]')) {
-          e.stopPropagation();
-        }
+
+      function isInteractiveTarget(el) {
+        return !!(el && el.closest && el.closest('button, a, input, select, textarea, label, [role=button]'));
       }
+
+      // Parent ignores interactive descendants. Do not suppress the control's own click.
+      // preventDefault only on summary chrome so <details> does not toggle.
       if (summary) {
-        Array.prototype.forEach.call(summary.querySelectorAll('button, a, input, select, textarea, [role=button]'), function (ctrl) {
-          ['click', 'pointerdown', 'mousedown'].forEach(function (type) {
-            ctrl.addEventListener(type, function (e) {
-              e.stopPropagation();
-            });
-          });
+        summary.addEventListener('click', function (e) {
+          if (isInteractiveTarget(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
         });
       }
 
-      // Action buttons live in the body — stop them from bubbling into details toggle.
-      var body = rec.querySelector(':scope > .lanternMgmtRecordBd');
-      if (body) {
-        ['click', 'pointerdown', 'mousedown'].forEach(function (type) {
-          body.addEventListener(type, stopInteractiveBubble);
-        });
-      }
+      rec.addEventListener('click', function (e) {
+        if (isInteractiveTarget(e.target)) return;
+      });
     });
   }
 

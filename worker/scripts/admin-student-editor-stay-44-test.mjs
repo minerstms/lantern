@@ -38,7 +38,7 @@ function extractFunction(src, name) {
   throw new Error('unclosed ' + name);
 }
 
-if (adminHtml.includes('var studentEditorState') && adminHtml.includes('function keepStudentEditorOpen') && adminHtml.includes('function isolateStudentRowAction')) {
+if (adminHtml.includes('var studentEditorState') && adminHtml.includes('function keepStudentEditorOpen') && adminHtml.includes('function bindStudentRowAction')) {
   ok('student editor stay-open state helpers exist');
 } else bad('missing stay-open helpers');
 
@@ -51,10 +51,10 @@ if (adminHtml.includes('if (typeof keepStudentEditorOpen === \'function\' && kee
   ok('collapse listeners refuse to close an active student editor');
 } else bad('collapse listeners still always closeAllFloatingEditors');
 
-if (adminHtml.includes("isolateStudentRowAction(bEdit, function() {") &&
+if (adminHtml.includes("bindStudentRowAction(bEdit, function() {") &&
     adminHtml.includes('openEditStudentId(s, editorMount);')) {
-  ok('Edit uses isolated row-action click (no parent navigation)');
-} else bad('Edit click not isolated');
+  ok('Edit uses click-only row-action bind (no parent navigation)');
+} else bad('Edit click not bound');
 
 const isolatedActions = [
   'bResolveHub',
@@ -71,9 +71,9 @@ const isolatedActions = [
   'bRest',
   'bAvatarArch',
 ];
-const missingIso = isolatedActions.filter((name) => !adminHtml.includes('isolateStudentRowAction(' + name + ','));
-if (!missingIso.length) ok('Resolve / Set ID / Delete / Archive / Create Login / Link use the same isolation');
-else bad('row actions missing isolation', missingIso.join(','));
+const missingIso = isolatedActions.filter((name) => !adminHtml.includes('bindStudentRowAction(' + name + ','));
+if (!missingIso.length) ok('Resolve / Set ID / Delete / Archive / Create Login / Link use the same click bind');
+else bad('row actions missing click bind', missingIso.join(','));
 
 if (adminHtml.includes("bEdit.type = 'button'") &&
     /<button type="button"[^>]*id="studentsEditIdSaveBtn"/.test(adminHtml) &&
@@ -104,10 +104,10 @@ if (saveFn.includes('studentEditSaveAccepted') &&
   } else bad('Save close/failure order wrong', { acceptIdx, closeIdx, failReturn });
 } else bad('saveStudentIdEdit missing verified close path');
 
-if (collapsibleJs.includes("['click', 'pointerdown', 'mousedown']") &&
-    collapsibleJs.includes('[role=button]')) {
-  ok('shared record body stops pointerdown/mousedown on interactive controls');
-} else bad('shared collapsible list still only stops click');
+if (collapsibleJs.includes('function isInteractiveTarget') &&
+    !/pointerdown/.test(collapsibleJs)) {
+  ok('shared record parent ignores interactive targets without pointerdown suppression');
+} else bad('shared collapsible list still suppresses pointerdown');
 
 /* Simulated Edit click + 500ms race against collapse + roster rerender. */
 function makeEl(tag, attrs) {
@@ -226,7 +226,7 @@ const ctx = {
   markStudentEditorOpen: null,
   markStudentEditorClosed: null,
   keepStudentEditorOpen: null,
-  isolateStudentRowAction: null,
+  bindStudentRowAction: null,
   console,
 };
 vm.createContext(ctx);
@@ -237,11 +237,11 @@ vm.runInContext(
     '\n' +
     extractFunction(adminHtml, 'keepStudentEditorOpen') +
     '\n' +
-    extractFunction(adminHtml, 'isolateStudentRowAction') +
+    extractFunction(adminHtml, 'bindStudentRowAction') +
     '\nthis.markStudentEditorOpen = markStudentEditorOpen;' +
     '\nthis.markStudentEditorClosed = markStudentEditorClosed;' +
     '\nthis.keepStudentEditorOpen = keepStudentEditorOpen;' +
-    '\nthis.isolateStudentRowAction = isolateStudentRowAction;',
+    '\nthis.bindStudentRowAction = bindStudentRowAction;',
   ctx
 );
 
@@ -265,7 +265,7 @@ actions.addEventListener('click', function () {
   harness.rosterReplaced = true;
 });
 
-ctx.isolateStudentRowAction(editBtn, function () {
+ctx.bindStudentRowAction(editBtn, function () {
   openEditor();
 });
 

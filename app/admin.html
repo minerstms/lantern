@@ -3736,20 +3736,14 @@
       return true;
     }
 
-    function isolateStudentRowAction(btn, handler) {
+    function isStudentRowInteractive(el) {
+      return !!(el && el.closest && el.closest('button, a, input, select, textarea, label, [role=button]'));
+    }
+
+    function bindStudentRowAction(btn, handler) {
       if (!btn) return;
-      function stopBubble(ev) {
-        if (!ev) return;
-        ev.stopPropagation();
-        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-      }
-      btn.addEventListener('pointerdown', stopBubble);
-      btn.addEventListener('mousedown', stopBubble);
       btn.addEventListener('click', function(ev) {
-        if (ev) {
-          ev.preventDefault();
-          stopBubble(ev);
-        }
+        if (ev && ev.stopPropagation) ev.stopPropagation();
         handler(ev);
       });
     }
@@ -4121,21 +4115,16 @@
           '</div>';
         var actions = rec.querySelector('.lanternMgmtRecordActions');
         var editorMount = rec.querySelector('.lanternMgmtRecordEditor');
-        function stopRowNav(ev) {
-          if (!ev) return;
-          ev.stopPropagation();
-          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-        }
-        actions.addEventListener('pointerdown', stopRowNav);
-        actions.addEventListener('mousedown', stopRowNav);
-        actions.addEventListener('click', stopRowNav);
+        rec.addEventListener('click', function(ev) {
+          if (isStudentRowInteractive(ev && ev.target)) return;
+        });
 
         if (studentNeedsAttention(s)) {
           var bResolveHub = document.createElement('button');
           bResolveHub.type = 'button';
           bResolveHub.className = 'btn good';
           bResolveHub.textContent = 'Resolve';
-          isolateStudentRowAction(bResolveHub, function() {
+          bindStudentRowAction(bResolveHub, function() {
             openStudentIdentityHub(s, editorMount);
           });
           actions.appendChild(bResolveHub);
@@ -4145,7 +4134,7 @@
         bEdit.type = 'button';
         bEdit.className = s.student_id ? 'btn' : 'btn good';
         bEdit.textContent = 'Edit';
-        isolateStudentRowAction(bEdit, function() {
+        bindStudentRowAction(bEdit, function() {
           openEditStudentId(s, editorMount);
         });
         actions.appendChild(bEdit);
@@ -4155,7 +4144,7 @@
           bDel.type = 'button';
           bDel.className = 'btn';
           bDel.textContent = 'Delete';
-          isolateStudentRowAction(bDel, function() {
+          bindStudentRowAction(bDel, function() {
             openStudentDeleteModal(s);
           });
           actions.appendChild(bDel);
@@ -4164,7 +4153,7 @@
             bTmsArch.type = 'button';
             bTmsArch.className = 'btn';
             bTmsArch.textContent = 'Archive Student';
-            isolateStudentRowAction(bTmsArch, function() {
+            bindStudentRowAction(bTmsArch, function() {
               openStudentDeleteModal(s, { preferArchive: true });
             });
             actions.appendChild(bTmsArch);
@@ -4174,7 +4163,7 @@
           bSetId.type = 'button';
           bSetId.className = 'btn good';
           bSetId.textContent = 'Set Student ID';
-          isolateStudentRowAction(bSetId, function() {
+          bindStudentRowAction(bSetId, function() {
             openEditStudentId(s, editorMount);
             var idInput = document.getElementById('studentsEditIdInput');
             if (idInput) {
@@ -4189,7 +4178,7 @@
             bResolve.type = 'button';
             bResolve.className = 'btn good';
             bResolve.textContent = 'Resolve Duplicate';
-            isolateStudentRowAction(bResolve, function() {
+            bindStudentRowAction(bResolve, function() {
               openStudentResolveModal(s, canonicalDup);
             });
             actions.appendChild(bResolve);
@@ -4198,7 +4187,7 @@
           bDelBlank.type = 'button';
           bDelBlank.className = 'btn';
           bDelBlank.textContent = 'Delete Mistaken Row';
-          isolateStudentRowAction(bDelBlank, function() {
+          bindStudentRowAction(bDelBlank, function() {
             openStudentDeleteModal(s);
           });
           actions.appendChild(bDelBlank);
@@ -4209,7 +4198,7 @@
           bLink.type = 'button';
           bLink.className = 'btn good';
           bLink.textContent = 'Link Existing Account';
-          isolateStudentRowAction(bLink, function() {
+          bindStudentRowAction(bLink, function() {
             var sid = s.student_id || '';
             if (!sid) return;
             if (!window.confirm('Link Existing Account?\n\nTMS ID: ' + sid + '\nStudent: ' + (s.student_name || '') + '\n\nSets mtss_student_id only. Does not change password, username, or Locker.')) return;
@@ -4241,7 +4230,7 @@
           bCreate.type = 'button';
           bCreate.className = 'btn good';
           bCreate.textContent = 'Create Lantern Login';
-          isolateStudentRowAction(bCreate, function() {
+          bindStudentRowAction(bCreate, function() {
             var sid = String(s.student_id || '').trim();
             if (!sid) {
               showStudentsRosterMsg('Cannot create Lantern login without a permanent Student ID.', 'err');
@@ -4295,7 +4284,7 @@
           bTemp.type = 'button';
           bTemp.className = 'btn good';
           bTemp.textContent = 'Reset Temporary Password';
-          isolateStudentRowAction(bTemp, function() {
+          bindStudentRowAction(bTemp, function() {
             openTempPwPanel(s.lantern_username, editorMount);
           });
           actions.appendChild(bTemp);
@@ -4304,7 +4293,7 @@
           bAvatar.type = 'button';
           bAvatar.className = 'btn';
           bAvatar.textContent = 'Manage Avatar';
-          isolateStudentRowAction(bAvatar, function() {
+          bindStudentRowAction(bAvatar, function() {
             openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
           });
           actions.appendChild(bAvatar);
@@ -4313,7 +4302,7 @@
           bArch.type = 'button';
           bArch.className = 'btn';
           bArch.textContent = 'Archive Login';
-          isolateStudentRowAction(bArch, function() {
+          bindStudentRowAction(bArch, function() {
             var user = s.lantern_username;
             var name = s.student_name || '';
             if (!window.confirm('Archive Lantern Login for ' + name + ' (' + user + ')?\n\nBlocks Lantern sign-in only. TMS roster status and Student ID stay unchanged. History and Locker ownership remain.')) return;
@@ -4334,7 +4323,7 @@
           bRest.type = 'button';
           bRest.className = 'btn good';
           bRest.textContent = 'Restore Login';
-          isolateStudentRowAction(bRest, function() {
+          bindStudentRowAction(bRest, function() {
             var user = s.lantern_username;
             var name = s.student_name || '';
             if (!window.confirm('Restore Lantern Login for ' + name + ' (' + user + ')?\n\nReactivates the same Lantern account. TMS roster is not modified.')) return;
@@ -4353,7 +4342,7 @@
           bAvatarArch.type = 'button';
           bAvatarArch.className = 'btn';
           bAvatarArch.textContent = 'Manage Avatar';
-          isolateStudentRowAction(bAvatarArch, function() {
+          bindStudentRowAction(bAvatarArch, function() {
             openAdminAvatarPanel(s.lantern_username, s.student_name || s.lantern_username);
           });
           actions.appendChild(bAvatarArch);
