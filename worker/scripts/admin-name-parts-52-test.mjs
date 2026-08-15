@@ -199,13 +199,96 @@ async function run() {
   const env = makeEnv({ accounts: { admin } });
 
   await withMockedBridge(env, async () => {
+    const focused = await addStudent(env, adminCookie, {
+      first_name: 'Phay Son',
+      last_name: 'Khuu',
+      student_id: '55555',
+      grade: '8',
+    });
+    const focusedCreate = env._state.bridgeCalls.find((c) => c.url.includes('roster/create') && c.body.student_id === '55555');
+    const focusedTms = env._state.tmsStudents.find((s) => s.student_id === '55555');
+    if (
+      focusedCreate &&
+      focusedCreate.body.student_id === '55555' &&
+      focusedCreate.body.first_name === 'Phay Son' &&
+      focusedCreate.body.last_name === 'Khuu' &&
+      focusedCreate.body.student_name === 'Phay Son Khuu' &&
+      focusedCreate.body.grade === '8'
+    ) {
+      ok('17. Add Student 55555 request contains exact Phay Son | Khuu | grade 8');
+    } else bad('17 add request', focusedCreate && focusedCreate.body);
+    if (
+      focusedTms &&
+      focusedTms.first_name === 'Phay Son' &&
+      focusedTms.last_name === 'Khuu' &&
+      focusedTms.student_name === 'Phay Son Khuu'
+    ) {
+      ok('17. TMS stored row contains exact Phay Son | Khuu');
+    } else bad('17 tms row', focusedTms);
+
+    const rosterRes = await worker.fetch(
+      new Request('https://lantern.test/api/admin/tms-roster', { method: 'GET', headers: { Cookie: adminCookie } }),
+      env
+    );
+    const rosterJson = await rosterRes.json();
+    const rosterRow = ((rosterJson && rosterJson.students) || []).find((s) => s.student_id === '55555');
+    if (rosterRow && rosterRow.first_name === 'Phay Son' && rosterRow.last_name === 'Khuu') {
+      ok('17. Lantern roster returns Phay Son | Khuu with no fallback split');
+    } else bad('17 lantern roster', rosterRow);
+
+    const again = await addStudent(env, adminCookie, {
+      first_name: 'Wrong',
+      last_name: 'Overwrite',
+      student_id: '55555',
+      grade: '8',
+    });
+    const still = env._state.tmsStudents.filter((s) => s.student_id === '55555');
+    if (
+      again.json.ok &&
+      again.json.tms_roster === 'existing' &&
+      still.length === 1 &&
+      still[0].first_name === 'Phay Son' &&
+      still[0].last_name === 'Khuu'
+    ) {
+      ok('4. existing School ID does not overwrite authoritative name parts');
+    } else bad('4 existing overwrite', { again: again.json, still });
+
+    const matrix = [
+      { id: '55501', first: 'Phay Son', last: 'Khuu' },
+      { id: '55502', first: 'Mary Jane', last: 'Watson' },
+      { id: '55503', first: 'José Luis', last: 'García López' },
+      { id: '55504', first: 'Anne Marie', last: 'Van Buren' },
+      { id: '55505', first: 'Lucas', last: 'Radle' },
+    ];
+    for (const c of matrix) {
+      const added = await addStudent(env, adminCookie, {
+        first_name: c.first,
+        last_name: c.last,
+        student_id: c.id,
+        grade: '6',
+      });
+      const tms = env._state.tmsStudents.find((s) => s.student_id === c.id);
+      const geppetto = (buildGeppettoStudentRosterPayload(env._state.tmsStudents).students || []).find((s) => s.student_id === c.id);
+      if (
+        added.json.ok &&
+        tms &&
+        tms.first_name === c.first &&
+        tms.last_name === c.last &&
+        geppetto &&
+        geppetto.first_name === c.first &&
+        geppetto.last_name === c.last
+      ) {
+        ok('16. matrix ' + c.first + ' | ' + c.last + ' survives Add → TMS → Geppetto S2S');
+      } else bad('16 matrix ' + c.id, { added: added.json, tms, geppetto });
+    }
+
     const created = await addStudent(env, adminCookie, {
       first_name: 'Mary Ann',
       last_name: 'Van der Berg',
       student_id: '52001',
       grade: '6',
     });
-    const createCall = env._state.bridgeCalls.find((c) => c.url.includes('roster/create'));
+    const createCall = env._state.bridgeCalls.find((c) => c.url.includes('roster/create') && c.body.student_id === '52001');
     const tms = env._state.tmsStudents.find((s) => s.student_id === '52001');
     const lantern = env._state.accounts['52001'];
     if (createCall && createCall.body.first_name === 'Mary Ann') {
