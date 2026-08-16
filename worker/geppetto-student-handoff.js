@@ -179,22 +179,33 @@ export async function resolveGeppettoStudentDisplayName(db, account) {
   return 'Student';
 }
 
-export function geppettoStudentAuthorizeFailurePage(errorCode, cors) {
+export function isGeppettoStudentAuthorizePath(raw) {
+  const pathOnly = String(raw || '').split('?')[0].split('#')[0];
+  return pathOnly === '/api/auth/geppetto-student-authorize';
+}
+
+export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) {
   const messages = {
-    return_not_allowed: 'This sign-in link is not valid. Return to your STEM page and try Continue with Lantern again.',
-    lantern_account_not_student: 'STEM Daily Work sign-in is for student accounts only.',
-    lantern_account_disabled: 'This Lantern account is inactive. Ask your teacher for help.',
+    return_not_allowed: 'This sign-in link is not valid. Return to the class website and try Student Sign In again.',
+    lantern_account_not_student: 'This sign-in is for student accounts only.',
+    lantern_account_disabled: 'This student account is inactive. Ask your teacher for help.',
     missing_roster_id:
-      'Your Lantern account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using STEM Daily Work.',
-    mint_failed: 'Could not start STEM sign-in. Try again from your STEM page.',
-    handoff_unavailable: 'STEM sign-in is temporarily unavailable. Try again shortly.',
+      'This student account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using Make Up Assignment.',
+    mint_failed: 'Could not finish Student Sign In. Return to the class website and try again.',
+    handoff_unavailable: 'Student Sign In is temporarily unavailable. Try again shortly.',
   };
-  const msg = messages[errorCode] || 'Could not sign in to STEM Daily Work. Ask your teacher for help.';
+  const msg = messages[errorCode] || 'Could not finish Student Sign In. Ask your teacher for help.';
+  const retry = isGeppettoStudentAuthorizePath(retryHref) ? String(retryHref) : '';
+  const links =
+    '<a href="https://mrradle.us">Back to Class Website</a>' +
+    (retry ? ' · <a href="' + retry.replace(/"/g, '') + '">Try Again</a>' : '');
   const html =
-    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>STEM sign-in</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
-    '<h1 style="font-size:28px;">Could not continue to STEM</h1><p style="font-size:20px;">' +
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Student Sign In</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
+    '<h1 style="font-size:28px;">Could not continue to Make Up Assignment</h1><p style="font-size:20px;">' +
     msg +
-    '</p><p style="font-size:18px;"><a href="/login.html">Sign in to Lantern</a></p></body></html>';
+    '</p><p style="font-size:18px;">' +
+    links +
+    '</p></body></html>';
   return new Response(html, {
     status: 401,
     headers: { ...(cors || {}), 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },

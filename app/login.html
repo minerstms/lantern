@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign in | Lantern</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
+  <script src="js/lantern-pilot-auth.js?v=20260816-sso258"></script>
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <link rel="stylesheet" href="css/lantern-header.css">
   <style>
@@ -41,8 +41,9 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Sign in</h1>
-    <p class="sub">Use the login name your school gave you and your password. After sign-in, your session is enforced by the server (secure cookie).</p>
+    <h1 id="loginTitle">Sign in</h1>
+    <p class="sub" id="loginSub">Use the login name your school gave you and your password. After sign-in, your session is enforced by the server (secure cookie).</p>
+    <p id="classWebsiteLinks" class="hint" style="display:none;"><a href="https://mrradle.us" style="color:#5aa7ff;font-weight:800;">Back to Class Website</a></p>
     <div id="msg" style="display:none;" role="status" aria-live="polite"></div>
     <form id="loginForm" novalidate>
       <label for="username">Login ID</label>
@@ -83,6 +84,37 @@
         if (s.indexOf('/login') === 0) return false;
         return true;
       }
+      function isClassWebsiteSsoReturn(ret) {
+        return (
+          window.LanternAuth &&
+          typeof window.LanternAuth.isGeppettoStudentAuthorizeReturn === 'function' &&
+          window.LanternAuth.isGeppettoStudentAuthorizeReturn(ret)
+        );
+      }
+      function applyClassWebsiteSignInCopy() {
+        var params = new URLSearchParams(location.search);
+        var ret = params.get('return') || '';
+        var classWebsite = params.get('intent') === 'class-website' || isClassWebsiteSsoReturn(ret);
+        if (!classWebsite) return false;
+        document.title = 'Student Sign In';
+        var titleEl = document.getElementById('loginTitle');
+        var subEl = document.getElementById('loginSub');
+        var linksEl = document.getElementById('classWebsiteLinks');
+        if (titleEl) titleEl.textContent = 'Student Sign In';
+        if (subEl) subEl.textContent = 'Sign in to continue to your Make Up Assignment.';
+        if (linksEl) linksEl.style.display = 'block';
+        return true;
+      }
+      var classWebsiteSignIn = applyClassWebsiteSignInCopy();
+      if (classWebsiteSignIn && window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
+        window.LanternAuth.fetchMe().then(function (data) {
+          if (!data || !data.ok || !data.authenticated) return;
+          var dest = computeRedirectTargetAfterLogin(data);
+          if (isClassWebsiteSsoReturn(dest) && isSafeReturnPath(dest)) {
+            location.replace(dest);
+          }
+        });
+      }
 
       if (!form || !submitBtn || !msgEl) {
         return;
@@ -120,6 +152,13 @@
           } catch (e) {}
         }
         if (ret) ret = String(ret).trim();
+
+        if (isClassWebsiteSsoReturn(ret) && isSafeReturnPath(ret) && !isLoginReturnTarget(ret)) {
+          if (body && body.must_change_password) {
+            return '/change-password.html?return=' + encodeURIComponent(ret) + '&intent=class-website';
+          }
+          return ret;
+        }
 
         if (body && body.must_change_password) {
           var pwdDefault =
@@ -176,6 +215,18 @@
           } catch (e) {}
         }
         if (returnTo) returnTo = String(returnTo).trim();
+
+        if (isClassWebsiteSsoReturn(returnTo) && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+          try {
+            sessionStorage.removeItem('lantern_return_to');
+          } catch (e) {}
+          if (body && body.must_change_password) {
+            location.replace('/change-password.html?return=' + encodeURIComponent(returnTo) + '&intent=class-website');
+            return;
+          }
+          location.replace(returnTo);
+          return;
+        }
 
         if (body && body.must_change_password) {
           var pwdDefault =

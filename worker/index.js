@@ -2280,25 +2280,25 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       encodeURIComponent(url.searchParams.get('return') || safeReturn);
     const account = await getPilotAccountFromRequest(request, env);
     if (!account) {
-      const loginLoc = '/login.html?return=' + encodeURIComponent(authorizeSelf);
+      const loginLoc = '/login.html?return=' + encodeURIComponent(authorizeSelf) + '&intent=class-website';
       return new Response(null, {
         status: 302,
         headers: { ...cors, Location: loginLoc, 'Cache-Control': 'no-store' },
       });
     }
     if (pilotAccountRequiresChangePassword(account)) {
-      const cpLoc = '/change-password.html?return=' + encodeURIComponent(authorizeSelf);
+      const cpLoc = '/change-password.html?return=' + encodeURIComponent(authorizeSelf) + '&intent=class-website';
       return new Response(null, {
         status: 302,
         headers: { ...cors, Location: cpLoc, 'Cache-Control': 'no-store' },
       });
     }
     const isActive = account.is_active != null ? Number(account.is_active) : 1;
-    if (isActive === 0) return geppettoStudentAuthorizeFailurePage('lantern_account_disabled', cors);
+    if (isActive === 0) return geppettoStudentAuthorizeFailurePage('lantern_account_disabled', cors, authorizeSelf);
     const role = String(account.role || '').trim().toLowerCase();
-    if (role !== 'student') return geppettoStudentAuthorizeFailurePage('lantern_account_not_student', cors);
+    if (role !== 'student') return geppettoStudentAuthorizeFailurePage('lantern_account_not_student', cors, authorizeSelf);
     const mtssStudentId = account.mtss_student_id != null ? String(account.mtss_student_id).trim() : '';
-    if (!mtssStudentId) return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors);
+    if (!mtssStudentId) return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors, authorizeSelf);
 
     const minted = await mintGeppettoStudentHandoff(db, {
       lanternUsername: account.username,
@@ -2306,8 +2306,8 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       displayName: await resolveGeppettoStudentDisplayName(db, account),
     });
     if (!minted.ok) {
-      if (minted.error === 'missing_roster_id') return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors);
-      return geppettoStudentAuthorizeFailurePage('mint_failed', cors);
+      if (minted.error === 'missing_roster_id') return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors, authorizeSelf);
+      return geppettoStudentAuthorizeFailurePage('mint_failed', cors, authorizeSelf);
     }
     const dest = appendHandoffCodeToReturn(safeReturn, minted.code);
     return new Response(null, {

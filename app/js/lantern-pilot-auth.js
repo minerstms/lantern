@@ -48,6 +48,12 @@
     return String(r || '').trim().toLowerCase();
   }
 
+  /** Class-website SSO must resume authorize — never fall through to Explore. */
+  function isGeppettoStudentAuthorizeReturn(pathOrUrl) {
+    var pathOnly = String(pathOrUrl || '').split('?')[0].split('#')[0];
+    return pathOnly === '/api/auth/geppetto-student-authorize';
+  }
+
   /** Path-only: /explore or /explore.html (student home), with optional query/hash ignored. */
   function isGenericExplorePath(pathOrUrl) {
     var pathOnly = String(pathOrUrl || '').split('?')[0].split('#')[0];
@@ -391,6 +397,7 @@
   var sessionApi = {
     fetchMe: fetchMe,
     normalizeRole: normalizeRole,
+    isGeppettoStudentAuthorizeReturn: isGeppettoStudentAuthorizeReturn,
     isGenericExplorePath: isGenericExplorePath,
     defaultRoleHomePath: defaultRoleHomePath,
     clearClientIdentityCaches: clearClientIdentityCaches,

@@ -310,13 +310,62 @@ async function testStaffRoutesUnchanged() {
 }
 
 async function testNoSessionRedirectsToLogin() {
+  const makeupReturn =
+    'https://mrradle.us/api/stem-daily/student/lantern-callback?next=' +
+    encodeURIComponent('/?makeup=1');
   const env = makeEnv({});
-  const res = await authorize(env, '', SAFE_RETURN);
+  const res = await authorize(env, '', makeupReturn);
   const loc = res.headers.get('Location') || '';
   if (res.status !== 302 || !loc.startsWith('/login.html?return=')) {
     return bad('no session must redirect to login', { status: res.status, loc });
   }
-  ok('no session redirects through existing login flow');
+  const login = new URL(loc, 'https://tmslantern.org');
+  if (login.searchParams.get('intent') !== 'class-website') {
+    return bad('login must mark class-website intent', loc);
+  }
+  const loginReturn = login.searchParams.get('return') || '';
+  if (!loginReturn.startsWith('/api/auth/geppetto-student-authorize?return=')) {
+    return bad('4. login return must resume authorize', loginReturn);
+  }
+  const authorizeReturn = decodeURIComponent(loginReturn.split('return=')[1] || '');
+  if (!authorizeReturn.includes('lantern-callback') || !authorizeReturn.includes('makeup')) {
+    return bad('4. makeup callback must survive login return', authorizeReturn);
+  }
+  ok('4. no session preserves authorize + makeup return through login');
+}
+
+async function testFailurePageNeutralCopy() {
+  const env = makeEnv({});
+  const res = await authorize(env, '', 'https://evil.example/steal');
+  const text = await res.text();
+  if (res.status === 302) return bad('unsafe return must not redirect', res.headers.get('Location'));
+  if (/Continue with Lantern|Sign in to Lantern|Log in with Lantern|Lantern account required/i.test(text)) {
+    return bad('failure page must not tell students to log in with Lantern', text.slice(0, 240));
+  }
+  if (!/Back to Class Website/.test(text) || !/https:\/\/mrradle\.us/.test(text)) {
+    return bad('failure page must offer Back to Class Website', text.slice(0, 240));
+  }
+  ok('11. authorize failure stays neutral and returns to mrradle.us');
+}
+
+async function testLoginPagesPreserveAuthorize() {
+  const login = fs.readFileSync(fileURLToPath(new URL('../../app/login.html', import.meta.url)), 'utf8');
+  const change = fs.readFileSync(fileURLToPath(new URL('../../app/change-password.html', import.meta.url)), 'utf8');
+  const authJs = fs.readFileSync(fileURLToPath(new URL('../../app/js/lantern-pilot-auth.js', import.meta.url)), 'utf8');
+  if (!authJs.includes('function isGeppettoStudentAuthorizeReturn')) {
+    return bad('login helper must recognize geppetto authorize return');
+  }
+  if (!login.includes('Student Sign In') || !login.includes('Sign in to continue to your Make Up Assignment.')) {
+    return bad('class-website login copy missing');
+  }
+  if (!login.includes('isClassWebsiteSsoReturn') || !login.includes('location.replace(returnTo)')) {
+    return bad('login must hard-preserve authorize return');
+  }
+  if (!change.includes('isClassWebsiteSsoReturn') || !change.includes('location.replace(dest)')) {
+    return bad('change-password must not rewrite authorize to Explore');
+  }
+  if (!login.includes('Sign in | Lantern')) return bad('normal Lantern login title must remain');
+  ok('8. login/change-password preserve authorize and use contextual Student Sign In');
 }
 
 async function testHumanDisplayNotRosterId() {
@@ -367,6 +416,8 @@ await testWrongSecret();
 await testReturnAllowlist();
 await testStaffRoutesUnchanged();
 await testNoSessionRedirectsToLogin();
+await testFailurePageNeutralCopy();
+await testLoginPagesPreserveAuthorize();
 
 console.log(pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);
