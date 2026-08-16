@@ -495,7 +495,47 @@
         return String(a.name).localeCompare(String(b.name));
       });
     }
-    return list;
+    return list.filter(function (g) {
+      return !(cat.isPremiumGame && cat.isPremiumGame(g));
+    });
+  }
+
+  function premiumGamesForDisplay() {
+    var cat = catalog();
+    if (!cat || typeof cat.premiumGames !== 'function') return [];
+    var list = cat.premiumGames();
+    var q = String(state.search || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return list;
+    return list.filter(function (g) {
+      return (
+        String(g.name || '')
+          .toLowerCase()
+          .indexOf(q) >= 0 ||
+        String(g.description || '')
+          .toLowerCase()
+          .indexOf(q) >= 0
+      );
+    });
+  }
+
+  function renderPremiumGames() {
+    var grid = el('gamesPremiumGrid');
+    var section = el('gamesPremiumSection');
+    var LC = cardsApi();
+    var cat = catalog();
+    if (!grid || !LC || !cat) return;
+    var games = premiumGamesForDisplay();
+    grid.innerHTML = '';
+    games.forEach(function (g) {
+      var spec = buildGameHubCardSpec(g, { extraClass: 'exploreCard--gamesLibrary', routeSurface: 'games_premium' });
+      var node = spec ? LC.createStudentCard(spec) : null;
+      if (node) grid.appendChild(node);
+    });
+    LC.enhanceReportControlsIn(grid);
+    wireLibraryProxyClicks(grid);
+    if (section) section.hidden = games.length === 0;
   }
 
   function renderGameLibrary() {
@@ -509,8 +549,13 @@
       }
       return;
     }
+    renderPremiumGames();
     var games = filteredGames();
-    if (countEl) countEl.textContent = games.length + ' game' + (games.length === 1 ? '' : 's');
+    var premiumCount = premiumGamesForDisplay().length;
+    if (countEl) {
+      var total = games.length + premiumCount;
+      countEl.textContent = total + ' game' + (total === 1 ? '' : 's');
+    }
     grid.innerHTML = '';
     games.forEach(function (g) {
       var spec = buildGameHubCardSpec(g, {});

@@ -49,6 +49,7 @@
          artwork file. */
       image: 'assets/handbook-triva-card.png',
       featured: false,
+      premium: true,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -63,6 +64,7 @@
       icon: '🏛️',
       image: 'assets/history-trivia-card.png',
       featured: false,
+      premium: true,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -105,6 +107,7 @@
       icon: '⚡',
       image: 'assets/reaction-tap-card.png',
       featured: true,
+      premium: true,
       status: 'playable',
       scoring: { lowerIsBetter: true },
       leaderboard: true,
@@ -160,6 +163,8 @@
     BY_ID[g.id] = g;
     BY_NAME[g.name] = g;
   });
+
+  var PREMIUM_GAME_IDS = ['handbook-trivia', 'local-history-trivia', 'reaction'];
 
   var TYPE_LABELS = {
     all: 'All',
@@ -221,11 +226,25 @@
     });
   }
 
+  function isPremiumGame(gameOrId) {
+    var id = gameOrId && typeof gameOrId === 'object' ? gameOrId.id : gameOrId;
+    return PREMIUM_GAME_IDS.indexOf(String(id || '')) !== -1;
+  }
+
+  function premiumGames() {
+    return PREMIUM_GAME_IDS.map(function (id) {
+      return BY_ID[id];
+    }).filter(Boolean);
+  }
+
   global.LANTERN_GAME_CATALOG = {
     GAMES: GAMES,
+    PREMIUM_GAME_IDS: PREMIUM_GAME_IDS,
     listGames: listGames,
     getGameById: getGameById,
     getGameByName: getGameByName,
+    isPremiumGame: isPremiumGame,
+    premiumGames: premiumGames,
     leaderboardKey: leaderboardKey,
     playCostLabel: playCostLabel,
     playCostCardMeta: playCostCardMeta,

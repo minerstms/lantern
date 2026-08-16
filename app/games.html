@@ -170,6 +170,7 @@
       font-weight: 900;
       cursor: pointer;
       user-select: none;
+      touch-action: manipulation;
     }
     .gameArea .tapZone.ready{ border-color: var(--accent); background: rgba(90,167,255,.1); }
     .gameArea .tapZone.go{ border-color: var(--good); background: rgba(56,208,124,.15); }
@@ -741,6 +742,12 @@
           <button type="button" id="gamesLeaderboardNext" class="gamesLbCarouselBtn" aria-label="Next leaderboard">›</button>
         </div>
       </div>
+    </section>
+
+    <section class="gamesPremiumSection" id="gamesPremiumSection" aria-labelledby="gamesPremiumHeading" data-help="games">
+      <h2 class="gamesPremiumHeading" id="gamesPremiumHeading">Premium Games</h2>
+      <p class="gamesPremiumSub">Spend 1 Nugget to play. Chase your best score.</p>
+      <div id="gamesPremiumGrid" class="feedGrid" role="list" aria-label="Premium games"></div>
     </section>
 
     <section class="gamesLibrarySection" aria-label="Game library" data-help="games">
@@ -2422,10 +2429,19 @@
           toast('Could not start the 7 Habits Challenge.');
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('sevenHabitsTriviaPlayBtn') });
       });
+      function playBtnIdFromGameQuery() {
+        var params = new URLSearchParams(location.search || '');
+        var gameId = String(params.get('game') || '').trim();
+        if (!gameId) return '';
+        var cat = window.LANTERN_GAME_CATALOG;
+        var game = cat && typeof cat.getGameById === 'function' ? cat.getGameById(gameId) : null;
+        return game && game.playBtnId ? game.playBtnId : '';
+      }
       var autoMission = candidateTriviaMission('handbook-trivia') || candidateTriviaMission('local-history-trivia') || candidateTriviaMission('srp-safety-trivia') || candidateTriviaMission('seven-habits-trivia');
-      if (autoMission && autoMission.playBtnId && el(autoMission.playBtnId)) {
+      var autoPlayBtnId = (autoMission && autoMission.playBtnId) || playBtnIdFromGameQuery();
+      if (autoPlayBtnId && el(autoPlayBtnId)) {
         setTimeout(function(){
-          var btn = el(autoMission.playBtnId);
+          var btn = el(autoPlayBtnId);
           if (btn) btn.click();
         }, 0);
       }

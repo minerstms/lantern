@@ -121,7 +121,7 @@ async function browserChecks() {
   // Zero balance: arcade card must still open pregame (selection ≠ spend)
   {
     const page = await boot(0);
-    await page.locator('#gamesLibraryGrid .gamesHubPlayCard[data-game-id="reaction"]').click({ force: true });
+    await page.locator('#gamesPremiumGrid .gamesHubPlayCard[data-game-id="reaction"], #gamesLibraryGrid .gamesHubPlayCard[data-game-id="reaction"]').click({ force: true });
     await page.waitForTimeout(400);
     const r = await page.evaluate(() => ({
       overlayHidden: document.getElementById('lanternGamePlayerOverlay').hidden,
@@ -166,7 +166,7 @@ async function browserChecks() {
   {
     const page = await boot(25);
     const gameIds = await page.evaluate(() =>
-      [...document.querySelectorAll('#gamesLibraryGrid .gamesHubPlayCard[data-games-proxy-play]')].map((c) =>
+      [...document.querySelectorAll('#gamesPremiumGrid .gamesHubPlayCard[data-games-proxy-play], #gamesLibraryGrid .gamesHubPlayCard[data-games-proxy-play]')].map((c) =>
         c.getAttribute('data-game-id')
       )
     );
@@ -178,7 +178,7 @@ async function browserChecks() {
           window.LanternGamePlayer.close({ skipExit: true, force: true });
         }
       });
-      await page.locator('#gamesLibraryGrid .gamesHubPlayCard[data-game-id="' + id + '"]').click({ force: true });
+      await page.locator('#gamesPremiumGrid .gamesHubPlayCard[data-game-id="' + id + '"], #gamesLibraryGrid .gamesHubPlayCard[data-game-id="' + id + '"]').click({ force: true });
       await page.waitForTimeout(350);
       const st = await page.evaluate(() => ({
         hidden: document.getElementById('lanternGamePlayerOverlay').hidden,

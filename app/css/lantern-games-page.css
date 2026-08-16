@@ -4,6 +4,7 @@
   max-width: var(--feed-grid-max-width, 1760px);
   margin: 0 auto;
   padding: 0 var(--lantern-pad-x, 1.25rem);
+  overflow-x: hidden;
 }
 
 .gamesPageHero {
@@ -394,8 +395,29 @@
   font-family: inherit;
 }
 
+.gamesPremiumSection {
+  margin: 0 0 2rem;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.gamesPremiumHeading {
+  font-weight: 900;
+  font-size: 28px;
+  margin: 0 0 0.25rem;
+}
+
+.gamesPremiumSub {
+  margin: 0 0 1rem;
+  color: var(--muted, #b9c6ea);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.gamesPremiumSection .feedGrid,
 .gamesLibrarySection .feedGrid {
   margin-top: 0.5rem;
+  max-width: 100%;
 }
 
 .gamesPlayTriggersHost {
