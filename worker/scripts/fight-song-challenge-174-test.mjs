@@ -378,8 +378,8 @@ if (
 }
 
 if (
-  overlayEducationalTriviaMissions([]).length === 3 &&
-  overlayFightSongMission(overlayEducationalTriviaMissions([])).length === 4 &&
+  overlayEducationalTriviaMissions([]).length === 4 &&
+  overlayFightSongMission(overlayEducationalTriviaMissions([])).length === 5 &&
   overlayFightSongMission([]).some((m) => m.id === FIGHT_SONG_MISSION_ID) &&
   WAVE2_MISSION_IDS.FIGHT_SONG === 'perm_fight_song' &&
   WAVE2_MISSION_IDS.SRP_SAFETY === 'perm_srp_safety'

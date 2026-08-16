@@ -4,7 +4,13 @@
  * Correctness is scored against Worker banks (parity with lantern-game-content.js).
  * Run state lives in existing lantern_mission_submissions JSON (no schema migration).
  */
-import { HANDBOOK_TRIVIA_BANK, LOCAL_HISTORY_TRIVIA_BANK, SRP_SAFETY_TRIVIA_BANK } from './educational-trivia-banks.js';
+import {
+  HANDBOOK_TRIVIA_BANK,
+  LOCAL_HISTORY_TRIVIA_BANK,
+  SRP_SAFETY_TRIVIA_BANK,
+  SEVEN_HABITS_TRIVIA_BANK,
+  SEVEN_HABITS_NAMES,
+} from './educational-trivia-banks.js';
 import { completeMissionByEvent } from './mission-event-completions.js';
 import { sanitizeRunId } from './lantern-game-catalog.js';
 
@@ -53,7 +59,26 @@ export const EDUCATIONAL_TRIVIA_MISSIONS = {
     icon: '🛡️',
     cover: 'assets/srp-safety.png',
   },
+  perm_seven_habits: {
+    id: 'perm_seven_habits',
+    type: GAME_CORRECT_TARGET_TYPE,
+    game_id: 'seven-habits-trivia',
+    game_name: '7 Habits Challenge',
+    title: '7 Habits Challenge',
+    description:
+      'Practice the 7 Habits through school, home, friendships, teamwork, and everyday choices. Learn the habits, recognize them in action, and decide how they can help.',
+    correct_target: EDUCATIONAL_TRIVIA_CORRECT_TARGET,
+    reward_nuggets: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
+    trigger_type: 'seven_habits_trivia',
+    icon: '🌱',
+    cover: 'assets/lantern-trivia-card.png',
+    selection: 'balanced_habit_pairs',
+    allow_practice_after_complete: true,
+  },
 };
+
+export const SEVEN_HABITS_SELECTION = 'balanced_habit_pairs';
+export { SEVEN_HABITS_NAMES };
 
 export function isEducationalTriviaMissionId(missionId) {
   return !!EDUCATIONAL_TRIVIA_MISSIONS[String(missionId || '').trim()];
@@ -75,6 +100,57 @@ export function getEducationalTriviaBank(gameId) {
   if (id === 'handbook-trivia') return HANDBOOK_TRIVIA_BANK;
   if (id === 'local-history-trivia') return LOCAL_HISTORY_TRIVIA_BANK;
   if (id === 'srp-safety-trivia') return SRP_SAFETY_TRIVIA_BANK;
+  if (id === 'seven-habits-trivia') return SEVEN_HABITS_TRIVIA_BANK;
+  return [];
+}
+
+function pickFromPool(pool, avoidSet, rng) {
+  const fresh = (pool || []).filter((q) => q && q.id && !avoidSet.has(String(q.id)));
+  const use = fresh.length ? fresh : (pool || []).filter((q) => q && q.id);
+  if (!use.length) return null;
+  return use[Math.floor(rng() * use.length)];
+}
+
+function shuffleInPlace(list, rng) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const t = list[i];
+    list[i] = list[j];
+    list[j] = t;
+  }
+  return list;
+}
+
+/**
+ * Optional 7 Habits selector. Other educational missions keep pickNextQuestion.
+ * One recognition + one application per habit, then shuffle the 14.
+ */
+export function pickBalancedSevenHabitsRun(bank, avoidIds, rngFn) {
+  const rng = typeof rngFn === 'function' ? rngFn : Math.random;
+  const avoid = new Set((avoidIds || []).map((id) => String(id)));
+  const selected = [];
+  SEVEN_HABITS_NAMES.forEach((habit) => {
+    const rec = (bank || []).filter((q) => q && q.habit === habit && q.qtype === 'recognition');
+    const app = (bank || []).filter((q) => q && q.habit === habit && q.qtype === 'application');
+    const r = pickFromPool(rec, avoid, rng);
+    const a = pickFromPool(app, avoid, rng);
+    if (r) selected.push(r);
+    if (a) selected.push(a);
+  });
+  return shuffleInPlace(selected, rng);
+}
+
+async function loadRecentSevenHabitsAvoidIds(db, missionId, characterName) {
+  try {
+    const row = await db
+      .prepare(
+        'SELECT submission_content FROM lantern_mission_submissions WHERE mission_id = ? AND character_name = ? ORDER BY created_at DESC LIMIT 1'
+      )
+      .bind(missionId, characterName)
+      .first();
+    const state = parseTriviaRunContent(row && row.submission_content);
+    if (state && Array.isArray(state.run_queue) && state.run_queue.length) return state.run_queue;
+  } catch (_) {}
   return [];
 }
 
@@ -307,7 +383,7 @@ export async function startEducationalTriviaRun(db, env, opts) {
     )
     .bind(def.id, characterName)
     .first();
-  if (existingComplete) {
+  if (existingComplete && !def.allow_practice_after_complete) {
     return {
       ok: true,
       already_completed: true,
@@ -340,7 +416,18 @@ export async function startEducationalTriviaRun(db, env, opts) {
     });
   }
 
-  const first = pickNextQuestion(bank, [], '');
+  let first = null;
+  let runQueue = null;
+  if (def.selection === SEVEN_HABITS_SELECTION) {
+    const avoid = await loadRecentSevenHabitsAvoidIds(db, def.id, characterName);
+    const runItems = pickBalancedSevenHabitsRun(bank, avoid);
+    if (!runItems.length) return { ok: false, error: 'bank_unavailable', _httpStatus: 500 };
+    runQueue = runItems.map((q) => q.id);
+    first = runItems[0];
+  } else {
+    first = pickNextQuestion(bank, [], '');
+  }
+  if (!first || !first.id) return { ok: false, error: 'bank_unavailable', _httpStatus: 500 };
   const state = {
     type: TRIVIA_RUN_CONTENT_TYPE,
     mission_id: def.id,
@@ -352,6 +439,7 @@ export async function startEducationalTriviaRun(db, env, opts) {
     current_question_id: first.id,
     locked: false,
     last_answer: null,
+    ...(runQueue ? { run_queue: runQueue, selection: SEVEN_HABITS_SELECTION } : {}),
   };
   const now = new Date().toISOString();
   const sid = triviaRunSubmissionId(runId);
@@ -442,7 +530,15 @@ export async function answerEducationalTriviaRun(db, env, opts) {
   if (isCorrect) correctCount += 1;
 
   const completed = correctCount >= EDUCATIONAL_TRIVIA_CORRECT_TARGET;
-  const next = completed ? null : pickNextQuestion(bank, asked, questionId);
+  let next = null;
+  if (!completed) {
+    if (state.selection === SEVEN_HABITS_SELECTION && Array.isArray(state.run_queue) && state.run_queue.length) {
+      const remaining = state.run_queue.filter((id) => id && !asked.includes(id));
+      next = remaining.length ? findBankItem(bank, remaining[0]) : null;
+    } else {
+      next = pickNextQuestion(bank, asked, questionId);
+    }
+  }
   state.asked_ids = asked;
   state.correct_count = correctCount;
   state.locked = completed;
@@ -484,6 +580,7 @@ export async function answerEducationalTriviaRun(db, env, opts) {
     rewarded: !!(rewardResult && rewardResult.rewarded),
     reward_idempotent: !!(rewardResult && (rewardResult.idempotent || rewardResult.reward_idempotent)),
     already_completed: !!(rewardResult && rewardResult.already_completed),
+    run_exhausted: !completed && !next,
     balance_after: rewardResult && rewardResult.balance_after != null ? rewardResult.balance_after : undefined,
   });
 }

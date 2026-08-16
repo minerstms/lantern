@@ -28,7 +28,7 @@
     verify: 1,
     class_code: 1
   };
-  var GENERIC_ASSET_RE = /fight-?song|srp-safety|handbook|local-?history|stand-up-and-cheer/i;
+  var GENERIC_ASSET_RE = /fight-?song|srp-safety|handbook|local-?history|lantern-trivia-card|stand-up-and-cheer/i;
   var VIEWPORT_SEL = [
     '.lanternMediaFullscreenInner',
     '.newsCardImageWrap',

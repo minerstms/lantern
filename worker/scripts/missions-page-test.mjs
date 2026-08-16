@@ -145,6 +145,7 @@ if (buildFnMatch) {
       handbookTrivia: 'perm_handbook_trivia',
       localHistoryTrivia: 'perm_local_history_trivia',
       srpSafety: 'perm_srp_safety',
+      sevenHabits: 'perm_seven_habits',
       fightSong: 'perm_fight_song',
     },
     window: {

@@ -670,6 +670,7 @@
     perm_handbook_trivia: 'assets/handbook-triva-card.png',
     perm_local_history_trivia: 'assets/history-trivia-card.png',
     perm_srp_safety: 'assets/srp-safety.png',
+    perm_seven_habits: 'assets/lantern-trivia-card.png',
     perm_fight_song: 'assets/fight-song.png',
   };
 

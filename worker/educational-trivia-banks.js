@@ -5,6 +5,11 @@
  * Parity is enforced by worker/scripts/educational-trivia-missions-150-test.mjs.
  */
 export { SRP_SAFETY_TRIVIA_BANK } from './srp-safety-trivia-bank.js';
+export {
+  SEVEN_HABITS_TRIVIA_BANK,
+  SEVEN_HABITS_NAMES,
+  validateSevenHabitsBank,
+} from './seven-habits-trivia-bank.js';
 
 export const HANDBOOK_TRIVIA_BANK = [
   {

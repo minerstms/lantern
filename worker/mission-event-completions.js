@@ -19,6 +19,8 @@ export const WAVE2_MISSION_IDS = {
   HANDBOOK_TRIVIA: 'perm_handbook_trivia',
   LOCAL_HISTORY_TRIVIA: 'perm_local_history_trivia',
   SRP_SAFETY: 'perm_srp_safety',
+  /** Prompt #239 — 7 Habits Challenge (educational trivia). */
+  SEVEN_HABITS: 'perm_seven_habits',
   /** Prompt #174 — Fight Song Challenge (line reorder). */
   FIGHT_SONG: 'perm_fight_song',
 };
@@ -73,6 +75,10 @@ export function eventKeyLocalHistoryTrivia(characterName) {
 
 export function eventKeySrpSafety(characterName) {
   return `srp_safety_trivia:${String(characterName || '').trim()}`;
+}
+
+export function eventKeySevenHabits(characterName) {
+  return `seven_habits_trivia:${String(characterName || '').trim()}`;
 }
 
 export function eventKeyFightSong(characterName) {
@@ -472,6 +478,7 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
     handbook_trivia: { completed: false },
     local_history_trivia: { completed: false },
     srp_safety_trivia: { completed: false },
+    seven_habits_trivia: { completed: false },
     fight_song: { completed: false },
   };
   if (!key) return out;
@@ -516,6 +523,7 @@ export async function getMissionProgressForCharacter(db, characterName, now) {
   await onceDone(WAVE2_MISSION_IDS.HANDBOOK_TRIVIA, 'handbook_trivia');
   await onceDone(WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA, 'local_history_trivia');
   await onceDone(WAVE2_MISSION_IDS.SRP_SAFETY, 'srp_safety_trivia');
+  await onceDone(WAVE2_MISSION_IDS.SEVEN_HABITS, 'seven_habits_trivia');
   await onceDone(WAVE2_MISSION_IDS.FIGHT_SONG, 'fight_song');
 
   const thankKey = eventKeyThankYou(key, day);

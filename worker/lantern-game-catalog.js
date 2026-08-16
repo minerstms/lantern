@@ -59,6 +59,15 @@ export const LANTERN_LEADERBOARD_GAMES = [
     status: 'playable',
   },
   {
+    id: 'seven-habits-trivia',
+    name: '7 Habits Challenge',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 100,
+    leaderboard: true,
+    status: 'playable',
+  },
+  {
     id: 'reaction',
     name: 'Reaction Tap',
     lowerIsBetter: true,

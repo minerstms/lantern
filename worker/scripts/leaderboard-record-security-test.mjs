@@ -215,7 +215,7 @@ async function postTransact(env, cookie, body) {
 // ---------------------------------------------------------------------------
 // Catalog unit checks
 // ---------------------------------------------------------------------------
-if (LANTERN_LEADERBOARD_GAMES.length === 9) ok('server catalog has nine production games');
+if (LANTERN_LEADERBOARD_GAMES.length === 10) ok('server catalog has ten production games');
 else bad('server catalog count', LANTERN_LEADERBOARD_GAMES.length);
 
 const expectedNames = [
@@ -224,6 +224,7 @@ const expectedNames = [
   'Handbook Trivia',
   'Local History Trivia',
   'SRP Safety Challenge',
+  '7 Habits Challenge',
   'Reaction Tap',
   'Nugget Click Rush',
   'Memory Match',
@@ -272,7 +273,7 @@ if (sanitizeRunId('run_abc-123') === 'run_abc-123' && sanitizeRunId('bad run;dro
   ok('run_id sanitizer allows uuid-like tokens only');
 } else bad('run_id sanitize');
 
-if (leaderboardGameNames().length === 9) ok('production leaderboard name list is the nine catalog games');
+if (leaderboardGameNames().length === 10) ok('production leaderboard name list is the ten catalog games');
 else bad('leaderboardGameNames', leaderboardGameNames());
 
 // ---------------------------------------------------------------------------
@@ -290,7 +291,7 @@ if (postFnBlock.includes('game_name: key') && postFnBlock.includes('run_id: resu
 } else bad('client record payload still identity-authoritative');
 
 expectedNames.forEach((name) => {
-  if (name === 'Lantern Live Trivia' || name === 'Handbook Trivia' || name === 'Local History Trivia' || name === 'SRP Safety Challenge') {
+  if (name === 'Lantern Live Trivia' || name === 'Handbook Trivia' || name === 'Local History Trivia' || name === 'SRP Safety Challenge' || name === '7 Habits Challenge') {
     if (gamesHtml.includes('postLeaderboardScore(gameName,')) ok('trivia client still posts via gameName: ' + name);
     else bad('trivia post missing', name);
   } else if (gamesHtml.includes("postLeaderboardScore('" + name + "'")) {

@@ -556,13 +556,16 @@
       font-weight: 900;
       cursor: pointer;
       font-family: inherit;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
       transition: border-color .15s ease, background .15s ease, transform .08s ease;
     }
     .cultureGameOverlay .choiceBtn:hover{ background: rgba(90,167,255,.25); border-color: var(--accent); transform: scale(1.02); }
     .cultureGameOverlay .choiceBtn:active{ transform: scale(0.98); }
     .cultureGameOverlay .choiceBtn.correct{ border-color: var(--good); background: rgba(56,208,124,.35); color: var(--ink); }
     .cultureGameOverlay .choiceBtn.wrong{ border-color: var(--bad); background: rgba(255,77,109,.25); color: var(--ink); }
-    .cultureGameOverlay .triviaQuestion{ font-weight: 900; font-size: 24px; margin-bottom: var(--lantern-space-lg); line-height: 1.3; }
+    .cultureGameOverlay .triviaQuestion{ font-weight: 900; font-size: 24px; margin-bottom: var(--lantern-space-lg); line-height: 1.3; overflow-wrap: anywhere; word-break: break-word; }
     .cultureGameOverlay .resultMsg{ font-size: 28px; font-weight: 900; text-align: center; margin: 20px 0; }
     .cultureGameOverlay .resultMsg.win{ color: var(--good); }
     .cultureGameOverlay .avatarMatchResultScore{ font-size: 32px; margin-top: 12px; color: var(--warn); }
@@ -652,6 +655,12 @@
       line-height: 1.35;
     }
     .playAgainRow{ display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+
+    @media (max-width: 420px){
+      .cultureGameOverlay .choiceBtn{ font-size: 22px; padding: 14px 16px; }
+      .cultureGameOverlay .triviaQuestion{ font-size: 22px; }
+      .cultureGameOverlay .triviaExplain{ font-size: 22px; }
+    }
 
     @media (prefers-reduced-motion: reduce){
       .gameArea .tapZone.ready,
@@ -785,6 +794,7 @@
       <button type="button" id="handbookTriviaPlayBtn"></button>
       <button type="button" id="localHistoryTriviaPlayBtn"></button>
       <button type="button" id="srpSafetyTriviaPlayBtn"></button>
+      <button type="button" id="sevenHabitsTriviaPlayBtn"></button>
       <button type="button" id="reactionPlayBtn"></button>
       <button type="button" id="clickrushPlayBtn"></button>
       <button type="button" id="memoryPlayBtn"></button>
@@ -2218,7 +2228,11 @@
             sfxCultureComplete();
             var html = '<div class="resultMsg win">Mission Complete!</div>';
             html += '<div class="triviaProgress">' + esc(n + ' / ' + target + ' correct') + '</div>';
-            html += '<div class="triviaProgress">+1 Nugget</div>';
+            if (state && state.rewarded === false && (state.already_completed || state.reward_idempotent)) {
+              html += '<div class="triviaProgress">Reward already earned</div>';
+            } else {
+              html += '<div class="triviaProgress">+1 Nugget</div>';
+            }
             html += playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
             gameBody.innerHTML = html;
             if (!mission.sponsored_free) clearMissionQuery();
@@ -2272,8 +2286,21 @@
                       showMissionComplete(res);
                       return;
                     }
-                    if (res.question) renderQuestion(res.question, count);
-                    else showMissionComplete(res);
+                    if (res.question) {
+                      renderQuestion(res.question, count);
+                      return;
+                    }
+                    if (res.run_exhausted) {
+                      setScore(count + ' / ' + target + ' correct');
+                      gameBody.innerHTML = '<div class="resultMsg">Keep practicing!</div><div class="triviaProgress">' + esc(count + ' / ' + target + ' correct this run') + '</div><div class="triviaProgress">Get 10 correct in one session to finish.</div>' + playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
+                      var againTry = gameBody.querySelector('.playAgainRow button');
+                      if (againTry) againTry.addEventListener('click', function(){
+                        var btnId = playBtnIdForGameName(mission.game_name);
+                        if (btnId && el(btnId)) el(btnId).click();
+                      });
+                      return;
+                    }
+                    showMissionComplete(res);
                   }, delay);
                 }).catch(function(){
                   answering = false;
@@ -2293,6 +2320,7 @@
         if (gameName === 'Lantern Live Trivia') return 'lanternLiveTriviaPlayBtn';
         if (gameName === 'Local History Trivia') return 'localHistoryTriviaPlayBtn';
         if (gameName === 'SRP Safety Challenge') return 'srpSafetyTriviaPlayBtn';
+        if (gameName === '7 Habits Challenge') return 'sevenHabitsTriviaPlayBtn';
         return null;
       }
       // Prompt #102: same fix class as Live Trivia (Prompt #99) — validate the question set is
@@ -2369,7 +2397,22 @@
           runTriviaGame('SRP Safety Challenge', 'SRP Safety Challenge', function(){ return questions; });
         }, { surface: overlay, onExit: closeOverlay, returnFocus: el('srpSafetyTriviaPlayBtn') });
       });
-      var autoMission = candidateTriviaMission('handbook-trivia') || candidateTriviaMission('local-history-trivia') || candidateTriviaMission('srp-safety-trivia');
+      el('sevenHabitsTriviaPlayBtn').addEventListener('click', function(){
+        var mission = candidateTriviaMission('seven-habits-trivia');
+        if (!mission && window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.resolve === 'function') {
+          mission = window.LANTERN_EDU_TRIVIA.resolve('perm_seven_habits');
+        }
+        tryPlay('7 Habits Challenge', function(){
+          if (mission) {
+            runEducationalTriviaMission(mission, function(){
+              toast('Could not start the 7 Habits Challenge.');
+            });
+            return;
+          }
+          toast('Could not start the 7 Habits Challenge.');
+        }, { surface: overlay, onExit: closeOverlay, returnFocus: el('sevenHabitsTriviaPlayBtn') });
+      });
+      var autoMission = candidateTriviaMission('handbook-trivia') || candidateTriviaMission('local-history-trivia') || candidateTriviaMission('srp-safety-trivia') || candidateTriviaMission('seven-habits-trivia');
       if (autoMission && autoMission.playBtnId && el(autoMission.playBtnId)) {
         setTimeout(function(){
           var btn = el(autoMission.playBtnId);

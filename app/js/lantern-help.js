@@ -24,7 +24,7 @@
     edit_profile: 'Change your display name, bio, avatar, and which creation you want to feature. You can also equip items you bought in Locker → Store.',
     nugget_wallet: 'This shows how many nuggets you have. Earn them by doing missions, finding the daily nugget, and getting your work approved.',
     games: 'Play mini games here. Each game costs 1 nugget. You can earn more nuggets in the Daily Nugget Hunt.',
-    culture_games: 'Culture games: handbook trivia, local history, and similar activities on this row. Tap a card to play. Most games cost 1 nugget like the arcade row above.',
+    culture_games: 'Culture games: handbook trivia, local history, 7 Habits, and similar activities on this row. Tap a card to play. Most games cost 1 nugget like the arcade row above.',
     news: 'Read school news and submit your own articles. Student reporters and staff can write. Articles need approval before they appear.',
     teacher: 'Teacher Tools: staff workspace for Nuggets, Overview, Review Submissions, Lantern Access, Missions, Shout-Out!, Moderation, Hallway TV, Phone App Download, and Repair App. Students do not use this page.',
     teacher_nuggets: 'Nuggets: select a TMS student to see Current Balance, Total Earned, and Total Spent, then Earn or Spend Nuggets with a required reason.',

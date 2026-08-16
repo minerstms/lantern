@@ -541,12 +541,12 @@ if (
   } else bad('30. no Trinidad and Tobago / Caribbean content');
 }
 
-if (WAVE2_MISSION_IDS.HANDBOOK_TRIVIA === hb.id && WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA === tr.id && WAVE2_MISSION_IDS.SRP_SAFETY === 'perm_srp_safety') {
+if (WAVE2_MISSION_IDS.HANDBOOK_TRIVIA === hb.id && WAVE2_MISSION_IDS.LOCAL_HISTORY_TRIVIA === tr.id && WAVE2_MISSION_IDS.SRP_SAFETY === 'perm_srp_safety' && WAVE2_MISSION_IDS.SEVEN_HABITS === 'perm_seven_habits') {
   ok('31. WAVE2 ids aligned with educational trivia catalog');
 } else bad('31. WAVE2 ids aligned');
 
 if (
-  overlayEducationalTriviaMissions([]).length === 3 &&
+  overlayEducationalTriviaMissions([]).length === 4 &&
   isTriviaRunPendingSubmission({
     status: 'pending',
     mission_id: hb.id,

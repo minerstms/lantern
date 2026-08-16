@@ -39,6 +39,18 @@
       cta: 'Play Trivia',
       sponsored_free: true,
     },
+    perm_seven_habits: {
+      id: 'perm_seven_habits',
+      type: 'game_correct_target',
+      game_id: 'seven-habits-trivia',
+      game_name: '7 Habits Challenge',
+      playBtnId: 'sevenHabitsTriviaPlayBtn',
+      title: '7 Habits Challenge',
+      description:
+        'Learn the seven habits through real-life stories and choices. 14 questions are selected each time you play, so you may see different situations on another run.',
+      cta: 'Play Trivia',
+      sponsored_free: true,
+    },
   };
 
   var SPONSORED_FREE_MISSION_ID = 'perm_local_history_trivia';
@@ -46,6 +58,7 @@
   var SPONSORED_FREE_PAIRS = [
     { missionId: 'perm_local_history_trivia', gameId: 'local-history-trivia' },
     { missionId: 'perm_srp_safety', gameId: 'srp-safety-trivia' },
+    { missionId: 'perm_seven_habits', gameId: 'seven-habits-trivia' },
   ];
 
   function resolve(missionId) {
