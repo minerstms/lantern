@@ -237,6 +237,7 @@
       '/missions': '/missions.html',
       '/store': '/store.html',
       '/change-password': '/change-password.html',
+      '/game-lab/tower': '/game-lab/tower.html',
     };
     return map[p] || orig;
   }

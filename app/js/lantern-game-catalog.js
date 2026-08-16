@@ -3,7 +3,7 @@
  * play_cost is the authoritative entry fee (minimum 1 for scored games).
  *
  * Server-side result validation lives in worker/lantern-game-catalog.js (same ids/names).
- * Register future donor games (e.g. Tower) in BOTH catalogs before they can record scores.
+ * Premium Games (locked): Stack Lab (tower), Minecart Switch, Orbit Lock.
  */
 (function (global) {
   'use strict';
@@ -49,7 +49,6 @@
          artwork file. */
       image: 'assets/handbook-triva-card.png',
       featured: false,
-      premium: true,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -64,7 +63,6 @@
       icon: '🏛️',
       image: 'assets/history-trivia-card.png',
       featured: false,
-      premium: true,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -107,7 +105,6 @@
       icon: '⚡',
       image: 'assets/reaction-tap-card.png',
       featured: true,
-      premium: true,
       status: 'playable',
       scoring: { lowerIsBetter: true },
       leaderboard: true,
@@ -155,6 +152,49 @@
       leaderboard: true,
       description: 'Find the special icon among decoys. Full-screen search.',
     },
+    {
+      id: 'tower',
+      name: 'Stack Lab',
+      type: 'arcade',
+      playBtnId: 'towerPlayBtn',
+      play_cost: 1,
+      icon: '🏗️',
+      image: 'assets/tower-card.png',
+      featured: false,
+      status: 'playable',
+      scoring: { lowerIsBetter: false },
+      leaderboard: true,
+      qualifyingWin: { floors: 10 },
+      description: 'Stack floors from a swinging crane. Tap, click, or press Space to place each floor. Overlap stays; three misses end the run. Reach 10 floors to finish. Higher score wins.',
+    },
+    {
+      id: 'minecart-switch',
+      name: 'Minecart Switch',
+      type: 'arcade',
+      playBtnId: 'minecartSwitchPlayBtn',
+      play_cost: 1,
+      icon: '🛒',
+      image: 'assets/minecart-switch-card.png',
+      featured: false,
+      status: 'playable',
+      scoring: { lowerIsBetter: false },
+      leaderboard: true,
+      description: 'Switch tracks to dodge rocks, gaps, and gates in a Trinidad mine tunnel.',
+    },
+    {
+      id: 'orbit-lock',
+      name: 'Orbit Lock',
+      type: 'arcade',
+      playBtnId: 'orbitLockPlayBtn',
+      play_cost: 1,
+      icon: '◉',
+      image: 'assets/orbit-lock-card.svg',
+      featured: false,
+      status: 'playable',
+      scoring: { lowerIsBetter: false },
+      leaderboard: true,
+      description: 'Tap when the marker is inside the target arc. Perfect locks score more as the orbit speeds up.',
+    },
   ];
 
   var BY_ID = {};
@@ -164,7 +204,7 @@
     BY_NAME[g.name] = g;
   });
 
-  var PREMIUM_GAME_IDS = ['handbook-trivia', 'local-history-trivia', 'reaction'];
+  var PREMIUM_GAME_IDS = ['tower', 'minecart-switch', 'orbit-lock'];
 
   var TYPE_LABELS = {
     all: 'All',

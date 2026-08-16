@@ -5,8 +5,7 @@
  * GET /api/leaderboards combined views only return these names.
  *
  * Keep IDs and display names aligned with app/js/lantern-game-catalog.js.
- * To register a future donor game (e.g. Tower): add one object here AND in the frontend catalog.
- * Do not accept unlisted/lab game names until they are registered.
+ * Premium Games (locked): Stack Lab (tower), Minecart Switch, Orbit Lock.
  *
  * Score max values are generous gameplay ceilings derived from current client math, not
  * cryptographic anti-cheat. They exist to reject obviously impossible payloads.
@@ -100,6 +99,33 @@ export const LANTERN_LEADERBOARD_GAMES = [
     lowerIsBetter: true,
     scoreMin: 0,
     scoreMax: 120,
+    leaderboard: true,
+    status: 'playable',
+  },
+  {
+    id: 'tower',
+    name: 'Stack Lab',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 2500,
+    leaderboard: true,
+    status: 'playable',
+  },
+  {
+    id: 'minecart-switch',
+    name: 'Minecart Switch',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 15000,
+    leaderboard: true,
+    status: 'playable',
+  },
+  {
+    id: 'orbit-lock',
+    name: 'Orbit Lock',
+    lowerIsBetter: false,
+    scoreMin: 0,
+    scoreMax: 6000,
     leaderboard: true,
     status: 'playable',
   },

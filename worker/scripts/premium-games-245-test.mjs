@@ -40,16 +40,19 @@ if (gamesHtml.includes('id="gamesPremiumSection"') && gamesHtml.includes('Premiu
 
 if (
   premiumIds.length === 3 &&
-  premiumIds[0] === 'handbook-trivia' &&
-  premiumIds[1] === 'local-history-trivia' &&
-  premiumIds[2] === 'reaction' &&
+  premiumIds[0] === 'tower' &&
+  premiumIds[1] === 'minecart-switch' &&
+  premiumIds[2] === 'orbit-lock' &&
+  !premiumIds.includes('handbook-trivia') &&
+  !premiumIds.includes('local-history-trivia') &&
+  !premiumIds.includes('reaction') &&
   !premiumIds.includes('seven-habits-trivia')
 ) {
   ok('2. exactly the intended three premium games are featured');
 } else bad('2. premium trio', premiumIds);
 
 const idMatches = catalogJs.match(/id: '[^']+'/g) || [];
-if (new Set(idMatches).size === 10 && idMatches.length === 10 && cat.listGames().length === 10) {
+if (new Set(idMatches).size === 13 && idMatches.length === 13 && cat.listGames().length === 13) {
   ok('3/4. no duplicate game definitions; all use existing catalog IDs');
 } else bad('3/4. catalog dupes', { unique: new Set(idMatches).size, total: idMatches.length });
 

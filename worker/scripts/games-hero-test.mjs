@@ -25,7 +25,7 @@ vm.runInNewContext(catalogJs, sandbox);
 const cat = sandbox.window.LANTERN_GAME_CATALOG;
 const games = cat.listGames();
 
-if (games.length === 10) ok('catalog has 10 playable games');
+if (games.length === 13) ok('catalog has 13 playable games');
 else bad('catalog game count', String(games.length));
 
 let allHaveImage = true;

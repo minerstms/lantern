@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="css/lantern-feed.css">
   <link rel="stylesheet" href="css/lantern-games-page.css">
   <link rel="stylesheet" href="css/lantern-game-player.css">
+  <link rel="stylesheet" href="css/lantern-minecart-switch.css">
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="explore.html">
   <link rel="prefetch" href="explore.html">
@@ -657,6 +658,66 @@
     }
     .playAgainRow{ display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
 
+    .orbitLockArea{
+      width: 100%;
+      max-width: 100%;
+      gap: 12px;
+      padding: 12px 10px 16px;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(32, 72, 140, 0.45), rgba(7, 11, 22, 0.92) 62%),
+        #070b16;
+      border: 1px solid rgba(90, 167, 255, 0.28);
+    }
+    .orbitLockHud{
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 8px;
+    }
+    .orbitLockStat{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 900;
+    }
+    .orbitLockStatLbl{ font-size: 22px; color: var(--muted); }
+    .orbitLockStatVal{ font-size: 28px; color: var(--ink); letter-spacing: 0.04em; }
+    .orbitLockCanvasWrap{
+      width: min(100%, 72vw, 420px);
+      aspect-ratio: 1 / 1;
+      max-height: min(52vh, 420px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .orbitLockCanvasWrap canvas{
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      border-radius: 50%;
+      touch-action: manipulation;
+    }
+    .orbitLockHint, .orbitLockFeedback{
+      margin: 0;
+      text-align: center;
+      max-width: 36rem;
+      line-height: 1.3;
+    }
+    .orbitLockHint{ font-size: 22px; font-weight: 800; color: var(--muted); }
+    .orbitLockFeedback{ font-size: 24px; font-weight: 900; color: var(--warn); min-height: 1.2em; }
+    @media (min-width: 720px){
+      .orbitLockHud{ flex-direction: row; justify-content: space-between; }
+      .orbitLockStat{ flex-direction: column; align-items: center; gap: 2px; }
+    }
+
     @media (max-width: 420px){
       .cultureGameOverlay .choiceBtn{ font-size: 22px; padding: 14px 16px; }
       .cultureGameOverlay .triviaQuestion{ font-size: 22px; }
@@ -671,7 +732,8 @@
       .gameArea .comboFlash,
       .memCard,
       .memCard.mismatch,
-      .memCard.matched{
+      .memCard.matched,
+      .orbitLockArea canvas{
         animation: none !important;
         transition: none !important;
       }
@@ -806,6 +868,9 @@
       <button type="button" id="clickrushPlayBtn"></button>
       <button type="button" id="memoryPlayBtn"></button>
       <button type="button" id="nuggetHuntPlayBtn"></button>
+      <button type="button" id="towerPlayBtn"></button>
+      <button type="button" id="minecartSwitchPlayBtn"></button>
+      <button type="button" id="orbitLockPlayBtn"></button>
     </div>
 
     </div>
@@ -821,6 +886,51 @@
       <div class="gameLocked" id="memoryLocked" style="display:none;">Need at least 1 nugget to play.</div>
       <div class="gameArea" id="memoryArea" style="display:none;"><div class="memHud" id="memoryHud"><span>Moves: <span class="memHudVal" id="memoryMovesVal">0</span></span><span>Pairs left: <span class="memHudVal" id="memoryPairsVal">6</span></span></div><div class="memGrid" id="memoryGrid"></div><div class="playAgainRow" id="memoryPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="memoryPlayAgainBtn">Play Again</button></div></div>
       <div class="gameLocked" id="nuggetHuntLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameLocked" id="minecartSwitchLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="mcsRoot" id="minecartSwitchArea" style="display:none;" hidden>
+        <div class="mcsHud">
+          <div class="mcsHudScore">Score <span id="mcsScore">0</span></div>
+          <div class="mcsHudLives" id="mcsLives" aria-label="3 lives">●●●</div>
+          <div class="mcsHudDist">Dist <span id="mcsDist">0m</span></div>
+        </div>
+        <div class="mcsStage">
+          <canvas id="mcsCanvas" width="360" height="520" aria-label="Minecart Switch track"></canvas>
+          <button type="button" class="mcsTapLeft" id="mcsTapLeft" aria-label="Switch left"></button>
+          <button type="button" class="mcsTapRight" id="mcsTapRight" aria-label="Switch right"></button>
+          <div class="mcsOver" id="mcsOver" hidden>
+            <h2 class="mcsOverTitle">MINECART SWITCH</h2>
+            <p class="mcsOverScore">Score <span id="mcsOverScore">0</span></p>
+            <p class="mcsOverMeta">Distance <span id="mcsOverDist">0m</span></p>
+            <div class="mcsOverActions">
+              <button type="button" class="btn good" id="mcsPlayAgain">Play Again</button>
+              <button type="button" class="btn" id="mcsViewLb">Leaderboard</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gameLocked" id="orbitLockLocked" style="display:none;">Need at least 1 nugget to play.</div>
+      <div class="gameArea orbitLockArea" id="orbitLockArea" style="display:none;">
+        <div class="orbitLockHud" id="orbitLockHud">
+          <div class="orbitLockStat">
+            <span class="orbitLockStatLbl">Lives</span>
+            <span class="orbitLockStatVal" id="orbitLockLivesVal">●●●</span>
+          </div>
+          <div class="orbitLockStat">
+            <span class="orbitLockStatLbl">Score</span>
+            <span class="orbitLockStatVal" id="orbitLockScoreVal">0</span>
+          </div>
+          <div class="orbitLockStat">
+            <span class="orbitLockStatLbl">Stage</span>
+            <span class="orbitLockStatVal" id="orbitLockStageVal">1</span>
+          </div>
+        </div>
+        <div class="orbitLockCanvasWrap">
+          <canvas id="orbitLockCanvas" width="320" height="320" aria-label="Orbit ring. Tap when the marker is inside the bright target arc. The inner notch is a Perfect lock."></canvas>
+        </div>
+        <p class="orbitLockHint" id="orbitLockHint">Tap, click, or press Space when the marker is inside the bright arc. The inner notch is Perfect.</p>
+        <p class="orbitLockFeedback" id="orbitLockFeedback" aria-live="polite"></p>
+        <div class="playAgainRow" id="orbitLockPlayAgainRow" style="display:none;"><button type="button" class="btn good" id="orbitLockPlayAgainBtn">Play Again</button></div>
+      </div>
     </div>
     <!-- Nugget Hunt fullscreen overlay -->
     <div class="nuggetHuntOverlay lanternOverlayBelowNav" id="nuggetHuntOverlay">
@@ -856,6 +966,22 @@
         <div class="iconGrid" id="nuggetHuntIconGrid"></div>
       </div>
       <div class="resultBanner" id="nuggetHuntResultBanner"></div>
+    </div>
+    <div id="towerGameSurface" class="towerGameSurface">
+      <iframe
+        id="towerPlayFrame"
+        class="towerPlayFrame"
+        title="Stack Lab"
+        src="about:blank"
+        allow="autoplay"
+      ></iframe>
+      <div id="towerGameResult" class="towerGameResult" hidden>
+        <p id="towerGameResultScore" class="towerGameResultScore"></p>
+        <p id="towerGameResultMsg" class="towerGameResultMsg"></p>
+        <div class="playAgainRow">
+          <button type="button" class="btn good" id="towerPlayAgainBtn">Play Again</button>
+        </div>
+      </div>
     </div>
     <!-- Culture games shared overlay -->
     <div class="cultureGameOverlay lanternOverlayBelowNav" id="cultureGameOverlay">
@@ -908,6 +1034,9 @@
   <script src="js/lantern-cards.js"></script>
   <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-game-catalog.js"></script>
+  <script src="js/lantern-game-bridge.js"></script>
+  <script src="js/lantern-minecart-switch.js"></script>
+  <script src="js/lantern-orbit-lock.js"></script>
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-game-player.js"></script>
@@ -1088,10 +1217,10 @@
         if (n == null) return;
         // Prompt #151 — do not disable off-DOM play triggers on low balance.
         // Card click selects/opens pregame; Start enforces 1 Nugget spend.
-        ['reaction','clickrush','memory','nuggetHunt'].forEach(function(g){
+        ['reaction','clickrush','memory','nuggetHunt','minecartSwitch','orbitLock'].forEach(function(g){
           var lockEl = el(g + 'Locked');
           var playBtn = el(g + 'PlayBtn');
-          var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : 'Reaction Tap');
+          var minCost = playCostForGame(g === 'clickrush' ? 'Nugget Click Rush' : g === 'memory' ? 'Memory Match' : g === 'nuggetHunt' ? 'Nugget Hunt' : g === 'minecartSwitch' ? 'Minecart Switch' : g === 'orbitLock' ? 'Orbit Lock' : 'Reaction Tap');
           if (lockEl) lockEl.style.display = (n < minCost) ? 'block' : 'none';
           if (playBtn) playBtn.disabled = false;
         });
@@ -1939,6 +2068,280 @@
         return false;
       });
     }
+
+    // ---- Stack Lab (id tower): same-origin iframe in the shared Game Player ----
+    (function(){
+      var QUALIFYING_FLOORS = 10;
+      var SCORE_MAX = 2500;
+      var playBtn = el('towerPlayBtn');
+      var surface = el('towerGameSurface');
+      var iframe = el('towerPlayFrame');
+      var resultEl = el('towerGameResult');
+      var resultScore = el('towerGameResultScore');
+      var resultMsg = el('towerGameResultMsg');
+      var playAgainBtn = el('towerPlayAgainBtn');
+      if (!playBtn || !surface || !iframe) return;
+
+      var catGame = window.LANTERN_GAME_CATALOG && typeof window.LANTERN_GAME_CATALOG.getGameById === 'function'
+        ? window.LANTERN_GAME_CATALOG.getGameById('tower')
+        : null;
+      if (catGame && catGame.qualifyingWin && catGame.qualifyingWin.floors != null) {
+        var qn = Math.floor(Number(catGame.qualifyingWin.floors));
+        if (Number.isFinite(qn) && qn > 0) QUALIFYING_FLOORS = qn;
+      }
+
+      var towerRunId = '';
+      var endedOnce = false;
+      var playing = false;
+
+      function hideResult(){
+        if (!resultEl) return;
+        resultEl.hidden = true;
+        resultEl.setAttribute('hidden', '');
+      }
+      function showResult(score, floors, won){
+        if (resultScore) resultScore.textContent = String(score) + ' pts';
+        if (resultMsg) {
+          resultMsg.textContent = won
+            ? ('You reached ' + floors + ' floors. +1 Nugget!')
+            : ('Stacked ' + floors + ' floor' + (floors === 1 ? '' : 's') + '. Reach ' + QUALIFYING_FLOORS + ' floors to earn +1 Nugget.');
+        }
+        if (resultEl) {
+          resultEl.hidden = false;
+          resultEl.removeAttribute('hidden');
+        }
+      }
+      function sendBeginPlay(){
+        try {
+          if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              source: 'lantern-parent',
+              type: 'lantern-game',
+              event: 'beginPlay'
+            }, window.location.origin);
+          }
+        } catch (e) {}
+      }
+      function loadPlayableIframe(){
+        hideResult();
+        endedOnce = false;
+        iframe.src = '/games/tower/index.html?lanternPlay=1';
+      }
+      function unloadIframe(){
+        playing = false;
+        hideResult();
+        iframe.src = 'about:blank';
+      }
+      function startTowerRound(){
+        tryPlay('Stack Lab', function(){
+          playing = true;
+          towerRunId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function')
+            ? window.LanternGamesPaidStart.getLastRunId()
+            : '';
+          loadPlayableIframe();
+        }, {
+          surface: surface,
+          title: 'Stack Lab',
+          gameName: 'Stack Lab',
+          gameId: 'tower',
+          onExit: unloadIframe,
+          returnFocus: playBtn
+        });
+      }
+
+      iframe.addEventListener('load', function(){
+        if (!playing) return;
+        var src = String(iframe.getAttribute('src') || iframe.src || '');
+        if (src.indexOf('/games/tower/index.html') === -1) return;
+        sendBeginPlay();
+      });
+
+      if (window.LanternGameBridge && typeof window.LanternGameBridge.attach === 'function') {
+        window.LanternGameBridge.attach(iframe, {
+          onGameStarted: function(){
+            endedOnce = false;
+            hideResult();
+          },
+          onGameEnded: function(payload){
+            if (endedOnce) return;
+            endedOnce = true;
+            var score = payload && payload.score != null ? payload.score : 0;
+            score = Math.floor(Number(score));
+            if (!Number.isFinite(score) || score < 0) score = 0;
+            if (score > SCORE_MAX) score = SCORE_MAX;
+            var floors = payload && payload.floors != null ? payload.floors : 0;
+            floors = Math.floor(Number(floors));
+            if (!Number.isFinite(floors) || floors < 0) floors = 0;
+            var won = floors >= QUALIFYING_FLOORS;
+            var adopted = loadAdopted();
+            postLeaderboardScore('Stack Lab', adopted && adopted.name, score, score + ' pts', function(){});
+            if (won && adopted) {
+              awardGameWinWithEconomy(adopted.name, 'Stack Lab', 1, function(){
+                refreshBalance();
+              }, function(){
+                toast('Nugget award failed. Contact your teacher if this persists.');
+              }, towerRunId);
+            }
+            showResult(score, floors, won);
+          }
+        });
+      }
+
+      playBtn.addEventListener('click', startTowerRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startTowerRound);
+
+      window.__LANTERN_TOWER_PLAYTEST__ = {
+        simulateWin: function(){
+          if (!iframe || !iframe.contentWindow) return false;
+          try {
+            var hook = iframe.contentWindow.__LANTERN_TOWER_TEST__;
+            if (hook && typeof hook.simulateWin === 'function') {
+              hook.simulateWin();
+              return true;
+            }
+          } catch (e) {}
+          return false;
+        },
+        simulateMissOut: function(){
+          if (!iframe || !iframe.contentWindow) return false;
+          try {
+            var hook = iframe.contentWindow.__LANTERN_TOWER_TEST__;
+            if (hook && typeof hook.simulateMissOut === 'function') {
+              hook.simulateMissOut();
+              return true;
+            }
+          } catch (e) {}
+          return false;
+        }
+      };
+    })();
+
+    // ---- Minecart Switch: paid start → rAF run → one result → Play Again new debit ----
+    // Survival score only. Candidate does not award game_win; do not invent a +1 on crash/game over.
+    (function(){
+      var playBtn = el('minecartSwitchPlayBtn');
+      var area = el('minecartSwitchArea');
+      var MCS = window.LANTERN_MINECART_SWITCH;
+      var mounted = false;
+      var scorePosted = false;
+
+      function resetMinecartGame(){
+        if (MCS && typeof MCS.stopRun === 'function') MCS.stopRun();
+        if (area) {
+          area.style.display = 'none';
+          area.setAttribute('hidden', '');
+        }
+      }
+
+      function submitMinecartResult(result){
+        if (scorePosted) return;
+        var runId = window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function'
+          ? window.LanternGamesPaidStart.getLastRunId()
+          : '';
+        if (!runId) {
+          toast('Score couldn\'t be saved. Try again.');
+          return;
+        }
+        scorePosted = true;
+        var adopted = loadAdopted();
+        postLeaderboardScore('Minecart Switch', adopted && adopted.name, result.score, result.score_display, function(ok){
+          if (ok) toast('Score recorded on leaderboard.');
+        });
+      }
+
+      function ensureMounted(){
+        if (mounted || !MCS || !area) return;
+        MCS.mount(area, {
+          onGameOver: submitMinecartResult,
+          onPlayAgain: startMinecartRound,
+          onLeaderboard: function(){
+            if (window.LanternGamePlayer) window.LanternGamePlayer.close();
+          }
+        });
+        mounted = true;
+      }
+
+      function startMinecartRound(){
+        tryPlay('Minecart Switch', function(){
+          if (!MCS) { toast('Couldn\'t start the game. Try again.'); return; }
+          scorePosted = false;
+          if (area) {
+            area.style.display = 'flex';
+            area.removeAttribute('hidden');
+          }
+          ensureMounted();
+          MCS.startRun();
+        }, { surface: area, onExit: resetMinecartGame, returnFocus: playBtn, title: 'Minecart Switch' });
+      }
+
+      if (playBtn) playBtn.addEventListener('click', startMinecartRound);
+    })();
+
+    // ---- Orbit Lock: timing lock on a circular orbit (Prompt #176) ----
+    (function(){
+      var playBtn = el('orbitLockPlayBtn');
+      var area = el('orbitLockArea');
+      var playAgainRow = el('orbitLockPlayAgainRow');
+      var playAgainBtn = el('orbitLockPlayAgainBtn');
+      var engine = window.LANTERN_ORBIT_LOCK;
+      var scorePosted = false;
+
+      function sfxOrbitLock(){ playGameTone([720, 960], { dur: 0.08, gap: 0.05, vol: 0.07 }); }
+      function sfxOrbitPerfect(){ playGameTone([880, 1180, 1480], { dur: 0.09, gap: 0.06, vol: 0.08 }); }
+      function sfxOrbitMiss(){ playGameTone([200], { dur: 0.14, vol: 0.05, type: 'triangle' }); }
+      function sfxOrbitOver(){ playGameTone([392, 330, 262], { dur: 0.16, gap: 0.12, vol: 0.07, type: 'triangle' }); }
+
+      function resetOrbitLockGame(){
+        if (engine && typeof engine.stop === 'function') engine.stop();
+        if (playAgainRow) playAgainRow.style.display = 'none';
+        if (area) area.style.display = 'none';
+      }
+
+      function startOrbitLockRound(){
+        if (!engine || typeof engine.mount !== 'function') {
+          toast('Couldn\'t start the game. Try again.');
+          return;
+        }
+        tryPlay('Orbit Lock', function(){
+          scorePosted = false;
+          if (playAgainRow) playAgainRow.style.display = 'none';
+          engine.mount(area, {
+            reducedMotion: prefersReducedMotion,
+            onLock: function(result){
+              if (!result) return;
+              if (result.type === 'perfect') sfxOrbitPerfect();
+              else if (result.type === 'hit') sfxOrbitLock();
+              else if (result.type === 'miss') sfxOrbitMiss();
+              else if (result.type === 'gameover' || result.type === 'complete') sfxOrbitOver();
+            },
+            onGameOver: function(runState){
+              if (playAgainRow) playAgainRow.style.display = 'flex';
+              if (scorePosted) return;
+              scorePosted = true;
+              var adopted = loadAdopted();
+              var pts = runState && Number.isFinite(Number(runState.score)) ? Math.floor(Number(runState.score)) : 0;
+              var stage = runState && runState.stage ? runState.stage : 1;
+              var display = pts + ' pts · stage ' + stage;
+              if (adopted) {
+                postLeaderboardScore('Orbit Lock', adopted.name, pts, display, function(ok){
+                  if (ok) toast('Score recorded on leaderboard.');
+                });
+              }
+            }
+          });
+        }, { surface: area, onExit: resetOrbitLockGame, returnFocus: playBtn });
+      }
+
+      if (playBtn) playBtn.addEventListener('click', startOrbitLockRound);
+      if (playAgainBtn) playAgainBtn.addEventListener('click', startOrbitLockRound);
+
+      try {
+        var params = new URLSearchParams(location.search || '');
+        if (params.get('game') === 'orbit-lock' && playBtn) {
+          setTimeout(function(){ playBtn.click(); }, 0);
+        }
+      } catch (e) {}
+    })();
 
     (function(){
       var overlay = el('cultureGameOverlay');
