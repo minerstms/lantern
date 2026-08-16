@@ -142,6 +142,13 @@ import {
   studentAvatarIsRestricted,
   writeCurrentAvatarKey,
 } from './avatar-media-gate.js';
+import {
+  handleProtectedContentRoutes,
+  handleAdminProtectedTraceLookup,
+  protectedDeliveryHeaders,
+  isNewsDeliveryObjectKey,
+  sessionRefFromJwtPayload,
+} from './protected-content.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -382,7 +389,8 @@ export default {
         path.startsWith('/api/feed') ||
         path.startsWith('/api/trivia') ||
         path.startsWith('/api/marquee') ||
-        path.startsWith('/api/locker')
+        path.startsWith('/api/locker') ||
+        path.startsWith('/api/protected')
       ) {
         o = corsForPilot(request);
       } else if (path.startsWith('/api/setup')) o = getCorsHeaders(request);
@@ -694,6 +702,19 @@ export default {
           return await handlePilotRoutes(r2, new URL(r2.url), '/api/pilot/logout', env, pCors);
         }
         return await handleAuthRoutes(request, url, path, env, pCors);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
+      }
+    }
+    if (path.startsWith('/api/protected')) {
+      try {
+        return await handleProtectedContentRoutes(request, url, path, env, corsForPilot(request), {
+          jsonResponse,
+          getPilotAccountFromRequest,
+          getPilotSessionRef,
+          pilotAccountRequiresChangePassword,
+        });
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
@@ -1183,6 +1204,15 @@ async function getPilotAccountFromRequest(request, env) {
   const ia = row.is_active != null ? Number(row.is_active) : 1;
   if (ia === 0) return null;
   return row;
+}
+
+async function getPilotSessionRef(request, env) {
+  const secret = env.PILOT_SESSION_SECRET;
+  if (!secret || String(secret).trim() === '') return null;
+  const token = getCookieValue(request.headers.get('Cookie') || '', PILOT_COOKIE_NAME);
+  if (!token) return null;
+  const payload = await verifyPilotJwt(token, secret);
+  return sessionRefFromJwtPayload(payload);
 }
 
 function pilotAccountRequiresChangePassword(row) {
@@ -2349,6 +2379,10 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
   if (pilotAccountRequiresChangePassword(account)) {
     return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/admin/protected/trace') {
+    return handleAdminProtectedTraceLookup(request, url, env, cors, { jsonResponse });
   }
 
   if (request.method === 'POST' && path === '/api/admin/staff-starter-nuggets') {
@@ -6243,6 +6277,13 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (!isAvatarObjectKey(key)) {
       return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
     }
+    const viewer = await getPilotAccountFromRequest(request, env);
+    if (!viewer) {
+      return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, corsForPilot(request));
+    }
+    if (pilotAccountRequiresChangePassword(viewer)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, corsForPilot(request));
+    }
     const profile = await db
       .prepare('SELECT character_name FROM lantern_avatar_profiles WHERE current_avatar_key = ? LIMIT 1')
       .bind(key)
@@ -6261,18 +6302,14 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (privateReview) {
       const allowed = ownerName ? await canViewPrivateAvatar(request, env, ownerName) : false;
       if (!allowed) {
-        return new Response('Not Found', { status: 404, headers: cors });
+        return new Response('Not Found', { status: 404, headers: corsForPilot(request) });
       }
     }
     const obj = await bucket.get(key);
-    if (!obj) return new Response('Not Found', { status: 404, headers: cors });
+    if (!obj) return new Response('Not Found', { status: 404, headers: corsForPilot(request) });
     return new Response(obj.body, {
       status: 200,
-      headers: {
-        'Content-Type': obj.httpMetadata?.contentType || 'image/png',
-        'Cache-Control': privateReview ? 'private, no-store' : 'public, max-age=86400',
-        ...cors,
-      },
+      headers: protectedDeliveryHeaders(obj.httpMetadata?.contentType || 'image/png', corsForPilot(request)),
     });
   }
 
@@ -7490,20 +7527,23 @@ async function handleNewsRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/news/image') {
     const key = (url.searchParams.get('key') || '').trim();
     if (!key) return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
-    if (!isNewsImageObjectKey(key)) {
+    if (!isNewsDeliveryObjectKey(key) && !isNewsImageObjectKey(key)) {
       return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
+    }
+    const newsViewer = await getPilotAccountFromRequest(request, env);
+    if (!newsViewer) {
+      return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, corsForPilot(request));
+    }
+    if (pilotAccountRequiresChangePassword(newsViewer)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, corsForPilot(request));
     }
     const bucketForImage = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucketForImage) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const obj = await bucketForImage.get(key);
-    if (!obj) return new Response('Not Found', { status: 404, headers: cors });
+    if (!obj) return new Response('Not Found', { status: 404, headers: corsForPilot(request) });
     return new Response(obj.body, {
       status: 200,
-      headers: {
-        'Content-Type': obj.httpMetadata?.contentType || 'image/png',
-        'Cache-Control': 'public, max-age=86400',
-        ...cors,
-      },
+      headers: protectedDeliveryHeaders(obj.httpMetadata?.contentType || 'image/png', corsForPilot(request)),
     });
   }
 
@@ -7513,17 +7553,20 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     if (!isNewsVideoObjectKey(key)) {
       return jsonResponse({ ok: false, error: 'invalid_key' }, 403, cors);
     }
+    const newsVideoViewer = await getPilotAccountFromRequest(request, env);
+    if (!newsVideoViewer) {
+      return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, corsForPilot(request));
+    }
+    if (pilotAccountRequiresChangePassword(newsVideoViewer)) {
+      return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, corsForPilot(request));
+    }
     const bucketForVideo = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucketForVideo) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const obj = await bucketForVideo.get(key);
-    if (!obj) return new Response('Not Found', { status: 404, headers: cors });
+    if (!obj) return new Response('Not Found', { status: 404, headers: corsForPilot(request) });
     return new Response(obj.body, {
       status: 200,
-      headers: {
-        'Content-Type': obj.httpMetadata?.contentType || 'video/mp4',
-        'Cache-Control': 'public, max-age=86400',
-        ...cors,
-      },
+      headers: protectedDeliveryHeaders(obj.httpMetadata?.contentType || 'video/mp4', corsForPilot(request)),
     });
   }
 

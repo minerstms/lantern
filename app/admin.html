@@ -917,6 +917,19 @@
     </div>
   </details>
 
+  <details class="card teacherCollapsibleList" id="adminProtectedTraceCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Protected access trace</div></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Look up an opaque TMS trace code from a protected-view watermark. This maps the code to the authorized access receipt. It does not prove a screenshot was taken or prevent photographs of the screen.</p>
+      <label for="adminProtectedTraceInput">Trace code</label>
+      <input id="adminProtectedTraceInput" type="text" maxlength="16" autocomplete="off" placeholder="e.g. X7K4P2" />
+      <button type="button" class="btn" id="adminProtectedTraceBtn">Look up</button>
+      <div id="adminProtectedTraceResult" class="pendingMeta" role="status" aria-live="polite"></div>
+    </div>
+  </details>
+
   <details class="card teacherCollapsibleList" id="adminPendingApprovalsCard">
     <summary class="cardHd teacherCollapsibleListHd">
       <div class="teacherCollapsibleListTitle"><div class="h">Pending approvals</div></div>

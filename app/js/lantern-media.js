@@ -52,15 +52,15 @@
     var photoCredit = (item && item.photo_credit && String(item.photo_credit).trim()) || '';
 
     if (variant === 'newsFeatured') {
-      var imgF = fullImageUrl ? '<div class="newsCardImageWrap"><img class="newsCardImage" src="' + esc(fullImageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' + (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') + '</div>' : '';
-      var vidF = videoUrl ? '<div class="newsCardVideoWrap" style="margin-bottom:12px;"><video class="newsCardVideo" controls preload="metadata" style="max-width:100%;max-height:320px;border-radius:12px;border:1px solid var(--line);" src="' + esc(videoUrl) + '"></video></div>' : '';
+      var imgF = fullImageUrl ? '<div class="newsCardImageWrap lanternProtectedMedia"><img class="newsCardImage lanternProtectedMedia" draggable="false" src="' + esc(fullImageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' + (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') + '</div>' : '';
+      var vidF = videoUrl ? '<div class="newsCardVideoWrap lanternProtectedMedia" style="margin-bottom:12px;"><video class="newsCardVideo lanternProtectedMedia" draggable="false" controls preload="metadata" style="max-width:100%;max-height:320px;border-radius:12px;border:1px solid var(--line);" src="' + esc(videoUrl) + '"></video></div>' : '';
       var linkF = linkUrl ? '<div class="newsCardLinkWrap" style="margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);"><div style="font-weight:800;font-size:20px;color:var(--muted);margin-bottom:6px;">Link</div><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener noreferrer" style="word-break:break-all;color:var(--accent);">' + esc(linkUrl) + '</a></div>' : '';
       return { imgBlock: imgF, videoBlock: vidF, linkBlock: linkF };
     }
 
     if (variant === 'newsList') {
-      var imgL = imageUrl ? '<div class="newsCardImageWrap"><img class="newsCardImage" src="' + esc(imageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' + (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') + '</div>' : '';
-      var vidL = videoUrl ? '<div class="newsCardVideoWrap" style="margin-bottom:12px;"><video class="newsCardVideo" controls preload="metadata" style="max-width:100%;max-height:280px;border-radius:12px;border:1px solid var(--line);" src="' + esc(videoUrl) + '"></video></div>' : '';
+      var imgL = imageUrl ? '<div class="newsCardImageWrap lanternProtectedMedia"><img class="newsCardImage lanternProtectedMedia" draggable="false" src="' + esc(imageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' + (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') + '</div>' : '';
+      var vidL = videoUrl ? '<div class="newsCardVideoWrap lanternProtectedMedia" style="margin-bottom:12px;"><video class="newsCardVideo lanternProtectedMedia" draggable="false" controls preload="metadata" style="max-width:100%;max-height:280px;border-radius:12px;border:1px solid var(--line);" src="' + esc(videoUrl) + '"></video></div>' : '';
       var linkL = linkUrl ? '<div class="newsCardLinkWrap" style="margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);"><div style="font-weight:800;font-size:20px;color:var(--muted);margin-bottom:6px;">Link</div><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener noreferrer" style="word-break:break-all;color:var(--accent);">' + esc(linkUrl) + '</a></div>' : '';
       return { imgBlock: imgL, videoBlock: vidL, linkBlock: linkL };
     }
@@ -71,14 +71,14 @@
       var imgD = fullImageUrl
         ? '<div class="lanternDetailMedia lanternDetailMedia--img"><div class="newsCardImageWrap lanternDetailMediaImageInner">' +
           '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="View full image" title="View full image">⛶</button>' +
-          '<img class="newsCardImage" src="' + esc(fullImageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' +
+          '<img class="newsCardImage lanternProtectedMedia" draggable="false" src="' + esc(fullImageUrl) + '" alt="" onerror="this.parentNode.style.display=\'none\'">' +
           (photoCredit ? '<div class="newsPhotoCredit">Photo: ' + esc(photoCredit) + '</div>' : '') +
           '</div></div>'
         : '';
       var vidD = videoUrl
         ? '<div class="lanternDetailMedia lanternDetailMedia--video"><div class="newsCardVideoWrap lanternDetailMediaVideoInner">' +
           '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="Full screen video" title="Full screen video">⛶</button>' +
-          '<video class="newsCardVideo" controls preload="metadata" src="' + esc(videoUrl) + '"></video></div></div>'
+          '<video class="newsCardVideo lanternProtectedMedia" draggable="false" controls preload="metadata" src="' + esc(videoUrl) + '"></video></div></div>'
         : '';
       var linkD = linkUrl
         ? '<div class="lanternDetailMedia lanternDetailMedia--link"><div class="newsCardLinkWrap" style="margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);"><div style="font-weight:800;font-size:20px;color:var(--muted);margin-bottom:6px;">Link</div><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener noreferrer" style="word-break:break-all;color:var(--accent);" onclick="event.stopPropagation();">' + esc(linkUrl) + '</a></div></div>'
@@ -97,9 +97,9 @@
       var imgErr = ' onerror="var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;}else{el.src=u;}"';
       var mediaBlock = '';
       if (imageUrl) {
-        mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--img lanternCardNewsMedia--railBound"><img class="lcCardImg" src="' + esc(imageUrl) + '" alt=""' + imgDataAttrs + imgErr + '></div>';
+        mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--img lanternCardNewsMedia--railBound lanternProtectedMedia"><img class="lcCardImg lanternProtectedMedia" draggable="false" src="' + esc(imageUrl) + '" alt=""' + imgDataAttrs + imgErr + '></div>';
       } else if (videoUrl) {
-        mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--video lanternCardNewsMedia--railBound"><video src="' + esc(videoUrl) + '"' + posterAttr + ' controls preload="metadata" class="lcCardVideo"></video></div>';
+        mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--video lanternCardNewsMedia--railBound lanternProtectedMedia"><video src="' + esc(videoUrl) + '"' + posterAttr + ' controls preload="metadata" class="lcCardVideo lanternProtectedMedia" draggable="false"></video></div>';
       } else if (linkUrl) {
         mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--link lanternCardNewsMedia--railBound">' +
           '<span class="lcExploreLinkFill" aria-hidden="true"></span>' +
@@ -114,8 +114,8 @@
       // icon and never raw media URL text; the data URI has no quote characters so it is safe
       // to inline inside this attribute without any HTML-entity nesting tricks.
       var imgErrTeacher = ' onerror="this.onerror=null;this.src=\'' + TEACHER_IMG_FALLBACK_SVG + '\';this.style.opacity=\'.55\';this.title=\'Photo unavailable\';"';
-      var imageHtml = (fullImageUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Image</p><img class="reviewLargeImg" src="' + esc(fullImageUrl) + '" alt=""' + imgErrTeacher + '>' : '';
-      var videoHtml = (videoUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Video</p><video class="reviewVideo" controls preload="metadata" muted src="' + esc(videoUrl) + '"></video>' : '';
+      var imageHtml = (fullImageUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Image</p><img class="reviewLargeImg lanternProtectedMedia" draggable="false" src="' + esc(fullImageUrl) + '" alt=""' + imgErrTeacher + '>' : '';
+      var videoHtml = (videoUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Video</p><video class="reviewVideo lanternProtectedMedia" draggable="false" controls preload="metadata" muted src="' + esc(videoUrl) + '"></video>' : '';
       var linkHtml = (linkUrl) ? '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Link</p><div style="padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener noreferrer" style="word-break:break-all;color:var(--accent);">' + esc(linkUrl) + '</a></div>' : '';
       return { imageHtml: imageHtml, videoHtml: videoHtml, linkHtml: linkHtml };
     }

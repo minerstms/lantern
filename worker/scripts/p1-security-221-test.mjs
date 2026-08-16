@@ -265,7 +265,7 @@ if (stuMatch.status === 200 && stuMatch.json && stuMatch.json.ok) {
 } else bad('student match', stuMatch);
 
 const anonPending = await req(env, 'GET', '/api/avatar/image?key=avatars/pending-stu.png');
-if (anonPending.status === 404) ok('anonymous pending avatar image rejected');
+if (anonPending.status === 401 && anonPending.json && anonPending.json.error === 'not_authenticated') ok('anonymous pending avatar image rejected');
 else bad('anon pending image', anonPending);
 
 const staffPending = await req(env, 'GET', '/api/avatar/image?key=avatars/pending-stu.png', teacherCookie);
@@ -276,12 +276,16 @@ const ownerPending = await req(env, 'GET', '/api/avatar/image?key=avatars/pendin
 if (ownerPending.status === 200 && /private, no-store/.test(String(ownerPending.cache || ''))) ok('owner can access own pending avatar');
 else bad('owner pending image', ownerPending);
 
-const publicStaff = await req(env, 'GET', '/api/avatar/image?key=avatars/staff-active.png');
-if (publicStaff.status === 200 && /public/.test(String(publicStaff.cache || ''))) ok('approved public staff avatar still renders');
-else bad('public staff avatar', publicStaff);
+const publicStaffAnon = await req(env, 'GET', '/api/avatar/image?key=avatars/staff-active.png');
+if (publicStaffAnon.status === 401 && publicStaffAnon.json && publicStaffAnon.json.error === 'not_authenticated') ok('approved staff avatar is not an unauthenticated public URL');
+else bad('anon staff avatar', publicStaffAnon);
+
+const publicStaff = await req(env, 'GET', '/api/avatar/image?key=avatars/staff-active.png', teacherCookie);
+if (publicStaff.status === 200 && /private, no-store/.test(String(publicStaff.cache || ''))) ok('approved staff avatar renders to authenticated viewers with private cache');
+else bad('auth staff avatar', publicStaff);
 
 const restrictedAnon = await req(env, 'GET', '/api/avatar/image?key=avatars/restricted-active.png');
-if (restrictedAnon.status === 404) ok('Restricted active avatar not served publicly');
+if (restrictedAnon.status === 401) ok('Restricted active avatar not served publicly');
 else bad('restricted public image', restrictedAnon);
 
 const wrongPrefix = await req(env, 'GET', '/api/avatar/image?key=news/ok.png');
@@ -292,8 +296,12 @@ const arb = await req(env, 'GET', '/api/avatar/image?key=../secret.png');
 if (arb.status === 403) ok('arbitrary traversal avatar key rejected');
 else bad('traversal', arb);
 
-const newsOk = await req(env, 'GET', '/api/news/image?key=news/ok.png');
-if (newsOk.status === 200) ok('legitimate news image key still works');
+const newsAnon = await req(env, 'GET', '/api/news/image?key=news/ok.png');
+if (newsAnon.status === 401 && newsAnon.json && newsAnon.json.error === 'not_authenticated') ok('news image rejects unauthenticated direct access');
+else bad('news anon', newsAnon);
+
+const newsOk = await req(env, 'GET', '/api/news/image?key=news/ok.png', studentCookie);
+if (newsOk.status === 200 && /private, no-store/.test(String(newsOk.cache || ''))) ok('legitimate news image key still works for authenticated viewers');
 else bad('news ok', newsOk);
 
 const newsWrong = await req(env, 'GET', '/api/news/image?key=avatars/staff-active.png');
