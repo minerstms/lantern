@@ -1868,6 +1868,16 @@ async function handleTmsNuggetsRoutes(request, url, path, env, cors) {
       result.total_earned = result.earned;
       result.total_spent = result.spent;
     }
+  } else if (path === '/api/tms-nuggets/dashboard') {
+    result = await callTmsNuggetsBridge(env, 'teacher-dashboard', tmsStaffId, {
+      group_filter: body.group_filter || body.groupFilter || {},
+      include_bootstrap: body.include_bootstrap !== false,
+    });
+  } else if (path === '/api/tms-nuggets/assign-pending') {
+    result = await callTmsNuggetsBridge(env, 'assign-pending', tmsStaffId, {
+      log_id: body.log_id,
+      student_name: body.student_name,
+    });
   } else {
     return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
   }

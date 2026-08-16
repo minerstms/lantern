@@ -14,7 +14,7 @@ function ok(label) { pass++; console.log('PASS', label); }
 function bad(label, detail) { fail++; console.error('FAIL', label, detail != null ? detail : ''); }
 
 const NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
-const STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
+const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const FORBIDDEN_LABELS = ['Teacher', 'Admin', 'Behavior Admin', 'Dashboard', 'System Admin'];
 
 const MATRIX = {
@@ -66,9 +66,13 @@ if (!ordinary.includes('Reports') && !ordinary.includes('Behavior Administration
   ok('ordinary teacher avoids Reports, Behavior Administration, and System');
 } else bad('ordinary privileged leak', ordinary);
 
-if (ordinary.includes('Teacher Dashboard') && rick.includes('Teacher Dashboard') && deana.includes('Teacher Dashboard')) {
-  ok('every TEACHER-capable nav includes Teacher Dashboard');
-} else bad('Teacher Dashboard missing');
+const studentLabels = LSN.canonicalVisibleLabels(MATRIX.student.role, MATRIX.student.caps, 'lantern');
+if (![studentLabels, ordinary, rick, deana, LSN.canonicalVisibleLabels(MATRIX.webAdmin.role, MATRIX.webAdmin.caps, 'lantern')].some((labels) => labels.includes('Teacher Dashboard'))) {
+  ok('Teacher Dashboard is absent from student, ordinary teacher, Rick, Deana, and Web Admin nav');
+} else bad('Teacher Dashboard reappeared in canonical nav');
+if (ordinary.includes('Teacher Tools') && ordinary.includes('Behavior Logger')) {
+  ok('ordinary teacher has Teacher Tools and Behavior Logger');
+} else bad('STAFF destinations missing', ordinary);
 
 if (NAV.every((l) => LSN.canonicalVisibleLabels('student', null, 'lantern').includes(l))) {
   ok('Media Library preserved in canonical student navigation');
@@ -80,9 +84,12 @@ if (LSN.hrefFor('media_library', 'lantern') === 'https://miners-yearbook.pages.d
   ok('Media Library destination has no identity tokens');
 } else bad('Media Library href', LSN.hrefFor('media_library', 'lantern'));
 
-if (LSN.hrefFor('teacherDashboard', 'lantern') === 'https://log.tmslantern.org/teacher.html') {
-  ok('Lantern Teacher Dashboard points at TMS /teacher.html');
-} else bad('Teacher Dashboard href', LSN.hrefFor('teacherDashboard', 'lantern'));
+if (!staffNav.includes("label: 'Teacher Dashboard'") && !staffNav.includes("id: 'teacherDashboard'")) {
+  ok('canonical renderer has no Teacher Dashboard item');
+} else bad('Teacher Dashboard item still in lantern-staff-nav.js');
+if (LSN.hrefFor('teacher', 'lantern') === '/teacher.html') {
+  ok('Teacher Tools points at Lantern /teacher.html');
+} else bad('Teacher Tools href', LSN.hrefFor('teacher', 'lantern'));
 
 if (LSN.hrefFor('behaviorAdmin', 'lantern').includes('admin.html#behavior')) {
   ok('Behavior Administration destination is admin.html#behavior');
@@ -102,8 +109,8 @@ if (FORBIDDEN_LABELS.every((l) => !staffNav.includes("label: '" + l + "'"))) {
   ok('canonical renderer does not invent alternate labels');
 } else bad('alternate labels present');
 
-if (contract.includes('Teacher Dashboard') && contract.includes('Media Library') && contract.includes('Behavior Administration')) {
-  ok('written contract includes Teacher Dashboard, Media Library, Behavior Administration');
+if (contract.includes('There is no separate canonical Teacher Dashboard product') && contract.includes('Media Library') && contract.includes('Behavior Administration') && contract.includes('Teacher Tools is the canonical staff utility workspace')) {
+  ok('written contract retires Teacher Dashboard and keeps Media Library + Behavior Administration');
 } else bad('contract incomplete');
 
 const tmsRick = LSN.canonicalVisibleLabels(MATRIX.rick.role, MATRIX.rick.caps, 'tms');

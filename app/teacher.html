@@ -199,6 +199,16 @@
     }
     .note.note-tight{ margin-bottom: 8px; }
     .note.note-tight:last-child{ margin-bottom: 0; }
+    .privacyNotice{
+      margin: 0 0 12px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,204,102,.35);
+      border-radius: 12px;
+      background: rgba(255,204,102,.08);
+      color: var(--ink);
+      font-size: 22px;
+      line-height: 1.4;
+    }
 
     .createMissionStatus{
       margin: 10px 0 0;
@@ -1549,6 +1559,7 @@
           </div>
           <button type="button" class="teacherSidebarItem" data-workspace-link="economy" data-help="teacher_nuggets"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview" data-help="teacher_overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="recent-logs" data-help="teacher_recent_logs"><span class="teacherSidebarIcon" aria-hidden="true">📋</span><span class="teacherSidebarLabel">Recent Behavior Logs</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Submissions</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="schoolaccess" data-help="teacher_school_access"><span class="teacherSidebarIcon" aria-hidden="true">🔐</span><span class="teacherSidebarLabel">Lantern Access</span></button>
           <!-- Prompt #118/#119 — Missions & Shout-Out! creation live under Lantern → Create; workspaces/routes retained for deep links & Overview. -->
@@ -1792,7 +1803,7 @@
       <div class="cardBd teacherCollapsibleListBd">
 
         <div class="teacherRewardDivider" id="teacherRewardManualSalePanel" data-help="teacher_manual_sale">
-          <div class="h">Nuggets</div>
+          <div class="h">Nugget Ledger</div>
 
           <label for="teacherRewardStudentInput">Student</label>
           <div class="studentCombo">
@@ -1868,6 +1879,111 @@
       </div>
       <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
     </details>
+
+    <details class="card teacherCollapsibleList" id="teacherPendingNuggetsCard" data-workspace="economy" open data-collapsible-default-open="1">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Pending Nuggets</div></div>
+        <div class="teacherCollapsibleListMeta">
+          <div class="pill accent" id="teacherPendingNuggetsCount">0</div>
+          <button type="button" class="btn small" data-behavior-tools-refresh>Refresh</button>
+        </div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
+        <p class="note note-tight">Assign a student to a pending positive log. This does not create a new behavior log.</p>
+        <div class="teacherField teacherBehaviorFilter" data-behavior-filter>
+          <label>Student filter</label>
+          <select class="teacherSelect" data-filter-type>
+            <option value="all">All Students</option>
+            <option value="category">By category</option>
+            <option value="group">By group</option>
+          </select>
+          <select class="teacherSelect" data-filter-category hidden>
+            <option value="">— Select category —</option>
+          </select>
+          <select class="teacherSelect" data-filter-group hidden>
+            <option value="">— Select group —</option>
+          </select>
+        </div>
+        <div class="teacherCollapsibleListScroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:92px;">Kind</th>
+                <th>Note</th>
+                <th style="width:240px;">Student</th>
+                <th style="width:140px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="teacherPendingNuggetsBody"><tr><td colspan="4" class="placeholderRow">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+    <details class="card teacherCollapsibleList" id="teacherNuggetStudentTotalsCard" data-workspace="economy" open data-collapsible-default-open="1">
+      <summary class="cardHd teacherCollapsibleListHd">
+        <div class="teacherCollapsibleListTitle"><div class="h">Student Totals</div></div>
+        <div class="teacherCollapsibleListMeta"><div class="pill">Top 20</div></div>
+      </summary>
+      <div class="cardBd teacherCollapsibleListBd">
+        <p class="note note-tight">Positive log counts from your recent Behavior Logger entries.</p>
+        <div class="teacherCollapsibleListScroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:44px;">#</th>
+                <th class="cellStudentName">Student</th>
+                <th class="colTotal">Total</th>
+              </tr>
+            </thead>
+            <tbody id="teacherNuggetTotalsBody"><tr><td colspan="3" class="placeholderRow">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+    <section id="teacher-recent-logs" class="teacherMissionsSection" data-workspace="recent-logs" aria-labelledby="teacherRecentLogsHeading">
+      <h2 id="teacherRecentLogsHeading" class="visuallyHidden">Recent Behavior Logs</h2>
+      <div class="card" id="teacherRecentLogsCard">
+        <div class="cardHd">
+          <div class="h">My Recent Logs</div>
+          <div class="pill" id="teacherRecentLogsCount">0</div>
+        </div>
+        <div class="cardBd">
+          <p class="privacyNotice">TMS Confidential Student Record. Access is limited to authorized educational use.</p>
+          <p class="note note-tight">Read-only history of your recent Behavior Logger entries. Create a new log in Behavior Logger.</p>
+          <p class="note note-tight"><a href="/api/auth/tms-device-authorize?return=https%3A%2F%2Flog.tmslantern.org%2Findex.html%3Fintent%3Dremember" data-lantern-behavior-nav="1">Open Behavior Logger</a></p>
+          <div class="teacherField teacherBehaviorFilter" data-behavior-filter>
+            <label>Student filter</label>
+            <select class="teacherSelect" data-filter-type>
+              <option value="all">All Students</option>
+              <option value="category">By category</option>
+              <option value="group">By group</option>
+            </select>
+            <select class="teacherSelect" data-filter-category hidden>
+              <option value="">— Select category —</option>
+            </select>
+            <select class="teacherSelect" data-filter-group hidden>
+              <option value="">— Select group —</option>
+            </select>
+          </div>
+          <div class="teacherCollapsibleListScroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th class="cellStudentName">Student</th>
+                  <th>Kind</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody id="teacherRecentLogsBody"><tr><td colspan="4" class="placeholderRow">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="teacherSectionFoot"><a class="teacherBackToTop" href="#teacherPageTop">Back to top</a></div>
+    </section>
 
     <div data-workspace="review" id="teacher-approvals-workspace">
     <details class="card teacherCollapsibleList" id="teacher-approvals" open data-collapsible-default-open="1" style="border-color: rgba(90,167,255,.35); background: linear-gradient(180deg, rgba(90,167,255,.06), rgba(90,167,255,.02));" data-help="approvals_queue">
@@ -2286,8 +2402,8 @@
     // Prompt #103 — Create Mission and My Missions are now ONE workspace ("missions").
     // "create" is a preserved deep-link ALIAS → missions (+ expands Create).
     // Prompt #143 — "other" archived from sidebar; stale #other falls back to Overview.
-    var WORKSPACES = ['overview', 'review', 'schoolaccess', 'missions', 'shoutout', 'moderation', 'economy'];
-    var WORKSPACE_ALIASES = { create: 'missions', other: 'overview', 'other-tools': 'overview' };
+    var WORKSPACES = ['overview', 'review', 'schoolaccess', 'missions', 'shoutout', 'moderation', 'economy', 'recent-logs'];
+    var WORKSPACE_ALIASES = { create: 'missions', other: 'overview', 'other-tools': 'overview', recent: 'recent-logs', 'my-recent-logs': 'recent-logs' };
     // Prompt #91 — Nuggets is the first sidebar item and the default Teacher workspace.
     var DEFAULT_WORKSPACE = 'economy';
     var TITLES = {
@@ -2298,6 +2414,7 @@
       shoutout: 'Shout-Out!',
       moderation: 'Moderation',
       economy: 'Nuggets',
+      'recent-logs': 'Recent Behavior Logs',
     };
 
     function resolveWorkspaceAlias(name){
@@ -2306,6 +2423,10 @@
     }
 
     function workspaceFromHash(){
+      var params = new URLSearchParams(location.search || '');
+      if (params.get('edit') && !String(location.hash || '').replace(/^#/, '').trim()) {
+        return 'recent-logs';
+      }
       var h = resolveWorkspaceAlias(String(location.hash || '').replace(/^#/, '').trim().toLowerCase());
       return WORKSPACES.indexOf(h) !== -1 ? h : DEFAULT_WORKSPACE;
     }
@@ -2357,6 +2478,8 @@
       }
       if (name === 'economy') {
         setPanelOpen('teacher-rewards', true);
+        setPanelOpen('teacherPendingNuggetsCard', true);
+        setPanelOpen('teacherNuggetStudentTotalsCard', true);
       }
     }
 
@@ -2496,6 +2619,7 @@
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-wallet.js"></script>
   <script src="js/lantern-teacher-reward-redeem.js"></script>
+  <script src="js/lantern-teacher-behavior-tools.js"></script>
   <script>
     (function () {
       var amt = document.getElementById('teacherSidebarBalanceAmt');

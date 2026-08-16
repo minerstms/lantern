@@ -20,7 +20,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 const CORE = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
-const STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
+const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const PAGES = [
   'app/explore.html',
   'app/locker.html',
@@ -67,7 +67,7 @@ assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAF
 const orderHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, behavior_admin: true, system_admin: true }, 'teacher');
 const order = [...orderHtml.matchAll(/class="lanternAppBarDropdownLink[^"]*"[^>]*data-page="([^"]+)"/g)].map((m) => m[1]);
 assert(
-  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'teacher-dashboard', 'behavior', 'reports', 'behavior-admin', 'system']),
+  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'behavior', 'reports', 'behavior-admin', 'system']),
   '24. canonical data-page order',
   JSON.stringify(order)
 );

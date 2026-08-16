@@ -18,7 +18,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
-const EXPECTED_STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
+const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
 const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const staffNav = read('app/js/lantern-staff-nav.js');
 const lanternNav = read('app/js/lantern-nav.js');
@@ -51,7 +51,7 @@ assert(/\/teacher\.html/.test(staffNav), 'Teacher Tools route includes /teacher.
 assert(/tms-device-authorize/.test(staffNav) && /log\.tmslantern\.org/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
 assert(staffNav.includes('/admin#system'), 'System href targets /admin#system');
 assert(/report_maker \|\| caps\.behavior_admin/.test(staffNav) || /caps\.report_maker \|\| caps\.behavior_admin/.test(staffNav), 'Reports gated by REPORT_MAKER or BEHAVIOR_ADMIN');
-assert(staffNav.includes("label: 'Teacher Dashboard'"), 'lantern-staff-nav: Teacher Dashboard in STAFF');
+assert(!staffNav.includes("label: 'Teacher Dashboard'"), 'lantern-staff-nav: Teacher Dashboard retired from STAFF');
 assert(staffNav.includes("label: 'Behavior Administration'"), 'lantern-staff-nav: Behavior Administration privileged label');
 assert(!/normalizeRole\(role\) === 'admin'\) return true/.test(staffNav), 'privileged nav has no role===admin shortcut');
 
@@ -85,9 +85,9 @@ const sandbox = { window: {}, self: {} };
 vm.runInNewContext(staffNav, sandbox);
 const LSN = sandbox.window.LanternStaffNav || sandbox.self.LanternStaffNav;
 assert(!!LSN, 'LanternStaffNav exports from lantern-staff-nav.js');
-assert(JSON.stringify(LSN.labelsInOrder()) === JSON.stringify(EXPECTED_STAFF), 'labelsInOrder is Teacher Tools + Teacher Dashboard + Behavior Logger', JSON.stringify(LSN.labelsInOrder()));
+assert(JSON.stringify(LSN.labelsInOrder()) === JSON.stringify(EXPECTED_STAFF), 'labelsInOrder is Teacher Tools + Behavior Logger', JSON.stringify(LSN.labelsInOrder()));
 assert(JSON.stringify(LSN.staffLabelsInOrder('admin')) === JSON.stringify(EXPECTED_STAFF), 'admin role STAFF has no Admin item', JSON.stringify(LSN.staffLabelsInOrder('admin')));
-assert(JSON.stringify(LSN.staffLabelsInOrder('teacher')) === JSON.stringify(EXPECTED_STAFF), 'teacher role STAFF is Teacher Tools + Teacher Dashboard + Behavior Logger');
+assert(JSON.stringify(LSN.staffLabelsInOrder('teacher')) === JSON.stringify(EXPECTED_STAFF), 'teacher role STAFF is Teacher Tools + Behavior Logger');
 assert(JSON.stringify(LSN.staffLabelsInOrder('student')) === JSON.stringify(EXPECTED_STAFF), 'staff item list itself is role-agnostic');
 
 const defaultMenu = LSN.buildMenuSectionsHtml('explore', 'lantern');
@@ -100,7 +100,7 @@ assert(!/STAFF|Teacher Tools|Behavior Logger|Reports|System/.test(studentMenu), 
 assert(/Media Library/.test(studentMenu), 'student menu includes Media Library');
 
 const teacherMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'teacher');
-assert(/STAFF/.test(teacherMenu) && /Teacher Tools/.test(teacherMenu) && /Teacher Dashboard/.test(teacherMenu) && /Behavior Logger/.test(teacherMenu), 'teacher menu includes STAFF links');
+assert(/STAFF/.test(teacherMenu) && /Teacher Tools/.test(teacherMenu) && /Behavior Logger/.test(teacherMenu) && !/Teacher Dashboard/.test(teacherMenu), 'teacher menu includes STAFF links and no Teacher Dashboard');
 assert(!/Reports/.test(teacherMenu) && !/>System</.test(teacherMenu), 'teacher without caps has no Reports/System');
 
 const reportingMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true }, 'teacher');

@@ -122,6 +122,13 @@ if (/id="teacher-utilities"/.test(html) && /data-workspace="other"/.test(html)) 
 if (/Hallway TV/.test(html) && /href="display\.html"/.test(html)) ok('Hallway TV remains separate display.html link');
 else bad('Hallway TV link missing');
 
+if (/data-workspace-link="recent-logs"/.test(html) && /Recent Behavior Logs/.test(html)) {
+  ok('Recent Behavior Logs is a Teacher Tools sidebar destination');
+} else bad('Recent Behavior Logs sidebar item missing');
+if (/Pending Nuggets/.test(html) && /Nugget Ledger/.test(html) && /id="teacherNuggetStudentTotalsCard"/.test(html)) {
+  ok('Nuggets workspace exposes Pending Nuggets, Nugget Ledger, and Student Totals');
+} else bad('Nuggets migration panels missing');
+
 const hallwayIdx = html.indexOf('Hallway TV');
 const phoneIdx = html.indexOf('Phone App Download');
 if (phoneIdx > hallwayIdx && hallwayIdx > 0) ok('Phone App Download appears after Hallway TV (bottom of sidebar)');

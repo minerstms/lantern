@@ -14,7 +14,7 @@
 import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/index.mjs';
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
-const EXPECTED_STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
+const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
 const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const EXPECTED_FULL = EXPECTED_NAV.concat(EXPECTED_STAFF);
 
@@ -166,7 +166,7 @@ async function main() {
 
     const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
     const staffLabels = (await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) => t.trim());
-    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger']), 'Web Admin STAFF order: ' + JSON.stringify(staffLabels));
+    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Behavior Logger']), 'Web Admin STAFF order: ' + JSON.stringify(staffLabels));
     const systemLink = page.locator('#lanternMenuDropdown a[data-page="system"]');
     assert(await systemLink.count() === 1, 'System menuitem present for Web Admin capabilities');
     assert((await systemLink.getAttribute('href')) === '/admin#system', 'System points to /admin#system');

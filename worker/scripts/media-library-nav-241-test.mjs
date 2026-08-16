@@ -46,8 +46,8 @@ const studentKeep = ['Lantern', 'Locker', 'Create', 'Play', 'Missions'];
 if (studentKeep.every((l) => student.includes(l))) ok('6. existing student links remain');
 else bad('6. student links', student);
 
-const staffKeep = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
-if (staffKeep.every((l) => teacher.includes(l))) ok('7. existing staff links remain');
+const staffKeep = ['Teacher Tools', 'Behavior Logger'];
+if (staffKeep.every((l) => teacher.includes(l)) && !teacher.includes('Teacher Dashboard')) ok('7. existing staff links remain and Teacher Dashboard is absent');
 else bad('7. staff links', teacher);
 
 const adminWithCaps = LSN.canonicalVisibleLabels('admin', { report_maker: true, behavior_admin: true, system_admin: true }, 'lantern');
