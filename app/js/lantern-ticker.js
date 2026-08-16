@@ -1,6 +1,7 @@
 /**
  * Lantern — ONE ticker: same data pipeline and render as Display.
  * No activity feed, games, or news-specific ticker paths.
+ * Prompt #256 — header/ticker visual contract: docs/LANTERN_HEADER_CONTRACT.md
  */
 (function (global) {
   var TICKER_INIT_DONE = false;
@@ -24,9 +25,15 @@
 
   var FALLBACK_TICKER_ITEM = {
     icon: '✨',
-    text: '<span class="lanternTickerText">Lantern — News · Spotlights · Community</span>',
+    typeLabel: 'Lantern',
+    subject: 'News · Spotlights · Community',
+    author: '',
+    primaryName: '',
+    rest: 'Lantern',
+    ariaLabel: 'Lantern — News · Spotlights · Community',
     avatarUrl: '',
     avatarEmoji: '',
+    authorAvatarKey: '',
     system: true,
     hasPerson: false
   };
@@ -63,42 +70,46 @@
     return TICKER_ICONS[String(type || '').trim()] || '';
   }
 
+  function normalizeTickerWhitespace(s) {
+    return String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  }
+
   function formatTickerCopy(parts) {
-    var type = String((parts && parts.type) || '').trim();
-    var name = String((parts && parts.primary_name) || '').trim();
-    var object = String((parts && parts.object_title) || '').trim();
-    var label = String((parts && parts.label) || '').trim() || tickerTypeLabel(type) || 'Lantern';
+    var type = normalizeTickerWhitespace((parts && parts.type) || '');
+    var name = normalizeTickerWhitespace((parts && parts.primary_name) || '');
+    var object = normalizeTickerWhitespace((parts && parts.object_title) || '');
+    var label = normalizeTickerWhitespace((parts && parts.label) || '') || tickerTypeLabel(type) || 'Lantern';
     if (object && name && object === name) return label + ' — ' + name;
     if (label && object && name) return label + ': ' + object + ' — ' + name;
     if (label && object) return label + ': ' + object;
     if (label && name) return label + ' — ' + name;
-    return String((parts && parts.fallback) || '').trim() || label || 'Lantern';
+    return normalizeTickerWhitespace((parts && parts.fallback) || '') || label || 'Lantern';
   }
 
   function parseCompactTickerCopy(publicText) {
-    var full = String(publicText || '').trim();
+    var full = normalizeTickerWhitespace(publicText);
     var withAuthor = full.match(/^([^:]+):\s*(.*?)\s+[—–]\s+(.+)$/);
     if (withAuthor) {
-      return { typeLabel: String(withAuthor[1] || '').trim(), subject: String(withAuthor[2] || '').trim(), author: String(withAuthor[3] || '').trim() };
+      return { typeLabel: normalizeTickerWhitespace(withAuthor[1]), subject: normalizeTickerWhitespace(withAuthor[2]), author: normalizeTickerWhitespace(withAuthor[3]) };
     }
     var typeAuthor = full.match(/^([^:]+)\s+[—–]\s+(.+)$/);
     if (typeAuthor && typeAuthor[1].indexOf(':') === -1) {
-      return { typeLabel: String(typeAuthor[1] || '').trim(), subject: '', author: String(typeAuthor[2] || '').trim() };
+      return { typeLabel: normalizeTickerWhitespace(typeAuthor[1]), subject: '', author: normalizeTickerWhitespace(typeAuthor[2]) };
     }
     var typeSubject = full.match(/^([^:]+):\s*(.+)$/);
     if (typeSubject) {
-      return { typeLabel: String(typeSubject[1] || '').trim(), subject: String(typeSubject[2] || '').trim(), author: '' };
+      return { typeLabel: normalizeTickerWhitespace(typeSubject[1]), subject: normalizeTickerWhitespace(typeSubject[2]), author: '' };
     }
     return { typeLabel: '', subject: '', author: '' };
   }
 
   function tickerNameAndRest(publicText, primaryName) {
     var parsed = parseCompactTickerCopy(publicText);
-    var name = String(primaryName || '').trim() || parsed.author;
+    var name = normalizeTickerWhitespace(primaryName) || parsed.author;
     if (parsed.typeLabel) {
       return { name: name, rest: parsed.subject ? parsed.typeLabel + ': ' + parsed.subject : parsed.typeLabel };
     }
-    var full = String(publicText || '').trim();
+    var full = normalizeTickerWhitespace(publicText);
     if (name && full.indexOf(name) === 0) {
       return { name: name, rest: full.slice(name.length) };
     }
@@ -183,6 +194,7 @@
   /**
    * One avatar per account: attach LanternAvatar._canonicalAvatar on slides.meta, recognition rows, and news.meta.
    * Uses LanternAvatar.getCanonicalAvatarMap only — never snapshot avatar_image URLs.
+   * Prompt #256 — lookup durable keys only. Never guess from public_display_name.
    */
   function enrichTickerPayloadCanonical(slides, recognitionList, newsList) {
     var LA = global.LanternAvatar;
@@ -242,56 +254,72 @@
     });
   }
 
+  function canonicalTickerItem(fields) {
+    var typeLabel = normalizeTickerWhitespace((fields && fields.typeLabel) || '');
+    var subject = normalizeTickerWhitespace((fields && fields.subject) || '');
+    var author = normalizeTickerWhitespace((fields && fields.author) || '');
+    if (subject && author && subject === author) subject = '';
+    var aria = formatTickerCopy({
+      label: typeLabel,
+      primary_name: author,
+      object_title: subject,
+      fallback: fields && fields.ariaLabel
+    });
+    return {
+      icon: (fields && fields.icon) || '✨',
+      typeLabel: typeLabel,
+      subject: subject,
+      author: author,
+      primaryName: author,
+      rest: typeLabel && subject ? typeLabel + ': ' + subject : typeLabel,
+      ariaLabel: aria,
+      href: safeTickerHref(fields && fields.href),
+      avatarUrl: fields && fields.avatarUrl ? String(fields.avatarUrl).trim() : '',
+      avatarEmoji: '',
+      authorAvatarKey: fields && fields.authorAvatarKey ? String(fields.authorAvatarKey).trim() : '',
+      hasPerson: fields && fields.hasPerson === false ? false : true,
+      system: !!(fields && fields.system)
+    };
+  }
+
   /**
    * Prompt #111 / #125 — ONE marquee source: unified Worker-backed slides only.
    * Recognition + approved news are merged into `slides` once in fetchDisplayTickerState.
    * LANTERN_API.getDisplaySlides (localStorage seed/demo world) is intentionally NOT a source.
    * Accepts either full slides or a pre-filtered hero list; getHeroCandidates filters either way.
+   * Prompt #256 — every slide becomes the same structural item (icon + avatar + copy).
    */
   function slideToTickerItem(s) {
     var type = String((s && s.type) || '');
-    var titleRaw = String((s && s.title) || '').trim();
-    var subtitle = String((s && s.subtitle) || '').trim();
+    var titleRaw = normalizeTickerWhitespace((s && s.title) || '');
+    var subtitle = normalizeTickerWhitespace((s && s.subtitle) || '');
     var meta = (s && s.meta) || {};
     var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
-    var emFb = '';
     var marqueeType = String(meta.marquee_type || '').trim();
     var canonicalIcon = String(meta.ticker_icon || '').trim() || tickerIconForType(marqueeType);
+    var authorKey = String(meta.author_avatar_key || meta.actor_id || '').trim();
 
-    /* Prompt #252 — compact Type: Subject — Author. Do not narrate sentences. */
     if (marqueeType) {
       var parsed = parseCompactTickerCopy(titleRaw);
-      var typeLabel = String(meta.ticker_type_label || '').trim() || parsed.typeLabel || tickerTypeLabel(marqueeType);
-      var subject = String(meta.object_title || '').trim() || parsed.subject;
-      var author = String(meta.public_display_name || '').trim() || parsed.author;
-      if (subject && author && subject === author) subject = '';
-      var full = formatTickerCopy({
-        type: marqueeType,
-        primary_name: author,
-        object_title: subject,
-        label: typeLabel
-      });
-      var rest = typeLabel && subject ? typeLabel + ': ' + subject : typeLabel;
-      return {
+      var typeLabel = normalizeTickerWhitespace(meta.ticker_type_label || '') || parsed.typeLabel || tickerTypeLabel(marqueeType);
+      var subject = normalizeTickerWhitespace(meta.object_title || '') || parsed.subject;
+      var author = normalizeTickerWhitespace(meta.public_display_name || '') || parsed.author;
+      return canonicalTickerItem({
         icon: canonicalIcon || '✨',
-        text: '<span class="lanternTickerText">' + esc(full) + '</span>',
         typeLabel: typeLabel,
         subject: subject,
         author: author,
-        primaryName: author,
-        rest: rest,
-        ariaLabel: full,
-        href: safeTickerHref(meta.destination),
+        href: meta.destination,
         avatarUrl: urlFb,
-        avatarEmoji: emFb,
+        authorAvatarKey: authorKey,
         hasPerson: true,
         system: false
-      };
+      });
     }
 
     var icon =
       type === 'teacher_recognition'
-        ? '⭐'
+        ? '📣'
         : type === 'teacher_pick' || type === 'featured_creation' || type === 'achievement'
           ? '🏆'
           : type === 'student_news' || type === 'news' || type === 'shout_out' || type === 'poll'
@@ -308,61 +336,73 @@
                     slideType = 'news';
                   }
                 }
+                if (slideType === 'shout_out' || slideType === 'shoutout' || slideType === 'recognition') return '📣';
+                if (slideType === 'poll') return '📊';
+                if (slideType === 'news_photo' || slideType === 'photo') return '📸';
+                if (slideType === 'news_good_news' || slideType === 'good_news') return '⭐';
                 if (global.LanternCards && typeof global.LanternCards.contentTypeTickerIcon === 'function') {
                   return global.LanternCards.contentTypeTickerIcon(slideType) || '📰';
                 }
-                if (slideType === 'shout_out' || slideType === 'shoutout') return '📣';
-                if (slideType === 'poll') return '📊';
                 return '📰';
               })()
             : '✨';
 
     if (type === 'teacher_recognition') {
-      var name = titleRaw || 'Student';
-      var msg = subtitle.slice(0, 36);
-      if (subtitle.length > 36) msg += '…';
-      return {
+      return canonicalTickerItem({
         icon: icon,
-        text: '<span class="lanternTickerText">' + esc(name) + '</span>' + (msg ? ' — ' + esc(msg) : ''),
+        typeLabel: 'Shout-Out',
+        subject: subtitle,
+        author: titleRaw || 'Student',
         avatarUrl: urlFb,
-        avatarEmoji: emFb
-      };
+        authorAvatarKey: authorKey,
+        href: meta.destination
+      });
     }
 
-    var title = titleRaw.slice(0, type === 'student_news' ? 42 : 40);
-    if (titleRaw.length > (type === 'student_news' ? 42 : 40)) title += '…';
-
-    /* Community-highlight slides (e.g. nugget_milestone) must always name the student they
-       describe — a bare "25 Nuggets" line is indistinguishable from the viewer's own wallet
-       balance shown elsewhere on the same page. This ticker is a school-wide celebration feed,
-       never the authenticated viewer's balance; LanternWallet.fetchMyBalance() is the only
-       authoritative wallet source. */
     if (type === 'nugget_milestone' || type === 'achievement' || type === 'thank_you_highlight') {
-      var attributed = subtitle ? esc(subtitle) + ' — ' + esc(title) : esc(title);
-      return {
+      return canonicalTickerItem({
         icon: icon,
-        text: '<span class="lanternTickerText">' + attributed + '</span>',
+        typeLabel: type === 'thank_you_highlight' ? 'Shout-Out' : 'Good News',
+        subject: titleRaw,
+        author: subtitle,
         avatarUrl: urlFb,
-        avatarEmoji: emFb
-      };
+        authorAvatarKey: authorKey,
+        href: meta.destination
+      });
     }
 
     if (type === 'student_news') {
-      return {
+      var newsKind = String((s && s.contentType) || meta.content_type || meta.news_type || 'news').toLowerCase();
+      var newsLabel =
+        newsKind === 'shout_out' || newsKind === 'shoutout' || newsKind === 'recognition'
+          ? 'Shout-Out'
+          : newsKind === 'poll'
+            ? 'Poll'
+            : newsKind === 'news_photo' || newsKind === 'photo'
+              ? 'Photo'
+              : newsKind === 'news_good_news' || newsKind === 'good_news'
+                ? 'Good News'
+                : 'Post';
+      return canonicalTickerItem({
         icon: icon,
-        text: '<span class="lanternTickerText">' + esc(title) + '</span>',
+        typeLabel: newsLabel,
+        subject: titleRaw,
+        author: normalizeTickerWhitespace(meta.public_display_name || ''),
         avatarUrl: urlFb,
-        avatarEmoji: emFb
-      };
+        authorAvatarKey: authorKey,
+        href: meta.destination
+      });
     }
 
-    var line = subtitle ? esc(subtitle) + ' — ' + esc(title) : esc(title);
-    return {
-      icon: icon,
-      text: '<span class="lanternTickerText">' + line + '</span>',
+    return canonicalTickerItem({
+      icon: icon || '✨',
+      typeLabel: tickerTypeLabel(type) || 'Lantern',
+      subject: titleRaw,
+      author: subtitle || normalizeTickerWhitespace(meta.public_display_name || ''),
       avatarUrl: urlFb,
-      avatarEmoji: emFb
-    };
+      authorAvatarKey: authorKey,
+      href: meta.destination
+    });
   }
 
   function buildDisplayTickerItems(slides) {
@@ -380,78 +420,114 @@
   }
 
   function canonicalPersonFallbackUrl() {
-    if (global.LanternCards && typeof global.LanternCards.getDefaultAvatarImageUrl === 'function') {
-      var cardFb = String(global.LanternCards.getDefaultAvatarImageUrl() || '').trim();
-      if (cardFb) return cardFb;
-    }
+    /* Prompt #256 — ticker fallback must be a guaranteed silhouette, never a media URL that
+       can 403/404 and collapse the slot. Prefer the shared SVG, then last-resort SVG. */
     if (global.LanternAvatar && typeof global.LanternAvatar.svgDefaultAvatarDataUri === 'function') {
       var av = String(global.LanternAvatar.svgDefaultAvatarDataUri() || '').trim();
       if (av) return av;
     }
+    if (global.LanternCards && typeof global.LanternCards.svgDefaultAvatarDataUri === 'function') {
+      var cardSvg = String(global.LanternCards.svgDefaultAvatarDataUri() || '').trim();
+      if (cardSvg) return cardSvg;
+    }
     return lastResortSilhouetteDataUri();
   }
 
-  function itemToHtml(it) {
-    // Prompt #217/#161/#167 — person chip is the current approved avatar, else #149 placeholder.
-    // System/empty-ticker fallback has no human actor — do not invent a silhouette.
-    var isSystem = !!(it && it.system);
-    var hasPerson = !isSystem && (!it || it.hasPerson !== false);
+  function tickerAvatarHtml(it) {
     var approved = it && it.avatarUrl && String(it.avatarUrl).trim() ? String(it.avatarUrl).trim() : '';
     var fb = canonicalPersonFallbackUrl();
-    var src = hasPerson ? approved || fb : '';
-    var avatar = '';
-    if (src) {
-      avatar =
-        '<img src="' +
-        esc(src) +
-        '" alt="" class="lanternTickerItemAvatar"' +
-        (fb ? ' data-lc-av-def="' + esc(fb) + '"' : '') +
-        ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;return;}el.style.display=\'none\';">';
+    var src = approved || fb;
+    var key = it && it.authorAvatarKey ? String(it.authorAvatarKey).trim() : '';
+    return (
+      '<span class="lanternTickerAvatar" data-ticker-avatar="1"' +
+      (key ? ' data-ticker-avatar-key="' + esc(key) + '"' : '') +
+      ' aria-hidden="true">' +
+      '<img src="' +
+      esc(src) +
+      '" alt="" class="lanternTickerItemAvatar"' +
+      (fb ? ' data-lc-av-def="' + esc(fb) + '"' : '') +
+      ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;}el.style.display=\'\';">' +
+      '</span>'
+    );
+  }
+
+  function tickerCopyInnerHtml(it) {
+    var typeLabel = normalizeTickerWhitespace((it && it.typeLabel) || '');
+    var subject = normalizeTickerWhitespace((it && it.subject) || '');
+    var author = normalizeTickerWhitespace((it && (it.author || it.primaryName)) || '');
+    var parts = [];
+    if (typeLabel) {
+      parts.push(
+        '<span class="lanternTickerItemLead"><span class="lanternTickerItemType">' +
+          esc(typeLabel) +
+          '</span><span class="lanternTickerItemColon">:</span></span>'
+      );
     }
+    if (subject) parts.push('<span class="lanternTickerItemSubject">' + esc(subject) + '</span>');
+    if (author && (typeLabel || subject)) parts.push('<span class="lanternTickerItemDash" aria-hidden="true">—</span>');
+    if (author) parts.push('<span class="lanternTickerItemAuthor lanternTickerItemName">' + esc(author) + '</span>');
+    if (parts.length) return parts.join('');
+    var rest = normalizeTickerWhitespace((it && it.rest) || '');
+    if (rest) return '<span class="lanternTickerItemRest">' + esc(rest) + '</span>';
+    return '<span class="lanternTickerItemRest">Lantern</span>';
+  }
+
+  function itemToHtml(it) {
+    var avatar = tickerAvatarHtml(it);
     var iconHtml = (it && it.icon) || '✨';
-    var body = '';
-    if (it && (it.typeLabel || it.subject || it.author || it.primaryName || it.rest)) {
-      var typeLabel = String((it && it.typeLabel) || '').trim();
-      var subject = String((it && it.subject) || '').trim();
-      var author = String((it && (it.author || it.primaryName)) || '').trim();
-      var typeHtml = typeLabel ? '<span class="lanternTickerItemType">' + esc(typeLabel) + ':</span>' : '';
-      var subjectHtml = subject ? '<span class="lanternTickerItemSubject">' + esc(subject) + '</span>' : '';
-      var sepHtml = author && (typeLabel || subject) ? '<span class="lanternTickerItemSep"> — </span>' : '';
-      var nameHtml = author ? '<span class="lanternTickerItemName">' + esc(author) + '</span>' : '';
-      var inner = (typeHtml ? typeHtml + (subjectHtml ? ' ' : '') : '') + subjectHtml + sepHtml + nameHtml;
-      if (!inner) {
-        var restHtml = it.rest ? '<span class="lanternTickerItemRest">' + esc(it.rest) + '</span>' : '';
-        inner = nameHtml + restHtml;
-      }
-      var label = String(it.ariaLabel || formatTickerCopy({
-        label: typeLabel,
-        primary_name: author,
-        object_title: subject
-      })).trim();
-      if (it.href) {
-        body =
-          '<a class="lanternTickerItemLink" href="' +
-          esc(it.href) +
-          '"' +
-          (label ? ' aria-label="' + esc(label) + '"' : '') +
-          '>' +
-          inner +
-          '</a>';
-      } else {
-        body = '<span class="lanternTickerItemText">' + inner + '</span>';
-      }
+    var label = String(
+      (it && it.ariaLabel) ||
+        formatTickerCopy({
+          label: (it && it.typeLabel) || '',
+          primary_name: (it && (it.author || it.primaryName)) || '',
+          object_title: (it && it.subject) || ''
+        })
+    ).trim();
+    var inner = tickerCopyInnerHtml(it);
+    var body;
+    if (it && it.href) {
+      body =
+        '<a class="lanternTickerItemLink lanternTickerItemCopy" href="' +
+        esc(it.href) +
+        '"' +
+        (label ? ' aria-label="' + esc(label) + '"' : '') +
+        '>' +
+        inner +
+        '</a>';
     } else {
-      var text = it && it.text != null && it.text !== '' ? it.text : '';
-      body = '<span class="lanternTickerItemText">' + text + '</span>';
+      body = '<span class="lanternTickerItemText lanternTickerItemCopy">' + inner + '</span>';
     }
     return (
-      '<span class="lanternTickerItem"><span class="lanternTickerItemIcon">' +
+      '<span class="lanternTickerItem">' +
+      '<span class="lanternTickerItemIcon" aria-hidden="true">' +
       iconHtml +
       '</span>' +
       avatar +
       body +
       '</span>'
     );
+  }
+
+  /**
+   * Prompt #256 — if avatar hydration stays async after render, update EVERY cloned copy.
+   * Never target a single getElementById / querySelector match.
+   */
+  function applyResolvedAvatarToAllCopies(root, authorKey, src) {
+    if (!root || !authorKey || !src) return 0;
+    var key = String(authorKey).trim();
+    var url = String(src).trim();
+    if (!key || !url) return 0;
+    var slots = root.querySelectorAll('[data-ticker-avatar-key]');
+    var n = 0;
+    var i;
+    for (i = 0; i < slots.length; i++) {
+      if (slots[i].getAttribute('data-ticker-avatar-key') !== key) continue;
+      var img = slots[i].querySelector('img.lanternTickerItemAvatar');
+      if (!img) continue;
+      img.src = url;
+      n += 1;
+    }
+    return n;
   }
 
   /**
@@ -514,24 +590,34 @@
       });
   }
 
+  function renderTickerCopiesHtml(itemHtml) {
+    return (
+      '<div class="lanternTickerCopy" data-ticker-copy="primary">' +
+      itemHtml +
+      '</div>' +
+      '<div class="lanternTickerCopy" data-ticker-copy="clone" aria-hidden="true">' +
+      itemHtml +
+      '</div>'
+    );
+  }
+
   function render(containerId, items) {
     var container = document.getElementById(containerId);
     if (!container) return;
     if (!items || !items.length) items = [FALLBACK_TICKER_ITEM];
     var itemHtml = items.map(itemToHtml).join('');
-    var copyHtml = '<div class="lanternTickerCopy">' + itemHtml + '</div>';
+    var copiesHtml = renderTickerCopiesHtml(itemHtml);
     var bar = container.querySelector('.lanternTicker');
     var track = container.querySelector('.lanternTickerTrack');
     if (!bar || !track) {
       container.innerHTML =
         '<div class="lanternTicker"><div class="lanternTickerWrap"><div class="lanternTickerTrack">' +
-        copyHtml +
-        copyHtml +
+        copiesHtml +
         '</div></div></div>';
       bar = container.querySelector('.lanternTicker');
       track = container.querySelector('.lanternTickerTrack');
     } else {
-      track.innerHTML = copyHtml + copyHtml;
+      track.innerHTML = copiesHtml;
     }
     if (bar) bar.style.display = '';
     container.style.display = '';
@@ -640,7 +726,8 @@
     parseCompactTickerCopy: parseCompactTickerCopy,
     tickerNameAndRest: tickerNameAndRest,
     looksLikeSystemLogTickerCopy: looksLikeSystemLogTickerCopy,
-    safeTickerHref: safeTickerHref
+    safeTickerHref: safeTickerHref,
+    normalizeTickerWhitespace: normalizeTickerWhitespace
   };
 
   global.LanternTicker = {
@@ -649,6 +736,11 @@
     renderUnifiedFromState: renderUnifiedFromState,
     buildDisplayTickerItems: buildDisplayTickerItems,
     getHeroCandidates: getHeroCandidates,
+    itemToHtml: itemToHtml,
+    tickerAvatarHtml: tickerAvatarHtml,
+    applyResolvedAvatarToAllCopies: applyResolvedAvatarToAllCopies,
+    canonicalPersonFallbackUrl: canonicalPersonFallbackUrl,
+    normalizeTickerWhitespace: normalizeTickerWhitespace,
     FALLBACK_TICKER_ITEM: FALLBACK_TICKER_ITEM,
     computeTickerDurationSeconds: computeTickerDurationSeconds,
     applyTickerDuration: applyTickerDuration,

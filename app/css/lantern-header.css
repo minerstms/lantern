@@ -2,7 +2,7 @@
    Stack (top → bottom): #lanternTicker (full width) then #lanternAppBarRoot (nav).
    Combined chrome height for content offset: ticker strip (48px in lantern-ticker.css) + app bar (52px) = --lantern-header-h-ticker.
    Pages with ticker: body.page-has-ticker so .lanternContent uses --lantern-header-h-ticker.
-   Contract + audit: docs/ui/LANTERN_TOP_CHROME.md — do not add one-off header/ticker stacks per page. */
+   Contract + audit: docs/LANTERN_HEADER_CONTRACT.md (canonical) and docs/ui/LANTERN_TOP_CHROME.md — do not add one-off header/ticker stacks per page. */
 :root {
   --lantern-header-h: 52px;
   /* Ticker strip (fixed px in lantern-ticker.css) + app bar 52px */

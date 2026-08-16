@@ -1,9 +1,11 @@
 # Lantern — Top chrome (ticker + app bar)
 
+**Canonical visual/structural contract:** `docs/LANTERN_HEADER_CONTRACT.md` (Prompt #256). Preserve or update that file in the same change.
+
 **Scope:** Fixed header stack only (`#lanternHeader`). Does not cover cards, rails, or page body layout.
 
-**Source of truth for layout tokens:** `apps/lantern-app/css/lantern-header.css`  
-**Source of truth for app bar UI:** `apps/lantern-app/js/lantern-nav.js` (injected styles + `#lanternAppBarRoot` HTML)
+**Source of truth for layout tokens:** `app/css/lantern-header.css`
+**Source of truth for app bar UI:** `app/js/lantern-nav.js` (injected styles + `#lanternAppBarRoot` HTML)
 
 ---
 

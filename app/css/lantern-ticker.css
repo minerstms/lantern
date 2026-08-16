@@ -1,8 +1,15 @@
 /* Shared ticker: topmost, full width, no pill/chip. Solid background for readability.
-   Canonical strip (Display / Explore): keep rhythm stable when the track is empty vs full. */
+   Canonical strip (Display / Explore): keep rhythm stable when the track is empty vs full.
+   Prompt #256 — visual/structural contract: docs/LANTERN_HEADER_CONTRACT.md */
 #lanternTicker{
   flex-shrink: 0;
   width: 100%;
+  --lantern-ticker-avatar-size: var(--lantern-content-author-avatar-size, 28px);
+  --lantern-ticker-icon-slot: 1.15em;
+  --lantern-ticker-item-gap: clamp(40px, 5vw, 72px);
+  --lantern-ticker-copy-gap: 0.4em;
+  --lantern-ticker-silhouette:
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232a3a52'/%3E%3Ccircle cx='32' cy='26' r='12' fill='rgba(255,255,255,.35)'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='14' fill='rgba(255,255,255,.38)'/%3E%3C/svg%3E");
 }
 .lanternTicker{
   width: 100%;
@@ -22,6 +29,7 @@
   display: flex;
   width: max-content;
   align-items: center;
+  gap: var(--lantern-ticker-item-gap);
   white-space: nowrap;
   /* Duration here is only a pre-JS/measurement fallback — app/js/lantern-ticker.js overwrites
      animation-duration on every render using the canonical px/sec setting so actual on-screen
@@ -29,33 +37,84 @@
   animation: lanternTickerScroll 40s linear infinite;
 }
 .lanternTickerTrack:hover{ animation-play-state: paused; }
-.lanternTickerTrack .lanternTickerCopy{ display: flex; flex-shrink: 0; align-items: center; }
-.lanternTickerItem{
+.lanternTickerTrack .lanternTickerCopy{
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
+  gap: var(--lantern-ticker-item-gap);
+}
+.lanternTickerCopy + .lanternTickerCopy{
+  position: relative;
+}
+.lanternTickerCopy + .lanternTickerCopy::before{
+  content: "";
+  position: absolute;
+  left: calc(var(--lantern-ticker-item-gap) / -2);
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.32);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.lanternTickerItem{
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 clamp(36px, 4.5vw, 64px);
+  padding: 0;
   font-size: clamp(18px, 2.4vmin, 26px);
   font-weight: 900;
   color: #b9c6ea;
   letter-spacing: 1px;
   white-space: nowrap;
+  position: relative;
 }
-.lanternTickerItem + .lanternTickerItem{
-  border-left: 1px solid rgba(255,255,255,.16);
+.lanternTickerItem + .lanternTickerItem::before{
+  content: "";
+  position: absolute;
+  left: calc(var(--lantern-ticker-item-gap) / -2);
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.32);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 .lanternTickerItem span.lanternTickerText{ color: #eaf0ff; }
-.lanternTickerItemIcon{ display: inline-flex; align-items: center; flex-shrink: 0; }
+.lanternTickerItemIcon{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--lantern-ticker-icon-slot);
+  width: var(--lantern-ticker-icon-slot);
+  height: var(--lantern-ticker-icon-slot);
+  overflow: hidden;
+  line-height: 1;
+}
 .lanternTickerItemIcon img{ width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
+.lanternTickerAvatar{
+  flex: 0 0 var(--lantern-ticker-avatar-size);
+  width: var(--lantern-ticker-avatar-size);
+  height: var(--lantern-ticker-avatar-size);
+  border-radius: 50%;
+  overflow: hidden;
+  display: block;
+  background-color: #2a3a52;
+  background-image: var(--lantern-ticker-silhouette);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.28);
+}
 .lanternTickerItemAvatar{
-  width: var(--lantern-content-author-avatar-size, 28px);
-  height: var(--lantern-content-author-avatar-size, 28px);
+  width: var(--lantern-ticker-avatar-size);
+  height: var(--lantern-ticker-avatar-size);
   border-radius: 50%;
   object-fit: cover;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   display: block;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.22);
 }
 .lanternTickerItemAvatar--emoji{
   display: inline-flex;
@@ -66,24 +125,35 @@
   background: rgba(255,255,255,.12);
   box-sizing: border-box;
 }
-img.lanternTickerItemAvatar[src=""],
-img.lanternTickerItemAvatar:not([src]){ display: none; }
 .lanternTickerItemLink,
-.lanternTickerItemText{
+.lanternTickerItemText,
+.lanternTickerItemCopy{
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
+  gap: var(--lantern-ticker-copy-gap);
   min-width: 0;
   max-width: min(70vw, 56rem);
   overflow: hidden;
   color: inherit;
   text-decoration: none;
+  white-space: nowrap;
 }
 .lanternTickerItemLink:hover,
 .lanternTickerItemLink:focus{
   text-decoration: underline;
 }
+.lanternTickerItemLead{
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: #eaf0ff;
+}
 .lanternTickerItemType{
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  color: #eaf0ff;
+}
+.lanternTickerItemColon{
+  flex: 0 0 auto;
   color: #eaf0ff;
 }
 .lanternTickerItemSubject{
@@ -91,13 +161,15 @@ img.lanternTickerItemAvatar:not([src]){ display: none; }
   text-overflow: ellipsis;
   min-width: 0;
   color: #eaf0ff;
+  white-space: nowrap;
 }
-.lanternTickerItemSep{
-  flex-shrink: 0;
+.lanternTickerItemDash{
+  flex: 0 0 auto;
   color: #b9c6ea;
 }
+.lanternTickerItemAuthor,
 .lanternTickerItemName{
-  flex-shrink: 0;
+  flex: 0 0 auto;
   color: #eaf0ff;
 }
 .lanternTickerItemRest{
@@ -105,12 +177,17 @@ img.lanternTickerItemAvatar:not([src]){ display: none; }
   text-overflow: ellipsis;
   min-width: 0;
   color: #eaf0ff;
+  white-space: nowrap;
 }
 @media (max-width: 640px){
-  .lanternTickerItemAvatar{ flex-shrink: 0; }
+  .lanternTickerAvatar,
+  .lanternTickerItemAvatar{ flex: 0 0 var(--lantern-ticker-avatar-size); }
+  .lanternTickerItemIcon{ flex: 0 0 var(--lantern-ticker-icon-slot); }
+  .lanternTickerItemAuthor,
   .lanternTickerItemName{ flex-shrink: 0; }
   .lanternTickerItemLink,
-  .lanternTickerItemText{ max-width: min(78vw, 56rem); }
+  .lanternTickerItemText,
+  .lanternTickerItemCopy{ max-width: min(78vw, 56rem); }
 }
 @keyframes lanternTickerScroll{
   0%{ transform: translateX(0); }

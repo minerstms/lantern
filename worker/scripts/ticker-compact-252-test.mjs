@@ -149,8 +149,8 @@ if (!/student_character_name|economy_character_name/.test(box.innerHTML) && !/20
 } else bad('17. id leak');
 
 if (
+  tickerCss.includes('--lantern-ticker-item-gap') &&
   tickerCss.includes('lanternTickerItem + .lanternTickerItem') &&
-  tickerCss.includes('clamp(36px, 4.5vw, 64px)') &&
   /animation: lanternTickerScroll/.test(tickerCss) &&
   /animation-play-state:\s*paused/.test(tickerCss)
 ) {
@@ -158,12 +158,13 @@ if (
 } else bad('spacing/scroll');
 
 if (
-  navJs.includes('Teacher Dashboard') &&
+  !navJs.includes("'Teacher Dashboard'") &&
+  !lanternNav.includes('Teacher Dashboard') &&
   lanternNav.includes('Media Library') &&
-  nav251.includes('Teacher Dashboard') &&
+  nav251.includes('Teacher Dashboard is absent') &&
   missionsHtml.includes('lanternNavMissionsBadge')
 ) {
-  ok('#251 nav and Missions badge markup preserved');
+  ok('#251/#253 nav and Missions badge markup preserved; Teacher Dashboard stays retired');
 } else bad('nav/badge');
 
 console.log('\nTicker compact #252:', pass, 'passed,', fail, 'failed');

@@ -537,8 +537,8 @@ assert(/lanternTickerItemName/.test(container.innerHTML) && /Mr\. Radle/.test(co
 assert(/lanternTickerItemType/.test(container.innerHTML) && /lanternTickerItemSubject/.test(container.innerHTML), '55. type + subject spans');
 
 LT.render('lanternTicker', [LT.FALLBACK_TICKER_ITEM]);
-assert(!/lanternTickerItemAvatar/.test(container.innerHTML), '45/W. system fallback has no person silhouette');
-assert(/Lantern — News/.test(container.innerHTML), '45b. system fallback copy');
+assert(/lanternTickerItemAvatar/.test(container.innerHTML) && /data:image\/svg\+xml/.test(container.innerHTML), '45/W. system fallback still renders the required avatar slot (silhouette)');
+assert(/lanternTickerItemType/.test(container.innerHTML) && /News · Spotlights · Community/.test(container.innerHTML), '45b. system fallback copy');
 
 LT.render('lanternTicker', [missionItem]);
 assert(/aria-label="Mission: STEM Today — Mr\. Radle"/.test(container.innerHTML), 'a11y label is the public sentence');
