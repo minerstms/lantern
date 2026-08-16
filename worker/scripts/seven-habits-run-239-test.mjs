@@ -119,6 +119,8 @@ if (
   def.correct_target === EDUCATIONAL_TRIVIA_CORRECT_TARGET &&
   def.reward_nuggets === 1 &&
   def.allow_practice_after_complete &&
+  def.require_full_run_before_completion === true &&
+  def.run_length === 14 &&
   WAVE2_MISSION_IDS.SEVEN_HABITS === 'perm_seven_habits'
 ) {
   ok('mission metadata uses existing 10-correct / +1 Nugget contract');
@@ -127,7 +129,10 @@ if (
 if (
   EDUCATIONAL_TRIVIA_MISSIONS.perm_handbook_trivia.selection == null &&
   EDUCATIONAL_TRIVIA_MISSIONS.perm_local_history_trivia.selection == null &&
-  EDUCATIONAL_TRIVIA_MISSIONS.perm_srp_safety.selection == null
+  EDUCATIONAL_TRIVIA_MISSIONS.perm_srp_safety.selection == null &&
+  !EDUCATIONAL_TRIVIA_MISSIONS.perm_handbook_trivia.require_full_run_before_completion &&
+  !EDUCATIONAL_TRIVIA_MISSIONS.perm_local_history_trivia.require_full_run_before_completion &&
+  !EDUCATIONAL_TRIVIA_MISSIONS.perm_srp_safety.require_full_run_before_completion
 ) {
   ok('balanced sampling is optional and off for Handbook / Trinidad / SRP');
 } else bad('other missions gained selection config');
@@ -321,7 +326,7 @@ function bankItem(id) {
     seen++;
     if (cur.completed) break;
   }
-  if (seen === 10 && cur.completed && cur.correct_count === 10 && cur.rewarded && db._wallets.get('20889') === 1) {
+  if (seen === 14 && cur.completed && cur.correct_count === 14 && cur.rewarded && db._wallets.get('20889') === 1) {
     ok('10 correct completes with one Nugget via existing event path');
   } else bad('scoring/reward', { seen, cur, bal: db._wallets.get('20889') });
   if (habits.size === 7) ok('a completing run still encountered all seven habits in the queued 14');
@@ -331,7 +336,7 @@ function bankItem(id) {
   if (replay.ok && replay.question && replay.question.id) ok('practice run still starts after first completion');
   else bad('practice after complete', replay);
   let r = replay;
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 14; i++) {
     const item = bankItem(r.question.id);
     r = await answerEducationalTriviaRun(db, null, {
       characterName: '20889',

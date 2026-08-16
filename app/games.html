@@ -2189,15 +2189,21 @@
         } catch (_) {}
       }
 
-      function missionProgressLine(correctCount, target, extra){
+      function missionProgressLine(correctCount, target, extra, progress){
         var n = Number(correctCount) || 0;
         var t = Number(target) || 10;
         var line = n + ' / ' + t + ' correct';
         var note = extra ? String(extra) : '';
-        if (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.encourage === 'function') {
+        var runLen = Number(progress && progress.run_length) || 0;
+        var qn = Number(progress && progress.question_number) || 0;
+        if (!runLen && window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.encourage === 'function') {
           note = window.LANTERN_EDU_TRIVIA.encourage(n, t);
         }
-        return '<div class="triviaProgress">' + esc(line) + (note ? ' — ' + esc(note) : '') + '</div>';
+        var html = '<div class="triviaProgress">' + esc(line) + (note ? ' — ' + esc(note) : '') + '</div>';
+        if (runLen > 0 && qn > 0) {
+          html += '<div class="triviaProgress">Question ' + qn + ' of ' + runLen + '</div>';
+        }
+        return html;
       }
 
       function runEducationalTriviaMission(mission, fallbackFn){
@@ -2245,11 +2251,11 @@
               if (btnId && el(btnId)) el(btnId).click();
             });
           }
-          function renderQuestion(q, correctCount){
+          function renderQuestion(q, correctCount, progress){
             if (!q) return;
             answering = false;
             setScore((Number(correctCount) || 0) + ' / ' + target + ' correct');
-            var html = missionProgressLine(correctCount, target);
+            var html = missionProgressLine(correctCount, target, '', progress);
             html += '<div class="triviaQuestion">' + esc(q.question) + '</div>';
             (q.options || []).forEach(function(opt, i){
               html += '<button type="button" class="choiceBtn" data-choice="' + i + '">' + esc(opt) + '</button>';
@@ -2282,17 +2288,21 @@
                   setScore(count + ' / ' + target + ' correct');
                   var delay = res.explanation ? 2200 : 900;
                   setTimeout(function(){
-                    if (res.completed || count >= target) {
+                    if (res.completed) {
                       showMissionComplete(res);
                       return;
                     }
                     if (res.question) {
-                      renderQuestion(res.question, count);
+                      renderQuestion(res.question, count, res);
                       return;
                     }
                     if (res.run_exhausted) {
+                      var runLen = Number(res.run_length) || 0;
+                      var passLine = runLen > 0
+                        ? ('Get ' + target + ' of ' + runLen + ' correct to finish.')
+                        : 'Get 10 correct in one session to finish.';
                       setScore(count + ' / ' + target + ' correct');
-                      gameBody.innerHTML = '<div class="resultMsg">Keep practicing!</div><div class="triviaProgress">' + esc(count + ' / ' + target + ' correct this run') + '</div><div class="triviaProgress">Get 10 correct in one session to finish.</div>' + playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
+                      gameBody.innerHTML = '<div class="resultMsg">Keep practicing!</div><div class="triviaProgress">' + esc(count + (runLen > 0 ? ' / ' + runLen : ' / ' + target) + ' correct this run') + '</div><div class="triviaProgress">' + esc(passLine) + '</div>' + playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
                       var againTry = gameBody.querySelector('.playAgainRow button');
                       if (againTry) againTry.addEventListener('click', function(){
                         var btnId = playBtnIdForGameName(mission.game_name);
@@ -2310,7 +2320,7 @@
               });
             });
           }
-          renderQuestion(start.question, start.correct_count || 0);
+          renderQuestion(start.question, start.correct_count || 0, start);
         }).catch(function(){
           if (typeof fallbackFn === 'function') fallbackFn();
         });

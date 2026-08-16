@@ -74,6 +74,8 @@ export const EDUCATIONAL_TRIVIA_MISSIONS = {
     cover: 'assets/lantern-trivia-card.png',
     selection: 'balanced_habit_pairs',
     allow_practice_after_complete: true,
+    require_full_run_before_completion: true,
+    run_length: 14,
   },
 };
 
@@ -324,7 +326,24 @@ export async function ensureEducationalTriviaMissions(db) {
   }
 }
 
+function isFullRunMission(def) {
+  return !!(def && def.require_full_run_before_completion);
+}
+
+function fullRunLength(def, state) {
+  if (state && Array.isArray(state.run_queue) && state.run_queue.length) return state.run_queue.length;
+  const n = Number(def && def.run_length);
+  return Number.isFinite(n) && n > 0 ? n : 14;
+}
+
 function runProgressPayload(state, def, extras) {
+  const fullRun = isFullRunMission(def);
+  const askedN = Array.isArray(state.asked_ids) ? state.asked_ids.length : 0;
+  const runLen = fullRun ? fullRunLength(def, state) : 0;
+  const passed = Number(state.correct_count) >= EDUCATIONAL_TRIVIA_CORRECT_TARGET;
+  const completed = fullRun
+    ? !!(state.locked && passed && askedN >= runLen)
+    : !!state.locked || passed;
   return {
     ok: true,
     mission_id: def.id,
@@ -335,7 +354,14 @@ function runProgressPayload(state, def, extras) {
     reward_nuggets: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
     run_id: state.run_id,
     locked: !!state.locked,
-    completed: !!state.locked || Number(state.correct_count) >= EDUCATIONAL_TRIVIA_CORRECT_TARGET,
+    completed,
+    ...(fullRun
+      ? {
+          run_length: runLen,
+          asked_count: askedN,
+          question_number: state.current_question_id ? askedN + 1 : askedN,
+        }
+      : {}),
     ...(extras || {}),
   };
 }
@@ -493,7 +519,7 @@ export async function answerEducationalTriviaRun(db, env, opts) {
   if (!state) return { ok: false, error: 'run_corrupt', _httpStatus: 500 };
   const bank = getEducationalTriviaBank(def.game_id);
 
-  if (state.locked || Number(state.correct_count) >= EDUCATIONAL_TRIVIA_CORRECT_TARGET) {
+  if (state.locked || (!isFullRunMission(def) && Number(state.correct_count) >= EDUCATIONAL_TRIVIA_CORRECT_TARGET)) {
     return runProgressPayload(state, def, {
       already_completed: true,
       rewarded: false,
@@ -529,19 +555,20 @@ export async function answerEducationalTriviaRun(db, env, opts) {
   let correctCount = Number(state.correct_count) || 0;
   if (isCorrect) correctCount += 1;
 
-  const completed = correctCount >= EDUCATIONAL_TRIVIA_CORRECT_TARGET;
+  const reachedTarget = correctCount >= EDUCATIONAL_TRIVIA_CORRECT_TARGET;
+  const fullRun = isFullRunMission(def);
   let next = null;
-  if (!completed) {
-    if (state.selection === SEVEN_HABITS_SELECTION && Array.isArray(state.run_queue) && state.run_queue.length) {
-      const remaining = state.run_queue.filter((id) => id && !asked.includes(id));
-      next = remaining.length ? findBankItem(bank, remaining[0]) : null;
-    } else {
-      next = pickNextQuestion(bank, asked, questionId);
-    }
+  if (fullRun && Array.isArray(state.run_queue) && state.run_queue.length) {
+    const remaining = state.run_queue.filter((id) => id && !asked.includes(id));
+    next = remaining.length ? findBankItem(bank, remaining[0]) : null;
+  } else if (!reachedTarget) {
+    next = pickNextQuestion(bank, asked, questionId);
   }
+  const finished = fullRun ? !next : reachedTarget;
+  const completed = fullRun ? finished && reachedTarget : reachedTarget;
   state.asked_ids = asked;
   state.correct_count = correctCount;
-  state.locked = completed;
+  state.locked = finished;
   state.current_question_id = next ? next.id : null;
   state.last_answer = {
     question_id: questionId,
