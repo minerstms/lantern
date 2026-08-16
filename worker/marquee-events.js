@@ -25,7 +25,9 @@ import {
   tickerDestinationForEvent,
   tickerIconForType,
   tickerNameAndRest,
+  tickerNewsKind,
   tickerPrimaryRoleForType,
+  tickerTypeLabel,
 } from './marquee-ticker-contract.js';
 
 export const MARQUEE_PUBLIC_LIMIT = 40;
@@ -46,12 +48,12 @@ export const MARQUEE_EVENT_TYPES = Object.freeze({
 });
 
 export const MARQUEE_TYPE_LABELS = Object.freeze({
-  poll_created: 'Poll Created',
-  mission_created: 'Mission Created',
-  mission_completed: 'Mission Completed',
+  poll_created: 'Poll',
+  mission_created: 'Mission',
+  mission_completed: 'Mission',
   shout_out: 'Shout-Out',
-  news: 'News',
-  leaderboard_entry: 'Leaderboard Entry',
+  news: 'Post',
+  leaderboard_entry: 'Leaderboard',
   recognition: 'Shout-Out',
 });
 
@@ -234,6 +236,17 @@ function firstRecognizedPersonKey(people) {
   return rec ? trimStr(rec.person_key) : '';
 }
 
+function shoutTickerSubject(overlaid, recognized) {
+  let title = trimStr(overlaid && overlaid.title);
+  title = title.replace(/^shout-?outs?:\s*/i, '').trim();
+  const rec = trimStr(recognized);
+  const personOnly = /^(mr|mrs|ms|miss|coach|dr)\.?\s+\S+/i.test(title) || /^\S+\s+\S+$/.test(title);
+  if (title && !personOnly && !/^shout-?outs?$/i.test(title)) return title;
+  if (rec && !/^shout-?outs?$/i.test(rec)) return rec;
+  if (title && !/^shout-?outs?$/i.test(title)) return title;
+  return 'Shout-Out';
+}
+
 /** Display-only recipient label from already-public Shout-Out copy. Never used as an account lookup. */
 function shoutRecipientDisplayFallback(row) {
   const body = trimStr(row && row.body);
@@ -265,7 +278,8 @@ function eventRecord(partial) {
     public_display_name: primaryName,
     author_avatar_key: trimStr(partial.author_avatar_key),
     secondary_display_name: trimStr(partial.secondary_display_name),
-    ticker_icon: tickerIconForType(type) || trimStr(partial.ticker_icon),
+    ticker_icon: trimStr(partial.ticker_icon) || tickerIconForType(type),
+    ticker_type_label: trimStr(partial.ticker_type_label) || tickerTypeLabel(type),
     ticker_primary_role: tickerPrimaryRoleForType(type),
     destination: trimStr(partial.destination) || tickerDestinationForEvent(type, {
       game_name: partial.game_name,
@@ -513,6 +527,7 @@ export function eventsToTickerSlides(events) {
         public_display_name: trimStr(e.public_display_name),
         secondary_display_name: trimStr(e.secondary_display_name),
         ticker_icon: trimStr(e.ticker_icon) || tickerIconForType(e.type),
+        ticker_type_label: trimStr(e.ticker_type_label) || tickerTypeLabel(e.type),
         ticker_primary_role: e.ticker_primary_role || tickerPrimaryRoleForType(e.type),
         destination: trimStr(e.destination),
         object_title: trimStr(e.source_title),
@@ -641,33 +656,37 @@ export async function collectMarqueeEvents(db, opts) {
       trimStr(overlaid.recognition_public_label) ||
       shoutRecipientDisplayFallback(overlaid) ||
       (isShout && title && !/^shout-?outs?$/i.test(title) ? title : '');
-    const recognizedKey = firstRecognizedPersonKey(people);
     const senderActor = resolveMarqueeActorIdentity(staffIndex, [overlaid.actor_id]);
     const senderName = senderActor.public_display_name || author;
-    /* Shout-Out primary is the recipient only. Never fall back to the sender account. */
-    const recipientActor = isShout ? resolveMarqueeActorIdentity(staffIndex, [recognizedKey]) : null;
-    const actor = isShout ? recipientActor : senderActor;
-    const actorName = isShout
-      ? (recipientActor && recipientActor.public_display_name) || recognized || ''
-      : senderActor.public_display_name || author;
+    const newsKind = tickerNewsKind(overlaid.category);
+    const newsLabel = tickerTypeLabel(newsKind);
+    const subject = isShout ? shoutTickerSubject(overlaid, recognized) : title;
+    const actorName = senderName;
     const publicText = isShout
       ? formatTickerCopy({
           type: MARQUEE_EVENT_TYPES.SHOUT_OUT,
           primary_name: actorName,
-          secondary_name: senderName,
+          object_title: subject === actorName ? '' : subject,
         })
-      : formatTickerCopy({ type: MARQUEE_EVENT_TYPES.NEWS, primary_name: actorName, object_title: title });
+      : formatTickerCopy({
+          type: MARQUEE_EVENT_TYPES.NEWS,
+          primary_name: actorName,
+          object_title: title,
+          label: newsLabel,
+        });
     push(
       eventRecord({
         type: isShout ? MARQUEE_EVENT_TYPES.SHOUT_OUT : MARQUEE_EVENT_TYPES.NEWS,
         source_id: row.id,
         source_type: 'news',
-        source_title: isShout ? actorName : title,
+        source_title: isShout ? subject : title,
         created_at: overlaid.reviewed_at || overlaid.created_at,
         public_text: publicText,
-        author_avatar_key: actor && actor.author_avatar_key,
+        author_avatar_key: senderActor.author_avatar_key,
         public_display_name: actorName,
-        secondary_display_name: isShout ? senderName : '',
+        secondary_display_name: isShout ? recognized : '',
+        ticker_icon: isShout ? tickerIconForType(MARQUEE_EVENT_TYPES.SHOUT_OUT) : tickerIconForType(newsKind),
+        ticker_type_label: isShout ? tickerTypeLabel(MARQUEE_EVENT_TYPES.SHOUT_OUT) : newsLabel,
       })
     );
   });
@@ -680,21 +699,22 @@ export async function collectMarqueeEvents(db, opts) {
     const senderActor = resolveMarqueeActorIdentity(staffIndex, [overlaid.created_by_teacher_id]);
     const who = recognitionRecipientLabel(recipientActor, overlaid, staffIndex, studentIndex);
     const author = senderActor.public_display_name || trimStr(overlaid.created_by_teacher_public_label);
+    const subject = shoutTickerSubject({ title: who }, who);
     push(
       eventRecord({
         type: MARQUEE_EVENT_TYPES.RECOGNITION,
         source_id: row.id,
         source_type: 'recognition',
-        source_title: who,
+        source_title: subject,
         created_at: overlaid.created_at,
         public_text: formatTickerCopy({
           type: MARQUEE_EVENT_TYPES.RECOGNITION,
-          primary_name: who,
-          secondary_name: author,
+          primary_name: author,
+          object_title: subject === author ? '' : subject,
         }),
-        author_avatar_key: recipientActor.author_avatar_key,
-        public_display_name: who,
-        secondary_display_name: author,
+        author_avatar_key: senderActor.author_avatar_key,
+        public_display_name: author,
+        secondary_display_name: who,
       })
     );
   });

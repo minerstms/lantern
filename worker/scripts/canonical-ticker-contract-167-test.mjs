@@ -259,57 +259,58 @@ function loadTicker() {
 /* ---------- formatter / icons ---------- */
 assert(tickerIconForType('mission_created') === '🎯' && tickerIconForType('mission_completed') === '🎯', 'M. Missions use 🎯');
 assert(tickerIconForType('poll_created') === '📊', 'N. Polls use 📊');
-assert(tickerIconForType('shout_out') === '⭐' && tickerIconForType('recognition') === '⭐', 'O. Shout-Outs use ⭐');
+assert(tickerIconForType('shout_out') === '📣' && tickerIconForType('recognition') === '📣', 'O. Shout-Outs use 📣');
 assert(tickerIconForType('news') === '📰', 'P. News uses 📰');
 assert(tickerIconForType('leaderboard_entry') === '🏆', 'Q. leaderboard uses 🏆');
 assert(TICKER_ICONS.mission_created !== '🏆', 'L. 🏆 is not used for Mission Created');
 assert(TICKER_PRIMARY_ROLE.mission_created === 'creator', 'A. Mission Created primary = creator');
 assert(TICKER_PRIMARY_ROLE.mission_completed === 'completer', 'A. Mission Completed primary = completer');
 assert(TICKER_PRIMARY_ROLE.poll_created === 'creator', 'A. Poll Created primary = creator');
-assert(TICKER_PRIMARY_ROLE.shout_out === 'recipient' && TICKER_PRIMARY_ROLE.recognition === 'recipient', 'I. Shout-Out primary = recipient');
+assert(TICKER_PRIMARY_ROLE.shout_out === 'author' && TICKER_PRIMARY_ROLE.recognition === 'author', 'I. Shout-Out primary = author');
 assert(TICKER_PRIMARY_ROLE.news === 'author', 'A. News primary = author');
 assert(TICKER_PRIMARY_ROLE.leaderboard_entry === 'player', 'A. Leaderboard primary = player');
 
 assert(
   formatTickerCopy({ type: 'mission_created', primary_name: 'Mr. Radle', object_title: 'STEM Today' }) ===
-    'Mr. Radle created a mission: STEM Today',
+    'Mission: STEM Today — Mr. Radle',
   'F. Mission Created copy'
 );
 assert(
   formatTickerCopy({ type: 'mission_completed', primary_name: 'Lucas', object_title: 'Student Handbook Challenge' }) ===
-    'Lucas completed Student Handbook Challenge',
+    'Mission: Student Handbook Challenge — Lucas',
   'G. Mission Completed copy'
 );
 assert(
   formatTickerCopy({ type: 'poll_created', primary_name: 'Mrs. Glorioso', object_title: 'Best school lunch?' }) ===
-    'Mrs. Glorioso created a poll: Best school lunch?',
+    'Poll: Best school lunch? — Mrs. Glorioso',
   'H. Poll Created copy'
 );
 assert(
-  formatTickerCopy({ type: 'shout_out', primary_name: 'Lucas', secondary_name: 'Mr. Radle' }) ===
-    'Lucas got a Shout-Out from Mr. Radle',
+  formatTickerCopy({ type: 'shout_out', primary_name: 'Mr. Radle', object_title: 'Thank You Ms. Shanda' }) ===
+    'Shout-Out: Thank You Ms. Shanda — Mr. Radle',
   'J. Shout-Out copy'
 );
 assert(
   formatTickerCopy({ type: 'news', primary_name: 'Mrs. Russett', object_title: 'Field Day Friday' }) ===
-    'Mrs. Russett posted: Field Day Friday',
+    'Post: Field Day Friday — Mrs. Russett',
   'K. News copy'
 );
 assert(
   formatTickerCopy({ type: 'leaderboard_entry', primary_name: 'Lucas', object_title: 'Stack Lab', rank: '3' }) ===
-    'Lucas reached #3 in Stack Lab',
+    'Leaderboard: Stack Lab — Lucas',
   '35. ranked leaderboard wording'
 );
 assert(
   formatTickerCopy({ type: 'leaderboard_entry', primary_name: 'Lucas', object_title: 'Stack Lab' }) ===
-    'Lucas reached the Stack Lab leaderboard',
+    'Leaderboard: Stack Lab — Lucas',
   '35b. unranked leaderboard wording'
 );
 assert(looksLikeSystemLogTickerCopy('Mission Created — New mission from Teacher: STEM Today'), 'system-log detector');
-assert(!looksLikeSystemLogTickerCopy('Mr. Radle created a mission: STEM Today'), 'canonical copy is not system-log');
+assert(!looksLikeSystemLogTickerCopy('Mission: STEM Today — Mr. Radle'), 'canonical copy is not system-log');
+assert(looksLikeSystemLogTickerCopy('Mr. Radle created a mission: STEM Today'), 'legacy sentence is rejected');
 
-const split = tickerNameAndRest('Mr. Radle created a mission: Random Act of Kindness', 'Mr. Radle');
-assert(split.name === 'Mr. Radle' && /created a mission:/.test(split.rest), '54. name split preserves full name');
+const split = tickerNameAndRest('Mission: Random Act of Kindness — Mr. Radle', 'Mr. Radle');
+assert(split.name === 'Mr. Radle' && /Mission: Random Act of Kindness/.test(split.rest), '54. name split preserves full name');
 
 assert(tickerDestinationForEvent('mission_created') === 'missions.html', '58. Mission destination');
 assert(tickerDestinationForEvent('mission_completed') === 'missions.html', '58b. Mission completed destination');
@@ -336,7 +337,7 @@ assert(mission && mission.ticker_icon === '🎯', '1. Mission Created icon');
 assert(mission && mission.ticker_primary_role === 'creator', '2. creator is primary');
 assert(mission && mission.author_avatar_key === 'rick.radle', '3. creator avatar key');
 assert(mission && mission.public_display_name === 'Mr. Radle', '4. canonical creator name');
-assert(mission && mission.public_text === 'Mr. Radle created a mission: STEM Today', '5. Mission Created sentence', mission && mission.public_text);
+assert(mission && mission.public_text === 'Mission: STEM Today — Mr. Radle', '5. Mission Created sentence', mission && mission.public_text);
 assert(mission && !/Mission Created\s*—/.test(mission.public_text) && !/New mission from Teacher:/.test(mission.public_text), '6/7. no system-log Mission Created wording');
 assert(mission && mission.destination === 'missions.html', '58c. collected Mission destination');
 
@@ -344,31 +345,31 @@ assert(completed && completed.ticker_icon === '🎯', '8. Mission Completed icon
 assert(completed && completed.ticker_primary_role === 'completer', '9. completer primary');
 assert(completed && completed.author_avatar_key === '20889', '10. completer avatar key');
 assert(completed && completed.public_display_name === 'Lucas', '11. completer name');
-assert(completed && completed.public_text === 'Lucas completed Student Handbook Challenge', '12. Mission Completed sentence', completed && completed.public_text);
+assert(completed && completed.public_text === 'Mission: Student Handbook Challenge — Lucas', '12. Mission Completed sentence', completed && completed.public_text);
 
 assert(poll && poll.ticker_icon === '📊', '13. Poll icon');
 assert(poll && poll.author_avatar_key === 'frank.begano', '14. poll creator avatar');
 assert(poll && poll.public_display_name === 'Mr. Begano', '15. poll creator name');
-assert(poll && poll.public_text === 'Mr. Begano created a poll: Best school lunch?', '16. Poll sentence', poll && poll.public_text);
+assert(poll && poll.public_text === 'Poll: Best school lunch? — Mr. Begano', '16. Poll sentence', poll && poll.public_text);
 
-assert(shout && shout.ticker_icon === '⭐', '18. Shout-Out icon');
-assert(shout && shout.ticker_primary_role === 'recipient', '19. recipient primary role');
-assert(shout && shout.author_avatar_key === 'eric.colorado', '20. recipient avatar — not sender');
-assert(shout && shout.author_avatar_key !== 'rick.radle', '24. sender avatar is not primary');
-assert(shout && shout.public_display_name === 'Mr. Colorado', '21. recipient canonical name');
-assert(shout && shout.secondary_display_name === 'Mr. Radle', '22. sender canonical name');
-assert(shout && shout.public_text === 'Mr. Colorado got a Shout-Out from Mr. Radle', '23. Shout-Out sentence', shout && shout.public_text);
+assert(shout && shout.ticker_icon === '📣', '18. Shout-Out icon');
+assert(shout && shout.ticker_primary_role === 'author', '19. author primary role');
+assert(shout && shout.author_avatar_key === 'rick.radle', '20. author avatar — sender');
+assert(shout && shout.author_avatar_key !== 'eric.colorado', '24. recipient avatar is not primary');
+assert(shout && shout.public_display_name === 'Mr. Radle', '21. author canonical name');
+assert(shout && shout.secondary_display_name === 'Mr. Colorado', '22. recipient canonical name');
+assert(shout && shout.public_text === 'Shout-Out: Mr. Colorado — Mr. Radle', '23. Shout-Out sentence', shout && shout.public_text);
 
 assert(news && news.ticker_icon === '📰', '25. News icon');
 assert(news && news.author_avatar_key === 'rick.radle', '26. author avatar');
 assert(news && news.public_display_name === 'Mr. Radle', '27. author name');
-assert(news && news.public_text === 'Mr. Radle posted: Field Day Friday', '28. News sentence', news && news.public_text);
+assert(news && news.public_text === 'Post: Field Day Friday — Mr. Radle', '28. News sentence', news && news.public_text);
 
 assert(lb && lb.ticker_icon === '🏆', '30. leaderboard icon');
 assert(lb && lb.author_avatar_key === '20889', '31. player avatar');
 assert(lb && lb.public_display_name === 'Lucas', '32. player name');
 assert(lb && /Avatar Match/.test(lb.public_text) && !/avatar-match/.test(lb.public_text), '34. human game title');
-assert(lb && lb.public_text === 'Lucas reached #3 in Avatar Match', '35c. collected rank wording', lb && lb.public_text);
+assert(lb && lb.public_text === 'Leaderboard: Avatar Match — Lucas', '35c. collected rank wording', lb && lb.public_text);
 
 events.forEach((e) => {
   if (!e.public_display_name) return;
@@ -382,7 +383,7 @@ assert(
   '36b. Mission name + avatar from same account'
 );
 assert(
-  shout.author_avatar_key === 'eric.colorado' && shout.public_display_name === 'Mr. Colorado',
+  shout.author_avatar_key === 'rick.radle' && shout.public_display_name === 'Mr. Radle',
   '36c. Shout-Out name + avatar from same account'
 );
 
@@ -391,7 +392,7 @@ const renamed = { ...RICK, public_display_name: 'Coach Radle' };
 const renamedEvents = await collectMarqueeEvents(makeDb(fixtureTables({ staff: [renamed, BEGANO, COLORADO] })));
 const renamedMission = renamedEvents.find((e) => e.type === 'mission_created');
 assert(renamedMission && renamedMission.public_display_name === 'Coach Radle', '37. changed public name updates historical render');
-assert(renamedMission && renamedMission.public_text === 'Coach Radle created a mission: STEM Today', '37b. copy uses current name');
+assert(renamedMission && renamedMission.public_text === 'Mission: STEM Today — Coach Radle', '37b. copy uses current name');
 assert(renamedMission && renamedMission.author_avatar_key === 'rick.radle', '38. durable avatar key stays the account, not a snapshot image');
 
 const staffIndex = buildStaffPublicNameIndex([RICK, BEGANO, COLORADO, LUCAS], []);
@@ -471,7 +472,7 @@ assert(missionSlide && missionSlide.meta.public_display_name === 'Mr. Radle', '4
 const sandbox = loadTicker();
 const LT = sandbox.LanternTicker;
 const CTC = sandbox.LanternTickerContract;
-assert(CTC && CTC.formatTickerCopy({ type: 'mission_created', primary_name: 'Mr. Radle', object_title: 'X' }) === 'Mr. Radle created a mission: X', 'X. client shares canonical formatter');
+assert(CTC && CTC.formatTickerCopy({ type: 'mission_created', primary_name: 'Mr. Radle', object_title: 'X' }) === 'Mission: X — Mr. Radle', 'X. client shares canonical formatter');
 assert(CTC.tickerIconForType('mission_created') === '🎯', 'X. client icon map matches');
 
 function withAvatar(slide, url) {
@@ -484,19 +485,20 @@ function withAvatar(slide, url) {
 const items = LT.buildDisplayTickerItems(
   slides.map((s) => withAvatar(s, s.meta.author_avatar_key ? '/api/avatar/image?key=' + s.meta.author_avatar_key + '&v=1' : ''))
 );
-const missionItem = items.find((it) => it.primaryName === 'Mr. Radle' && /created a mission:/.test(it.rest || it.text || ''));
+const missionItem = items.find((it) => it.primaryName === 'Mr. Radle' && /Mission: STEM Today/.test(it.rest || it.text || ''));
 assert(missionItem && missionItem.icon === '🎯', '1c. rendered Mission icon');
 assert(missionItem && missionItem.primaryName === 'Mr. Radle', '54b. rendered name is not truncated in JS');
-assert(missionItem && /created a mission: STEM Today/.test(missionItem.rest), '5b. rendered rest is the action/object');
+assert(missionItem && /Mission: STEM Today/.test(missionItem.rest), '5b. rendered rest is the action/object');
 assert(missionItem && /avatar\/image\?key=rick\.radle/.test(missionItem.avatarUrl), '3b. current approved avatar URL');
 assert(missionItem && missionItem.href === 'missions.html', '58e. rendered Mission link');
 assert(!looksLikeSystemLogTickerCopy(missionItem.ariaLabel), '6b. rendered label is not system-log');
 
-const shoutItem = items.find((it) => it.primaryName === 'Mr. Colorado');
-assert(shoutItem && shoutItem.icon === '⭐', '18b. rendered Shout-Out icon');
-assert(shoutItem && /got a Shout-Out from Mr\. Radle/.test(shoutItem.rest), '23b. rendered Shout-Out rest');
-assert(shoutItem && /key=eric\.colorado/.test(shoutItem.avatarUrl), '20b. recipient avatar rendered');
-assert(shoutItem && !/key=rick\.radle/.test(shoutItem.avatarUrl), '24b. sender avatar not on Shout-Out chip');
+const shoutItem = items.find((it) => it.icon === '📣');
+assert(shoutItem && shoutItem.icon === '📣', '18b. rendered Shout-Out icon');
+assert(shoutItem && shoutItem.primaryName === 'Mr. Radle', '23b. rendered Shout-Out author');
+assert(shoutItem && /Shout-Out: Mr\. Colorado/.test(shoutItem.rest), '23c. rendered Shout-Out subject');
+assert(shoutItem && /key=rick\.radle/.test(shoutItem.avatarUrl), '20b. author avatar rendered');
+assert(shoutItem && !/key=eric\.colorado/.test(shoutItem.avatarUrl), '24b. recipient avatar not on Shout-Out chip');
 
 const lbItem = items.find((it) => it.icon === '🏆');
 assert(lbItem && lbItem.primaryName === 'Lucas', '32b. leaderboard name');
@@ -532,14 +534,14 @@ assert(
   container.innerHTML.slice(0, 280)
 );
 assert(/lanternTickerItemName/.test(container.innerHTML) && /Mr\. Radle/.test(container.innerHTML), '54c. name class preserved');
-assert(/lanternTickerItemRest/.test(container.innerHTML), '55. object/title is the rest span');
+assert(/lanternTickerItemType/.test(container.innerHTML) && /lanternTickerItemSubject/.test(container.innerHTML), '55. type + subject spans');
 
 LT.render('lanternTicker', [LT.FALLBACK_TICKER_ITEM]);
 assert(!/lanternTickerItemAvatar/.test(container.innerHTML), '45/W. system fallback has no person silhouette');
 assert(/Lantern — News/.test(container.innerHTML), '45b. system fallback copy');
 
 LT.render('lanternTicker', [missionItem]);
-assert(/aria-label="Mr\. Radle created a mission: STEM Today"/.test(container.innerHTML), 'a11y label is the public sentence');
+assert(/aria-label="Mission: STEM Today — Mr\. Radle"/.test(container.innerHTML), 'a11y label is the public sentence');
 assert(/alt=""/.test(container.innerHTML), 'avatar is decorative beside the name');
 assert(/href="missions.html"/.test(container.innerHTML), '58f. clickable Mission destination');
 

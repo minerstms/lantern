@@ -1,5 +1,5 @@
 /**
- * Prompt #167 — canonical Lantern ticker contract (copy, icons, destinations).
+ * Prompt #167 / #252 — canonical Lantern ticker contract (copy, icons, destinations).
  * Presentation only. Does not change which events qualify for the marquee.
  */
 import { resolveRegisteredLeaderboardGame } from './lantern-game-catalog.js';
@@ -8,18 +8,32 @@ export const TICKER_ICONS = Object.freeze({
   mission_created: '🎯',
   mission_completed: '🎯',
   poll_created: '📊',
-  shout_out: '⭐',
-  recognition: '⭐',
+  shout_out: '📣',
+  recognition: '📣',
   news: '📰',
+  news_photo: '📸',
+  news_good_news: '⭐',
   leaderboard_entry: '🏆',
+});
+
+export const TICKER_TYPE_LABELS = Object.freeze({
+  mission_created: 'Mission',
+  mission_completed: 'Mission',
+  poll_created: 'Poll',
+  shout_out: 'Shout-Out',
+  recognition: 'Shout-Out',
+  news: 'Post',
+  news_photo: 'Photo',
+  news_good_news: 'Good News',
+  leaderboard_entry: 'Leaderboard',
 });
 
 export const TICKER_PRIMARY_ROLE = Object.freeze({
   mission_created: 'creator',
   mission_completed: 'completer',
   poll_created: 'creator',
-  shout_out: 'recipient',
-  recognition: 'recipient',
+  shout_out: 'author',
+  recognition: 'author',
   news: 'author',
   leaderboard_entry: 'player',
 });
@@ -28,12 +42,23 @@ function trimStr(v) {
   return v == null ? '' : String(v).trim();
 }
 
+export function tickerTypeLabel(type) {
+  return TICKER_TYPE_LABELS[String(type || '').trim()] || '';
+}
+
 export function tickerIconForType(type) {
   return TICKER_ICONS[String(type || '').trim()] || '';
 }
 
 export function tickerPrimaryRoleForType(type) {
   return TICKER_PRIMARY_ROLE[String(type || '').trim()] || '';
+}
+
+export function tickerNewsKind(category) {
+  const c = String(category || '').trim().toLowerCase();
+  if (/photo|picture|image/.test(c)) return 'news_photo';
+  if (/good[_\s-]?news/.test(c)) return 'news_good_news';
+  return 'news';
 }
 
 export function tickerDestinationForEvent(type, extra) {
@@ -50,52 +75,48 @@ export function tickerDestinationForEvent(type, extra) {
 }
 
 /**
- * Canonical public sentence. Name and object are already-resolved display strings.
+ * Compact public ticker line: Type: Subject — Author
+ * Name and object are already-resolved display strings.
  */
 export function formatTickerCopy(parts) {
   const type = trimStr(parts && parts.type);
   const name = trimStr(parts && parts.primary_name);
   const object = trimStr(parts && parts.object_title);
-  const secondary = trimStr(parts && parts.secondary_name);
-  const rank = parts && parts.rank != null && String(parts.rank).trim() !== '' ? String(parts.rank).trim() : '';
+  const label = trimStr(parts && parts.label) || tickerTypeLabel(type) || 'Lantern';
+  if (object && name && object === name) {
+    return label + ' — ' + name;
+  }
+  if (label && object && name) return label + ': ' + object + ' — ' + name;
+  if (label && object) return label + ': ' + object;
+  if (label && name) return label + ' — ' + name;
+  return trimStr(parts && parts.fallback) || label || 'Lantern';
+}
 
-  if (type === 'mission_created') {
-    if (name && object) return name + ' created a mission: ' + object;
-    if (name) return name + ' created a mission';
-    return object ? 'A new mission: ' + object : 'A new mission';
+export function parseCompactTickerCopy(publicText) {
+  const full = trimStr(publicText);
+  const withAuthor = full.match(/^([^:]+):\s*(.*?)\s+[—–]\s+(.+)$/);
+  if (withAuthor) {
+    return { typeLabel: trimStr(withAuthor[1]), subject: trimStr(withAuthor[2]), author: trimStr(withAuthor[3]) };
   }
-  if (type === 'mission_completed') {
-    if (name && object) return name + ' completed ' + object;
-    if (name) return name + ' completed a mission';
-    return object ? 'Someone completed ' + object : 'Mission completed';
+  const typeAuthor = full.match(/^([^:]+)\s+[—–]\s+(.+)$/);
+  if (typeAuthor && !/:/.test(typeAuthor[1])) {
+    return { typeLabel: trimStr(typeAuthor[1]), subject: '', author: trimStr(typeAuthor[2]) };
   }
-  if (type === 'poll_created') {
-    if (name && object) return name + ' created a poll: ' + object;
-    if (name) return name + ' created a poll';
-    return object ? 'A new poll: ' + object : 'A new poll';
+  const typeSubject = full.match(/^([^:]+):\s*(.+)$/);
+  if (typeSubject) {
+    return { typeLabel: trimStr(typeSubject[1]), subject: trimStr(typeSubject[2]), author: '' };
   }
-  if (type === 'shout_out' || type === 'recognition') {
-    if (name && secondary) return name + ' got a Shout-Out from ' + secondary;
-    if (name) return name + ' got a Shout-Out';
-    return 'Shout-Out';
-  }
-  if (type === 'news') {
-    if (name && object) return name + ' posted: ' + object;
-    if (name) return name + ' posted';
-    return object ? 'Posted: ' + object : 'News';
-  }
-  if (type === 'leaderboard_entry') {
-    if (name && rank && object) return name + ' reached #' + rank + ' in ' + object;
-    if (name && object) return name + ' reached the ' + object + ' leaderboard';
-    if (name) return name + ' reached a leaderboard';
-    return object ? 'New ' + object + ' leaderboard entry' : 'Leaderboard update';
-  }
-  return trimStr(parts && parts.fallback) || 'Lantern update';
+  return { typeLabel: '', subject: '', author: '' };
 }
 
 export function tickerNameAndRest(publicText, primaryName) {
+  const parsed = parseCompactTickerCopy(publicText);
+  const name = trimStr(primaryName) || parsed.author;
+  if (parsed.typeLabel) {
+    const rest = parsed.subject ? parsed.typeLabel + ': ' + parsed.subject : parsed.typeLabel;
+    return { name, rest };
+  }
   const full = trimStr(publicText);
-  const name = trimStr(primaryName);
   if (name && full.indexOf(name) === 0) {
     return { name, rest: full.slice(name.length) };
   }
@@ -110,6 +131,11 @@ export function looksLikeSystemLogTickerCopy(text) {
     /Poll Created\s*—/.test(t) ||
     /New mission from Teacher:/.test(t) ||
     /New poll from Teacher:/.test(t) ||
-    /Submission approved:/.test(t)
+    /Submission approved:/.test(t) ||
+    /A student created/.test(t) ||
+    /created a (mission|poll)/.test(t) ||
+    /\breached the\b/.test(t) ||
+    /\breached #\d+/.test(t) ||
+    /got a Shout-Out from/.test(t)
   );
 }

@@ -35,12 +35,15 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 clamp(20px, 2.5vw, 40px);
+  padding: 0 clamp(36px, 4.5vw, 64px);
   font-size: clamp(18px, 2.4vmin, 26px);
   font-weight: 900;
   color: #b9c6ea;
   letter-spacing: 1px;
   white-space: nowrap;
+}
+.lanternTickerItem + .lanternTickerItem{
+  border-left: 1px solid rgba(255,255,255,.16);
 }
 .lanternTickerItem span.lanternTickerText{ color: #eaf0ff; }
 .lanternTickerItemIcon{ display: inline-flex; align-items: center; flex-shrink: 0; }
@@ -78,6 +81,20 @@ img.lanternTickerItemAvatar:not([src]){ display: none; }
 .lanternTickerItemLink:hover,
 .lanternTickerItemLink:focus{
   text-decoration: underline;
+}
+.lanternTickerItemType{
+  flex-shrink: 0;
+  color: #eaf0ff;
+}
+.lanternTickerItemSubject{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  color: #eaf0ff;
+}
+.lanternTickerItemSep{
+  flex-shrink: 0;
+  color: #b9c6ea;
 }
 .lanternTickerItemName{
   flex-shrink: 0;

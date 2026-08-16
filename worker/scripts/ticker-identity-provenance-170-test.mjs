@@ -498,7 +498,7 @@ assert(staffIdFromEconomyKey('staff:rick.radle') === '', 'staff:username is not 
 
 {
   const copy = formatTickerCopy({ type: 'poll_created', primary_name: 'Lucas R.', object_title: 'What is your favorite sport?' });
-  assert(copy === 'Lucas R. created a poll: What is your favorite sport?', '30. #167 poll grammar unchanged');
+  assert(copy === 'Poll: What is your favorite sport? — Lucas R.', '30. #252 compact poll format');
 }
 
 const workerIndex = read('worker/index.js');
@@ -655,7 +655,7 @@ assert(!/CREATE TABLE lantern_|ALTER TABLE lantern_/.test(eventsSrc + missionsSr
   );
   const rec = events.find((e) => e.source_id === 'rec_team');
   assert(rec && /TMS Football/.test(rec.public_text), '14c. ticker keeps TMS Football as entity', rec && rec.public_text);
-  assert(rec && !rec.author_avatar_key, '14d. entity recipient has no fake person avatar', rec);
+  assert(rec && rec.author_avatar_key === 'rick.radle' && rec.author_avatar_key !== 'TMS Football', '14d. entity recipient is not used as an avatar key', rec);
 }
 
 {
@@ -690,9 +690,9 @@ assert(!/CREATE TABLE lantern_|ALTER TABLE lantern_/.test(eventsSrc + missionsSr
     })
   );
   const rec = events.find((e) => e.source_id === 'rec_person');
-  assert(rec && rec.public_display_name === 'Mr. Colorado' && rec.author_avatar_key === 'eric.colorado', '12. human recipient key exact', rec);
-  assert(rec && rec.secondary_display_name === 'Mr. Radle', '13b. sender resolves from created_by_teacher_id', rec);
-  assert(rec && /Mr\. Colorado got a Shout-Out from Mr\. Radle/.test(rec.public_text), '18. recipient remains primary', rec && rec.public_text);
+  assert(rec && rec.public_display_name === 'Mr. Radle' && rec.author_avatar_key === 'rick.radle', '12. shout author is sender', rec);
+  assert(rec && rec.secondary_display_name === 'Mr. Colorado', '13b. recipient remains secondary label', rec);
+  assert(rec && rec.public_text === 'Shout-Out: Mr. Colorado — Mr. Radle', '18. compact Shout-Out names subject and author', rec && rec.public_text);
 }
 
 // News + spoof
@@ -848,13 +848,13 @@ assert(!/CREATE TABLE lantern_|ALTER TABLE lantern_/.test(eventsSrc + missionsSr
     legacy && { text: legacy.public_text, avatar: legacy.author_avatar_key, name: legacy.public_display_name }
   );
   const mission = events.find((e) => e.source_id === 'mission_t4');
-  assert(mission && mission.author_avatar_key === 'rick.radle' && /Mr\. Radle created a mission: STEM Today/.test(mission.public_text), '8b. teacher_id is identity; teacher_name is not', mission);
+  assert(mission && mission.author_avatar_key === 'rick.radle' && /Mission: STEM Today — Mr\. Radle/.test(mission.public_text), '8b. teacher_id is identity; teacher_name is not', mission);
   const sys = events.find((e) => e.source_id === 'perm_sys');
   assert(!sys || sys.author_avatar_key !== 'rick.radle' || sys.author_avatar_key === '', 'system mission is not fabricated as Rick unless exact key exists');
   const done = events.find((e) => e.source_id === 'sub_lucas');
   assert(done && done.author_avatar_key === '20889' && done.public_display_name === 'Lucas R.', '13c. completion ticker uses student key');
   const news = events.find((e) => e.source_id === 'news_rick');
-  assert(news && news.author_avatar_key === 'rick.radle' && /Mr\. Radle posted: Field Day Friday/.test(news.public_text), '15b. news ticker uses current name', news);
+  assert(news && news.author_avatar_key === 'rick.radle' && /Post: Field Day Friday — Mr\. Radle/.test(news.public_text), '15b. news ticker uses current name', news);
   const lb = events.find((e) => e.source_id === 'lb_staff');
   assert(lb && lb.author_avatar_key === 'rick.radle' && !/Staff reached/.test(lb.public_text), '23/24. leaderboard does not degrade to Staff', lb);
 
