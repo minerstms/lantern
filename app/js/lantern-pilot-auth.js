@@ -54,6 +54,31 @@
     return pathOnly === '/api/auth/geppetto-student-authorize';
   }
 
+  /** True when login/change-password was opened for Class Website / Make Up SSO. */
+  function isClassWebsiteSignInSearch(search) {
+    var q = String(search == null ? '' : search);
+    try {
+      var params = new URLSearchParams(q.charAt(0) === '?' ? q.slice(1) : q);
+      if (params.get('intent') === 'class-website') return true;
+      return isGeppettoStudentAuthorizeReturn(params.get('return') || '');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** Neutral tab title for Class Website SSO. Empty string means keep the Lantern default. */
+  function classWebsiteSignInDocumentTitle(search) {
+    return isClassWebsiteSignInSearch(search) ? 'Student Sign In' : '';
+  }
+
+  function applyClassWebsiteDocumentTitle(search) {
+    var next = classWebsiteSignInDocumentTitle(search);
+    if (next && typeof document !== 'undefined' && document) {
+      document.title = next;
+    }
+    return next;
+  }
+
   /** Path-only: /explore or /explore.html (student home), with optional query/hash ignored. */
   function isGenericExplorePath(pathOrUrl) {
     var pathOnly = String(pathOrUrl || '').split('?')[0].split('#')[0];
@@ -398,6 +423,9 @@
     fetchMe: fetchMe,
     normalizeRole: normalizeRole,
     isGeppettoStudentAuthorizeReturn: isGeppettoStudentAuthorizeReturn,
+    isClassWebsiteSignInSearch: isClassWebsiteSignInSearch,
+    classWebsiteSignInDocumentTitle: classWebsiteSignInDocumentTitle,
+    applyClassWebsiteDocumentTitle: applyClassWebsiteDocumentTitle,
     isGenericExplorePath: isGenericExplorePath,
     defaultRoleHomePath: defaultRoleHomePath,
     clearClientIdentityCaches: clearClientIdentityCaches,
@@ -416,4 +444,11 @@
   };
   global.LanternAuth = sessionApi;
   global.LanternPilotAuth = sessionApi;
+
+  try {
+    var here = String((global.location && global.location.pathname) || '');
+    if (/\/login(\.html)?$/.test(here) || /\/change-password(\.html)?$/.test(here)) {
+      applyClassWebsiteDocumentTitle(global.location.search);
+    }
+  } catch (e) {}
 })(typeof window !== 'undefined' ? window : this);

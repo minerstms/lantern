@@ -365,6 +365,12 @@ async function testLoginPagesPreserveAuthorize() {
     return bad('change-password must not rewrite authorize to Explore');
   }
   if (!login.includes('Sign in | Lantern')) return bad('normal Lantern login title must remain');
+  if (!login.includes("document.title = 'Student Sign In'") || !change.includes("document.title = 'Student Sign In'")) {
+    return bad('class-website head script must set Student Sign In title');
+  }
+  if (!authJs.includes('function classWebsiteSignInDocumentTitle')) {
+    return bad('shared class-website title helper missing');
+  }
   ok('8. login/change-password preserve authorize and use contextual Student Sign In');
 }
 

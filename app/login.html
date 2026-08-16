@@ -7,8 +7,21 @@
   <link rel="apple-touch-icon" href="/assets/favicon.png?v=2">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign in | Lantern</title>
+  <script>
+    /* Prompt #260 — set the tab title before paint when this is Class Website SSO. */
+    (function () {
+      try {
+        var p = new URLSearchParams(location.search || '');
+        var ret = String(p.get('return') || '');
+        var pathOnly = ret.split('?')[0].split('#')[0];
+        if (p.get('intent') === 'class-website' || pathOnly === '/api/auth/geppetto-student-authorize') {
+          document.title = 'Student Sign In';
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <script src="js/lantern-pilot-auth.js?v=20260816-sso258"></script>
+  <script src="js/lantern-pilot-auth.js?v=20260816-sso260"></script>
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <link rel="stylesheet" href="css/lantern-header.css">
   <style>
@@ -96,7 +109,11 @@
         var ret = params.get('return') || '';
         var classWebsite = params.get('intent') === 'class-website' || isClassWebsiteSsoReturn(ret);
         if (!classWebsite) return false;
-        document.title = 'Student Sign In';
+        if (window.LanternAuth && typeof window.LanternAuth.applyClassWebsiteDocumentTitle === 'function') {
+          window.LanternAuth.applyClassWebsiteDocumentTitle(location.search);
+        } else {
+          document.title = 'Student Sign In';
+        }
         var titleEl = document.getElementById('loginTitle');
         var subEl = document.getElementById('loginSub');
         var linksEl = document.getElementById('classWebsiteLinks');
