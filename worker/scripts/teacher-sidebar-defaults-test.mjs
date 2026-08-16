@@ -130,17 +130,17 @@ if (/Pending Nuggets/.test(html) && /Nugget Ledger/.test(html) && /id="teacherNu
 } else bad('Nuggets migration panels missing');
 
 const hallwayIdx = html.indexOf('Hallway TV');
+const mediaIdx = html.indexOf('Media Library Access');
+const repairIdx = html.indexOf('Repair App');
 const phoneIdx = html.indexOf('Phone App Download');
-if (phoneIdx > hallwayIdx && hallwayIdx > 0) ok('Phone App Download appears after Hallway TV (bottom of sidebar)');
-else bad('Phone App Download placement', { hallwayIdx, phoneIdx });
+if (phoneIdx > repairIdx && repairIdx > hallwayIdx && hallwayIdx > 0) ok('Repair App is before Phone App Download; Phone App Download is last');
+else bad('Phone App Download placement', { hallwayIdx, repairIdx, phoneIdx });
+if (mediaIdx > hallwayIdx && mediaIdx < repairIdx) ok('Media Library Access sits with the external tool links');
+else bad('Media Library Access placement', { hallwayIdx, mediaIdx, repairIdx });
 
 if (/id="teacherPhoneAppDownloadLink"/.test(html) && /intent=install/.test(html) && /log\.tmslantern\.org/.test(html)) {
   ok('Phone App Download routes to existing TMS PWA install intent');
 } else bad('Phone App Download route/intent missing');
-
-const repairIdx = html.indexOf('Repair App');
-if (repairIdx > phoneIdx && phoneIdx > hallwayIdx) ok('Repair App appears after Phone App Download');
-else bad('Repair App placement', { hallwayIdx, phoneIdx, repairIdx });
 
 if (/id="teacherRepairAppLink"/.test(html) && /intent=repair/.test(html) && /log\.tmslantern\.org/.test(html)) {
   ok('Repair App routes to TMS PWA repair intent on log.tmslantern.org');

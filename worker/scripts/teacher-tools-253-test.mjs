@@ -93,7 +93,7 @@ if (!/Lantern Teacher Workspace/.test(teacherHtml) && !/Open Lantern Teacher/.te
 
 const sidebar = (teacherHtml.match(/<nav class="teacherSidebarNav"[\s\S]*?<\/nav>/) || teacherHtml.match(/teacherSidebarNav[\s\S]*?<\/nav>/) || [''])[0];
 const labels = [...sidebar.matchAll(/teacherSidebarLabel">([^<]+)</g)].map((m) => m[1]);
-const expectedSidebar = ['Nuggets', 'Overview', 'Recent Behavior Logs', 'Review Submissions', 'Lantern Access', 'Moderation', 'Hallway TV', 'Phone App Download', 'Repair App'];
+const expectedSidebar = ['Nuggets', 'Overview', 'Recent Behavior Logs', 'Review Submissions', 'Lantern Access', 'Moderation', 'Hallway TV', 'Media Library Access', 'Repair App', 'Phone App Download'];
 if (JSON.stringify(labels) === JSON.stringify(expectedSidebar)) ok('Teacher Tools sidebar order exact');
 else bad('Teacher Tools sidebar', labels);
 

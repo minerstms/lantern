@@ -50,7 +50,7 @@ assert(staffNav.includes('buildPrivilegedSectionHtml'), 'lantern-staff-nav: buil
 assert(/\/teacher\.html/.test(staffNav), 'Teacher Tools route includes /teacher.html');
 assert(/tms-device-authorize/.test(staffNav) && /log\.tmslantern\.org/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
 assert(staffNav.includes('/admin#system'), 'System href targets /admin#system');
-assert(/report_maker \|\| caps\.behavior_admin/.test(staffNav) || /caps\.report_maker \|\| caps\.behavior_admin/.test(staffNav), 'Reports gated by REPORT_MAKER or BEHAVIOR_ADMIN');
+assert(/caps\.report_maker/.test(staffNav) && !/caps\.report_maker \|\| caps\.behavior_admin/.test(staffNav), 'Reports gated by REPORT_MAKER only');
 assert(!staffNav.includes("label: 'Teacher Dashboard'"), 'lantern-staff-nav: Teacher Dashboard retired from STAFF');
 assert(staffNav.includes("label: 'Behavior Administration'"), 'lantern-staff-nav: Behavior Administration privileged label');
 assert(!/normalizeRole\(role\) === 'admin'\) return true/.test(staffNav), 'privileged nav has no role===admin shortcut');

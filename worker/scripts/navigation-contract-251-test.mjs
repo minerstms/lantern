@@ -105,6 +105,16 @@ if (sysOnly.includes('System') && !sysOnly.includes('Reports') && !sysOnly.inclu
   ok('SYSTEM_ADMIN does not imply REPORT_MAKER or BEHAVIOR_ADMIN');
 } else bad('SYSTEM_ADMIN implication', sysOnly);
 
+const behaviorOnly = LSN.canonicalVisibleLabels('teacher', { teacher: true, behavior_admin: true }, 'lantern');
+if (behaviorOnly.includes('Behavior Administration') && !behaviorOnly.includes('Reports') && !behaviorOnly.includes('System')) {
+  ok('BEHAVIOR_ADMIN-only does not get Reports or System');
+} else bad('BEHAVIOR_ADMIN implication', behaviorOnly);
+
+const reportOnly = LSN.canonicalVisibleLabels('teacher', { teacher: true, report_maker: true }, 'lantern');
+if (reportOnly.includes('Reports') && !reportOnly.includes('Behavior Administration') && !reportOnly.includes('System')) {
+  ok('REPORT_MAKER-only does not get Behavior Administration or System');
+} else bad('REPORT_MAKER implication', reportOnly);
+
 if (FORBIDDEN_LABELS.every((l) => !staffNav.includes("label: '" + l + "'"))) {
   ok('canonical renderer does not invent alternate labels');
 } else bad('alternate labels present');

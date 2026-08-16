@@ -41,7 +41,7 @@
       label: 'Reports',
       path: 'admin.html#reports',
       canShow: function (caps) {
-        return !!(caps && (caps.report_maker || caps.behavior_admin));
+        return !!(caps && caps.report_maker);
       },
     },
     {
