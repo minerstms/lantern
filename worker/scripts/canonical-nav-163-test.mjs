@@ -19,7 +19,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
-const CORE = ['Lantern', 'Locker', 'Create', 'Play', 'Missions'];
+const CORE = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const PAGES = [
   'app/explore.html',
@@ -46,7 +46,7 @@ function labels(role, caps) {
   return LSN.canonicalVisibleLabels(role, caps, 'lantern');
 }
 
-assert(JSON.stringify(labels('student', null)) === JSON.stringify(CORE), '1-5. student core five', JSON.stringify(labels('student', null)));
+assert(JSON.stringify(labels('student', null)) === JSON.stringify(CORE), '1-5. student core navigation', JSON.stringify(labels('student', null)));
 const studentHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, system_admin: true }, 'student');
 assert(!/Teacher Tools|Behavior Logger|Reports|>System<|STAFF|ADMIN \/ TOOLS/.test(studentHtml), '6-9/47. student never receives staff/admin even if caps spoofed');
 
@@ -60,12 +60,12 @@ assert(!reportingLabels.includes('System'), '19. REPORT_MAKER does not add Syste
 
 const sysLabels = labels('teacher', { system_admin: true });
 assert(sysLabels.includes('Reports') && sysLabels.includes('System'), '20-23. SYSTEM_ADMIN adds Reports + System');
-assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAFF).concat(['Reports', 'System'])), 'E. Web Admin nine links', JSON.stringify(labels('admin', null)));
+assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAFF).concat(['Reports', 'System'])), 'E. Web Admin ten links', JSON.stringify(labels('admin', null)));
 
 const orderHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, system_admin: true }, 'teacher');
 const order = [...orderHtml.matchAll(/class="lanternAppBarDropdownLink[^"]*"[^>]*data-page="([^"]+)"/g)].map((m) => m[1]);
 assert(
-  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'play', 'missions', 'teacher', 'behavior', 'reports', 'system']),
+  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'behavior', 'reports', 'system']),
   '24. canonical data-page order',
   JSON.stringify(order)
 );

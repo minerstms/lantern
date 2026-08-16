@@ -19,6 +19,7 @@
     { id: 'lantern', dataPage: 'explore', label: 'Lantern', path: '/explore.html', currentKeys: ['explore', 'lantern'] },
     { id: 'locker', dataPage: 'locker', label: 'Locker', path: '/locker.html' },
     { id: 'create', dataPage: 'create', label: 'Create', path: '/contribute.html', currentKeys: ['contribute', 'create'] },
+    { id: 'media_library', dataPage: 'media_library', label: 'Media Library', externalHref: 'https://miners-yearbook.pages.dev/' },
     { id: 'play', dataPage: 'play', label: 'Play', path: '/games.html', currentKeys: ['games', 'play'] },
     { id: 'missions', dataPage: 'missions', label: 'Missions', path: '/missions.html' },
   ];
@@ -98,6 +99,7 @@
     var i;
     for (i = 0; i < NAVIGATION_ITEMS.length; i++) {
       if (NAVIGATION_ITEMS[i].id === id) {
+        if (NAVIGATION_ITEMS[i].externalHref) return NAVIGATION_ITEMS[i].externalHref;
         return ctx === 'tms' ? LANTERN_ORIGIN + NAVIGATION_ITEMS[i].path : NAVIGATION_ITEMS[i].path.replace(/^\//, '');
       }
     }

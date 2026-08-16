@@ -19,7 +19,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
-const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Play', 'Missions'];
+const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const staffNav = read('app/js/lantern-staff-nav.js');
 const lanternNav = read('app/js/lantern-nav.js');
 const teacherHtml = read('app/teacher.html');
@@ -58,7 +58,7 @@ assert(lanternNav.includes('--lantern-nav-text-inset'), 'lantern-nav.js shares t
 assert(staffNav.includes("label: 'Lantern'"), 'lantern-staff-nav: Lantern first NAVIGATION label (#202)');
 assert(staffNav.includes("path: '/explore.html'"), 'lantern-staff-nav: Lantern/Explore path');
 assert(lanternNav.includes('href="explore.html"') && lanternNav.includes('id="lanternHomeLink"'), 'lantern-nav home link is explore.html');
-assert(lanternNav.includes('Locker') && lanternNav.includes('Create') && lanternNav.includes('Play') && lanternNav.includes('Missions'), 'lantern-nav fallback includes NAVIGATION destinations');
+assert(lanternNav.includes('Locker') && lanternNav.includes('Create') && lanternNav.includes('Media Library') && lanternNav.includes('Play') && lanternNav.includes('Missions'), 'lantern-nav fallback includes NAVIGATION destinations');
 assert(!lanternNav.includes('Display Board'), 'lantern-nav fallback has no Display Board');
 assert(!/>Display</.test(lanternNav), 'lantern-nav has no bare Display STAFF label');
 assert(!/Hallway TV/.test(lanternNav), 'lantern-nav has no Hallway TV in global dropdown');
@@ -93,7 +93,8 @@ assert(!/Reports|System/.test(defaultMenu), 'default menu omits Reports/System w
 assert(!/Hallway TV|Display Board/.test(defaultMenu), 'global menu still omits Hallway TV / Display Board');
 
 const studentMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'student');
-assert(!/STAFF|Teacher Tools|Behavior Logger|Reports|System/.test(studentMenu), 'student menu is core five only');
+assert(!/STAFF|Teacher Tools|Behavior Logger|Reports|System/.test(studentMenu), 'student menu is core navigation only');
+assert(/Media Library/.test(studentMenu), 'student menu includes Media Library');
 
 const teacherMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'teacher');
 assert(/STAFF/.test(teacherMenu) && /Teacher Tools/.test(teacherMenu) && /Behavior Logger/.test(teacherMenu), 'teacher menu includes STAFF links');

@@ -41,6 +41,7 @@
           '<a href="explore.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="explore">Lantern</a>' +
           '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">Locker</a>' +
           '<a href="contribute.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="create">Create</a>' +
+          '<a href="https://miners-yearbook.pages.dev/" role="menuitem" class="lanternAppBarDropdownLink" data-page="media_library">Media Library</a>' +
           '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Play</a>' +
           '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="missions">Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span></a>' +
           '</div>';
