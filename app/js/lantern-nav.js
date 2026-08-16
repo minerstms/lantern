@@ -163,7 +163,10 @@
     // Prompt #185 — keep Needs Attention bell; remove header avatar + Help Mode slot (desktop + phone).
     var bellBtn = '<button type="button" class="lanternAppBarIconBtn" id="lanternExploreBell" style="display:none" aria-hidden="true" aria-label="Needs attention">&#128276;</button>';
     var right = '<div class="lanternAppBarRight">' + bellBtn + '</div>';
+    var town = '<span class="lanternHeaderBrand lanternHeaderBrand--town" aria-hidden="true">Small Town</span>';
+    var pride = '<span class="lanternHeaderBrand lanternHeaderBrand--pride" aria-hidden="true">Big Pride</span>';
     return '<div class="lanternAppBar lanternAppBarExplore" id="lanternAppBar">' +
+      town + pride +
       '<div class="lanternAppBarInner">' + left + context + searchCluster + right + '</div></div>';
   }
 
@@ -180,7 +183,10 @@
       '@keyframes lanternBellWiggle{ 0%,100%{ transform: rotate(0); } 20%{ transform: rotate(-10deg); } 40%{ transform: rotate(10deg); } 60%{ transform: rotate(-6deg); } 80%{ transform: rotate(6deg); } }',
       '.lanternAppBarBell--attention{ animation: lanternBellWiggle 2.4s ease-in-out infinite; transform-origin: 50% 0; }',
       '.lanternAppBar{ position: sticky; top: 0; z-index: 10000; background: ' + NAV.navy + '; color: ' + NAV.white + '; padding: 0 var(--lantern-pad-x); flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.1); }',
-      '.lanternAppBarInner{ max-width: var(--lantern-page-max-width); margin: 0 auto; display: flex; align-items: center; flex-wrap: nowrap; height: 52px; min-height: 52px; max-height: 52px; box-sizing: border-box; gap: 16px; overflow: visible; }',
+      '.lanternHeaderBrand{ position:absolute; top:0; height:52px; display:flex; align-items:center; pointer-events:none; user-select:none; font-weight:800; font-size:15px; letter-spacing:.03em; color:rgba(255,255,255,.72); white-space:nowrap; z-index:0; font-family:inherit; line-height:1; }',
+      '.lanternHeaderBrand--town{ left:20px; }',
+      '.lanternHeaderBrand--pride{ right:20px; }',
+      '.lanternAppBarInner{ position:relative; z-index:1; max-width: var(--lantern-page-max-width); margin: 0 auto; display: flex; align-items: center; flex-wrap: nowrap; height: 52px; min-height: 52px; max-height: 52px; box-sizing: border-box; gap: 16px; overflow: visible; }',
       '.lanternAppBarLeft{ display: flex; align-items: center; flex-shrink: 0; gap: 2px; flex-wrap: wrap; }',
       /* Prompt #152 — brand menu is the positioning root so dropdown text aligns under the L in Lantern */
       '.lanternAppBarBrandMenu{ position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(0,0,0,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.07); overflow: visible; }',
@@ -239,6 +245,7 @@
       '.lanternAppBarIconBtn{ background: transparent; border: none; color: ' + NAV.white + '; font-size: 22px; cursor: pointer; padding: 6px 10px; border-radius: 8px; line-height: 1; font-family: inherit; }',
       '.lanternAppBarIconBtn:hover{ background: rgba(255,255,255,.1); color: ' + NAV.columbiaBlue + '; }',
       '.lanternAppBarBell--inactive{ visibility: hidden; opacity: 0; pointer-events: none; }',
+      '@media (max-width: 1100px){ .lanternHeaderBrand{ display:none; } }',
       '@media (max-width: 900px){ .lanternAppBar .lanternAppBarSearchWrap{ max-width: var(--lantern-appbar-search-max); } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: var(--lantern-appbar-search-max); } }',
       '@media (max-width: 768px){ .lanternAppBarExplore .lanternAppBarInner{ flex-wrap: nowrap; gap: 10px; } .lanternAppBar .lanternAppBarSearchWrap{ margin: 0 6px; } .lanternAppBarSearchFilters{ gap: 4px; } }',
       '@media (max-width: 560px){ .lanternAppBarInner{ gap: 8px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; margin: 0 4px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBarSearchFilters{ max-width: calc(200px + 88px); } .lanternAppBarSearchFilters .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: auto; margin: 0; } .lanternAppBarFiltersBtn{ font-size: 15px; padding: 6px 2px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } .lanternAppBarBrandMenu .lanternAppBarHomeLink{ font-size: 16px; padding: 8px 10px 8px 12px; } }',
