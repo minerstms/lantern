@@ -354,9 +354,9 @@ const contributeHtml = read('app/contribute.html');
 const missionsHtml = read('app/missions.html');
 const teacherHtml = read('app/teacher.html');
 
-if (protJs.includes("tier: 0") && protJs.includes('games:') && protJs.includes('if (classified.tier < 1) return')) {
-  ok('client does not watermark Tier 0 game/school-info pages');
-} else bad('client tier 0 skip');
+if (protJs.includes("tier: 0") && protJs.includes('games:') && protJs.includes('AUTH_SKIP')) {
+  ok('client does not treat login/setup as protected-media surfaces');
+} else bad('client auth-skip');
 if (protJs.includes('pointer-events') === false && protCss.includes('pointer-events: none')) {
   ok('watermark is pointer-events none and will not block touch/click');
 } else if (protCss.includes('pointer-events: none')) {
@@ -368,9 +368,12 @@ if (protCss.includes('@media print') && protCss.includes('lantern-protection-tie
 if (protCss.includes('max-width: 480px') && protCss.includes('overflow: hidden')) {
   ok('watermark remains usable at phone width without overflow');
 } else bad('mobile watermark css');
-if (protCss.includes('inset: 0') && protJs.includes('for (var i = 0; i < 18; i++)')) {
-  ok('watermark is repeated for desktop-width screenshot survival');
+if (protCss.includes('.lanternProtectedMediaMark') && protJs.includes('watermarkOverlayHtml') && /i < n/.test(protJs) && protJs.includes('n = v === \'avatar\' ? 0 : 12')) {
+  ok('watermark is repeated across the media viewport for screenshot survival');
 } else bad('repeated watermark');
+if (!protJs.includes("document.body.appendChild(wrap)") && !protCss.includes('.lanternProtectedWatermark {')) {
+  ok('page-wide TMS CONFIDENTIAL wallpaper is not applied to ordinary UI');
+} else bad('page-wide wallpaper still present');
 if (mediaJs.includes('lanternProtectedMedia') && mediaJs.includes('draggable="false"')) {
   ok('protected image/media is non-draggable');
 } else bad('media draggable');

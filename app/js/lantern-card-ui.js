@@ -453,10 +453,10 @@
     shell.setAttribute('aria-label', 'Media');
     var inner = '';
     if (kind === 'image' && payload.src) {
-      inner = '<div class="lanternMediaFullscreenInner"><img src="' + esc(payload.src) + '" alt="" class="lanternMediaFullscreenImg" /></div>';
+      inner = '<div class="lanternMediaFullscreenInner lanternProtectedMediaFrame"><img src="' + esc(payload.src) + '" alt="" class="lanternMediaFullscreenImg lanternProtectedMedia" draggable="false" /></div>';
     } else if (kind === 'video' && payload.src) {
       var posterAttr = payload.poster ? ' poster="' + esc(payload.poster) + '"' : '';
-      inner = '<div class="lanternMediaFullscreenInner"><video class="lanternMediaFullscreenVideo" controls autoplay playsinline src="' + esc(payload.src) + '"' + posterAttr + '></video></div>';
+      inner = '<div class="lanternMediaFullscreenInner lanternProtectedMediaFrame"><video class="lanternMediaFullscreenVideo lanternProtectedMedia" draggable="false" controls autoplay playsinline src="' + esc(payload.src) + '"' + posterAttr + '></video></div>';
     } else {
       return;
     }
@@ -469,6 +469,9 @@
     global.document.body.appendChild(shell);
     mediaFsOverlay = shell;
     shell.classList.add('lanternMediaFullscreenOverlay--show');
+    if (global.LanternProtectedContent && typeof global.LanternProtectedContent.decorateFullscreen === 'function') {
+      global.LanternProtectedContent.decorateFullscreen(shell);
+    }
     wireGlobalEscape();
   }
 
@@ -486,7 +489,7 @@
         '<div class="lanternDetailMedia lanternDetailMedia--img">' +
         '<div class="newsCardImageWrap lanternDetailMediaImageInner">' +
         '<button type="button" class="lanternDetailMediaExpandBtn" aria-label="View full image" title="View full image">⛶</button>' +
-        '<img class="newsCardImage" src="' + esc(src) + '" alt="" />' +
+        '<img class="newsCardImage lanternProtectedMedia" draggable="false" src="' + esc(src) + '" alt="" />' +
         '</div></div>';
     });
     /* Prompt #219 — ensure every detail image wrap has an LRHC expand control (poll/news injectors too). */

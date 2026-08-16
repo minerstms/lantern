@@ -1,41 +1,111 @@
-/* Prompt #228 — protected-surface watermark + print deterrence.
-   Deterrence only: does not block OS screenshots or photographs. */
+/* Prompt #234 — protected STUDENT MEDIA watermark (not page wallpaper).
+   Deterrence only: does not change stored R2 bytes or block OS screenshots. */
 
-.lanternProtectedWatermark {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  pointer-events: none;
-  overflow: hidden;
+.lanternProtectedMediaFrame,
+.newsCardImageWrap,
+.lanternCardNewsMedia,
+.lanternDetailMediaImageInner,
+.lanternDetailMediaVideoInner,
+.lanternMediaFullscreenInner,
+.avatarMatchImgWrap {
+  position: relative;
 }
 
-.lanternProtectedWatermark__grid {
+.lanternProtectedMedia,
+.lanternProtectedMedia img,
+.lanternProtectedMedia video,
+.lanternProtectedMediaFrame img,
+.lanternProtectedMediaFrame video {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lanternProtectedMediaMark {
   position: absolute;
-  inset: -30%;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.lanternProtectedMediaMark__grid {
+  position: absolute;
+  inset: -42%;
   display: flex;
   flex-wrap: wrap;
   align-content: space-around;
   justify-content: space-around;
-  gap: 18vh 8vw;
-  transform: rotate(-24deg);
-  opacity: 0.13;
-  color: rgba(234, 240, 255, 0.92);
+  gap: 22% 12%;
+  transform: rotate(-28deg);
+  opacity: 0.16;
+  color: rgba(255, 255, 255, 0.92);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: clamp(13px, 2.1vw, 18px);
+  font-size: clamp(11px, 2.6vw, 15px);
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.lanternProtectedWatermark--tier2 .lanternProtectedWatermark__grid {
-  opacity: 0.2;
-}
-
-.lanternProtectedWatermark__cell {
+.lanternProtectedMediaMark__cell {
   pointer-events: none;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.lanternProtectedMediaMark__chip {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  pointer-events: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(8, 12, 22, 0.28);
+  color: rgba(255, 255, 255, 0.72);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(10px, 1.8vw, 12px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lanternProtectedMediaMark--expanded .lanternProtectedMediaMark__grid {
+  opacity: 0.2;
+  font-size: clamp(13px, 2.2vw, 18px);
+}
+
+.lanternProtectedMediaMark--expanded .lanternProtectedMediaMark__chip {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* Tiny avatars: do not cover faces with repeated text. */
+.lanternProtectedMediaMark--avatar .lanternProtectedMediaMark__grid {
+  display: none;
+}
+
+.lanternProtectedMediaMark--avatar .lanternProtectedMediaMark__chip {
+  left: auto;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 3px;
+  font-size: 7px;
+  opacity: 0.22;
+  background: transparent;
+}
+
+.lanternMediaFullscreenInner {
+  overflow: hidden;
+}
+
+.lanternMediaFullscreenInner .lanternProtectedMediaMark {
+  z-index: 1;
 }
 
 .lanternSchoolUseNotice {
@@ -51,18 +121,13 @@
   max-width: 960px;
 }
 
-.lanternProtectedMedia,
-.lanternProtectedMedia img,
-.lanternProtectedMedia video {
-  -webkit-user-drag: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 @media (max-width: 480px) {
-  .lanternProtectedWatermark__grid {
-    font-size: 12px;
-    gap: 16vh 10vw;
+  .lanternProtectedMediaMark__grid {
+    font-size: 11px;
+    gap: 20% 10%;
+  }
+  .lanternProtectedMediaMark__chip {
+    font-size: 10px;
   }
   .lanternSchoolUseNotice {
     font-size: 15px;
@@ -71,14 +136,14 @@
 }
 
 @media print {
-  .lanternProtectedWatermark {
-    position: fixed;
+  .lanternProtectedMediaMark {
+    position: absolute;
     inset: 0;
-    z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  .lanternProtectedWatermark__grid {
-    opacity: 0.55;
-    font-size: 22px;
+  .lanternProtectedMediaMark__grid {
+    opacity: 0.45;
     color: #222;
   }
   html.lantern-protection-tier2 .lanternProtectedMedia,

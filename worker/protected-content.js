@@ -56,6 +56,12 @@ export function watermarkLabel(tier, code) {
   return prefix + ' • ' + String(code || '').trim();
 }
 
+/** Visible on-media mark (#234). Receipts still store the #228 watermarkLabel. */
+export function mediaWatermarkLabel(code) {
+  const c = String(code || '').trim().toUpperCase();
+  return c ? 'TMS • ' + c : '';
+}
+
 export function visibleTraceContainsPii(label, extras) {
   const hay = String(label || '').toLowerCase();
   const list = Array.isArray(extras) ? extras : [];
