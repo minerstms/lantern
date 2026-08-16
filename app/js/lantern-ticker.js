@@ -595,7 +595,7 @@
       '<div class="lanternTickerCopy" data-ticker-copy="primary">' +
       itemHtml +
       '</div>' +
-      '<div class="lanternTickerCopy" data-ticker-copy="clone" aria-hidden="true">' +
+      '<div class="lanternTickerCopy" data-ticker-copy="clone" aria-hidden="true" inert>' +
       itemHtml +
       '</div>'
     );

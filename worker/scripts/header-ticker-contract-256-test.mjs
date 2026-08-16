@@ -261,7 +261,7 @@ if (
 
 const copies = rendered.match(/data-ticker-copy="/g) || [];
 const cloneBlock = rendered.split('data-ticker-copy="clone"')[1] || '';
-if (copies.length === 2 && (cloneBlock.match(/lanternTickerAvatar/g) || []).length === 3 && /aria-hidden="true"/.test(rendered)) {
+if (copies.length === 2 && (cloneBlock.match(/lanternTickerAvatar/g) || []).length === 3 && /aria-hidden="true"/.test(rendered) && /\sinert/.test(rendered)) {
   ok('21. every cloned ticker copy contains avatar markup');
 } else bad('21. clone avatars', { copies: copies.length, cloneAvatars: (cloneBlock.match(/lanternTickerAvatar/g) || []).length });
 

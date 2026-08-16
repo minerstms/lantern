@@ -43,6 +43,9 @@
   align-items: center;
   gap: var(--lantern-ticker-item-gap);
 }
+.lanternTickerCopy[data-ticker-copy="clone"]{
+  pointer-events: none;
+}
 .lanternTickerCopy + .lanternTickerCopy{
   position: relative;
 }
