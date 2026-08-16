@@ -226,7 +226,7 @@ async function testLinkedTeacherMintsAndRedirects() {
   const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
     accounts: { admin: teacher },
-    identityLinksByUsername: { admin: 'Radle' },
+    identityLinksByUsername: { admin: 'WebAdmin' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint((call) => {
@@ -234,10 +234,10 @@ async function testLinkedTeacherMintsAndRedirects() {
     const body = JSON.parse(call.opts.body);
     if (auth !== `Bearer ${TEST_BRIDGE_SECRET}`) throw new Error('mint must use bridge Bearer secret');
     if (body.password || body.password_hash) throw new Error('must never send password to TMS');
-    if (body.tms_staff_id !== 'Radle' || body.lantern_username !== 'admin') {
+    if (body.tms_staff_id !== 'WebAdmin' || body.lantern_username !== 'admin') {
       throw new Error('mint payload identity mismatch');
     }
-    return { body: { ok: true, code: 'opaque-device-code-ABC', tms_staff_id: 'Radle', teacher_name: 'Web Admin' } };
+    return { body: { ok: true, code: 'opaque-device-code-ABC', tms_staff_id: 'WebAdmin', teacher_name: 'Web Admin' } };
   }, async (getCall) => {
     const res = await authorize(env, cookie, 'https://tmsnuggets.pages.dev/index.html');
     const loc = res.headers.get('Location') || '';
@@ -262,10 +262,10 @@ async function testAdminCanVerifySimilarly() {
   const admin = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
     accounts: { admin: admin },
-    identityLinksByUsername: { admin: 'Radle' },
+    identityLinksByUsername: { admin: 'WebAdmin' },
   });
   const cookie = await cookieFor(admin);
-  await withMockedMint(() => ({ body: { ok: true, code: 'admin-code-1', tms_staff_id: 'Radle' } }), async () => {
+  await withMockedMint(() => ({ body: { ok: true, code: 'admin-code-1', tms_staff_id: 'WebAdmin' } }), async () => {
     const res = await authorize(env, cookie, 'https://tmsnuggets.pages.dev/index.html');
     if (res.status !== 302 || !(res.headers.get('Location') || '').includes('lantern_staff_code=admin-code-1')) {
       return bad('admin should verify like teacher', { status: res.status, loc: res.headers.get('Location') });
@@ -279,7 +279,7 @@ async function testTeacherRickAlsoResolvesToRadle() {
   const env = makeEnv({
     accounts: { 'rick.radle': teacher },
     identityLinksByUsername: {
-      admin: 'Radle',
+      admin: 'WebAdmin',
       'rick.radle': 'Radle',
     },
   });
@@ -296,7 +296,7 @@ async function testTeacherRickAlsoResolvesToRadle() {
     if (res.status !== 302 || !loc.includes('lantern_staff_code=teacher-rick-code')) {
       return bad('teacher rick.radle must verify as TMS Radle', { status: res.status, loc });
     }
-    ok('teacher rick.radle verifies as same canonical TMS Radle');
+    ok('teacher rick.radle verifies as TMS Radle, not WebAdmin');
   });
 }
 
@@ -304,7 +304,7 @@ async function testUnsafeReturnSanitized() {
   const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
     accounts: { admin: teacher },
-    identityLinksByUsername: { admin: 'Radle' },
+    identityLinksByUsername: { admin: 'WebAdmin' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint(() => ({ body: { ok: true, code: 'safe-code' } }), async () => {
@@ -321,7 +321,7 @@ async function testCanonicalLogHostReturnAccepted() {
   const teacher = account({ username: 'admin', role: 'admin' });
   const env = makeEnv({
     accounts: { admin: teacher },
-    identityLinksByUsername: { admin: 'Radle' },
+    identityLinksByUsername: { admin: 'WebAdmin' },
   });
   const cookie = await cookieFor(teacher);
   await withMockedMint(() => ({ body: { ok: true, code: 'log-host-code' } }), async () => {

@@ -14,7 +14,7 @@
 import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/index.mjs';
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
-const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
+const EXPECTED_STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
 const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const EXPECTED_FULL = EXPECTED_NAV.concat(EXPECTED_STAFF);
 
@@ -130,11 +130,12 @@ async function main() {
   }
 
   {
-    // Prompt #199 — admin role sees Admin under STAFF → /admin; teacher/student do not.
+    // Prompt #251 — Web Admin privileged links require TMS capabilities, not role===admin.
     const page = await browser.newPage();
     await page.route('**/api/auth/me**', okJson({
       ok: true, authenticated: true, role: 'admin', username: 'admin', display_name: 'Web Admin',
       teacher_id: null, must_change_password: false,
+      capabilities: { teacher: true, report_maker: true, behavior_admin: true, system_admin: true, secretary: false },
     }));
     await page.route('**/api/missions/teacher**', okJson({ ok: true, missions: [] }));
     await page.route('**/api/missions/submissions/teacher**', okJson({ ok: true, submissions: [] }));
@@ -165,12 +166,12 @@ async function main() {
 
     const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
     const staffLabels = (await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) => t.trim());
-    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Behavior Logger']), 'Web Admin STAFF order: ' + JSON.stringify(staffLabels));
+    assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger']), 'Web Admin STAFF order: ' + JSON.stringify(staffLabels));
     const systemLink = page.locator('#lanternMenuDropdown a[data-page="system"]');
-    assert(await systemLink.count() === 1, 'System menuitem present for role=admin');
+    assert(await systemLink.count() === 1, 'System menuitem present for Web Admin capabilities');
     assert((await systemLink.getAttribute('href')) === '/admin#system', 'System points to /admin#system');
     const reportsLink = page.locator('#lanternMenuDropdown a[data-page="reports"]');
-    assert(await reportsLink.count() === 1, 'Reports menuitem present for role=admin');
+    assert(await reportsLink.count() === 1, 'Reports menuitem present for Web Admin capabilities');
     assert(!(await page.locator('#lanternMenuDropdown').innerText()).match(/Display Board|Hallway TV/i), 'Admin menu still omits Hallway TV / Display Board');
     await page.close();
   }

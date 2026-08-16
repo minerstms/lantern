@@ -18,7 +18,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
-const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
+const EXPECTED_STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
 const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const staffNav = read('app/js/lantern-staff-nav.js');
 const lanternNav = read('app/js/lantern-nav.js');
@@ -50,7 +50,10 @@ assert(staffNav.includes('buildPrivilegedSectionHtml'), 'lantern-staff-nav: buil
 assert(/\/teacher\.html/.test(staffNav), 'Teacher Tools route includes /teacher.html');
 assert(/tms-device-authorize/.test(staffNav) && /log\.tmslantern\.org/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
 assert(staffNav.includes('/admin#system'), 'System href targets /admin#system');
-assert(/report_maker \|\| caps\.system_admin/.test(staffNav) || /caps\.report_maker \|\| caps\.system_admin/.test(staffNav), 'Reports gated by REPORT_MAKER or SYSTEM_ADMIN');
+assert(/report_maker \|\| caps\.behavior_admin/.test(staffNav) || /caps\.report_maker \|\| caps\.behavior_admin/.test(staffNav), 'Reports gated by REPORT_MAKER or BEHAVIOR_ADMIN');
+assert(staffNav.includes("label: 'Teacher Dashboard'"), 'lantern-staff-nav: Teacher Dashboard in STAFF');
+assert(staffNav.includes("label: 'Behavior Administration'"), 'lantern-staff-nav: Behavior Administration privileged label');
+assert(!/normalizeRole\(role\) === 'admin'\) return true/.test(staffNav), 'privileged nav has no role===admin shortcut');
 
 assert(lanternNav.includes('LanternStaffNav.buildMenuSectionsHtml'), 'lantern-nav.js uses shared full menu builder');
 assert(lanternNav.includes('applyCanonicalLanternMenu'), 'lantern-nav.js applies canonical role+cap menu after auth (#163)');
@@ -82,9 +85,9 @@ const sandbox = { window: {}, self: {} };
 vm.runInNewContext(staffNav, sandbox);
 const LSN = sandbox.window.LanternStaffNav || sandbox.self.LanternStaffNav;
 assert(!!LSN, 'LanternStaffNav exports from lantern-staff-nav.js');
-assert(JSON.stringify(LSN.labelsInOrder()) === JSON.stringify(EXPECTED_STAFF), 'labelsInOrder is Teacher Tools + Behavior Logger', JSON.stringify(LSN.labelsInOrder()));
+assert(JSON.stringify(LSN.labelsInOrder()) === JSON.stringify(EXPECTED_STAFF), 'labelsInOrder is Teacher Tools + Teacher Dashboard + Behavior Logger', JSON.stringify(LSN.labelsInOrder()));
 assert(JSON.stringify(LSN.staffLabelsInOrder('admin')) === JSON.stringify(EXPECTED_STAFF), 'admin role STAFF has no Admin item', JSON.stringify(LSN.staffLabelsInOrder('admin')));
-assert(JSON.stringify(LSN.staffLabelsInOrder('teacher')) === JSON.stringify(EXPECTED_STAFF), 'teacher role STAFF is Teacher Tools + Behavior Logger');
+assert(JSON.stringify(LSN.staffLabelsInOrder('teacher')) === JSON.stringify(EXPECTED_STAFF), 'teacher role STAFF is Teacher Tools + Teacher Dashboard + Behavior Logger');
 assert(JSON.stringify(LSN.staffLabelsInOrder('student')) === JSON.stringify(EXPECTED_STAFF), 'staff item list itself is role-agnostic');
 
 const defaultMenu = LSN.buildMenuSectionsHtml('explore', 'lantern');
@@ -97,15 +100,17 @@ assert(!/STAFF|Teacher Tools|Behavior Logger|Reports|System/.test(studentMenu), 
 assert(/Media Library/.test(studentMenu), 'student menu includes Media Library');
 
 const teacherMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'teacher');
-assert(/STAFF/.test(teacherMenu) && /Teacher Tools/.test(teacherMenu) && /Behavior Logger/.test(teacherMenu), 'teacher menu includes STAFF links');
+assert(/STAFF/.test(teacherMenu) && /Teacher Tools/.test(teacherMenu) && /Teacher Dashboard/.test(teacherMenu) && /Behavior Logger/.test(teacherMenu), 'teacher menu includes STAFF links');
 assert(!/Reports/.test(teacherMenu) && !/>System</.test(teacherMenu), 'teacher without caps has no Reports/System');
 
 const reportingMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true }, 'teacher');
 assert(/ADMIN \/ TOOLS/.test(reportingMenu) && /Reports/.test(reportingMenu), 'REPORT_MAKER shows Reports');
 assert(!/>System</.test(reportingMenu), 'REPORT_MAKER alone does not show System');
 
-const adminMenu = LSN.buildMenuSectionsHtml('admin', 'lantern', null, 'admin');
-assert(/Reports/.test(adminMenu) && /data-page="system"/.test(adminMenu), 'Web Admin menu includes Reports + System');
+const adminRoleOnly = LSN.buildMenuSectionsHtml('admin', 'lantern', null, 'admin');
+assert(!/Reports/.test(adminRoleOnly) && !/data-page="system"/.test(adminRoleOnly), 'Lantern admin role alone does not grant Reports/System');
+const adminMenu = LSN.buildMenuSectionsHtml('admin', 'lantern', { report_maker: true, behavior_admin: true, system_admin: true }, 'admin');
+assert(/Reports/.test(adminMenu) && /Behavior Administration/.test(adminMenu) && /data-page="system"/.test(adminMenu), 'Web Admin caps show Reports + Behavior Administration + System');
 assert(/href="\/admin#system"/.test(adminMenu), 'System menuitem href is /admin#system');
 
 console.log('\nstaff-nav-labels-test:', pass, 'PASS', fail, 'FAIL');

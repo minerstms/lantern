@@ -20,7 +20,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 const CORE = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
-const STAFF = ['Teacher Tools', 'Behavior Logger'];
+const STAFF = ['Teacher Tools', 'Teacher Dashboard', 'Behavior Logger'];
 const PAGES = [
   'app/explore.html',
   'app/locker.html',
@@ -59,13 +59,15 @@ assert(JSON.stringify(reportingLabels) === JSON.stringify(CORE.concat(STAFF).con
 assert(!reportingLabels.includes('System'), '19. REPORT_MAKER does not add System');
 
 const sysLabels = labels('teacher', { system_admin: true });
-assert(sysLabels.includes('Reports') && sysLabels.includes('System'), '20-23. SYSTEM_ADMIN adds Reports + System');
-assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAFF).concat(['Reports', 'System'])), 'E. Web Admin ten links', JSON.stringify(labels('admin', null)));
+assert(sysLabels.includes('System') && !sysLabels.includes('Reports') && !sysLabels.includes('Behavior Administration'), '20-23. SYSTEM_ADMIN adds System only');
+const webCaps = { teacher: true, report_maker: true, behavior_admin: true, system_admin: true };
+assert(JSON.stringify(labels('admin', webCaps)) === JSON.stringify(CORE.concat(STAFF).concat(['Reports', 'Behavior Administration', 'System'])), 'E. Web Admin privileged matrix', JSON.stringify(labels('admin', webCaps)));
+assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAFF)), 'E2. Lantern admin role alone does not grant privileged links', JSON.stringify(labels('admin', null)));
 
-const orderHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, system_admin: true }, 'teacher');
+const orderHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, behavior_admin: true, system_admin: true }, 'teacher');
 const order = [...orderHtml.matchAll(/class="lanternAppBarDropdownLink[^"]*"[^>]*data-page="([^"]+)"/g)].map((m) => m[1]);
 assert(
-  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'behavior', 'reports', 'system']),
+  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'teacher-dashboard', 'behavior', 'reports', 'behavior-admin', 'system']),
   '24. canonical data-page order',
   JSON.stringify(order)
 );

@@ -2,7 +2,9 @@
  * Prompt #145/#146/#152/#153/#163 — Canonical Lantern ▼ menu contract.
  * Mirrored in TMS public/lantern-staff-nav.js — keep labels/order/ids/routes identical.
  * Explore Lantern ▼ is source of truth. Display Board / Hallway TV / Store stay out.
- * Role + TMS capabilities (TEACHER / REPORT_MAKER / SYSTEM_ADMIN) gate STAFF and ADMIN / TOOLS.
+ * Prompt #251 — Teacher Dashboard is canonical STAFF. Privileged items use TMS
+ * capabilities only (REPORT_MAKER / BEHAVIOR_ADMIN / SYSTEM_ADMIN). role===admin
+ * does not grant Reports, Behavior Administration, or System.
  * Fail closed: unknown/student role never receives staff or admin links.
  */
 (function (global) {
@@ -24,22 +26,31 @@
     { id: 'missions', dataPage: 'missions', label: 'Missions', path: '/missions.html' },
   ];
 
-  /** Exact STAFF order for Prompt #163 (Teacher Tools + Behavior Logger only). */
+  /** Exact STAFF order — Teacher Tools, Teacher Dashboard, Behavior Logger. */
   var STAFF_NAV_ITEMS = [
     { id: 'teacher', dataPage: 'teacher', label: 'Teacher Tools' },
+    { id: 'teacherDashboard', dataPage: 'teacher-dashboard', label: 'Teacher Dashboard' },
     { id: 'behavior', dataPage: 'behavior', label: 'Behavior Logger' },
   ];
 
-  /** Privileged tools — REPORT_MAKER / SYSTEM_ADMIN (or Lantern role admin). */
+  /** Privileged tools — TMS capabilities only. SYSTEM_ADMIN does not imply Reports. */
   var PRIVILEGED_NAV_ITEMS = [
     {
       id: 'reports',
       dataPage: 'reports',
       label: 'Reports',
       path: 'admin.html#reports',
-      canShow: function (caps, role) {
-        if (normalizeRole(role) === 'admin') return true;
-        return !!(caps && (caps.report_maker || caps.system_admin));
+      canShow: function (caps) {
+        return !!(caps && (caps.report_maker || caps.behavior_admin));
+      },
+    },
+    {
+      id: 'behaviorAdmin',
+      dataPage: 'behavior-admin',
+      label: 'Behavior Administration',
+      path: 'admin.html#behavior',
+      canShow: function (caps) {
+        return !!(caps && caps.behavior_admin);
       },
     },
     {
@@ -47,8 +58,7 @@
       dataPage: 'system',
       label: 'System',
       path: '/admin#system',
-      canShow: function (caps, role) {
-        if (normalizeRole(role) === 'admin') return true;
+      canShow: function (caps) {
         return !!(caps && caps.system_admin);
       },
     },
@@ -105,6 +115,9 @@
     }
     if (id === 'teacher') {
       return ctx === 'tms' ? LANTERN_ORIGIN + '/teacher' : '/teacher.html';
+    }
+    if (id === 'teacherDashboard') {
+      return ctx === 'tms' ? '/teacher.html' : TMS_ORIGIN + '/teacher.html';
     }
     if (id === 'behavior') {
       return ctx === 'tms' ? 'index.html' : behaviorAuthorizeHref();
