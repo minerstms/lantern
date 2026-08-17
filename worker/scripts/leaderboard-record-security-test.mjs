@@ -235,8 +235,10 @@ const expectedNames = [
 ];
 expectedNames.forEach((name) => {
   const g = resolveRegisteredLeaderboardGame(name);
-  if (g && g.name === name && g.leaderboard && g.status === 'playable') ok('registered: ' + name);
-  else bad('missing registered game', name);
+  const archived = name === 'Nugget Hunt' || name === 'Lantern Live Trivia';
+  if (g && g.name === name && g.leaderboard && (archived ? g.status === 'archived' : g.status === 'playable')) {
+    ok('registered: ' + name);
+  } else bad('missing registered game', name);
 });
 
 if (resolveRegisteredLeaderboardGame('clickrush') && resolveRegisteredLeaderboardGame('clickrush').name === 'Nugget Click Rush') {
@@ -276,8 +278,9 @@ if (sanitizeRunId('run_abc-123') === 'run_abc-123' && sanitizeRunId('bad run;dro
   ok('run_id sanitizer allows uuid-like tokens only');
 } else bad('run_id sanitize');
 
-if (leaderboardGameNames().length === 13) ok('production leaderboard name list is the thirteen catalog games');
-else bad('leaderboardGameNames', leaderboardGameNames());
+if (leaderboardGameNames().length === 10 && !leaderboardGameNames().includes('Nugget Hunt') && !leaderboardGameNames().includes('Lantern Live Trivia') && !leaderboardGameNames().includes('Avatar Match')) {
+  ok('production leaderboard name list hides archived Hunt/Live Trivia and mission-only Avatar Match');
+} else bad('leaderboardGameNames', leaderboardGameNames());
 
 // ---------------------------------------------------------------------------
 // Client contract: eight games post without client-authoritative character_name

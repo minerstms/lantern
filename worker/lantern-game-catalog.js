@@ -20,6 +20,8 @@ export const LANTERN_LEADERBOARD_GAMES = [
     scoreMax: 500,
     leaderboard: true,
     status: 'playable',
+    play_cost: 0,
+    mission_activity: true,
   },
   {
     id: 'lantern-live-trivia',
@@ -28,7 +30,7 @@ export const LANTERN_LEADERBOARD_GAMES = [
     scoreMin: 0,
     scoreMax: 100,
     leaderboard: true,
-    status: 'playable',
+    status: 'archived',
   },
   {
     id: 'handbook-trivia',
@@ -100,7 +102,7 @@ export const LANTERN_LEADERBOARD_GAMES = [
     scoreMin: 0,
     scoreMax: 120,
     leaderboard: true,
-    status: 'playable',
+    status: 'archived',
   },
   {
     id: 'tower',
@@ -145,7 +147,17 @@ export function resolveRegisteredLeaderboardGame(gameIdOrName) {
 }
 
 export function leaderboardGameNames() {
-  return LANTERN_LEADERBOARD_GAMES.filter((g) => g.leaderboard && g.status === 'playable').map((g) => g.name);
+  return LANTERN_LEADERBOARD_GAMES.filter((g) => g.leaderboard && g.status === 'playable' && !g.mission_activity).map((g) => g.name);
+}
+
+/** Avatar Match and any future unpaid mission-engine games must never take a game_play debit. */
+export function isUnpaidMissionCatalogGame(gameIdOrName) {
+  const g = resolveRegisteredLeaderboardGame(gameIdOrName);
+  if (!g) {
+    const raw = String(gameIdOrName || '').trim().toLowerCase();
+    return raw === 'avatar-match' || raw === 'avatar match';
+  }
+  return !!(g.mission_activity || g.play_cost === 0 || g.id === 'avatar-match');
 }
 
 export function isLowerIsBetterGame(gameIdOrName) {

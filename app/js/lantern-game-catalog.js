@@ -14,8 +14,9 @@
       name: 'Avatar Match',
       type: 'memory',
       playBtnId: 'avatarMatchPlayBtn',
-      play_cost: 1,
+      play_cost: 0,
       mission_activity: true,
+      student_surface: 'missions',
       icon: '👤',
       image: 'assets/avatar-match-card.png',
       featured: true,
@@ -32,8 +33,8 @@
       play_cost: 1,
       icon: '🏮',
       image: 'assets/lantern-trivia-card.png',
-      featured: true,
-      status: 'playable',
+      featured: false,
+      status: 'archived',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
       description: 'Teacher-approved questions submitted by students.',
@@ -148,7 +149,7 @@
       icon: '🔍',
       image: 'assets/nugget-hunt-card.png',
       featured: false,
-      status: 'playable',
+      status: 'archived',
       scoring: { lowerIsBetter: true },
       leaderboard: true,
       description: 'Find the special icon among decoys. Full-screen search.',
@@ -233,8 +234,16 @@
     return g ? g.name : nameOrId ? String(nameOrId) : '';
   }
 
+  function normalizedPlayCost(cost) {
+    if (cost === 0 || cost === '0') return 0;
+    var n = Math.floor(Number(cost));
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return n;
+  }
+
   function playCostLabel(cost) {
-    var n = Math.max(1, Math.floor(Number(cost) || 1));
+    var n = normalizedPlayCost(cost);
+    if (n === 0) return 'Free mission';
     return n === 1 ? '1 Nugget' : n + ' Nuggets';
   }
 
@@ -243,12 +252,14 @@
    * Does not change play_cost, ledger, or paid-start labels (see playActionLabel).
    */
   function playCostCardMeta(cost) {
-    var n = Math.max(1, Math.floor(Number(cost) || 1));
+    var n = normalizedPlayCost(cost);
+    if (n === 0) return 'Mission';
     return n === 1 ? '1 Nugget = 1 Play' : n + ' Nuggets = 1 Play';
   }
 
   function playActionLabel(cost) {
-    var n = Math.max(1, Math.floor(Number(cost) || 1));
+    var n = normalizedPlayCost(cost);
+    if (n === 0) return 'Play mission';
     return n === 1 ? 'Play for 1 Nugget' : 'Play for ' + n + ' Nuggets';
   }
 
@@ -261,9 +272,17 @@
     return g && g.image ? String(g.image) : '';
   }
 
+  function isStudentGameLibraryEntry(gameOrId) {
+    var g = gameOrId && typeof gameOrId === 'object' ? gameOrId : getGameById(gameOrId);
+    if (!g) return false;
+    if (g.status !== 'playable') return false;
+    if (g.mission_activity || g.student_surface === 'missions') return false;
+    return true;
+  }
+
   function leaderboardGames() {
     return GAMES.filter(function (g) {
-      return g.leaderboard && g.status === 'playable';
+      return g.leaderboard && isStudentGameLibraryEntry(g);
     });
   }
 
@@ -291,6 +310,8 @@
     playCostCardMeta: playCostCardMeta,
     playActionLabel: playActionLabel,
     artworkUrl: artworkUrl,
+    normalizedPlayCost: normalizedPlayCost,
+    isStudentGameLibraryEntry: isStudentGameLibraryEntry,
     leaderboardGames: leaderboardGames,
     TYPE_LABELS: TYPE_LABELS,
     PERIOD_MAP: {

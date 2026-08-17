@@ -33,12 +33,15 @@
   }
 
   function playCostForGame(gameName) {
-    // Prompt #159: ordinary game play costs exactly 1 Nugget (catalog should already be 1).
+    // Prompt #159: ordinary game play costs exactly 1 Nugget.
+    // Prompt #280: Avatar Match is a Mission — play_cost 0, never debit.
     var cat = catalogApi();
     if (cat && typeof cat.getGameByName === 'function') {
-      var g = cat.getGameByName(gameName);
+      var g = cat.getGameByName(gameName) || (cat.getGameById && cat.getGameById(gameName));
+      if (g && (g.mission_activity || g.student_surface === 'missions')) return 0;
       if (g && g.play_cost != null) {
         var n = Math.floor(Number(g.play_cost));
+        if (n === 0) return 0;
         if (Number.isFinite(n) && n >= 1) return 1;
       }
     }
@@ -139,6 +142,10 @@
       return Promise.resolve({ ok: false, error: 'in_flight' });
     }
     var cost = playCostForGame(gameName);
+    if (cost < 1) {
+      toast('This is a Mission, not a paid Game.');
+      return Promise.resolve({ ok: false, error: 'not_a_paid_game', cost: 0 });
+    }
     var runId = generateRunId();
     spendInFlight = true;
     setPlayStarting(true);

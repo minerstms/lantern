@@ -85,7 +85,7 @@ if (gamesPageJs.includes('filteredGames') && gamesHtml.includes('id="gamesLibrar
 
 if (
   gamesPageJs.includes('isPremiumGame') &&
-  /return !\(cat.isPremiumGame && cat.isPremiumGame\(g\)\)/.test(gamesPageJs) &&
+  (gamesPageJs.includes('isStudentGameLibraryEntry') || /cat.isPremiumGame && cat.isPremiumGame\(g\)/.test(gamesPageJs)) &&
   premium.every((g) => !g.featured)
 ) {
   ok('44. premium ids are excluded from the library grid; no featured duplicate cards');

@@ -62,6 +62,7 @@ import {
   validateLeaderboardScore,
   sanitizeScoreDisplay,
   sanitizeRunId,
+  isUnpaidMissionCatalogGame,
 } from './lantern-game-catalog.js';
 import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun, evaluatePaidRunForWinCredit } from './game-paid-run-proof.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
@@ -90,7 +91,12 @@ import {
 } from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { buildAvatarMatchPool, buildRosterStudentAvatarMatchPool, uniqueAvatarMatchByLabel } from './avatar-match-pool.js';
-import { loadAvatarActivityBank, publicAvatarActivityEntries } from './avatar-activity-bank.js';
+import { loadAvatarActivityBank, publicAvatarActivityEntries, isTeacherOriginatedAvatarSubmission } from './avatar-activity-bank.js';
+import {
+  isAvatarActivityExcluded,
+  loadAvatarActivityExclusionSets,
+  setAvatarActivityExclusion,
+} from './avatar-activity-exclusion.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -2939,6 +2945,30 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const stagedImage = pending && pending.image_key
       ? (origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key))
       : null;
+    let activityAvatars = [];
+    try {
+      const hist = await db
+        .prepare(
+          `SELECT id, image_key, status, approved_by, rejected_reason, created_at
+           FROM lantern_avatar_submissions
+           WHERE character_name = ? AND image_key IS NOT NULL AND TRIM(image_key) != ''
+           ORDER BY created_at DESC`
+        )
+        .bind(characterName)
+        .all();
+      const exclusionSets = await loadAvatarActivityExclusionSets(db);
+      const currentKey = profile && profile.current_avatar_key ? String(profile.current_avatar_key).trim().toLowerCase() : '';
+      activityAvatars = ((hist && hist.results) || [])
+        .filter((row) => isTeacherOriginatedAvatarSubmission(row))
+        .map((row) => ({
+          submission_id: String(row.id),
+          image_url: origin + '/api/avatar/image?key=' + encodeURIComponent(row.image_key),
+          activity_included: !isAvatarActivityExcluded(row, exclusionSets),
+          is_current: String(row.image_key || '').trim().toLowerCase() === currentKey,
+        }));
+    } catch (_) {
+      activityAvatars = [];
+    }
     return jsonResponse(
       {
         ok: true,
@@ -2956,6 +2986,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         staged_by: pending && pending.approved_by ? String(pending.approved_by) : null,
         media_restricted: mediaRestricted ? 1 : 0,
         can_activate: !!(pending && targetRole === 'student' && !mediaRestricted),
+        activity_avatars: activityAvatars,
       },
       200,
       cors
@@ -3160,6 +3191,51 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         activated: true,
         nugget_charged: 0,
         approved_by: adminLabel,
+      },
+      200,
+      cors
+    );
+  }
+
+  // Prompt #280 — Web Admin include/exclude a specific avatar image from Avatar Activities.
+  if (request.method === 'POST' && path === '/api/admin/avatar/activity-exclusion') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
+    let body;
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const submissionId = String(body.submission_id || '').trim();
+    if (!submissionId) {
+      return jsonResponse({ ok: false, error: 'submission_id_required' }, 400, cors);
+    }
+    const row = await db
+      .prepare('SELECT id, character_name, image_key, status, approved_by, rejected_reason FROM lantern_avatar_submissions WHERE id = ?')
+      .bind(submissionId)
+      .first();
+    if (!row || !row.image_key) {
+      return jsonResponse({ ok: false, error: 'submission_not_found' }, 404, cors);
+    }
+    const excluded = body.excluded === true || body.excluded === 1 || body.excluded === '1' || String(body.excluded || '').toLowerCase() === 'true';
+    const result = await setAvatarActivityExclusion(db, {
+      submission_id: submissionId,
+      image_key: String(row.image_key),
+      excluded,
+      updated_by: adminAuditLabel(account),
+    });
+    if (!result.ok) {
+      return jsonResponse({ ok: false, error: result.error || 'exclusion_failed' }, 400, cors);
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        submission_id: submissionId,
+        activity_included: !!result.activity_included,
+        moderation_status: String(row.status || ''),
+        current_avatar_unchanged: true,
       },
       200,
       cors
@@ -6892,6 +6968,20 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
 
     // Prompt #159 — locked Nugget economy amounts (server-authoritative; do not trust client).
     // game_play: exactly -1. game_win: exactly +1. game_false_start: no extra spend (one paid play).
+    if (kind === 'game_play') {
+      const playGameHint = String((meta && (meta.game_id || meta.game_name)) || note || '').trim();
+      if (isUnpaidMissionCatalogGame(playGameHint)) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'mission_no_play_cost',
+            message: 'Avatar Match is a Mission and does not cost a Nugget.',
+          },
+          400,
+          cors
+        );
+      }
+    }
     if (kind === 'game_false_start') {
       return jsonResponse(
         { ok: false, error: 'game_false_start_disabled', message: 'False start does not charge an extra Nugget; play cost is already 1.' },
@@ -8931,7 +9021,7 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
 
     const game = resolveRegisteredLeaderboardGame(body.game_id || body.game_name);
-    if (!game || !game.leaderboard || game.status !== 'playable') {
+    if (!game || !game.leaderboard || (game.status !== 'playable' && game.status !== 'archived')) {
       return jsonResponse({ ok: false, error: 'invalid_game' }, 400, cors);
     }
     const gameName = game.name;

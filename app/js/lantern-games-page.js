@@ -499,7 +499,9 @@
       });
     }
     return list.filter(function (g) {
-      return !(cat.isPremiumGame && cat.isPremiumGame(g));
+      if (cat.isPremiumGame && cat.isPremiumGame(g)) return false;
+      if (typeof cat.isStudentGameLibraryEntry === 'function') return cat.isStudentGameLibraryEntry(g);
+      return g.status === 'playable' && !g.mission_activity;
     });
   }
 

@@ -1350,6 +1350,25 @@
 
       /* Prompt #204 — Thank-You stub retired; canonical perm_thank_you is D1-backed below. */
 
+      /* Prompt #280 — Avatar Match is a Mission (engine may still live on games.html).
+         #274 repeatable +1 reward is not landed; do not invent a second reward path. */
+      pushQuick({
+        id: 'mission_avatar_match',
+        kind: 'quick',
+        typeFilter: 'quick',
+        typeBadge: '',
+        icon: '👤',
+        title: 'Avatar Match',
+        description: 'Who is this? Match the photo to the First Name + Last Initial.',
+        reward: null,
+        status: 'available',
+        stateBadge: '',
+        statusLabel: 'Play →',
+        created_at: '',
+        url: 'games.html?game=avatar-match',
+        imageUrl: 'assets/avatar-match-card.png',
+      });
+
       pushQuick({
         id: 'quick_hidden_nugget',
         kind: 'quick',

@@ -145,6 +145,21 @@
     }
     .adminAvatarDrop p { margin: 0 0 8px; font-size: 22px; font-weight: 800; line-height: 1.35; }
     .adminAvatarDrop p.adminAvatarDropAlt { font-size: 20px; font-weight: 700; color: var(--muted); }
+    .adminAvatarActivityList { margin: 0 0 14px; display: flex; flex-direction: column; gap: 10px; }
+    .adminAvatarActivityRow {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+      background: rgba(0,0,0,.18);
+    }
+    .adminAvatarActivityRow img {
+      width: 56px; height: 56px; object-fit: cover; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12); flex-shrink: 0;
+    }
+    .adminAvatarActivityMeta { flex: 1; min-width: 160px; }
+    .adminAvatarActivityState { margin: 0; font-size: 20px; font-weight: 900; line-height: 1.3; }
+    .adminAvatarActivityState.is-excluded { color: var(--warn, #ffcc66); }
+    .adminAvatarActivityState.is-included { color: var(--good, #38d07c); }
+    .adminAvatarActivityNote { margin: 4px 0 0; font-size: 16px; font-weight: 700; color: var(--muted); }
     .staffReportingAccess {
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
       gap: 10px; margin: 10px 0 14px; padding: 10px 12px; border-radius: 12px;
@@ -432,6 +447,7 @@
         <img id="adminAvatarPreview" alt="Current avatar" width="96" height="96" style="display:none;width:96px;height:96px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.12);" />
         <p id="adminAvatarNone" class="acctPanelHint" style="margin:0;">No Avatar</p>
       </div>
+      <div id="adminAvatarActivityList" class="adminAvatarActivityList" hidden></div>
       <input id="adminAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/jpg" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" />
       <div id="adminAvatarDrop" class="adminAvatarDrop" tabindex="0">
         <p>Drop or paste a student photo here</p>
@@ -2404,6 +2420,11 @@
         nextBtn.style.display = 'none';
         nextBtn.disabled = false;
       }
+      var activityList = document.getElementById('adminAvatarActivityList');
+      if (activityList) {
+        activityList.innerHTML = '';
+        activityList.hidden = true;
+      }
       adminAvatarContext = { fromStudents: false, key: '' };
       if (img) {
         img.removeAttribute('src');
@@ -2435,6 +2456,67 @@
         if (chooseBtn) chooseBtn.textContent = 'Choose File';
       }
     }
+    function renderAdminAvatarActivityList(body) {
+      var host = document.getElementById('adminAvatarActivityList');
+      if (!host) return;
+      var rows = (body && Array.isArray(body.activity_avatars)) ? body.activity_avatars : [];
+      var restricted = Number(body && body.media_restricted) === 1;
+      host.innerHTML = '';
+      if (!rows.length) {
+        host.hidden = true;
+        return;
+      }
+      host.hidden = false;
+      rows.forEach(function(row) {
+        var included = !!(row && row.activity_included);
+        var wrap = document.createElement('div');
+        wrap.className = 'adminAvatarActivityRow';
+        wrap.setAttribute('data-submission-id', String((row && row.submission_id) || ''));
+        var img = document.createElement('img');
+        img.alt = 'Avatar image';
+        img.src = String((row && row.image_url) || '');
+        var meta = document.createElement('div');
+        meta.className = 'adminAvatarActivityMeta';
+        var state = document.createElement('p');
+        state.className = 'adminAvatarActivityState ' + (included ? 'is-included' : 'is-excluded');
+        state.textContent = included ? 'Included in Avatar Activities' : 'Excluded from Avatar Activities';
+        var note = document.createElement('p');
+        note.className = 'adminAvatarActivityNote';
+        note.textContent = restricted
+          ? 'Media/publicity restricted — cannot appear in Avatar Activities even if included.'
+          : (row && row.is_current ? 'Current profile image.' : 'Historical image.');
+        meta.appendChild(state);
+        meta.appendChild(note);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn';
+        btn.textContent = included ? 'Exclude from Avatar Activities' : 'Include in Avatar Activities';
+        btn.addEventListener('click', function() {
+          var sid = String((row && row.submission_id) || '').trim();
+          var user = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+          if (!sid || !user) return;
+          btn.disabled = true;
+          postAdminJson('/api/admin/avatar/activity-exclusion', { submission_id: sid, excluded: included }).then(function(res) {
+            if (res && res.okHttp && res.body && res.body.ok) {
+              return fetch(api + '/api/admin/avatar/status?username=' + encodeURIComponent(user), { credentials: 'include', cache: 'no-store' })
+                .then(function(r) { return r.json().then(function(j) { return { okHttp: r.ok, body: j }; }); })
+                .then(function(st) {
+                  if (st && st.okHttp && st.body && st.body.ok) applyAdminAvatarStatus(st.body);
+                });
+            }
+            var msg = document.getElementById('adminAvatarMsg');
+            if (msg) msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not update Avatar Activities.';
+            btn.disabled = false;
+          }).catch(function() {
+            btn.disabled = false;
+          });
+        });
+        wrap.appendChild(img);
+        wrap.appendChild(meta);
+        wrap.appendChild(btn);
+        host.appendChild(wrap);
+      });
+    }
     function applyAdminAvatarStatus(body) {
       var msg = document.getElementById('adminAvatarMsg');
       var policy = document.getElementById('adminAvatarPolicyHint');
@@ -2445,6 +2527,7 @@
       var restricted = Number(body && body.media_restricted) === 1;
       var preview = (body && (body.staged_image || body.active_image)) || null;
       setAdminAvatarPreview(preview);
+      renderAdminAvatarActivityList(body);
       if (activateBtn) {
         activateBtn.style.display = isStudent && staged && !restricted ? 'inline-block' : 'none';
         activateBtn.disabled = !(body && body.can_activate);

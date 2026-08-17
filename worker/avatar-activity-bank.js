@@ -9,6 +9,7 @@ import { formatAvatarActivityDisplayName, avatarActivityNameKey } from './avatar
 import { isAdminStagedAvatarMarker } from './avatar-media-gate.js';
 import { isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { studentIdIsRestricted } from './media-publicity.js';
+import { isAvatarActivityExcluded, loadAvatarActivityExclusionSets } from './avatar-activity-exclusion.js';
 
 const SUPERSEDED_BY_ADMIN_RE = /superseded by system admin avatar assignment/i;
 
@@ -89,6 +90,7 @@ export function buildAvatarActivityBank(opts) {
   const accounts = (opts && opts.accounts) || [];
   const rosterStudents = (opts && opts.rosterStudents) || [];
   const restrictedSet = opts && opts.restrictedSet;
+  const exclusionSets = opts && opts.exclusionSets;
 
   const accountByKey = Object.create(null);
   accounts.forEach((a) => {
@@ -106,12 +108,13 @@ export function buildAvatarActivityBank(opts) {
   const seenKeys = new Set();
   const entries = [];
 
-  function pushEntry(imageKey, characterName, source) {
+  function pushEntry(imageKey, characterName, source, submissionId) {
     const key = trimStr(imageKey);
     const owner = trimStr(characterName);
     if (!key || !owner) return;
     if (isTestOrSyntheticIdentity(owner)) return;
     if (studentIdIsRestricted(owner, restrictedSet)) return;
+    if (isAvatarActivityExcluded({ submission_id: submissionId, image_key: key }, exclusionSets)) return;
     const dedupe = lower(owner) + '|' + lower(key);
     if (seenKeys.has(dedupe)) return;
     const ident = resolveIdentityLabel(owner, accountByKey, rosterBySid);
@@ -120,6 +123,7 @@ export function buildAvatarActivityBank(opts) {
     seenKeys.add(dedupe);
     entries.push({
       entry_id: source + ':' + owner + ':' + key,
+      submission_id: trimStr(submissionId),
       avatar_key: key,
       avatar_url: origin ? origin + '/api/avatar/image?key=' + encodeURIComponent(key) : '',
       display_name: ident.display_name,
@@ -130,11 +134,11 @@ export function buildAvatarActivityBank(opts) {
 
   submissions.forEach((row) => {
     if (!isTeacherOriginatedAvatarSubmission(row)) return;
-    pushEntry(row.image_key, row.character_name, 'submission');
+    pushEntry(row.image_key, row.character_name, 'submission', row.id);
   });
   profiles.forEach((p) => {
     if (!p || !trimStr(p.current_avatar_key)) return;
-    pushEntry(p.current_avatar_key, p.character_name, 'profile');
+    pushEntry(p.current_avatar_key, p.character_name, 'profile', p.submission_id);
   });
 
   return entries;
@@ -247,6 +251,9 @@ export async function loadAvatarActivityBank(db, env, origin, extras) {
   } catch (_) {
     accounts = [];
   }
+  const exclusionSets = extras && extras.exclusionSets
+    ? extras.exclusionSets
+    : await loadAvatarActivityExclusionSets(db);
   return buildAvatarActivityBank({
     origin,
     submissions,
@@ -254,5 +261,6 @@ export async function loadAvatarActivityBank(db, env, origin, extras) {
     accounts,
     rosterStudents: (extras && extras.rosterStudents) || [],
     restrictedSet: extras && extras.restrictedSet,
+    exclusionSets,
   });
 }

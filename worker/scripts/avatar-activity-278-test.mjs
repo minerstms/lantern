@@ -181,8 +181,8 @@ if (
 if (playerCss.includes('avatarMatchImgWrap') && playerCss.includes('320px')) ok('player CSS keeps avatar large in Game Player');
 else bad('player avatar css');
 
-if (catalogJs.includes("id: 'avatar-match'") && catalogJs.includes('mission_activity: true') && /nuggetHunt[\s\S]*status: 'playable'/.test(catalogJs) && /lantern-live-trivia[\s\S]*status: 'playable'/.test(catalogJs)) {
-  ok('catalog: Avatar Match is a mission activity; Nugget Hunt / Live Trivia left unchanged');
+if (catalogJs.includes("id: 'avatar-match'") && catalogJs.includes('mission_activity: true') && /play_cost:\s*0/.test(catalogJs) && /nuggetHunt[\s\S]*status: 'archived'/.test(catalogJs) && /lantern-live-trivia[\s\S]*status: 'archived'/.test(catalogJs)) {
+  ok('catalog: Avatar Match is a free mission; Nugget Hunt / Live Trivia archived');
 } else bad('catalog flags');
 
 if (gamesPageJs.includes("g.mission_activity") && gamesPageJs.includes("'Mission'")) ok('games cards: Avatar Match shows Mission, not a Nugget charge');
