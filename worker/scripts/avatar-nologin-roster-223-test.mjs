@@ -76,8 +76,14 @@ function makeEnv(state) {
             results: Object.values(state.accounts).filter((a) => String(a.mtss_student_id || '').trim().toLowerCase() === key),
           };
         }
+        if (s.includes('FROM lantern_pilot_accounts') && s.includes('first_name')) {
+          return { results: Object.values(state.accounts) };
+        }
         if (s.includes('FROM lantern_pilot_accounts') && s.includes('is_active')) {
           return { results: Object.values(state.accounts).filter((a) => Number(a.is_active) !== 0) };
+        }
+        if (s.includes('FROM lantern_avatar_submissions') && s.includes('rejected_reason')) {
+          return { results: state.submissions || [] };
         }
         if (s.includes('FROM lantern_avatar_profiles')) {
           return {
@@ -204,7 +210,7 @@ else bad('inactive helper');
 
 const privileged = { username: 'admin', display_name: 'Web Admin', role: 'admin', staff_id: 1, is_active: 1, must_change_password: 0 };
 const rickTeacher = { username: 'rick.radle', display_name: 'Rick Radle', role: 'teacher', staff_id: 4, is_active: 1, must_change_password: 0 };
-const teacher = { username: 'ms_carter', display_name: 'Ms. Carter', public_display_name: 'Ms. Carter', honorific: 'Ms.', last_name: 'Carter', role: 'teacher', staff_id: 10, is_active: 1, must_change_password: 0 };
+const teacher = { username: 'ms_carter', display_name: 'Ms. Carter', public_display_name: 'Ms. Carter', honorific: 'Ms.', first_name: 'Pat', last_name: 'Carter', role: 'teacher', staff_id: 10, is_active: 1, must_change_password: 0 };
 const otherAdmin = { username: 'rradle', display_name: 'Rick Radle', role: 'admin', staff_id: 5, is_active: 1, must_change_password: 0 };
 const linkedStudent = {
   username: '20889', display_name: 'Lucas R.', public_display_name: 'Lucas R.', role: 'student',
@@ -309,7 +315,7 @@ await withRoster(env, roster, async () => {
     else bad('no-photo leaked', names);
     if (!names.includes('Archived O.') && !names.some((n) => /Archived/.test(n || ''))) ok('14. inactive student excluded');
     else bad('archived leaked', names);
-    if (names.includes('Ms. Carter') && chars.some((c) => c.person_type === 'staff')) ok('15. staff pool unchanged');
+    if (names.includes('Pat C.') && chars.some((c) => c.person_type === 'staff')) ok('15. staff uses First + Last Initial');
     else bad('staff pool', chars);
     if (chars.every((c) => c.display_name && c.public_display_name === c.display_name)) ok('16. display names used');
     else bad('display names', chars);

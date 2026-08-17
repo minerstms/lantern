@@ -193,7 +193,7 @@ assert(/collectMarqueeEvents/.test(marquee146), '22c. #146 marquee lockdown test
 assert(/formatExploreAuthorLabel/.test(cardsJs) && /formatExploreAuthorLabel/.test(cardUi), '24b. no competing public-name formatter in avatar work');
 assert(/data-identity-size="xs"/.test(cardsCss) && /data-identity-size="lg"/.test(cardsCss), '6. size variants xs–lg');
 
-assert(/buildAvatarMatchPool\(accounts, avatarByChar/.test(workerIndex) && /from '\.\/avatar-match-pool\.js'/.test(workerIndex), '14-15. Avatar Match uses live account pool from #147 (not VERIFY overlay)');
+assert(/loadAvatarActivityBank/.test(workerIndex) && /from '\.\/avatar-activity-bank\.js'/.test(workerIndex) && !/VERIFY_CONFIG && VERIFY_CONFIG\.students/.test(workerIndex), '14-15. Avatar Match uses the shared Avatar Activity Bank (not VERIFY overlay)');
 assert(!/VERIFY_CONFIG && VERIFY_CONFIG\.students/.test(workerIndex.split('/api/games/characters')[1] || ''), '14-15b. games/characters does not fall back to VERIFY roster');
 
 console.log('\ncanonical-avatar-identity-149-test: ' + pass + ' PASS ' + fail + ' FAIL');

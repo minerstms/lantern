@@ -524,9 +524,12 @@
       box-sizing: border-box;
     }
     .cultureGameOverlay .avatarMatchImgWrap{
-      width: 160px; height: 160px;
+      width: min(100%, 320px);
+      height: auto;
+      aspect-ratio: 1 / 1;
+      max-width: 320px;
       margin: 0 auto 24px;
-      border-radius: 50%;
+      border-radius: 28px;
       overflow: hidden;
       background: linear-gradient(145deg, var(--blue1), var(--panel));
       border: 4px solid rgba(90,167,255,.5);
@@ -1063,6 +1066,7 @@
   </div>
 
   <script src="js/lantern-game-content.js"></script>
+  <script src="js/lantern-avatar-activity-bank.js"></script>
   <script src="js/lantern-data.js"></script>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-api.js"></script>
@@ -1310,6 +1314,12 @@
       var sponsored = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.isSponsoredFreeLaunch === 'function')
         ? window.LANTERN_EDU_TRIVIA.isSponsoredFreeLaunch(location, gameName)
         : null;
+      var missionActivity = gameName === 'Avatar Match';
+      if (missionActivity && !sponsored) {
+        sponsored = {
+          description: 'Match the avatar to the correct classmate. First name and last initial only.',
+        };
+      }
       // Prompt #149 — open shared pregame hero (canonical catalog artwork) first; charge on Start.
       // Prompt #160 — exact Trinidad History Mission + Local History Trivia pairing is sponsored (no game_play debit).
       var opened = window.LanternGamePlayer.open({
@@ -2485,23 +2495,31 @@
           startRound();
         }
         function fetchThenStart(){
-          function failClosedPool(){
+          function failUnavailablePool(count){
             characters = [];
-            failGamePlayerStart('Avatar Match needs at least four approved avatars from active accounts.');
+            var n = Number(count);
+            var detail = Number.isFinite(n) ? (' (' + n + ' available)') : '';
+            failGamePlayerStart('Avatar Match isn\'t available right now.' + detail);
           }
           if (gamesApiBase) {
             fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
-              if (res && res.ok && res.characters && res.characters.length >= 4) {
-                characters = res.characters;
+              var pool = (res && res.ok && res.characters) ? res.characters : [];
+              var labels = {};
+              pool.forEach(function(c){
+                var lab = String((c && c.display_name) || '').trim().toLowerCase();
+                if (lab) labels[lab] = true;
+              });
+              if (Object.keys(labels).length >= 4) {
+                characters = pool;
                 beginRoundsAfterCanonical();
               } else {
-                failClosedPool();
+                failUnavailablePool(pool.length);
               }
             }).catch(function(){
-              failClosedPool();
+              failUnavailablePool();
             });
           } else {
-            failClosedPool();
+            failUnavailablePool();
           }
         }
         var unusedOwners = [];
@@ -2511,19 +2529,18 @@
             : characters.slice().sort(function(){ return Math.random() - 0.5; });
         }
         function pickOptions(){
-          if (characters.length < 4) return null;
+          var builder = window.LANTERN_AVATAR_ACTIVITY && window.LANTERN_AVATAR_ACTIVITY.buildMultipleChoiceQuestion;
+          if (typeof builder !== 'function') return null;
           if (!unusedOwners.length) refillUnusedOwners();
-          var correct = unusedOwners.shift();
-          var correctName = String((correct && correct.display_name) || '').trim();
-          var others = characters.filter(function(c){
-            return String((c && c.display_name) || '').trim() && String(c.display_name).trim() !== correctName;
+          var preferred = unusedOwners.shift();
+          var q = builder(characters, { target: preferred });
+          if (!q || !q.ok) return null;
+          var options = q.choices.map(function(name){
+            if (name === q.correctIdentity) return q.targetAvatar;
+            var hits = characters.filter(function(c){ return String((c && c.display_name) || '').trim() === name; });
+            return hits[0] || { display_name: name };
           });
-          if (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray) others = window.LANTERN_GAME_CONTENT.shuffleArray(others);
-          else others = others.slice().sort(function(){ return Math.random() - 0.5; });
-          var options = [correct].concat(others.slice(0, 3));
-          if (options.length < 4) return null;
-          for (var i = options.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var t = options[i]; options[i] = options[j]; options[j] = t; }
-          return { correct: correct, options: options };
+          return { correct: q.targetAvatar, options: options, correctName: q.correctIdentity };
         }
         function avatarFallbackChar(displayName){
           var name = (displayName || '').trim();
@@ -2537,7 +2554,7 @@
           var answered = false;
           setScore('Round ' + round + ' / ' + roundsTotal);
           var startTime = Date.now();
-          var correctName = String((pick.correct.display_name) || '').trim();
+          var correctName = String((pick.correctName || (pick.correct && pick.correct.display_name) || '')).trim();
           var canonAm = pick.correct._canonicalAvatar;
           var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim())
             ? String(canonAm.imageUrl).trim()

@@ -90,6 +90,7 @@ import {
 } from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { buildAvatarMatchPool, buildRosterStudentAvatarMatchPool, uniqueAvatarMatchByLabel } from './avatar-match-pool.js';
+import { loadAvatarActivityBank, publicAvatarActivityEntries } from './avatar-activity-bank.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -8885,68 +8886,25 @@ async function handleGamesRoutes(request, url, path, env, cors) {
     }
     const db = env.DB;
     if (!db) return jsonResponse({ ok: true, characters: [] }, 200, cors);
-    let accounts = [];
-    let avatarByChar = {};
-    try {
-      const acc = await db
-        .prepare(
-          `SELECT username, display_name, public_display_name, first_name, last_name, honorific, role, is_active, student_character_name, mtss_student_id, teacher_id
-           FROM lantern_pilot_accounts
-           WHERE COALESCE(is_active, 1) = 1`
-        )
-        .all();
-      accounts = acc.results || [];
-    } catch (_) {
-      return jsonResponse({ ok: true, characters: [] }, 200, cors);
-    }
-    try {
-      const profiles = await db.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
-      (profiles.results || []).forEach((p) => {
-        if (p.character_name && p.current_avatar_key) avatarByChar[p.character_name] = p.current_avatar_key;
-      });
-    } catch (_) {}
     const restrictedSet = await loadRestrictedStudentIdSet(db);
-    let rosterStudents = null;
+    let rosterStudents = [];
     try {
-      const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: false });
+      const bridge = await callTmsRosterBridge(env, 'roster/list', { include_inactive: true });
       if (bridge && bridge.ok && Array.isArray(bridge.students)) {
-        const bySid = Object.create(null);
-        accounts.forEach((a) => {
-          if (String(a.role || '').trim().toLowerCase() !== 'student') return;
-          const sid = String(a.mtss_student_id || a.username || '').trim().toLowerCase();
-          if (sid) bySid[sid] = a;
-        });
-        rosterStudents = bridge.students.map((s) => {
-          const sid = String(s.student_id || '').trim();
-          const acc = sid ? bySid[sid.toLowerCase()] : null;
-          return {
-            student_id: sid,
-            student_name: s.student_name || s.display_name || '',
-            first_name: s.first_name,
-            last_name: s.last_name,
-            public_display_name: (acc && acc.public_display_name) || s.public_display_name || '',
-            lantern_username: acc ? acc.username : '',
-            is_active: s.is_active != null ? Number(s.is_active) : 1,
-          };
-        });
+        rosterStudents = bridge.students.map((s) => ({
+          student_id: String(s.student_id || '').trim(),
+          student_name: s.student_name || s.display_name || '',
+          first_name: s.first_name,
+          last_name: s.last_name,
+          display_name: s.display_name || s.student_name || '',
+          is_active: s.is_active != null ? Number(s.is_active) : 1,
+        }));
       }
     } catch (_) {
-      rosterStudents = null;
+      rosterStudents = [];
     }
-    let pool;
-    if (rosterStudents) {
-      const staffAccounts = accounts.filter((a) => String(a.role || '').trim().toLowerCase() !== 'student');
-      pool = uniqueAvatarMatchByLabel(
-        buildAvatarMatchPool(staffAccounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet }).concat(
-          buildRosterStudentAvatarMatchPool(rosterStudents, avatarByChar, origin, { restrictedSet })
-        )
-      );
-    } else {
-      pool = uniqueAvatarMatchByLabel(
-        buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet })
-      );
-    }
-    return jsonResponse({ ok: true, characters: pool }, 200, cors);
+    const bank = await loadAvatarActivityBank(db, env, origin, { rosterStudents, restrictedSet });
+    return jsonResponse({ ok: true, characters: publicAvatarActivityEntries(bank) }, 200, cors);
   }
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }

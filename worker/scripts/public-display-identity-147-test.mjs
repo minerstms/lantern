@@ -197,7 +197,7 @@ assert(noAvatar.length === 0, '25b. pending/missing avatar excluded');
 
 const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 assert(!/Brett Simms/.test(gamesHtml) && !/zane_morrison/.test(gamesHtml), '23d. games.html has no hardcoded legacy roster');
-assert(/failClosedPool|at least four approved avatars/.test(gamesHtml), '23e. Avatar Match fails closed');
+assert(/failUnavailablePool|isn't available right now/.test(gamesHtml) && !/at least four approved avatars/.test(gamesHtml), '23e. Avatar Match fails closed without approved-avatar gate');
 
 const navJs = fs.readFileSync(path.join(root, 'app/js/lantern-nav.js'), 'utf8');
 assert(/public_display_name/.test(navJs) && /public_display_label/.test(navJs), '30. Lantern header uses public_display_name');
@@ -213,7 +213,7 @@ assert(/character_name/.test(gamesPage), '21. durable character_name kept for ra
 const indexJs = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 assert(/resolvePublicDisplayName\(account\)/.test(indexJs), '34. TMS mint sends resolvePublicDisplayName');
 assert(/defaultPublicDisplayName/.test(indexJs), '1b. provisioning assigns default public_display_name');
-assert(/buildAvatarMatchPool/.test(indexJs) && /uniqueAvatarMatchByLabel/.test(indexJs), '23f. games/characters uses live account/avatar pool');
+assert(/loadAvatarActivityBank/.test(indexJs) && /publicAvatarActivityEntries/.test(indexJs), '23f. games/characters uses the shared Avatar Activity Bank');
 assert(/public_display_label/.test(indexJs), '30c. /api/pilot/me exposes public_display_label');
 assert(/authorAvatarKey/.test(fs.readFileSync(path.join(root, 'worker/staff-public-name.js'), 'utf8')), '5g. resolver uses durable authorAvatarKey');
 assert(/authorAvatarKey,/.test(indexJs), '5h. direct-open poll path passes authorAvatarKey into resolver');

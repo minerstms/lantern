@@ -15,6 +15,7 @@
       type: 'memory',
       playBtnId: 'avatarMatchPlayBtn',
       play_cost: 1,
+      mission_activity: true,
       icon: '👤',
       image: 'assets/avatar-match-card.png',
       featured: true,
