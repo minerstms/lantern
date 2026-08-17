@@ -325,7 +325,7 @@ body.lantern-game-player-active .lanternHelpToggleWrap {
   display: flex !important;
   flex-direction: column;
   width: 100%;
-  max-width: min(100%, 720px);
+  max-width: min(100%, 800px);
   min-height: min(70vh, 640px);
   max-height: none;
   margin: 0;
@@ -348,8 +348,9 @@ body.lantern-game-player-active .lanternHelpToggleWrap {
 .lanternGamePlayerStage .cultureGameOverlay .gameBody {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   flex: 1 1 auto;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .lanternGamePlayerStage .cultureGameOverlay .choiceBtn {

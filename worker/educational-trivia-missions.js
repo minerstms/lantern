@@ -603,6 +603,7 @@ export async function answerEducationalTriviaRun(db, env, opts) {
   return runProgressPayload(state, def, {
     correct: isCorrect,
     explanation: String(item.explanation || ''),
+    correct_index: Number(item.correctIndex),
     question: next ? publicQuestionFromItem(next) : null,
     rewarded: !!(rewardResult && rewardResult.rewarded),
     reward_idempotent: !!(rewardResult && (rewardResult.idempotent || rewardResult.reward_idempotent)),

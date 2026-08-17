@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
   <link rel="stylesheet" href="css/lantern-feed.css">
   <link rel="stylesheet" href="css/lantern-games-page.css">
-  <link rel="stylesheet" href="css/lantern-game-player.css">
+  <link rel="stylesheet" href="css/lantern-game-player.css?v=277">
   <link rel="stylesheet" href="css/lantern-minecart-switch.css">
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="explore.html">
@@ -498,7 +498,7 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      max-width: 520px;
+      max-width: min(100%, 800px);
       margin-bottom: var(--lantern-space-md);
       flex-wrap: wrap;
       gap: 10px;
@@ -515,7 +515,14 @@
       color: var(--ink);
       cursor: pointer;
     }
-    .cultureGameOverlay .gameBody{ width: 100%; max-width: 520px; min-height: 200px; }
+    .cultureGameOverlay .gameBody{
+      width: 100%;
+      max-width: min(100%, 800px);
+      min-width: 0;
+      min-height: 200px;
+      overflow: visible;
+      box-sizing: border-box;
+    }
     .cultureGameOverlay .avatarMatchImgWrap{
       width: 160px; height: 160px;
       margin: 0 auto 24px;
@@ -545,8 +552,14 @@
     .cultureGameOverlay .avatarMatchScoreRow .round{ color: var(--muted); }
     .cultureGameOverlay .avatarMatchScoreRow .score{ color: var(--warn); }
     .cultureGameOverlay .choiceBtn{
-      display: block;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 10px;
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       text-align: center;
       padding: 18px 24px;
       margin-bottom: 14px;
@@ -561,12 +574,40 @@
       white-space: normal;
       overflow-wrap: anywhere;
       word-break: break-word;
-      transition: border-color .15s ease, background .15s ease, transform .08s ease;
+      line-height: 1.35;
+      transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
     }
-    .cultureGameOverlay .choiceBtn:hover{ background: rgba(90,167,255,.25); border-color: var(--accent); transform: scale(1.02); }
-    .cultureGameOverlay .choiceBtn:active{ transform: scale(0.98); }
+    .cultureGameOverlay .choiceBtn:hover:not(:disabled){ background: rgba(90,167,255,.25); border-color: var(--accent); }
+    .cultureGameOverlay .choiceBtn:focus-visible{
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
     .cultureGameOverlay .choiceBtn.correct{ border-color: var(--good); background: rgba(56,208,124,.35); color: var(--ink); }
     .cultureGameOverlay .choiceBtn.wrong{ border-color: var(--bad); background: rgba(255,77,109,.25); color: var(--ink); }
+    .cultureGameOverlay .choiceBtn.choiceDim{ opacity: 0.55; }
+    .cultureGameOverlay .choiceMark{
+      flex: 0 0 auto;
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 900;
+    }
+    .cultureGameOverlay .choiceLabel{
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .cultureGameOverlay .choiceBtn.choiceShake{ animation: wrongShakeGame .3s ease; }
+    .cultureGameOverlay .triviaFeedback{
+      font-size: 22px;
+      font-weight: 900;
+      margin: 0 0 14px;
+      line-height: 1.35;
+    }
+    .cultureGameOverlay .triviaFeedback.is-correct{ color: var(--good); }
+    .cultureGameOverlay .triviaFeedback.is-wrong{ color: var(--warn); }
+    .cultureGameOverlay .overlayScore.scorePulse{ animation: correctPopGame .35s ease; }
     .cultureGameOverlay .triviaQuestion{ font-weight: 900; font-size: 24px; margin-bottom: var(--lantern-space-lg); line-height: 1.3; overflow-wrap: anywhere; word-break: break-word; }
     .cultureGameOverlay .resultMsg{ font-size: 28px; font-weight: 900; text-align: center; margin: 20px 0; }
     .cultureGameOverlay .resultMsg.win{ color: var(--good); }
@@ -733,7 +774,9 @@
       .memCard,
       .memCard.mismatch,
       .memCard.matched,
-      .orbitLockArea canvas{
+      .orbitLockArea canvas,
+      .cultureGameOverlay .choiceBtn.choiceShake,
+      .cultureGameOverlay .overlayScore.scorePulse{
         animation: none !important;
         transition: none !important;
       }
@@ -2361,6 +2404,55 @@
       function sfxCultureCorrect(){ playGameTone([660, 880], { dur: 0.09, gap: 0.07, vol: 0.07 }); }
       function sfxCultureWrong(){ playGameTone([220], { dur: 0.13, vol: 0.05, type: 'triangle' }); }
       function sfxCultureComplete(){ playGameTone([523, 659, 784], { dur: 0.15, gap: 0.11, vol: 0.07 }); }
+      function markChoiceBtn(btn, kind){
+        if (!btn) return;
+        btn.classList.add(kind === 'correct' ? 'correct' : 'wrong');
+        var mark = btn.querySelector('.choiceMark');
+        if (!mark) {
+          mark = document.createElement('span');
+          mark.className = 'choiceMark';
+          mark.setAttribute('aria-hidden', 'true');
+          btn.insertBefore(mark, btn.firstChild);
+        }
+        mark.textContent = kind === 'correct' ? '✓' : '✕';
+      }
+      function showTriviaFeedback(isCorrect){
+        var existing = gameBody.querySelector('.triviaFeedback');
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        var note = document.createElement('div');
+        note.className = 'triviaFeedback ' + (isCorrect ? 'is-correct' : 'is-wrong');
+        note.setAttribute('role', 'status');
+        note.setAttribute('aria-live', 'polite');
+        note.textContent = isCorrect ? 'Correct!' : 'Not quite — the correct answer is shown in green.';
+        var qEl = gameBody.querySelector('.triviaQuestion');
+        if (qEl && qEl.nextSibling) gameBody.insertBefore(note, qEl.nextSibling);
+        else gameBody.insertBefore(note, gameBody.firstChild);
+      }
+      function lockAndPaintMcResult(selectedBtn, isCorrect, isCorrectChoiceFn){
+        gameBody.querySelectorAll('.choiceBtn').forEach(function(b){
+          b.disabled = true;
+          b.setAttribute('aria-disabled', 'true');
+          if (b !== selectedBtn) b.classList.add('choiceDim');
+        });
+        markChoiceBtn(selectedBtn, isCorrect ? 'correct' : 'wrong');
+        if (!isCorrect && typeof isCorrectChoiceFn === 'function') {
+          gameBody.querySelectorAll('.choiceBtn').forEach(function(b){
+            if (isCorrectChoiceFn(b)) {
+              b.classList.remove('choiceDim');
+              markChoiceBtn(b, 'correct');
+            }
+          });
+        }
+        if (!isCorrect && !prefersReducedMotion) selectedBtn.classList.add('choiceShake');
+        showTriviaFeedback(isCorrect);
+        if (overlayScore) {
+          overlayScore.classList.remove('scorePulse');
+          if (isCorrect && !prefersReducedMotion) {
+            void overlayScore.offsetWidth;
+            overlayScore.classList.add('scorePulse');
+          }
+        }
+      }
       function streakBadgeHtml(streak){
         if (!streak) return '';
         return '<span class="streakBadge">🔥 ' + streak + '</span>';
@@ -2463,7 +2555,7 @@
           html += '</div>';
           pick.options.forEach(function(opt){
             var name = String((opt.display_name) || '').trim();
-            html += '<button type="button" class="choiceBtn" data-name="' + esc(name) + '">' + esc(name) + '</button>';
+            html += '<button type="button" class="choiceBtn" data-name="' + esc(name) + '"><span class="choiceLabel">' + esc(name) + '</span></button>';
           });
           gameBody.innerHTML = html;
           gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
@@ -2476,12 +2568,10 @@
               var elapsed = Math.floor((Date.now() - startTime) / 1000);
               var points = isCorrect ? Math.max(10, 100 - elapsed * 5) : 0;
               totalScore += points;
-              btn.classList.add(isCorrect ? 'correct' : 'wrong');
+              lockAndPaintMcResult(btn, isCorrect, function(b){
+                return (b.dataset.name || '').trim() === correctName;
+              });
               if (!isCorrect) {
-                // Prompt #99: reveal the actual correct name, not just mark the wrong pick red.
-                gameBody.querySelectorAll('.choiceBtn').forEach(function(b){
-                  if ((b.dataset.name || '').trim() === correctName) b.classList.add('correct');
-                });
                 streak = 0;
                 sfxCultureWrong();
               } else {
@@ -2529,7 +2619,7 @@
           var html = '<div class="triviaProgress">Question ' + (qIndex + 1) + ' of ' + questions.length + streakBadgeHtml(streak) + '</div>';
           html += '<div class="triviaQuestion">' + esc(q.question) + '</div>';
           (q.options || []).forEach(function(opt, i){
-            html += '<button type="button" class="choiceBtn" data-correct="' + (i === q.correctIndex ? '1' : '0') + '">' + esc(opt) + '</button>';
+            html += '<button type="button" class="choiceBtn" data-correct="' + (i === q.correctIndex ? '1' : '0') + '"><span class="choiceLabel">' + esc(opt) + '</span></button>';
           });
           gameBody.innerHTML = html;
           gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
@@ -2538,20 +2628,13 @@
               answered = true;
               gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
               var isCorrect = btn.dataset.correct === '1';
-              btn.classList.add(isCorrect ? 'correct' : 'wrong');
-              var explainHtml = '';
+              lockAndPaintMcResult(btn, isCorrect, function(b){ return b.dataset.correct === '1'; });
               if (isCorrect) {
                 correctCount++;
                 streak++;
                 if (streak > bestStreak) bestStreak = streak;
                 sfxCultureCorrect();
               } else {
-                // Prompt #99: reveal which option was actually correct instead of leaving the
-                // player to guess; also surface the question's `explanation` field (present on
-                // every Handbook/Local History item but previously never rendered anywhere).
-                gameBody.querySelectorAll('.choiceBtn').forEach(function(b){
-                  if (b.dataset.correct === '1') b.classList.add('correct');
-                });
                 streak = 0;
                 sfxCultureWrong();
               }
@@ -2668,7 +2751,7 @@
             var html = missionProgressLine(correctCount, target, '', progress);
             html += '<div class="triviaQuestion">' + esc(q.question) + '</div>';
             (q.options || []).forEach(function(opt, i){
-              html += '<button type="button" class="choiceBtn" data-choice="' + i + '">' + esc(opt) + '</button>';
+              html += '<button type="button" class="choiceBtn" data-choice="' + i + '"><span class="choiceLabel">' + esc(opt) + '</span></button>';
             });
             gameBody.innerHTML = html;
             gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
@@ -2685,7 +2768,19 @@
                     return;
                   }
                   var isCorrect = !!res.correct;
-                  btn.classList.add(isCorrect ? 'correct' : 'wrong');
+                  var correctIdx = Number(res.correct_index);
+                  if (!Number.isInteger(correctIdx) || correctIdx < 0) {
+                    var gc = window.LANTERN_GAME_CONTENT;
+                    var banks = [];
+                    if (gc && gc.getHandbookQuestions) banks = banks.concat(gc.getHandbookQuestions());
+                    if (gc && gc.getLocalHistoryQuestions) banks = banks.concat(gc.getLocalHistoryQuestions());
+                    if (gc && gc.getSrpSafetyQuestions) banks = banks.concat(gc.getSrpSafetyQuestions());
+                    var found = banks.find(function(item){ return item && item.id === q.id; });
+                    if (found && Number.isInteger(found.correctIndex)) correctIdx = found.correctIndex;
+                  }
+                  lockAndPaintMcResult(btn, isCorrect, function(b){
+                    return Number(b.getAttribute('data-choice')) === correctIdx;
+                  });
                   if (isCorrect) sfxCultureCorrect();
                   else sfxCultureWrong();
                   if (res.explanation) {

@@ -102,7 +102,7 @@ if (gamesHtml.match(/if \(answered\) return;\s*\n\s*answered = true;[\s\S]{0,200
   ok('Avatar Match locks each round after the first answer (no double-click double-score)');
 } else bad('Avatar Match answered-lock missing');
 
-if (gamesHtml.match(/if \(!isCorrect\) \{\s*\n\s*\/\/ Prompt #99: reveal the actual correct name/)) {
+if (gamesHtml.match(/lockAndPaintMcResult\(btn, isCorrect, function\(b\)\{\s*\n\s*return \(b\.dataset\.name \|\| ''\)\.trim\(\) === correctName;/)) {
   ok('Avatar Match reveals the correct character name when the player misses');
 } else bad('Avatar Match correct-answer reveal missing');
 
@@ -117,7 +117,7 @@ if (gamesHtml.match(/if \(answered\) return;\s*\n\s*answered = true;[\s\S]{0,200
   ok('Trivia family locks each question after the first answer');
 } else bad('Trivia answered-lock missing');
 
-if (gamesHtml.match(/if \(b\.dataset\.correct === '1'\) b\.classList\.add\('correct'\)/)) {
+if (gamesHtml.match(/lockAndPaintMcResult\(btn, isCorrect, function\(b\)\{ return b\.dataset\.correct === '1'; \}\)/)) {
   ok('Trivia family reveals the correct choice when the player answers wrong');
 } else bad('Trivia correct-answer reveal missing');
 
