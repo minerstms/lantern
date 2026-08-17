@@ -81,8 +81,14 @@ function makeEnv(state) {
             results: Object.values(state.accounts).filter((a) => String(a.mtss_student_id || '').trim().toLowerCase() === key),
           };
         }
+        if (s.includes('FROM lantern_pilot_accounts') && s.includes('first_name')) {
+          return { results: Object.values(state.accounts) };
+        }
         if (s.includes('FROM lantern_pilot_accounts') && s.includes('is_active')) {
           return { results: Object.values(state.accounts).filter((a) => Number(a.is_active) !== 0) };
+        }
+        if (s.includes('FROM lantern_avatar_submissions') && s.includes('rejected_reason')) {
+          return { results: state.submissions || [] };
         }
         if (s.includes('FROM lantern_avatar_profiles')) {
           return {
@@ -238,7 +244,7 @@ const archived = {
 };
 const teacher = {
   username: 'ms_carter', display_name: 'Ms. Carter', public_display_name: 'Ms. Carter', honorific: 'Ms.',
-  last_name: 'Carter', role: 'teacher', staff_id: 10, is_active: 1, must_change_password: 0,
+  first_name: 'Pat', last_name: 'Carter', role: 'teacher', staff_id: 10, is_active: 1, must_change_password: 0,
 };
 const rickTeacher = {
   username: 'rick.radle', display_name: 'Rick Radle', public_display_name: 'Mr. Radle', honorific: 'Mr.',
@@ -364,7 +370,7 @@ const match = await req(env, 'GET', '/api/games/characters', studentCookie);
 if (match.status === 200 && match.json && match.json.ok) {
   const chars = match.json.characters || [];
   const names = chars.map((c) => c.display_name);
-  if (names.includes('Lucas R.') && names.includes('Ms. Carter') && !names.includes('Sam S.') && !names.includes('Old O.')) {
+  if (names.includes('Lucas R.') && names.includes('Pat C.') && !names.includes('Sam S.') && names.includes('Old O.')) {
     ok('game endpoint includes student+staff owners only');
   } else bad('game endpoint pool', chars);
   if (chars.every((c) => c.username == null && c.email == null && !/20889|20900/.test(JSON.stringify(c)))) {

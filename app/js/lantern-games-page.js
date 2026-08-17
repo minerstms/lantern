@@ -281,6 +281,7 @@
     var cat = catalog();
     if (!LC || !cat) return null;
     var metaOne = cat.playCostCardMeta(g.play_cost);
+    if (g.mission_activity) metaOne = 'Mission';
     if (g.status !== 'playable') metaOne = 'Coming soon';
     return LC.specGameHubRailCard({
       title: g.name,
@@ -300,7 +301,9 @@
       },
       role: g.status === 'playable' ? 'button' : 'group',
       tabIndex: g.status === 'playable' ? 0 : -1,
-      ariaLabel: g.status === 'playable' ? cat.playActionLabel(g.play_cost) + ' — ' + g.name : g.name + ' — coming soon',
+      ariaLabel: g.status === 'playable'
+        ? ((g.mission_activity ? 'Play mission' : cat.playActionLabel(g.play_cost)) + ' — ' + g.name)
+        : g.name + ' — coming soon',
     });
   }
 

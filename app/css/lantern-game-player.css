@@ -358,6 +358,12 @@ body.lantern-game-player-active .lanternHelpToggleWrap {
   padding: clamp(14px, 3vw, 18px) clamp(16px, 4vw, 24px);
 }
 
+.lanternGamePlayerStage .cultureGameOverlay .avatarMatchImgWrap {
+  width: min(100%, 320px);
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+}
+
 .lanternGamePlayerStage .cultureGameOverlay .triviaQuestion {
   font-size: clamp(22px, 4.5vw, 26px);
 }

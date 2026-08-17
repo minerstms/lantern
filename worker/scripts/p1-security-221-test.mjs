@@ -96,8 +96,14 @@ function makeEnv(state) {
               .map((k) => ({ character_name: k })),
           };
         }
+        if (s.includes('FROM lantern_pilot_accounts') && s.includes('first_name')) {
+          return { results: Object.values(state.accounts) };
+        }
         if (s.includes('FROM lantern_pilot_accounts') && s.includes('is_active')) {
           return { results: Object.values(state.accounts).filter((a) => Number(a.is_active) !== 0) };
+        }
+        if (s.includes('FROM lantern_avatar_submissions') && s.includes('rejected_reason')) {
+          return { results: state.submissions || [] };
         }
         if (s.includes('FROM lantern_avatar_profiles')) {
           return {
