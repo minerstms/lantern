@@ -110,6 +110,16 @@
     .usersMsg { padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; font-size: 20px; font-weight: 800; line-height: 1.45; border: 1px solid var(--line); }
     .usersMsg--ok { background: rgba(56,208,124,.12); border-color: rgba(56,208,124,.35); color: #b4ffd4; }
     .usersMsg--err { background: rgba(255,77,109,.12); border-color: rgba(255,77,109,.35); color: #ffb4b4; }
+    .visibleWatermarkToggle {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin: 8px 0 0; font-size: 22px; font-weight: 800;
+    }
+    .visibleWatermarkToggle input[type="checkbox"] {
+      width: 28px; height: 28px; margin: 0; accent-color: var(--accent); flex-shrink: 0;
+    }
+    .visibleWatermarkState {
+      min-width: 3.2em; font-weight: 900; letter-spacing: .04em;
+    }
     #logoutMsg { color: var(--bad); font-size: 20px; font-weight: 800; margin: 8px 0 0; }
     #pendingMsg { margin-bottom: 14px; }
     .pendingRowActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; flex: 1; min-width: 0; }
@@ -914,6 +924,26 @@
       <button type="button" class="btn good" id="marqueeSpeedSave">Save speed</button>
       <button type="button" class="btn" id="marqueeSpeedRefresh">Reload current</button>
     </div>
+    </div>
+  </details>
+
+  <details class="card teacherCollapsibleList" id="visibleWatermarkCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Visible Watermark</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="visibleWatermarkSummaryPill">ON</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Show the Lantern visible watermark across supported pages.</p>
+      <div id="visibleWatermarkMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+      <label class="visibleWatermarkToggle" for="visibleWatermarkEnabled">
+        <input type="checkbox" id="visibleWatermarkEnabled" checked />
+        <span>Visible Watermark</span>
+        <strong class="visibleWatermarkState" id="visibleWatermarkStateLabel">ON</strong>
+      </label>
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn good" id="visibleWatermarkSave">Save</button>
+        <button type="button" class="btn" id="visibleWatermarkRefresh">Reload current</button>
+      </div>
     </div>
   </details>
 
@@ -3899,6 +3929,99 @@
       });
     }
 
+    function showVisibleWatermarkMsg(text, kind) {
+      var el = document.getElementById('visibleWatermarkMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = 'usersMsg';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function setVisibleWatermarkControls(enabled) {
+      var on = enabled !== false;
+      var cb = document.getElementById('visibleWatermarkEnabled');
+      var stateLabel = document.getElementById('visibleWatermarkStateLabel');
+      var summaryPill = document.getElementById('visibleWatermarkSummaryPill');
+      if (cb) cb.checked = on;
+      if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+      if (summaryPill) summaryPill.textContent = on ? 'ON' : 'OFF';
+      if (window.LanternProtectedContent && typeof window.LanternProtectedContent.setVisibleWatermarkEnabled === 'function') {
+        window.LanternProtectedContent.setVisibleWatermarkEnabled(on);
+      }
+    }
+
+    function loadVisibleWatermark() {
+      fetch(api + '/api/settings/visible-watermark', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok === true) {
+            setVisibleWatermarkControls(res.enabled !== false);
+            showVisibleWatermarkMsg('', '');
+          } else {
+            setVisibleWatermarkControls(true);
+            showVisibleWatermarkMsg('Could not load current watermark setting (showing ON).', 'err');
+          }
+        })
+        .catch(function () {
+          setVisibleWatermarkControls(true);
+          showVisibleWatermarkMsg('Could not load current watermark setting (network — showing ON).', 'err');
+        });
+    }
+
+    function saveVisibleWatermark() {
+      var cb = document.getElementById('visibleWatermarkEnabled');
+      var enabled = !!(cb && cb.checked);
+      var saveBtn = document.getElementById('visibleWatermarkSave');
+      showVisibleWatermarkMsg('', '');
+      if (saveBtn) saveBtn.disabled = true;
+      return patchAdminJson('/api/settings/visible-watermark', { enabled: enabled }).then(function (res) {
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          setVisibleWatermarkControls(res.body.enabled !== false);
+          showVisibleWatermarkMsg('Saved. Visible watermark is now ' + (res.body.enabled !== false ? 'ON' : 'OFF') + '.', 'ok');
+        } else {
+          var err = res && res.body && res.body.error;
+          var msg = err === 'forbidden' ? 'Admin access required.' : (err || 'Save failed');
+          showVisibleWatermarkMsg(msg, 'err');
+        }
+      }).catch(function () {
+        showVisibleWatermarkMsg('Network error. Try again.', 'err');
+      }).finally(function () {
+        if (saveBtn) saveBtn.disabled = false;
+      });
+    }
+
+    var visibleWatermarkCb = document.getElementById('visibleWatermarkEnabled');
+    if (visibleWatermarkCb) {
+      visibleWatermarkCb.addEventListener('change', function () {
+        var on = !!visibleWatermarkCb.checked;
+        var stateLabel = document.getElementById('visibleWatermarkStateLabel');
+        var summaryPill = document.getElementById('visibleWatermarkSummaryPill');
+        if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+        if (summaryPill) summaryPill.textContent = on ? 'ON' : 'OFF';
+        saveVisibleWatermark();
+      });
+    }
+    var visibleWatermarkSaveBtn = document.getElementById('visibleWatermarkSave');
+    if (visibleWatermarkSaveBtn) {
+      visibleWatermarkSaveBtn.addEventListener('click', function () {
+        saveVisibleWatermark();
+      });
+    }
+    var visibleWatermarkRefreshBtn = document.getElementById('visibleWatermarkRefresh');
+    if (visibleWatermarkRefreshBtn) {
+      visibleWatermarkRefreshBtn.addEventListener('click', function () {
+        showVisibleWatermarkMsg('', '');
+        loadVisibleWatermark();
+      });
+    }
+
     function loadPending(){
       fetch(api + '/api/approvals/pending?filter=mine,unassigned', { credentials: 'include' })
         .then(function(r){ return r.json(); })
@@ -6099,6 +6222,7 @@
     loadFeedModeration();
     loadPending();
     loadMarqueeSpeed();
+    loadVisibleWatermark();
     setInterval(loadPending, 60000);
     setInterval(loadFeedModeration, 120000);
   })();

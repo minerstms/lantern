@@ -81,6 +81,57 @@ export async function setMarqueeSpeedPxPerSecond(db, pxPerSecond, updatedBy) {
   return now;
 }
 
+/** Prompt #273 — one global visible-watermark switch. Reuses lantern_settings (no new table). */
+export const VISIBLE_WATERMARK_SETTING_KEY = 'visible_watermark_enabled';
+export const VISIBLE_WATERMARK_DEFAULT = true;
+
+/**
+ * Pure parser. Missing/malformed values are not treated as OFF — callers fall back to ON
+ * so a bad or absent row preserves current production behavior.
+ */
+export function parseVisibleWatermarkEnabled(raw) {
+  if (raw == null || raw === '') {
+    return { ok: false, error: 'missing_value' };
+  }
+  if (typeof raw === 'boolean') {
+    return { ok: true, value: raw };
+  }
+  const s = String(raw).trim().toLowerCase();
+  if (s === 'true' || s === '1' || s === 'on' || s === 'yes') {
+    return { ok: true, value: true };
+  }
+  if (s === 'false' || s === '0' || s === 'off' || s === 'no') {
+    return { ok: true, value: false };
+  }
+  return { ok: false, error: 'malformed' };
+}
+
+export async function getVisibleWatermarkEnabled(db) {
+  try {
+    const row = await db
+      .prepare('SELECT value FROM lantern_settings WHERE key = ?')
+      .bind(VISIBLE_WATERMARK_SETTING_KEY)
+      .first();
+    if (!row || row.value == null) return VISIBLE_WATERMARK_DEFAULT;
+    const parsed = parseVisibleWatermarkEnabled(row.value);
+    return parsed.ok ? parsed.value : VISIBLE_WATERMARK_DEFAULT;
+  } catch (_err) {
+    return VISIBLE_WATERMARK_DEFAULT;
+  }
+}
+
+export async function setVisibleWatermarkEnabled(db, enabled, updatedBy) {
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO lantern_settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`
+    )
+    .bind(VISIBLE_WATERMARK_SETTING_KEY, enabled ? 'true' : 'false', now, updatedBy || null)
+    .run();
+  return now;
+}
+
 /**
  * GET /api/settings/marquee-speed — public read (any signed-in Lantern surface needs this to
  * render the ticker at the canonical speed; no admin gate on read).
@@ -133,6 +184,41 @@ export async function handleSettingsRoutes(request, url, path, env, cors, deps) 
     const updatedAt = await setMarqueeSpeedPxPerSecond(db, validated.value, updatedBy);
     return deps.jsonResponse(
       { ok: true, px_per_second: validated.value, updated_at: updatedAt },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'GET' && path === '/api/settings/visible-watermark') {
+    const enabled = await getVisibleWatermarkEnabled(db);
+    return deps.jsonResponse(
+      {
+        ok: true,
+        enabled,
+        default: VISIBLE_WATERMARK_DEFAULT,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'PATCH' && path === '/api/settings/visible-watermark') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_err) {
+      return deps.jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const validated = parseVisibleWatermarkEnabled(body && body.enabled);
+    if (!validated.ok) {
+      return deps.jsonResponse({ ok: false, error: validated.error }, 400, cors);
+    }
+    const updatedBy = deps.adminAuditLabel ? deps.adminAuditLabel(gate.account) : '';
+    const updatedAt = await setVisibleWatermarkEnabled(db, validated.value, updatedBy);
+    return deps.jsonResponse(
+      { ok: true, enabled: validated.value, updated_at: updatedAt },
       200,
       cors
     );

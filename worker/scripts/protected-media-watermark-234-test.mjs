@@ -233,7 +233,7 @@ assert(protCss.includes('max-width: 480px') && cardsCss.includes('100dvh'), '29.
 assert(watermarkLabel(2, TRACE) === 'TMS CONFIDENTIAL • X7K4P2', 'receipt watermark format unchanged');
 assert(TRACE_CODE_RE.test(TRACE), 'opaque 6-char alphabet preserved');
 assert(protJs.includes('mediaWatermarkLabel') && protJs.includes('TMS • '), 'on-media visible treatment is TMS • CODE');
-assert(navJs.includes('lantern-protected-content.js?v=234'), 'nav boots #234 protected-content helper');
+assert(/lantern-protected-content\.js\?v=\d+/.test(navJs), 'nav boots protected-content helper');
 assert(classifySurface('admin').tier === 2 && classifySurface('teacher').tier === 2, 'admin/teacher remain sensitive surfaces for receipts');
 assert(classifySurface('games').tier === 0, 'games surface remains general (no page wallpaper)');
 assert(/\/api\/news\/image/.test(workerIndex) && /getPilotAccountFromRequest/.test(workerIndex), 'authenticated student-media delivery remains');

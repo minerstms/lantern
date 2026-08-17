@@ -72,7 +72,8 @@
     traceCode: '',
     watermark: '',
     tier: 0,
-    surface: ''
+    surface: '',
+    visibleEnabled: true
   };
 
   function pageKey() {
@@ -170,7 +171,7 @@
     if (document.querySelector('link[data-lantern-protected-css]')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'css/lantern-protected-content.css?v=234';
+    link.href = 'css/lantern-protected-content.css?v=273';
     link.setAttribute('data-lantern-protected-css', '1');
     document.head.appendChild(link);
   }
@@ -223,6 +224,7 @@
   }
 
   function applyOverlay(viewport, label, variant) {
+    if (!isVisibleWatermarkEnabled()) return null;
     if (!viewport || !label || hasPii(label)) return null;
     var existing = null;
     var kids = viewport.children || [];
@@ -252,6 +254,7 @@
 
   function decorateMedia(el, opts) {
     opts = opts || {};
+    if (!isVisibleWatermarkEnabled()) return null;
     if (!el || el.nodeType !== 1) return null;
     var src = mediaSrc(el);
     var forced = opts.force === true;
@@ -268,6 +271,7 @@
   }
 
   function decorateTree(root, opts) {
+    if (!isVisibleWatermarkEnabled()) return 0;
     if (!root || !root.querySelectorAll) return 0;
     var label = (opts && opts.label) || currentLabel();
     if (!label) return 0;
@@ -280,6 +284,7 @@
   }
 
   function decorateFullscreen(shell, opts) {
+    if (!isVisibleWatermarkEnabled()) return null;
     if (!shell) return null;
     var inner = shell.querySelector ? shell.querySelector('.lanternMediaFullscreenInner') : shell;
     if (!inner) return null;
@@ -307,8 +312,59 @@
     }
   }
 
+  function removeVisibleMediaMarks() {
+    var marks = document.querySelectorAll('.lanternProtectedMediaMark, [data-lantern-media-mark="1"]');
+    for (var i = 0; i < marks.length; i++) {
+      if (marks[i] && marks[i].parentNode && typeof marks[i].parentNode.removeChild === 'function') {
+        marks[i].parentNode.removeChild(marks[i]);
+      }
+    }
+  }
+
+  function isVisibleWatermarkEnabled() {
+    return state.visibleEnabled !== false;
+  }
+
+  function applyVisibleWatermarkEnabled(enabled) {
+    state.visibleEnabled = enabled !== false;
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.setAttribute(
+        'data-lantern-visible-watermark',
+        state.visibleEnabled ? 'on' : 'off'
+      );
+    }
+    if (!state.visibleEnabled) {
+      removeVisibleMediaMarks();
+      return;
+    }
+    refreshAllMarks();
+  }
+
+  function fetchVisibleWatermarkSetting() {
+    return fetch(apiBase() + '/api/settings/visible-watermark', {
+      credentials: 'include',
+      cache: 'no-store'
+    }).then(function (r) {
+      return r.json();
+    }).then(function (data) {
+      if (data && data.ok === true && data.enabled === false) {
+        applyVisibleWatermarkEnabled(false);
+        return false;
+      }
+      applyVisibleWatermarkEnabled(true);
+      return true;
+    }).catch(function () {
+      applyVisibleWatermarkEnabled(true);
+      return true;
+    });
+  }
+
   function refreshAllMarks() {
     removePageWideWatermark();
+    if (!isVisibleWatermarkEnabled()) {
+      removeVisibleMediaMarks();
+      return;
+    }
     var label = currentLabel();
     if (!label) return;
     decorateTree(document, { label: label });
@@ -428,9 +484,11 @@
     injectCss();
     document.documentElement.classList.add('lantern-protection-tier' + classified.tier);
     document.documentElement.setAttribute('data-lantern-protection', String(classified.tier));
+    document.documentElement.setAttribute('data-lantern-visible-watermark', 'on');
     wireDeterrence();
     markMedia();
     wireObserver();
+    fetchVisibleWatermarkSetting();
     fetchViewSession(classified.surface, { action: 'view' }).then(function (data) {
       if (data && data.ok && data.protected && data.watermark && !hasPii(data.watermark) && !hasPii(data.trace_code)) {
         applySession(data, classified);
@@ -458,7 +516,11 @@
     decorateTree: decorateTree,
     decorateFullscreen: decorateFullscreen,
     currentLabel: currentLabel,
-    removePageWideWatermark: removePageWideWatermark
+    removePageWideWatermark: removePageWideWatermark,
+    removeVisibleMediaMarks: removeVisibleMediaMarks,
+    isVisibleWatermarkEnabled: isVisibleWatermarkEnabled,
+    setVisibleWatermarkEnabled: applyVisibleWatermarkEnabled,
+    fetchVisibleWatermarkSetting: fetchVisibleWatermarkSetting
   };
 
   if (document.readyState === 'loading') {

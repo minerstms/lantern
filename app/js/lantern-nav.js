@@ -555,7 +555,7 @@
 
   if (typeof document !== 'undefined' && !document.querySelector('script[data-lantern-protected-js]')) {
     var prot = document.createElement('script');
-    prot.src = 'js/lantern-protected-content.js?v=234';
+    prot.src = 'js/lantern-protected-content.js?v=273';
     prot.setAttribute('data-lantern-protected-js', '1');
     if (document.body) document.body.appendChild(prot);
     else document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(prot); });
