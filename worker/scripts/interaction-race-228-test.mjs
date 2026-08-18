@@ -53,6 +53,9 @@ assert(/data-race-kind', 'reaction-spatial'/.test(revealSrc) || /reaction-spatia
 assert(/layoutHold/.test(revealSrc) && /startTop/.test(revealSrc) && /getBoundingClientRect/.test(revealSrc), 'pre-race icon Y captured before layout');
 assert(/hold - h/.test(revealSrc) || /layoutHold \|\| 0/.test(revealSrc), 'icon Y = startY - barHeight');
 assert(/function measureRide/.test(revealSrc) && /barFromBottom/.test(revealSrc), 'bar bottom pinned to icon rest position');
+assert(/lanternRxRaceStage/.test(revealSrc) && /data-rx-race-stage/.test(revealSrc), 'reserved race stage inserted above icon row');
+assert(/raceStageHeight/.test(revealSrc) && /applyStageHeight/.test(revealSrc) && /syncRaceStage/.test(revealSrc), 'raceStageHeight grows with tallest bar');
+assert(/lockIconFloor/.test(revealSrc) && /scrollTop/.test(revealSrc), 'icon floor stays anchored via scroll, not overlay');
 assert(/cart\.style\.left = p \+ '%'/.test(revealSrc), 'cart left follows leading edge');
 assert(!/min-height:\s*252px/.test(rxCss), 'racing CSS does not drop icons to a 252px baseline');
 assert(/lockExistingDraft/.test(finalRx), 'submit races existing icons in place');
@@ -80,6 +83,14 @@ assert(/lantern-race-audio\.js/.test(explore) && /lantern-reaction-bank\.js/.tes
 assert(/display:\s*none\s*!important/.test(cardsCss) && /pollLockInBtn/.test(cardsCss), 'Lock In CSS hidden');
 assert(/lanternMineCart/.test(cardsCss) && /lanternPollRaceTrack/.test(cardsCss), 'poll track CSS');
 assert(/lanternRxRaceBar/.test(rxCss) && /lanternRxLane/.test(rxCss), 'vertical bar CSS');
+assert(/lanternRxRaceStage/.test(rxCss), 'race stage occupies real layout height');
+
+const pollFnMatch = revealSrc.match(/function mountPollMineCartRace[\s\S]*?\n  function mountReactionSpatialRace/);
+assert(!!pollFnMatch, 'poll mine-cart function still present');
+assert(
+  pollFnMatch && !/raceStageHeight|lanternRxRaceStage|lockIconFloor/.test(pollFnMatch[0]),
+  'poll mine-cart race is unchanged (no reaction stage)'
+);
 
 const store = {};
 const sandbox = {
