@@ -38,10 +38,11 @@
       global.LanternStaffNav && typeof global.LanternStaffNav.buildMenuSectionsHtml === 'function'
         ? global.LanternStaffNav.buildMenuSectionsHtml(current, 'lantern', null, null)
         : '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
-          '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">Locker</a>' +
+          '<a href="explore.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="explore">Lantern</a>' +
+          '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">My Locker</a>' +
           '<a href="contribute.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="create">Create</a>' +
-          '<a href="https://miners-yearbook.pages.dev/" role="menuitem" class="lanternAppBarDropdownLink" data-page="media_library">Media Library</a>' +
-          '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Play</a>' +
+          '<a href="https://miners-yearbook.pages.dev/" role="menuitem" class="lanternAppBarDropdownLink" data-page="media_library">Photo Library</a>' +
+          '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Games</a>' +
           '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="missions">Missions</a>' +
           '</div>';
     return (
@@ -406,8 +407,10 @@
       if (node.parentNode) node.parentNode.removeChild(node);
     });
     dd.innerHTML = sectionsHtml;
+    var tools = dd.querySelector('#lanternAppBarPrivilegedSection');
     keep.forEach(function (node) {
-      dd.appendChild(node);
+      if (tools) tools.appendChild(node);
+      else dd.appendChild(node);
     });
     wireBehaviorNavClicks(dd);
   }

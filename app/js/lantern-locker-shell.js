@@ -1,6 +1,6 @@
 /**
  * Locker shared shell: profile header + shared Explore engine bootstrap.
- * Prompt #161: Locker Options ▾ replaces About Edit + large Overview/Items/Store tabs.
+ * Prompt #161/#226: My Locker ▾ replaces About Edit + large Overview/Items/Store tabs.
  */
 (function (global) {
   'use strict';
@@ -212,7 +212,7 @@
     return (
       '<div class="lockerOptions" data-locker-options>' +
       '<button type="button" class="lockerOptionsTrigger" id="lockerOptionsTrigger" aria-haspopup="menu" aria-expanded="false" aria-controls="lockerOptionsMenu">' +
-      'Locker Options <span class="lockerOptionsChevron" aria-hidden="true">▾</span>' +
+      'My Locker <span class="lockerOptionsChevron" aria-hidden="true">▾</span>' +
       '</button>' +
       '<div class="lockerOptionsMenu" id="lockerOptionsMenu" role="menu" hidden>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="overview">Overview</button>' +

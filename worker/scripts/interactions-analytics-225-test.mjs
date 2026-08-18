@@ -56,6 +56,16 @@ if (!/mountResultRace/.test(adminHtml) && !/lantern-result-reveal/.test(adminHtm
 if (/role !== 'admin'/.test(adminHtml)) ok('admin.html remains admin-role gated');
 else bad('admin page gate');
 
+const pagesFn = fs.readFileSync(path.join(root, 'app/functions/api/[[path]].js'), 'utf8');
+if (
+  /interactions-analytics/.test(pagesFn) &&
+  /requireAdminFromUpstream/.test(pagesFn) &&
+  /handleInteractionsAnalytics/.test(pagesFn) &&
+  /analytics_unavailable/.test(pagesFn)
+) {
+  ok('Pages /api proxy serves Interactions Analytics locally after existing admin session check');
+} else bad('pages function analytics fallback');
+
 const teacherHtml = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8');
 if (!/interactions-analytics/.test(teacherHtml)) ok('teacher tools do not expose this analytics page');
 else bad('teacher leak');

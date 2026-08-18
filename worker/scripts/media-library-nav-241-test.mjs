@@ -27,11 +27,11 @@ const teacher = LSN.canonicalVisibleLabels('teacher', null, 'lantern');
 const staff = LSN.canonicalVisibleLabels('staff', null, 'lantern');
 const admin = LSN.canonicalVisibleLabels('admin', null, 'lantern');
 
-if (student.includes('Media Library')) ok('1. authenticated student nav includes Media Library');
+if (student.includes('Photo Library')) ok('1. authenticated student nav includes Photo Library');
 else bad('1. student', student);
-if (teacher.includes('Media Library') && staff.includes('Media Library')) ok('2. teacher/staff nav includes Media Library');
+if (teacher.includes('Photo Library') && staff.includes('Photo Library')) ok('2. teacher/staff nav includes Photo Library');
 else bad('2. teacher/staff', { teacher, staff });
-if (admin.includes('Media Library')) ok('3. admin nav includes Media Library');
+if (admin.includes('Photo Library')) ok('3. admin nav includes Photo Library');
 else bad('3. admin', admin);
 
 const lanternHref = LSN.hrefFor('media_library', 'lantern');
@@ -42,7 +42,7 @@ else bad('4. href', { lanternHref, tmsHref });
 if (!/[?&]/.test(lanternHref) && !/[?&]/.test(tmsHref)) ok('5. no identity/token/session query on Media Library URL');
 else bad('5. query appended', { lanternHref, tmsHref });
 
-const studentKeep = ['Locker', 'Create', 'Play', 'Missions'];
+const studentKeep = ['Lantern', 'My Locker', 'Create', 'Games', 'Missions'];
 if (studentKeep.every((l) => student.includes(l))) ok('6. existing student links remain');
 else bad('6. student links', student);
 
@@ -51,18 +51,18 @@ if (staffKeep.every((l) => teacher.includes(l)) && !teacher.includes('Teacher Da
 else bad('7. staff links', teacher);
 
 const adminWithCaps = LSN.canonicalVisibleLabels('admin', { report_maker: true, behavior_admin: true, system_admin: true }, 'lantern');
-if (adminWithCaps.includes('Reports') && adminWithCaps.includes('Behavior Administration') && adminWithCaps.includes('System')) ok('8. Web Admin caps show privileged links');
+if (adminWithCaps.includes('MTSS Reports') && adminWithCaps.includes('Behavior Admin') && adminWithCaps.includes('System Tools')) ok('8. Web Admin caps show privileged links');
 else bad('8. admin caps', adminWithCaps);
-if (!admin.includes('Reports') && !admin.includes('System')) ok('8b. admin role alone does not grant privileged links');
+if (!admin.includes('MTSS Reports') && !admin.includes('System Tools')) ok('8b. admin role alone does not grant privileged links');
 else bad('8b. admin role leak', admin);
 
 if (
   !student.includes('Teacher Tools') &&
   !student.includes('Behavior Logger') &&
-  !student.includes('Reports') &&
-  !student.includes('System') &&
+  !student.includes('MTSS Reports') &&
+  !student.includes('System Tools') &&
   teacher.includes('Teacher Tools') &&
-  !teacher.includes('Reports')
+  !teacher.includes('MTSS Reports')
 ) {
   ok('9. role visibility does not regress');
 } else bad('9. role visibility', { student, teacher, admin });
@@ -88,8 +88,8 @@ if (lanternNav.includes('lanternMenuTrigger') && lanternNav.includes('lanternApp
 
 const studentHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'student');
 const mediaCount = (studentHtml.match(/data-page="media_library"/g) || []).length;
-const labelCount = (studentHtml.match(/>Media Library</g) || []).length;
-if (mediaCount === 1 && labelCount === 1) ok('13. no duplicate Media Library entry');
+const labelCount = (studentHtml.match(/>Photo Library</g) || []).length;
+if (mediaCount === 1 && labelCount === 1) ok('13. no duplicate Photo Library entry');
 else bad('13. duplicates', { mediaCount, labelCount });
 
 const allowedUrlFiles = [
@@ -116,8 +116,8 @@ if (!/character_name|pairing|device.secret|library.session|yearbook.*token/i.tes
   ok('no Media Library auth/session fields attached to the nav item');
 } else bad('auth leakage in nav item');
 
-if (JSON.stringify(student) === JSON.stringify(['Locker', 'Create', 'Media Library', 'Play', 'Missions'])) {
-  ok('placement is Create → Media Library → Play');
+if (JSON.stringify(student) === JSON.stringify(['Lantern', 'My Locker', 'Create', 'Photo Library', 'Games', 'Missions'])) {
+  ok('placement is Create → Photo Library → Games');
 } else bad('placement', student);
 
 console.log('\nMedia Library nav #241:', pass, 'passed,', fail, 'failed');

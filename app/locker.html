@@ -50,7 +50,7 @@
       padding: 8px var(--lantern-pad-x, 12px) 16px;
       min-width: 0;
     }
-    /* Prompt #161 — Locker Options ▾ (compact, replaces large Overview/Items/Store tabs) */
+    /* Prompt #161/#226 — My Locker ▾ (compact, replaces large Overview/Items/Store tabs) */
     .lockerOptions{
       position: relative;
       flex: 0 0 auto;
@@ -96,29 +96,6 @@
     .lockerProfileHeader,
     .lockerOptions{
       overflow: visible;
-    }
-    .lockerInstallCard{
-      margin: 12px 0 16px;
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid var(--line, rgba(255,255,255,.12));
-      background: rgba(15,27,51,.7);
-    }
-    .lockerInstallCard h2{
-      margin: 0 0 6px;
-      font-size: 24px;
-      font-weight: 900;
-    }
-    .lockerInstallCard p{
-      margin: 0 0 12px;
-      font-size: 20px;
-      color: var(--muted, #b9c6ea);
-    }
-    .lockerInstallCard a.btn{
-      display: inline-flex;
-      align-items: center;
-      min-height: 48px;
-      text-decoration: none;
     }
     .lockerOptionsItem{
       display: block;
@@ -190,7 +167,7 @@
     <div id="classAccessGateWrap" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1220;overflow:auto;padding:24px;"></div>
     <div id="classAccessContentWrap" style="visibility:hidden;opacity:0;">
 
-    <!-- Prompt #161: Overview/Items/Store live in Locker Options ▾ (About header). Hidden Edit Profile trigger retained for existing Profile Studio wiring. -->
+    <!-- Prompt #161/#226: Overview/Items/Store live in My Locker ▾ (About header). Hidden Edit Profile trigger retained for existing Profile Studio wiring. -->
     <button type="button" id="editProfileBtn" hidden aria-hidden="true" tabindex="-1" data-help="edit_profile">Edit Profile</button>
     <!-- Locker tabpanel: Overview (#lockerPanelOverview) — profile .section / .sectionHd / .sectionBd + profile CSS; body = overviewMain slice. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
     <div id="lockerPanelOverview" class="lockerPanel" role="tabpanel" aria-label="Overview" data-locker-surface="overview" data-help="profile">
@@ -204,12 +181,6 @@
     <main class="lanternExploreSurface lanternLockerSurface" data-surface-context="locker">
       <div class="lanternExplorePageContainer">
       <section id="lockerProfileHeader" class="lockerProfileHeader" aria-label="Locker profile"></section>
-      <section id="lockerAccountDevice" class="lockerInstallCard" aria-labelledby="lockerInstallTitle">
-        <h2 id="lockerInstallTitle">Account / Device</h2>
-        <p>Install Lantern on this phone or device. Uses the same Add to Home Screen / Install app guidance.</p>
-        <a class="btn good" id="lockerInstallAppLink" href="https://log.tmslantern.org/index.html?intent=install" target="_blank" rel="noopener noreferrer">Install Lantern App</a>
-        <p class="lockerInstallFallback">If a prompt does not appear, open your browser menu and choose Add to Home Screen or Install app.</p>
-      </section>
       <header class="feedHeading feedHeading--lockerCompact" aria-label="Feed controls">
         <div class="feedHeadingRow">
           <h1 class="feedPageTitle">My Lantern</h1>
@@ -282,7 +253,7 @@
     <!-- Locker tabpanel: Items (#lockerPanelItems) — #lockerSectionsEl + JS-built .lockerSection* + .lanternScroller + Lantern cosmetic cards. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
     <div id="lockerPanelItems" class="lockerPanel" role="tabpanel" aria-label="Items" hidden data-locker-surface="items" data-help="cosmetics">
       <div id="lockerSectionsEl"></div>
-      <p class="note" style="padding:0;">Equip cosmetics here. For name, bio, avatar, and featured work, use <strong>Locker Options → Edit Profile</strong>. Buy more on Store.</p>
+      <p class="note" style="padding:0;">Equip cosmetics here. For name, bio, avatar, and featured work, use <strong>My Locker → Edit Profile</strong>. Buy more on Store.</p>
     </div>
     <!-- Locker tabpanel: Store (#lockerPanelStore) — .storePanelRoot; static .lockerSection* + .card rows. Map: docs/ui/LOCKER_SURFACE_MAP.md -->
     <div id="lockerPanelStore" class="lockerPanel" role="tabpanel" aria-label="Store" hidden data-locker-surface="store" data-help="store">
@@ -347,7 +318,7 @@
         <div class="h">Profile look &amp; cosmetics</div>
       </div>
       <div class="cardBd">
-        <p class="note" style="margin:0;">Customize your avatar, frames, themes, and cosmetics in <strong>Profile Studio</strong>. In <a href="locker.html#overview" target="_top" style="color:var(--accent);">Locker</a>, open <strong>Locker Options → Edit Profile</strong>.</p>
+        <p class="note" style="margin:0;">Customize your avatar, frames, themes, and cosmetics in <strong>Profile Studio</strong>. In <a href="locker.html#overview" target="_top" style="color:var(--accent);">Locker</a>, open <strong>My Locker → Edit Profile</strong>.</p>
         <p class="note" style="margin:8px 0 0; font-size:18px;">Page background = backdrop. Card theme = hero and card colors. Frame = border around avatar.</p>
       </div>
     </div>

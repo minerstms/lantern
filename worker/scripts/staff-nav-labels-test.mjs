@@ -19,7 +19,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
-const EXPECTED_NAV = ['Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const EXPECTED_NAV = ['Lantern', 'My Locker', 'Create', 'Photo Library', 'Games', 'Missions'];
 const staffNav = read('app/js/lantern-staff-nav.js');
 const lanternNav = read('app/js/lantern-nav.js');
 const teacherHtml = read('app/teacher.html');
@@ -28,7 +28,7 @@ const displayHtml = read('app/display.html');
 assert(staffNav.includes("label: 'Teacher Tools'"), 'lantern-staff-nav: Teacher Tools label');
 assert(staffNav.includes("label: 'Behavior Logger'"), 'lantern-staff-nav: Behavior Logger label');
 assert(!/label:\s*'Admin'/.test(staffNav), 'lantern-staff-nav: Admin is not a STAFF item (#163)');
-assert(staffNav.includes("label: 'Locker'"), 'lantern-staff-nav: Locker in NAVIGATION');
+assert(staffNav.includes("label: 'My Locker'"), 'lantern-staff-nav: My Locker in NAVIGATION');
 assert(staffNav.includes('buildMenuSectionsHtml'), 'lantern-staff-nav: full menu sections builder');
 assert(!staffNav.includes("label: 'Display Board'"), 'lantern-staff-nav: Display Board label removed');
 assert(!staffNav.includes("label: 'Display'"), 'lantern-staff-nav: bare Display label absent');
@@ -44,25 +44,25 @@ const staffOrder = [...staffBlock.matchAll(/label:\s*'([^']+)'/g)].map((m) => m[
 assert(JSON.stringify(staffOrder) === JSON.stringify(EXPECTED_STAFF), 'STAFF label order exact', JSON.stringify(staffOrder));
 
 assert(staffNav.includes('PRIVILEGED_NAV_ITEMS'), 'lantern-staff-nav: PRIVILEGED_NAV_ITEMS');
-assert(staffNav.includes("label: 'Reports'"), 'lantern-staff-nav: Reports privileged label');
-assert(staffNav.includes("label: 'System'"), 'lantern-staff-nav: System privileged label');
+assert(staffNav.includes("label: 'MTSS Reports'"), 'lantern-staff-nav: MTSS Reports privileged label');
+assert(staffNav.includes("label: 'System Tools'"), 'lantern-staff-nav: System Tools privileged label');
 assert(staffNav.includes('buildPrivilegedSectionHtml'), 'lantern-staff-nav: buildPrivilegedSectionHtml');
 assert(/\/teacher\.html/.test(staffNav), 'Teacher Tools route includes /teacher.html');
 assert(/tms-device-authorize/.test(staffNav) && /log\.tmslantern\.org/.test(staffNav), 'Behavior Logger route uses TMS authorize handoff');
 assert(staffNav.includes('/admin#system'), 'System href targets /admin#system');
 assert(/caps\.report_maker/.test(staffNav) && !/caps\.report_maker \|\| caps\.behavior_admin/.test(staffNav), 'Reports gated by REPORT_MAKER only');
 assert(!staffNav.includes("label: 'Teacher Dashboard'"), 'lantern-staff-nav: Teacher Dashboard retired from STAFF');
-assert(staffNav.includes("label: 'Behavior Administration'"), 'lantern-staff-nav: Behavior Administration privileged label');
+assert(staffNav.includes("label: 'Behavior Admin'"), 'lantern-staff-nav: Behavior Admin privileged label');
 assert(!/normalizeRole\(role\) === 'admin'\) return true/.test(staffNav), 'privileged nav has no role===admin shortcut');
 
 assert(lanternNav.includes('LanternStaffNav.buildMenuSectionsHtml'), 'lantern-nav.js uses shared full menu builder');
 assert(lanternNav.includes('applyCanonicalLanternMenu'), 'lantern-nav.js applies canonical role+cap menu after auth (#163)');
 assert(lanternNav.includes('--lantern-nav-text-inset'), 'lantern-nav.js shares text-inset alignment variable');
-assert(!/label:\s*'Lantern'/.test(staffNav), 'lantern-staff-nav: no redundant Lantern dropdown row');
-assert(staffNav.includes("path: '/locker.html'"), 'lantern-staff-nav: Locker path');
+assert(staffNav.includes("label: 'Lantern'") && lanternNav.includes('id="lanternHomeLink"') && lanternNav.includes('id="lanternMenuTrigger"'), 'Lantern is a menu destination; brand + Menu toggle remain separate');
+assert(staffNav.includes("path: '/locker.html'"), 'lantern-staff-nav: My Locker path');
 assert(lanternNav.includes('href="explore.html"') && lanternNav.includes('id="lanternHomeLink"'), 'lantern-nav home link is explore.html');
 assert(lanternNav.includes('Menu ') && lanternNav.includes('aria-haspopup="menu"') && lanternNav.includes('aria-controls="lanternMenuDropdown"'), 'lantern-nav Menu button has menu popup + controls');
-assert(lanternNav.includes('Locker') && lanternNav.includes('Create') && lanternNav.includes('Media Library') && lanternNav.includes('Play') && lanternNav.includes('Missions'), 'lantern-nav fallback includes NAVIGATION destinations');
+assert(lanternNav.includes('My Locker') && lanternNav.includes('Create') && lanternNav.includes('Photo Library') && lanternNav.includes('Games') && lanternNav.includes('Missions'), 'lantern-nav fallback includes NAVIGATION destinations');
 assert(!lanternNav.includes('Display Board'), 'lantern-nav fallback has no Display Board');
 assert(!/>Display</.test(lanternNav), 'lantern-nav has no bare Display STAFF label');
 assert(!/Hallway TV/.test(lanternNav), 'lantern-nav has no Hallway TV in global dropdown');
@@ -93,25 +93,25 @@ assert(JSON.stringify(LSN.staffLabelsInOrder('student')) === JSON.stringify(EXPE
 
 const defaultMenu = LSN.buildMenuSectionsHtml('explore', 'lantern');
 assert(!/STAFF/.test(defaultMenu), 'default buildMenuSectionsHtml omits STAFF without role');
-assert(!/Reports|System/.test(defaultMenu), 'default menu omits Reports/System without caps');
+assert(!/MTSS Reports|System Tools/.test(defaultMenu), 'default menu omits MTSS Reports/System Tools without caps');
 assert(!/Hallway TV|Display Board/.test(defaultMenu), 'global menu still omits Hallway TV / Display Board');
 
 const studentMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'student');
-assert(!/STAFF|Teacher Tools|Behavior Logger|Reports|System/.test(studentMenu), 'student menu is core navigation only');
-assert(/Media Library/.test(studentMenu), 'student menu includes Media Library');
+assert(!/STAFF|Teacher Tools|Behavior Logger|MTSS Reports|System Tools/.test(studentMenu), 'student menu is core navigation only');
+assert(/Photo Library/.test(studentMenu), 'student menu includes Photo Library');
 
 const teacherMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', null, 'teacher');
 assert(/STAFF/.test(teacherMenu) && /Teacher Tools/.test(teacherMenu) && /Behavior Logger/.test(teacherMenu) && !/Teacher Dashboard/.test(teacherMenu), 'teacher menu includes STAFF links and no Teacher Dashboard');
-assert(!/Reports/.test(teacherMenu) && !/>System</.test(teacherMenu), 'teacher without caps has no Reports/System');
+assert(!/MTSS Reports/.test(teacherMenu) && !/>System Tools</.test(teacherMenu), 'teacher without caps has no MTSS Reports/System Tools');
 
 const reportingMenu = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true }, 'teacher');
-assert(/ADMIN \/ TOOLS/.test(reportingMenu) && /Reports/.test(reportingMenu), 'REPORT_MAKER shows Reports');
-assert(!/>System</.test(reportingMenu), 'REPORT_MAKER alone does not show System');
+assert(/ADMIN \/ TOOLS/.test(reportingMenu) && /MTSS Reports/.test(reportingMenu), 'REPORT_MAKER shows MTSS Reports');
+assert(!/>System Tools</.test(reportingMenu), 'REPORT_MAKER alone does not show System Tools');
 
 const adminRoleOnly = LSN.buildMenuSectionsHtml('admin', 'lantern', null, 'admin');
-assert(!/Reports/.test(adminRoleOnly) && !/data-page="system"/.test(adminRoleOnly), 'Lantern admin role alone does not grant Reports/System');
+assert(/ADMIN \/ TOOLS/.test(adminRoleOnly) && !/MTSS Reports/.test(adminRoleOnly) && !/data-page="system"/.test(adminRoleOnly), 'Lantern admin role sees ADMIN / TOOLS but does not grant privileged links');
 const adminMenu = LSN.buildMenuSectionsHtml('admin', 'lantern', { report_maker: true, behavior_admin: true, system_admin: true }, 'admin');
-assert(/Reports/.test(adminMenu) && /Behavior Administration/.test(adminMenu) && /data-page="system"/.test(adminMenu), 'Web Admin caps show Reports + Behavior Administration + System');
+assert(/MTSS Reports/.test(adminMenu) && /Behavior Admin/.test(adminMenu) && /data-page="system"/.test(adminMenu), 'Web Admin caps show MTSS Reports + Behavior Admin + System Tools');
 assert(/href="\/admin#system"/.test(adminMenu), 'System menuitem href is /admin#system');
 
 console.log('\nstaff-nav-labels-test:', pass, 'PASS', fail, 'FAIL');

@@ -15,7 +15,7 @@ import { chromium } from '../../e2e/studio-contribute/node_modules/playwright/in
 
 const base = (process.argv[2] || 'http://127.0.0.1:8765').replace(/\/$/, '');
 const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
-const EXPECTED_NAV = ['Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const EXPECTED_NAV = ['Lantern', 'My Locker', 'Create', 'Photo Library', 'Games', 'Missions'];
 const EXPECTED_FULL = EXPECTED_NAV.concat(EXPECTED_STAFF);
 
 async function main() {
