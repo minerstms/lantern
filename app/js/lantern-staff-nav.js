@@ -17,9 +17,8 @@
   /** Shared text inset: trigger "Lantern" and dropdown item text share this left padding. */
   var MENU_TEXT_INSET = '14px';
 
-  /** Exact NAVIGATION order (Explore canonical). Prompt #202 — Lantern first (= home/Explore). */
+  /** Exact NAVIGATION order. Brand link already goes home — no redundant Lantern row. */
   var NAVIGATION_ITEMS = [
-    { id: 'lantern', dataPage: 'explore', label: 'Lantern', path: '/explore.html', currentKeys: ['explore', 'lantern'] },
     { id: 'locker', dataPage: 'locker', label: 'Locker', path: '/locker.html' },
     { id: 'create', dataPage: 'create', label: 'Create', path: '/contribute.html', currentKeys: ['contribute', 'create'] },
     { id: 'media_library', dataPage: 'media_library', label: 'Media Library', externalHref: 'https://miners-yearbook.pages.dev/' },
@@ -113,6 +112,9 @@
         return ctx === 'tms' ? LANTERN_ORIGIN + NAVIGATION_ITEMS[i].path : NAVIGATION_ITEMS[i].path.replace(/^\//, '');
       }
     }
+    if (id === 'lantern') {
+      return ctx === 'tms' ? LANTERN_ORIGIN + '/explore.html' : 'explore.html';
+    }
     if (id === 'teacher') {
       return ctx === 'tms' ? LANTERN_ORIGIN + '/teacher' : '/teacher.html';
     }
@@ -154,10 +156,6 @@
       var href = hrefFor(item.id, ctx);
       var active = isCurrentNavItem(item, current);
       var label = item.label;
-      if (item.id === 'missions' && ctx === 'lantern') {
-        label =
-          'Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span>';
-      }
       return (
         '<a href="' +
         href +

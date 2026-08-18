@@ -49,6 +49,7 @@
          artwork file. */
       image: 'assets/handbook-triva-card.png',
       featured: false,
+      playHub: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -63,6 +64,7 @@
       icon: '🏛️',
       image: 'assets/history-trivia-card.png',
       featured: false,
+      playHub: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -77,6 +79,7 @@
       icon: '🛡️',
       image: 'assets/srp-safety.png',
       featured: false,
+      playHub: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -91,6 +94,7 @@
       icon: '🌱',
       image: 'assets/lantern-trivia-card.png',
       featured: false,
+      playHub: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
@@ -218,6 +222,18 @@
     return GAMES.slice();
   }
 
+  /** Play hub = ordinary games only. Challenge/educational trivia missions stay on Missions. */
+  function isPlayHubGame(gameOrId) {
+    var g = gameOrId && typeof gameOrId === 'object' ? gameOrId : getGameById(gameOrId);
+    return !!(g && g.playHub !== false);
+  }
+
+  function playHubGames() {
+    return GAMES.filter(function (g) {
+      return g.playHub !== false;
+    });
+  }
+
   function getGameById(id) {
     return BY_ID[id] || null;
   }
@@ -262,7 +278,7 @@
 
   function leaderboardGames() {
     return GAMES.filter(function (g) {
-      return g.leaderboard && g.status === 'playable';
+      return g.leaderboard && g.status === 'playable' && g.playHub !== false;
     });
   }
 
@@ -281,6 +297,8 @@
     GAMES: GAMES,
     PREMIUM_GAME_IDS: PREMIUM_GAME_IDS,
     listGames: listGames,
+    isPlayHubGame: isPlayHubGame,
+    playHubGames: playHubGames,
     getGameById: getGameById,
     getGameByName: getGameByName,
     isPremiumGame: isPremiumGame,

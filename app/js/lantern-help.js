@@ -37,7 +37,7 @@
     teacher_hallway_tv: 'Hallway TV opens the Display board in a new tab for hallway screens. It is not in the global Lantern ▼ menu — use this Teacher Tools sidebar link.',
     teacher_phone_app: 'Phone App Download opens Lantern install guidance on the Behavior Logger origin (Add to Home Screen / Install app). It does not remember or trust this device — that stays a separate step.',
     teacher_repair_app: 'Repair App opens on the Behavior Logger origin and clears only this app\'s offline files, then reloads the current version. It does not sign you out, uninstall the PWA, or erase student/Nugget data.',
-    missions: 'Missions are tasks you can complete to create, reflect, practice, and sometimes earn Nuggets. Active shows everything you can still work on (including ones you already started or need to fix); Completed shows finished missions. Tap a mission to open it and submit your work.',
+    missions: 'Missions are tasks you can complete to create, reflect, practice, and sometimes earn Nuggets. Finished missions stay in this same list with a completed mark. Tap a mission to open it and submit your work.',
     mission_spotlight: 'Missions: one highlighted task you can start today from the active mission list.',
     achievements: 'These are badges you earn when you do things like share your first post, find the daily nugget, or get a teacher pick.',
     trophy_case: 'Your trophy case shows all the achievements you can earn. Gray ones are locked. Green ones you have unlocked.',

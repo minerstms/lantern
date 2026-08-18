@@ -1437,16 +1437,23 @@
       }
       .teacherSidebar{
         position: fixed;
-        top: 0;
+        top: var(--lantern-header-h-ticker);
         left: 0;
         bottom: 0;
         width: min(80vw, 300px);
-        max-height: none;
+        height: auto;
+        max-height: calc(100dvh - var(--lantern-header-h-ticker));
+        max-height: calc(100svh - var(--lantern-header-h-ticker));
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
         z-index: 5000;
         border-radius: 0 var(--r) var(--r) 0;
         transform: translateX(-105%);
         transition: transform .22s ease;
-        padding-top: calc(var(--lantern-header-h-ticker) + 14px);
+        padding-top: 14px;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         /* Prompt #174 — keep mobile drawer fully opaque above page content. */
         background: var(--panel);
         background-color: var(--panel);

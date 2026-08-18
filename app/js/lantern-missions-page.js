@@ -5,7 +5,7 @@
   'use strict';
 
   var state = {
-    status: 'active',
+    status: 'all',
     typeFilter: 'all',
     rewardFilter: 'any',
     sort: 'recommended',
@@ -83,8 +83,7 @@
   }
 
   function matchesTab(item) {
-    if (state.status === 'active') return isActiveStatus(item.status);
-    return item.status === state.status;
+    return true;
   }
 
   function matchesFilters(item) {
@@ -142,26 +141,12 @@
   }
 
   function updateStatusTabLabels() {
-    var active = countActive();
-    var done = countByStatus('completed');
-    var map = {
-      active: 'Active' + (state.loading ? '' : ' ' + active),
-      completed: 'Completed' + (state.loading ? '' : ' ' + done),
-    };
-    var bar = el('missionsStatusTabs');
-    if (!bar) return;
-    bar.querySelectorAll('[data-mission-status]').forEach(function (btn) {
-      var key = btn.getAttribute('data-mission-status');
-      if (map[key]) btn.textContent = map[key];
-      btn.classList.toggle('is-active', key === state.status);
-      btn.setAttribute('aria-selected', key === state.status ? 'true' : 'false');
-    });
+    return;
   }
 
   function emptyMessage() {
     if (state.loading) return 'Loading missions…';
-    if (state.status === 'active') return 'No active missions right now.';
-    return 'No completed missions yet.';
+    return 'No missions right now.';
   }
 
   // Prompt #82 — surfaces a real backend failure instead of letting the page look fully

@@ -26,7 +26,12 @@
       sort: 'newest',
       items: [],
       loading: false,
+      nextCursor: '',
+      hasMore: false,
+      loadError: '',
     };
+
+    var EXPLORE_PAGE_SIZE = 60;
 
     function el(id) {
       return global.document.getElementById(id);
@@ -48,7 +53,7 @@
         btn.addEventListener('click', function () {
           state.relationship = f.id;
           renderRelationshipFilters();
-          loadFeed();
+          loadFeed(false);
         });
         wrap.appendChild(btn);
       });
@@ -67,10 +72,38 @@
         btn.addEventListener('click', function () {
           state.type = f.id;
           renderFilters();
-          loadFeed();
+          loadFeed(false);
         });
         wrap.appendChild(btn);
       });
+    }
+
+    function seenIds() {
+      var map = {};
+      state.items.forEach(function (it) {
+        if (it && it.id) map[String(it.id)] = true;
+      });
+      return map;
+    }
+
+    function renderPagination() {
+      var wrap = el('feedLoadMoreWrap');
+      var btn = el('feedLoadMoreBtn');
+      var status = el('feedLoadMoreStatus');
+      if (!wrap || context !== 'explore') return;
+      wrap.hidden = false;
+      if (btn) {
+        btn.hidden = !state.hasMore || !!state.loadError;
+        btn.disabled = !!state.loading;
+        btn.textContent = state.loading ? 'Loading…' : 'Load More';
+      }
+      if (status) {
+        if (state.loading && !state.items.length) status.textContent = '';
+        else if (state.loadError) status.textContent = state.loadError;
+        else if (!state.loading && state.items.length && !state.hasMore) {
+          status.textContent = "You've reached the beginning of Lantern.";
+        } else status.textContent = '';
+      }
     }
 
     function renderGrid() {
@@ -80,14 +113,16 @@
       grid.innerHTML = '';
       if (!state.items.length) {
         if (empty) empty.hidden = false;
+        renderPagination();
         return;
       }
       if (empty) empty.hidden = true;
       var cardApi = global.LANTERN_FEED_CARD;
       if (!cardApi) return;
       state.items.forEach(function (item) {
-        grid.appendChild(cardApi.buildCard(item, { onRefresh: loadFeed }));
+        grid.appendChild(cardApi.buildCard(item, { onRefresh: function () { loadFeed(false); } }));
       });
+      renderPagination();
     }
 
     function applyThemeForContext() {
@@ -108,12 +143,15 @@
       theme.applyLockerTheme(surface, equipped, { effectLayerId: 'cosmeticEffectLayer' });
     }
 
-    function loadFeed() {
+    function loadFeed(append) {
       if (!global.LANTERN_FEED || state.loading) return;
+      if (append && !state.hasMore) return;
       state.loading = true;
+      state.loadError = '';
+      renderPagination();
       var status = el('feedStatus');
       /* Prompt #187 — Explore has no visible item count; Locker (#185) still shows live count. */
-      if (status && context === 'locker') status.textContent = 'Loading…';
+      if (status && context === 'locker' && !append) status.textContent = 'Loading…';
       var req;
       if (context === 'locker' && global.LANTERN_FEED.getLockerPersonalFeed) {
         req = global.LANTERN_FEED.getLockerPersonalFeed({
@@ -121,26 +159,48 @@
           type: state.type,
           search: state.search,
           sort: state.sort,
-          limit: 60,
+          limit: EXPLORE_PAGE_SIZE,
         });
       } else {
-        req = global.LANTERN_FEED.getFeed({
+        var q = {
           type: state.type,
           search: state.search,
           sort: state.sort,
-          limit: 60,
-        });
+          limit: EXPLORE_PAGE_SIZE,
+        };
+        if (append && state.nextCursor) q.cursor = state.nextCursor;
+        req = global.LANTERN_FEED.getFeed(q);
       }
       req.then(function (res) {
         state.loading = false;
         if (status && context === 'locker') status.textContent = '';
         if (!res || !res.ok) {
           if (status && context === 'locker') status.textContent = 'Could not load feed.';
+          if (append) {
+            state.loadError = 'Could not load more. Try again.';
+            renderPagination();
+            return;
+          }
           state.items = [];
+          state.hasMore = false;
+          state.nextCursor = '';
           renderGrid();
           return;
         }
-        state.items = res.items || [];
+        var incoming = res.items || [];
+        var meta = res.meta || {};
+        if (append) {
+          var seen = seenIds();
+          incoming.forEach(function (it) {
+            if (!it || !it.id || seen[String(it.id)]) return;
+            seen[String(it.id)] = true;
+            state.items.push(it);
+          });
+        } else {
+          state.items = incoming;
+        }
+        state.nextCursor = meta.next_cursor ? String(meta.next_cursor) : '';
+        state.hasMore = context === 'explore' && !!meta.has_more && !!state.nextCursor;
         if (status && context === 'locker') {
           status.textContent = state.items.length + ' item' + (state.items.length === 1 ? '' : 's');
         }
@@ -190,11 +250,19 @@
       if (sortSel) {
         sortSel.addEventListener('change', function () {
           state.sort = sortSel.value;
-          loadFeed();
+          loadFeed(false);
         });
       }
       var refreshBtn = el('feedRefreshBtn');
-      if (refreshBtn) refreshBtn.addEventListener('click', loadFeed);
+      if (refreshBtn) refreshBtn.addEventListener('click', function () { loadFeed(false); });
+      var moreBtn = el('feedLoadMoreBtn');
+      if (moreBtn && context === 'explore' && !moreBtn._wired) {
+        moreBtn._wired = true;
+        moreBtn.addEventListener('click', function () {
+          if (state.loading || !state.hasMore) return;
+          loadFeed(true);
+        });
+      }
     }
 
     function init() {
@@ -209,7 +277,7 @@
 
     var controllerApi = {
       init: init,
-      refresh: loadFeed,
+      refresh: function () { return loadFeed(false); },
       applyTheme: applyThemeForContext,
       setSearch: function (query) {
         state.search = query != null ? String(query).trim() : '';

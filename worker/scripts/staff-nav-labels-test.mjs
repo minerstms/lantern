@@ -19,7 +19,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 const EXPECTED_STAFF = ['Teacher Tools', 'Behavior Logger'];
-const EXPECTED_NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const EXPECTED_NAV = ['Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const staffNav = read('app/js/lantern-staff-nav.js');
 const lanternNav = read('app/js/lantern-nav.js');
 const teacherHtml = read('app/teacher.html');
@@ -58,9 +58,10 @@ assert(!/normalizeRole\(role\) === 'admin'\) return true/.test(staffNav), 'privi
 assert(lanternNav.includes('LanternStaffNav.buildMenuSectionsHtml'), 'lantern-nav.js uses shared full menu builder');
 assert(lanternNav.includes('applyCanonicalLanternMenu'), 'lantern-nav.js applies canonical role+cap menu after auth (#163)');
 assert(lanternNav.includes('--lantern-nav-text-inset'), 'lantern-nav.js shares text-inset alignment variable');
-assert(staffNav.includes("label: 'Lantern'"), 'lantern-staff-nav: Lantern first NAVIGATION label (#202)');
-assert(staffNav.includes("path: '/explore.html'"), 'lantern-staff-nav: Lantern/Explore path');
+assert(!/label:\s*'Lantern'/.test(staffNav), 'lantern-staff-nav: no redundant Lantern dropdown row');
+assert(staffNav.includes("path: '/locker.html'"), 'lantern-staff-nav: Locker path');
 assert(lanternNav.includes('href="explore.html"') && lanternNav.includes('id="lanternHomeLink"'), 'lantern-nav home link is explore.html');
+assert(lanternNav.includes('Menu ') && lanternNav.includes('aria-haspopup="menu"') && lanternNav.includes('aria-controls="lanternMenuDropdown"'), 'lantern-nav Menu button has menu popup + controls');
 assert(lanternNav.includes('Locker') && lanternNav.includes('Create') && lanternNav.includes('Media Library') && lanternNav.includes('Play') && lanternNav.includes('Missions'), 'lantern-nav fallback includes NAVIGATION destinations');
 assert(!lanternNav.includes('Display Board'), 'lantern-nav fallback has no Display Board');
 assert(!/>Display</.test(lanternNav), 'lantern-nav has no bare Display STAFF label');
