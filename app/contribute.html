@@ -1195,6 +1195,7 @@
                 <label id="missionSubmitLabel">Your response</label>
                 <textarea id="missionSubmitContent" placeholder="Enter your response..." style="min-height:100px;"></textarea>
                 <p id="missionSubmitMinCharsHint" class="studioPanelMicro" style="display:none;margin-top:8px;color:var(--warn);font-size:22px;"></p>
+                <ul id="missionSubmitRequirements" style="display:none;margin:8px 0 0;padding-left:22px;font-size:22px;font-weight:800;color:var(--warn);"></ul>
               </div>
               <input type="hidden" id="missionSubmitImageUrl" value="" />
               <input type="url" id="missionSubmitVideoUrl" placeholder="" style="display:none;" aria-hidden="true" />
@@ -2590,6 +2591,7 @@
     var currentMissionForSubmit = null;
     var currentMissionResubmitId = null;
     var currentMissionMinChars = 0;
+    var currentMissionRequiresImage = false;
     var missionVideoUploadedUrl = '';
     var missionCropperInstance = null;
     var missionCropperSourceDataUrl = null;
@@ -3047,6 +3049,7 @@
       currentMissionForSubmit = null;
       currentMissionResubmitId = null;
       currentMissionMinChars = 0;
+      currentMissionRequiresImage = false;
       syncMissionCenterFlow();
     }
 
@@ -3110,7 +3113,10 @@
         } catch (e1) {}
         updateMissionPollImagePreview();
         currentMissionMinChars = 0;
+        currentMissionRequiresImage = false;
         if (el('missionSubmitMinCharsHint')) el('missionSubmitMinCharsHint').style.display = 'none';
+        var reqClearPoll = el('missionSubmitRequirements');
+        if (reqClearPoll) { reqClearPoll.innerHTML = ''; reqClearPoll.style.display = 'none'; }
         if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
         if (panel) { panel.classList.add('missionStudioFormPanel--open'); panel.setAttribute('aria-hidden', 'false'); }
         updateMissionSubmitPreview();
@@ -3138,7 +3144,10 @@
           if (pf && el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = pf.slice(0, 2000);
         }
         currentMissionMinChars = 0;
+        currentMissionRequiresImage = false;
         if (el('missionSubmitMinCharsHint')) el('missionSubmitMinCharsHint').style.display = 'none';
+        var reqClearPoll = el('missionSubmitRequirements');
+        if (reqClearPoll) { reqClearPoll.innerHTML = ''; reqClearPoll.style.display = 'none'; }
         if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
         if (panel) { panel.classList.add('missionStudioFormPanel--open'); panel.setAttribute('aria-hidden', 'false'); }
         updateMissionSubmitPreview();
@@ -3156,16 +3165,31 @@
       }
       if (urlEl) urlEl.value = (m.submission_type === 'link' && pf && pf.trim().indexOf('http') === 0) ? pf.trim().slice(0, 2000) : '';
       if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
-      var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
+      var minParsed = parseInt(m.min_characters, 10);
+      var minChars = Number.isFinite(minParsed) && minParsed >= 0 ? minParsed : 0;
       var enforceMin = allowsText && minChars > 0;
       currentMissionMinChars = enforceMin ? minChars : 0;
+      currentMissionRequiresImage = !!(m.require_image) || Number(m.allows_image) >= 2 || (allowsImage && !allowsText && !allowsVideo && !allowsLink);
       var minCharsHint = el('missionSubmitMinCharsHint');
       if (minCharsHint) {
         if (allowsText && minChars > 0) {
-          minCharsHint.textContent = 'Minimum characters required: ' + minChars;
+          minCharsHint.textContent = 'Minimum ' + minChars + ' characters';
           minCharsHint.style.display = 'block';
         } else {
           minCharsHint.style.display = 'none';
+        }
+      }
+      var reqList = el('missionSubmitRequirements');
+      if (reqList) {
+        var chips = [];
+        if (currentMissionRequiresImage) chips.push('Image required');
+        if (currentMissionMinChars > 0) chips.push('Minimum ' + currentMissionMinChars + ' characters');
+        if (chips.length) {
+          reqList.innerHTML = chips.map(function(c){ return '<li>' + String(c).replace(/</g, '') + '</li>'; }).join('');
+          reqList.style.display = 'block';
+        } else {
+          reqList.innerHTML = '';
+          reqList.style.display = 'none';
         }
       }
       if (anyMed) mountContributeMissionUnified(allowsImage, allowsVideo, allowsLink);
@@ -3272,10 +3296,17 @@
       var validImage = allowsImage && (imageVal.length > 0 || (el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src && String(el('missionSubmitImageUploadPreviewImg').src).trim().length > 0));
       var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
       var validLink = allowsLink && linkVal.length > 0;
+      if (currentMissionRequiresImage && !validImage) {
+        toast('Image required');
+        return;
+      }
+      if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) {
+        toast('Minimum ' + minChars + ' characters required.');
+        return;
+      }
       var hasAnyValid = validText || validImage || validVideo || validLink;
       if (!hasAnyValid) {
-        if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) toast('Minimum ' + minChars + ' characters required.');
-        else if (allowsText && !allowsImage && !allowsVideo && !allowsLink) toast('This mission requires a written response.');
+        if (allowsText && !allowsImage && !allowsVideo && !allowsLink) toast('This mission requires a written response.');
         else toast('Please add a valid submission before sending.');
         return;
       }
@@ -3288,7 +3319,11 @@
       }
       var type = 'text';
       var content = '';
-      if (allowsText && textVal){ type = 'text'; content = textVal; }
+      if (validText && validImage){
+        type = 'text';
+        content = JSON.stringify({ text: textVal.slice(0, 1800), image_url: imageVal.slice(0, 500) });
+      }
+      else if (allowsText && textVal){ type = 'text'; content = textVal; }
       else if (allowsImage && imageVal){ type = 'image_url'; content = imageVal; }
       else if (allowsVideo && missionVideoUploadedUrl){ type = 'video'; content = missionVideoUploadedUrl; }
       else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }

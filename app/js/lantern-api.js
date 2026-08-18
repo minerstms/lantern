@@ -2814,7 +2814,14 @@
             allows_image: !!(payload && payload.allows_image),
             allows_video: !!(payload && payload.allows_video),
             allows_link: !!(payload && payload.allows_link),
-            min_characters: (payload && payload.min_characters) !== undefined && payload.min_characters !== null ? Math.max(0, Math.floor(Number(payload.min_characters)) || 200) : 200,
+            min_characters: (function () {
+              if (payload && payload.min_characters !== undefined && payload.min_characters !== null) {
+                var n = Number(payload.min_characters);
+                return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+              }
+              return 200;
+            })(),
+            require_image: !!(payload && payload.require_image),
           };
           fetch(apiBase + '/api/missions', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -2837,7 +2844,14 @@
           allows_image: !!(payload && payload.allows_image),
           allows_video: !!(payload && payload.allows_video),
           allows_link: !!(payload && payload.allows_link),
-          min_characters: (payload && payload.min_characters) !== undefined && payload.min_characters !== null ? Math.max(0, Math.floor(Number(payload.min_characters)) || 200) : 200,
+          require_image: !!(payload && payload.require_image),
+          min_characters: (function () {
+            if (payload && payload.min_characters !== undefined && payload.min_characters !== null) {
+              var n = Number(payload.min_characters);
+              return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+            }
+            return 200;
+          })(),
         });
         Promise.resolve(result).then(successFn).catch(failureFn);
       },

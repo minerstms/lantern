@@ -107,9 +107,9 @@ function missionRowToJson(r, origin) {
     allows_video: !!(r.allows_video),
     allows_link: !!(r.allows_link),
     min_characters: (() => {
-      if (r.min_characters === undefined || r.min_characters === null) return 200;
+      if (r.min_characters === undefined || r.min_characters === null) return 0;
       const n = Number(r.min_characters);
-      return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+      return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
     })(),
     // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
     card_image_r2_key: cardKey || null,

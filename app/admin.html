@@ -265,34 +265,31 @@
   <p><a href="/explore.html">Lantern (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
   <p id="logoutMsg" role="status" aria-live="polite" style="display:none;"></p>
 
-  <details class="card teacherCollapsibleList" id="adminInteractionsAnalyticsCard" open>
-    <summary class="cardHd teacherCollapsibleListHd">
-      <div class="teacherCollapsibleListTitle"><div class="h">Interactions Analytics</div></div>
-    </summary>
-    <div class="cardBd teacherCollapsibleListBd">
-      <p class="iaNote">What students are doing, earning, spending, and completing. System Admin only. Totals use persisted Lantern records, not client card counts.</p>
-      <div class="iaRange" role="group" aria-label="Date range">
-        <button type="button" class="iaRangeBtn is-on" data-ia-range="today">Today</button>
-        <button type="button" class="iaRangeBtn" data-ia-range="7d">7 Days</button>
-        <button type="button" class="iaRangeBtn" data-ia-range="30d">30 Days</button>
-        <button type="button" class="iaRangeBtn" data-ia-range="all">All Time</button>
-      </div>
-      <p id="iaPeriodLabel" class="iaNote">Loading…</p>
-      <div class="iaSummary" id="iaSummary"></div>
-      <h3 class="cardHd" style="font-size:22px;margin-top:8px;">Earnings</h3>
-      <table class="iaTable" id="iaEarnTable"><thead><tr><th>Source</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
-      <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Spending</h3>
-      <table class="iaTable" id="iaSpendTable"><thead><tr><th>Destination</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
-      <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Game spending</h3>
-      <table class="iaTable" id="iaGameTable"><thead><tr><th>Game</th><th>Nuggets spent</th><th>Plays</th></tr></thead><tbody></tbody></table>
-      <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Learning / participation</h3>
-      <table class="iaTable" id="iaLearnTable"><thead><tr><th>Signal</th><th>Completions</th><th>Participants</th></tr></thead><tbody></tbody></table>
-      <p id="iaLimits" class="iaNote"></p>
+  <div class="card" id="adminInteractionsAnalyticsCard">
+    <div class="cardHd">Interactions Analytics</div>
+    <p class="iaNote">What students are doing, earning, spending, and completing. System Admin only. Totals use persisted Lantern records, not client card counts.</p>
+    <div class="iaRange" role="group" aria-label="Date range">
+      <button type="button" class="iaRangeBtn" data-ia-range="today">Today</button>
+      <button type="button" class="iaRangeBtn is-on" data-ia-range="7d">7 Days</button>
+      <button type="button" class="iaRangeBtn" data-ia-range="30d">30 Days</button>
+      <button type="button" class="iaRangeBtn" data-ia-range="all">All Time</button>
     </div>
-  </details>
+    <p id="iaPeriodLabel" class="iaNote">Loading…</p>
+    <div class="iaSummary" id="iaSummary"></div>
+    <h3 class="cardHd" style="font-size:22px;margin-top:8px;">Earnings</h3>
+    <table class="iaTable" id="iaEarnTable"><thead><tr><th>Source</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
+    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Spending</h3>
+    <table class="iaTable" id="iaSpendTable"><thead><tr><th>Destination</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
+    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Game spending</h3>
+    <table class="iaTable" id="iaGameTable"><thead><tr><th>Game</th><th>Nuggets spent</th><th>Plays</th></tr></thead><tbody></tbody></table>
+    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Learning / participation</h3>
+    <table class="iaTable" id="iaLearnTable"><thead><tr><th>Signal</th><th>Completions</th><th>Participants</th></tr></thead><tbody></tbody></table>
+    <p id="iaLimits" class="iaNote"></p>
+  </div>
   <script>
   (function () {
-    var currentRange = 'today';
+    var currentRange = '7d';
+    var started = false;
     function esc(s) {
       return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -307,19 +304,26 @@
         : '<tr><td colspan="' + cols.length + '">None in this period</td></tr>';
     }
     function loadIa(range) {
-      currentRange = range || 'today';
+      currentRange = range || '7d';
       document.querySelectorAll('.iaRangeBtn').forEach(function (b) {
         b.classList.toggle('is-on', b.getAttribute('data-ia-range') === currentRange);
       });
+      var label = document.getElementById('iaPeriodLabel');
+      if (label) label.textContent = 'Loading…';
       fetch('/api/admin/interactions-analytics?range=' + encodeURIComponent(currentRange), { credentials: 'include' })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, d: d }; }).catch(function () {
+            return { status: r.status, d: null };
+          });
+        })
+        .then(function (x) {
+          var d = x.d;
           if (!d || !d.ok) {
-            document.getElementById('iaPeriodLabel').textContent = (d && d.error) || 'Could not load analytics.';
+            if (label) label.textContent = (d && d.error) ? (d.error + ' (' + x.status + ')') : ('Could not load analytics (' + x.status + ').');
             return;
           }
           var s = d.summary || {};
-          document.getElementById('iaPeriodLabel').textContent = (d.period && d.period.label ? d.period.label : currentRange) +
+          if (label) label.textContent = (d.period && d.period.label ? d.period.label : currentRange) +
             ' · An interaction is one persisted poll vote, reaction, game play, or mission submission.';
           document.getElementById('iaSummary').innerHTML =
             '<div class="iaCard"><p class="iaCardLabel">Total interactions</p><p class="iaCardValue">' + esc(s.total_interactions) + '</p></div>' +
@@ -333,13 +337,29 @@
           document.getElementById('iaLimits').textContent = (d.limitations || []).join(' ');
         })
         .catch(function () {
-          document.getElementById('iaPeriodLabel').textContent = 'Could not load analytics.';
+          if (label) label.textContent = 'Could not load analytics.';
         });
     }
     document.querySelectorAll('.iaRangeBtn').forEach(function (b) {
       b.addEventListener('click', function () { loadIa(b.getAttribute('data-ia-range')); });
     });
-    loadIa('today');
+    function start() {
+      if (started) return;
+      started = true;
+      loadIa('7d');
+    }
+    if (document.documentElement.classList.contains('lantern-pilot-auth-pending')) {
+      var n = 0;
+      var t = setInterval(function () {
+        n += 1;
+        if (!document.documentElement.classList.contains('lantern-pilot-auth-pending') || n > 40) {
+          clearInterval(t);
+          start();
+        }
+      }, 150);
+    } else {
+      start();
+    }
   })();
   </script>
 

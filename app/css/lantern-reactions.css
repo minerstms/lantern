@@ -37,7 +37,7 @@
 .lanternReactionRaceTrack {
   display: block;
   width: 100%;
-  height: 6px;
+  height: 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
@@ -45,9 +45,15 @@
 .lanternReactionRaceFill {
   display: block;
   height: 100%;
-  width: 0;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(90,167,255,.7), rgba(90,167,255,.35));
+  transition: none !important;
+}
+.lanternReactionResultsHost{
+  margin-top: 10px;
 }
 .lanternReactionBtn.is-mine .lanternReactionRaceFill {
   background: linear-gradient(90deg, rgba(56,208,124,.8), rgba(56,208,124,.35));

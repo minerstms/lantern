@@ -217,24 +217,19 @@ export const MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION = [
   'participant_scope',
   'target_character_names',
   'allows_text',
-  'allows_image',
   'allows_video',
   'allows_link',
-  'min_characters',
 ];
 
 /**
  * Returns which locked-after-first-submission fields a PATCH body is attempting to change.
  * Empty array means the request contains none of them (always safe re: this rule).
+ * Prompt #225A — require_image / min_characters / allows_image (require encoding) stay
+ * editable after the first submission so future work uses the current saved rules.
  */
 export function missionEditLockedFieldsPresent(body) {
   if (!body || typeof body !== 'object') return [];
-  const found = MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.filter((f) => body[f] !== undefined);
-  // Prompt #225 — require_image is persisted on allows_image; treat it as the same lock.
-  if (body.require_image !== undefined && found.indexOf('allows_image') < 0) {
-    found.push('allows_image');
-  }
-  return found;
+  return MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.filter((f) => body[f] !== undefined);
 }
 
 /**
@@ -391,16 +386,20 @@ export function missionRequiresImage(mission) {
 
 export function persistAllowsImageValue(body, current) {
   const requireOn = !!(body && (body.require_image === true || body.require_image === 1 || Number(body.allows_image) >= 2));
+  const requireOff = !!(body && (body.require_image === false || body.require_image === 0));
+  const allowExplicitOff = !!(body && body.allows_image === false);
   const allowOn = !!(body && (body.allows_image || requireOn));
-  if (body && body.require_image === false && body.allows_image !== undefined) {
+  const cur = Number(current) || 0;
+  if (requireOn) return 2;
+  if (requireOff && allowExplicitOff) return 0;
+  if (requireOff) return cur >= 1 || allowOn ? 1 : 0;
+  if (body && body.allows_image !== undefined) {
     return body.allows_image ? 1 : 0;
   }
-  if (requireOn) return 2;
-  if (allowOn) return 1;
   if (current != null && body && body.require_image === undefined && body.allows_image === undefined) {
-    return Number(current) || 0;
+    return cur;
   }
-  return 0;
+  return allowOn ? 1 : 0;
 }
 
 export function validateMissionSubmissionPayload(mission, submissionType, content) {

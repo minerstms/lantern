@@ -1316,7 +1316,14 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 }
 .lanternResultRaceFill.pollBarFill,
 .lanternResultRaceFill{
-  transition: none;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+  transition: none !important;
+}
+.lanternResultRacePct.is-pending{
+  visibility: hidden;
 }
 .lanternResultRaceRow{
   margin-bottom: 14px;

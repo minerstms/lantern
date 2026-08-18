@@ -3,26 +3,51 @@
  * Uses existing D1 tables. No new indexes or migrations.
  */
 
-function rangeCutoff(range) {
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+/** SQLite-style timestamp so space-separated created_at rows are not excluded by ISO `T` cutoffs. */
+export function toSqlTimestamp(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  return (
+    x.getFullYear() +
+    '-' +
+    pad2(x.getMonth() + 1) +
+    '-' +
+    pad2(x.getDate()) +
+    ' ' +
+    pad2(x.getHours()) +
+    ':' +
+    pad2(x.getMinutes()) +
+    ':' +
+    pad2(x.getSeconds())
+  );
+}
+
+export function rangeCutoff(range) {
   const r = String(range || '7d').trim().toLowerCase();
   const now = Date.now();
   if (r === 'today') {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
-    return { key: 'today', since: d.toISOString(), label: 'Today' };
+    return { key: 'today', since: toSqlTimestamp(d), label: 'Today' };
   }
   if (r === '30d' || r === '30') {
-    return { key: '30d', since: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(), label: '30 Days' };
+    return { key: '30d', since: toSqlTimestamp(new Date(now - 30 * 24 * 60 * 60 * 1000)), label: '30 Days' };
   }
   if (r === 'all' || r === 'all_time') {
     return { key: 'all', since: null, label: 'All Time' };
   }
-  return { key: '7d', since: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(), label: '7 Days' };
+  return { key: '7d', since: toSqlTimestamp(new Date(now - 7 * 24 * 60 * 60 * 1000)), label: '7 Days' };
 }
 
 function dateClause(column, since) {
   if (!since) return { sql: '', binds: [] };
-  return { sql: ` AND ${column} >= ?`, binds: [since] };
+  return {
+    sql: ` AND datetime(replace(substr(COALESCE(${column}, ''), 1, 19), 'T', ' ')) >= datetime(?)`,
+    binds: [since],
+  };
 }
 
 export function classifyEarnKind(kind, source, note) {
@@ -248,5 +273,13 @@ export async function buildInteractionsAnalytics(db, rangeKey) {
 
 export function handleInteractionsAnalytics(url, db, cors, jsonResponse) {
   const range = url.searchParams.get('range') || '7d';
-  return buildInteractionsAnalytics(db, range).then((payload) => jsonResponse(payload, 200, cors));
+  return buildInteractionsAnalytics(db, range)
+    .then((payload) => jsonResponse(payload, 200, cors))
+    .catch((err) =>
+      jsonResponse(
+        { ok: false, error: (err && err.message) || 'analytics_failed' },
+        500,
+        cors
+      )
+    );
 }

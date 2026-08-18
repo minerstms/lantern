@@ -13,6 +13,9 @@
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>Teacher | Lantern</title>
+  <!-- Prompt #223/#225A: audience / participant_scope / target_character_names remain the
+       internal targeting identifiers. They are not a second mission type and stay locked
+       after the first submission; Require image + min_characters stay editable. -->
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="games.html">
   <link rel="stylesheet" href="css/lantern-ticker.css">
@@ -4888,15 +4891,28 @@
       });
     }
 
-    // Reused by both the Create form (before first submission) and the inline Edit form
-    // (only rendered when the mission has zero submissions) so the two stay visually consistent.
+    function missionMinCharactersValue(m){
+      var n = Number(m && m.min_characters);
+      return Number.isFinite(n) && n >= 0 ? String(Math.floor(n)) : '0';
+    }
+    function missionRequireImageOn(m){
+      return !!(m && (m.require_image || Number(m.allows_image) >= 2));
+    }
+    function missionEditRequirementControlsHtml(m){
+      return (
+        '<div class="teacherField" data-edit-requirements="1"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (missionRequireImageOn(m) ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
+          '<p class="teacherFieldHint">ON = students must attach an image. OFF = image is not required (uploads stay available).</p>' +
+          '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
+          '<p class="teacherFieldHint">0 = no minimum. Applies to new and resubmitted work only.</p>' +
+        '</div>'
+      );
+    }
     function missionEditRestrictedFieldsHtml(m){
       return (
-        '<div class="teacherField"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
+        missionEditRequirementControlsHtml(m) +
+        '<div class="teacherField">' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_text"' + (m.allows_text ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Written response</span></label>' +
-          '<div style="margin-left:34px;margin-bottom:12px;max-width:160px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + (m.min_characters != null ? m.min_characters : 200) + '" /></div>' +
-          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_image"' + (m.allows_image ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Image upload</span></label>' +
-          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (m.require_image ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_video"' + (m.allows_video ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Video upload</span></label>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_link"' + (m.allows_link ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Link/file</span></label>' +
         '</div>'
@@ -4909,9 +4925,8 @@
       Array.prototype.forEach.call(document.querySelectorAll('.teacherMissionEditForm'), function(f){ f.remove(); });
       if (row && !row.open) row.open = true;
 
-      // Prompt #103 edit matrix (CURSOR REPLY #100 §5): audience/target_character_names/
-      // allows_*/min_characters are only safe to edit before the mission's first submission —
-      // once it has any submission_count, hide those fields entirely (server enforces this too).
+      // Audience / text / video / link stay locked after the first submission.
+      // Require image + minimum text characters stay editable for future submissions.
       var hasSubmissions = (m.submission_count || 0) > 0;
       var wrap = document.createElement('div');
       wrap.className = 'teacherMissionEditForm';
@@ -4925,7 +4940,7 @@
           '<div class="teacherField"><label class="teacherCheckboxField"><input type="checkbox" data-edit="featured"' + (m.featured ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Promote this mission</span></label></div>' +
         '</div>' +
         (hasSubmissions
-          ? '<p class="teacherMissionLockedNote">Audience &amp; submission requirements are locked — this mission already has a submission.</p>'
+          ? missionEditRequirementControlsHtml(m) + '<p class="teacherMissionLockedNote">Audience and media-type options stay locked after the first submission. Require image and minimum text characters still apply to future work.</p>'
           : missionEditRestrictedFieldsHtml(m)) +
         '<div class="teacherActions"><button type="button" class="btn good small teacherMissionEditSaveBtn">Save</button> <button type="button" class="btn small teacherMissionEditCancelBtn">Cancel</button></div>';
       var mount = row.querySelector('.lanternMgmtRecordBd') || row;
@@ -4975,15 +4990,17 @@
         updates.description = (wrap.querySelector('[data-edit="description"]').value || '').trim();
         updates.featured = !!wrap.querySelector('[data-edit="featured"]').checked;
         if (cardKeyInput) updates.card_image_r2_key = (cardKeyInput.value || '').trim() || null;
+        var requireEl = wrap.querySelector('[data-edit="require_image"]');
+        var minEl = wrap.querySelector('[data-edit="min_characters"]');
+        if (requireEl) updates.require_image = !!requireEl.checked;
+        if (minEl) {
+          var minEditRaw = parseInt(minEl.value, 10);
+          updates.min_characters = Number.isFinite(minEditRaw) && minEditRaw >= 0 ? minEditRaw : 0;
+        }
         if (!hasSubmissions) {
           updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
-          updates.allows_image = !!wrap.querySelector('[data-edit="allows_image"]').checked;
-          updates.require_image = !!wrap.querySelector('[data-edit="require_image"]').checked;
-          if (updates.require_image) updates.allows_image = true;
           updates.allows_video = !!wrap.querySelector('[data-edit="allows_video"]').checked;
           updates.allows_link = !!wrap.querySelector('[data-edit="allows_link"]').checked;
-          var minEditRaw = parseInt(wrap.querySelector('[data-edit="min_characters"]').value, 10);
-          updates.min_characters = Number.isFinite(minEditRaw) && minEditRaw >= 0 ? minEditRaw : 0;
         }
         var saveBtn = wrap.querySelector('.teacherMissionEditSaveBtn');
         saveBtn.disabled = true;

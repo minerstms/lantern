@@ -41,9 +41,9 @@ const teacherHtml = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8')
 // ---------------------------------------------------------------------------
 // Edit matrix — locked-after-first-submission fields (CURSOR REPLY #100 §5)
 // ---------------------------------------------------------------------------
-const expectedLocked = ['audience', 'participant_scope', 'target_character_names', 'allows_text', 'allows_image', 'allows_video', 'allows_link', 'min_characters'];
+const expectedLocked = ['audience', 'participant_scope', 'target_character_names', 'allows_text', 'allows_video', 'allows_link'];
 if (expectedLocked.every((f) => MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.includes(f)) && MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.length === expectedLocked.length) {
-  ok('locked-after-first-submission field set matches the audit exactly (audience/participant_scope/target_character_names/allows_*/min_characters)');
+  ok('locked-after-first-submission field set keeps audience/scope/text/video/link locked');
 } else bad('locked field set mismatch', MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION);
 
 if (missionEditLockedFieldsPresent({ title: 'x', active: true, featured: true, reward_amount: 5 }).length === 0) {
@@ -54,7 +54,10 @@ if (missionEditLockedFieldsPresent({ audience: 'school_mission' }).length === 1)
   ok('editing audience alone is flagged as a locked-field request');
 } else bad('audience not flagged');
 
-if (missionEditLockedFieldsPresent({ min_characters: 50, allows_image: true }).length === 2) {
+if (missionEditLockedFieldsPresent({ min_characters: 50, require_image: true, allows_image: true }).length === 0) {
+  ok('require image + min characters remain editable after first submission');
+} else bad('requirement fields incorrectly locked');
+if (missionEditLockedFieldsPresent({ audience: 'school_mission', allows_text: true }).length === 2) {
   ok('multiple locked fields in one PATCH body are all flagged');
 } else bad('multi-field locked detection incorrect');
 

@@ -1833,7 +1833,7 @@
         if (contentEl) contentEl.value = allowsText ? (pfEnvelope.isEnvelope ? pfEnvelope.text : pf) : '';
         if (imageUrlEl) imageUrlEl.value = pfEnvelope.isEnvelope ? pfEnvelope.image_url : (m.submission_type === 'image_url' ? pf : '');
         var minRaw = Number(m.min_characters);
-        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? Math.floor(minRaw) : 200;
+        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? Math.floor(minRaw) : 0;
         var enforceMin = allowsText && minChars > 0;
         currentMissionMinChars = enforceMin ? minChars : 0;
         currentMissionRequiresImage = !!(m.require_image) || Number(m.allows_image) >= 2 || (allowsImage && !allowsText && !allowsVideo && !allowsLink);

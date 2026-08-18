@@ -68,8 +68,8 @@ if (/data-locker-action="install-app"/.test(shellJs) && /Install Lantern App/.te
   ok('Locker Options includes Account/Device Install Lantern App');
 } else bad('install app locker entry missing');
 
-if (/intent=install/.test(lockerHtml) && /install-app/.test(lockerHtml)) {
-  ok('locker.html reuses existing install URL via install-app action');
+if (/intent=install/.test(lockerHtml) && /lockerInstallAppLink/.test(lockerHtml) && /lockerAccountDevice/.test(lockerHtml)) {
+  ok('locker.html has a visible Account/Device Install Lantern App card plus existing install URL');
 } else bad('locker install wiring missing');
 
 if (/wireLockerOptions/.test(lockerHtml) && /navigateLockerTab/.test(lockerHtml)) {

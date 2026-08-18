@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { classifyEarnKind, classifySpendKind } from '../interactions-analytics.js';
+import { classifyEarnKind, classifySpendKind, toSqlTimestamp, rangeCutoff } from '../interactions-analytics.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 let pass = 0;
@@ -31,6 +31,11 @@ if (classifyEarnKind('manual', 'seed', 'old row') === 'Other / Unclassified') ok
 else bad('unclassified earn');
 if (classifySpendKind('game_play', 'games', 'Avatar Match') === 'Games') ok('game spend mapping');
 else bad('game spend');
+if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(toSqlTimestamp(new Date())) && !toSqlTimestamp(new Date()).includes('T')) {
+  ok('analytics cutoffs use SQLite timestamps');
+} else bad('sql timestamp');
+if (rangeCutoff('today').since && rangeCutoff('today').since.indexOf('T') < 0) ok('today cutoff is SQLite-format');
+else bad('today cutoff');
 
 const indexSrc = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 const adminBlock = indexSrc.slice(indexSrc.indexOf('async function handleAdminRoutes'));
@@ -42,8 +47,8 @@ if (
 } else bad('analytics route auth placement');
 
 const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');
-if (/adminInteractionsAnalyticsCard/.test(adminHtml) && /Today/.test(adminHtml) && /All Time/.test(adminHtml)) {
-  ok('admin.html has Interactions Analytics + period chips');
+if (/adminInteractionsAnalyticsCard/.test(adminHtml) && /Today/.test(adminHtml) && /All Time/.test(adminHtml) && !/<details[^>]+adminInteractionsAnalyticsCard/.test(adminHtml)) {
+  ok('admin.html has always-visible Interactions Analytics + period chips');
 } else bad('admin analytics UI');
 if (!/mountResultRace/.test(adminHtml) && !/lantern-result-reveal/.test(adminHtml)) {
   ok('admin dashboard does not use poll race animation');

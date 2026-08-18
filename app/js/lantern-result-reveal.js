@@ -7,6 +7,7 @@
   'use strict';
 
   var MAX_MS = 3000;
+  var raceSeq = 0;
 
   function esc(s) {
     return String(s || '')
@@ -36,6 +37,40 @@
     return Math.max(80, Math.round((pct / m) * MAX_MS));
   }
 
+  function setFillProgress(fill, pct) {
+    if (!fill) return;
+    var p = clampPct(pct);
+    fill.style.transform = 'scaleX(' + p / 100 + ')';
+    fill.setAttribute('data-race-shown', String(p));
+  }
+
+  function isUsablyVisible(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    try {
+      var r = el.getBoundingClientRect();
+      return r.width >= 8 && r.height >= 4;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function whenVisible(el, cb) {
+    if (isUsablyVisible(el)) {
+      cb();
+      return;
+    }
+    var n = 0;
+    function tick() {
+      n += 1;
+      if (isUsablyVisible(el) || n > 90) {
+        cb();
+        return;
+      }
+      global.requestAnimationFrame(tick);
+    }
+    global.requestAnimationFrame(tick);
+  }
+
   /**
    * @param {HTMLElement} container
    * @param {{ label: string, percentage: number, selected?: boolean, emoji?: string }[]} items
@@ -44,6 +79,8 @@
   function mountResultRace(container, items, opts) {
     if (!container) return;
     opts = opts || {};
+    var token = 'race-' + String(++raceSeq);
+    container.setAttribute('data-race-token', token);
     var rows = (items || []).map(function (it) {
       return {
         label: String((it && it.label) || ''),
@@ -74,10 +111,10 @@
         esc(display) +
         (yours ? ' <em class="pollYourChoiceMark">Your choice</em>' : '') +
         '</span>' +
-        '<span class="lanternResultRacePct" data-race-pct hidden aria-hidden="true">0%</span>' +
+        '<span class="lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
         '</div>' +
         '<div class="lanternResultRaceTrack pollBarTrack" aria-hidden="true">' +
-        '<div class="lanternResultRaceFill pollBarFill" data-race-fill style="width:0%"></div>' +
+        '<div class="lanternResultRaceFill pollBarFill" data-race-fill></div>' +
         '</div>' +
         '</div>';
     });
@@ -89,25 +126,26 @@
     live.setAttribute('aria-live', 'polite');
     container.appendChild(live);
 
+    function stillCurrent() {
+      return container.getAttribute('data-race-token') === token;
+    }
+
     function revealFinal() {
+      if (!stillCurrent()) return;
       rows.forEach(function (r, i) {
         var row = container.querySelector('[data-race-index="' + i + '"]');
         if (!row) return;
         var fill = row.querySelector('[data-race-fill]');
         var pctEl = row.querySelector('[data-race-pct]');
-        if (fill) fill.style.width = r.percentage + '%';
+        setFillProgress(fill, r.percentage);
         if (pctEl) {
-          pctEl.hidden = false;
+          pctEl.classList.remove('is-pending');
           pctEl.removeAttribute('aria-hidden');
           pctEl.textContent = r.percentage + '%';
         }
         row.setAttribute(
           'aria-label',
-          r.label +
-            ' ' +
-            r.percentage +
-            ' percent' +
-            (r.selected ? ', your choice' : '')
+          r.label + ' ' + r.percentage + ' percent' + (r.selected ? ', your choice' : '')
         );
       });
       live.textContent = 'Results: ' + rows.map(function (r) {
@@ -120,31 +158,37 @@
       return;
     }
 
-    animateFills(
-      rows.map(function (r, i) {
-        var row = container.querySelector('[data-race-index="' + i + '"]');
-        return {
-          fill: row && row.querySelector('[data-race-fill]'),
-          pctEl: row && row.querySelector('[data-race-pct]'),
-          percentage: r.percentage,
-          maxPct: maxPct,
-          onFinish: function () {
-            if (!row) return;
-            row.setAttribute(
-              'aria-label',
-              r.label + ' ' + r.percentage + ' percent' + (r.selected ? ', your choice' : '')
-            );
+    whenVisible(container, function () {
+      if (!stillCurrent()) return;
+      animateFills(
+        rows.map(function (r, i) {
+          var row = container.querySelector('[data-race-index="' + i + '"]');
+          return {
+            fill: row && row.querySelector('[data-race-fill]'),
+            pctEl: row && row.querySelector('[data-race-pct]'),
+            percentage: r.percentage,
+            maxPct: maxPct,
+            onFinish: function () {
+              if (!row || !stillCurrent()) return;
+              row.setAttribute(
+                'aria-label',
+                r.label + ' ' + r.percentage + ' percent' + (r.selected ? ', your choice' : '')
+              );
+            },
+          };
+        }),
+        {
+          token: token,
+          isCurrent: stillCurrent,
+          onAllDone: function () {
+            if (!stillCurrent()) return;
+            live.textContent = 'Results: ' + rows.map(function (r) {
+              return r.label + ' ' + r.percentage + '%';
+            }).join(', ');
           },
-        };
-      }),
-      {
-        onAllDone: function () {
-          live.textContent = 'Results: ' + rows.map(function (r) {
-            return r.label + ' ' + r.percentage + '%';
-          }).join(', ');
-        },
-      }
-    );
+        }
+      );
+    });
   }
 
   /**
@@ -160,6 +204,7 @@
         percentage: clampPct(p && p.percentage),
         maxPct: Math.max(1, Number(p && p.maxPct) || 0),
         onFinish: p && p.onFinish,
+        finished: false,
       };
     });
     var maxPct = 0;
@@ -169,12 +214,20 @@
     });
     list.forEach(function (p) {
       p.maxPct = Math.max(1, maxPct);
+      setFillProgress(p.fill, 0);
+      if (p.pctEl) {
+        p.pctEl.classList.add('is-pending');
+        p.pctEl.setAttribute('aria-hidden', 'true');
+        p.pctEl.textContent = '';
+      }
     });
 
     function finishOne(p) {
-      if (p.fill) p.fill.style.width = p.percentage + '%';
+      if (p.finished) return;
+      p.finished = true;
+      setFillProgress(p.fill, p.percentage);
       if (p.pctEl) {
-        p.pctEl.hidden = false;
+        p.pctEl.classList.remove('is-pending');
         p.pctEl.removeAttribute('aria-hidden');
         p.pctEl.textContent = p.percentage + '%';
       }
@@ -188,19 +241,23 @@
     }
 
     var t0 = 0;
+    var velocity = maxPct / MAX_MS;
+    function current() {
+      return typeof opts.isCurrent === 'function' ? opts.isCurrent() : true;
+    }
     function frame(now) {
+      if (!current()) return;
       if (!t0) t0 = now;
       var elapsed = now - t0;
+      var grown = elapsed * velocity;
       var allDone = true;
       list.forEach(function (p) {
-        var dur = durationForPct(p.percentage, p.maxPct);
-        var done = elapsed >= dur;
-        var shown = done ? p.percentage : Math.min(p.percentage, Math.round((elapsed / dur) * p.percentage));
-        if (p.fill) p.fill.style.width = shown + '%';
-        if (done) {
-          if (p.pctEl && p.pctEl.hidden) finishOne(p);
+        if (p.finished) return;
+        if (grown >= p.percentage) {
+          finishOne(p);
         } else {
           allDone = false;
+          setFillProgress(p.fill, grown);
         }
       });
       if (!allDone) {
@@ -209,6 +266,13 @@
         opts.onAllDone();
       }
     }
+    list.forEach(function (p) {
+      if (p.fill) {
+        try {
+          void p.fill.offsetWidth;
+        } catch (e) {}
+      }
+    });
     global.requestAnimationFrame(function () {
       global.requestAnimationFrame(frame);
     });
