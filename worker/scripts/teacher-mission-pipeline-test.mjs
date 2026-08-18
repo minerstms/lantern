@@ -64,7 +64,7 @@ function makeMissionsDb(seed) {
       allows_image: r.allows_image || 0,
       allows_video: r.allows_video || 0,
       allows_link: r.allows_link || 0,
-      min_characters: r.min_characters != null ? r.min_characters : 200,
+      min_characters: r.min_characters != null ? r.min_characters : 0,
       created_at: r.created_at,
     };
   }

@@ -2264,7 +2264,7 @@
           </label>
           <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:12px;max-width:160px;">
             <label for="missionMinChars">Minimum text characters</label>
-            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="200" />
+            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="0" />
           </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsImage" />
@@ -2282,6 +2282,7 @@
             <input type="checkbox" id="missionAllowsLink" />
             <span class="teacherCheckboxLabel">Link/file</span>
           </label>
+          <p class="teacherFieldHint">Changes apply to future submissions only.</p>
         </div>
 
         <div class="teacherFieldGroup">Reward</div>
@@ -4904,7 +4905,7 @@
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (missionRequireImageOn(m) ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
           '<p class="teacherFieldHint">ON = students must attach an image. OFF = image is not required (uploads stay available).</p>' +
           '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
-          '<p class="teacherFieldHint">0 = no minimum. Applies to new and resubmitted work only.</p>' +
+          '<p class="teacherFieldHint">0 = no minimum. Changes apply to future submissions only.</p>' +
         '</div>'
       );
     }
@@ -5843,7 +5844,7 @@
         var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
         var minRaw = parseInt(el('missionMinChars') && el('missionMinChars').value, 10);
-        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? minRaw : 200;
+        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? minRaw : 0;
         // Prompt #10/#78 — site_eligible archived; audience/participant_scope normalized server-side to school-wide/everyone.
         var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();

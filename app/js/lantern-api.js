@@ -702,9 +702,9 @@
       allows_video: !!(opts.allows_video),
       allows_link: !!(opts.allows_link),
       min_characters: (function () {
-        if (opts.min_characters === undefined || opts.min_characters === null) return 200;
+        if (opts.min_characters === undefined || opts.min_characters === null) return 0;
         var n = Number(opts.min_characters);
-        return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+        return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
       })(),
     };
     missions.push(m);
@@ -2817,9 +2817,9 @@
             min_characters: (function () {
               if (payload && payload.min_characters !== undefined && payload.min_characters !== null) {
                 var n = Number(payload.min_characters);
-                return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+                return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
               }
-              return 200;
+              return 0;
             })(),
             require_image: !!(payload && payload.require_image),
           };
@@ -2848,9 +2848,9 @@
           min_characters: (function () {
             if (payload && payload.min_characters !== undefined && payload.min_characters !== null) {
               var n = Number(payload.min_characters);
-              return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+              return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
             }
-            return 200;
+            return 0;
           })(),
         });
         Promise.resolve(result).then(successFn).catch(failureFn);

@@ -92,5 +92,62 @@ if (/Number\.isFinite\(minRaw\) && minRaw >= 0 \? Math\.floor\(minRaw\) : 0/.tes
   ok('missions.html missing min_characters defaults to 0, not 200');
 } else bad('missions page default min');
 
+// Prompt #226A — new-mission Minimum Text Characters default is 0 (no minimum).
+if (/id="missionMinChars"[^>]*value="0"/.test(teacher) && !/id="missionMinChars"[^>]*value="200"/.test(teacher)) {
+  ok('new-mission Minimum text characters input defaults to 0');
+} else bad('new-mission min chars default is not 0');
+if (/Number\.isFinite\(minRaw\) && minRaw >= 0 \? minRaw : 0/.test(teacher)) {
+  ok('create-submit empty/invalid min chars falls back to 0');
+} else bad('create-submit still falls back to a positive min');
+if ((teacher.match(/Changes apply to future submissions only\./g) || []).length >= 2) {
+  ok('create + existing-mission requirement UIs show future-submissions-only helper');
+} else bad('missing future-submissions-only helper copy');
+if (!/confirm\([^)]*min_characters/.test(teacher) && !/confirm\([^)]*Minimum text/.test(teacher)) {
+  ok('requirement edits do not use a confirmation modal');
+} else bad('requirement edit still prompts confirm');
+
+const lanternApi = fs.readFileSync(path.join(root, 'app/js/lantern-api.js'), 'utf8');
+if (
+  /if \(opts\.min_characters === undefined \|\| opts\.min_characters === null\) return 0;/.test(lanternApi) &&
+  !/opts\.min_characters === undefined \|\| opts\.min_characters === null\) return 200/.test(lanternApi)
+) {
+  ok('lantern-api createTeacherMission missing min_characters defaults to 0');
+} else bad('lantern-api create still defaults min to 200');
+
+const handlers = fs.readFileSync(path.join(root, 'worker/missions-handlers.js'), 'utf8');
+if (/minChars = submissionType === 'bug_report' \? 0 : 200/.test(handlers)) {
+  bad('worker create still defaults ordinary missions to 200');
+} else if (/if \(!Number\.isFinite\(minChars\)\) \{\s*minChars = 0;/.test(handlers)) {
+  ok('worker create missing min_characters defaults to 0');
+} else bad('worker create default is not 0');
+if (/bindings\.push\(Number\.isFinite\(mc\) \? mc : 200\)/.test(handlers)) {
+  bad('worker PATCH invalid min_characters still falls back to 200');
+} else if (/bindings\.push\(Number\.isFinite\(mc\) \? mc : 0\)/.test(handlers)) {
+  ok('worker PATCH invalid min_characters falls back to 0');
+} else bad('worker PATCH min fallback missing');
+
+const patchBlock = handlers.slice(handlers.indexOf("if (request.method === 'PATCH' && missionIdMatch)"));
+const patchUntilNext = patchBlock.slice(0, patchBlock.indexOf("if (request.method === 'DELETE'"));
+if (/min_characters = \?/.test(patchUntilNext) && !/UPDATE lantern_mission_submissions/.test(patchUntilNext)) {
+  ok('PATCH min_characters updates the mission only — prior submissions are not rewritten');
+} else bad('PATCH path may rewrite submission history');
+
+const createdAtZero = mission(false, 0);
+const priorShort = 'ok';
+if (validateMissionSubmissionPayload(createdAtZero, 'text', priorShort).ok) {
+  ok('create-at-0: short prior submission would have been accepted');
+} else bad('create-at-0 should accept short text');
+const laterMin50 = mission(false, 50);
+const fiftyChars = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+if (!validateMissionSubmissionPayload(laterMin50, 'text', priorShort).ok) {
+  ok('after edit to 50: future short text is rejected');
+} else bad('future short should reject at 50');
+if (validateMissionSubmissionPayload(laterMin50, 'text', fiftyChars).ok) {
+  ok('after edit to 50: future 50+ text is accepted');
+} else bad('future 50+ should accept');
+if (validateMissionSubmissionPayload(createdAtZero, 'text', priorShort).ok) {
+  ok('prior short payload is not retroactively invalid against the original 0 rule');
+} else bad('original 0-rule payload should still validate as stored');
+
 console.log('\n--- existing-mission-edit-225a-test: ' + pass + ' passed, ' + fail + ' failed ---');
 process.exit(fail ? 1 : 0);

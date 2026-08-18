@@ -766,7 +766,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const allowsLink = !!(body.allows_link);
     let minChars = Math.max(0, Math.floor(Number(body.min_characters)));
     if (!Number.isFinite(minChars)) {
-      minChars = submissionType === 'bug_report' ? 0 : 200;
+      minChars = 0;
     }
     // Prompt #210 — optional Mission Card Image key (must be missions/card/… from upload endpoint).
     let cardImageKey = null;
@@ -975,7 +975,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (body.min_characters !== undefined) {
       const mc = Math.max(0, Math.floor(Number(body.min_characters)));
       updates.push('min_characters = ?');
-      bindings.push(Number.isFinite(mc) ? mc : 200);
+      bindings.push(Number.isFinite(mc) ? mc : 0);
     }
     // Prompt #210 — set / clear Mission Card Image (null or '' clears). Editable anytime (definition art).
     if (Object.prototype.hasOwnProperty.call(body, 'card_image_r2_key')) {
