@@ -768,28 +768,16 @@
       }
     }
 
-    function lockIconFloor() {
-      var part = lanes[0];
-      if (!part || !part.btn) return;
-      var shown = Number((part.bar && part.bar.getAttribute('data-race-shown')) || 0);
-      var h = Math.round((clampPct(shown) / 100) * MAX_BAR_PX);
-      var expectedY = (part.startTop || 0) - h;
-      var nowY = part.btn.getBoundingClientRect().top;
-      var drift = nowY - expectedY;
-      if (!isFinite(drift) || Math.abs(drift) < 0.5) return;
-      var scroller = findRaceScrollParent(panel);
-      if (!scroller) return;
-      ensureScrollRoom(scroller, drift);
-      scroller.scrollTop += drift;
-    }
-
     function applyStageHeight(targetH) {
       var next = Math.max(0, Math.min(MAX_BAR_PX, Math.round(targetH || 0)));
       if (next !== raceStageHeight) {
+        var grew = next - raceStageHeight;
         raceStageHeight = next;
         if (stage) stage.style.height = next + 'px';
+        if (grew > 0) {
+          ensureScrollRoom(findRaceScrollParent(panel), grew);
+        }
       }
-      lockIconFloor();
     }
 
     function syncRaceStage() {
