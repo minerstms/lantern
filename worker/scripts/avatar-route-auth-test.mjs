@@ -107,7 +107,7 @@ if (statusSlice.includes('active_image') && statusSlice.includes('getPilotAccoun
   ok('status: still returns active_image; session used only for pending');
 } else bad('status active_image / session check missing');
 
-if (/pending = await db\.prepare/.test(statusSlice) && statusSlice.includes('if (canSeePending)')) {
+if (statusSlice.includes('if (canSeePending)') && /includePending:\s*true/.test(statusSlice)) {
   ok('status: pending row loaded only when allowed');
 } else bad('status still loads pending unconditionally');
 

@@ -18,6 +18,13 @@ import { buildLockerPersonalFeed } from './locker-personal-feed.js';
 import { normalizeBioFromDb, sanitizeBioInput, resolveProfileBio } from './locker-bio.js';
 import { staffEconomyKey } from './economy-balance-auth.js';
 import { fetchAuthoritativeEconomySnapshot } from './tms-economy-apply.js';
+import { durableAccountKeyFromPilotAccount } from './durable-account-key.js';
+import {
+  avatarCandidatesFromPilotAccount,
+  buildAvatarImageUrl,
+  collectAvatarLookupCandidates,
+  resolveCanonicalAvatarState,
+} from './avatar-media-gate.js';
 
 const LOCKER_FORBIDDEN_QUERY_PARAMS = [
   'character_name',
@@ -205,8 +212,14 @@ async function fetchWalletBundle(db, characterName, env) {
   return lockerCategory(false, 'unavailable', [], { balance: null, earned: null, spent: null, transactions: [] });
 }
 
-async function fetchAvatarProfile(db, origin, characterName) {
-  if (!characterName) {
+async function fetchAvatarProfile(db, origin, account, fallbackKey) {
+  const durableKey = durableAccountKeyFromPilotAccount(account) || String(fallbackKey || '').trim();
+  const candidates = collectAvatarLookupCandidates(
+    durableKey,
+    fallbackKey,
+    ...avatarCandidatesFromPilotAccount(account)
+  );
+  if (!candidates.length) {
     return {
       available: false,
       reason: 'account_link_missing',
@@ -215,29 +228,22 @@ async function fetchAvatarProfile(db, origin, characterName) {
       avatar_pending: null,
     };
   }
-  const profile = await db
-    .prepare('SELECT current_avatar_key, bio, updated_at FROM lantern_avatar_profiles WHERE character_name = ?')
-    .bind(characterName)
-    .first();
-  const pending = await db
-    .prepare(
-      'SELECT id, image_key, created_at FROM lantern_avatar_submissions WHERE character_name = ? AND status = ? ORDER BY created_at DESC LIMIT 1'
-    )
-    .bind(characterName, 'pending')
-    .first();
-  const activeV = profile && profile.updated_at
-    ? String(profile.updated_at).replace(/[^\d]/g, '').slice(0, 14)
-    : '';
-  const activeImage = profile
-    ? origin + '/api/avatar/image?key=' + encodeURIComponent(profile.current_avatar_key) + (activeV ? ('&v=' + encodeURIComponent(activeV)) : '')
+  const resolved = await resolveCanonicalAvatarState(db, durableKey || candidates[0], {
+    candidates,
+    includePending: true,
+  });
+  const stamp = resolved.profile && resolved.profile.updated_at
+    ? resolved.profile.updated_at
+    : (resolved.approved && (resolved.approved.approved_at || resolved.approved.created_at)) || '';
+  const activeImage = resolved.publicImageKey
+    ? buildAvatarImageUrl(origin, resolved.publicImageKey, stamp)
     : null;
-  const pendingImage = pending
-    ? origin + '/api/avatar/image?key=' + encodeURIComponent(pending.image_key)
-    : null;
+  const pending = resolved.pending;
+  const pendingImage = pending ? buildAvatarImageUrl(origin, pending.image_key, pending.created_at) : null;
   return {
     available: true,
     reason: null,
-    legacy_avatar_bio: normalizeBioFromDb(profile ? profile.bio : null),
+    legacy_avatar_bio: normalizeBioFromDb(resolved.profile ? resolved.profile.bio : null),
     avatar: activeImage,
     avatar_pending: pending
       ? {
@@ -497,7 +503,7 @@ export async function buildLockerMeResponse(account, env, origin) {
   const economyCharacterName = role === 'student' ? account._economy_character_name || null : null;
   const economyKey = resolveEconomyKey(account);
   const submissionKey = role === 'student' ? economyKey : null;
-  const avatarKey = economyKey;
+  const avatarKey = durableAccountKeyFromPilotAccount(account) || economyKey;
 
   const newsAuthorNames =
     role === 'student'
@@ -512,7 +518,7 @@ export async function buildLockerMeResponse(account, env, origin) {
 
   const [profileRaw, accountBioRow, walletBundle, cosmeticSpendRows, news, missions, polls, recognitions, achievementRows, cosmeticRow] =
     await Promise.all([
-    fetchAvatarProfile(db, origin, avatarKey),
+    fetchAvatarProfile(db, origin, account, avatarKey),
     db.prepare('SELECT bio FROM lantern_pilot_accounts WHERE username = ?').bind(username).first(),
     economyKey
       ? fetchWalletBundle(db, economyKey, env)

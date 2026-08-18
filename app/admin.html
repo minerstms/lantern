@@ -557,7 +557,7 @@
       <p id="adminAvatarMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
       <p id="adminAvatarPolicyHint" class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper.</p>
       <div class="acctPanelActions">
-        <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Activate staged avatar</button>
+        <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Approve &amp; Use</button>
         <button type="button" class="btn good" id="adminAvatarNextMissingBtn" style="display:none;">Next Missing Avatar</button>
         <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
       </div>
@@ -2558,23 +2558,38 @@
       var role = String((body && body.role) || '').trim().toLowerCase();
       var isStudent = role === 'student';
       var staged = !!(body && (body.staged || body.staged_image));
+      var canSetCurrent = !!(body && body.can_set_current);
       var restricted = Number(body && body.media_restricted) === 1;
-      var preview = (body && (body.staged_image || body.active_image)) || null;
+      var preview = (body && (body.staged_image || body.active_image || body.approved_image)) || null;
       setAdminAvatarPreview(preview);
       if (activateBtn) {
-        activateBtn.style.display = isStudent && staged && !restricted ? 'inline-block' : 'none';
-        activateBtn.disabled = !(body && body.can_activate);
+        if (isStudent && staged && !restricted) {
+          activateBtn.style.display = 'inline-block';
+          activateBtn.textContent = 'Approve & Use';
+          activateBtn.disabled = !(body && body.can_activate);
+        } else if (isStudent && canSetCurrent) {
+          activateBtn.style.display = 'inline-block';
+          activateBtn.textContent = 'Set as Current';
+          activateBtn.disabled = false;
+        } else {
+          activateBtn.style.display = 'none';
+          activateBtn.disabled = true;
+        }
       }
       if (policy) {
         policy.textContent = isStudent
-          ? 'Student avatars are staged privately (0 Nuggets) until you activate them after checking media/publicity permission. They are not visible to students or the public yet.'
+          ? 'New student uploads stay pending until you Approve & Use them. Already-approved images can be Set as Current. Pending images are never public.'
           : 'Staff assignment costs 0 Nuggets. Uses the same Locker cropper. Image becomes active immediately.';
       }
       if (!msg) return;
       if (isStudent && staged) {
         msg.textContent = restricted
-          ? 'Staged — not visible to students/public yet. Cannot activate while Media/Publicity is Restricted.'
-          : 'Staged — not visible to students/public yet. Activate after you confirm media permission.';
+          ? 'Staged — not visible to students/public yet. Cannot Approve & Use while Media/Publicity is Restricted.'
+          : 'Staged — not visible to students/public yet. Approve & Use after you confirm media permission.';
+        return;
+      }
+      if (isStudent && canSetCurrent) {
+        msg.textContent = 'An approved avatar is ready. Set as Current to use it on Locker, Explore, and Avatar Match.';
         return;
       }
       if (isStudent) {
