@@ -1227,12 +1227,21 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   line-height: 1.3;
   letter-spacing: -0.01em;
 }
+.pollChoiceGroup{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .pollChoiceBtn{
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 14px 16px;
-  margin-bottom: 10px;
+  padding: 10px 16px 28px;
+  min-height: 60px;
+  margin-bottom: 0;
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,.14);
   background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.05));
@@ -1241,9 +1250,40 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   font-weight: 800;
   cursor: pointer;
   font-family: inherit;
-  transition: background .15s, border-color .15s, box-shadow .15s, transform .12s;
-  min-height: 48px;
+  transition: background .15s, border-color .15s, box-shadow .15s;
   box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+}
+.pollChoiceText{
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pollChoiceMeta{
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 8.5rem;
+}
+.pollChoiceGroup .pollYourChoiceMark{
+  visibility: hidden;
+  margin-left: 0;
+  white-space: nowrap;
+}
+.pollChoiceGroup .lanternPollRaceLane--yours .pollYourChoiceMark,
+.pollChoiceGroup .pollYourChoiceMark.is-on{
+  visibility: visible;
+}
+.pollChoiceGroup .lanternResultRacePct{
+  min-width: 4ch;
+  text-align: right;
+  font-size: 20px;
+  font-weight: 900;
 }
 .pollChoiceBtn:hover{
   background: linear-gradient(180deg, rgba(90,167,255,.24), rgba(90,167,255,.12));
@@ -1367,13 +1407,42 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   gap: 12px;
   overflow: visible;
 }
+.pollChoiceGroup.lanternPollRace{
+  gap: 10px;
+}
 .lanternPollRaceLane{
   border-radius: 12px;
   padding: 4px 2px;
 }
+.lanternPollRaceLane.pollChoiceRow{
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
 .lanternPollRaceLane--yours{
   outline: 2px solid rgba(56,208,124,.55);
   outline-offset: 4px;
+}
+.lanternPollRaceLane.pollChoiceRow.lanternPollRaceLane--yours{
+  outline: none;
+  outline-offset: 0;
+  box-shadow: 0 0 0 2px rgba(56,208,124,.55);
+}
+.pollChoiceGroup .lanternPollRaceTrack{
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: auto;
+  bottom: 8px;
+  height: 12px;
+  margin-top: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+}
+.pollChoiceGroup.is-racing .lanternPollRaceTrack,
+.lanternPollRaceLane.pollChoiceRow.lanternPollRaceLane--live .lanternPollRaceTrack{
+  opacity: 1;
 }
 .lanternPollRaceLabel{
   display: flex;

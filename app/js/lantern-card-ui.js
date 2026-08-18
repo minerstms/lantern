@@ -1796,8 +1796,13 @@
     });
   }
 
-  function revealPollResults(resultsEl, results, votedChoiceIndex, hiddenNugget) {
-    if (!resultsEl) return;
+  function announcePollVoted(modalRoot) {
+    var live = modalRoot && modalRoot.querySelector('[data-poll-voted-live]');
+    if (live) live.textContent = 'You voted';
+  }
+
+  function revealPollResults(hostEl, results, votedChoiceIndex, hiddenNugget) {
+    if (!hostEl) return;
     var items = pollResultItems(results, votedChoiceIndex);
     var api = global.LANTERN_RESULT_REVEAL;
     var hnApi = global.LANTERN_HIDDEN_NUGGET;
@@ -1805,23 +1810,22 @@
       ? hnApi.payloadFromResponse({ hidden_nugget: hiddenNugget })
       : null;
     if (api && typeof api.mountPollMineCartRace === 'function') {
-      api.mountPollMineCartRace(resultsEl, items, {
-        summaryHtml: '<p class="pollResultsSummary">You voted</p>',
+      api.mountPollMineCartRace(hostEl, items, {
+        reuseRows: true,
         listLabel: 'Poll results',
         onAllDone: function () {
-          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, resultsEl);
+          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, hostEl);
         },
       });
       return;
     }
     if (api && typeof api.mountResultRace === 'function') {
-      api.mountResultRace(resultsEl, items, {
-        summaryHtml: '<p class="pollResultsSummary">You voted</p>',
+      api.mountResultRace(hostEl, items, {
         listLabel: 'Poll results',
       });
       return;
     }
-    resultsEl.innerHTML = buildPollResultsBarsHtml(results, votedChoiceIndex);
+    hostEl.innerHTML = buildPollResultsBarsHtml(results, votedChoiceIndex);
   }
 
   function buildPollResultsBarsHtml(results, votedChoiceIndex) {
@@ -1905,9 +1909,35 @@
 
     function setPollBodyShell() {
       b.innerHTML =
+        '<p class="visuallyHidden" data-poll-voted-live id="lanternPollVotedLive"></p>' +
         '<div id="lanternPollDetailChoices"></div>' +
         '<div id="lanternPollDetailResults" class="pollResultsWrap" style="display:none;"></div>' +
         '<p class="pollVoterNugget" id="lanternPollDetailNugget" style="display:none;"></p>';
+    }
+
+    function paintChoiceLanes(disabled, onChoice) {
+      var api = global.LANTERN_RESULT_REVEAL;
+      if (api && typeof api.preparePollChoiceLanes === 'function') {
+        return api.preparePollChoiceLanes(choicesEl, p.choices || [], {
+          disabled: !!disabled,
+          listLabel: disabled ? 'Poll results' : 'Poll choices',
+          onChoice: onChoice,
+        });
+      }
+      var group = global.document.createElement('div');
+      group.className = 'pollChoiceGroup lanternPollRace';
+      (p.choices || []).forEach(function (choice, idx) {
+        var btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pollChoiceBtn';
+        btn.textContent = choice || ('Choice ' + (idx + 1));
+        if (disabled) btn.disabled = true;
+        if (onChoice) onChoice(btn, null, idx);
+        group.appendChild(btn);
+      });
+      choicesEl.innerHTML = '';
+      choicesEl.appendChild(group);
+      return group;
     }
 
     if (apiBase === null) {
@@ -2020,19 +2050,16 @@
 
     var votedIdx = res.voted_choice_index != null ? Math.floor(Number(res.voted_choice_index)) : null;
 
-    if (hasVoted && results && results.length && choicesEl && resultsEl && nuggetEl) {
-      choicesEl.innerHTML = '';
-      resultsEl.style.display = 'block';
-      revealPollResults(resultsEl, results, votedIdx);
+    if (hasVoted && results && results.length && choicesEl && nuggetEl) {
+      if (resultsEl) resultsEl.style.display = 'none';
+      var votedGroup = paintChoiceLanes(true);
+      announcePollVoted(modalRoot);
+      revealPollResults(votedGroup || choicesEl, results, votedIdx);
       applyPollRewardCopy(nuggetEl, res);
-    } else if (choicesEl && resultsEl && nuggetEl) {
-      resultsEl.style.display = 'none';
+    } else if (choicesEl && nuggetEl) {
+      if (resultsEl) resultsEl.style.display = 'none';
       nuggetEl.style.display = 'none';
-      choicesEl.innerHTML = '';
-      var group = global.document.createElement('div');
-      group.className = 'pollChoiceGroup';
-      group.setAttribute('role', 'radiogroup');
-      group.setAttribute('aria-label', 'Poll choices');
+      var group = null;
 
       function armRaceAudio() {
         var a = global.LANTERN_RACE_AUDIO;
@@ -2040,8 +2067,8 @@
       }
 
       function setChoicesBusy(on, selectedIdx) {
-        group._busy = !!on;
-        var buttons = group.querySelectorAll('.pollChoiceBtn');
+        if (group) group._busy = !!on;
+        var buttons = (group || choicesEl).querySelectorAll('.pollChoiceBtn');
         for (var bi = 0; bi < buttons.length; bi++) {
           buttons[bi].disabled = !!on;
           var isOn = selectedIdx === bi;
@@ -2051,7 +2078,7 @@
       }
 
       function submitPollChoice(idx) {
-        if (group._busy) return;
+        if (group && group._busy) return;
         if (!characterName) {
           try {
             global.alert('Sign in to vote on this poll.');
@@ -2075,14 +2102,12 @@
               } catch (e4) {}
               return;
             }
-            var c2 = modalRoot.querySelector('#lanternPollDetailChoices');
-            var r2 = modalRoot.querySelector('#lanternPollDetailResults');
+            var liveGroup = modalRoot.querySelector('.pollChoiceGroup');
             var n2 = modalRoot.querySelector('#lanternPollDetailNugget');
-            if (c2) c2.innerHTML = '';
-            if (r2) {
-              r2.style.display = 'block';
-              revealPollResults(r2, voteRes.results || [], voteRes.voted_choice_index, voteRes.hidden_nugget);
-            }
+            var r2 = modalRoot.querySelector('#lanternPollDetailResults');
+            if (r2) r2.style.display = 'none';
+            announcePollVoted(modalRoot);
+            revealPollResults(liveGroup || modalRoot.querySelector('#lanternPollDetailChoices'), voteRes.results || [], voteRes.voted_choice_index, voteRes.hidden_nugget);
             applyPollRewardCopy(n2, voteRes);
             if (voteRes && voteRes.ok && global.LanternWallet && typeof global.LanternWallet.refreshBalance === 'function') {
               global.LanternWallet.refreshBalance({ force: true });
@@ -2096,19 +2121,12 @@
           });
       }
 
-      (p.choices || []).forEach(function (choice, idx) {
-        var btn = global.document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'pollChoiceBtn';
-        btn.setAttribute('role', 'radio');
-        btn.setAttribute('aria-checked', 'false');
-        btn.textContent = choice || ('Choice ' + (idx + 1));
+      group = paintChoiceLanes(false, function (btn, lane, idx) {
         btn.addEventListener('click', function () {
           submitPollChoice(idx);
         });
-        group.appendChild(btn);
       });
-      choicesEl.appendChild(group);
+      if (group) group.setAttribute('role', 'radiogroup');
     }
     } finally {
       prepareCanonicalOpenedModal(modalRoot, { kind: 'poll' });

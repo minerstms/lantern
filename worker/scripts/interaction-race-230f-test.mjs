@@ -47,10 +47,10 @@ assert(attachIdx > -1 && submitIdx > attachIdx, 'poll Sound is attached before t
 
 assert(!/<div class="lanternRaceToolbar">' \+ muteToolbarHtml\(\)/.test(pollFn), 'poll race HTML does not start with an in-flow Sound toolbar');
 assert(/lanternPollRaceHost/.test(pollFn), 'poll results host is marked for relative positioning');
-assert(/attachFloatingMuteToolbar/.test(pollFn), 'poll race reuses the shared floating Sound helper');
+assert(/attachPollFloatingSound/.test(pollFn) && /attachFloatingMuteToolbar/.test(revealSrc), 'poll race reuses the shared floating Sound helper');
 assert(/skipMuteToolbar/.test(pollFn), 'poll race can be mounted without inserting Sound');
-assert(/lanternRaceToolbar--poll/.test(pollFn), 'poll toolbar is marked --poll, not in-flow');
-assert(/lanternCardDetailTitle/.test(pollFn), 'poll Sound prefers the question title host');
+assert(/lanternRaceToolbar--poll/.test(revealSrc), 'poll toolbar is marked --poll, not in-flow');
+assert(/lanternCardDetailTitle/.test(revealSrc), 'poll Sound prefers the question title host');
 
 assert(/lanternRaceToolbar--float/.test(cardsCss) && /lanternRaceToolbar--poll/.test(cardsCss), 'cards CSS floats the poll Sound control');
 assert(/\.lanternCardDetailModal--poll \.lanternCardDetailTitle\{[\s\S]*?position:\s*relative/.test(cardsCss), 'poll title is the Sound positioning context');

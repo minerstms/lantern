@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Race harness #230G</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+    }
+    .banner {
+      position: relative;
+      z-index: 1;
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      padding: 10px 12px;
+      font-weight: 800;
+    }
+    #hud {
+      position: relative;
+      z-index: 1;
+      margin: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #071018;
+      font-size: 16px;
+      white-space: pre-wrap;
+    }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY. Production LanternCardUI opened-poll overlay. Fixture vote only. Does not write D1.</p>
+  <div id="hud">Waiting…</div>
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script src="/js/lantern-card-ui.js"></script>
+  <script>
+    (function () {
+      var RESULTS = [
+        { choice: 'River', percentage: 12, is_yours: false },
+        { choice: 'Canyon', percentage: 34, is_yours: true },
+        { choice: 'Ridge', percentage: 57, is_yours: false },
+        { choice: 'Summit', percentage: 83, is_yours: false }
+      ];
+      var PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900"><rect width="1600" height="900" fill="#1b3358"/><circle cx="1280" cy="180" r="70" fill="#ffe27a"/><rect x="0" y="620" width="1600" height="280" fill="#2a4a2e"/><text x="800" y="460" text-anchor="middle" fill="#eaf0ff" font-size="72" font-family="system-ui" font-weight="800">POST PHOTO</text></svg>'
+      );
+
+      function snap(el) {
+        if (!el || !el.getBoundingClientRect) return null;
+        var r = el.getBoundingClientRect();
+        return { top: Math.round(r.top * 10) / 10, height: Math.round(r.height * 10) / 10 };
+      }
+
+      function collect() {
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        var modal = overlay && overlay.querySelector('.lanternCardDetailModal');
+        var rows = Array.prototype.slice.call(document.querySelectorAll('.lanternPollRaceLane.pollChoiceRow'));
+        return {
+          panel: snap(modal),
+          title: snap(document.querySelector('.lanternCardDetailTitle')),
+          sound: snap(document.querySelector('.lanternRaceSoundBtn')),
+          choices: snap(document.getElementById('lanternPollDetailChoices')),
+          resultsHost: snap(document.getElementById('lanternPollDetailResults')),
+          body: snap(document.querySelector('.lanternCardDetailBody')),
+          rows: rows.map(function (row, i) {
+            return { i: i, node: row, top: snap(row).top, height: snap(row).height };
+          }),
+          rowNodes: rows
+        };
+      }
+
+      function tableRow(name, a, b) {
+        var at = a ? a.top : '—';
+        var ah = a ? a.height : '—';
+        var bt = b ? b.top : '—';
+        var bh = b ? b.height : '—';
+        var dt = a && b ? Math.round((b.top - a.top) * 10) / 10 : '—';
+        return name + '  pre=' + at + '/' + ah + '  post=' + bt + '/' + bh + '  Δtop=' + dt;
+      }
+
+      window.fetch = function (url) {
+        if (String(url || '').indexOf('/api/polls/vote') !== -1) {
+          return Promise.resolve({
+            json: function () {
+              return Promise.resolve({
+                ok: true,
+                voted_choice_index: 1,
+                results: RESULTS
+              });
+            }
+          });
+        }
+        return Promise.reject(new Error('harness fetch blocked: ' + url));
+      };
+
+      var ui = window.LanternCardUI;
+      var overlay = ui.ensureOverlay();
+      var modal = overlay.querySelector('.lanternCardDetailModal');
+      ui.fillPollDetailModal(modal, {
+        pollId: 'harness-230g',
+        apiBase: '/harness',
+        characterName: 'Test Student',
+        fetchRes: {
+          ok: true,
+          has_voted: false,
+          poll: {
+            question: 'Which trail should we take?',
+            choices: ['River', 'Canyon', 'Ridge', 'Summit'],
+            image_url: PHOTO,
+            created_at: '2026-08-18'
+          }
+        }
+      });
+      ui.showDetailOverlay(overlay);
+
+      var hud = document.getElementById('hud');
+      window.__LANTERN_230G = {
+        // preTapTop === firstRaceFrameTop
+        tapCanyonAndMeasure: function () {
+          var pre = collect();
+          var sameNodes = pre.rowNodes.slice();
+          var clicked = sameNodes[1] && sameNodes[1].querySelector('.pollChoiceBtn');
+          if (!clicked) return Promise.reject(new Error('no canyon row'));
+          clicked.click();
+          var postSubmit = collect();
+          return Promise.resolve().then(function () {
+          var afterReveal = collect();
+          return new Promise(function (resolve) {
+            requestAnimationFrame(function () {
+              var raf1 = collect();
+              requestAnimationFrame(function () {
+                var raf2 = collect();
+                var firstCart = collect();
+                var deltas = sameNodes.map(function (node, i) {
+                  var now = node.getBoundingClientRect();
+                  return {
+                    i: i,
+                    sameNode: document.querySelectorAll('.lanternPollRaceLane.pollChoiceRow')[i] === node,
+                    pre: pre.rows[i] ? pre.rows[i].top : null,
+                    post: postSubmit.rows[i] ? postSubmit.rows[i].top : null,
+                    afterReveal: afterReveal.rows[i] ? afterReveal.rows[i].top : null,
+                    raf1: raf1.rows[i] ? raf1.rows[i].top : null,
+                    raf2: raf2.rows[i] ? raf2.rows[i].top : null,
+                    first: Math.round(now.top * 10) / 10,
+                    delta: Math.round((now.top - (pre.rows[i] ? pre.rows[i].top : now.top)) * 10) / 10,
+                    heightDelta: Math.round((now.height - (pre.rows[i] ? pre.rows[i].height : now.height)) * 10) / 10
+                  };
+                });
+                var soundDelta = pre.sound && firstCart.sound
+                  ? Math.round((firstCart.sound.top - pre.sound.top) * 10) / 10
+                  : null;
+                var lines = [
+                  tableRow('panel', pre.panel, firstCart.panel),
+                  tableRow('title', pre.title, firstCart.title),
+                  tableRow('sound', pre.sound, firstCart.sound),
+                  tableRow('choices', pre.choices, firstCart.choices),
+                  tableRow('resultsHost', pre.resultsHost, firstCart.resultsHost),
+                  tableRow('body', pre.body, firstCart.body)
+                ];
+                deltas.forEach(function (d) {
+                  lines.push('row' + d.i + ' sameNode=' + d.sameNode + ' pre=' + d.pre + ' post=' + d.post + ' reveal=' + d.afterReveal + ' rAF1=' + d.raf1 + ' rAF2=' + d.raf2 + ' first=' + d.first + ' Δ=' + d.delta);
+                });
+                var maxAbs = Math.max.apply(null, deltas.map(function (d) { return Math.abs(d.delta); }).concat([0]));
+                var pass = deltas.every(function (d) { return d.sameNode && Math.abs(d.delta) <= 1; });
+                lines.push('max |Δ|=' + maxAbs + '  in-place PASS=' + (pass ? 'YES' : 'NO'));
+                hud.textContent = lines.join('\n');
+                var out = {
+                  pre: pre,
+                  postSubmit: postSubmit,
+                  afterReveal: afterReveal,
+                  raf1: raf1,
+                  raf2: raf2,
+                  first: firstCart,
+                  deltas: deltas,
+                  soundDelta: soundDelta,
+                  pass: pass,
+                  maxAbs: maxAbs
+                };
+                window.__LANTERN_230G.last = out;
+                resolve(out);
+              });
+            });
+          });
+          });
+        }
+      };
+      hud.textContent = 'Opened production poll. Rows planted. Click Canyon or call __LANTERN_230G.tapCanyonAndMeasure().';
+    })();
+  </script>
+</body>
+</html>
