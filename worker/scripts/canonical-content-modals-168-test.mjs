@@ -66,7 +66,7 @@ assert(/el\.scrollTop = 0/.test(cardUi), 'R. opening a modal starts at top');
 assert(/function lockPageScrollForDetail/.test(cardUi) && /function unlockPageScrollForDetail/.test(cardUi), '27. background lock helpers');
 assert(/lanternDetailScrollY/.test(cardUi) && /scrollTo\(0, y\)/.test(cardUi), '36. restore prior page scroll');
 assert(/e\.key !== 'Escape'/.test(cardUi) && /closeDetail\(\)/.test(cardUi), '13. Escape close');
-assert(/Lock In/.test(cardUi) && /pollLockInBtn/.test(cardUi), 'S. Poll lock-in preserved');
+assert(/submitPollChoice/.test(cardUi) && /\/api\/polls\/vote/.test(cardUi), 'S. Poll direct submit preserved');
 assert(/LANTERN_REACTIONS|renderReactionBar/.test(cardUi), 'T. reactions mount preserved');
 assert(/paintCanonicalPersonIdentity/.test(cardUi), 'U. canonical identity paint preserved');
 assert(/variant: 'detail'/.test(cardUi) && /LanternMedia\.renderMedia/.test(cardUi), 'V. proxied/detail media path');
@@ -180,7 +180,7 @@ const pollOverlay = { clientHeight: VIEWPORT_H, scrollHeight: pollCardH + 72, sc
 pollOverlay.scrollTop = pollOverlay.scrollHeight - pollOverlay.clientHeight;
 assert(pollOverlay.scrollTop > 0, '16. overlay reaches last Poll choices/results');
 assert(!/overflow-y:\s*(auto|scroll)/.test(overlayPollBody), '17. no internal Poll scroller');
-assert(/setPollBodyShell/.test(cardUi) && /pollLockInBtn/.test(cardUi), '18. Poll voting/lock-in still wired');
+assert(/setPollBodyShell/.test(cardUi) && /submitPollChoice/.test(cardUi), '18. Poll voting still wired');
 
 const portraitContain = /object-fit:\s*contain/.test(overlayMediaImgs);
 assert(portraitContain, '39. non-16:9 assets use contain (letterbox, no crop/distort)');

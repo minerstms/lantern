@@ -1,7 +1,13 @@
 /**
  * Same-origin proxy: Pages /api/* -> Worker so lantern_pilot is first-party on the Pages host.
  * Upstream: lantern-api Worker (JWT auth unchanged).
+ *
+ * Prompt #226 — Interactions Analytics is handled here when Pages has D1 so Cloudflare
+ * branch previews do not 404 against a production worker that has not received this route yet.
+ * Admin authorization still uses the existing upstream /api/auth/me session. No new roles.
  */
+import { handleInteractionsAnalytics } from '../../../worker/interactions-analytics.js';
+
 const UPSTREAM_API = 'https://lantern-api.mrradle.workers.dev';
 const LANTERN_PUBLIC_HOSTS = ['tmslantern.org', 'www.tmslantern.org'];
 
@@ -83,15 +89,45 @@ function buildProxiedResponse(upstream) {
   });
 }
 
-export async function onRequest(context) {
-  const request = context.request;
-  const url = new URL(request.url);
-  const target = new URL(url.pathname + url.search, UPSTREAM_API);
+function pagesJson(body, status) {
+  return new Response(JSON.stringify(body), {
+    status: status || 200,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+}
 
+async function requireAdminFromUpstream(request) {
+  const headers = new Headers();
+  const cookie = request.headers.get('Cookie');
+  if (cookie) headers.set('Cookie', cookie);
+  let data = null;
+  try {
+    const r = await fetch(new URL('/api/auth/me', UPSTREAM_API).toString(), {
+      method: 'GET',
+      headers,
+      redirect: 'manual',
+    });
+    data = await r.json();
+  } catch (_) {
+    return { ok: false, status: 401, error: 'not_authenticated' };
+  }
+  if (!data || !data.ok || !data.authenticated) {
+    return { ok: false, status: 401, error: 'not_authenticated' };
+  }
+  if (String(data.role || '').trim().toLowerCase() !== 'admin') {
+    return { ok: false, status: 403, error: 'forbidden' };
+  }
+  if (data.must_change_password) {
+    return { ok: false, status: 403, error: 'must_change_password' };
+  }
+  return { ok: true };
+}
+
+async function proxyToUpstream(request, url) {
+  const target = new URL(url.pathname + url.search, UPSTREAM_API);
   const headers = new Headers(request.headers);
   headers.delete('Host');
   headers.delete('Connection');
-
   /** @type {RequestInit} */
   const init = {
     method: request.method,
@@ -102,7 +138,38 @@ export async function onRequest(context) {
     init.body = request.body;
     init.duplex = 'half';
   }
+  return fetch(target.toString(), init);
+}
 
-  const upstream = await fetch(target.toString(), init);
+export async function onRequest(context) {
+  const request = context.request;
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/\/+$/, '') || '/';
+
+  if (request.method === 'GET' && path === '/api/admin/interactions-analytics') {
+    const auth = await requireAdminFromUpstream(request);
+    if (!auth.ok) {
+      return pagesJson({ ok: false, error: auth.error }, auth.status);
+    }
+    const db = context.env && context.env.DB;
+    if (db) {
+      return handleInteractionsAnalytics(url, db, {}, pagesJson);
+    }
+    const upstream = await proxyToUpstream(request, url);
+    if (upstream.status !== 404) {
+      return buildProxiedResponse(upstream);
+    }
+    return pagesJson(
+      {
+        ok: false,
+        error: 'analytics_unavailable',
+        message:
+          'Authorized admin, but this Pages host has no D1 binding and the upstream worker does not yet expose Interactions Analytics.',
+      },
+      503
+    );
+  }
+
+  const upstream = await proxyToUpstream(request, url);
   return buildProxiedResponse(upstream);
 }

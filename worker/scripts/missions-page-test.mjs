@@ -43,14 +43,13 @@ if (missionsHtml.includes('id="missionsLibraryGrid"') && missionsHtml.includes('
   ok('one unified mission library grid');
 } else bad('unified grid missing');
 
-// Prompt #73 Defect 2: Available/In Progress/Completed tabs collapsed into Active/Completed so a
-// submitted mission never appears to "disappear" from the default view.
-if (missionsHtml.includes('id="missionsStatusTabs"') && missionsHtml.includes('data-mission-status="active"') && !missionsHtml.includes('data-mission-status="in_progress"')) {
-  ok('status tabs: Active default markup, no separate In Progress tab');
-} else bad('status tabs missing/outdated');
+// Prompt #224: no Active vs Complete split — one collection; completed stays with a badge.
+if (!missionsHtml.includes('id="missionsStatusTabs"') && !missionsHtml.includes('data-mission-status="active"') && !missionsHtml.includes('data-mission-status="completed"')) {
+  ok('status tabs removed; single Missions collection');
+} else bad('status tabs still present');
 
-if (missionsPageJs.includes("status: 'active'") && missionsPageJs.includes('isActiveStatus') && missionsPageJs.includes('completed')) {
-  ok('missions page module supports Active (available+in_progress+returned) + Completed views');
+if (missionsPageJs.includes('matchesTab') && missionsPageJs.includes('stateBadgeFor') && missionsPageJs.includes('COMPLETED')) {
+  ok('missions page module keeps completed items in the same collection with a COMPLETED badge');
 } else bad('status view logic missing');
 
 if (/id="missionsFiltersPanel"[^>]*\shidden/.test(missionsHtml)) {
@@ -125,12 +124,13 @@ if (missionsPageJs.includes('LanternNav.onHeaderSearch')) {
   ok('mission-scoped header search wired');
 } else bad('header search');
 
-if (helpJs.includes('Active shows everything you can still work on') && !helpJs.includes('In Progress')) {
-  ok('help copy matches Active/Completed unified library (Prompt #73 Defect 2)');
+if (helpJs.includes('Finished missions stay in this same list') && !helpJs.includes('Active shows everything you can still work on')) {
+  ok('help copy matches single Missions collection (Prompt #224)');
 } else bad('help copy outdated');
 
 // Mock workflow: buildUnifiedMissionItems status mapping
-const buildFnMatch = missionsHtml.match(/function buildUnifiedMissionItems\([\s\S]*?return items;\s*\}/);
+// Prompt #229A — include saved-reward helpers; the builder now calls them.
+const buildFnMatch = missionsHtml.match(/function savedMissionReward\([\s\S]*?function buildUnifiedMissionItems\([\s\S]*?return items;\s*\}/);
 if (buildFnMatch) {
   const sandbox = {
     todayStr: () => '2026-08-07',
@@ -215,6 +215,21 @@ if (buildFnMatch) {
     if (new Set(dupIds).size === dupIds.length) {
       ok('no duplicate mission IDs in unified list');
     } else bad('duplicate mission IDs');
+    const thankYou = items.find((i) => i.id === 'm1');
+    const photo = items.find((i) => i.id === 'm2');
+    const returned = items.find((i) => i.id === 'm3');
+    if (thankYou && thankYou.reward === 5 && photo && photo.reward === 3 && returned && returned.reward === 2) {
+      ok('unified items carry each mission saved reward_amount (not hardcoded +1)');
+    } else bad('saved reward on unified items', { thankYou: thankYou && thankYou.reward, photo: photo && photo.reward, returned: returned && returned.reward });
+    if (sandbox.formatSavedMissionReward({ reward_amount: 0 }) === '' &&
+        sandbox.formatSavedMissionReward({ reward_amount: 1 }) === '+1 Nugget' &&
+        sandbox.formatSavedMissionReward({ reward_amount: 3 }) === '+3 Nuggets') {
+      ok('formatSavedMissionReward uses singular/plural and omits a +1 for 0');
+    } else bad('formatSavedMissionReward copy', {
+      zero: sandbox.formatSavedMissionReward({ reward_amount: 0 }),
+      one: sandbox.formatSavedMissionReward({ reward_amount: 1 }),
+      three: sandbox.formatSavedMissionReward({ reward_amount: 3 }),
+    });
   } catch (e) {
     bad('buildUnifiedMissionItems mock run', e.message);
   }

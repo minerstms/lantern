@@ -1,5 +1,5 @@
 /**
- * Prompt #161 — Locker Options ▾ consolidates Overview/Items/Store + edit actions.
+ * Prompt #161/#226 — My Locker ▾ consolidates Overview/Items/Store + edit + install.
  * Usage: node worker/scripts/locker-options-nav-test.mjs
  */
 import fs from 'fs';
@@ -48,9 +48,9 @@ if (/id="editProfileBtn"/.test(lockerHtml) && /id="editProfileBtn"[^>]*\bhidden\
   ok('Edit Profile trigger retained hidden for Profile Studio wiring');
 } else bad('hidden editProfileBtn missing');
 
-if (/Locker Options/.test(shellJs) && /lockerOptionsTrigger/.test(shellJs)) {
-  ok('Locker Options trigger exists in shell (About header location)');
-} else bad('Locker Options trigger missing in shell');
+if (/My Locker <span class="lockerOptionsChevron"/.test(shellJs) && /lockerOptionsTrigger/.test(shellJs) && !/Locker Options/.test(shellJs)) {
+  ok('My Locker trigger exists in shell (About header location)');
+} else bad('My Locker trigger missing in shell');
 
 if (
   /data-locker-tab="overview"/.test(shellJs) &&
@@ -64,8 +64,20 @@ if (/data-locker-action="edit-profile"/.test(shellJs) && /data-locker-action="ed
   ok('distinct Edit Profile + Edit About menu items present');
 } else bad('edit actions missing or not distinct');
 
+if (/data-locker-action="install-app"/.test(shellJs) && /Install Lantern App/.test(shellJs) && (shellJs.match(/Install Lantern App/g) || []).length === 1) {
+  ok('My Locker menu includes Install Lantern App exactly once');
+} else bad('install app locker entry missing or duplicated');
+
+if (!/lockerAccountDevice/.test(lockerHtml) && !/lockerInstallCard/.test(lockerHtml) && !/id="lockerInstallAppLink"/.test(lockerHtml)) {
+  ok('large Account/Device install panel is gone from locker.html');
+} else bad('duplicate locker install panel still present');
+
+if (/intent=install/.test(shellJs) && /log\.tmslantern\.org\/index\.html\?intent=install/.test(shellJs)) {
+  ok('kept install action uses the existing Behavior Logger install URL');
+} else bad('install URL missing from My Locker menu');
+
 if (/wireLockerOptions/.test(lockerHtml) && /navigateLockerTab/.test(lockerHtml)) {
-  ok('locker.html wires Locker Options navigation');
+  ok('locker.html wires My Locker navigation');
 } else bad('locker options wiring missing');
 
 if (/edit-about/.test(lockerHtml) && /openAboutBioEditor/.test(lockerHtml)) {
@@ -93,11 +105,11 @@ if (/max-width:\s*min\(280px,\s*calc\(100vw - 24px\)\)/.test(lockerHtml)) {
 } else bad('mobile overflow guard');
 
 if (/lockerHeaderAboutHd \.lockerOptions/.test(surfaceCss)) {
-  ok('Locker Options styled in About header (former Edit location)');
+  ok('My Locker menu styled in About header (former Edit location)');
 } else bad('surface theme placement');
 
-if (!headerFiles.join('\n').includes('Locker Options')) {
-  ok('Locker Options does not leak into global Lantern nav/header sources');
+if (!headerFiles.join('\n').includes('Locker Options') && !headerFiles.join('\n').includes('lockerAccountDevice')) {
+  ok('Locker install/options strings do not leak into global Lantern nav/header sources');
 } else bad('Locker Options leaked into global nav');
 
 if (/editProfileOverlay/.test(lockerHtml) && /wireEditProfile/.test(profileApp)) {

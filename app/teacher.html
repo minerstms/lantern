@@ -13,6 +13,9 @@
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>Teacher | Lantern</title>
+  <!-- Prompt #223/#225A: audience / participant_scope / target_character_names remain the
+       internal targeting identifiers. They are not a second mission type and stay locked
+       after the first submission; Require image + min_characters stay editable. -->
   <link rel="prefetch" href="locker.html">
   <link rel="prefetch" href="games.html">
   <link rel="stylesheet" href="css/lantern-ticker.css">
@@ -1437,16 +1440,23 @@
       }
       .teacherSidebar{
         position: fixed;
-        top: 0;
+        top: var(--lantern-header-h-ticker);
         left: 0;
         bottom: 0;
         width: min(80vw, 300px);
-        max-height: none;
+        height: auto;
+        max-height: calc(100dvh - var(--lantern-header-h-ticker));
+        max-height: calc(100svh - var(--lantern-header-h-ticker));
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
         z-index: 5000;
         border-radius: 0 var(--r) var(--r) 0;
         transform: translateX(-105%);
         transition: transform .22s ease;
-        padding-top: calc(var(--lantern-header-h-ticker) + 14px);
+        padding-top: 14px;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         /* Prompt #174 — keep mobile drawer fully opaque above page content. */
         background: var(--panel);
         background-color: var(--panel);
@@ -2253,13 +2263,22 @@
             <span class="teacherCheckboxLabel">Written response</span>
           </label>
           <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:12px;max-width:160px;">
-            <label for="missionMinChars">Minimum characters</label>
-            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="200" />
+            <label for="missionMinChars">Minimum text characters</label>
+            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="0" />
           </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsImage" />
             <span class="teacherCheckboxLabel">Image upload</span>
           </label>
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionRequireImage" />
+            <span class="teacherCheckboxLabel">Require image</span>
+          </label>
+          <div id="missionRewardWrap" style="margin-top:12px;max-width:220px;">
+            <label for="missionRewardAmount">Nugget Reward</label>
+            <input type="number" id="missionRewardAmount" class="teacherInput teacherInput--sm" min="0" max="5" value="1" />
+            <p class="teacherFieldHint">Teacher chooses this. It is not calculated from image or character count. Changes apply to future submissions only.</p>
+          </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsVideo" />
             <span class="teacherCheckboxLabel">Video upload</span>
@@ -2268,12 +2287,13 @@
             <input type="checkbox" id="missionAllowsLink" />
             <span class="teacherCheckboxLabel">Link/file</span>
           </label>
+          <p class="teacherFieldHint">Changes apply to future submissions only.</p>
         </div>
 
         <div class="teacherFieldGroup">Reward</div>
         <div class="teacherFieldRow teacherFieldRow--2">
           <div class="teacherField">
-            <p class="teacherFieldHint" id="missionRewardHint">Reward: <strong>1 Nugget</strong> (fixed for every ordinary mission).</p>
+            <p class="teacherFieldHint" id="missionRewardHint">Nugget Reward is in Submission requirements. Existing missions keep their saved reward if the default later changes.</p>
             <p class="teacherFieldHint">Active missions are available to every signed-in Lantern account (students, teachers, and admins).</p>
           </div>
         </div>
@@ -2612,6 +2632,9 @@
   <script src="js/lantern-unified-media-field.js"></script>
   <script src="js/lantern-people-picker.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-race-audio.js"></script>
+  <script src="js/lantern-reaction-bank.js"></script>
+  <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
@@ -3227,6 +3250,28 @@
       return new Promise(function(resolve){
         run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).returnGradeReflectionForImprovements({ id: id, reason: reason, returned_by: 'Teacher' });
       });
+    }
+    function applyMissionEconomyGuardrails(bundle){
+      var vals = bundle && bundle.values ? bundle.values : {};
+      var min = Number.isFinite(Number(vals.mission_min)) ? Number(vals.mission_min) : 0;
+      var max = Number.isFinite(Number(vals.mission_max)) ? Number(vals.mission_max) : 5;
+      var def = Number.isFinite(Number(vals.mission_default)) ? Number(vals.mission_default) : 1;
+      var createEl = el('missionRewardAmount');
+      if (createEl) {
+        createEl.min = String(min);
+        createEl.max = String(max);
+        createEl.value = String(def);
+      }
+      window.LANTERN_MISSION_ECONOMY = { min: min, max: max, default: def };
+    }
+    function loadMissionEconomyGuardrails(){
+      if (avatarApiBase === null) return;
+      fetch(avatarApiBase + '/api/settings/nugget-economy', { credentials: 'include' })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (res && res.ok) applyMissionEconomyGuardrails(res);
+        })
+        .catch(function(){});
     }
     function callCreateTeacherMission(opts){
       if (avatarApiBase !== null) {
@@ -4001,8 +4046,11 @@
           (item.created_by_teacher_name && String(item.created_by_teacher_name).trim()) ||
           'Teacher';
         if (/^staff:/i.test(String(missionCreatorLabel))) missionCreatorLabel = 'Teacher';
-        var missionRewardN = Number(item.mission_reward) || 1;
-        var missionRewardLabel = '+' + missionRewardN + ' Nugget' + (missionRewardN !== 1 ? 's' : '');
+        var missionRewardN = item.mission_reward != null && item.mission_reward !== '' ? Number(item.mission_reward) : 1;
+        if (!Number.isFinite(missionRewardN) || missionRewardN < 0) missionRewardN = 1;
+        var missionRewardLabel = missionRewardN > 0
+          ? ('+' + missionRewardN + ' Nugget' + (missionRewardN !== 1 ? 's' : ''))
+          : '0 Nuggets';
         metaRows.push(['Type', 'Mission']);
         metaRows.push(['User', missionUserLabel]);
         metaRows.push(['Created by', missionCreatorLabel]);
@@ -4041,7 +4089,7 @@
         var captionText = missionMedia.text !== undefined ? missionMedia.text : ((item.submission_type === 'text' && item.submission_content) ? String(item.submission_content).trim() : (item.caption && String(item.caption).trim()) || '');
         if (captionText) html += '<p style="margin:14px 0 0;font-size:22px;color:var(--muted);">' + esc(captionText.slice(0, 500)) + (captionText.length > 500 ? '…' : '') + '</p>';
         html += '</div>';
-        actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (+' + (item.mission_reward || 1) + ')</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
+        actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (' + missionRewardLabel + ')</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'avatar' || (type === 'approval_item' && item.item_type === 'avatar')) {
         metaRows.push(['Type', 'Avatar']);
         metaRows.push(['Student', item.character_name || item.submitter || '—']);
@@ -4876,14 +4924,33 @@
       });
     }
 
-    // Reused by both the Create form (before first submission) and the inline Edit form
-    // (only rendered when the mission has zero submissions) so the two stay visually consistent.
+    function missionMinCharactersValue(m){
+      var n = Number(m && m.min_characters);
+      return Number.isFinite(n) && n >= 0 ? String(Math.floor(n)) : '0';
+    }
+    function missionRewardAmountValue(m){
+      var n = Number(m && (m.reward_amount != null ? m.reward_amount : m.mission_reward));
+      return Number.isFinite(n) && n >= 0 ? String(Math.floor(n)) : '1';
+    }
+    function missionRequireImageOn(m){
+      return !!(m && (m.require_image || Number(m.allows_image) >= 2));
+    }
+    function missionEditRequirementControlsHtml(m){
+      return (
+        '<div class="teacherField" data-edit-requirements="1"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (missionRequireImageOn(m) ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
+          '<p class="teacherFieldHint">ON = students must attach an image. OFF = image is not required (uploads stay available).</p>' +
+          '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
+          '<div style="margin-bottom:12px;max-width:220px;"><label>Nugget Reward</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="0" max="5" value="' + missionRewardAmountValue(m) + '" /></div>' +
+          '<p class="teacherFieldHint">0 = no minimum / no Nugget. Changes apply to future submissions only. Already-issued rewards are not rewritten.</p>' +
+        '</div>'
+      );
+    }
     function missionEditRestrictedFieldsHtml(m){
       return (
-        '<div class="teacherField"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
+        missionEditRequirementControlsHtml(m) +
+        '<div class="teacherField">' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_text"' + (m.allows_text ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Written response</span></label>' +
-          '<div style="margin-left:34px;margin-bottom:12px;max-width:160px;"><label>Minimum characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + (m.min_characters != null ? m.min_characters : 200) + '" /></div>' +
-          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_image"' + (m.allows_image ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Image upload</span></label>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_video"' + (m.allows_video ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Video upload</span></label>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_link"' + (m.allows_link ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Link/file</span></label>' +
         '</div>'
@@ -4896,9 +4963,8 @@
       Array.prototype.forEach.call(document.querySelectorAll('.teacherMissionEditForm'), function(f){ f.remove(); });
       if (row && !row.open) row.open = true;
 
-      // Prompt #103 edit matrix (CURSOR REPLY #100 §5): audience/target_character_names/
-      // allows_*/min_characters are only safe to edit before the mission's first submission —
-      // once it has any submission_count, hide those fields entirely (server enforces this too).
+      // Audience / text / video / link stay locked after the first submission.
+      // Require image + minimum text characters stay editable for future submissions.
       var hasSubmissions = (m.submission_count || 0) > 0;
       var wrap = document.createElement('div');
       wrap.className = 'teacherMissionEditForm';
@@ -4908,11 +4974,11 @@
         '<div class="teacherField"><label>Instructions</label><textarea class="teacherTextarea" data-edit="description">' + esc(m.description || '') + '</textarea></div>' +
         missionCardImageEditorHtml(m) +
         '<div class="teacherFieldRow teacherFieldRow--2">' +
-          '<div class="teacherField"><p class="teacherFieldHint">Reward: <strong>1 Nugget</strong> (fixed — not editable).</p></div>' +
+          '<div class="teacherField"><p class="teacherFieldHint">Nugget Reward is with submission requirements. Changes apply to future submissions only.</p></div>' +
           '<div class="teacherField"><label class="teacherCheckboxField"><input type="checkbox" data-edit="featured"' + (m.featured ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Promote this mission</span></label></div>' +
         '</div>' +
         (hasSubmissions
-          ? '<p class="teacherMissionLockedNote">Audience &amp; submission requirements are locked — this mission already has a submission.</p>'
+          ? missionEditRequirementControlsHtml(m) + '<p class="teacherMissionLockedNote">Audience and media-type options stay locked after the first submission. Require image and minimum text characters still apply to future work.</p>'
           : missionEditRestrictedFieldsHtml(m)) +
         '<div class="teacherActions"><button type="button" class="btn good small teacherMissionEditSaveBtn">Save</button> <button type="button" class="btn small teacherMissionEditCancelBtn">Cancel</button></div>';
       var mount = row.querySelector('.lanternMgmtRecordBd') || row;
@@ -4962,12 +5028,22 @@
         updates.description = (wrap.querySelector('[data-edit="description"]').value || '').trim();
         updates.featured = !!wrap.querySelector('[data-edit="featured"]').checked;
         if (cardKeyInput) updates.card_image_r2_key = (cardKeyInput.value || '').trim() || null;
+        var requireEl = wrap.querySelector('[data-edit="require_image"]');
+        var minEl = wrap.querySelector('[data-edit="min_characters"]');
+        var rewardEl = wrap.querySelector('[data-edit="reward_amount"]');
+        if (requireEl) updates.require_image = !!requireEl.checked;
+        if (minEl) {
+          var minEditRaw = parseInt(minEl.value, 10);
+          updates.min_characters = Number.isFinite(minEditRaw) && minEditRaw >= 0 ? minEditRaw : 0;
+        }
+        if (rewardEl) {
+          var rewardEditRaw = parseInt(rewardEl.value, 10);
+          updates.reward_amount = Number.isFinite(rewardEditRaw) ? rewardEditRaw : undefined;
+        }
         if (!hasSubmissions) {
           updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
-          updates.allows_image = !!wrap.querySelector('[data-edit="allows_image"]').checked;
           updates.allows_video = !!wrap.querySelector('[data-edit="allows_video"]').checked;
           updates.allows_link = !!wrap.querySelector('[data-edit="allows_link"]').checked;
-          updates.min_characters = Math.max(0, parseInt(wrap.querySelector('[data-edit="min_characters"]').value, 10) || 0);
         }
         var saveBtn = wrap.querySelector('.teacherMissionEditSaveBtn');
         saveBtn.disabled = true;
@@ -5726,17 +5802,27 @@
         toggleMinChars();
       }
       var typeSel = el('missionType');
+      var imgCb = el('missionAllowsImage');
+      var requireCb = el('missionRequireImage');
+      if (requireCb && imgCb) {
+        requireCb.addEventListener('change', function(){
+          if (requireCb.checked) imgCb.checked = true;
+        });
+        imgCb.addEventListener('change', function(){
+          if (!imgCb.checked) requireCb.checked = false;
+        });
+      }
       if (typeSel) {
         typeSel.addEventListener('change', function(){
           var v = (this.value || '').trim();
-          var textCb = el('missionAllowsText'); var imgCb = el('missionAllowsImage'); var vidCb = el('missionAllowsVideo'); var linkCb = el('missionAllowsLink');
-          if (!textCb || !imgCb || !vidCb || !linkCb) return;
-          if (v === 'text') { textCb.checked = true; imgCb.checked = false; vidCb.checked = false; linkCb.checked = false; }
-          else if (v === 'image_url') { textCb.checked = false; imgCb.checked = true; vidCb.checked = false; linkCb.checked = false; }
-          else if (v === 'video') { textCb.checked = false; imgCb.checked = false; vidCb.checked = true; linkCb.checked = false; }
-          else if (v === 'mixed') { textCb.checked = true; imgCb.checked = true; vidCb.checked = true; linkCb.checked = true; }
-          else if (v === 'poll') { textCb.checked = false; imgCb.checked = false; vidCb.checked = false; linkCb.checked = false; }
-          else if (v === 'bug_report') { textCb.checked = true; imgCb.checked = true; vidCb.checked = false; linkCb.checked = false; }
+          var textCb = el('missionAllowsText'); var imgCb2 = el('missionAllowsImage'); var vidCb = el('missionAllowsVideo'); var linkCb = el('missionAllowsLink');
+          if (!textCb || !imgCb2 || !vidCb || !linkCb) return;
+          if (v === 'text') { textCb.checked = true; imgCb2.checked = false; vidCb.checked = false; linkCb.checked = false; if (requireCb) requireCb.checked = false; }
+          else if (v === 'image_url') { textCb.checked = false; imgCb2.checked = true; vidCb.checked = false; linkCb.checked = false; }
+          else if (v === 'video') { textCb.checked = false; imgCb2.checked = false; vidCb.checked = true; linkCb.checked = false; if (requireCb) requireCb.checked = false; }
+          else if (v === 'mixed') { textCb.checked = true; imgCb2.checked = true; vidCb.checked = true; linkCb.checked = true; }
+          else if (v === 'poll') { textCb.checked = false; imgCb2.checked = false; vidCb.checked = false; linkCb.checked = false; if (requireCb) requireCb.checked = false; }
+          else if (v === 'bug_report') { textCb.checked = true; imgCb2.checked = true; vidCb.checked = false; linkCb.checked = false; }
           if (minCharsWrap) minCharsWrap.style.display = textCb.checked ? 'block' : 'none';
         });
       }
@@ -5795,11 +5881,16 @@
       try {
         var allowsText = !!(el('missionAllowsText') && el('missionAllowsText').checked);
         var allowsImage = !!(el('missionAllowsImage') && el('missionAllowsImage').checked);
+        var requireImage = !!(el('missionRequireImage') && el('missionRequireImage').checked);
+        if (requireImage) allowsImage = true;
         var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
-        var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
+        var minRaw = parseInt(el('missionMinChars') && el('missionMinChars').value, 10);
+        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? minRaw : 0;
+        var rewardRaw = parseInt(el('missionRewardAmount') && el('missionRewardAmount').value, 10);
+        var rewardAmount = Number.isFinite(rewardRaw) ? rewardRaw : undefined;
         // Prompt #10/#78 — site_eligible archived; audience/participant_scope normalized server-side to school-wide/everyone.
-        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        var opts = { title: title, description: desc, reward_amount: rewardAmount, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();
         if (cardKeyCreate) opts.card_image_r2_key = cardKeyCreate;
         var res = await callCreateTeacherMission(opts);
@@ -6315,6 +6406,7 @@
       refreshShoutOuts();
     })();
 
+    loadMissionEconomyGuardrails();
     refresh();
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>

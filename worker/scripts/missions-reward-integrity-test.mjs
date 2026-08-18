@@ -240,13 +240,13 @@ if (txIdExample === 'tx_mission_sub_123') {
   const first = await approveMissionWithReward(db1, {
     submissionId: 'sub_123',
     recipientCharacterName: '20889',
-    rewardAmount: 99,
+    rewardAmount: 1,
     reviewerLabel: 'Teacher A',
   });
   const second = await approveMissionWithReward(db1, {
     submissionId: 'sub_123',
     recipientCharacterName: '20889',
-    rewardAmount: 99,
+    rewardAmount: 1,
     reviewerLabel: 'Teacher A',
   });
 
@@ -277,13 +277,13 @@ if (txIdExample === 'tx_mission_sub_123') {
     approveMissionWithReward(db2, {
       submissionId: 'sub_race',
       recipientCharacterName: '20889',
-      rewardAmount: 5,
+      rewardAmount: 1,
       reviewerLabel: 'Teacher A',
     }),
     approveMissionWithReward(db2, {
       submissionId: 'sub_race',
       recipientCharacterName: '20889',
-      rewardAmount: 5,
+      rewardAmount: 1,
       reviewerLabel: 'Teacher A',
     }),
   ]);
@@ -314,7 +314,7 @@ if (txIdExample === 'tx_mission_sub_123') {
   const fail = await approveMissionWithReward(db3, {
     submissionId: 'sub_fail',
     recipientCharacterName: '20889',
-    rewardAmount: 5,
+    rewardAmount: 1,
     reviewerLabel: 'Teacher A',
   });
 
@@ -334,7 +334,7 @@ if (txIdExample === 'tx_mission_sub_123') {
   const retry = await approveMissionWithReward(db3, {
     submissionId: 'sub_fail',
     recipientCharacterName: '20889',
-    rewardAmount: 5,
+    rewardAmount: 1,
     reviewerLabel: 'Teacher A',
   });
   if (retry.ok && !retry.idempotent) ok('retry after failed payout can approve safely');
@@ -353,7 +353,7 @@ if (txIdExample === 'tx_mission_sub_123') {
   const stuck = await approveMissionWithReward(db4, {
     submissionId: 'sub_stuck',
     recipientCharacterName: '20889',
-    rewardAmount: 5,
+    rewardAmount: 1,
     reviewerLabel: 'Teacher A',
   });
 
@@ -367,8 +367,8 @@ if (txIdExample === 'tx_mission_sub_123') {
   const db5 = makeRewardDb({
     wallets: { '20889': { character_name: '20889', balance: 0, updated_at: '' } },
   });
-  const c1 = await creditMissionApprovalReward(db5, '20889', 'sub_pk', 5, 'note');
-  const c2 = await creditMissionApprovalReward(db5, '20889', 'sub_pk', 5, 'note');
+  const c1 = await creditMissionApprovalReward(db5, '20889', 'sub_pk', 1, 'note');
+  const c2 = await creditMissionApprovalReward(db5, '20889', 'sub_pk', 1, 'note');
   if (c1.ok && !c1.idempotent && c2.ok && c2.idempotent) ok('duplicate INSERT blocked by PK; second call idempotent');
   else bad('PK duplicate behavior', { c1, c2 });
   if (walletBalance(db5, '20889') === 1) ok('PK race: wallet incremented once');
@@ -379,7 +379,7 @@ if (txIdExample === 'tx_mission_sub_123') {
     wallets: { '20889': { character_name: '20889', balance: 0, updated_at: '' } },
   });
   db6._state.failNextCreditBatch = true;
-  const batchFail = await creditMissionApprovalReward(db6, '20889', 'sub_batch', 5, 'note');
+  const batchFail = await creditMissionApprovalReward(db6, '20889', 'sub_batch', 1, 'note');
   if (!batchFail.ok) ok('batch failure returns error');
   else bad('batch failure', batchFail);
   if (countMissionRewardTx(db6, 'sub_batch') === 0) ok('batch failure rolls back ledger insert');

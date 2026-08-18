@@ -64,7 +64,7 @@ function makeMissionsDb(seed) {
       allows_image: r.allows_image || 0,
       allows_video: r.allows_video || 0,
       allows_link: r.allows_link || 0,
-      min_characters: r.min_characters != null ? r.min_characters : 200,
+      min_characters: r.min_characters != null ? r.min_characters : 0,
       created_at: r.created_at,
     };
   }
@@ -109,13 +109,17 @@ function makeMissionsDb(seed) {
   }
 
   function runFirst(s, binds) {
-    if (s.startsWith('SELECT id, teacher_id FROM lantern_missions WHERE id = ?')) {
+    if (s.startsWith('SELECT id, teacher_id, allows_image FROM lantern_missions WHERE id = ?') ||
+        s.startsWith('SELECT id, teacher_id FROM lantern_missions WHERE id = ?')) {
       const row = missions.get(binds[0]);
-      return row ? { id: row.id, teacher_id: row.teacher_id } : null;
+      return row ? { id: row.id, teacher_id: row.teacher_id, allows_image: row.allows_image || 0 } : null;
     }
     if (s.startsWith('SELECT reward_amount, teacher_id FROM lantern_missions WHERE id = ?')) {
       const row = missions.get(binds[0]);
       return row ? { reward_amount: row.reward_amount, teacher_id: row.teacher_id } : null;
+    }
+    if (s.includes('FROM lantern_settings WHERE key')) {
+      return null;
     }
     throw new Error('Unhandled SELECT (.first): ' + s);
   }

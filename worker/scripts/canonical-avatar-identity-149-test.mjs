@@ -173,7 +173,10 @@ const idx = buildPilotAvatarKeyIndex([
 assert(resolveAuthorAvatarKey(idx, { character_name: 'staff:rick.radle' }) === 'rick.radle', '10e. staff: maps to username profile');
 assert(resolveAuthorAvatarKey(idx, { author_name: 'Jessie Roberts', actor_id: 'jessie.r' }) === 'jessie.r', '10f. durable actor_id wins over display name');
 
-assert(/&v=/.test(lockerHandlers) && /updated_at/.test(lockerHandlers), '11b. locker avatar URL cache-busts with updated_at');
+assert(
+  /buildAvatarImageUrl/.test(lockerHandlers) && /updated_at/.test(lockerHandlers),
+  '11b. locker avatar URL cache-busts with updated_at'
+);
 assert(/current_avatar_key/.test(workerIndex) && /status = 'pending'/.test(workerIndex), '12. pending lives on submissions not current_avatar_key');
 assert(!/AVATAR_BUCKET\.r2|r2\.dev|r2\.cloudflarestorage/.test(cardUi + avatarJs + cardsJs), '17. no raw R2 URLs in renderers');
 assert(/\/api\/avatar\/image\?key=/.test(workerIndex), '17b. serving stays /api/avatar/image');

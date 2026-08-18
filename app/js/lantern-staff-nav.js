@@ -17,13 +17,13 @@
   /** Shared text inset: trigger "Lantern" and dropdown item text share this left padding. */
   var MENU_TEXT_INSET = '14px';
 
-  /** Exact NAVIGATION order (Explore canonical). Prompt #202 — Lantern first (= home/Explore). */
+  /** Exact NAVIGATION order. Brand Lantern link stays; this Lantern row is a destination, not a second toggle. */
   var NAVIGATION_ITEMS = [
     { id: 'lantern', dataPage: 'explore', label: 'Lantern', path: '/explore.html', currentKeys: ['explore', 'lantern'] },
-    { id: 'locker', dataPage: 'locker', label: 'Locker', path: '/locker.html' },
+    { id: 'locker', dataPage: 'locker', label: 'My Locker', path: '/locker.html' },
     { id: 'create', dataPage: 'create', label: 'Create', path: '/contribute.html', currentKeys: ['contribute', 'create'] },
-    { id: 'media_library', dataPage: 'media_library', label: 'Media Library', externalHref: 'https://miners-yearbook.pages.dev/' },
-    { id: 'play', dataPage: 'play', label: 'Play', path: '/games.html', currentKeys: ['games', 'play'] },
+    { id: 'media_library', dataPage: 'media_library', label: 'Photo Library', externalHref: 'https://miners-yearbook.pages.dev/' },
+    { id: 'play', dataPage: 'play', label: 'Games', path: '/games.html', currentKeys: ['games', 'play'] },
     { id: 'missions', dataPage: 'missions', label: 'Missions', path: '/missions.html' },
   ];
 
@@ -38,7 +38,7 @@
     {
       id: 'reports',
       dataPage: 'reports',
-      label: 'Reports',
+      label: 'MTSS Reports',
       path: 'admin.html#reports',
       canShow: function (caps) {
         return !!(caps && caps.report_maker);
@@ -47,7 +47,7 @@
     {
       id: 'behaviorAdmin',
       dataPage: 'behavior-admin',
-      label: 'Behavior Administration',
+      label: 'Behavior Admin',
       path: 'admin.html#behavior',
       canShow: function (caps) {
         return !!(caps && caps.behavior_admin);
@@ -56,7 +56,7 @@
     {
       id: 'system',
       dataPage: 'system',
-      label: 'System',
+      label: 'System Tools',
       path: '/admin#system',
       canShow: function (caps) {
         return !!(caps && caps.system_admin);
@@ -113,6 +113,9 @@
         return ctx === 'tms' ? LANTERN_ORIGIN + NAVIGATION_ITEMS[i].path : NAVIGATION_ITEMS[i].path.replace(/^\//, '');
       }
     }
+    if (id === 'lantern') {
+      return ctx === 'tms' ? LANTERN_ORIGIN + '/explore.html' : 'explore.html';
+    }
     if (id === 'teacher') {
       return ctx === 'tms' ? LANTERN_ORIGIN + '/teacher' : '/teacher.html';
     }
@@ -154,10 +157,6 @@
       var href = hrefFor(item.id, ctx);
       var active = isCurrentNavItem(item, current);
       var label = item.label;
-      if (item.id === 'missions' && ctx === 'lantern') {
-        label =
-          'Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span>';
-      }
       return (
         '<a href="' +
         href +
@@ -212,11 +211,17 @@
     });
   }
 
+  function shouldShowAdminToolsSection(caps, role) {
+    if (normalizeRole(role) === 'student') return false;
+    if (visiblePrivilegedItems(caps, role).length) return true;
+    return normalizeRole(role) === 'admin';
+  }
+
   function buildPrivilegedSectionHtml(current, ctx, caps, role) {
     ctx = ctx || 'lantern';
     current = String(current || '');
     var items = visiblePrivilegedItems(caps, role);
-    if (!items.length) return '';
+    if (!shouldShowAdminToolsSection(caps, role)) return '';
     var links = items
       .map(function (item) {
         var href = hrefFor(item.id, ctx);
@@ -324,6 +329,7 @@
     canonicalVisibleLabels: canonicalVisibleLabels,
     isStaffRole: isStaffRole,
     shouldShowStaffSection: shouldShowStaffSection,
+    shouldShowAdminToolsSection: shouldShowAdminToolsSection,
     canShowStaffItem: canShowStaffItem,
     hrefFor: hrefFor,
     behaviorAuthorizeHref: behaviorAuthorizeHref,

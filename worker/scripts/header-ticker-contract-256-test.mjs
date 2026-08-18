@@ -388,7 +388,7 @@ if (
   nav251.includes('Teacher Dashboard is absent') &&
   tools253.includes('Teacher Dashboard') &&
   tools255.includes('Media Library Access') &&
-  navJs.includes('Media Library') &&
+  navJs.includes('Photo Library') &&
   missionsHtml.includes('lanternNavMissionsBadge') &&
   headerCss.includes('LANTERN_HEADER_CONTRACT.md')
 ) {

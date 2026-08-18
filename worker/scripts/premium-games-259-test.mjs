@@ -84,20 +84,14 @@ if (gamesPageJs.includes('filteredGames') && gamesHtml.includes('id="gamesLibrar
 } else bad('43. library');
 
 if (
-  gamesPageJs.includes('isPremiumGame') &&
-  /return !\(cat.isPremiumGame && cat.isPremiumGame\(g\)\)/.test(gamesPageJs) &&
+  !gamesHtml.includes('Premium Games') &&
+  !gamesHtml.includes('id="gamesPremiumSection"') &&
+  !gamesPageJs.includes('renderPremiumGames') &&
+  gamesPageJs.includes('playHubGames') &&
   premium.every((g) => !g.featured)
 ) {
-  ok('44. premium ids are excluded from the library grid; no featured duplicate cards');
-} else bad('44. duplicate cards');
-
-if (
-  gamesHtml.includes('id="gamesPremiumSection"') &&
-  gamesHtml.includes('Premium Games') &&
-  gamesPageJs.includes('renderPremiumGames')
-) {
-  ok('Premium Games section still renders from catalog.premiumGames()');
-} else bad('premium UI');
+  ok('44. no student-facing Premium section; trio stays in the ordinary Games library');
+} else bad('44. premium UI');
 
 premium.forEach(function (g) {
   if (g.play_cost === 1 && cat.playCostCardMeta(1) === '1 Nugget = 1 Play' && g.image && String(g.image).indexOf('assets/') === 0) {

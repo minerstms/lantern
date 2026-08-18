@@ -318,7 +318,7 @@ if (paidRunSrc.includes('evaluatePaidGamePlayRun') && workerIndex.includes("erro
 // 20. #169 regression
 if (
   contract169.includes('Prompt #169') &&
-  workerIndex.includes('game_play costs exactly 1 Nugget') &&
+  (workerIndex.includes("resolveEconomyAmount(db, 'game_play')") || workerIndex.includes('game_play costs exactly 1 Nugget')) &&
   /kind === 'game_play'/.test(workerIndex)
 ) {
   ok('20. #169 TMS economy contract still present');

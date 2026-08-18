@@ -59,7 +59,7 @@ export function evaluatePaidGamePlayRun(tx, opts) {
   if (String(tx.kind || '') !== 'game_play') {
     return { ok: false, error: 'invalid_run' };
   }
-  if (Math.floor(Number(tx.delta)) !== -1) {
+  if (Math.floor(Number(tx.delta)) > 0) {
     return { ok: false, error: 'invalid_run' };
   }
   if (String(tx.character_name || '') !== characterName) {
@@ -98,7 +98,7 @@ export function evaluatePaidRunForWinCredit(tx, opts) {
   if (String(tx.kind || '') !== 'game_play') {
     return { ok: false, error: 'invalid_run' };
   }
-  if (Math.floor(Number(tx.delta)) !== -1) {
+  if (Math.floor(Number(tx.delta)) > 0) {
     return { ok: false, error: 'invalid_run' };
   }
   if (String(tx.character_name || '') !== characterName) {

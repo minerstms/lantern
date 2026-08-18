@@ -348,11 +348,20 @@ async function main() {
 
   {
     const state = { accounts: { '20889': me } };
-    addPaidRun(state, { characterName: '20889', gameName: 'Memory Match', gameId: 'memory', runId: 'run-bad-delta', delta: 0 });
+    addPaidRun(state, { characterName: '20889', gameName: 'Memory Match', gameId: 'memory', runId: 'run-bad-delta', delta: 1 });
     const env = makeEnv(state);
     const r = await postRecord(env, cookie, { game_name: 'Memory Match', score: 12, run_id: 'run-bad-delta' });
-    if (r.status === 400 && r.json.error === 'invalid_run') ok('10. failed/invalid transaction cannot score');
+    if (r.status === 400 && r.json.error === 'invalid_run') ok('10. positive-delta transaction cannot score');
     else bad('10 invalid tx', r);
+  }
+
+  {
+    const state = { accounts: { '20889': me } };
+    addPaidRun(state, { characterName: '20889', gameName: 'Memory Match', gameId: 'memory', runId: 'run-free-play', delta: 0 });
+    const env = makeEnv(state);
+    const r = await postRecord(env, cookie, { game_name: 'Memory Match', score: 12, run_id: 'run-free-play' });
+    if (r.status === 200 && r.json.ok) ok('10b. configured-zero / free-play game_play still proves a started run');
+    else bad('10b free play proof', r);
   }
 
   {

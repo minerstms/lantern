@@ -12,6 +12,7 @@
 import { denverLocalDateYYYYMMDD, SCHOOL_SCHEDULE_TIMEZONE } from './school-schedule.js';
 import { isStaffEconomyKey } from './staff-economy.js';
 import { tmsEconomyTransact } from './tms-economy-bridge.js';
+import { resolveEconomyAmount } from './nugget-economy-settings.js';
 
 export const CONTENT_CREATION_REWARD_TYPES = ['news', 'shoutout', 'poll'];
 
@@ -123,9 +124,49 @@ export async function awardStudentDailyContentCreationReward(db, env, opts) {
   let rewarded = false;
   let idempotent = false;
   let economyAuthority = 'lantern_wallet';
+  const amount = await resolveEconomyAmount(db, 'content_creation');
+
+  if (amount === 0) {
+    const iso = now.toISOString();
+    try {
+      await db
+        .prepare(
+          'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        .bind(
+          txId,
+          characterName,
+          0,
+          'content_creation',
+          'CONTENT',
+          note,
+          iso,
+          JSON.stringify({
+            event_key: eventKey,
+            content_type: type,
+            day,
+            timezone: SCHOOL_SCHEDULE_TIMEZONE,
+            source_ref: sourceRef,
+            configured_zero: true,
+          })
+        )
+        .run();
+    } catch (_e) {}
+    return {
+      ok: true,
+      rewarded: false,
+      idempotent: true,
+      capped: true,
+      event_key: eventKey,
+      day,
+      timezone: SCHOOL_SCHEDULE_TIMEZONE,
+      tx_id: txId,
+      economy_authority: 'configured_zero',
+    };
+  }
 
   if (env) {
-    const tms = await tmsEconomyTransact(env, characterName, 1, 'content_creation', 'CONTENT', note, reference);
+    const tms = await tmsEconomyTransact(env, characterName, amount, 'content_creation', 'CONTENT', note, reference);
     if (tms.ok) {
       rewarded = !tms.idempotent;
       idempotent = !!tms.idempotent;
@@ -139,7 +180,7 @@ export async function awardStudentDailyContentCreationReward(db, env, opts) {
           .bind(
             txId,
             characterName,
-            1,
+            amount,
             'content_creation',
             'CONTENT',
             note,
@@ -220,12 +261,12 @@ export async function awardStudentDailyContentCreationReward(db, env, opts) {
         .prepare(
           'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         )
-        .bind(txId, characterName, 1, 'content_creation', 'CONTENT', note, iso, meta),
+        .bind(txId, characterName, amount, 'content_creation', 'CONTENT', note, iso, meta),
       db
         .prepare(
           'INSERT INTO lantern_wallets (character_name, balance, updated_at) VALUES (?, ?, ?) ON CONFLICT(character_name) DO UPDATE SET balance = balance + ?, updated_at = ?'
         )
-        .bind(characterName, currentBalance + 1, iso, 1, iso),
+        .bind(characterName, currentBalance + amount, iso, amount, iso),
     ]);
     rewarded = true;
   } catch (e) {

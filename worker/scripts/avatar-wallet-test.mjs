@@ -101,8 +101,8 @@ if (/You need .+ to submit an avatar/.test(profileJs)) {
   ok('profile-app: zero-balance message is clear');
 } else bad('profile-app missing zero-balance copy');
 
-if (/kind === 'avatar_upload'/.test(workerIndex) && /server_delta: -1/.test(workerIndex) && /avatar_upload costs exactly 1 Nugget/.test(workerIndex)) {
-  ok('server: avatar_upload enforces exactly -1 Nugget');
+if (/kind === 'avatar_upload'/.test(workerIndex) && /resolveEconomyAmount\(db, 'avatar_upload'\)/.test(workerIndex) && /client_delta_rejected/.test(workerIndex)) {
+  ok('server: avatar_upload cost is server-authoritative');
 } else bad('server missing avatar_upload price lock');
 
 if (/error:\s*'insufficient'/.test(workerIndex) && /available:\s*currentBalance/.test(workerIndex)) {

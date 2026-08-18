@@ -26,9 +26,12 @@ import {
   reviewerLabelFromAccount,
   sessionTeacherId,
   teacherOwnsMission,
+  persistAllowsImageValue,
+  missionRequiresImage,
   validateMissionSubmissionPayload,
 } from './missions-auth.js';
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
+import { resolveTeacherMissionReward, resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import {
   WAVE2_MISSION_IDS,
   claimDailyCheckInForCharacter,
@@ -84,8 +87,13 @@ function missionRowToJson(r, origin) {
     id: r.id,
     title: r.title || '',
     description: r.description || '',
-    // Prompt #159: ordinary mission reward is always 1 in API responses (definitions normalized).
-    reward_amount: 1,
+    // Prompt #229A: expose the saved mission reward (0 is legitimate; missing → 1).
+    reward_amount: (() => {
+      if (r.reward_amount == null || r.reward_amount === '') return 1;
+      const n = Number(r.reward_amount);
+      if (!Number.isFinite(n) || n < 0) return 1;
+      return Math.trunc(n);
+    })(),
     submission_type: r.submission_type || 'text',
     created_by_teacher_id: r.teacher_id || 'teacher',
     created_by_teacher_name: r.teacher_name || 'Teacher',
@@ -101,12 +109,14 @@ function missionRowToJson(r, origin) {
     site_eligible: !!r.site_eligible,
     allows_text: r.allows_text !== undefined && r.allows_text !== null ? !!r.allows_text : true,
     allows_image: !!(r.allows_image),
+    require_image: missionRequiresImage(r),
     allows_video: !!(r.allows_video),
     allows_link: !!(r.allows_link),
-    min_characters:
-      r.min_characters !== undefined && r.min_characters !== null
-        ? Math.max(0, Math.floor(Number(r.min_characters)) || 200)
-        : 200,
+    min_characters: (() => {
+      if (r.min_characters === undefined || r.min_characters === null) return 0;
+      const n = Number(r.min_characters);
+      return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+    })(),
     // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
     card_image_r2_key: cardKey || null,
     card_image_url: cardKey ? missionCardImageUrl(origin, cardKey) : null,
@@ -741,9 +751,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const description = (body.description || '').trim().slice(0, 1000);
-    // Prompt #159: ordinary mission reward is locked to exactly 1 Nugget.
-    // Client-supplied reward_amount is ignored (was clamp 1–99; DB default still 3 cosmetically).
-    const rewardAmount = 1;
+    // Prompt #229: teacher chooses reward; server clamps to System Admin mission min/max.
+    const rewardAmount = await resolveTeacherMissionReward(db, body.reward_amount);
     const submissionType = normalizeSubmissionType(body.submission_type, 'text');
     // Prompt #10 — normal manual missions are school-wide for every authenticated participant.
     // Preserve audience/participant_scope columns historically, but new creates normalize to
@@ -755,12 +764,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const active = body.active !== false;
     const siteEligible = !!body.site_eligible;
     const allowsText = body.allows_text !== false;
-    const allowsImage = !!(body.allows_image);
+    const allowsImageVal = persistAllowsImageValue(body, 0);
+    const allowsImage = allowsImageVal > 0;
+    const requiresImage = allowsImageVal >= 2;
     const allowsVideo = !!(body.allows_video);
     const allowsLink = !!(body.allows_link);
     let minChars = Math.max(0, Math.floor(Number(body.min_characters)));
     if (!Number.isFinite(minChars)) {
-      minChars = submissionType === 'bug_report' ? 0 : 200;
+      minChars = 0;
     }
     // Prompt #210 — optional Mission Card Image key (must be missions/card/… from upload endpoint).
     let cardImageKey = null;
@@ -793,7 +804,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           active ? 1 : 0,
           siteEligible ? 1 : 0,
           allowsText ? 1 : 0,
-          allowsImage ? 1 : 0,
+          allowsImageVal,
           allowsVideo ? 1 : 0,
           allowsLink ? 1 : 0,
           minChars,
@@ -824,7 +835,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           active ? 1 : 0,
           siteEligible ? 1 : 0,
           allowsText ? 1 : 0,
-          allowsImage ? 1 : 0,
+          allowsImageVal,
           allowsVideo ? 1 : 0,
           allowsLink ? 1 : 0,
           minChars,
@@ -849,6 +860,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       site_eligible: siteEligible,
       allows_text: allowsText,
       allows_image: allowsImage,
+      require_image: requiresImage,
       allows_video: allowsVideo,
       allows_link: allowsLink,
       min_characters: minChars,
@@ -871,7 +883,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     } catch (_) {
       return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
-    const row = await db.prepare('SELECT id, teacher_id FROM lantern_missions WHERE id = ?').bind(id).first();
+    const row = await db.prepare('SELECT id, teacher_id, allows_image FROM lantern_missions WHERE id = ?').bind(id).first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
     if (!teacherOwnsMission(auth.account, row.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized' }, 403, cors);
@@ -924,9 +936,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       bindings.push(String(body.description).trim().slice(0, 1000));
     }
     if (body.reward_amount !== undefined) {
-      // Prompt #159: ordinary mission reward is not editable — always persist 1.
+      const nextReward = await resolveTeacherMissionReward(db, body.reward_amount);
       updates.push('reward_amount = ?');
-      bindings.push(1);
+      bindings.push(nextReward);
     }
     if (body.featured !== undefined) {
       updates.push('featured = ?');
@@ -953,9 +965,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       updates.push('allows_text = ?');
       bindings.push(body.allows_text ? 1 : 0);
     }
-    if (body.allows_image !== undefined) {
+    if (body.allows_image !== undefined || body.require_image !== undefined) {
       updates.push('allows_image = ?');
-      bindings.push(body.allows_image ? 1 : 0);
+      bindings.push(persistAllowsImageValue(body, row.allows_image));
     }
     if (body.allows_video !== undefined) {
       updates.push('allows_video = ?');
@@ -968,7 +980,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (body.min_characters !== undefined) {
       const mc = Math.max(0, Math.floor(Number(body.min_characters)));
       updates.push('min_characters = ?');
-      bindings.push(Number.isFinite(mc) ? mc : 200);
+      bindings.push(Number.isFinite(mc) ? mc : 0);
     }
     // Prompt #210 — set / clear Mission Card Image (null or '' clears). Editable anytime (definition art).
     if (Object.prototype.hasOwnProperty.call(body, 'card_image_r2_key')) {
@@ -1060,6 +1072,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!missionEligibleForParticipant(mission, identity)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }
+    const submitRewardAmount = await resolveStoredMissionPayout(db, mission.reward_amount);
     // Prompt #165 — Daily Check-In / First Game use dedicated event endpoints, not free-form submit.
     if (missionId === WAVE2_MISSION_IDS.DAILY_CHECKIN) {
       return jsonResponse({ ok: false, error: 'use_daily_checkin', message: 'Use Daily Check-In to complete this mission.' }, 400, cors);
@@ -1096,7 +1109,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
             .first();
           const finExisting = await finalizeMissionSubmission(db, env, {
             submissionRow: pendingRow,
-            rewardAmount: 1,
+            rewardAmount: submitRewardAmount,
             reviewerLabel: 'system',
           });
           if (!finExisting.ok) {
@@ -1173,7 +1186,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           submission_type: validated.submissionType,
           submission_content: validated.content,
         },
-        rewardAmount: 1,
+        rewardAmount: submitRewardAmount,
         reviewerLabel: 'system',
       });
       if (!fin.ok) {
@@ -1268,12 +1281,17 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       .all();
     // Prompt #13 — auto-finalize any staff leftover pending rows so they never sit in Review Submissions.
     const rawPending = subRows.results || [];
+    const rewardByMissionId = {};
+    (missionRows.results || []).forEach((m) => {
+      rewardByMissionId[m.id] = m.reward_amount;
+    });
     for (const s of rawPending) {
       if (!isStaffEconomyKey(s.character_name)) continue;
       try {
+        const leftoverReward = await resolveStoredMissionPayout(db, rewardByMissionId[s.mission_id]);
         await finalizeMissionSubmission(db, env, {
           submissionRow: s,
-          rewardAmount: 1,
+          rewardAmount: leftoverReward,
           reviewerLabel: 'system',
         });
       } catch (_) {}
@@ -1567,8 +1585,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (isSelfMissionSubmission(auth.account, row.character_name)) {
       return jsonResponse({ ok: false, error: 'self_approval_forbidden', message: 'You cannot approve or reward your own mission submission.' }, 403, cors);
     }
-    // Prompt #159: approval always awards exactly +1 Nugget (do not trust mission row / client).
-    const reward = 1;
+    // Prompt #229: future completions use the saved mission reward. Prior txs are not rewritten.
+    const reward = await resolveStoredMissionPayout(db, mission.reward_amount);
     const reviewer = reviewerLabelFromAccount(auth.account);
     const result = await finalizeMissionSubmission(db, env, {
       submissionRow: row,

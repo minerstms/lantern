@@ -37,11 +37,24 @@ export async function findMissionRewardTx(db, submissionId) {
 export async function creditMissionApprovalReward(db, characterName, submissionId, rewardAmount, note, opts) {
   const key = String(characterName || '').trim();
   const sid = String(submissionId || '').trim();
-  // Prompt #159: ordinary mission approval credit is locked to exactly +1 Nugget.
-  // Preserve idempotency via missionRewardReference / missionRewardTxId; ignore malformed amounts.
-  const reward = 1;
+  // Prompt #229: payout is the saved mission reward (teacher-chosen, server-clamped).
+  // Event missions still pass 1. Historical txs stay on their original delta.
+  let reward = Math.trunc(Number(rewardAmount));
+  if (!Number.isFinite(reward) || reward < 0) reward = 1;
+  if (reward > 5) reward = 5;
   if (!key || !sid) {
     return { ok: false, error: 'missing_identity' };
+  }
+  if (reward === 0) {
+    return {
+      ok: true,
+      skipped: true,
+      idempotent: true,
+      id: missionRewardTxId(sid),
+      character_name: key,
+      delta: 0,
+      balance_after: null,
+    };
   }
 
   const env = opts && opts.env;

@@ -1,0 +1,10 @@
+# Pages Functions bindings for the app/ deploy root.
+# Same lantern-db as worker/wrangler.toml. Does not change Worker production routes.
+name = "tms-lantern"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lantern-db"
+database_id = "a9da23a4-db04-4684-b64e-123258cfe130"

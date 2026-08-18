@@ -1254,7 +1254,11 @@
       type: 'mission',
       title: m.title || 'Mission',
       author: 'Missions',
-      dateMeta: '+1 Nugget · Quick mission',
+      dateMeta: (function () {
+        var n = Number(m.reward_amount != null ? m.reward_amount : m.reward);
+        if (!Number.isFinite(n) || n <= 0) return 'Quick mission';
+        return '+' + Math.trunc(n) + ' Nugget' + (Math.trunc(n) === 1 ? '' : 's') + ' · Quick mission';
+      })(),
       thumbnailUrl: resolveCardFaceImageUrl({ title: m.title, description: m.description, image_url: m.image_url, image: m.image, type: 'mission' }),
       image_url: m.image_url,
       fallbackType: 'mission',

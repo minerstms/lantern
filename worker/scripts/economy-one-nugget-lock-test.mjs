@@ -36,39 +36,39 @@ if (migration.includes('SET reward_amount = 1') && migration.includes('reward_am
   ok('migration 057 normalizes mission reward_amount to 1');
 } else bad('migration 057');
 
-if (/const rewardAmount = 1;/.test(missionsHandlers) && /Prompt #159/.test(missionsHandlers)) {
-  ok('mission create API forces reward_amount = 1');
-} else bad('mission create force 1');
+if (/resolveTeacherMissionReward/.test(missionsHandlers) && /body.reward_amount/.test(missionsHandlers)) {
+  ok('mission create API clamps reward_amount via economy settings');
+} else bad('mission create resolver');
 
 if (
   missionsHandlers.includes('updates.push(\'reward_amount = ?\')') &&
-  /bindings\.push\(1\);/.test(missionsHandlers) &&
+  /resolveTeacherMissionReward/.test(missionsHandlers) &&
   !/Math\.min\(99, Math\.floor\(Number\(body\.reward_amount\)/.test(missionsHandlers)
 ) {
-  ok('mission update API forces reward_amount = 1 when provided');
-} else bad('mission update force 1');
+  ok('mission update API clamps reward_amount via economy settings');
+} else bad('mission update resolver');
 
-if (/const reward = 1;/.test(missionsHandlers) && /Prompt #159/.test(missionsHandlers)) {
-  ok('mission approve path hardcodes reward = 1');
-} else bad('mission approve force 1');
+if (/resolveStoredMissionPayout/.test(missionsHandlers) && /mission.reward_amount/.test(missionsHandlers)) {
+  ok('mission approve path pays the saved mission reward');
+} else bad('mission approve resolver');
 
-if (/const reward = 1;/.test(missionsReward) && /Prompt #159/.test(missionsReward)) {
-  ok('creditMissionApprovalReward hardcodes +1');
-} else bad('creditMissionApprovalReward force 1');
+if (/Prompt #229/.test(missionsReward) && /reward > 5/.test(missionsReward)) {
+  ok('creditMissionApprovalReward uses the passed/clamped reward (0–5)');
+} else bad('creditMissionApprovalReward clamp');
 
 if (
   workerIndex.includes("kind === 'game_play'") &&
   workerIndex.includes('client_delta_rejected') &&
-  workerIndex.includes('delta = -1')
+  workerIndex.includes("resolveEconomyAmount(db, 'game_play')")
 ) {
-  ok('game_play server enforces delta = -1');
+  ok('game_play server enforces configured cost');
 } else bad('game_play enforcement');
 
 if (
   workerIndex.includes("kind === 'avatar_upload'") &&
-  workerIndex.includes('avatar_upload costs exactly 1 Nugget')
+  workerIndex.includes("resolveEconomyAmount(db, 'avatar_upload')")
 ) {
-  ok('avatar_upload server enforces delta = -1');
+  ok('avatar_upload server enforces configured cost');
 } else bad('avatar_upload enforcement');
 
 if (/AVATAR_UPLOAD_COST\s*=\s*1/.test(walletJs)) {
@@ -77,27 +77,30 @@ if (/AVATAR_UPLOAD_COST\s*=\s*1/.test(walletJs)) {
 
 if (
   workerIndex.includes("kind === 'game_win'") &&
-  workerIndex.includes('delta = 1') &&
-  workerIndex.includes('game_win awards exactly 1 Nugget')
+  workerIndex.includes("resolveEconomyAmount(db, 'game_win')")
 ) {
-  ok('game_win server enforces delta = +1');
+  ok('game_win server enforces configured award');
 } else bad('game_win enforcement');
 
 if (workerIndex.includes("kind === 'game_false_start'") && workerIndex.includes('game_false_start_disabled')) {
   ok('game_false_start extra charge rejected server-side');
 } else bad('game_false_start rejection');
 
-if (!teacherHtml.includes('id="missionReward"') && teacherHtml.includes('1 Nugget')) {
-  ok('Teacher Create Mission has no reward selector; shows fixed 1 Nugget');
+if (teacherHtml.includes('id="missionRewardAmount"') && teacherHtml.includes('Nugget Reward')) {
+  ok('Teacher Create Mission includes Nugget Reward');
 } else bad('teacher create reward UI');
 
-if (!teacherHtml.includes('data-edit="reward_amount"') && teacherHtml.includes('Reward: <strong>1 Nugget</strong>')) {
-  ok('Teacher edit form has no reward_amount control');
+if (teacherHtml.includes('data-edit="reward_amount"') && teacherHtml.includes('Changes apply to future submissions only')) {
+  ok('Teacher edit form includes Nugget Reward with future-only helper copy');
 } else bad('teacher edit reward UI');
 
-if (missionsPage.includes("return '🟡 +1 Nugget'") || missionsPage.includes('return "🟡 +1 Nugget"')) {
-  ok('student mission cards render canonical +1 Nugget');
-} else bad('student card +1 display');
+if (
+  missionsPage.includes('formatMissionNuggetReward') &&
+  missionsPage.includes("Nugget' : 'Nuggets'") &&
+  !missionsPage.includes("return '🟡 +1 Nugget'")
+) {
+  ok('student mission cards format the saved reward with singular/plural copy');
+} else bad('student card reward display');
 
 if (gamesHtml.includes('var REWARDS = { easy: 1, medium: 1, hard: 1 }')) {
   ok('Nugget Hunt client rewards normalized to 1');
@@ -190,9 +193,24 @@ function makeCreditDb() {
 (async function () {
   const db = makeCreditDb();
   const credited = await creditMissionApprovalReward(db, '20889', 'sub_force_1', 99, 'note');
-  if (credited.ok && credited.delta === 1 && db._state.wallets['20889'].balance === 11) {
-    ok('creditMissionApprovalReward ignores client 99 and awards +1');
-  } else bad('credit ignores malformed reward', credited);
+  if (credited.ok && credited.delta === 5 && db._state.wallets['20889'].balance === 15) {
+    ok('creditMissionApprovalReward clamps absurd 99 to +5');
+  } else bad('credit clamps malformed reward', credited);
+
+  const custom = await creditMissionApprovalReward(db, '20889', 'sub_custom_3', 3, 'note');
+  if (custom.ok && custom.delta === 3 && db._state.wallets['20889'].balance === 18) {
+    ok('creditMissionApprovalReward pays teacher-chosen +3');
+  } else bad('credit custom 3', custom);
+
+  const again = await creditMissionApprovalReward(db, '20889', 'sub_force_1', 3, 'note');
+  if (again.ok && again.idempotent && again.delta === 5 && db._state.wallets['20889'].balance === 18) {
+    ok('duplicate approval keeps the original +5 ledger row');
+  } else bad('credit idempotent original delta', again);
+
+  const zero = await creditMissionApprovalReward(db, '20889', 'sub_zero', 0, 'note');
+  if (zero.ok && zero.skipped && zero.delta === 0 && db._state.wallets['20889'].balance === 18) {
+    ok('0-Nugget mission skips the ledger');
+  } else bad('zero reward skip', zero);
 
   console.log('\nEconomy 1-nugget tests:', pass, 'passed,', fail, 'failed');
   process.exit(fail ? 1 : 0);

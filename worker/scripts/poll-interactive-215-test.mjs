@@ -32,7 +32,7 @@ const workerSrc = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'app/css/lantern-cards.css'), 'utf8');
 
 assert(/type === 'poll'[\s\S]{0,200}openPoll/.test(cardUi), 'H. openFeedItem routes poll → openPoll');
-assert(/pollLockInBtn/.test(cardUi) && /Lock In/.test(cardUi), 'Lock In commit control present');
+assert(!/textContent = 'Lock In'/.test(cardUi) && /submitPollChoice/.test(cardUi), 'direct submit — no Lock In');
 assert(/role',\s*'radiogroup'/.test(cardUi) || /role="radiogroup"/.test(cardUi), 'radiogroup semantics');
 assert(/is-selected/.test(cardUi) && /is-selected/.test(css), 'selected visual state');
 assert(/credentials:\s*'include'/.test(cardUi) && /\/api\/polls\//.test(cardUi), 'poll GET uses credentials');
@@ -43,6 +43,7 @@ assert(/Already voted/.test(workerSrc), 'F. duplicate vote blocked');
 assert(/do NOT flatten MC choices|Tap to vote/.test(feedHandlers), 'I. feed no longer flattens choices into body');
 assert(/type === 'poll'[\s\S]{0,80}\? ''/.test(cards) || /descriptionPreview: desc/.test(cards), 'card face suppresses poll choice dump');
 assert(/lanternFinalRxHost/.test(cardUi) && /Prompt #215[\s\S]{0,200}r\.innerHTML = ''/.test(cardUi), 'generic reactions cleared on poll open');
+assert(!/total vote/.test(cardUi) && /revealPollResults/.test(cardUi), 'poll results are percentages-only with shared reveal');
 assert(/finalizePollContributionPublish|staffPublisher|NEWS_PUBLISHER_ROLES|immediate/.test(workerSrc) || /poll-publish/.test(fs.readFileSync(path.join(root, 'worker/poll-publish.js'), 'utf8')), 'J. #211 publish helpers preserved');
 
 const normalized = normalizePollRow(

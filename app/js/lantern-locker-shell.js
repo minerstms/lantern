@@ -1,6 +1,6 @@
 /**
  * Locker shared shell: profile header + shared Explore engine bootstrap.
- * Prompt #161: Locker Options ▾ replaces About Edit + large Overview/Items/Store tabs.
+ * Prompt #161/#226: My Locker ▾ replaces About Edit + large Overview/Items/Store tabs.
  */
 (function (global) {
   'use strict';
@@ -212,7 +212,7 @@
     return (
       '<div class="lockerOptions" data-locker-options>' +
       '<button type="button" class="lockerOptionsTrigger" id="lockerOptionsTrigger" aria-haspopup="menu" aria-expanded="false" aria-controls="lockerOptionsMenu">' +
-      'Locker Options <span class="lockerOptionsChevron" aria-hidden="true">▾</span>' +
+      'My Locker <span class="lockerOptionsChevron" aria-hidden="true">▾</span>' +
       '</button>' +
       '<div class="lockerOptionsMenu" id="lockerOptionsMenu" role="menu" hidden>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="overview">Overview</button>' +
@@ -220,6 +220,8 @@
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="store">Store</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-profile" data-help="edit_profile">Edit Profile</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-about">Edit About</button>' +
+      '<p class="lockerOptionsGroup" role="presentation">Account / Device</p>' +
+      '<a role="menuitem" class="lockerOptionsItem" data-locker-action="install-app" href="https://log.tmslantern.org/index.html?intent=install" target="_blank" rel="noopener noreferrer">Install Lantern App</a>' +
       '</div>' +
       '</div>'
     );
@@ -251,7 +253,7 @@
       '<section class="lockerHeaderIdentity" aria-label="Profile">' +
       '<div class="lockerHeaderAvatarWrap">' +
       (avatarUrl
-        ? '<img class="lockerHeaderAvatar" src="' + escapeHtml(avatarUrl) + '" alt="">'
+        ? '<img class="lockerHeaderAvatar" src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(displayName) + '">'
         : '<div class="lockerHeaderAvatar lockerHeaderAvatar--placeholder" aria-hidden="true">🌟</div>') +
       '<div class="lockerHeaderAvatarFrame" data-surface-frame-host></div>' +
       '</div>' +
@@ -290,6 +292,18 @@
     bindBioEditor(aboutSection, locker);
     bindLockerOptionsUi(host);
     bindLockerWalletMetrics(host);
+    var avatarImg = host.querySelector('img.lockerHeaderAvatar');
+    if (avatarImg) {
+      avatarImg.onerror = function () {
+        var wrap = avatarImg.parentNode;
+        if (!wrap) return;
+        var fallback = global.document.createElement('div');
+        fallback.className = 'lockerHeaderAvatar lockerHeaderAvatar--placeholder';
+        fallback.setAttribute('aria-hidden', 'true');
+        fallback.textContent = '🌟';
+        wrap.replaceChild(fallback, avatarImg);
+      };
+    }
     try {
       var hash = String((global.location && global.location.hash) || '');
       var tab = 'overview';

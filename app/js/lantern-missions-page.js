@@ -5,7 +5,7 @@
   'use strict';
 
   var state = {
-    status: 'active',
+    status: 'all',
     typeFilter: 'all',
     rewardFilter: 'any',
     sort: 'recommended',
@@ -48,24 +48,46 @@
   // Type/category chips (Quick / Reflection / Teacher / Create / audience labels) are not
   // painted on the card face. Progress/state chips (STARTED / COMPLETED / NEEDS CHANGES) stay.
   //
-  // Prompt #159 — every ordinary mission card shows exactly +1 Nugget.
+  // Prompt #229A — cards show the mission's saved reward_amount (not today's default).
+  function savedRewardAmount(value) {
+    if (value == null || value === '') return null;
+    var n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.trunc(n);
+  }
+
+  function formatMissionNuggetReward(amount, opts) {
+    var n = savedRewardAmount(amount);
+    if (n == null || n <= 0) return '';
+    var noun = n === 1 ? 'Nugget' : 'Nuggets';
+    if (opts && opts.free) return 'FREE · +' + n + ' ' + noun;
+    return '🟡 +' + n + ' ' + noun;
+  }
+
   function rewardMeta(reward, item) {
-    if (reward == null || reward === '' || Number(reward) <= 0) return '';
-    if (item && item.id === 'perm_local_history_trivia') return 'FREE · +1 Nugget';
-    if (item && item.id === 'perm_srp_safety') return 'FREE · +1 Nugget';
-    if (item && item.id === 'perm_seven_habits') return 'FREE · +1 Nugget';
-    return '🟡 +1 Nugget';
+    var n = savedRewardAmount(reward);
+    if (n == null || n <= 0) return '';
+    var sponsored =
+      item &&
+      (item.id === 'perm_local_history_trivia' || item.id === 'perm_srp_safety' || item.id === 'perm_seven_habits');
+    return formatMissionNuggetReward(n, { free: sponsored });
   }
 
   function buildFooterMeta(item) {
     return { primary: '', reward: rewardMeta(item.reward, item) };
   }
 
-  function paintSponsoredTrinidadReward(node) {
+  function paintSponsoredTrinidadReward(node, amount) {
     if (!node || !node.querySelector) return;
+    var n = savedRewardAmount(amount);
+    if (n == null || n <= 0) return;
     var dateEl = node.querySelector('.lanternCanonicalCardDate');
     if (!dateEl) return;
-    dateEl.innerHTML = 'FREE · <img src="assets/icons/nugget.png" alt="" class="missionsHubNuggetIcon" width="16" height="16"> +1 Nugget';
+    dateEl.innerHTML =
+      'FREE · <img src="assets/icons/nugget.png" alt="" class="missionsHubNuggetIcon" width="16" height="16"> +' +
+      n +
+      ' Nugget' +
+      (n === 1 ? '' : 's');
   }
 
   function stateBadgeFor(item) {
@@ -83,8 +105,7 @@
   }
 
   function matchesTab(item) {
-    if (state.status === 'active') return isActiveStatus(item.status);
-    return item.status === state.status;
+    return true;
   }
 
   function matchesFilters(item) {
@@ -142,26 +163,12 @@
   }
 
   function updateStatusTabLabels() {
-    var active = countActive();
-    var done = countByStatus('completed');
-    var map = {
-      active: 'Active' + (state.loading ? '' : ' ' + active),
-      completed: 'Completed' + (state.loading ? '' : ' ' + done),
-    };
-    var bar = el('missionsStatusTabs');
-    if (!bar) return;
-    bar.querySelectorAll('[data-mission-status]').forEach(function (btn) {
-      var key = btn.getAttribute('data-mission-status');
-      if (map[key]) btn.textContent = map[key];
-      btn.classList.toggle('is-active', key === state.status);
-      btn.setAttribute('aria-selected', key === state.status ? 'true' : 'false');
-    });
+    return;
   }
 
   function emptyMessage() {
     if (state.loading) return 'Loading missions…';
-    if (state.status === 'active') return 'No active missions right now.';
-    return 'No completed missions yet.';
+    return 'No missions right now.';
   }
 
   // Prompt #82 — surfaces a real backend failure instead of letting the page look fully
@@ -227,7 +234,9 @@
       });
       var node = LC.createStudentCard(spec);
       if (!node) return;
-      if (item.id === 'perm_local_history_trivia' || item.id === 'perm_srp_safety' || item.id === 'perm_seven_habits') paintSponsoredTrinidadReward(node);
+      if (item.id === 'perm_local_history_trivia' || item.id === 'perm_srp_safety' || item.id === 'perm_seven_habits') {
+        paintSponsoredTrinidadReward(node, item.reward);
+      }
       // Card faces from specGameHubRailCard never produce an .exploreCardOuterWrap <a>
       // wrapper (no navHref is passed), so every card — url-based or onActivate-based —
       // must get its dispatch wired directly on the returned node. A prior version only
@@ -353,6 +362,8 @@
     setItems: setItems,
     renderGrid: renderGrid,
     refreshWalletDisplay: refreshWalletDisplay,
+    formatMissionNuggetReward: formatMissionNuggetReward,
+    savedRewardAmount: savedRewardAmount,
     getStatus: function () {
       return state.status;
     },

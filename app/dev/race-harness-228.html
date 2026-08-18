@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Race harness #228</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; --line: rgba(255,255,255,.12); }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+      padding: 16px 12px 48px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 24px; margin: 28px 0 12px; }
+    p, li { font-size: 22px; line-height: 1.35; }
+    .banner {
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-weight: 800;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,.04);
+      margin-bottom: 16px;
+    }
+    button.replay {
+      width: 100%;
+      min-height: 52px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+    #hud {
+      font-size: 18px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      background: #071018;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+    .exploreOverlayClone {
+      position: relative;
+      height: 70vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(5, 10, 20, 0.72);
+      padding: 24px 12px 40px;
+    }
+    .exploreOverlayClone .lanternCardDetailModal {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 12px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(22, 36, 62, 0.98) 0%, rgba(8, 16, 30, 0.99) 100%);
+    }
+    .exploreBodyFiller {
+      min-height: 420px;
+      font-size: 22px;
+      color: var(--muted);
+    }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY visual harness. Not a student page. Fixture percentages only. Does not write D1 or create users.</p>
+  <h1>Race harness #228</h1>
+  <p>Fixtures: 12%, 34%, 57%, 83%, 100%. Same production race helpers. Tap uses the existing icons — no remount.</p>
+
+  <h2>Explore opened-post modal (real chrome)</h2>
+  <div class="exploreOverlayClone lanternCardDetailOverlay lanternSurfaceShell" id="exploreOverlay">
+    <div class="lanternCardDetailModal lanternSurface lanternCardDetailModal--no-media" id="exploreModal">
+      <div class="lanternSurfaceContent">
+        <p class="exploreBodyFiller">Opened post body. Scroll this overlay so the reaction row sits lower, then tap. Extra copy keeps the modal tall enough to scroll on phone and desktop.</p>
+        <div class="lanternCardDetailReactions" id="exploreReactions">
+          <div class="lanternFinalRxHost" id="exploreRxHost"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="replay" id="exploreTap">Tap ⭐ in place (no rebuild)</button>
+  <button type="button" class="replay" id="exploreReset">Reset Explore draft icons</button>
+
+  <h2>Poll mine-cart race</h2>
+  <div class="panel">
+    <div id="pollRoot"></div>
+    <button type="button" class="replay" id="pollReplay">Replay poll race</button>
+  </div>
+
+  <h2>Live attachment log</h2>
+  <div id="hud">Waiting…</div>
+
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script>
+    (function () {
+      var FIXTURES = [
+        { label: 'Twelve', emoji: '❤️', type: 'heart', percentage: 12, selected: false },
+        { label: 'Thirty-four', emoji: '⭐', type: 'star', percentage: 34, selected: true },
+        { label: 'Fifty-seven', emoji: '💡', type: 'lightbulb', percentage: 57, selected: false },
+        { label: 'Eighty-three', emoji: '🤝', type: 'teamwork', percentage: 83, selected: false },
+        { label: 'Hundred', emoji: '🔥', type: 'fire', percentage: 100, selected: false }
+      ];
+      var POLL = [
+        { label: '12%', percentage: 12, selected: false },
+        { label: '34%', percentage: 34, selected: true },
+        { label: '57%', percentage: 57, selected: false },
+        { label: '83%', percentage: 83, selected: false },
+        { label: '100%', percentage: 100, selected: false }
+      ];
+      var hud = document.getElementById('hud');
+      var samples = [];
+      var finishes = { rx: {}, poll: {} };
+      var startTops = [];
+      var maxDownPx = 0;
+      var firstFrameDownPx = 0;
+      var sampledFrames = 0;
+
+      function rxHtml() {
+        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1">';
+        FIXTURES.forEach(function (v) {
+          html +=
+            '<div class="lanternRxLane">' +
+            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
+            '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>' +
+            '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
+            '</div>';
+        });
+        return html + '</div></div>';
+      }
+
+      function paintExploreDraft() {
+        var host = document.getElementById('exploreRxHost');
+        host.innerHTML = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>' + rxHtml() + '</div>';
+        startTops = [];
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        finishes.rx = {};
+      }
+
+      function tapExploreInPlace() {
+        var root = document.querySelector('#exploreRxHost .lanternFinalRxPanel');
+        if (!root) return;
+        startTops = [];
+        root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+          startTops.push(btn.getBoundingClientRect().top);
+        });
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        finishes.rx = {};
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, FIXTURES, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: false
+        });
+      }
+
+      function mountPoll() {
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(document.getElementById('pollRoot'), POLL, {
+          listLabel: 'Harness poll results',
+          playAudio: false
+        });
+      }
+
+      function gap(a, b) {
+        return Math.round(Math.abs(a - b));
+      }
+
+      function sampleOnce() {
+        var lines = [];
+        var rxOk = true;
+        var pollOk = true;
+        document.querySelectorAll('#exploreRxHost .lanternRxLane').forEach(function (lane, i) {
+          var bar = lane.querySelector('[data-race-fill]');
+          var btn = lane.querySelector('.lanternFinalRxChoice');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!bar || !btn) return;
+          var br = bar.getBoundingClientRect();
+          var ir = btn.getBoundingClientRect();
+          var shown = Number(bar.getAttribute('data-race-shown') || 0);
+          var attach = gap(ir.bottom, br.top);
+          var down = startTops[i] != null ? Math.round(ir.top - startTops[i]) : 0;
+          if (down > maxDownPx) maxDownPx = down;
+          if (sampledFrames === 0 && startTops.length) firstFrameDownPx = down;
+          if (shown > 2 && attach > 10) rxOk = false;
+          if (down > 2) rxOk = false;
+          if (shown >= FIXTURES[i].percentage && !finishes.rx[i]) finishes.rx[i] = Date.now();
+          lines.push(
+            'RX ' + FIXTURES[i].percentage + '% shown=' + shown +
+            ' startY=' + Math.round(startTops[i] || 0) +
+            ' nowY=' + Math.round(ir.top) +
+            ' downPx=' + down +
+            ' iconΔbarTop=' + attach + 'px' +
+            ' pct=' + (pctEl && pctEl.textContent || '—')
+          );
+        });
+        if (startTops.length) sampledFrames += 1;
+        document.querySelectorAll('#pollRoot .lanternPollRaceLane').forEach(function (lane, i) {
+          var fill = lane.querySelector('[data-race-fill]');
+          var cart = lane.querySelector('[data-race-cart]');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!fill || !cart) return;
+          var fr = fill.getBoundingClientRect();
+          var cr = cart.getBoundingClientRect();
+          var shown = Number(fill.getAttribute('data-race-shown') || 0);
+          var attach = gap(cr.left + cr.width / 2, fr.right);
+          if (shown > 2 && attach > 14) pollOk = false;
+          if (shown >= POLL[i].percentage && !finishes.poll[i]) finishes.poll[i] = Date.now();
+          lines.push(
+            'POLL ' + POLL[i].percentage + '% shown=' + shown +
+            ' fillW=' + Math.round(fr.width) +
+            ' cartΔfillEdge=' + attach + 'px' +
+            ' pct=' + (pctEl && pctEl.textContent || '—')
+          );
+        });
+        var rxOrder = Object.keys(finishes.rx).map(Number).sort(function (a, b) { return finishes.rx[a] - finishes.rx[b]; });
+        var pollOrder = Object.keys(finishes.poll).map(Number).sort(function (a, b) { return finishes.poll[a] - finishes.poll[b]; });
+        lines.push('RX finish order: ' + rxOrder.map(function (i) { return FIXTURES[i].percentage + '%'; }).join(' → '));
+        lines.push('POLL finish order: ' + pollOrder.map(function (i) { return POLL[i].percentage + '%'; }).join(' → '));
+        lines.push('first-frame downward px: ' + firstFrameDownPx);
+        lines.push('max downward px: ' + maxDownPx);
+        lines.push('icon never dropped: ' + (maxDownPx <= 2 ? 'YES' : 'NO'));
+        lines.push('icon rides bar: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
+        hud.textContent = lines.join('\n');
+        samples.push({ t: Date.now(), rxOk: rxOk, pollOk: pollOk, maxDownPx: maxDownPx, firstFrameDownPx: firstFrameDownPx });
+      }
+
+      document.getElementById('exploreTap').addEventListener('click', tapExploreInPlace);
+      document.getElementById('exploreReset').addEventListener('click', paintExploreDraft);
+      document.getElementById('pollReplay').addEventListener('click', function () {
+        finishes.poll = {};
+        mountPoll();
+      });
+
+      paintExploreDraft();
+      mountPoll();
+      setInterval(sampleOnce, 80);
+      window.__LANTERN_RACE_HARNESS = {
+        fixtures: FIXTURES,
+        poll: POLL,
+        finishes: finishes,
+        samples: samples,
+        tapExploreInPlace: tapExploreInPlace,
+        paintExploreDraft: paintExploreDraft
+      };
+    })();
+  </script>
+</body>
+</html>

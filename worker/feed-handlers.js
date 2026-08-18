@@ -15,6 +15,7 @@ import {
 } from './staff-public-name.js';
 import { loadContentPeopleIndex } from './content-people.js';
 import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
+import { applyFirstPageHiddenNugget } from './hidden-nugget.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -332,33 +333,200 @@ export function normalizeShoutOutRow(row, origin) {
   return normalizeFeedItemRow(adapted, origin || '', 'shout_out');
 }
 
-async function fetchApprovedFeedItems(db, origin) {
-  const rows = await db.prepare(
-    "SELECT * FROM lantern_feed_items WHERE LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY approved_at DESC, created_at DESC"
-  ).all();
+export async function fetchApprovedFeedItemById(db, origin, cardId) {
+  const id = String(cardId || '').trim();
+  if (!db || !id) return null;
+  try {
+    if (id.indexOf('poll:') === 0) {
+      const raw = id.slice(5);
+      let row;
+      try {
+        row = await db
+          .prepare(
+            "SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')"
+          )
+          .bind(raw)
+          .first();
+      } catch (_) {
+        row = await db
+          .prepare('SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL')
+          .bind(raw)
+          .first();
+      }
+      return row ? normalizePollRow(row, origin) : null;
+    }
+    if (id.indexOf('news:') === 0) {
+      const raw = id.slice(5);
+      const row = await db
+        .prepare(
+          "SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, category, created_at, reviewed_at FROM lantern_news_submissions WHERE id = ? AND LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '')"
+        )
+        .bind(raw)
+        .first();
+      return row ? normalizeNewsRow(row, origin) : null;
+    }
+    if (id.indexOf('shout_out:') === 0) {
+      const raw = id.slice(10);
+      let row;
+      try {
+        row = await db
+          .prepare(
+            'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url FROM lantern_teacher_recognition WHERE id = ?'
+          )
+          .bind(raw)
+          .first();
+      } catch (_) {
+        row = await db
+          .prepare(
+            'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition WHERE id = ?'
+          )
+          .bind(raw)
+          .first();
+      }
+      return row ? normalizeShoutOutRow(row, origin) : null;
+    }
+    if (id.indexOf('mission:') === 0) {
+      const raw = id.slice(8);
+      const row = await db
+        .prepare(
+          "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE id = ? AND LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '')"
+        )
+        .bind(raw)
+        .first();
+      if (!row || isSystemMissionEventMarkerSubmission(row)) return null;
+      let title = '';
+      let cardKey = '';
+      try {
+        const m = await db.prepare('SELECT title, card_image_r2_key FROM lantern_missions WHERE id = ?').bind(row.mission_id).first();
+        title = m && m.title ? String(m.title) : '';
+        cardKey = m && m.card_image_r2_key ? String(m.card_image_r2_key) : '';
+      } catch (_) {}
+      return normalizeMissionRow(Object.assign({}, row, { mission_title: title, card_image_r2_key: cardKey }), origin);
+    }
+    const row = await db
+      .prepare(
+        "SELECT * FROM lantern_feed_items WHERE id = ? AND LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '')"
+      )
+      .bind(id)
+      .first();
+    return row ? normalizeFeedItemRow(row, origin, 'feed') : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+export const EXPLORE_PAGE_SIZE = 60;
+
+export function feedSortStamp(item) {
+  return String((item && (item.approvedAt || item.createdAt)) || '');
+}
+
+export function encodeFeedCursor(item) {
+  if (!item || !item.id) return '';
+  return feedSortStamp(item) + '|' + String(item.id);
+}
+
+export function parseFeedCursor(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const split = s.indexOf('|');
+  if (split <= 0) return null;
+  const t = s.slice(0, split);
+  const id = s.slice(split + 1);
+  if (!t || !id) return null;
+  return { t, id };
+}
+
+function rawCursorId(cursor, prefix) {
+  if (!cursor || !cursor.id) return '';
+  const id = String(cursor.id);
+  if (prefix && id.indexOf(prefix) === 0) return id.slice(prefix.length);
+  if (!prefix && id.indexOf(':') === -1) return id;
+  return '';
+}
+
+function isOlderThanCursor(item, cursor) {
+  if (!cursor) return true;
+  const t = feedSortStamp(item);
+  if (t < cursor.t) return true;
+  if (t > cursor.t) return false;
+  return String(item.id || '') < cursor.id;
+}
+
+async function fetchApprovedFeedItems(db, origin, opts) {
+  const lim = Math.min(200, Math.max(1, (opts && opts.limit) || 80));
+  const cursor = opts && opts.cursor;
+  const rawId = rawCursorId(cursor, '');
+  const binds = [];
+  let sql =
+    "SELECT * FROM lantern_feed_items WHERE LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '')";
+  if (cursor && cursor.t) {
+    if (rawId) {
+      sql +=
+        ' AND (COALESCE(approved_at, created_at) < ? OR (COALESCE(approved_at, created_at) = ? AND id < ?))';
+      binds.push(cursor.t, cursor.t, rawId);
+    } else {
+      sql += ' AND COALESCE(approved_at, created_at) <= ?';
+      binds.push(cursor.t);
+    }
+  }
+  sql += ' ORDER BY COALESCE(approved_at, created_at) DESC, id DESC LIMIT ?';
+  binds.push(lim);
+  const rows = await db.prepare(sql).bind(...binds).all();
   return (rows.results || []).map((r) => normalizeFeedItemRow(r, origin, 'feed'));
 }
 
-async function fetchApprovedNews(db, origin) {
-  const rows = await db.prepare(
-    "SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, category, created_at, reviewed_at FROM lantern_news_submissions WHERE LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY reviewed_at DESC, created_at DESC"
-  ).all();
+async function fetchApprovedNews(db, origin, opts) {
+  const lim = Math.min(200, Math.max(1, (opts && opts.limit) || 80));
+  const cursor = opts && opts.cursor;
+  const rawId = rawCursorId(cursor, 'news:');
+  const binds = [];
+  let sql =
+    'SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, category, created_at, reviewed_at FROM lantern_news_submissions WHERE LOWER(TRIM(status)) = \'approved\' AND (hidden_at IS NULL OR hidden_at = \'\')';
+  if (cursor && cursor.t) {
+    if (rawId) {
+      sql +=
+        ' AND (COALESCE(reviewed_at, created_at) < ? OR (COALESCE(reviewed_at, created_at) = ? AND id < ?))';
+      binds.push(cursor.t, cursor.t, rawId);
+    } else {
+      sql += ' AND COALESCE(reviewed_at, created_at) <= ?';
+      binds.push(cursor.t);
+    }
+  }
+  sql += ' ORDER BY COALESCE(reviewed_at, created_at) DESC, id DESC LIMIT ?';
+  binds.push(lim);
+  const rows = await db.prepare(sql).bind(...binds).all();
   return (rows.results || []).map((r) => normalizeNewsRow(r, origin));
 }
 
-async function fetchApprovedMissions(db, origin, limit) {
+async function fetchApprovedMissions(db, origin, limit, cursor) {
   const lim = Math.min(200, Math.max(1, limit || 100));
   // Prompt #102 — exclude system event-completion markers (confirmation + reviewed_by=system).
   // Those rows track Create-a-Poll / First Game / Daily Check-In progress; Explore already
   // shows the real poll (or other public artifact). Fetch a slightly larger window then filter
   // in case older D1 builds lack reviewed_by in the WHERE clause path.
+  const rawId = rawCursorId(cursor, 'mission:');
+  let cursorSql = '';
+  const cursorBinds = [];
+  if (cursor && cursor.t) {
+    if (rawId) {
+      cursorSql =
+        ' AND (COALESCE(reviewed_at, created_at) < ? OR (COALESCE(reviewed_at, created_at) = ? AND id < ?))';
+      cursorBinds.push(cursor.t, cursor.t, rawId);
+    } else {
+      cursorSql = ' AND COALESCE(reviewed_at, created_at) <= ?';
+      cursorBinds.push(cursor.t);
+    }
+  }
   let rows;
   try {
     rows = await db
       .prepare(
-        "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') AND NOT (LOWER(TRIM(COALESCE(submission_type, ''))) = 'confirmation' AND LOWER(TRIM(COALESCE(reviewed_by, ''))) = 'system') ORDER BY reviewed_at DESC, created_at DESC LIMIT ?"
+        "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') AND NOT (LOWER(TRIM(COALESCE(submission_type, ''))) = 'confirmation' AND LOWER(TRIM(COALESCE(reviewed_by, ''))) = 'system')" +
+          cursorSql +
+          ' ORDER BY COALESCE(reviewed_at, created_at) DESC, id DESC LIMIT ?'
       )
-      .bind(lim)
+      .bind(...cursorBinds, lim)
       .all();
   } catch (_) {
     rows = await db
@@ -405,16 +573,30 @@ async function fetchApprovedMissions(db, origin, limit) {
   });
 }
 
-async function fetchApprovedPolls(db, origin, limit) {
-  const lim = Math.min(100, Math.max(1, limit || 50));
+async function fetchApprovedPolls(db, origin, limit, cursor) {
+  const lim = Math.min(200, Math.max(1, limit || 50));
+  const rawId = rawCursorId(cursor, 'poll:');
+  let cursorSql = '';
+  const cursorBinds = [];
+  if (cursor && cursor.t) {
+    if (rawId) {
+      cursorSql = ' AND (COALESCE(approved_at, created_at) < ? OR (COALESCE(approved_at, created_at) = ? AND id < ?))';
+      cursorBinds.push(cursor.t, cursor.t, rawId);
+    } else {
+      cursorSql = ' AND COALESCE(approved_at, created_at) <= ?';
+      cursorBinds.push(cursor.t);
+    }
+  }
   let rows;
   try {
     // Prompt #213 — exclude hidden polls (hidden_at) while keeping rows + votes recoverable.
     rows = await db
       .prepare(
-        "SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '') ORDER BY approved_at DESC LIMIT ?"
+        "SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')" +
+          cursorSql +
+          ' ORDER BY COALESCE(approved_at, created_at) DESC, id DESC LIMIT ?'
       )
-      .bind(lim)
+      .bind(...cursorBinds, lim)
       .all();
   } catch (_) {
     try {
@@ -436,15 +618,29 @@ async function fetchApprovedPolls(db, origin, limit) {
   return filterOutDemoPersonas(rows.results || [], 'character_name').map((r) => normalizePollRow(r, origin));
 }
 
-async function fetchApprovedShoutOuts(db, origin, limit) {
-  const lim = Math.min(100, Math.max(1, limit || 50));
+async function fetchApprovedShoutOuts(db, origin, limit, cursor) {
+  const lim = Math.min(200, Math.max(1, limit || 50));
+  const rawId = rawCursorId(cursor, 'shout_out:');
+  let cursorSql = '';
+  const cursorBinds = [];
+  if (cursor && cursor.t) {
+    if (rawId) {
+      cursorSql = ' AND (created_at < ? OR (created_at = ? AND id < ?))';
+      cursorBinds.push(cursor.t, cursor.t, rawId);
+    } else {
+      cursorSql = ' AND created_at <= ?';
+      cursorBinds.push(cursor.t);
+    }
+  }
   let rows;
   try {
     rows = await db
       .prepare(
-        'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url FROM lantern_teacher_recognition ORDER BY created_at DESC LIMIT ?'
+        'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url FROM lantern_teacher_recognition WHERE 1=1' +
+          cursorSql +
+          ' ORDER BY created_at DESC, id DESC LIMIT ?'
       )
-      .bind(lim)
+      .bind(...cursorBinds, lim)
       .all();
   } catch (_) {
     /* Pre-migration 061 rows without media columns. */
@@ -461,13 +657,15 @@ async function fetchApprovedShoutOuts(db, origin, limit) {
 
 export async function collectApprovedFeed(db, origin, opts) {
   const limit = opts && opts.limit ? opts.limit : 200;
+  const cursor = opts && opts.cursor ? opts.cursor : null;
+  const sourceLimit = Math.min(400, Math.max(1, limit));
   const [feedItems, newsItems, missionItems, pollItems, shoutItems, avatarIndex, staffNameIndex, peopleByContent] =
     await Promise.all([
-      fetchApprovedFeedItems(db, origin),
-      fetchApprovedNews(db, origin),
-      fetchApprovedMissions(db, origin, limit),
-      fetchApprovedPolls(db, origin, limit),
-      fetchApprovedShoutOuts(db, origin, limit),
+      fetchApprovedFeedItems(db, origin, { limit: sourceLimit, cursor }),
+      fetchApprovedNews(db, origin, { limit: sourceLimit, cursor }),
+      fetchApprovedMissions(db, origin, sourceLimit, cursor),
+      fetchApprovedPolls(db, origin, sourceLimit, cursor),
+      fetchApprovedShoutOuts(db, origin, sourceLimit, cursor),
       loadPilotAvatarKeyIndex(db),
       loadStaffPublicNameIndex(db),
       loadContentPeopleIndex(db),
@@ -521,18 +719,52 @@ export function filterFeedItems(items, params) {
   }
   const sort = (params.sort || 'newest').trim().toLowerCase();
   if (sort === 'oldest') {
-    out.sort((a, b) => String(a.approvedAt || a.createdAt).localeCompare(String(b.approvedAt || b.createdAt)));
+    out.sort((a, b) => {
+      const cmp = String(a.approvedAt || a.createdAt).localeCompare(String(b.approvedAt || b.createdAt));
+      return cmp !== 0 ? cmp : String(a.id || '').localeCompare(String(b.id || ''));
+    });
   } else if (sort === 'title') {
     out.sort((a, b) => String(a.title).localeCompare(String(b.title)));
   } else {
-    out.sort((a, b) => String(b.approvedAt || b.createdAt).localeCompare(String(a.approvedAt || a.createdAt)));
+    out.sort((a, b) => {
+      const cmp = String(b.approvedAt || b.createdAt).localeCompare(String(a.approvedAt || a.createdAt));
+      return cmp !== 0 ? cmp : String(b.id || '').localeCompare(String(a.id || ''));
+    });
   }
   const featured = params.featured === '1' || params.featured === 'true';
   if (featured) out = out.filter((it) => it.featuredEligible);
   const slideshow = params.slideshow === '1' || params.slideshow === 'true';
   if (slideshow) out = out.filter((it) => it.slideshowEligible);
+  if (params.skipLimit) return out;
   const lim = Math.min(100, Math.max(1, parseInt(params.limit || '50', 10)));
   return out.slice(0, lim);
+}
+
+export function paginateFeedItems(items, params) {
+  const sort = (params.sort || 'newest').trim().toLowerCase();
+  const cursor = parseFeedCursor(params.cursor);
+  let out = filterFeedItems(items, Object.assign({}, params, { skipLimit: true }));
+  if (cursor && sort !== 'title') {
+    if (sort === 'oldest') {
+      out = out.filter((it) => {
+        const t = feedSortStamp(it);
+        if (t > cursor.t) return true;
+        if (t < cursor.t) return false;
+        return String(it.id || '') > cursor.id;
+      });
+    } else {
+      out = out.filter((it) => isOlderThanCursor(it, cursor));
+    }
+  }
+  const lim = Math.min(EXPLORE_PAGE_SIZE, Math.max(1, parseInt(params.limit || String(EXPLORE_PAGE_SIZE), 10)));
+  const hasMore = out.length > lim;
+  const page = out.slice(0, lim);
+  const last = page.length ? page[page.length - 1] : null;
+  return {
+    items: page,
+    has_more: hasMore,
+    next_cursor: hasMore && last ? encodeFeedCursor(last) : '',
+  };
 }
 
 export async function attachReactionsAndComments(db, items, viewerCharacterName) {
@@ -640,10 +872,42 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
   if (request.method === 'GET' && path === '/api/feed') {
     const params = Object.fromEntries(url.searchParams.entries());
     const viewerCharacterName = (params.viewer || params.character_name || '').trim();
-    let items = await collectApprovedFeed(db, origin, { limit: parseInt(params.limit || '200', 10) });
-    items = filterFeedItems(items, params);
-    items = await attachReactionsAndComments(db, items, viewerCharacterName);
-    return feedJson({ ok: true, items, meta: { count: items.length, contract: 'lantern-feed-v1' } }, 200, cors);
+    const pageLimit = Math.min(EXPLORE_PAGE_SIZE, Math.max(1, parseInt(params.limit || String(EXPLORE_PAGE_SIZE), 10) || EXPLORE_PAGE_SIZE));
+    const cursor = parseFeedCursor(params.cursor);
+    let items = await collectApprovedFeed(db, origin, { limit: pageLimit + 1, cursor });
+    const page = paginateFeedItems(items, params);
+    let account = null;
+    if (deps && typeof deps.getPilotAccountFromRequest === 'function') {
+      try {
+        account = await deps.getPilotAccountFromRequest(request, env);
+      } catch (_) {
+        account = null;
+      }
+    }
+    const sessionKey =
+      account && deps && typeof deps.pilotEconomyCharacterName === 'function'
+        ? String(deps.pilotEconomyCharacterName(account) || '').trim()
+        : '';
+    const hn = await applyFirstPageHiddenNugget(db, env, {
+      page,
+      cursor,
+      account,
+      accountKey: sessionKey,
+      origin,
+      pageSize: EXPLORE_PAGE_SIZE,
+      fetchItem: (cardId) => fetchApprovedFeedItemById(db, origin, cardId),
+    });
+    items = await attachReactionsAndComments(db, hn.items, sessionKey || viewerCharacterName);
+    return feedJson({
+      ok: true,
+      items,
+      meta: {
+        count: items.length,
+        has_more: hn.has_more,
+        next_cursor: hn.next_cursor || '',
+        contract: 'lantern-feed-v1',
+      },
+    }, 200, cors);
   }
 
   if (request.method === 'GET' && path === '/api/feed/slideshow') {

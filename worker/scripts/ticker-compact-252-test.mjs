@@ -160,7 +160,7 @@ if (
 if (
   !navJs.includes("'Teacher Dashboard'") &&
   !lanternNav.includes('Teacher Dashboard') &&
-  lanternNav.includes('Media Library') &&
+  lanternNav.includes('Photo Library') &&
   nav251.includes('Teacher Dashboard is absent') &&
   missionsHtml.includes('lanternNavMissionsBadge')
 ) {

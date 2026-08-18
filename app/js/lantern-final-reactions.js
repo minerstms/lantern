@@ -1,17 +1,20 @@
 /**
- * Lantern — immutable finalized feed reactions (five positive choices, lock-in once).
- * Prompt #222 — no permanent Lock In; compact confirmation after selecting a reaction.
+ * Lantern — immutable finalized feed reactions (five positive choices).
+ * Prompt #228 — tap submits immediately; no Lock In; spatial vertical race.
  */
 (function (global) {
   'use strict';
 
-  var FINAL_VOCAB = [
-    { type: 'heart', emoji: '❤️', label: 'Love' },
-    { type: 'star', emoji: '⭐', label: 'Star' },
-    { type: 'lightbulb', emoji: '💡', label: 'Idea' },
-    { type: 'teamwork', emoji: '🤝', label: 'Handshake' },
-    { type: 'fire', emoji: '🔥', label: 'Fire' }
-  ];
+  var BANK = global.LANTERN_REACTION_BANK;
+  var FINAL_VOCAB = BANK && BANK.DEFAULT_FIVE
+    ? BANK.DEFAULT_FIVE
+    : [
+        { type: 'heart', emoji: '❤️', label: 'Love' },
+        { type: 'star', emoji: '⭐', label: 'Star' },
+        { type: 'lightbulb', emoji: '💡', label: 'Idea' },
+        { type: 'teamwork', emoji: '🤝', label: 'Handshake' },
+        { type: 'fire', emoji: '🔥', label: 'Fire' },
+      ];
 
   var LOCKED_NOTICE_MS = 3200;
 
@@ -19,6 +22,18 @@
     return String(s || '').replace(/[&<>"']/g, function (c) {
       return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;';
     });
+  }
+
+  function orderedVocab(types) {
+    var source = FINAL_VOCAB;
+    if (BANK && typeof BANK.canonicalSort === 'function' && types && types.length) {
+      return BANK.canonicalSort(types)
+        .map(function (t) {
+          return BANK.entryForType(t);
+        })
+        .filter(Boolean);
+    }
+    return source;
   }
 
   function getApiBase() {
@@ -74,16 +89,54 @@
     return map;
   }
 
-  function renderResultsHtml(results) {
+  function renderResultsHtml(results, selectedType) {
     var pctMap = percentageByType(results);
     var html = '<div class="lanternFinalRxResults" role="list">';
     FINAL_VOCAB.forEach(function (v) {
-      var pct = pctMap[v.type] != null ? pctMap[v.type] : 0;
-      html += '<div class="lanternFinalRxResultCell" role="listitem">' +
-        esc(v.emoji) + ' ' + esc(String(pct)) + '%</div>';
+      var yours = selectedType && v.type === selectedType;
+      html += '<div class="lanternFinalRxResultCell' + (yours ? ' lanternFinalRxResultCell--yours' : '') + '" role="listitem">' +
+        esc(v.emoji) + (yours ? ' <em class="pollYourChoiceMark">Your choice</em>' : '') + '</div>';
     });
     html += '</div>';
     return html;
+  }
+
+  function reactionResultItems(results, selectedType) {
+    var pctMap = percentageByType(results);
+    return FINAL_VOCAB.map(function (v) {
+      return {
+        label: v.label,
+        emoji: v.emoji,
+        type: v.type,
+        percentage: pctMap[v.type] != null ? pctMap[v.type] : 0,
+        selected: !!(selectedType && v.type === selectedType),
+      };
+    });
+  }
+
+  function revealReactionResults(host, results, selectedType, anchorRoot, hiddenNugget) {
+    var items = reactionResultItems(results, selectedType);
+    var api = global.LANTERN_RESULT_REVEAL;
+    var hnApi = global.LANTERN_HIDDEN_NUGGET;
+    var hnPayload = hnApi && typeof hnApi.payloadFromResponse === 'function'
+      ? hnApi.payloadFromResponse({ hidden_nugget: hiddenNugget })
+      : null;
+    var root = anchorRoot || host;
+    if (api && typeof api.mountReactionSpatialRace === 'function' && root) {
+      api.mountReactionSpatialRace(root, items, {
+        choiceSelector: '.lanternFinalRxChoice',
+        typeAttr: 'data-rx-type',
+        onAllDone: function () {
+          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, root);
+        },
+      });
+      return;
+    }
+    if (host && api && typeof api.mountResultRace === 'function') {
+      api.mountResultRace(host, items, { listLabel: 'Reaction results' });
+      return;
+    }
+    if (host) host.innerHTML = renderResultsHtml(results, selectedType);
   }
 
   function showLockedChangeNotice(panel) {
@@ -101,8 +154,8 @@
     notice.className = 'lanternFinalRxLockedNotice';
     notice.setAttribute('role', 'status');
     notice.innerHTML =
-      '<p class="lanternFinalRxLockedNoticeTitle">Response Locked</p>' +
-      '<p class="lanternFinalRxLockedNoticeSub">Your response can\u2019t be changed after you lock it in.</p>';
+      '<p class="lanternFinalRxLockedNoticeTitle">Response saved</p>' +
+      '<p class="lanternFinalRxLockedNoticeSub">Your response can\u2019t be changed after you choose.</p>';
     panel.appendChild(notice);
     global.requestAnimationFrame(function () {
       notice.classList.add('lanternFinalRxLockedNotice--show');
@@ -112,7 +165,7 @@
     }, LOCKED_NOTICE_MS);
   }
 
-  function wireLockedChoiceAttempts(panel, lockedType) {
+  function wireLockedChoiceAttempts(panel) {
     if (!panel) return;
     panel.querySelectorAll('.lanternFinalRxChoice[data-locked="true"]').forEach(function (btn) {
       function onAttempt(e) {
@@ -129,74 +182,54 @@
     });
   }
 
-  function confirmPopoverHtml() {
-    return (
-      '<div class="lanternFinalRxConfirm" hidden role="dialog" aria-label="Confirm reaction">' +
-        '<div class="lanternFinalRxConfirmActions">' +
-          '<button type="button" class="lanternFinalRxConfirmOk">Lock it in!</button>' +
-          '<button type="button" class="lanternFinalRxConfirmCancel">Choose another.</button>' +
-        '</div>' +
-      '</div>'
-    );
+  function choicesHtml(vocab, extraClass) {
+    var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
+    vocab.forEach(function (v) {
+      html +=
+        '<div class="lanternRxLane">' +
+        '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
+        '<button type="button" class="lanternFinalRxChoice' +
+        (extraClass || '') +
+        '" data-rx-type="' +
+        esc(v.type) +
+        '" aria-label="' +
+        esc(v.label) +
+        '" aria-pressed="false">' +
+        v.emoji +
+        '</button>' +
+        '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
+        '</div>';
+    });
+    html += '</div></div>';
+    return html;
   }
 
   function renderPreviewPanel(container) {
-    var draft = null;
+    var selected = null;
+    var vocab = orderedVocab();
     var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft lanternFinalRxPanel--preview" data-final-rx-preview="1">';
     html += '<h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
-    html += '<div class="lanternFinalRxChoices" data-final-rx-choices="1">';
-    FINAL_VOCAB.forEach(function (v) {
-      html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + esc(v.type) + '" aria-label="' + esc(v.label) + '" aria-pressed="false">' + v.emoji + '</button>';
-    });
-    html += '</div>';
-    html += confirmPopoverHtml();
+    html += choicesHtml(vocab, '');
     html += '</div>';
     container.innerHTML = html;
-    var panel = container.querySelector('.lanternFinalRxPanel');
     var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
-    var confirmBox = container.querySelector('.lanternFinalRxConfirm');
-    var confirmOk = container.querySelector('.lanternFinalRxConfirmOk');
-    var confirmCancel = container.querySelector('.lanternFinalRxConfirmCancel');
 
-    function syncDraftUi() {
+    function sync() {
       choiceBtns.forEach(function (btn) {
-        var t = btn.getAttribute('data-rx-type');
-        var on = t === draft;
+        var on = btn.getAttribute('data-rx-type') === selected;
         btn.classList.toggle('lanternFinalRxChoice--on', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
-      if (confirmBox) confirmBox.hidden = !draft;
     }
 
     choiceBtns.forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
-        var t = btn.getAttribute('data-rx-type');
-        draft = t;
-        syncDraftUi();
+        selected = btn.getAttribute('data-rx-type');
+        sync();
       });
     });
-    if (confirmCancel) {
-      confirmCancel.addEventListener('click', function (e) {
-        e.preventDefault();
-        draft = null;
-        syncDraftUi();
-      });
-    }
-    if (confirmOk) {
-      confirmOk.addEventListener('click', function (e) {
-        e.preventDefault();
-      });
-    }
-    if (panel) {
-      panel.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && draft) {
-          draft = null;
-          syncDraftUi();
-        }
-      });
-    }
-    syncDraftUi();
+    sync();
   }
 
   /**
@@ -233,48 +266,79 @@
     });
   }
 
+  function lockExistingDraft(container, status) {
+    var panel = container.querySelector('.lanternFinalRxPanel');
+    if (!panel) {
+      renderLocked(container, status);
+      return;
+    }
+    var rt = status.reaction_type;
+    panel.classList.add('lanternFinalRxPanel--locked');
+    panel.classList.remove('lanternFinalRxPanel--draft');
+    container.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+      var t = btn.getAttribute('data-rx-type');
+      btn.setAttribute('data-locked', 'true');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.disabled = true;
+      if (t === rt) {
+        btn.classList.add('lanternFinalRxChoice--locked-on', 'lanternFinalRxChoice--on');
+        var lane = btn.closest('.lanternRxLane');
+        if (lane) lane.classList.add('lanternRxLane--yours');
+      }
+    });
+    if (rt && !panel.querySelector('.lanternFinalRxYour')) {
+      var yours = global.document.createElement('p');
+      yours.className = 'lanternFinalRxYour';
+      yours.textContent = 'Your response: ' + emojiForType(rt);
+      panel.appendChild(yours);
+    }
+    if (status.results && status.results.length) {
+      revealReactionResults(null, status.results, rt, panel, status.hidden_nugget);
+    }
+    wireLockedChoiceAttempts(panel);
+  }
+
   function renderLocked(container, status) {
     var rt = status.reaction_type;
     var em = emojiForType(rt);
+    var vocab = orderedVocab();
     var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--locked">';
     html += '<h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
-    html += '<div class="lanternFinalRxChoices lanternFinalRxChoices--locked">';
-    FINAL_VOCAB.forEach(function (v) {
-      var on = v.type === rt ? ' lanternFinalRxChoice--locked-on' : '';
-      html += '<button type="button" class="lanternFinalRxChoice' + on + '" data-locked="true" data-rx-type="' + esc(v.type) + '" aria-disabled="true" aria-label="' + esc(v.label) + '">' + v.emoji + '</button>';
-    });
-    html += '</div>';
-    if (status.results && status.results.length) {
-      html += renderResultsHtml(status.results);
-    }
+    html += choicesHtml(vocab, '');
     if (rt) {
       html += '<p class="lanternFinalRxYour">Your response: ' + esc(em) + '</p>';
     }
     html += '</div>';
     container.innerHTML = html;
     var panel = container.querySelector('.lanternFinalRxPanel');
-    wireLockedChoiceAttempts(panel, rt);
+    container.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+      var t = btn.getAttribute('data-rx-type');
+      btn.setAttribute('data-locked', 'true');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.disabled = true;
+      if (t === rt) {
+        btn.classList.add('lanternFinalRxChoice--locked-on', 'lanternFinalRxChoice--on');
+        var lane = btn.closest('.lanternRxLane');
+        if (lane) lane.classList.add('lanternRxLane--yours');
+      }
+    });
+    if (status.results && status.results.length) {
+      revealReactionResults(null, status.results, rt, panel || container, status.hidden_nugget);
+    }
+    wireLockedChoiceAttempts(panel);
   }
 
   function renderDraft(container, itemType, itemId, opts) {
-    var draft = null;
     var submitting = false;
+    var vocab = orderedVocab();
     var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft">';
     html += '<h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
-    html += '<div class="lanternFinalRxChoices" data-final-rx-choices="1">';
-    FINAL_VOCAB.forEach(function (v) {
-      html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + esc(v.type) + '" aria-label="' + esc(v.label) + '" aria-pressed="false">' + v.emoji + '</button>';
-    });
-    html += '</div>';
-    html += confirmPopoverHtml();
+    html += choicesHtml(vocab, '');
     html += '</div>';
     container.innerHTML = html;
 
     var panel = container.querySelector('.lanternFinalRxPanel');
     var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
-    var confirmBox = container.querySelector('.lanternFinalRxConfirm');
-    var confirmOk = container.querySelector('.lanternFinalRxConfirmOk');
-    var confirmCancel = container.querySelector('.lanternFinalRxConfirmCancel');
 
     function clearError() {
       var errEl = container.querySelector('.lanternFinalRxError');
@@ -286,86 +350,55 @@
       var errEl = global.document.createElement('p');
       errEl.className = 'lanternFinalRxError';
       errEl.setAttribute('role', 'alert');
-      errEl.textContent = msg || 'Could not lock in response.';
+      errEl.textContent = msg || 'Could not save response.';
       var host = container.querySelector('.lanternFinalRxPanel') || container;
       host.appendChild(errEl);
     }
 
-    function syncDraftUi() {
+    function setBusy(on, chosen) {
+      submitting = !!on;
       choiceBtns.forEach(function (btn) {
         var t = btn.getAttribute('data-rx-type');
-        var on = t === draft;
-        btn.classList.toggle('lanternFinalRxChoice--on', on);
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.disabled = !!submitting;
+        btn.disabled = !!on;
+        btn.classList.toggle('lanternFinalRxChoice--on', !!(chosen && t === chosen));
+        btn.setAttribute('aria-pressed', chosen && t === chosen ? 'true' : 'false');
       });
-      if (confirmBox) confirmBox.hidden = !draft || submitting;
-      if (confirmOk) confirmOk.disabled = !draft || submitting;
-      if (confirmCancel) confirmCancel.disabled = submitting;
     }
 
-    function clearTentative() {
-      draft = null;
-      syncDraftUi();
+    function armAudio() {
+      var a = global.LANTERN_RACE_AUDIO;
+      if (a && typeof a.ensureFromGesture === 'function') a.ensureFromGesture();
+    }
+
+    function submitChoice(chosen) {
+      if (!chosen || submitting) return;
+      clearError();
+      armAudio();
+      setBusy(true, chosen);
+      finalizeReaction(itemType, itemId, chosen).then(function (res) {
+        if (res && res.ok && res.finalized) {
+          if (typeof opts.onFinalized === 'function') opts.onFinalized(res);
+          lockExistingDraft(container, res);
+          return;
+        }
+        if (res && res.error === 'reaction_already_finalized') {
+          getFinalizedStatus(itemType, itemId).then(function (st) {
+            if (st && st.ok) renderLocked(container, st);
+          });
+          return;
+        }
+        setBusy(false, null);
+        var errMsg = res && res.error ? String(res.error) : 'Could not save response.';
+        showError(errMsg);
+      });
     }
 
     choiceBtns.forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (submitting) return;
-        clearError();
-        var t = btn.getAttribute('data-rx-type');
-        // Prompt #222 — selecting a reaction opens/keeps confirmation; switching updates tentative choice.
-        draft = t;
-        syncDraftUi();
+        submitChoice(btn.getAttribute('data-rx-type'));
       });
     });
-
-    if (confirmCancel) {
-      confirmCancel.addEventListener('click', function () {
-        if (submitting) return;
-        clearError();
-        clearTentative();
-      });
-    }
-
-    if (confirmOk) {
-      confirmOk.addEventListener('click', function () {
-        if (!draft || submitting) return;
-        clearError();
-        submitting = true;
-        syncDraftUi();
-        var chosen = draft;
-        finalizeReaction(itemType, itemId, chosen).then(function (res) {
-          submitting = false;
-          if (res && res.ok && res.finalized) {
-            if (typeof opts.onFinalized === 'function') opts.onFinalized(res);
-            renderLocked(container, res);
-            return;
-          }
-          if (res && res.error === 'reaction_already_finalized') {
-            getFinalizedStatus(itemType, itemId).then(function (st) {
-              if (st && st.ok) renderLocked(container, st);
-            });
-            return;
-          }
-          // Failure: do not lock, do not reveal percentages, restore interactive state.
-          draft = chosen;
-          syncDraftUi();
-          var errMsg = (res && res.error) ? String(res.error) : 'Could not lock in response.';
-          showError(errMsg);
-        });
-      });
-    }
-
-    if (panel) {
-      panel.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && draft && !submitting) {
-          clearTentative();
-        }
-      });
-    }
-
-    syncDraftUi();
   }
 
   global.LANTERN_FINAL_REACTIONS = {
@@ -376,6 +409,7 @@
     emojiForType: emojiForType,
     isAuthenticatedViewer: isAuthenticatedViewer,
     renderResultsHtml: renderResultsHtml,
-    showLockedChangeNotice: showLockedChangeNotice
+    showLockedChangeNotice: showLockedChangeNotice,
+    revealReactionResults: revealReactionResults
   };
 })(typeof window !== 'undefined' ? window : self);

@@ -19,7 +19,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
-const CORE = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const CORE = ['Lantern', 'My Locker', 'Create', 'Photo Library', 'Games', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const PAGES = [
   'app/explore.html',
@@ -48,20 +48,20 @@ function labels(role, caps) {
 
 assert(JSON.stringify(labels('student', null)) === JSON.stringify(CORE), '1-5. student core navigation', JSON.stringify(labels('student', null)));
 const studentHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, system_admin: true }, 'student');
-assert(!/Teacher Tools|Behavior Logger|Reports|>System<|STAFF|ADMIN \/ TOOLS/.test(studentHtml), '6-9/47. student never receives staff/admin even if caps spoofed');
+assert(!/Teacher Tools|Behavior Logger|MTSS Reports|>System Tools<|STAFF|ADMIN \/ TOOLS/.test(studentHtml), '6-9/47. student never receives staff/admin even if caps spoofed');
 
 const teacherLabels = labels('teacher', null);
 assert(JSON.stringify(teacherLabels) === JSON.stringify(CORE.concat(STAFF)), '10-12. normal teacher core + STAFF', JSON.stringify(teacherLabels));
-assert(!teacherLabels.includes('Reports') && !teacherLabels.includes('System'), '13-14. teacher without REPORT_MAKER/SYSTEM_ADMIN has no Reports/System');
+assert(!teacherLabels.includes('MTSS Reports') && !teacherLabels.includes('System Tools'), '13-14. teacher without REPORT_MAKER/SYSTEM_ADMIN has no MTSS Reports/System Tools');
 
 const reportingLabels = labels('teacher', { report_maker: true });
-assert(JSON.stringify(reportingLabels) === JSON.stringify(CORE.concat(STAFF).concat(['Reports'])), '15-18. REPORT_MAKER adds Reports', JSON.stringify(reportingLabels));
-assert(!reportingLabels.includes('System'), '19. REPORT_MAKER does not add System');
+assert(JSON.stringify(reportingLabels) === JSON.stringify(CORE.concat(STAFF).concat(['MTSS Reports'])), '15-18. REPORT_MAKER adds MTSS Reports', JSON.stringify(reportingLabels));
+assert(!reportingLabels.includes('System Tools'), '19. REPORT_MAKER does not add System Tools');
 
 const sysLabels = labels('teacher', { system_admin: true });
-assert(sysLabels.includes('System') && !sysLabels.includes('Reports') && !sysLabels.includes('Behavior Administration'), '20-23. SYSTEM_ADMIN adds System only');
+assert(sysLabels.includes('System Tools') && !sysLabels.includes('MTSS Reports') && !sysLabels.includes('Behavior Admin'), '20-23. SYSTEM_ADMIN adds System Tools only');
 const webCaps = { teacher: true, report_maker: true, behavior_admin: true, system_admin: true };
-assert(JSON.stringify(labels('admin', webCaps)) === JSON.stringify(CORE.concat(STAFF).concat(['Reports', 'Behavior Administration', 'System'])), 'E. Web Admin privileged matrix', JSON.stringify(labels('admin', webCaps)));
+assert(JSON.stringify(labels('admin', webCaps)) === JSON.stringify(CORE.concat(STAFF).concat(['MTSS Reports', 'Behavior Admin', 'System Tools'])), 'E. Web Admin privileged matrix', JSON.stringify(labels('admin', webCaps)));
 assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAFF)), 'E2. Lantern admin role alone does not grant privileged links', JSON.stringify(labels('admin', null)));
 
 const orderHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, behavior_admin: true, system_admin: true }, 'teacher');
@@ -93,7 +93,7 @@ PAGES.forEach((rel) => {
 });
 assert(read('app/display.html').includes('page-marquee-only'), 'display.html remains marquee-only exception');
 
-assert(staffNav.includes("path: '/explore.html'"), '43. Lantern route /explore.html');
+assert(lanternNav.includes('href="explore.html"') && lanternNav.includes('id="lanternHomeLink"') && staffNav.includes("'/explore.html'"), '43. brand home / hrefFor lantern is /explore.html');
 assert(staffNav.includes("path: '/locker.html'"), '43. Locker route');
 assert(staffNav.includes("path: '/contribute.html'"), '43. Create route');
 assert(staffNav.includes("path: '/games.html'"), '43. Play route');

@@ -78,18 +78,19 @@ if (
 
 if (
   missionsPageJs.includes("item.id === 'perm_local_history_trivia'") &&
-  missionsPageJs.includes("return 'FREE · +1 Nugget'") &&
+  missionsPageJs.includes('formatMissionNuggetReward') &&
   missionsPageJs.includes('assets/icons/nugget.png') &&
-  missionsPageJs.includes("return '🟡 +1 Nugget'")
+  missionsPageJs.includes("opts.free")
 ) {
-  ok('10/11. Mission card shows +1 Nugget with canonical icon and FREE; other cards keep 🟡 +1 Nugget');
+  ok('10/11. Mission card formats saved reward; sponsored cards keep FREE + nugget icon');
 } else bad('10/11 card copy');
 
 if (
   playerJs.includes('sponsoredFreeMission') &&
   playerJs.includes('FREE TO PLAY') &&
   playerJs.includes('assets/icons/nugget.png') &&
-  playerJs.includes('+1 Nugget') &&
+  playerJs.includes('formatSponsoredRewardCopy') &&
+  playerJs.includes("'+' + n + ' Nugget'") &&
   playerJs.includes('setSponsoredMissionPregameCost') &&
   playerJs.includes("cost + ' Nugget = 1 Play'")
 ) {

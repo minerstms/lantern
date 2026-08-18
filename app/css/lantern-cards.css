@@ -1260,20 +1260,7 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   box-shadow: inset 0 0 0 2px rgba(255,255,255,.28), 0 6px 18px rgba(40,100,200,.18);
 }
 .pollLockInBtn{
-  width: 100%;
-  margin-top: 10px;
-  min-height: 52px;
-  font-size: 22px;
-  font-weight: 900;
-  border-radius: 14px;
-  border: 1px solid rgba(90,167,255,.55);
-  background: linear-gradient(180deg, rgba(90,167,255,.55), rgba(50,110,210,.45));
-  color: #fff;
-  box-shadow: 0 8px 22px rgba(40,100,200,.25);
-}
-.pollLockInBtn:disabled{
-  opacity: 0.55;
-  cursor: not-allowed;
+  display: none !important;
 }
 .pollResultsWrap{ margin-top: 16px; }
 .pollResultsSummary{
@@ -1313,6 +1300,129 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   border-radius: 8px;
   background: linear-gradient(90deg, rgba(90,167,255,.6), rgba(90,167,255,.35));
   transition: width .25s ease;
+}
+.lanternRaceToolbar{
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+.lanternRxRaceLive > .lanternRaceToolbar,
+.lanternFinalRxPanel > .lanternRaceToolbar,
+.lanternReactionBar > .lanternRaceToolbar,
+.lanternCardDetailReactions > .lanternRaceToolbar{
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  z-index: 4;
+}
+.lanternRaceSoundBtn{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(0,0,0,.28);
+  color: var(--ink, #eaf0ff);
+  font-size: 18px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+.lanternRaceSoundBtn.is-muted{
+  opacity: 0.7;
+}
+.lanternPollRace{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: visible;
+}
+.lanternPollRaceLane{
+  border-radius: 12px;
+  padding: 4px 2px;
+}
+.lanternPollRaceLane--yours{
+  outline: 2px solid rgba(56,208,124,.55);
+  outline-offset: 4px;
+}
+.lanternPollRaceLabel{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 20px;
+  font-weight: 800;
+}
+.lanternPollRaceTrack{
+  position: relative;
+  height: 40px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, transparent 16px, rgba(232,196,92,.55) 16px, rgba(232,196,92,.55) 24px, transparent 24px),
+    rgba(255,255,255,.1);
+  overflow: visible;
+}
+.lanternPollRaceFill{
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(90,167,255,.7), rgba(90,167,255,.35));
+}
+.lanternPollRaceLane--yours .lanternPollRaceFill{
+  background: linear-gradient(90deg, rgba(56,208,124,.75), rgba(56,208,124,.35));
+}
+.lanternMineCart{
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 36px;
+  height: 27px;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none;
+}
+.lanternMineCartSvg{
+  display: block;
+  width: 36px;
+  height: 27px;
+}
+.lanternResultRaceFill.pollBarFill,
+.lanternResultRaceFill{
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+  transition: none !important;
+}
+.lanternResultRacePct.is-pending{
+  visibility: hidden;
+}
+.lanternResultRaceRow{
+  margin-bottom: 14px;
+  border-radius: 10px;
+}
+.lanternResultRaceRow--yours{
+  outline: 2px solid rgba(56,208,124,.55);
+  outline-offset: 4px;
+  padding: 4px;
+}
+.visuallyHidden{
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
 }
 .pollResultRow--yours .pollBarFill{
   background: linear-gradient(90deg, rgba(56,208,124,.7), rgba(56,208,124,.35));
@@ -1838,6 +1948,12 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   background: rgba(0,0,0,.18);
   flex-shrink: 0;
   box-sizing: border-box;
+  overflow: visible;
+}
+.lanternCardDetailModal--rx-racing,
+.lanternCardDetailModal--rx-racing .lanternCardDetailReactions,
+.lanternCardDetailModal--rx-racing .lanternCardDetailBody{
+  overflow: visible;
 }
 .lanternCardDetailOverlay .lanternCardDetailReactions:empty{
   display: none;

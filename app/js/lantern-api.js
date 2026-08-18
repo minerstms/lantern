@@ -682,7 +682,14 @@
       id: id,
       title: String(opts.title || '').trim().slice(0, 200),
       description: String(opts.description || '').trim().slice(0, 1000),
-      reward_amount: 1,
+      reward_amount: (function () {
+        if (opts.reward_amount == null || opts.reward_amount === '') return 1;
+        var n = parseInt(opts.reward_amount, 10);
+        if (!Number.isFinite(n)) return 1;
+        if (n < 0) return 0;
+        if (n > 5) return 5;
+        return n;
+      })(),
       submission_type: ['text', 'link', 'image_url', 'confirmation'].indexOf(String(opts.submission_type || 'text').trim()) >= 0 ? String(opts.submission_type || 'text').trim() : 'text',
       created_by_teacher_id: teacherId,
       created_by_teacher_name: teacherName,
@@ -697,10 +704,15 @@
       featured: !!opts.featured,
       site_eligible: !!opts.site_eligible,
       allows_text: opts.allows_text !== false,
-      allows_image: !!(opts.allows_image),
+      allows_image: !!(opts.allows_image || opts.require_image),
+      require_image: !!opts.require_image || Number(opts.allows_image) >= 2,
       allows_video: !!(opts.allows_video),
       allows_link: !!(opts.allows_link),
-      min_characters: opts.min_characters !== undefined && opts.min_characters !== null ? Math.max(0, Math.floor(Number(opts.min_characters)) || 200) : 200,
+      min_characters: (function () {
+        if (opts.min_characters === undefined || opts.min_characters === null) return 0;
+        var n = Number(opts.min_characters);
+        return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+      })(),
     };
     missions.push(m);
     DATA.setToLS(LS.TEACHER_MISSIONS, missions);
@@ -715,9 +727,24 @@
     if (updates.active !== undefined) missions[idx].active = !!updates.active;
     if (updates.title !== undefined) missions[idx].title = String(updates.title).trim().slice(0, 200);
     if (updates.description !== undefined) missions[idx].description = String(updates.description).trim().slice(0, 1000);
-    if (updates.reward_amount !== undefined) missions[idx].reward_amount = 1;
+    if (updates.reward_amount !== undefined) {
+      var nextReward = parseInt(updates.reward_amount, 10);
+      if (!Number.isFinite(nextReward)) nextReward = missions[idx].reward_amount;
+      else if (nextReward < 0) nextReward = 0;
+      else if (nextReward > 5) nextReward = 5;
+      missions[idx].reward_amount = nextReward;
+    }
     if (updates.featured !== undefined) missions[idx].featured = !!updates.featured;
     if (updates.site_eligible !== undefined) missions[idx].site_eligible = !!updates.site_eligible;
+    if (updates.allows_image !== undefined) missions[idx].allows_image = !!updates.allows_image;
+    if (updates.require_image !== undefined) {
+      missions[idx].require_image = !!updates.require_image;
+      if (missions[idx].require_image) missions[idx].allows_image = true;
+    }
+    if (updates.min_characters !== undefined) {
+      var mc = Number(updates.min_characters);
+      missions[idx].min_characters = Number.isFinite(mc) && mc >= 0 ? Math.floor(mc) : missions[idx].min_characters;
+    }
     if (updates.audience !== undefined) missions[idx].audience = ['my_students', 'selected_students', 'school_mission'].indexOf(String(updates.audience).trim()) >= 0 ? String(updates.audience).trim() : missions[idx].audience || 'school_mission';
     if (updates.target_character_names !== undefined) missions[idx].target_character_names = Array.isArray(updates.target_character_names) ? updates.target_character_names.slice() : undefined;
     DATA.setToLS(LS.TEACHER_MISSIONS, missions);
@@ -2800,7 +2827,14 @@
             allows_image: !!(payload && payload.allows_image),
             allows_video: !!(payload && payload.allows_video),
             allows_link: !!(payload && payload.allows_link),
-            min_characters: (payload && payload.min_characters) !== undefined && payload.min_characters !== null ? Math.max(0, Math.floor(Number(payload.min_characters)) || 200) : 200,
+            min_characters: (function () {
+              if (payload && payload.min_characters !== undefined && payload.min_characters !== null) {
+                var n = Number(payload.min_characters);
+                return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+              }
+              return 0;
+            })(),
+            require_image: !!(payload && payload.require_image),
           };
           fetch(apiBase + '/api/missions', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(successFn).catch(failureFn);
           return;
@@ -2823,7 +2857,14 @@
           allows_image: !!(payload && payload.allows_image),
           allows_video: !!(payload && payload.allows_video),
           allows_link: !!(payload && payload.allows_link),
-          min_characters: (payload && payload.min_characters) !== undefined && payload.min_characters !== null ? Math.max(0, Math.floor(Number(payload.min_characters)) || 200) : 200,
+          require_image: !!(payload && payload.require_image),
+          min_characters: (function () {
+            if (payload && payload.min_characters !== undefined && payload.min_characters !== null) {
+              var n = Number(payload.min_characters);
+              return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+            }
+            return 0;
+          })(),
         });
         Promise.resolve(result).then(successFn).catch(failureFn);
       },

@@ -39,11 +39,11 @@
         ? global.LanternStaffNav.buildMenuSectionsHtml(current, 'lantern', null, null)
         : '<div class="lanternAppBarDropdownSection"><div class="lanternAppBarDropdownGroupLabel">NAVIGATION</div>' +
           '<a href="explore.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="explore">Lantern</a>' +
-          '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">Locker</a>' +
+          '<a href="locker.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="locker">My Locker</a>' +
           '<a href="contribute.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="create">Create</a>' +
-          '<a href="https://miners-yearbook.pages.dev/" role="menuitem" class="lanternAppBarDropdownLink" data-page="media_library">Media Library</a>' +
-          '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Play</a>' +
-          '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="missions">Missions <span id="lanternNavMissionsBadge" class="lanternNavBadge">0</span></a>' +
+          '<a href="https://miners-yearbook.pages.dev/" role="menuitem" class="lanternAppBarDropdownLink" data-page="media_library">Photo Library</a>' +
+          '<a href="games.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="play">Games</a>' +
+          '<a href="missions.html" role="menuitem" class="lanternAppBarDropdownLink" data-page="missions">Missions</a>' +
           '</div>';
     return (
       '<div class="lanternAppBarDropdown" id="lanternMenuDropdown" role="menu" hidden>' +
@@ -55,8 +55,9 @@
   }
 
   function buildLanternChevronMenuWrap(current) {
-    var chevron = '<button type="button" class="lanternAppBarMenuChevron" id="lanternMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-label="Open navigation menu"><span class="lanternAppBarMenuChevronIcon" aria-hidden="true">&#9660;</span></button>';
-    return '<div class="lanternAppBarMenuWrap lanternAppBarLanternMenuWrap">' + chevron + buildLanternNavDropdownHtml(current) + '</div>';
+    var menuBtn =
+      '<button type="button" class="lanternAppBarMenuBtn" id="lanternMenuTrigger" aria-haspopup="menu" aria-expanded="false" aria-controls="lanternMenuDropdown">Menu <span class="lanternAppBarMenuChevronIcon" aria-hidden="true">&#9660;</span></button>';
+    return '<div class="lanternAppBarMenuWrap lanternAppBarLanternMenuWrap">' + menuBtn + buildLanternNavDropdownHtml(current) + '</div>';
   }
 
   /** Same returned semantics as Locker → Overview → My Creations → Needs Attention (status === 'returned'). */
@@ -189,27 +190,26 @@
       '.lanternHeaderBrand--pride{ right:20px; }',
       '.lanternAppBarInner{ position:relative; z-index:1; max-width: var(--lantern-page-max-width); margin: 0 auto; display: flex; align-items: center; flex-wrap: nowrap; height: 52px; min-height: 52px; max-height: 52px; box-sizing: border-box; gap: 16px; overflow: visible; }',
       '.lanternAppBarLeft{ display: flex; align-items: center; flex-shrink: 0; gap: 2px; flex-wrap: wrap; }',
-      /* Prompt #152 — brand menu is the positioning root so dropdown text aligns under the L in Lantern */
-      '.lanternAppBarBrandMenu{ position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(0,0,0,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.07); overflow: visible; }',
-      '.lanternAppBarBrandMenu .lanternAppBarHomeLink{ display: inline-flex; align-items: center; align-self: stretch; color: ' + NAV.white + '; font-weight: 900; font-size: 17px; text-decoration: none; padding: 8px 12px 8px var(--lantern-nav-text-inset); margin: 0; border-radius: 11px 0 0 11px; min-height: 38px; box-sizing: border-box; transition: background .15s, color .15s; font-family: inherit; cursor: pointer; }',
-      '.lanternAppBarBrandMenu .lanternAppBarHomeLink:hover{ background: rgba(255,255,255,.1); color: ' + NAV.columbiaBlue + '; }',
-      '.lanternAppBarBrandMenu .lanternAppBarHomeLink:active{ background: rgba(0,0,0,.25); }',
-      '.lanternAppBarBrandMenu .lanternAppBarHomeLink:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; z-index: 1; position: relative; }',
-      '.lanternAppBarBrandMenu .lanternAppBarHomeLink.is-active{ color: ' + NAV.columbiaBlue + '; text-decoration: underline; text-underline-offset: 4px; }',
+      /* Brand is product identity; Menu ▾ is the only dropdown control. */
+      '.lanternAppBarBrandMenu{ position: relative; display: inline-flex; align-items: center; flex-shrink: 0; gap: 8px; overflow: visible; }',
+      '.lanternAppBarBrandMenu .lanternAppBarHomeLink{ display: inline-flex; align-items: center; color: ' + NAV.white + '; font-weight: 900; font-size: 24px; line-height: 1; text-decoration: none; padding: 0 2px 0 0; margin: 0; min-height: 38px; box-sizing: border-box; letter-spacing: .01em; font-family: inherit; }',
+      '.lanternAppBarBrandMenu .lanternAppBarHomeLink:hover{ color: ' + NAV.columbiaBlue + '; }',
+      '.lanternAppBarBrandMenu .lanternAppBarHomeLink:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; border-radius: 6px; }',
+      '.lanternAppBarBrandMenu .lanternAppBarHomeLink.is-active{ color: ' + NAV.columbiaBlue + '; }',
       '.lanternAppBarContext{ flex: 1; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 800; color: rgba(255,255,255,.85); padding: 0 8px; }',
       '.lanternAppBarContext--empty{ display: none !important; flex: 0 !important; min-width: 0 !important; width: 0 !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; }',
       '.lanternAppBarContextGlow{ text-shadow: 0 0 16px rgba(157,212,240,.35), 0 0 6px rgba(255,255,255,.2); }',
       '.lanternAppBarMenuWrap{ position: relative; }',
-      '.lanternAppBarBrandMenu .lanternAppBarLanternMenuWrap{ display: inline-flex; align-items: stretch; align-self: stretch; margin: 0; position: static; }',
-      '.lanternAppBarBrandMenu .lanternAppBarMenuChevron{ background: transparent; border: none; color: rgba(255,255,255,.95); font-size: 14px; line-height: 1; cursor: pointer; padding: 4px 12px 4px 10px; margin: 0; border-radius: 0 9px 9px 0; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 0; max-height: 100%; flex-shrink: 0; box-sizing: border-box; transition: background .15s, color .15s; border-left: 1px solid rgba(255,255,255,.16); }',
-      '.lanternAppBarBrandMenu .lanternAppBarMenuChevronIcon{ display: inline-block; font-size: 13px; line-height: 1; margin: 0; transform: translateY(0); font-weight: 700; }',
-      '.lanternAppBarBrandMenu .lanternAppBarMenuChevron:hover{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.1); }',
-      '.lanternAppBarBrandMenu .lanternAppBarMenuChevron:active{ background: rgba(0,0,0,.28); }',
-      '.lanternAppBarBrandMenu .lanternAppBarMenuChevron:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; z-index: 1; position: relative; }',
-      '.lanternAppBarBrandMenu .lanternAppBarMenuChevron[aria-expanded="true"]{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.12); }',
+      '.lanternAppBarBrandMenu .lanternAppBarLanternMenuWrap{ display: inline-flex; align-items: stretch; margin: 0; position: static; }',
+      '.lanternAppBarBrandMenu .lanternAppBarMenuBtn{ background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.22); color: ' + NAV.white + '; font-size: 16px; font-weight: 800; line-height: 1; cursor: pointer; padding: 8px 12px; margin: 0; border-radius: 10px; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 38px; flex-shrink: 0; box-sizing: border-box; transition: background .15s, color .15s; }',
+      '.lanternAppBarBrandMenu .lanternAppBarMenuChevronIcon{ display: inline-block; font-size: 13px; line-height: 1; margin: 0; font-weight: 700; }',
+      '.lanternAppBarBrandMenu .lanternAppBarMenuBtn:hover{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.1); }',
+      '.lanternAppBarBrandMenu .lanternAppBarMenuBtn:active{ background: rgba(0,0,0,.28); }',
+      '.lanternAppBarBrandMenu .lanternAppBarMenuBtn:focus-visible{ outline: 2px solid ' + NAV.columbiaBlue + '; outline-offset: 2px; z-index: 1; position: relative; }',
+      '.lanternAppBarBrandMenu .lanternAppBarMenuBtn[aria-expanded="true"]{ color: ' + NAV.columbiaBlue + '; background: rgba(255,255,255,.12); }',
       /* Dropdown anchors to brand menu; item padding matches --lantern-nav-text-inset (L under L) */
-      '.lanternAppBarBrandMenu > .lanternAppBarDropdown, .lanternAppBarBrandMenu .lanternAppBarDropdown{ position: absolute; top: 100%; left: 0; right: auto; margin-top: 4px; min-width: 240px; max-width: min(320px, 92vw); background: ' + NAV.white + '; color: ' + NAV.navy + '; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 8px 0; z-index: 10001; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }',
-      '.lanternAppBarDropdown{ position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 220px; max-width: min(320px, 92vw); background: ' + NAV.white + '; color: ' + NAV.navy + '; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 8px 0; z-index: 10001; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }',
+      '.lanternAppBarBrandMenu > .lanternAppBarDropdown, .lanternAppBarBrandMenu .lanternAppBarDropdown{ position: absolute; top: 100%; left: 0; right: auto; margin-top: 4px; min-width: 240px; max-width: min(320px, 92vw); max-height: min(70vh, calc(100dvh - var(--lantern-header-h-ticker, 100px) - 12px)); overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; background: ' + NAV.white + '; color: ' + NAV.navy + '; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 8px 0; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 10001; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }',
+      '.lanternAppBarDropdown{ position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 220px; max-width: min(320px, 92vw); max-height: min(70vh, calc(100dvh - var(--lantern-header-h-ticker, 100px) - 12px)); overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; background: ' + NAV.white + '; color: ' + NAV.navy + '; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 8px 0; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 10001; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }',
       '.lanternAppBarDropdown.is-open{ opacity: 1; transform: translateY(0); pointer-events: auto; }',
       '.lanternAppBarDropdown.is-open[hidden]{ display: block !important; }',
       '.lanternAppBarDropdownSection{ padding: 4px 0; }',
@@ -249,7 +249,7 @@
       '@media (max-width: 1100px){ .lanternHeaderBrand{ display:none; } }',
       '@media (max-width: 900px){ .lanternAppBar .lanternAppBarSearchWrap{ max-width: var(--lantern-appbar-search-max); } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: var(--lantern-appbar-search-max); } }',
       '@media (max-width: 768px){ .lanternAppBarExplore .lanternAppBarInner{ flex-wrap: nowrap; gap: 10px; } .lanternAppBar .lanternAppBarSearchWrap{ margin: 0 6px; } .lanternAppBarSearchFilters{ gap: 4px; } }',
-      '@media (max-width: 560px){ .lanternAppBarInner{ gap: 8px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; margin: 0 4px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBarSearchFilters{ max-width: calc(200px + 88px); } .lanternAppBarSearchFilters .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: auto; margin: 0; } .lanternAppBarFiltersBtn{ font-size: 15px; padding: 6px 2px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } .lanternAppBarBrandMenu .lanternAppBarHomeLink{ font-size: 16px; padding: 8px 10px 8px 12px; } }',
+      '@media (max-width: 560px){ .lanternAppBarInner{ gap: 8px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: 200px; margin: 0 4px; } .lanternAppBarSearchWrap.lanternAppBarSearchWrap--embedded{ max-width: 200px; flex-basis: 200px; } .lanternAppBarSearchFilters{ max-width: calc(200px + 88px); } .lanternAppBarSearchFilters .lanternAppBarSearchWrap{ max-width: 200px; flex-basis: auto; margin: 0; } .lanternAppBarFiltersBtn{ font-size: 15px; padding: 6px 2px; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ font-size: 14px; padding: 6px 12px; } .lanternAppBarBrandMenu{ gap: 6px; } .lanternAppBarBrandMenu .lanternAppBarHomeLink{ font-size: 22px; padding: 0; } .lanternAppBarBrandMenu .lanternAppBarMenuBtn{ font-size: 15px; padding: 7px 10px; min-height: 36px; } }',
       '@media (max-width: 480px){ .lanternAppBarInner{ gap: 6px; } .lanternAppBar .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; margin: 0; } .lanternAppBarSearchFilters{ max-width: none; gap: 2px; } .lanternAppBarSearchFilters .lanternAppBarSearchWrap{ max-width: 44px; flex: 0 0 44px; } .lanternAppBarFiltersBtn{ font-size: 14px; padding: 6px 0; } .lanternAppBar .lanternAppBarSearchTrigger{ display: flex; align-items: center; justify-content: center; width: 44px; height: 36px; flex-shrink: 0; cursor: pointer; font-size: 20px; color: rgba(255,255,255,.9); } .lanternAppBar .lanternAppBarSearchTrigger:hover{ color: ' + NAV.columbiaBlue + '; } .lanternAppBar .lanternAppBarSearchWrap .lanternAppBarSearchInput{ width: 0; min-width: 0; padding: 0 8px; font-size: 14px; opacity: 0; pointer-events: none; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded{ max-width: min(220px, calc(100vw - 150px)); flex: 1; min-width: 0; } .lanternAppBarSearchFilters .lanternAppBarSearchWrap.is-expanded{ max-width: min(180px, calc(100vw - 200px)); flex: 1 1 auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchInput{ width: 100%; min-width: 80px; padding: 6px 12px; opacity: 1; pointer-events: auto; } .lanternAppBar .lanternAppBarSearchWrap.is-expanded .lanternAppBarSearchTrigger{ display: none; } }',
     ].join('\n');
     document.head.appendChild(s);
@@ -407,8 +407,10 @@
       if (node.parentNode) node.parentNode.removeChild(node);
     });
     dd.innerHTML = sectionsHtml;
+    var tools = dd.querySelector('#lanternAppBarPrivilegedSection');
     keep.forEach(function (node) {
-      dd.appendChild(node);
+      if (tools) tools.appendChild(node);
+      else dd.appendChild(node);
     });
     wireBehaviorNavClicks(dd);
   }

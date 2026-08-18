@@ -79,6 +79,7 @@ function makeEnv(state) {
   state.transactions = state.transactions || [];
   state.wallets = state.wallets || {};
   state.identityLinks = state.identityLinks || {};
+  state.settings = state.settings || {};
   function prepare(sql) {
     const s = String(sql);
     const binds = [];
@@ -108,6 +109,10 @@ function makeEnv(state) {
           const bal = state.wallets[binds[0]];
           return bal != null ? { balance: bal } : null;
         }
+        if (s.includes('FROM lantern_settings WHERE key')) {
+          const key = String(binds[0] || '');
+          return state.settings[key] != null ? { value: String(state.settings[key]) } : null;
+        }
         return null;
       },
       async all() {
@@ -131,6 +136,8 @@ function makeEnv(state) {
           state.transactions.push({ id: binds[0], character_name: binds[1], delta: binds[2], kind: binds[3], meta_json: binds[7] });
         } else if (s.includes('INSERT INTO lantern_wallets')) {
           state.wallets[binds[0]] = (state.wallets[binds[0]] || 0) + Number(binds[3] || 0);
+        } else if (s.includes('INSERT INTO lantern_settings')) {
+          state.settings[binds[0]] = binds[1];
         }
         return { success: true, meta: { changes: 1 } };
       },
@@ -218,11 +225,11 @@ if (/tmsStaffEconomyTransact/.test(cosmeticSrc) && /isStaffEconomyKey/.test(cosm
 else bad('cosmetic staff');
 if (/serverCosmeticPrice/.test(cosmeticSrc)) ok('36. cosmetic server price authority');
 else bad('cosmetic price');
-if (/const reward = 1;/.test(missionsRewardSrc) && /tmsStaffEconomyTransact/.test(missionsRewardSrc)) {
-  ok('11/21. mission approval +1 TMS, staff principal supported');
+if (/resolveStoredMissionPayout|rewardAmount/.test(missionsRewardSrc) && /tmsStaffEconomyTransact/.test(missionsRewardSrc)) {
+  ok('11/21. mission approval uses saved/clamped reward; staff principal supported');
 } else bad('mission reward');
-if (/FREE · \+1 Nugget/.test(missionsPage) && /perm_local_history_trivia/.test(eduMissions) && /perm_srp_safety/.test(eduMissions)) {
-  ok('14-19. Trinidad/SRP advertised FREE · +1');
+if (/formatMissionNuggetReward/.test(missionsPage) && /perm_local_history_trivia/.test(eduMissions) && /perm_srp_safety/.test(eduMissions)) {
+  ok('14-19. Trinidad/SRP still sponsored; card copy uses saved reward');
 } else bad('sponsored copy');
 if (/SPONSORED_FREE_PAIRS/.test(eduMissions) && /srp-safety-trivia/.test(eduMissions)) ok('20. sponsored pairs are exact mission+game');
 else bad('sponsored pairs');
@@ -232,10 +239,10 @@ if (/kind = 'game_play'/.test(paidRunSrc) || /kind === 'game_play'/.test(paidRun
 if (/srp-safety-trivia/.test(catalogSrc) && /local-history-trivia/.test(catalogSrc) && /Nugget Hunt/.test(catalogSrc)) {
   ok('29. current catalog games registered server-side');
 } else bad('catalog');
-if (/delta = -1/.test(indexSrc) && /game_play costs exactly 1 Nugget/.test(indexSrc)) ok('22. game_play server -1');
-else bad('game_play -1');
-if (/game_win awards exactly 1 Nugget/.test(indexSrc)) ok('31. game_win server +1');
-else bad('game_win +1');
+if (/resolveEconomyAmount\(db, 'game_play'\)/.test(indexSrc) && /client_delta_rejected/.test(indexSrc)) ok('22. game_play server-authoritative setting');
+else bad('game_play setting');
+if (/resolveEconomyAmount\(db, 'game_win'\)/.test(indexSrc)) ok('31. game_win server-authoritative setting');
+else bad('game_win setting');
 if (/ensureFirstGameMissionCompletion/.test(indexSrc) && /first_game:/.test(fs.readFileSync(path.join(root, 'worker/mission-event-completions.js'), 'utf8'))) {
   ok('34. First Game Played once-key per account');
 } else bad('first game');
@@ -290,6 +297,7 @@ async function main() {
         poll_a: { id: 'poll_a', choices_json: JSON.stringify(['A', 'B']), approved_at: '2026-08-13T00:00:00.000Z' },
         poll_b: { id: 'poll_b', choices_json: JSON.stringify(['X', 'Y']), approved_at: '2026-08-13T00:00:00.000Z' },
       },
+      settings: { 'economy.poll_response': '1' },
     };
     const env = makeEnv(state);
     const cLucas = await cookieFor(lucas);
@@ -344,6 +352,7 @@ async function main() {
     const state = {
       accounts: { 'unlinked.staff': teacher },
       polls: { poll_u: { id: 'poll_u', choices_json: JSON.stringify(['A', 'B']), approved_at: '2026-08-13T00:00:00.000Z' } },
+      settings: { 'economy.poll_response': '1' },
     };
     const env = makeEnv(state);
     const cookie = await cookieFor(teacher);

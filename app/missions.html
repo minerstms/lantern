@@ -111,6 +111,13 @@
     .missionSubmitInlineError.is-visible{ display:block; }
     #missionSubmitBtn:disabled{ opacity:0.72; cursor:wait; }
     .missionSubmitProgressWrap{ margin-top: 10px; }
+    .missionSubmitRequirements{
+      margin: 0 0 14px;
+      padding: 0 0 0 22px;
+      color: var(--warn);
+      font-size: 22px;
+      font-weight: 800;
+    }
     .missionSubmitProgressBar{ height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; width: 100%; }
     .missionSubmitProgressFill{ height: 100%; border-radius: 999px; transition: width .25s ease; }
     .missionSubmitProgressFill.neutral{ background: rgba(255,255,255,.25); }
@@ -198,10 +205,6 @@
     </header>
 
     <div class="missionsStatusBar">
-      <div id="missionsStatusTabs" class="missionsStatusTabs" role="tablist" aria-label="Mission status">
-        <button type="button" role="tab" data-mission-status="active" class="is-active" aria-selected="true">Active</button>
-        <button type="button" role="tab" data-mission-status="completed" aria-selected="false">Completed</button>
-      </div>
       <button type="button" id="missionsFiltersToggle" class="missionsFiltersToggle" aria-expanded="false" aria-controls="missionsFiltersPanel">Filters ▸</button>
     </div>
 
@@ -253,6 +256,7 @@
         <button type="button" id="missionDetailClose" class="missionDetailClose" aria-label="Close mission">× Close</button>
       </div>
       <p id="missionDetailDesc" class="missionDetailDesc"></p>
+      <ul id="missionSubmitRequirements" class="missionSubmitRequirements" style="display:none;" aria-label="Submission requirements"></ul>
       <div id="missionDetailBody">
         <div id="missionSubmitFormWrap">
           <div id="missionSubmitTextWrap">
@@ -378,6 +382,9 @@
   <script src="js/lantern-missions-page.js"></script>
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-fight-song-challenge.js"></script>
+  <script src="js/lantern-race-audio.js"></script>
+  <script src="js/lantern-reaction-bank.js"></script>
+  <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
@@ -712,7 +719,8 @@
             return;
           }
           close();
-          toast('Thank you sent! +1 Nugget');
+          var thankN = Number(res.nuggets);
+          toast(thankN > 0 ? ('Thank you sent! +' + thankN + ' Nugget' + (thankN === 1 ? '' : 's')) : 'Thank you sent!');
           if (typeof onDone === 'function') onDone(res);
         });
       });
@@ -1273,7 +1281,10 @@
     function missionSubmitSuccessToast(res){
       if (res && res.finalized) {
         if (res.reward_skipped || res.redo) return 'Mission completed. Reward already earned for this mission.';
-        if ((Number(res.nuggets) || 0) > 0) return 'Mission completed! +' + (Number(res.nuggets) || 1) + ' Nugget';
+        if ((Number(res.nuggets) || 0) > 0) {
+          var paid = Number(res.nuggets);
+          return 'Mission completed! +' + paid + ' Nugget' + (paid === 1 ? '' : 's');
+        }
         return 'Mission completed!';
       }
       if (res && res.redo) return 'Submitted successfully. Reward already earned for this mission.';
@@ -1317,6 +1328,30 @@
       if (closeBtn) closeBtn.focus();
     }
 
+    function savedMissionReward(m){
+      if (window.LanternMissionsPage && typeof window.LanternMissionsPage.savedRewardAmount === 'function') {
+        var fromPage = window.LanternMissionsPage.savedRewardAmount(m && (m.reward_amount != null ? m.reward_amount : m.reward));
+        if (fromPage != null) return fromPage;
+      }
+      if (!m || m.reward_amount == null || m.reward_amount === '') return 1;
+      var n = Number(m.reward_amount);
+      if (!Number.isFinite(n) || n < 0) return 1;
+      return Math.trunc(n);
+    }
+    function formatSavedMissionReward(m, opts){
+      var n = savedMissionReward(m);
+      if (window.LanternMissionsPage && typeof window.LanternMissionsPage.formatMissionNuggetReward === 'function') {
+        return window.LanternMissionsPage.formatMissionNuggetReward(n, opts || {});
+      }
+      if (!(n > 0)) return '';
+      return '+' + n + ' Nugget' + (n === 1 ? '' : 's');
+    }
+    function earnedRewardSentence(m, fallback){
+      var n = savedMissionReward(m);
+      if (!(n > 0)) return fallback || 'Completed.';
+      return 'You earned +' + n + ' Nugget' + (n === 1 ? '' : 's') + '.';
+    }
+
     function buildUnifiedMissionItems(missions, teacherMissions, submissions, progress){
       missions = missions || {};
       teacherMissions = teacherMissions || [];
@@ -1357,7 +1392,7 @@
         typeBadge: '',
         icon: '🔍',
         title: 'Hidden Nugget',
-        description: hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
+        description: hiddenDone ? 'You found today\'s Hidden Nugget.' : 'Look on Explore each school day. A real poll vote or reaction may find a Hidden Nugget if one is waiting.',
         reward: null,
         status: hiddenDone ? 'completed' : 'available',
         stateBadge: hiddenDone ? 'COMPLETED' : '',
@@ -1367,7 +1402,7 @@
           ? (window.LanternCards.builtInMissionCoverUrl('quick_hidden_nugget') || '')
           : '',
         onActivate: function(){
-          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.');
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found today\'s Hidden Nugget.' : 'Look on Explore each school day. A real poll vote or reaction may find a Hidden Nugget if one is waiting.');
         },
       });
 
@@ -1392,7 +1427,7 @@
             icon: '✅',
             title: m.title || 'Daily Check-In',
             description: dailyClaimed ? 'Come back tomorrow for another check-in.' : ((m.description || '').trim() || 'How are you starting today?'),
-            reward: 1,
+            reward: savedMissionReward(m),
             status: status,
             statusLabel: statusLabel,
             audience: m.audience || '',
@@ -1403,13 +1438,14 @@
             submission: sub,
             onActivate: function(){
               if (dailyClaimed) {
-                if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', 'Completed', 'Come back tomorrow for another +1 Nugget.');
+                if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Daily Check-In', 'Completed', 'Come back tomorrow for another check-in.');
                 return;
               }
               openDailyCheckInPicker(function(choice){
                 callClaimDailyCheckIn(choice).then(function(res){
                   if (res && res.ok){
-                    toast(res.idempotent ? 'Already checked in today.' : 'Daily check-in recorded. +1 Nugget');
+                    var checkInCopy = formatSavedMissionReward(m);
+                    toast(res.idempotent ? 'Already checked in today.' : ('Daily check-in recorded.' + (checkInCopy ? ' ' + checkInCopy.replace('🟡 ', '') : '')));
                     if (window.LanternWallet && typeof window.LanternWallet.refreshBalance === 'function') {
                       window.LanternWallet.refreshBalance({ force: true });
                     }
@@ -1439,7 +1475,7 @@
             description: thankYouClaimed
               ? 'You already sent a thank-you today. Come back tomorrow.'
               : ((m.description || '').trim() || 'Choose a staff member, write a thank-you, and send it.'),
-            reward: 1,
+            reward: savedMissionReward(m),
             status: status,
             statusLabel: statusLabel,
             audience: m.audience || '',
@@ -1473,8 +1509,8 @@
             stateBadge: stateBadge,
             icon: '🎮',
             title: m.title || 'First Game Played',
-            description: fgDone ? 'You played a game and earned +1 Nugget.' : ((m.description || '').trim() || 'Play any paid game once.'),
-            reward: 1,
+            description: fgDone ? earnedRewardSentence(m, 'You played a game.') : ((m.description || '').trim() || 'Play any paid game once.'),
+            reward: savedMissionReward(m),
             status: status,
             statusLabel: statusLabel,
             audience: m.audience || '',
@@ -1485,7 +1521,7 @@
             raw: m,
             submission: sub,
             onActivate: fgDone ? function(){
-              if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', 'You played a game and earned +1 Nugget.');
+              if (window.LanternCardUI) window.LanternCardUI.openTextDetail('First Game Played', 'Completed', earnedRewardSentence(m, 'You played a game.'));
             } : null,
           });
           return;
@@ -1503,8 +1539,9 @@
                 ? sevenHabitsDone
                 : localHistoryTriviaDone) || st === 'accepted';
           var triviaTitle = (triviaDef && triviaDef.title) || m.title || 'Trivia Challenge';
+          var triviaRew = savedMissionReward(m);
           var triviaDesc = triviaDone
-            ? 'Completed\n+1 Nugget earned'
+            ? (triviaRew > 0 ? ('Completed\n+' + triviaRew + ' Nugget' + (triviaRew === 1 ? '' : 's') + ' earned') : 'Completed')
             : ((m.description || '').trim() || (triviaDef && triviaDef.description) || 'Get 10 questions correct in one game session.');
           var triviaUrl = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.launchUrl === 'function')
             ? window.LANTERN_EDU_TRIVIA.launchUrl(mid, { replay: triviaDone })
@@ -1518,7 +1555,7 @@
             icon: (triviaDef && triviaDef.game_id === 'local-history-trivia') ? '🏛️' : ((triviaDef && triviaDef.game_id === 'srp-safety-trivia') ? '🛡️' : ((triviaDef && triviaDef.game_id === 'seven-habits-trivia') ? '🌱' : '📖')),
             title: triviaTitle,
             description: triviaDesc,
-            reward: 1,
+            reward: savedMissionReward(m),
             status: triviaDone ? 'completed' : 'available',
             statusLabel: triviaDone ? 'Play Again' : 'Play Trivia',
             audience: m.audience || '',
@@ -1546,7 +1583,7 @@
             description: fightDone
               ? 'Completed before · Redo available · Reward already earned'
               : ((m.description || '').trim() || 'Put the lines of the school fight song in the correct order.'),
-            reward: 1,
+            reward: savedMissionReward(m),
             status: fightDone ? 'completed' : 'available',
             statusLabel: fightDone ? 'Play Again' : 'Start Challenge',
             audience: m.audience || '',
@@ -1559,6 +1596,7 @@
               if (window.LANTERN_FIGHT_SONG && typeof window.LANTERN_FIGHT_SONG.open === 'function') {
                 window.LANTERN_FIGHT_SONG.open({
                   alreadyCompleted: fightDone,
+                  rewardAmount: savedMissionReward(m),
                   onDone: function(){ loadMissions(); }
                 });
               }
@@ -1585,7 +1623,7 @@
             description: photoCompleted
               ? 'Completed before · Redo available · Reward already earned'
               : ((m.description || '').trim()),
-            reward: 1,
+            reward: savedMissionReward(m),
             status: photoCompleted ? 'completed' : 'available',
             statusLabel: photoCompleted ? 'Redo Mission' : 'Do Mission',
             audience: m.audience || '',
@@ -1612,7 +1650,7 @@
             description: pollCompleted
               ? 'Completed before · Redo available · Content reward follows daily cap'
               : ((m.description || '').trim()),
-            reward: 1,
+            reward: savedMissionReward(m),
             status: pollCompleted ? 'completed' : 'available',
             statusLabel: pollCompleted ? 'Redo Mission' : 'Do Mission',
             audience: m.audience || '',
@@ -1639,7 +1677,7 @@
             description: shoutCompleted
               ? 'Completed before · Redo available · Content reward follows daily cap'
               : ((m.description || '').trim()),
-            reward: 1,
+            reward: savedMissionReward(m),
             status: shoutCompleted ? 'completed' : 'available',
             statusLabel: shoutCompleted ? 'Redo Mission' : 'Do Mission',
             audience: m.audience || '',
@@ -1695,7 +1733,7 @@
           icon: '🧠',
           title: m.title || 'Mission',
           description: status === 'completed' ? completedDesc : (m.description || '').trim(),
-          reward: 1,
+          reward: savedMissionReward(m),
           status: status,
           statusLabel: statusLabel,
           audience: m.audience || '',
@@ -1794,10 +1832,10 @@
       var allowsVideo = !!(m.allows_video);
       var allowsLink = !!(m.allows_link);
       var anyMed = !isPollMission && !isBugMission && (allowsImage || allowsVideo || allowsLink);
-      var rew = 1;
+      var rewLabel = formatSavedMissionReward(m);
       if (titleEl) titleEl.textContent = missionSubmitTitlePrefix() + (m.title || 'Mission');
       if (metaEl) {
-        metaEl.textContent = typeBadgeForTeacher(m) + ' · 🟡 +1 Nugget';
+        metaEl.textContent = typeBadgeForTeacher(m) + (rewLabel ? ' · ' + rewLabel : '');
         if (currentMissionIsRedo) metaEl.textContent += ' · Reward already earned (redo allowed)';
       }
       if (descEl) descEl.textContent = (m.description || '').trim();
@@ -1816,6 +1854,8 @@
       if (isPollMission || isBugMission) {
         currentMissionMinChars = 0;
         currentMissionRequiresImage = false;
+        var reqClear = el('missionSubmitRequirements');
+        if (reqClear) { reqClear.innerHTML = ''; reqClear.style.display = 'none'; }
       } else {
         // A returned text+image combo submission is stored as a JSON envelope
         // ({text, image_url}) — decode it so resubmit prefills the textarea with the
@@ -1825,16 +1865,30 @@
           : { isEnvelope: false, text: '', image_url: '' };
         if (contentEl) contentEl.value = allowsText ? (pfEnvelope.isEnvelope ? pfEnvelope.text : pf) : '';
         if (imageUrlEl) imageUrlEl.value = pfEnvelope.isEnvelope ? pfEnvelope.image_url : (m.submission_type === 'image_url' ? pf : '');
-        var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
+        var minRaw = Number(m.min_characters);
+        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? Math.floor(minRaw) : 0;
         var enforceMin = allowsText && minChars > 0;
         currentMissionMinChars = enforceMin ? minChars : 0;
-        currentMissionRequiresImage = allowsImage && !allowsText && !allowsVideo && !allowsLink;
+        currentMissionRequiresImage = !!(m.require_image) || Number(m.allows_image) >= 2 || (allowsImage && !allowsText && !allowsVideo && !allowsLink);
         var minCharsHint = el('missionSubmitMinCharsHint');
         if (minCharsHint) {
           if (allowsText && minChars > 0) {
-            minCharsHint.textContent = 'Minimum characters required: ' + minChars;
+            minCharsHint.textContent = 'Minimum ' + minChars + ' characters';
             minCharsHint.style.display = 'block';
           } else minCharsHint.style.display = 'none';
+        }
+        var reqList = el('missionSubmitRequirements');
+        if (reqList) {
+          var chips = [];
+          if (currentMissionRequiresImage) chips.push('Image required');
+          if (currentMissionMinChars > 0) chips.push('Minimum ' + currentMissionMinChars + ' characters');
+          if (chips.length) {
+            reqList.innerHTML = chips.map(function(c){ return '<li>' + String(c).replace(/</g, '') + '</li>'; }).join('');
+            reqList.style.display = 'block';
+          } else {
+            reqList.innerHTML = '';
+            reqList.style.display = 'none';
+          }
         }
         var progressWrap = el('missionSubmitProgressWrap');
         if (progressWrap) progressWrap.style.display = currentMissionMinChars > 0 ? 'block' : 'none';
@@ -1998,6 +2052,11 @@
       var validImage = allowsImage && imageVal.length > 0;
       var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
       var validLink = allowsLink && linkVal.length > 0;
+      if (currentMissionRequiresImage && !validImage) {
+        setMissionSubmitInlineError('Image required');
+        toast('Image required');
+        return;
+      }
       if (!(validText || validImage || validVideo || validLink)) {
         var needMsg = 'Please add a valid submission before sending.';
         if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) {

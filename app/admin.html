@@ -117,6 +117,24 @@
     .visibleWatermarkToggle input[type="checkbox"] {
       width: 28px; height: 28px; margin: 0; accent-color: var(--accent); flex-shrink: 0;
     }
+    .iaSummary{
+      display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0 16px;
+    }
+    .iaCard{
+      border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:rgba(10,20,40,.4);
+    }
+    .iaCardLabel{ color:var(--muted); font-size:16px; font-weight:800; margin:0 0 4px; }
+    .iaCardValue{ font-size:28px; font-weight:900; margin:0; }
+    .iaRange{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+    .iaRangeBtn{
+      height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--line);
+      background:#0a1428; color:var(--ink); font-size:18px; font-family:inherit; font-weight:800; cursor:pointer;
+    }
+    .iaRangeBtn.is-on{ border-color:rgba(90,167,255,.55); background:rgba(90,167,255,.16); }
+    .iaTable{ width:100%; border-collapse:collapse; font-size:18px; }
+    .iaTable th, .iaTable td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+    .iaNote{ color:var(--muted); font-size:16px; margin:10px 0 0; }
+    @media (max-width:640px){ .iaSummary{ grid-template-columns:1fr; } }
     .visibleWatermarkState {
       min-width: 3.2em; font-weight: 900; letter-spacing: .04em;
     }
@@ -246,6 +264,104 @@
   <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
   <p><a href="/explore.html">Lantern (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
   <p id="logoutMsg" role="status" aria-live="polite" style="display:none;"></p>
+
+  <div class="card" id="adminInteractionsAnalyticsCard">
+    <div class="cardHd">Interactions Analytics</div>
+    <p class="iaNote">What students are doing, earning, spending, and completing. System Admin only. Totals use persisted Lantern records, not client card counts.</p>
+    <div class="iaRange" role="group" aria-label="Date range">
+      <button type="button" class="iaRangeBtn" data-ia-range="today">Today</button>
+      <button type="button" class="iaRangeBtn is-on" data-ia-range="7d">7 Days</button>
+      <button type="button" class="iaRangeBtn" data-ia-range="30d">30 Days</button>
+      <button type="button" class="iaRangeBtn" data-ia-range="all">All Time</button>
+    </div>
+    <p id="iaPeriodLabel" class="iaNote">Loading…</p>
+    <div class="iaSummary" id="iaSummary"></div>
+    <h3 class="cardHd" style="font-size:22px;margin-top:8px;">Earnings</h3>
+    <table class="iaTable" id="iaEarnTable"><thead><tr><th>Source</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
+    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Spending</h3>
+    <table class="iaTable" id="iaSpendTable"><thead><tr><th>Destination</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
+    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Game spending</h3>
+    <table class="iaTable" id="iaGameTable"><thead><tr><th>Game</th><th>Nuggets spent</th><th>Plays</th></tr></thead><tbody></tbody></table>
+    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Learning / participation</h3>
+    <table class="iaTable" id="iaLearnTable"><thead><tr><th>Signal</th><th>Completions</th><th>Participants</th></tr></thead><tbody></tbody></table>
+    <p id="iaLimits" class="iaNote"></p>
+  </div>
+  <script>
+  (function () {
+    var currentRange = '7d';
+    var started = false;
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function fillTable(table, rows, cols) {
+      var tb = table && table.tBodies && table.tBodies[0];
+      if (!tb) return;
+      tb.innerHTML = (rows && rows.length)
+        ? rows.map(function (r) {
+            return '<tr>' + cols.map(function (c) { return '<td>' + esc(r[c]) + '</td>'; }).join('') + '</tr>';
+          }).join('')
+        : '<tr><td colspan="' + cols.length + '">None in this period</td></tr>';
+    }
+    function loadIa(range) {
+      currentRange = range || '7d';
+      document.querySelectorAll('.iaRangeBtn').forEach(function (b) {
+        b.classList.toggle('is-on', b.getAttribute('data-ia-range') === currentRange);
+      });
+      var label = document.getElementById('iaPeriodLabel');
+      if (label) label.textContent = 'Loading…';
+      fetch('/api/admin/interactions-analytics?range=' + encodeURIComponent(currentRange), { credentials: 'include' })
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, d: d }; }).catch(function () {
+            return { status: r.status, d: null };
+          });
+        })
+        .then(function (x) {
+          var d = x.d;
+          if (!d || !d.ok) {
+            if (label) label.textContent = (d && d.error) ? (d.error + ' (' + x.status + ')') : ('Could not load analytics (' + x.status + ').');
+            return;
+          }
+          var s = d.summary || {};
+          if (label) label.textContent = (d.period && d.period.label ? d.period.label : currentRange) +
+            ' · An interaction is one persisted poll vote, reaction, game play, or mission submission.';
+          document.getElementById('iaSummary').innerHTML =
+            '<div class="iaCard"><p class="iaCardLabel">Total interactions</p><p class="iaCardValue">' + esc(s.total_interactions) + '</p></div>' +
+            '<div class="iaCard"><p class="iaCardLabel">Participating users</p><p class="iaCardValue">' + esc(s.unique_participants) + '</p></div>' +
+            '<div class="iaCard"><p class="iaCardLabel">Nuggets earned</p><p class="iaCardValue">' + esc(s.nuggets_earned) + '</p></div>' +
+            '<div class="iaCard"><p class="iaCardLabel">Nuggets spent</p><p class="iaCardValue">' + esc(s.nuggets_spent) + '</p></div>';
+          fillTable(document.getElementById('iaEarnTable'), d.earnings || [], ['category', 'nuggets']);
+          fillTable(document.getElementById('iaSpendTable'), d.spending || [], ['category', 'nuggets']);
+          fillTable(document.getElementById('iaGameTable'), d.game_spending || [], ['game', 'nuggets_spent', 'plays']);
+          fillTable(document.getElementById('iaLearnTable'), d.learning || [], ['label', 'completions', 'unique_participants']);
+          document.getElementById('iaLimits').textContent = (d.limitations || []).join(' ');
+        })
+        .catch(function () {
+          if (label) label.textContent = 'Could not load analytics.';
+        });
+    }
+    document.querySelectorAll('.iaRangeBtn').forEach(function (b) {
+      b.addEventListener('click', function () { loadIa(b.getAttribute('data-ia-range')); });
+    });
+    function start() {
+      if (started) return;
+      started = true;
+      loadIa('7d');
+    }
+    if (document.documentElement.classList.contains('lantern-pilot-auth-pending')) {
+      var n = 0;
+      var t = setInterval(function () {
+        n += 1;
+        if (!document.documentElement.classList.contains('lantern-pilot-auth-pending') || n > 40) {
+          clearInterval(t);
+          start();
+        }
+      }, 150);
+    } else {
+      start();
+    }
+  })();
+  </script>
 
   <details class="card teacherCollapsibleList" id="adminStudentsCard">
     <summary class="cardHd teacherCollapsibleListHd">
@@ -441,7 +557,7 @@
       <p id="adminAvatarMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
       <p id="adminAvatarPolicyHint" class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper.</p>
       <div class="acctPanelActions">
-        <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Activate staged avatar</button>
+        <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Approve &amp; Use</button>
         <button type="button" class="btn good" id="adminAvatarNextMissingBtn" style="display:none;">Next Missing Avatar</button>
         <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
       </div>
@@ -902,6 +1018,22 @@
       </div>
     </details>
     <p class="pendingMeta" style="margin-top:4px;"><button type="button" class="btn" id="feedModRefreshBtn">Refresh lists</button></p>
+    </div>
+  </details>
+
+  <details class="card teacherCollapsibleList" id="nuggetEconomyCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Nugget Economy</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="nuggetEconomySummaryPill">Settings</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">System Admin configures routine Nugget amounts. Positive = earn. Negative = spend. 0 = no Nugget transaction. TMS remains the authoritative ledger. Historical transactions are never rewritten.</p>
+      <div id="nuggetEconomyMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+      <div id="nuggetEconomyRows"></div>
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn good" id="nuggetEconomySave">Save Nugget Economy</button>
+        <button type="button" class="btn" id="nuggetEconomyRefresh">Reload current</button>
+      </div>
     </div>
   </details>
 
@@ -2442,23 +2574,38 @@
       var role = String((body && body.role) || '').trim().toLowerCase();
       var isStudent = role === 'student';
       var staged = !!(body && (body.staged || body.staged_image));
+      var canSetCurrent = !!(body && body.can_set_current);
       var restricted = Number(body && body.media_restricted) === 1;
-      var preview = (body && (body.staged_image || body.active_image)) || null;
+      var preview = (body && (body.staged_image || body.active_image || body.approved_image)) || null;
       setAdminAvatarPreview(preview);
       if (activateBtn) {
-        activateBtn.style.display = isStudent && staged && !restricted ? 'inline-block' : 'none';
-        activateBtn.disabled = !(body && body.can_activate);
+        if (isStudent && staged && !restricted) {
+          activateBtn.style.display = 'inline-block';
+          activateBtn.textContent = 'Approve & Use';
+          activateBtn.disabled = !(body && body.can_activate);
+        } else if (isStudent && canSetCurrent) {
+          activateBtn.style.display = 'inline-block';
+          activateBtn.textContent = 'Set as Current';
+          activateBtn.disabled = false;
+        } else {
+          activateBtn.style.display = 'none';
+          activateBtn.disabled = true;
+        }
       }
       if (policy) {
         policy.textContent = isStudent
-          ? 'Student avatars are staged privately (0 Nuggets) until you activate them after checking media/publicity permission. They are not visible to students or the public yet.'
+          ? 'New student uploads stay pending until you Approve & Use them. Already-approved images can be Set as Current. Pending images are never public.'
           : 'Staff assignment costs 0 Nuggets. Uses the same Locker cropper. Image becomes active immediately.';
       }
       if (!msg) return;
       if (isStudent && staged) {
         msg.textContent = restricted
-          ? 'Staged — not visible to students/public yet. Cannot activate while Media/Publicity is Restricted.'
-          : 'Staged — not visible to students/public yet. Activate after you confirm media permission.';
+          ? 'Staged — not visible to students/public yet. Cannot Approve & Use while Media/Publicity is Restricted.'
+          : 'Staged — not visible to students/public yet. Approve & Use after you confirm media permission.';
+        return;
+      }
+      if (isStudent && canSetCurrent) {
+        msg.textContent = 'An approved avatar is ready. Set as Current to use it on Locker, Explore, and Avatar Match.';
         return;
       }
       if (isStudent) {
@@ -3863,6 +4010,97 @@
       if (window.LanternTicker && typeof window.LanternTicker.setTickerSpeedPxPerSecond === 'function') {
         window.LanternTicker.setTickerSpeedPxPerSecond(Number(v));
       }
+    }
+
+    var ECONOMY_GROUP_LABELS = {
+      participation: 'Participation',
+      games: 'Games',
+      creation: 'Creation / Community',
+      discovery: 'Discovery',
+      missions: 'Missions'
+    };
+
+    function showNuggetEconomyMsg(text, kind) {
+      var el = document.getElementById('nuggetEconomyMsg');
+      if (!el) return;
+      if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
+      el.style.display = 'block';
+      el.textContent = text;
+      el.className = 'usersMsg' + (kind === 'err' ? ' err' : '');
+    }
+
+    function renderNuggetEconomyRows(payload) {
+      var host = document.getElementById('nuggetEconomyRows');
+      if (!host) return;
+      var rows = (payload && payload.rows) || [];
+      var html = '';
+      var lastGroup = '';
+      rows.forEach(function (row) {
+        if (row.group !== lastGroup) {
+          lastGroup = row.group;
+          html += '<div class="teacherFieldGroup" style="margin-top:16px;">' + (ECONOMY_GROUP_LABELS[row.group] || row.group) + '</div>';
+        }
+        html +=
+          '<div class="teacherField" style="margin-bottom:12px;" data-economy-id="' + row.id + '">' +
+          '<label for="economyVal_' + row.id + '">' + row.label +
+          (row.kind ? ' <span class="pendingMeta">(' + row.kind + ')</span>' : '') +
+          '</label>' +
+          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">' +
+          '<input type="number" id="economyVal_' + row.id + '" class="teacherInput teacherInput--sm" min="' + row.min + '" max="' + row.max + '" step="1" value="' + row.value + '" />' +
+          '<span class="pendingMeta">now ' + row.value + (row.source === 'stored' ? '' : ' (fallback)') + '</span>' +
+          '</div>' +
+          '<p class="teacherFieldHint">' + (row.help || '') + ' Range ' + row.min + ' to ' + row.max + '.</p>' +
+          '</div>';
+      });
+      host.innerHTML = html;
+    }
+
+    function loadNuggetEconomy() {
+      fetch(api + '/api/settings/nugget-economy', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok) {
+            renderNuggetEconomyRows(res);
+            showNuggetEconomyMsg('', '');
+          } else {
+            showNuggetEconomyMsg('Could not load Nugget Economy settings.', 'err');
+          }
+        })
+        .catch(function () {
+          showNuggetEconomyMsg('Could not load Nugget Economy settings (network).', 'err');
+        });
+    }
+
+    var nuggetEconomySaveBtn = document.getElementById('nuggetEconomySave');
+    if (nuggetEconomySaveBtn) {
+      nuggetEconomySaveBtn.addEventListener('click', function () {
+        var values = {};
+        var nodes = document.querySelectorAll('#nuggetEconomyRows [data-economy-id]');
+        nodes.forEach(function (node) {
+          var id = node.getAttribute('data-economy-id');
+          var input = document.getElementById('economyVal_' + id);
+          if (id && input) values[id] = input.value;
+        });
+        nuggetEconomySaveBtn.disabled = true;
+        patchAdminJson('/api/settings/nugget-economy', { values: values }).then(function (res) {
+          if (res && res.body && res.body.ok) {
+            renderNuggetEconomyRows(res.body);
+            showNuggetEconomyMsg('Saved.', '');
+          } else {
+            showNuggetEconomyMsg((res && res.body && (res.body.error || res.body.message)) || 'Could not save.', 'err');
+          }
+          nuggetEconomySaveBtn.disabled = false;
+        }).catch(function () {
+          showNuggetEconomyMsg('Could not save (network).', 'err');
+          nuggetEconomySaveBtn.disabled = false;
+        });
+      });
+    }
+    var nuggetEconomyRefreshBtn = document.getElementById('nuggetEconomyRefresh');
+    if (nuggetEconomyRefreshBtn) {
+      nuggetEconomyRefreshBtn.addEventListener('click', function () {
+        loadNuggetEconomy();
+      });
     }
 
     function loadMarqueeSpeed() {
@@ -6223,6 +6461,7 @@
     loadPending();
     loadMarqueeSpeed();
     loadVisibleWatermark();
+    loadNuggetEconomy();
     setInterval(loadPending, 60000);
     setInterval(loadFeedModeration, 120000);
   })();

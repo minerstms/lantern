@@ -66,7 +66,7 @@ assert(/e\.key !== 'Escape'/.test(cardUi) && /closeDetail\(\)/.test(cardUi), '23
 assert(/e\.target === overlay\) closeDetail/.test(cardUi), '24. backdrop click unchanged');
 assert(/LANTERN_REACTIONS|mountFinalReactionPanel|lanternCardDetailPostRx/.test(cardUi), '14. reactions preserved');
 assert(/openReportModal/.test(cardUi), 'report control preserved');
-assert(/Lock In/.test(cardUi) && /pollLockInBtn/.test(cardUi), '11. poll voting preserved');
+assert(/submitPollChoice/.test(cardUi) && /\/api\/polls\/vote/.test(cardUi), '11. poll voting preserved');
 
 assert(/shoutOutRecognizedPartyLabel/.test(cardUi) && /Recognizing: /.test(cardUi), '22. Shout-Out recognizing row uses existing helper');
 assert(!/function\s+\w*public_display_name/.test(cardUi) && !/formatPublicDisplayName/.test(cardUi), '22. no competing identity formatter');

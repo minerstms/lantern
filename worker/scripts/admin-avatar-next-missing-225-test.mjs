@@ -35,7 +35,7 @@ if (
   activateSrc.includes('refreshRosterAvatarRow') &&
   activateSrc.includes('syncAdminAvatarNextMissing') &&
   adminHtml.includes('id="adminAvatarActivateBtn"') &&
-  adminHtml.includes('Activate staged avatar')
+  adminHtml.includes('Approve & Use')
 ) {
   ok('2. student Activate success DOES expose Next Missing Avatar when eligible');
 } else bad('2. activate next missing');

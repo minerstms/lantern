@@ -1195,6 +1195,7 @@
                 <label id="missionSubmitLabel">Your response</label>
                 <textarea id="missionSubmitContent" placeholder="Enter your response..." style="min-height:100px;"></textarea>
                 <p id="missionSubmitMinCharsHint" class="studioPanelMicro" style="display:none;margin-top:8px;color:var(--warn);font-size:22px;"></p>
+                <ul id="missionSubmitRequirements" style="display:none;margin:8px 0 0;padding-left:22px;font-size:22px;font-weight:800;color:var(--warn);"></ul>
               </div>
               <input type="hidden" id="missionSubmitImageUrl" value="" />
               <input type="url" id="missionSubmitVideoUrl" placeholder="" style="display:none;" aria-hidden="true" />
@@ -1247,6 +1248,9 @@
         <div id="sharedStoryBlock" class="contributeCreateFullRow">
           <label for="newsBody" id="newsBodyLabel">Description</label>
           <textarea id="newsBody" class="studioBodyInput" placeholder="Your story…" rows="6"></textarea>
+        </div>
+        <div id="contributeReactionPickerWrap" class="contributeCreateFullRow" style="display:none;">
+          <div id="contributeReactionPickerHost"></div>
         </div>
         </div>
 
@@ -1333,6 +1337,9 @@
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-studio-stream-grid.js"></script>
   <script src="js/lantern-studio-opened-preview-scale.js"></script>
+  <script src="js/lantern-race-audio.js"></script>
+  <script src="js/lantern-reaction-bank.js"></script>
+  <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-reactions.js"></script>
   <script src="js/lantern-final-reactions.js"></script>
   <script src="js/lantern-card-ui.js"></script>
@@ -1715,6 +1722,8 @@
       if (peopleWrap) peopleWrap.style.display = (t === 'post' || t === 'poll') ? 'block' : 'none';
       var pollAns = el('contributePollAnswersRow');
       if (pollAns) pollAns.style.display = t === 'poll' ? 'block' : 'none';
+      var rxPick = el('contributeReactionPickerWrap');
+      if (rxPick) rxPick.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
       if (document.body) {
         document.body.classList.add('contributeStudioOpen');
       }
@@ -1931,6 +1940,14 @@
       } catch (e) {}
     })();
     rebuildPollOptionInputs(3);
+    (function mountContributeReactionPicker(){
+      var host = el('contributeReactionPickerHost');
+      if (!host || !window.LANTERN_REACTION_BANK || typeof window.LANTERN_REACTION_BANK.mountPicker !== 'function') return;
+      window.__lanternContributeReactionPicker = window.LANTERN_REACTION_BANK.mountPicker(host, {
+        collapsed: true,
+        selectedTypes: window.LANTERN_REACTION_BANK.DEFAULT_FIVE.map(function (v) { return v.type; })
+      });
+    })();
     syncContributeTypeUI();
     // Prompt #190 — shared People picker (Recognizing required for Shout-Out; optional People for News/Poll).
     (function mountContributePeoplePickers(){
@@ -2589,6 +2606,7 @@
     var currentMissionForSubmit = null;
     var currentMissionResubmitId = null;
     var currentMissionMinChars = 0;
+    var currentMissionRequiresImage = false;
     var missionVideoUploadedUrl = '';
     var missionCropperInstance = null;
     var missionCropperSourceDataUrl = null;
@@ -3046,6 +3064,7 @@
       currentMissionForSubmit = null;
       currentMissionResubmitId = null;
       currentMissionMinChars = 0;
+      currentMissionRequiresImage = false;
       syncMissionCenterFlow();
     }
 
@@ -3058,8 +3077,13 @@
         metaEl.style.display = 'block';
         var escM = function(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); };
         var st = String(m.submission_type || 'response').trim();
-        var rew = m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : 0;
-        metaEl.innerHTML = '<div style="font-weight:900;font-size:22px;">' + escM(m.title || 'Mission') + '</div><div class="missionReward" style="margin-top:4px;">+' + escM(String(rew)) + ' nuggets</div><div class="studioPanelMicro" style="margin-top:6px;">Type: ' + escM(st) + '</div>';
+        var rewN = m.reward_amount != null && m.reward_amount !== '' ? Number(m.reward_amount) : 0;
+        if (!Number.isFinite(rewN) || rewN < 0) rewN = 0;
+        rewN = Math.trunc(rewN);
+        var rewLabel = rewN > 0 ? ('+' + rewN + ' Nugget' + (rewN === 1 ? '' : 's')) : '';
+        metaEl.innerHTML = '<div style="font-weight:900;font-size:22px;">' + escM(m.title || 'Mission') + '</div>' +
+          (rewLabel ? '<div class="missionReward" style="margin-top:4px;">' + escM(rewLabel) + '</div>' : '') +
+          '<div class="studioPanelMicro" style="margin-top:6px;">Type: ' + escM(st) + '</div>';
       }
       var panel = el('missionStudioFormPanel');
       var titleEl = el('missionSubmitTitle');
@@ -3109,7 +3133,10 @@
         } catch (e1) {}
         updateMissionPollImagePreview();
         currentMissionMinChars = 0;
+        currentMissionRequiresImage = false;
         if (el('missionSubmitMinCharsHint')) el('missionSubmitMinCharsHint').style.display = 'none';
+        var reqClearPoll = el('missionSubmitRequirements');
+        if (reqClearPoll) { reqClearPoll.innerHTML = ''; reqClearPoll.style.display = 'none'; }
         if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
         if (panel) { panel.classList.add('missionStudioFormPanel--open'); panel.setAttribute('aria-hidden', 'false'); }
         updateMissionSubmitPreview();
@@ -3137,7 +3164,10 @@
           if (pf && el('missionSubmitBugReportDesc')) el('missionSubmitBugReportDesc').value = pf.slice(0, 2000);
         }
         currentMissionMinChars = 0;
+        currentMissionRequiresImage = false;
         if (el('missionSubmitMinCharsHint')) el('missionSubmitMinCharsHint').style.display = 'none';
+        var reqClearPoll = el('missionSubmitRequirements');
+        if (reqClearPoll) { reqClearPoll.innerHTML = ''; reqClearPoll.style.display = 'none'; }
         if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
         if (panel) { panel.classList.add('missionStudioFormPanel--open'); panel.setAttribute('aria-hidden', 'false'); }
         updateMissionSubmitPreview();
@@ -3155,16 +3185,31 @@
       }
       if (urlEl) urlEl.value = (m.submission_type === 'link' && pf && pf.trim().indexOf('http') === 0) ? pf.trim().slice(0, 2000) : '';
       if (el('missionSubmitImageUploadPreviewImg')) el('missionSubmitImageUploadPreviewImg').src = '';
-      var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
+      var minParsed = parseInt(m.min_characters, 10);
+      var minChars = Number.isFinite(minParsed) && minParsed >= 0 ? minParsed : 0;
       var enforceMin = allowsText && minChars > 0;
       currentMissionMinChars = enforceMin ? minChars : 0;
+      currentMissionRequiresImage = !!(m.require_image) || Number(m.allows_image) >= 2 || (allowsImage && !allowsText && !allowsVideo && !allowsLink);
       var minCharsHint = el('missionSubmitMinCharsHint');
       if (minCharsHint) {
         if (allowsText && minChars > 0) {
-          minCharsHint.textContent = 'Minimum characters required: ' + minChars;
+          minCharsHint.textContent = 'Minimum ' + minChars + ' characters';
           minCharsHint.style.display = 'block';
         } else {
           minCharsHint.style.display = 'none';
+        }
+      }
+      var reqList = el('missionSubmitRequirements');
+      if (reqList) {
+        var chips = [];
+        if (currentMissionRequiresImage) chips.push('Image required');
+        if (currentMissionMinChars > 0) chips.push('Minimum ' + currentMissionMinChars + ' characters');
+        if (chips.length) {
+          reqList.innerHTML = chips.map(function(c){ return '<li>' + String(c).replace(/</g, '') + '</li>'; }).join('');
+          reqList.style.display = 'block';
+        } else {
+          reqList.innerHTML = '';
+          reqList.style.display = 'none';
         }
       }
       if (anyMed) mountContributeMissionUnified(allowsImage, allowsVideo, allowsLink);
@@ -3271,10 +3316,17 @@
       var validImage = allowsImage && (imageVal.length > 0 || (el('missionSubmitImageUploadPreviewImg') && el('missionSubmitImageUploadPreviewImg').src && String(el('missionSubmitImageUploadPreviewImg').src).trim().length > 0));
       var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
       var validLink = allowsLink && linkVal.length > 0;
+      if (currentMissionRequiresImage && !validImage) {
+        toast('Image required');
+        return;
+      }
+      if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) {
+        toast('Minimum ' + minChars + ' characters required.');
+        return;
+      }
       var hasAnyValid = validText || validImage || validVideo || validLink;
       if (!hasAnyValid) {
-        if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) toast('Minimum ' + minChars + ' characters required.');
-        else if (allowsText && !allowsImage && !allowsVideo && !allowsLink) toast('This mission requires a written response.');
+        if (allowsText && !allowsImage && !allowsVideo && !allowsLink) toast('This mission requires a written response.');
         else toast('Please add a valid submission before sending.');
         return;
       }
@@ -3287,7 +3339,11 @@
       }
       var type = 'text';
       var content = '';
-      if (allowsText && textVal){ type = 'text'; content = textVal; }
+      if (validText && validImage){
+        type = 'text';
+        content = JSON.stringify({ text: textVal.slice(0, 1800), image_url: imageVal.slice(0, 500) });
+      }
+      else if (allowsText && textVal){ type = 'text'; content = textVal; }
       else if (allowsImage && imageVal){ type = 'image_url'; content = imageVal; }
       else if (allowsVideo && missionVideoUploadedUrl){ type = 'video'; content = missionVideoUploadedUrl; }
       else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }

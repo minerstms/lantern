@@ -18,13 +18,14 @@
 
 .lanternReactionBtn {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
   flex: 1 1 0;
   min-width: 0;
   padding: 6px 6px;
-  border-radius: 999px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.2);
   color: inherit;
@@ -32,6 +33,30 @@
   line-height: 1.2;
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.lanternReactionRaceTrack {
+  display: block;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.lanternReactionRaceFill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(90,167,255,.7), rgba(90,167,255,.35));
+  transition: none !important;
+}
+.lanternReactionResultsHost{
+  margin-top: 10px;
+}
+.lanternReactionBtn.is-mine .lanternReactionRaceFill {
+  background: linear-gradient(90deg, rgba(56,208,124,.8), rgba(56,208,124,.35));
 }
 
 .lanternReactionBtn:hover:not(:disabled) {
@@ -142,17 +167,136 @@
   font-weight: 900;
   color: var(--ink, #eaf0ff);
 }
+.lanternFinalRxRaceArena{
+  position: relative;
+  overflow: visible;
+  min-height: 64px;
+}
+.lanternFinalRxPanel.lanternRxRaceLive,
+.lanternFinalRxPanel.lanternRxRaceLive .lanternFinalRxRaceArena,
+.lanternFinalRxChoices.lanternRxChoices--racing,
+.lanternReactionBar.lanternRxChoices--racing,
+.lanternRxChoices--racing .lanternRxLane,
+.lanternRxRaceLive .lanternRxLane{
+  overflow: visible;
+}
+.lanternFinalRxPanel.lanternRxRaceLive{
+  position: relative;
+}
+.lanternRxLane .lanternFinalRxChoice,
+.lanternRxLane .lanternReactionBtn{
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s !important;
+}
+.lanternRxChoices--racing .lanternFinalRxChoice,
+.lanternRxChoices--racing .lanternReactionBtn,
+.lanternRxRaceLive .lanternFinalRxChoice[aria-disabled="true"],
+.lanternRxRaceLive .lanternReactionBtn:disabled{
+  opacity: 1 !important;
+}
 .lanternFinalRxChoices {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 14px;
   width: 100%;
   box-sizing: border-box;
+  align-items: end;
+  overflow: visible;
+}
+.lanternRxLane{
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 64px;
+  overflow: visible;
+}
+.lanternRxRaceBar{
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 14px;
+  height: 0;
+  margin-left: -7px;
+  border-radius: 8px 8px 3px 3px;
+  background: linear-gradient(180deg, rgba(90,167,255,.9), rgba(90,167,255,.28));
+  z-index: 1;
+  pointer-events: none;
+  transform-origin: bottom center;
+}
+.lanternRxLane--yours .lanternRxRaceBar{
+  background: linear-gradient(180deg, rgba(56,208,124,.95), rgba(56,208,124,.3));
+}
+.lanternRxLane--yours .lanternFinalRxChoice,
+.lanternRxLane--yours .lanternReactionBtn{
+  box-shadow: 0 0 0 2px rgba(56,208,124,.45);
+}
+.lanternRxRacePct{
+  min-height: 22px;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--ink, #eaf0ff);
+}
+.lanternReactionBar{
+  overflow: visible;
+}
+.lanternRxPicker{
+  margin: 10px 0 0;
+}
+.lanternRxPickerToggle{
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.22);
+  color: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+.lanternRxPickerBody{
+  margin-top: 10px;
+}
+.lanternRxPickerCount{
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 900;
+}
+.lanternRxPickerNote,
+.lanternRxPickerBlocker{
+  margin: 0 0 10px;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--muted, #b9c6ea);
+}
+.lanternRxPickerGrid{
+  display: grid;
+  gap: 8px;
+}
+.lanternRxPickerCell{
+  min-height: 52px;
+  border-radius: 12px;
+  border: 2px solid rgba(255,255,255,.2);
+  background: rgba(0,0,0,.25);
+  font-size: 26px;
+  cursor: pointer;
+}
+.lanternRxPickerCell.is-selected{
+  border-color: rgba(56,208,124,.7);
+  background: rgba(56,208,124,.16);
+}
+.lanternRxPickerCell--pending{
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 .lanternFinalRxChoice {
   justify-self: center;
   align-self: center;
+  position: relative;
+  z-index: 2;
   width: 100%;
   max-width: 64px;
   min-height: 52px;
@@ -163,7 +307,7 @@
   font-size: 28px;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, transform 0.12s;
+  transition: border-color 0.15s, background 0.15s;
 }
 .lanternFinalRxChoice:hover:not([aria-disabled="true"]) {
   border-color: rgba(90, 167, 255, 0.55);

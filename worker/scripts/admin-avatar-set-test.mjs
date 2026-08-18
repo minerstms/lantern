@@ -83,10 +83,10 @@ if (
 
 if (
   workerIndex.includes("kind === 'avatar_upload'") &&
-  workerIndex.includes('avatar_upload costs exactly 1 Nugget') &&
-  workerIndex.includes('server_delta: -1')
+  workerIndex.includes("resolveEconomyAmount(db, 'avatar_upload')") &&
+  workerIndex.includes('client_delta_rejected')
 ) {
-  ok('worker: normal avatar_upload still locked to -1 Nugget');
+  ok('worker: normal avatar_upload cost is server-authoritative');
 } else bad('worker normal avatar_upload price lock regresssed');
 
 if (

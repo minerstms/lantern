@@ -37,7 +37,7 @@ assert(/overflow:\s*visible/.test(overlayBodyCss), 'source: body remains overflo
 assert(/overflow-y:\s*auto/.test(overlayShellCss), 'source: overlay remains the scroller (#168)');
 assert(/object-fit:\s*contain/.test(cardsCss), 'source: detail media contain');
 assert(/Prompt #215/.test(cardUi) && /do not mount generic reactions/.test(cardUi), 'source: Poll still does not force generic reactions');
-assert(/Lock In/.test(cardUi) && /pollLockInBtn/.test(cardUi), 'source: Poll Lock In unchanged');
+assert(/submitPollChoice/.test(cardUi) && !/textContent = 'Lock In'/.test(cardUi), 'source: Poll direct submit, no Lock In');
 assert(/LANTERN_REACTIONS|renderReactionBar/.test(cardUi), 'source: reaction mount unchanged');
 
 const PNG_1PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -371,9 +371,8 @@ async function chromiumChecks() {
         titleText: title.textContent,
         choiceCount: choiceBtns.length,
         lockPresent: !!lock,
-        lockDisabled: !!(lock && lock.disabled),
+        choicesBeforeRx: !!(choiceBtns[0] && (choiceBtns[0].compareDocumentPosition(rx) & FOLLOWING)),
         bodyBeforeRx: !!(body.compareDocumentPosition(rx) & FOLLOWING),
-        lockBeforeRx: !!(lock && (lock.compareDocumentPosition(rx) & FOLLOWING)),
         visualBeforeTitle: !!(visual.compareDocumentPosition(title) & FOLLOWING),
         titleBeforeIdentity: !!(title.compareDocumentPosition(identity) & FOLLOWING),
         identityBeforeMeta: !!(identity.compareDocumentPosition(meta) & FOLLOWING),
@@ -389,10 +388,9 @@ async function chromiumChecks() {
 
     assert(poll.titleText === 'Which Miner moment was the best?', 'poll: question is title');
     assert(poll.choiceCount === 12, 'poll: answer choices rendered');
-    assert(poll.lockPresent, 'poll: Lock In present');
-    assert(poll.lockDisabled, 'poll: Lock In disabled until a choice is selected');
+    assert(!poll.lockPresent, 'poll: no Lock In button');
     assert(poll.bodyBeforeRx, 'poll DOM: body/interactions precede reactions');
-    assert(poll.lockBeforeRx, 'poll DOM: Lock In precedes reactions');
+    assert(poll.choicesBeforeRx, 'poll DOM: choices precede reactions');
     assert(poll.visualBeforeTitle && poll.titleBeforeIdentity && poll.identityBeforeMeta && poll.metaBeforeBody, 'poll DOM: media → title → identity → meta → body');
     assert(poll.bodyOverflowY === 'visible', 'poll: no inner body scroller');
     assert(poll.pollInnerOverflowY === 'visible' || poll.pollInnerOverflowY === '', 'poll: no inner Poll scroller', poll.pollInnerOverflowY);
@@ -400,16 +398,11 @@ async function chromiumChecks() {
     assert(poll.overlayScrollHeight > poll.overlayClientHeight, 'poll: long Poll extends below viewport');
     assert(poll.rxPosition !== 'sticky' && poll.rxPosition !== 'fixed', 'poll: reactions not sticky/fixed');
 
-    const voted = await page.evaluate(function () {
+    await page.evaluate(function () {
       var overlay = document.getElementById('lanternCardDetailOverlay');
       var first = overlay.querySelector('.pollChoiceBtn');
       if (first) first.click();
-      var lock = overlay.querySelector('.pollLockInBtn');
-      var enabled = !!(lock && !lock.disabled);
-      if (lock) lock.click();
-      return { enabled: enabled };
     });
-    assert(voted.enabled, 'poll: selecting a choice enables Lock In');
     await page.waitForFunction(function () {
       var el = document.querySelector('#lanternPollDetailResults');
       return el && el.style.display !== 'none' && /100%/.test(el.textContent || '');
@@ -428,8 +421,8 @@ async function chromiumChecks() {
         resultsBeforeRx: !!(results && (results.compareDocumentPosition(rx) & Node.DOCUMENT_POSITION_FOLLOWING)),
       };
     });
-    assert(afterVote.resultsVisible && afterVote.hasPercent, 'poll: results/percentages after Lock In');
-    assert(afterVote.lockGone, 'poll: Lock In consumed after save (immutable vote)');
+    assert(afterVote.resultsVisible && afterVote.hasPercent, 'poll: results/percentages after direct submit');
+    assert(afterVote.lockGone, 'poll: no Lock In after save (immutable vote)');
     assert(afterVote.bodyBeforeRx && afterVote.resultsBeforeRx, 'poll: results still precede reactions');
   } finally {
     await browser.close();

@@ -41,9 +41,9 @@ const teacherHtml = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8')
 // ---------------------------------------------------------------------------
 // Edit matrix — locked-after-first-submission fields (CURSOR REPLY #100 §5)
 // ---------------------------------------------------------------------------
-const expectedLocked = ['audience', 'participant_scope', 'target_character_names', 'allows_text', 'allows_image', 'allows_video', 'allows_link', 'min_characters'];
+const expectedLocked = ['audience', 'participant_scope', 'target_character_names', 'allows_text', 'allows_video', 'allows_link'];
 if (expectedLocked.every((f) => MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.includes(f)) && MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.length === expectedLocked.length) {
-  ok('locked-after-first-submission field set matches the audit exactly (audience/participant_scope/target_character_names/allows_*/min_characters)');
+  ok('locked-after-first-submission field set keeps audience/scope/text/video/link locked');
 } else bad('locked field set mismatch', MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION);
 
 if (missionEditLockedFieldsPresent({ title: 'x', active: true, featured: true, reward_amount: 5 }).length === 0) {
@@ -54,7 +54,10 @@ if (missionEditLockedFieldsPresent({ audience: 'school_mission' }).length === 1)
   ok('editing audience alone is flagged as a locked-field request');
 } else bad('audience not flagged');
 
-if (missionEditLockedFieldsPresent({ min_characters: 50, allows_image: true }).length === 2) {
+if (missionEditLockedFieldsPresent({ min_characters: 50, require_image: true, allows_image: true }).length === 0) {
+  ok('require image + min characters remain editable after first submission');
+} else bad('requirement fields incorrectly locked');
+if (missionEditLockedFieldsPresent({ audience: 'school_mission', allows_text: true }).length === 2) {
   ok('multiple locked fields in one PATCH body are all flagged');
 } else bad('multi-field locked detection incorrect');
 
@@ -113,7 +116,7 @@ if (/WHERE active = 1 AND archived = 0 ORDER BY featured DESC/.test(missionsHand
   ok('GET /api/missions/active requires active=1 AND archived=0 (Archive is unavailable to students even if somehow re-activated)');
 } else bad('student active-missions query missing archived=0 guard');
 
-if (/if \(mission\.active === 0 \|\| !!mission\.archived\) return jsonResponse\(\{ ok: false, error: 'Mission is not active' \}/.test(missionsHandlers)) {
+if (/mission\.active === 0 \|\| !!mission\.archived/.test(missionsHandlers) && /Mission is not active/.test(missionsHandlers)) {
   ok('POST /api/missions/submit rejects submissions to archived missions (even via an old/deep-linked mission_id), not just paused ones');
 } else bad('submit handler missing archived rejection');
 
@@ -142,9 +145,9 @@ if (migrationFiles.length === 1) {
 // ---------------------------------------------------------------------------
 // Reward safety — Prompt #159 locks ordinary approval payout to exactly +1 Nugget
 // ---------------------------------------------------------------------------
-if (/const reward = 1;/.test(missionsHandlers) && /Prompt #159/.test(missionsHandlers)) {
-  ok('approval awards exactly 1 Nugget (Prompt #159 lock; does not trust mission.reward_amount)');
-} else bad('approval reward lock not found at expected call site');
+if (/resolveStoredMissionPayout/.test(missionsHandlers) && /resolveTeacherMissionReward/.test(missionsHandlers)) {
+  ok('approval pays the saved mission reward; create/update clamp via System Admin bounds');
+} else bad('approval/create reward resolver not found');
 
 if (/export function missionRewardTxId\(submissionId\)/.test(missionsReward) && /findMissionRewardTx/.test(missionsReward)) {
   ok('reward credit is keyed by a deterministic tx id derived from the submission id, not the mission\u2019s reward_amount — editing reward_amount later cannot alter an already-created tx');
@@ -218,9 +221,9 @@ if (/character_name/.test(teacherHtml) && /target_character_names/.test(teacherH
   ok('internal character_name / target_character_names identifiers are untouched by the visible-terminology cleanup');
 } else bad('internal character_* identifiers were unexpectedly touched');
 
-if (/Minimum characters/.test(teacherHtml)) {
-  ok('"Minimum characters" (submission text-length field) label is untouched — it does not mean student roster "characters"');
-} else bad('Minimum characters label missing/changed unexpectedly');
+if (/Minimum text characters/.test(teacherHtml)) {
+  ok('"Minimum text characters" teacher label is distinct from roster "characters"');
+} else bad('Minimum text characters label missing');
 
 if (/Promote this mission/.test(teacherHtml) && !/Feature this mission/.test(teacherHtml)) {
   ok('"Feature this mission" fully relabeled to "Promote this mission" in the creator');

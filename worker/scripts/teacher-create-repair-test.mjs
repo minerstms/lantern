@@ -127,7 +127,7 @@ function buildSandbox({ postMissionsResponse, networkError }) {
     missionAllowsImage: makeFieldStub(),
     missionAllowsVideo: makeFieldStub(),
     missionAllowsLink: makeFieldStub(),
-    missionMinChars: makeFieldStub('200'),
+    missionMinChars: makeFieldStub('0'),
     createMissionBtn: { disabled: false, addEventListener() {} },
   };
   const toasts = [];

@@ -209,23 +209,23 @@ export function missionVisibleToStudent(missionRow, studentKey) {
  * (regardless of that submission's later status) — changing audience/requirements mid-flight
  * would silently break students who already submitted under the old rules. `title`,
  * `description`, `active`, `featured`, `archived`, and `reward_amount` are intentionally NOT
- * listed here: they remain safe to edit at any time (reward_amount only affects FUTURE
- * approvals — historical paid rewards are frozen by missions-reward.js's idempotent tx id).
+ * listed here: they remain safe to edit at any time (Prompt #229 — reward_amount only affects
+ * FUTURE approvals; historical paid rewards are frozen by missions-reward.js's idempotent tx id).
  */
 export const MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION = [
   'audience',
   'participant_scope',
   'target_character_names',
   'allows_text',
-  'allows_image',
   'allows_video',
   'allows_link',
-  'min_characters',
 ];
 
 /**
  * Returns which locked-after-first-submission fields a PATCH body is attempting to change.
  * Empty array means the request contains none of them (always safe re: this rule).
+ * Prompt #225A — require_image / min_characters / allows_image (require encoding) stay
+ * editable after the first submission so future work uses the current saved rules.
  */
 export function missionEditLockedFieldsPresent(body) {
   if (!body || typeof body !== 'object') return [];
@@ -369,11 +369,45 @@ export function extractMissionSubmissionMedia(submissionType, submissionContent)
   return { caption, image_url: imageUrl, video_url: videoUrl };
 }
 
+export function missionAllowsImage(mission) {
+  return Number(mission && mission.allows_image) > 0 || mission && mission.require_image === true;
+}
+
+export function missionRequiresImage(mission) {
+  if (!mission) return false;
+  if (mission.require_image === true) return true;
+  const n = Number(mission.allows_image);
+  if (n >= 2) return true;
+  const allowsText = mission.allows_text !== 0 && mission.allows_text !== false;
+  const allowsVideo = !!(mission.allows_video);
+  const allowsLink = !!(mission.allows_link);
+  return n > 0 && !allowsText && !allowsVideo && !allowsLink;
+}
+
+export function persistAllowsImageValue(body, current) {
+  const requireOn = !!(body && (body.require_image === true || body.require_image === 1 || Number(body.allows_image) >= 2));
+  const requireOff = !!(body && (body.require_image === false || body.require_image === 0));
+  const allowExplicitOff = !!(body && body.allows_image === false);
+  const allowOn = !!(body && (body.allows_image || requireOn));
+  const cur = Number(current) || 0;
+  if (requireOn) return 2;
+  if (requireOff && allowExplicitOff) return 0;
+  if (requireOff) return cur >= 1 || allowOn ? 1 : 0;
+  if (body && body.allows_image !== undefined) {
+    return body.allows_image ? 1 : 0;
+  }
+  if (current != null && body && body.require_image === undefined && body.allows_image === undefined) {
+    return cur;
+  }
+  return allowOn ? 1 : 0;
+}
+
 export function validateMissionSubmissionPayload(mission, submissionType, content) {
   const st = normalizeSubmissionType(submissionType, mission.submission_type);
   const text = String(content || '').trim();
   const allowsText = mission.allows_text !== 0 && mission.allows_text !== false;
-  const allowsImage = !!(mission.allows_image);
+  const allowsImage = missionAllowsImage(mission);
+  const requiresImage = missionRequiresImage(mission);
   const allowsVideo = !!(mission.allows_video);
   const allowsLink = !!(mission.allows_link);
   const minChars =
@@ -422,6 +456,9 @@ export function validateMissionSubmissionPayload(mission, submissionType, conten
       }
       const hasText = innerText.length > 0;
       const hasImage = allowsImage && innerImage.length > 0;
+      if (requiresImage && !hasImage) {
+        return { ok: false, error: 'Image required' };
+      }
       if (!hasText && !hasImage) {
         return { ok: false, error: 'Invalid submission for mission requirements' };
       }
@@ -432,6 +469,9 @@ export function validateMissionSubmissionPayload(mission, submissionType, conten
     }
     if (minChars > 0 && text.length < minChars) {
       return { ok: false, error: `Minimum ${minChars} characters required` };
+    }
+    if (requiresImage) {
+      return { ok: false, error: 'Image required' };
     }
     if (text.length > 0) valid = true;
   }

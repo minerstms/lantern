@@ -252,12 +252,12 @@ export function overlayEducationalTriviaMissions(list) {
       ...m,
       title: m.title || def.title,
       description: m.description || def.description,
-      reward_amount: EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
+      reward_amount: m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : EDUCATIONAL_TRIVIA_REWARD_NUGGETS,
       activity: {
         type: def.type,
         game_id: def.game_id,
         correct_target: def.correct_target,
-        reward_nuggets: def.reward_nuggets,
+        reward_nuggets: m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : def.reward_nuggets,
       },
     };
   });

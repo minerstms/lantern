@@ -20,7 +20,7 @@ const sandbox = { window: {}, self: {} };
 vm.runInNewContext(staffNav, sandbox);
 const LSN = sandbox.window.LanternStaffNav || sandbox.self.LanternStaffNav;
 
-const NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const NAV = ['Lantern', 'My Locker', 'Create', 'Photo Library', 'Games', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 function labels(role, caps) {
   return LSN.canonicalVisibleLabels(role, caps, 'lantern');
@@ -43,21 +43,21 @@ else bad('2. Teacher Tools missing');
 if (ordinary.includes('Behavior Logger')) ok('3. TEACHER gets Behavior Logger');
 else bad('3. Behavior Logger missing');
 
-if (reportOnly.includes('Reports') && !reportOnly.includes('Behavior Administration') && !reportOnly.includes('System')) {
-  ok('4/10/11. REPORT_MAKER adds Reports only');
+if (reportOnly.includes('MTSS Reports') && !reportOnly.includes('Behavior Admin') && !reportOnly.includes('System Tools')) {
+  ok('4/10/11. REPORT_MAKER adds MTSS Reports only');
 } else bad('4. REPORT_MAKER leak', reportOnly);
-if (behaviorOnly.includes('Behavior Administration') && !behaviorOnly.includes('Reports') && !behaviorOnly.includes('System')) {
-  ok('5/7. BEHAVIOR_ADMIN adds Behavior Administration only');
+if (behaviorOnly.includes('Behavior Admin') && !behaviorOnly.includes('MTSS Reports') && !behaviorOnly.includes('System Tools')) {
+  ok('5/7. BEHAVIOR_ADMIN adds Behavior Admin only');
 } else bad('5. BEHAVIOR_ADMIN leak', behaviorOnly);
-if (systemOnly.includes('System') && !systemOnly.includes('Reports') && !systemOnly.includes('Behavior Administration')) {
-  ok('6/8/9. SYSTEM_ADMIN adds System only');
+if (systemOnly.includes('System Tools') && !systemOnly.includes('MTSS Reports') && !systemOnly.includes('Behavior Admin')) {
+  ok('6/8/9. SYSTEM_ADMIN adds System Tools only');
 } else bad('6. SYSTEM_ADMIN leak', systemOnly);
 
-if (JSON.stringify(rick) === JSON.stringify(NAV.concat(STAFF).concat(['Reports']))) ok('12. Rick matrix correct');
+if (JSON.stringify(rick) === JSON.stringify(NAV.concat(STAFF).concat(['MTSS Reports']))) ok('12. Rick matrix correct');
 else bad('12. Rick', rick);
-if (JSON.stringify(deana) === JSON.stringify(NAV.concat(STAFF).concat(['Reports', 'Behavior Administration']))) ok('13. Deana matrix correct');
+if (JSON.stringify(deana) === JSON.stringify(NAV.concat(STAFF).concat(['MTSS Reports', 'Behavior Admin']))) ok('13. Deana matrix correct');
 else bad('13. Deana', deana);
-if (JSON.stringify(webAdmin) === JSON.stringify(NAV.concat(STAFF).concat(['Reports', 'Behavior Administration', 'System']))) ok('14. Web Admin matrix correct');
+if (JSON.stringify(webAdmin) === JSON.stringify(NAV.concat(STAFF).concat(['MTSS Reports', 'Behavior Admin', 'System Tools']))) ok('14. Web Admin matrix correct');
 else bad('14. Web Admin', webAdmin);
 
 const sidebar = (teacherHtml.match(/<nav class="teacherSidebarNav"[\s\S]*?<\/nav>/) || [''])[0];
@@ -82,7 +82,7 @@ if (sideLabels.includes('Review Submissions')) ok('24. Review Submissions remain
 else bad('24. Review Submissions missing');
 if (ordinary.includes('Behavior Logger') && !sideLabels.includes('Behavior Logger')) ok('25. Behavior Logger remains separate from Teacher Tools sidebar');
 else bad('25. Behavior Logger sidebar/nav');
-if (/Capabilities are independent/.test(contract) && /Does not add Reports or System/.test(contract)) {
+if (/Capabilities are independent/.test(contract) && /Does not add MTSS Reports or System Tools/.test(contract)) {
   ok('contract states capability independence');
 } else bad('contract missing independence');
 if (!staffNav.includes("label: 'Teacher Dashboard'")) ok('Teacher Dashboard still retired from nav renderer');

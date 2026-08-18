@@ -24,7 +24,7 @@ const sandbox = { window: {}, self: {} };
 vm.runInNewContext(staffNav, sandbox);
 const LSN = sandbox.window.LanternStaffNav || sandbox.self.LanternStaffNav;
 
-const NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const NAV = ['Lantern', 'My Locker', 'Create', 'Photo Library', 'Games', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const personas = {
   student: LSN.canonicalVisibleLabels('student', null, 'lantern'),
@@ -47,11 +47,11 @@ else bad('5. Web Admin still has Teacher Dashboard', personas.webAdmin);
 
 if (STAFF.every((l) => personas.ordinary.includes(l))) ok('6/7. Teacher Tools and Behavior Logger present for TEACHER');
 else bad('6/7. STAFF missing', personas.ordinary);
-if (personas.rick.includes('Reports') && !personas.ordinary.includes('Reports')) ok('8. Reports follows REPORT_MAKER');
+if (personas.rick.includes('MTSS Reports') && !personas.ordinary.includes('MTSS Reports')) ok('8. MTSS Reports follows REPORT_MAKER');
 else bad('8. Reports gate', { rick: personas.rick, ordinary: personas.ordinary });
-if (personas.deana.includes('Behavior Administration') && !personas.rick.includes('Behavior Administration')) ok('9. Behavior Administration follows BEHAVIOR_ADMIN');
-else bad('9. Behavior Administration gate');
-if (personas.webAdmin.includes('System') && !personas.deana.includes('System')) ok('10. System follows SYSTEM_ADMIN');
+if (personas.deana.includes('Behavior Admin') && !personas.rick.includes('Behavior Admin')) ok('9. Behavior Admin follows BEHAVIOR_ADMIN');
+else bad('9. Behavior Admin gate');
+if (personas.webAdmin.includes('System Tools') && !personas.deana.includes('System Tools')) ok('10. System Tools follows SYSTEM_ADMIN');
 else bad('10. System gate');
 
 if (/Pending Nuggets/.test(teacherHtml) && /id="teacherPendingNuggetsCard"/.test(teacherHtml)) ok('11. Pending Nuggets accessible in Teacher Tools');

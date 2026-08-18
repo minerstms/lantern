@@ -34,8 +34,8 @@ const cat = sandbox.LANTERN_GAME_CATALOG;
 const premium = cat.premiumGames();
 const premiumIds = premium.map((g) => g.id);
 
-if (gamesHtml.includes('id="gamesPremiumSection"') && gamesHtml.includes('Premium Games') && gamesHtml.includes('Spend 1 Nugget to play. Chase your best score.')) {
-  ok('1. Premium Games section exists');
+if (!gamesHtml.includes('id="gamesPremiumSection"') && !gamesHtml.includes('Premium Games') && gamesHtml.includes('id="gamesLibraryGrid"')) {
+  ok('1. no student-facing Premium Games section; games use the ordinary library');
 } else bad('1. premium section');
 
 if (
@@ -58,7 +58,7 @@ if (new Set(idMatches).size === 13 && idMatches.length === 13 && cat.listGames()
 
 if (
   cardsCss.includes('--lantern-card-aspect-ratio: 16 / 9') &&
-  gamesPageJs.includes("extraClass: 'exploreCard--gamesLibrary'") &&
+  gamesPageJs.includes('exploreCard--gamesLibrary') &&
   gamesCss.includes('aspect-ratio: 16 / 9')
 ) {
   ok('5. cards remain canonical 16:9');
@@ -248,15 +248,14 @@ if (otherIds.every((id) => cat.getGameById(id)) && gamesPageJs.includes('filtere
 
 if (
   gamesCss.includes('overflow-x: hidden') &&
-  gamesCss.includes('.gamesPremiumSection') &&
   !gamesHtml.includes('gamesFeaturedScroller') &&
   !gamesHtml.includes('gamesArcadeScroller')
 ) {
-  ok('38. premium rail uses feedGrid without old scroller hosts; page clips horizontal overflow');
+  ok('38. library uses feedGrid without old scroller hosts; page clips horizontal overflow');
 } else bad('38. overflow / rails');
 
-if (gamesPageJs.includes('isPremiumGame') && gamesPageJs.includes('renderPremiumGames') && gamesPageJs.includes('games_premium')) {
-  ok('premium rail references existing catalog rows (one source of truth)');
+if (gamesPageJs.includes('playHubGames') && !gamesPageJs.includes('renderPremiumGames') && !gamesPageJs.includes('games_premium')) {
+  ok('ordinary library renders play-hub games without a Premium rail');
 } else bad('premium render wiring');
 
 if (

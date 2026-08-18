@@ -849,12 +849,6 @@
       </div>
     </section>
 
-    <section class="gamesPremiumSection" id="gamesPremiumSection" aria-labelledby="gamesPremiumHeading" data-help="games">
-      <h2 class="gamesPremiumHeading" id="gamesPremiumHeading">Premium Games</h2>
-      <p class="gamesPremiumSub">Spend 1 Nugget to play. Chase your best score.</p>
-      <div id="gamesPremiumGrid" class="feedGrid" role="list" aria-label="Premium games"></div>
-    </section>
-
     <section class="gamesLibrarySection" aria-label="Game library" data-help="games">
       <header class="feedHeading" aria-label="Games library controls">
         <div class="feedHeadingRow">
@@ -1319,6 +1313,7 @@
           ? (sponsored.description || playerOpts.description)
           : playerOpts.description,
         sponsoredFreeMission: !!sponsored,
+        sponsoredRewardAmount: (sponsored && sponsored.reward_amount != null) ? sponsored.reward_amount : 1,
         surface: playerOpts.surface,
         onExit: playerOpts.onExit,
         returnFocus: playerOpts.returnFocus || null,
@@ -2487,7 +2482,7 @@
         function fetchThenStart(){
           function failClosedPool(){
             characters = [];
-            failGamePlayerStart('Avatar Match needs at least four approved avatars from active accounts.');
+            failGamePlayerStart('Avatar Match needs at least 4 eligible avatars from active accounts.');
           }
           if (gamesApiBase) {
             fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
