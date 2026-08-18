@@ -43,14 +43,13 @@ if (missionsHtml.includes('id="missionsLibraryGrid"') && missionsHtml.includes('
   ok('one unified mission library grid');
 } else bad('unified grid missing');
 
-// Prompt #73 Defect 2: Available/In Progress/Completed tabs collapsed into Active/Completed so a
-// submitted mission never appears to "disappear" from the default view.
-if (missionsHtml.includes('id="missionsStatusTabs"') && missionsHtml.includes('data-mission-status="active"') && !missionsHtml.includes('data-mission-status="in_progress"')) {
-  ok('status tabs: Active default markup, no separate In Progress tab');
-} else bad('status tabs missing/outdated');
+// Prompt #224: no Active vs Complete split — one collection; completed stays with a badge.
+if (!missionsHtml.includes('id="missionsStatusTabs"') && !missionsHtml.includes('data-mission-status="active"') && !missionsHtml.includes('data-mission-status="completed"')) {
+  ok('status tabs removed; single Missions collection');
+} else bad('status tabs still present');
 
-if (missionsPageJs.includes("status: 'active'") && missionsPageJs.includes('isActiveStatus') && missionsPageJs.includes('completed')) {
-  ok('missions page module supports Active (available+in_progress+returned) + Completed views');
+if (missionsPageJs.includes('matchesTab') && missionsPageJs.includes('stateBadgeFor') && missionsPageJs.includes('COMPLETED')) {
+  ok('missions page module keeps completed items in the same collection with a COMPLETED badge');
 } else bad('status view logic missing');
 
 if (/id="missionsFiltersPanel"[^>]*\shidden/.test(missionsHtml)) {
@@ -125,8 +124,8 @@ if (missionsPageJs.includes('LanternNav.onHeaderSearch')) {
   ok('mission-scoped header search wired');
 } else bad('header search');
 
-if (helpJs.includes('Active shows everything you can still work on') && !helpJs.includes('In Progress')) {
-  ok('help copy matches Active/Completed unified library (Prompt #73 Defect 2)');
+if (helpJs.includes('Finished missions stay in this same list') && !helpJs.includes('Active shows everything you can still work on')) {
+  ok('help copy matches single Missions collection (Prompt #224)');
 } else bad('help copy outdated');
 
 // Mock workflow: buildUnifiedMissionItems status mapping

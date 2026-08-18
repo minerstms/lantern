@@ -20,7 +20,7 @@ const sandbox = { window: {}, self: {} };
 vm.runInNewContext(staffNav, sandbox);
 const LSN = sandbox.window.LanternStaffNav || sandbox.self.LanternStaffNav;
 
-const NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const NAV = ['Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 function labels(role, caps) {
   return LSN.canonicalVisibleLabels(role, caps, 'lantern');

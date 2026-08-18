@@ -42,7 +42,7 @@ else bad('4. href', { lanternHref, tmsHref });
 if (!/[?&]/.test(lanternHref) && !/[?&]/.test(tmsHref)) ok('5. no identity/token/session query on Media Library URL');
 else bad('5. query appended', { lanternHref, tmsHref });
 
-const studentKeep = ['Lantern', 'Locker', 'Create', 'Play', 'Missions'];
+const studentKeep = ['Locker', 'Create', 'Play', 'Missions'];
 if (studentKeep.every((l) => student.includes(l))) ok('6. existing student links remain');
 else bad('6. student links', student);
 
@@ -116,7 +116,7 @@ if (!/character_name|pairing|device.secret|library.session|yearbook.*token/i.tes
   ok('no Media Library auth/session fields attached to the nav item');
 } else bad('auth leakage in nav item');
 
-if (JSON.stringify(student) === JSON.stringify(['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'])) {
+if (JSON.stringify(student) === JSON.stringify(['Locker', 'Create', 'Media Library', 'Play', 'Missions'])) {
   ok('placement is Create → Media Library → Play');
 } else bad('placement', student);
 

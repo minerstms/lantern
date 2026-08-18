@@ -19,7 +19,7 @@ function assert(cond, label, detail) { if (cond) ok(label); else bad(label, deta
 
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
-const CORE = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const CORE = ['Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const PAGES = [
   'app/explore.html',
@@ -67,7 +67,7 @@ assert(JSON.stringify(labels('admin', null)) === JSON.stringify(CORE.concat(STAF
 const orderHtml = LSN.buildMenuSectionsHtml('explore', 'lantern', { report_maker: true, behavior_admin: true, system_admin: true }, 'teacher');
 const order = [...orderHtml.matchAll(/class="lanternAppBarDropdownLink[^"]*"[^>]*data-page="([^"]+)"/g)].map((m) => m[1]);
 assert(
-  JSON.stringify(order) === JSON.stringify(['explore', 'locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'behavior', 'reports', 'behavior-admin', 'system']),
+  JSON.stringify(order) === JSON.stringify(['locker', 'create', 'media_library', 'play', 'missions', 'teacher', 'behavior', 'reports', 'behavior-admin', 'system']),
   '24. canonical data-page order',
   JSON.stringify(order)
 );
@@ -93,7 +93,7 @@ PAGES.forEach((rel) => {
 });
 assert(read('app/display.html').includes('page-marquee-only'), 'display.html remains marquee-only exception');
 
-assert(staffNav.includes("path: '/explore.html'"), '43. Lantern route /explore.html');
+assert(lanternNav.includes('href="explore.html"') && lanternNav.includes('id="lanternHomeLink"') && staffNav.includes("'/explore.html'"), '43. brand home / hrefFor lantern is /explore.html');
 assert(staffNav.includes("path: '/locker.html'"), '43. Locker route');
 assert(staffNav.includes("path: '/contribute.html'"), '43. Create route');
 assert(staffNav.includes("path: '/games.html'"), '43. Play route');

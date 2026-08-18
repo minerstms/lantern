@@ -13,7 +13,7 @@ let fail = 0;
 function ok(label) { pass++; console.log('PASS', label); }
 function bad(label, detail) { fail++; console.error('FAIL', label, detail != null ? detail : ''); }
 
-const NAV = ['Lantern', 'Locker', 'Create', 'Media Library', 'Play', 'Missions'];
+const NAV = ['Locker', 'Create', 'Media Library', 'Play', 'Missions'];
 const STAFF = ['Teacher Tools', 'Behavior Logger'];
 const FORBIDDEN_LABELS = ['Teacher', 'Admin', 'Behavior Admin', 'Dashboard', 'System Admin'];
 
