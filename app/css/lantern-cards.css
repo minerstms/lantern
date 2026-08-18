@@ -1310,7 +1310,13 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .lanternFinalRxPanel > .lanternRaceToolbar,
 .lanternReactionBar > .lanternRaceToolbar,
 .lanternCardDetailReactions > .lanternRaceToolbar,
-.lanternRaceToolbar--rx{
+.lanternRaceToolbar--rx,
+.lanternRaceToolbar--float,
+.lanternRaceToolbar--poll,
+.lanternPollRaceHost > .lanternRaceToolbar,
+.pollResultsWrap > .lanternRaceToolbar,
+.lanternCardDetailTitle > .lanternRaceToolbar,
+.lanternCardDetailModal--poll .lanternRaceToolbar{
   position: absolute;
   top: 0;
   right: 0;
@@ -1320,6 +1326,22 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   width: auto;
   height: auto;
   z-index: 5;
+  pointer-events: none;
+}
+.lanternRaceToolbar--float .lanternRaceSoundBtn,
+.lanternRaceToolbar--poll .lanternRaceSoundBtn,
+.lanternCardDetailTitle > .lanternRaceToolbar .lanternRaceSoundBtn{
+  pointer-events: auto;
+  min-width: 44px;
+  min-height: 44px;
+}
+.lanternPollRaceHost,
+.pollResultsWrap{
+  position: relative;
+}
+.lanternCardDetailModal--poll .lanternCardDetailTitle{
+  position: relative;
+  padding-right: 7.5rem;
 }
 .lanternRaceSoundBtn{
   display: inline-flex;

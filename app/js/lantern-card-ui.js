@@ -1786,6 +1786,16 @@
     });
   }
 
+  function attachPollFloatingSound(modalRoot) {
+    var audio = global.LANTERN_RACE_AUDIO;
+    if (!audio || typeof audio.attachFloatingMuteToolbar !== 'function' || !modalRoot) return;
+    var title = modalRoot.querySelector('.lanternCardDetailTitle');
+    audio.attachFloatingMuteToolbar(title || modalRoot, {
+      extraClass: 'lanternRaceToolbar--poll',
+      searchRoot: modalRoot,
+    });
+  }
+
   function revealPollResults(resultsEl, results, votedChoiceIndex, hiddenNugget) {
     if (!resultsEl) return;
     var items = pollResultItems(results, votedChoiceIndex);
@@ -1985,6 +1995,7 @@
     m.textContent = [nch + ' choice' + (nch !== 1 ? 's' : ''), 'Poll', time].filter(Boolean).join(' · ');
 
     setPollBodyShell();
+    attachPollFloatingSound(modalRoot);
     var choicesEl = modalRoot.querySelector('#lanternPollDetailChoices');
     var resultsEl = modalRoot.querySelector('#lanternPollDetailResults');
     var nuggetEl = modalRoot.querySelector('#lanternPollDetailNugget');

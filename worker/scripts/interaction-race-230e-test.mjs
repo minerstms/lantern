@@ -52,8 +52,9 @@ assert(/min-height:\s*44px/.test(rxCss) && /min-width:\s*44px/.test(rxCss), 'pho
 assert(/\.lanternFinalRxPanel\s*\{[\s\S]*?position:\s*relative/.test(rxCss), 'reaction panel is the Sound positioning context');
 assert(/lanternRaceToolbar--rx/.test(cardsCss), 'shared cards CSS also floats the reaction Sound control');
 
-assert(!/lanternRaceToolbar--rx|skipMuteToolbar|data-rx-sound-float/.test(pollFn), 'poll mine-cart race not edited');
-assert(/<div class="lanternRaceToolbar">' \+ muteToolbarHtml\(\)/.test(pollFn), 'poll still builds its own in-race toolbar HTML');
+assert(!/lanternRaceToolbar--rx/.test(pollFn), 'poll does not use the reaction-only toolbar class');
+assert(/skipMuteToolbar/.test(pollFn) && /attachFloatingMuteToolbar/.test(pollFn), 'poll Sound uses the shared out-of-flow helper');
+assert(!/<div class="lanternRaceToolbar">' \+ muteToolbarHtml\(\)/.test(pollFn), 'poll does not insert an in-flow Sound toolbar');
 assert(/C_MAJOR_HZ/.test(audioSrc) && /muteControlHtml/.test(audioSrc) && /lantern\.raceSound\.muted/.test(audioSrc), 'C-major audio + mute preference unchanged');
 assert(/MAX_MS = 3000/.test(revealSrc) && /maxPct \/ MAX_MS/.test(revealSrc), 'race timing unchanged');
 

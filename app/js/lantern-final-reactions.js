@@ -27,9 +27,17 @@
   function attachRxMuteToolbar(panel) {
     if (!panel || panel.querySelector('[data-rx-sound-float]')) return;
     var audio = global.LANTERN_RACE_AUDIO;
+    if (audio && typeof audio.attachFloatingMuteToolbar === 'function') {
+      audio.attachFloatingMuteToolbar(panel, {
+        extraClass: 'lanternRaceToolbar--rx',
+        mark: 'data-rx-sound-float',
+      });
+      return;
+    }
     var tb = global.document.createElement('div');
     tb.className = 'lanternRaceToolbar lanternRaceToolbar--rx';
     tb.setAttribute('data-rx-sound-float', '1');
+    tb.setAttribute('data-race-sound-float', '1');
     tb.setAttribute('aria-label', 'Race sound');
     tb.style.position = 'absolute';
     tb.style.top = '0';
