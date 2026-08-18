@@ -456,6 +456,12 @@
     var buttons = root.querySelectorAll(choiceSelector);
     if (!buttons.length) return;
 
+    var startRects = [];
+    for (var s = 0; s < buttons.length; s++) {
+      var r0 = buttons[s].getBoundingClientRect();
+      startRects.push({ top: r0.top, left: r0.left, width: r0.width, height: r0.height });
+    }
+
     var panel = root.closest('.lanternFinalRxPanel, .lanternReactionBar, .lanternCardDetailReactions') || root;
     panel.classList.add('lanternRxRaceLive');
     var modal = root.closest('.lanternCardDetailModal');
@@ -466,7 +472,7 @@
       var tb = global.document.createElement('div');
       tb.className = 'lanternRaceToolbar';
       tb.innerHTML = muteToolbarHtml();
-      panel.insertBefore(tb, panel.firstChild);
+      panel.appendChild(tb);
       bindMute(panel);
     }
 
@@ -510,17 +516,35 @@
       pctEl.textContent = '';
       bar.style.height = '0px';
       btn.style.transition = 'none';
-      btn.style.transform = 'translateY(0px)';
       btn.disabled = true;
       btn.setAttribute('aria-disabled', 'true');
-      lanes.push({ btn: btn, bar: bar, pctEl: pctEl, lane: lane, row: row, barFromBottom: 8 });
+      lanes.push({
+        btn: btn,
+        bar: bar,
+        pctEl: pctEl,
+        lane: lane,
+        row: row,
+        barFromBottom: 8,
+        startTop: startRects[i] ? startRects[i].top : 0,
+        layoutHold: 0,
+      });
     }
 
     var parentChoices = buttons[0] && buttons[0].closest('.lanternFinalRxChoices, .lanternReactionBar');
     if (parentChoices) {
-      parentChoices.style.gridTemplateColumns = 'repeat(' + buttons.length + ', minmax(0, 1fr))';
       parentChoices.classList.add('lanternRxChoices--racing');
     }
+
+    function captureLayoutHold(part) {
+      if (!part || !part.btn) return;
+      part.btn.style.transform = 'none';
+      var nowTop = part.btn.getBoundingClientRect().top;
+      var hold = Math.round((part.startTop || 0) - nowTop);
+      part.layoutHold = isFinite(hold) ? hold : 0;
+      part.btn.style.transition = 'none';
+      part.btn.style.transform = 'translateY(' + part.layoutHold + 'px)';
+    }
+    lanes.forEach(captureLayoutHold);
 
     var live = root.querySelector('[data-race-live]') || attachLive(panel, token);
 
@@ -530,17 +554,19 @@
 
     function measureRide(part) {
       if (!part || !part.lane || !part.btn) return;
-      part.btn.style.transform = 'translateY(0px)';
-      var laneH = part.lane.clientHeight || 0;
-      var btnBottom = (part.btn.offsetTop || 0) + (part.btn.offsetHeight || 0);
-      var fromBottom = Math.round(laneH - btnBottom);
-      if (!isFinite(fromBottom) || fromBottom < 0) fromBottom = 0;
+      part.btn.style.transform = 'translateY(' + (part.layoutHold || 0) + 'px)';
+      var laneRect = part.lane.getBoundingClientRect();
+      var btnRect = part.btn.getBoundingClientRect();
+      var fromBottom = Math.round(laneRect.bottom - btnRect.bottom);
+      if (!isFinite(fromBottom)) fromBottom = 0;
       part.barFromBottom = fromBottom;
       if (part.bar) part.bar.style.bottom = fromBottom + 'px';
     }
 
     function applyVert(part, grownPct) {
       var h = Math.round((clampPct(grownPct) / 100) * MAX_BAR_PX);
+      var hold = part.layoutHold || 0;
+      var y = hold - h;
       var fromBottom = part.barFromBottom != null ? part.barFromBottom : 8;
       if (part.bar) {
         part.bar.style.bottom = fromBottom + 'px';
@@ -549,7 +575,7 @@
       }
       if (part.btn) {
         part.btn.style.transition = 'none';
-        part.btn.style.transform = 'translateY(-' + h + 'px)';
+        part.btn.style.transform = 'translateY(' + y + 'px)';
       }
     }
 

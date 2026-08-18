@@ -259,6 +259,38 @@
     });
   }
 
+  function lockExistingDraft(container, status) {
+    var panel = container.querySelector('.lanternFinalRxPanel');
+    if (!panel) {
+      renderLocked(container, status);
+      return;
+    }
+    var rt = status.reaction_type;
+    panel.classList.add('lanternFinalRxPanel--locked');
+    panel.classList.remove('lanternFinalRxPanel--draft');
+    container.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+      var t = btn.getAttribute('data-rx-type');
+      btn.setAttribute('data-locked', 'true');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.disabled = true;
+      if (t === rt) {
+        btn.classList.add('lanternFinalRxChoice--locked-on', 'lanternFinalRxChoice--on');
+        var lane = btn.closest('.lanternRxLane');
+        if (lane) lane.classList.add('lanternRxLane--yours');
+      }
+    });
+    if (rt && !panel.querySelector('.lanternFinalRxYour')) {
+      var yours = global.document.createElement('p');
+      yours.className = 'lanternFinalRxYour';
+      yours.textContent = 'Your response: ' + emojiForType(rt);
+      panel.appendChild(yours);
+    }
+    if (status.results && status.results.length) {
+      revealReactionResults(null, status.results, rt, panel);
+    }
+    wireLockedChoiceAttempts(panel);
+  }
+
   function renderLocked(container, status) {
     var rt = status.reaction_type;
     var em = emojiForType(rt);
@@ -339,7 +371,7 @@
       finalizeReaction(itemType, itemId, chosen).then(function (res) {
         if (res && res.ok && res.finalized) {
           if (typeof opts.onFinalized === 'function') opts.onFinalized(res);
-          renderLocked(container, res);
+          lockExistingDraft(container, res);
           return;
         }
         if (res && res.error === 'reaction_already_finalized') {

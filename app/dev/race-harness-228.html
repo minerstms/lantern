@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DEV ONLY — Race harness #228</title>
   <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
   <link rel="stylesheet" href="/css/lantern-cards.css">
   <link rel="stylesheet" href="/css/lantern-reactions.css">
   <style>
@@ -57,7 +58,28 @@
       padding: 12px;
       margin-top: 16px;
     }
-    .lanternFinalRxPanel { margin-top: 0; border-top: 0; padding-top: 0; }
+    .exploreOverlayClone {
+      position: relative;
+      height: 70vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(5, 10, 20, 0.72);
+      padding: 24px 12px 40px;
+    }
+    .exploreOverlayClone .lanternCardDetailModal {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 12px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(22, 36, 62, 0.98) 0%, rgba(8, 16, 30, 0.99) 100%);
+    }
+    .exploreBodyFiller {
+      min-height: 420px;
+      font-size: 22px;
+      color: var(--muted);
+    }
   </style>
   <script>
     (function () {
@@ -74,13 +96,21 @@
 <body>
   <p class="banner">DEVELOPMENT-ONLY visual harness. Not a student page. Fixture percentages only. Does not write D1 or create users.</p>
   <h1>Race harness #228</h1>
-  <p>Fixtures: 12%, 34%, 57%, 83%, 100%. Same production race helpers.</p>
+  <p>Fixtures: 12%, 34%, 57%, 83%, 100%. Same production race helpers. Tap uses the existing icons — no remount.</p>
 
-  <h2>Reaction spatial race</h2>
-  <div class="panel" id="rxPanel">
-    <div class="lanternFinalRxPanel" id="rxRoot"></div>
-    <button type="button" class="replay" id="rxReplay">Replay reaction race</button>
+  <h2>Explore opened-post modal (real chrome)</h2>
+  <div class="exploreOverlayClone lanternCardDetailOverlay lanternSurfaceShell" id="exploreOverlay">
+    <div class="lanternCardDetailModal lanternSurface lanternCardDetailModal--no-media" id="exploreModal">
+      <div class="lanternSurfaceContent">
+        <p class="exploreBodyFiller">Opened post body. Scroll this overlay so the reaction row sits lower, then tap. Extra copy keeps the modal tall enough to scroll on phone and desktop.</p>
+        <div class="lanternCardDetailReactions" id="exploreReactions">
+          <div class="lanternFinalRxHost" id="exploreRxHost"></div>
+        </div>
+      </div>
+    </div>
   </div>
+  <button type="button" class="replay" id="exploreTap">Tap ⭐ in place (no rebuild)</button>
+  <button type="button" class="replay" id="exploreReset">Reset Explore draft icons</button>
 
   <h2>Poll mine-cart race</h2>
   <div class="panel">
@@ -112,6 +142,10 @@
       var hud = document.getElementById('hud');
       var samples = [];
       var finishes = { rx: {}, poll: {} };
+      var startTops = [];
+      var maxDownPx = 0;
+      var firstFrameDownPx = 0;
+      var sampledFrames = 0;
 
       function rxHtml() {
         var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1">';
@@ -126,9 +160,27 @@
         return html + '</div></div>';
       }
 
-      function mountRx() {
-        var root = document.getElementById('rxRoot');
-        root.innerHTML = rxHtml();
+      function paintExploreDraft() {
+        var host = document.getElementById('exploreRxHost');
+        host.innerHTML = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>' + rxHtml() + '</div>';
+        startTops = [];
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        finishes.rx = {};
+      }
+
+      function tapExploreInPlace() {
+        var root = document.querySelector('#exploreRxHost .lanternFinalRxPanel');
+        if (!root) return;
+        startTops = [];
+        root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+          startTops.push(btn.getBoundingClientRect().top);
+        });
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        finishes.rx = {};
         window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, FIXTURES, {
           choiceSelector: '.lanternFinalRxChoice',
           typeAttr: 'data-rx-type',
@@ -151,7 +203,7 @@
         var lines = [];
         var rxOk = true;
         var pollOk = true;
-        document.querySelectorAll('#rxRoot .lanternRxLane').forEach(function (lane, i) {
+        document.querySelectorAll('#exploreRxHost .lanternRxLane').forEach(function (lane, i) {
           var bar = lane.querySelector('[data-race-fill]');
           var btn = lane.querySelector('.lanternFinalRxChoice');
           var pctEl = lane.querySelector('[data-race-pct]');
@@ -160,15 +212,22 @@
           var ir = btn.getBoundingClientRect();
           var shown = Number(bar.getAttribute('data-race-shown') || 0);
           var attach = gap(ir.bottom, br.top);
+          var down = startTops[i] != null ? Math.round(ir.top - startTops[i]) : 0;
+          if (down > maxDownPx) maxDownPx = down;
+          if (sampledFrames === 0 && startTops.length) firstFrameDownPx = down;
           if (shown > 2 && attach > 10) rxOk = false;
+          if (down > 2) rxOk = false;
           if (shown >= FIXTURES[i].percentage && !finishes.rx[i]) finishes.rx[i] = Date.now();
           lines.push(
             'RX ' + FIXTURES[i].percentage + '% shown=' + shown +
-            ' barH=' + Math.round(br.height) +
+            ' startY=' + Math.round(startTops[i] || 0) +
+            ' nowY=' + Math.round(ir.top) +
+            ' downPx=' + down +
             ' iconΔbarTop=' + attach + 'px' +
             ' pct=' + (pctEl && pctEl.textContent || '—')
           );
         });
+        if (startTops.length) sampledFrames += 1;
         document.querySelectorAll('#pollRoot .lanternPollRaceLane').forEach(function (lane, i) {
           var fill = lane.querySelector('[data-race-fill]');
           var cart = lane.querySelector('[data-race-cart]');
@@ -191,25 +250,33 @@
         var pollOrder = Object.keys(finishes.poll).map(Number).sort(function (a, b) { return finishes.poll[a] - finishes.poll[b]; });
         lines.push('RX finish order: ' + rxOrder.map(function (i) { return FIXTURES[i].percentage + '%'; }).join(' → '));
         lines.push('POLL finish order: ' + pollOrder.map(function (i) { return POLL[i].percentage + '%'; }).join(' → '));
+        lines.push('first-frame downward px: ' + firstFrameDownPx);
+        lines.push('max downward px: ' + maxDownPx);
+        lines.push('icon never dropped: ' + (maxDownPx <= 2 ? 'YES' : 'NO'));
         lines.push('icon rides bar: ' + (rxOk ? 'YES' : 'NO'));
         lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
         hud.textContent = lines.join('\n');
-        samples.push({ t: Date.now(), rxOk: rxOk, pollOk: pollOk });
+        samples.push({ t: Date.now(), rxOk: rxOk, pollOk: pollOk, maxDownPx: maxDownPx, firstFrameDownPx: firstFrameDownPx });
       }
 
-      document.getElementById('rxReplay').addEventListener('click', function () {
-        finishes.rx = {};
-        mountRx();
-      });
+      document.getElementById('exploreTap').addEventListener('click', tapExploreInPlace);
+      document.getElementById('exploreReset').addEventListener('click', paintExploreDraft);
       document.getElementById('pollReplay').addEventListener('click', function () {
         finishes.poll = {};
         mountPoll();
       });
 
-      mountRx();
+      paintExploreDraft();
       mountPoll();
-      setInterval(sampleOnce, 120);
-      window.__LANTERN_RACE_HARNESS = { fixtures: FIXTURES, poll: POLL, finishes: finishes, samples: samples };
+      setInterval(sampleOnce, 80);
+      window.__LANTERN_RACE_HARNESS = {
+        fixtures: FIXTURES,
+        poll: POLL,
+        finishes: finishes,
+        samples: samples,
+        tapExploreInPlace: tapExploreInPlace,
+        paintExploreDraft: paintExploreDraft
+      };
     })();
   </script>
 </body>

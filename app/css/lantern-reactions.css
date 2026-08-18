@@ -172,15 +172,16 @@
   overflow: visible;
   min-height: 64px;
 }
+.lanternFinalRxPanel.lanternRxRaceLive,
 .lanternFinalRxPanel.lanternRxRaceLive .lanternFinalRxRaceArena,
 .lanternFinalRxChoices.lanternRxChoices--racing,
-.lanternReactionBar.lanternRxChoices--racing{
-  min-height: 252px;
-  overflow: visible;
-}
+.lanternReactionBar.lanternRxChoices--racing,
 .lanternRxChoices--racing .lanternRxLane,
 .lanternRxRaceLive .lanternRxLane{
-  min-height: 252px;
+  overflow: visible;
+}
+.lanternFinalRxPanel.lanternRxRaceLive{
+  position: relative;
 }
 .lanternRxLane .lanternFinalRxChoice,
 .lanternRxLane .lanternReactionBtn{

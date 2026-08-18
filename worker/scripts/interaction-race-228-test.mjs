@@ -50,9 +50,13 @@ assert(/lanternMineCartSvg/.test(revealSrc) && /viewBox="0 0 48 36"/.test(reveal
 assert(!/🛒|🏎️/.test(revealSrc), 'no emoji cart/car');
 assert(/data-race-kind', 'poll-minecart'/.test(revealSrc) || /poll-minecart/.test(revealSrc), 'horizontal poll race kind');
 assert(/data-race-kind', 'reaction-spatial'/.test(revealSrc) || /reaction-spatial/.test(revealSrc), 'vertical reaction race kind');
-assert(/translateY\(-\$\{h\}px\)/.test(revealSrc) || /translateY\(-' \+ h \+ 'px\)/.test(revealSrc), 'icon lifts with bar');
+assert(/layoutHold/.test(revealSrc) && /startTop/.test(revealSrc) && /getBoundingClientRect/.test(revealSrc), 'pre-race icon Y captured before layout');
+assert(/hold - h/.test(revealSrc) || /layoutHold \|\| 0/.test(revealSrc), 'icon Y = startY - barHeight');
 assert(/function measureRide/.test(revealSrc) && /barFromBottom/.test(revealSrc), 'bar bottom pinned to icon rest position');
 assert(/cart\.style\.left = p \+ '%'/.test(revealSrc), 'cart left follows leading edge');
+assert(!/min-height:\s*252px/.test(rxCss), 'racing CSS does not drop icons to a 252px baseline');
+assert(/lockExistingDraft/.test(finalRx), 'submit races existing icons in place');
+assert(!/insertBefore\(tb, panel\.firstChild\)/.test(revealSrc), 'mute toolbar is not inserted above icons');
 assert(/MAX_BAR_PX/.test(revealSrc) && /grown = elapsed \* velocity/.test(revealSrc), 'shared %-point velocity');
 assert(/maxPct \/ MAX_MS/.test(revealSrc), 'speed = maxResult / 3s');
 assert(/prefersReducedMotion/.test(revealSrc), 'reduced motion respected');

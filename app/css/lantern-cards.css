@@ -1306,6 +1306,16 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   justify-content: flex-end;
   margin: 0 0 8px;
 }
+.lanternRxRaceLive > .lanternRaceToolbar,
+.lanternFinalRxPanel > .lanternRaceToolbar,
+.lanternReactionBar > .lanternRaceToolbar,
+.lanternCardDetailReactions > .lanternRaceToolbar{
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  z-index: 4;
+}
 .lanternRaceSoundBtn{
   display: inline-flex;
   align-items: center;
