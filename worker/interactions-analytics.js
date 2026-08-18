@@ -161,6 +161,15 @@ export async function buildInteractionsAnalytics(db, rangeKey) {
   const playCount = Number((gamePlays[0] && gamePlays[0].c) || 0);
   const playUsers = Number((gamePlays[0] && gamePlays[0].u) || 0);
 
+  let hiddenNuggetsFound = 0;
+  let hiddenNuggetNuggets = 0;
+  txRows.forEach((row) => {
+    if (String(row.kind || '').trim() !== 'hidden_nugget') return;
+    hiddenNuggetsFound += 1;
+    const d = Number(row.delta) || 0;
+    if (d > 0) hiddenNuggetNuggets += d;
+  });
+
   let missionSubmitted = 0;
   let missionAccepted = 0;
   let missionParticipants = 0;
@@ -251,6 +260,8 @@ export async function buildInteractionsAnalytics(db, rangeKey) {
       game_play_unique_participants: playUsers,
       mission_submissions: missionSubmitted,
       mission_completions: missionAccepted,
+      hidden_nuggets_found: hiddenNuggetsFound,
+      hidden_nugget_nuggets: hiddenNuggetNuggets,
     },
     earnings: Object.keys(earnBuckets)
       .sort()

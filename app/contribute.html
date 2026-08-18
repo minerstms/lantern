@@ -3077,8 +3077,13 @@
         metaEl.style.display = 'block';
         var escM = function(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); };
         var st = String(m.submission_type || 'response').trim();
-        var rew = m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : 0;
-        metaEl.innerHTML = '<div style="font-weight:900;font-size:22px;">' + escM(m.title || 'Mission') + '</div><div class="missionReward" style="margin-top:4px;">+' + escM(String(rew)) + ' nuggets</div><div class="studioPanelMicro" style="margin-top:6px;">Type: ' + escM(st) + '</div>';
+        var rewN = m.reward_amount != null && m.reward_amount !== '' ? Number(m.reward_amount) : 0;
+        if (!Number.isFinite(rewN) || rewN < 0) rewN = 0;
+        rewN = Math.trunc(rewN);
+        var rewLabel = rewN > 0 ? ('+' + rewN + ' Nugget' + (rewN === 1 ? '' : 's')) : '';
+        metaEl.innerHTML = '<div style="font-weight:900;font-size:22px;">' + escM(m.title || 'Mission') + '</div>' +
+          (rewLabel ? '<div class="missionReward" style="margin-top:4px;">' + escM(rewLabel) + '</div>' : '') +
+          '<div class="studioPanelMicro" style="margin-top:6px;">Type: ' + escM(st) + '</div>';
       }
       var panel = el('missionStudioFormPanel');
       var titleEl = el('missionSubmitTitle');

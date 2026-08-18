@@ -158,6 +158,27 @@
     raceActive = false;
   }
 
+  function playSparkle() {
+    if (!audioAllowed()) return;
+    ensureFromGesture();
+    if (!ctx) return;
+    var now = ctx.currentTime;
+    [659.255, 783.991, 987.767].forEach(function (freq, i) {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      var t = now + i * 0.05;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.04, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    });
+  }
+
   function stopRace() {
     raceActive = false;
     lastDegree = -1;
@@ -210,6 +231,7 @@
     startRace: startRace,
     setProgress: setProgress,
     finishRace: finishRace,
+    playSparkle: playSparkle,
     stopRace: stopRace,
     degreeForProgress: degreeForProgress,
     muteControlHtml: muteControlHtml,

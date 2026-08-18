@@ -1786,14 +1786,21 @@
     });
   }
 
-  function revealPollResults(resultsEl, results, votedChoiceIndex) {
+  function revealPollResults(resultsEl, results, votedChoiceIndex, hiddenNugget) {
     if (!resultsEl) return;
     var items = pollResultItems(results, votedChoiceIndex);
     var api = global.LANTERN_RESULT_REVEAL;
+    var hnApi = global.LANTERN_HIDDEN_NUGGET;
+    var hnPayload = hnApi && typeof hnApi.payloadFromResponse === 'function'
+      ? hnApi.payloadFromResponse({ hidden_nugget: hiddenNugget })
+      : null;
     if (api && typeof api.mountPollMineCartRace === 'function') {
       api.mountPollMineCartRace(resultsEl, items, {
         summaryHtml: '<p class="pollResultsSummary">You voted</p>',
         listLabel: 'Poll results',
+        onAllDone: function () {
+          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, resultsEl);
+        },
       });
       return;
     }
@@ -2063,7 +2070,7 @@
             if (c2) c2.innerHTML = '';
             if (r2) {
               r2.style.display = 'block';
-              revealPollResults(r2, voteRes.results || [], voteRes.voted_choice_index);
+              revealPollResults(r2, voteRes.results || [], voteRes.voted_choice_index, voteRes.hidden_nugget);
             }
             applyPollRewardCopy(n2, voteRes);
             if (voteRes && voteRes.ok && global.LanternWallet && typeof global.LanternWallet.refreshBalance === 'function') {

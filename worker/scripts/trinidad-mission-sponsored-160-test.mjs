@@ -89,7 +89,8 @@ if (
   playerJs.includes('sponsoredFreeMission') &&
   playerJs.includes('FREE TO PLAY') &&
   playerJs.includes('assets/icons/nugget.png') &&
-  playerJs.includes('+1 Nugget') &&
+  playerJs.includes('formatSponsoredRewardCopy') &&
+  playerJs.includes("'+' + n + ' Nugget'") &&
   playerJs.includes('setSponsoredMissionPregameCost') &&
   playerJs.includes("cost + ' Nugget = 1 Play'")
 ) {

@@ -114,14 +114,21 @@
     });
   }
 
-  function revealReactionResults(host, results, selectedType, anchorRoot) {
+  function revealReactionResults(host, results, selectedType, anchorRoot, hiddenNugget) {
     var items = reactionResultItems(results, selectedType);
     var api = global.LANTERN_RESULT_REVEAL;
+    var hnApi = global.LANTERN_HIDDEN_NUGGET;
+    var hnPayload = hnApi && typeof hnApi.payloadFromResponse === 'function'
+      ? hnApi.payloadFromResponse({ hidden_nugget: hiddenNugget })
+      : null;
     var root = anchorRoot || host;
     if (api && typeof api.mountReactionSpatialRace === 'function' && root) {
       api.mountReactionSpatialRace(root, items, {
         choiceSelector: '.lanternFinalRxChoice',
         typeAttr: 'data-rx-type',
+        onAllDone: function () {
+          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, root);
+        },
       });
       return;
     }
@@ -286,7 +293,7 @@
       panel.appendChild(yours);
     }
     if (status.results && status.results.length) {
-      revealReactionResults(null, status.results, rt, panel);
+      revealReactionResults(null, status.results, rt, panel, status.hidden_nugget);
     }
     wireLockedChoiceAttempts(panel);
   }
@@ -316,7 +323,7 @@
       }
     });
     if (status.results && status.results.length) {
-      revealReactionResults(null, status.results, rt, panel || container);
+      revealReactionResults(null, status.results, rt, panel || container, status.hidden_nugget);
     }
     wireLockedChoiceAttempts(panel);
   }

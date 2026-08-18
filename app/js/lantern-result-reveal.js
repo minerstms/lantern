@@ -402,8 +402,14 @@
       announce(live, rows);
     }
 
+    function finishRaceCallbacks() {
+      announce(live, rows);
+      if (typeof opts.onAllDone === 'function') opts.onAllDone();
+    }
+
     if (prefersReducedMotion() || maxPct <= 0) {
       revealFinal();
+      if (typeof opts.onAllDone === 'function') opts.onAllDone();
       return;
     }
 
@@ -432,7 +438,7 @@
           playAudio: opts.playAudio !== false,
           onAllDone: function () {
             if (!stillCurrent()) return;
-            announce(live, rows);
+            finishRaceCallbacks();
           },
         }
       );
@@ -592,9 +598,14 @@
       );
     }
 
+    function finishRaceCallbacks() {
+      announce(live, rows);
+      if (typeof opts.onAllDone === 'function') opts.onAllDone();
+    }
+
     if (prefersReducedMotion() || maxPct <= 0) {
       lanes.forEach(finishVisual);
-      announce(live, rows);
+      finishRaceCallbacks();
       return;
     }
 

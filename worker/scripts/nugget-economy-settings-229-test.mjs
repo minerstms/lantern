@@ -317,8 +317,8 @@ if (!validateEconomyValue('poll_response', 6).ok && !validateEconomyValue('poll_
 if (validateEconomyValue('game_play', -1).ok && validateEconomyValue('game_play', 0).ok && !validateEconomyValue('game_play', 1).ok && !validateEconomyValue('game_play', -50).ok) {
   ok('game_play allows spend 0…-10 and rejects pay-to-play reversal');
 } else bad('game_play bounds');
-if (ECONOMY_ROW_ORDER.length === 10 && ECONOMY_SETTING_DEFS.hidden_nugget.dormant && ECONOMY_SETTING_DEFS.reaction.dormant) {
-  ok('row set includes dormant Hidden Nugget + Reaction');
+if (ECONOMY_ROW_ORDER.length === 10 && ECONOMY_SETTING_DEFS.hidden_nugget.dormant === false && ECONOMY_SETTING_DEFS.reaction.dormant) {
+  ok('row set includes live Hidden Nugget + dormant Reaction');
 } else bad('row set');
 
 const emptyDb = makeSettingsDb({});
@@ -455,7 +455,7 @@ await withMockedBridge(() => ({ body: { ok: false } }), async () => {
 
   const adminWrite = await jsonFetch(env, 'PATCH', '/api/settings/nugget-economy', adminCookie, { values: { reaction: 0, hidden_nugget: 1 } });
   if (adminWrite.status === 200 && adminWrite.json.ok && adminWrite.json.values.hidden_nugget === 1) {
-    ok('admin PATCH persists dormant Hidden Nugget setting without implementing gameplay');
+    ok('admin PATCH persists Hidden Nugget setting');
   } else bad('worker admin PATCH', adminWrite);
 
   const teacherWrite = await jsonFetch(env, 'PATCH', '/api/settings/nugget-economy', teacherCookie, { values: { game_play: 0 } });

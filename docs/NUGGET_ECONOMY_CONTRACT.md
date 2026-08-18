@@ -46,7 +46,8 @@ Staff principal: `tms_identity_links` → `tms_staff_id` (exact; never fuzzy). U
 | Admin Nugget Adjustment | admin actor, any linked target | variable | explicit reason | caller idempotency key / tx | TMS (`admin_adjustment`) |
 | Staff Starter Nuggets | linked staff only | configured batch amount | per target in batch | `lantern:staff_starter_nuggets:<batch_id>:<economy_key>` | TMS (`staff_starter_nuggets`) |
 | Early encourager | feature-flagged (off in production) | +1 | first 5 reactors / daily cap 3 | `lantern:early_encourager:<type>:<id>:<account>` | TMS if enabled |
-| Ordinary reaction | any | configured (`economy.reaction`, default **0**, dormant) | no ledger path in #229/#229A | — | N/A |
+| Hidden Nugget find | eligible student | configured (`economy.hidden_nugget`, default **+1**) | accepted poll vote or finalized reaction on that day's assigned Explore card | `lantern:hidden_nugget:<schoolDay>:<account>` | TMS; 0 records discovery only. Requires assignment table (not migrated in #230). |
+| Ordinary reaction | any | configured (`economy.reaction`, default **0**, dormant) | no ledger path in #229/#229A/#230 | — | N/A |
 | Shout-Out send/receive (unless a Mission) | — | 0 | recognition is not a wallet event | — | N/A |
 
 ## Transaction kinds (current vocabulary)

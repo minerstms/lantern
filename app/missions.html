@@ -1392,7 +1392,7 @@
         typeBadge: '',
         icon: '🔍',
         title: 'Hidden Nugget',
-        description: hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.',
+        description: hiddenDone ? 'You found today\'s Hidden Nugget.' : 'Look on Explore each school day. A real poll vote or reaction may find a Hidden Nugget if one is waiting.',
         reward: null,
         status: hiddenDone ? 'completed' : 'available',
         stateBadge: hiddenDone ? 'COMPLETED' : '',
@@ -1402,7 +1402,7 @@
           ? (window.LanternCards.builtInMissionCoverUrl('quick_hidden_nugget') || '')
           : '',
         onActivate: function(){
-          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found today\'s hidden nugget.' : 'Find the daily hidden nugget on Lantern pages and tap it.');
+          if (window.LanternCardUI) window.LanternCardUI.openTextDetail('Hidden Nugget', hiddenDone ? 'Completed' : 'How it works', hiddenDone ? 'You found today\'s Hidden Nugget.' : 'Look on Explore each school day. A real poll vote or reaction may find a Hidden Nugget if one is waiting.');
         },
       });
 

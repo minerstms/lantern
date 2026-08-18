@@ -17,6 +17,7 @@
     escapeHandler: null,
     gameMeta: null,
     sponsoredFreeMission: false,
+    sponsoredRewardAmount: 1,
   };
   var pregameUnsub = null;
 
@@ -132,10 +133,21 @@
     costEl.removeAttribute('hidden');
   }
 
-  function setSponsoredMissionPregameCost() {
+  function formatSponsoredRewardCopy(amount) {
+    var n = Number(amount);
+    if (!Number.isFinite(n) || n < 0) n = 1;
+    if (!(n > 0)) return '';
+    return '+' + n + ' Nugget' + (n === 1 ? '' : 's');
+  }
+
+  function setSponsoredMissionPregameCost(amount) {
     var costEl = el('lanternGamePlayerPregameCost');
     if (!costEl) return;
-    costEl.innerHTML = 'FREE TO PLAY · Complete the challenge to earn <img src="assets/icons/nugget.png" alt="" class="lanternGamePlayerNuggetIcon" width="18" height="18"> +1 Nugget';
+    var rewardCopy = formatSponsoredRewardCopy(amount != null ? amount : state.sponsoredRewardAmount);
+    var rewardHtml = rewardCopy
+      ? (' <img src="assets/icons/nugget.png" alt="" class="lanternGamePlayerNuggetIcon" width="18" height="18"> ' + rewardCopy)
+      : '';
+    costEl.innerHTML = 'FREE TO PLAY · Complete the challenge to earn' + (rewardHtml || ' a mission reward');
     costEl.hidden = false;
     costEl.removeAttribute('hidden');
   }
@@ -441,6 +453,8 @@
     state.returnFocus = opts.returnFocus || null;
     state.surface = surface;
     state.sponsoredFreeMission = opts.sponsoredFreeMission === true;
+    var rewardRaw = opts.sponsoredRewardAmount != null ? Number(opts.sponsoredRewardAmount) : 1;
+    state.sponsoredRewardAmount = Number.isFinite(rewardRaw) && rewardRaw >= 0 ? Math.trunc(rewardRaw) : 1;
     state.gameMeta = resolveGameMeta(opts);
 
     paintHero(state.gameMeta);
@@ -513,6 +527,7 @@
     state.onPregameStart = null;
     state.gameMeta = null;
     state.sponsoredFreeMission = false;
+    state.sponsoredRewardAmount = 1;
     if (pregameUnsub) {
       pregameUnsub();
       pregameUnsub = null;

@@ -48,6 +48,7 @@ import {
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
 import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar-key.js';
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
+import { cardIdForPoll, hiddenNuggetResponseFields, maybeAwardHiddenNuggetAfterInteraction } from './hidden-nugget.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { handleMissionsRoutes } from './missions-handlers.js';
 import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './missions-auth.js';
@@ -8868,11 +8869,23 @@ async function handlePollsRoutes(request, url, path, env, cors) {
       percentage: total > 0 ? Math.round(((counts[i] || 0) / total) * 100) : 0,
       is_yours: i === choiceIndex,
     }));
+    let hiddenNugget = { found: false };
+    try {
+      hiddenNugget = await maybeAwardHiddenNuggetAfterInteraction(db, env, {
+        account: pilotAccount,
+        accountKey: characterName,
+        cardId: cardIdForPoll(pollId),
+        trigger: 'poll',
+      });
+    } catch (_) {
+      hiddenNugget = { found: false };
+    }
     return jsonResponse({
       ok: true,
       results,
       voted_choice_index: choiceIndex,
       ...pollRewardResponseFields(pollReward),
+      ...hiddenNuggetResponseFields(hiddenNugget),
     }, 200, cors);
   }
 

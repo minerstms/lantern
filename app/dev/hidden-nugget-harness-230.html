@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Hidden Nugget harness #230</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: #eaf0ff; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+      padding: 16px 12px 48px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 24px; margin: 28px 0 12px; }
+    p { font-size: 22px; line-height: 1.35; }
+    .banner {
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-weight: 800;
+    }
+    .panel {
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,.04);
+      margin-bottom: 16px;
+    }
+    button.replay {
+      width: 100%;
+      min-height: 52px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+    #hud {
+      font-size: 18px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      background: #071018;
+      border-radius: 12px;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY fixture harness. Not in student nav. Uses the production reveal helper. No D1 writes. Do not treat this as assignment/claim PASS.</p>
+  <h1>Hidden Nugget harness #230</h1>
+  <p>Poll race finishes, then the Hidden Nugget reveal. Reaction race finishes, then the same reveal. Amounts are fixtures only.</p>
+
+  <h2>Poll race → reveal</h2>
+  <div class="panel">
+    <div id="pollRoot"></div>
+    <button type="button" class="replay" id="pollReplay">Play poll race + reveal</button>
+  </div>
+
+  <h2>Reaction race → reveal</h2>
+  <div class="panel">
+    <div id="rxRoot" class="lanternFinalRxPanel"></div>
+    <button type="button" class="replay" id="rxReplay">Play reaction race + reveal</button>
+  </div>
+
+  <h2>Log</h2>
+  <div id="hud">Waiting…</div>
+
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script src="/js/lantern-hidden-nugget.js"></script>
+  <script>
+    (function () {
+      var POLL = [
+        { label: 'Ready', percentage: 40, selected: true },
+        { label: 'Okay', percentage: 35, selected: false },
+        { label: 'Tired', percentage: 25, selected: false }
+      ];
+      var RX = [
+        { label: 'Heart', emoji: '❤️', type: 'heart', percentage: 20, selected: false },
+        { label: 'Star', emoji: '⭐', type: 'star', percentage: 55, selected: true },
+        { label: 'Idea', emoji: '💡', type: 'lightbulb', percentage: 15, selected: false },
+        { label: 'Team', emoji: '🤝', type: 'teamwork', percentage: 5, selected: false },
+        { label: 'Fire', emoji: '🔥', type: 'fire', percentage: 5, selected: false }
+      ];
+      var hud = document.getElementById('hud');
+      function log(line) {
+        hud.textContent = String(hud.textContent || '') + '\n' + line;
+      }
+      function fixturePayload(amount) {
+        return { found: true, amount: amount, copy: window.LANTERN_HIDDEN_NUGGET.formatRewardCopy(amount) };
+      }
+      document.getElementById('pollReplay').addEventListener('click', function () {
+        hud.textContent = 'Poll race started (fixture).';
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(document.getElementById('pollRoot'), POLL, {
+          listLabel: 'Harness poll',
+          playAudio: true,
+          onAllDone: function () {
+            log('Poll race finished.');
+            window.LANTERN_HIDDEN_NUGGET.scheduleAfterRace(fixturePayload(2), document.body);
+            log('Reveal scheduled (fixture +2 Nuggets). Not a server claim.');
+          }
+        });
+      });
+      document.getElementById('rxReplay').addEventListener('click', function () {
+        var root = document.getElementById('rxRoot');
+        root.innerHTML = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices">' +
+          RX.map(function (v) {
+            return '<div class="lanternRxLane"><div class="lanternRxRaceBar" data-race-fill></div><button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '">' + v.emoji + '</button><span class="lanternResultRacePct is-pending" data-race-pct></span></div>';
+          }).join('') + '</div></div>';
+        hud.textContent = 'Reaction race started (fixture).';
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, RX, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: true,
+          onAllDone: function () {
+            log('Reaction race finished.');
+            window.LANTERN_HIDDEN_NUGGET.scheduleAfterRace(fixturePayload(1), document.body);
+            log('Reveal scheduled (fixture +1 Nugget). Not a server claim.');
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

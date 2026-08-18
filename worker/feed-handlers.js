@@ -15,6 +15,7 @@ import {
 } from './staff-public-name.js';
 import { loadContentPeopleIndex } from './content-people.js';
 import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
+import { applyFirstPageHiddenNugget } from './hidden-nugget.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -330,6 +331,88 @@ export function normalizeShoutOutRow(row, origin) {
     }),
   };
   return normalizeFeedItemRow(adapted, origin || '', 'shout_out');
+}
+
+export async function fetchApprovedFeedItemById(db, origin, cardId) {
+  const id = String(cardId || '').trim();
+  if (!db || !id) return null;
+  try {
+    if (id.indexOf('poll:') === 0) {
+      const raw = id.slice(5);
+      let row;
+      try {
+        row = await db
+          .prepare(
+            "SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL AND (hidden_at IS NULL OR hidden_at = '')"
+          )
+          .bind(raw)
+          .first();
+      } catch (_) {
+        row = await db
+          .prepare('SELECT id, mission_submission_id, question, choices_json, image_url, character_name, created_at, approved_at FROM lantern_polls WHERE id = ? AND approved_at IS NOT NULL')
+          .bind(raw)
+          .first();
+      }
+      return row ? normalizePollRow(row, origin) : null;
+    }
+    if (id.indexOf('news:') === 0) {
+      const raw = id.slice(5);
+      const row = await db
+        .prepare(
+          "SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, category, created_at, reviewed_at FROM lantern_news_submissions WHERE id = ? AND LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '')"
+        )
+        .bind(raw)
+        .first();
+      return row ? normalizeNewsRow(row, origin) : null;
+    }
+    if (id.indexOf('shout_out:') === 0) {
+      const raw = id.slice(10);
+      let row;
+      try {
+        row = await db
+          .prepare(
+            'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name, image_r2_key, full_image_r2_key, video_r2_key, link_url FROM lantern_teacher_recognition WHERE id = ?'
+          )
+          .bind(raw)
+          .first();
+      } catch (_) {
+        row = await db
+          .prepare(
+            'SELECT id, character_name, message, category, created_at, created_by_teacher_id, created_by_teacher_name FROM lantern_teacher_recognition WHERE id = ?'
+          )
+          .bind(raw)
+          .first();
+      }
+      return row ? normalizeShoutOutRow(row, origin) : null;
+    }
+    if (id.indexOf('mission:') === 0) {
+      const raw = id.slice(8);
+      const row = await db
+        .prepare(
+          "SELECT id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_at, reviewed_by FROM lantern_mission_submissions WHERE id = ? AND LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '')"
+        )
+        .bind(raw)
+        .first();
+      if (!row || isSystemMissionEventMarkerSubmission(row)) return null;
+      let title = '';
+      let cardKey = '';
+      try {
+        const m = await db.prepare('SELECT title, card_image_r2_key FROM lantern_missions WHERE id = ?').bind(row.mission_id).first();
+        title = m && m.title ? String(m.title) : '';
+        cardKey = m && m.card_image_r2_key ? String(m.card_image_r2_key) : '';
+      } catch (_) {}
+      return normalizeMissionRow(Object.assign({}, row, { mission_title: title, card_image_r2_key: cardKey }), origin);
+    }
+    const row = await db
+      .prepare(
+        "SELECT * FROM lantern_feed_items WHERE id = ? AND LOWER(TRIM(status)) = 'approved' AND (hidden_at IS NULL OR hidden_at = '')"
+      )
+      .bind(id)
+      .first();
+    return row ? normalizeFeedItemRow(row, origin, 'feed') : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 export const EXPLORE_PAGE_SIZE = 60;
@@ -793,14 +876,35 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     const cursor = parseFeedCursor(params.cursor);
     let items = await collectApprovedFeed(db, origin, { limit: pageLimit + 1, cursor });
     const page = paginateFeedItems(items, params);
-    items = await attachReactionsAndComments(db, page.items, viewerCharacterName);
+    let account = null;
+    if (deps && typeof deps.getPilotAccountFromRequest === 'function') {
+      try {
+        account = await deps.getPilotAccountFromRequest(request, env);
+      } catch (_) {
+        account = null;
+      }
+    }
+    const sessionKey =
+      account && deps && typeof deps.pilotEconomyCharacterName === 'function'
+        ? String(deps.pilotEconomyCharacterName(account) || '').trim()
+        : '';
+    const hn = await applyFirstPageHiddenNugget(db, env, {
+      page,
+      cursor,
+      account,
+      accountKey: sessionKey,
+      origin,
+      pageSize: EXPLORE_PAGE_SIZE,
+      fetchItem: (cardId) => fetchApprovedFeedItemById(db, origin, cardId),
+    });
+    items = await attachReactionsAndComments(db, hn.items, sessionKey || viewerCharacterName);
     return feedJson({
       ok: true,
       items,
       meta: {
         count: items.length,
-        has_more: page.has_more,
-        next_cursor: page.next_cursor || '',
+        has_more: hn.has_more,
+        next_cursor: hn.next_cursor || '',
         contract: 'lantern-feed-v1',
       },
     }, 200, cors);

@@ -87,8 +87,8 @@ export const ECONOMY_SETTING_DEFS = {
     min: 0,
     max: 5,
     sign: 'earn',
-    help: 'Future Hidden Nugget reward. Gameplay is not implemented in #229.',
-    dormant: true,
+    help: 'Daily Explore Hidden Nugget treasure-hunt reward. 0 = discovery still records, no TMS credit.',
+    dormant: false,
   },
   mission_default: {
     key: 'economy.mission_default',

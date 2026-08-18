@@ -2,6 +2,7 @@
  * Immutable finalized Lantern feed reactions — authoritative storage separate from lantern_reactions.
  */
 import { isApprovedFeedItem } from './feed-handlers.js';
+import { hiddenNuggetResponseFields, maybeAwardHiddenNuggetAfterInteraction } from './hidden-nugget.js';
 
 export const FINAL_REACTION_TYPES = ['heart', 'star', 'lightbulb', 'teamwork', 'fire'];
 
@@ -149,12 +150,24 @@ export async function handleFinalReactionRoutes(request, url, path, env, cors, d
     }
 
     const agg = finalReactionPercents(await fetchAggregateRows(db, itemType, itemId));
+    let hiddenNugget = { found: false };
+    try {
+      hiddenNugget = await maybeAwardHiddenNuggetAfterInteraction(db, env, {
+        account,
+        accountKey: charSnap || username,
+        cardId: itemId,
+        trigger: 'reaction',
+      });
+    } catch (_) {
+      hiddenNugget = { found: false };
+    }
     return jsonResponse({
       ok: true,
       finalized: true,
       reaction_type: reactionType,
       finalized_at: now,
       results: agg.results,
+      ...hiddenNuggetResponseFields(hiddenNugget),
     }, 200, cors);
   }
 

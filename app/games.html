@@ -1313,6 +1313,7 @@
           ? (sponsored.description || playerOpts.description)
           : playerOpts.description,
         sponsoredFreeMission: !!sponsored,
+        sponsoredRewardAmount: (sponsored && sponsored.reward_amount != null) ? sponsored.reward_amount : 1,
         surface: playerOpts.surface,
         onExit: playerOpts.onExit,
         returnFocus: playerOpts.returnFocus || null,
