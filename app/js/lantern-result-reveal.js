@@ -570,28 +570,31 @@
 
     function findRaceScrollParent(el) {
       var n = el;
-      var hinted = null;
       while (n && n !== global.document.body && n !== global.document.documentElement) {
         if (
-          n.classList &&
-          (n.classList.contains('lanternCardDetailOverlay') ||
-            n.classList.contains('lanternSurfaceShell') ||
-            n.id === 'lanternCardDetailOverlay')
+          n.id === 'lanternCardDetailOverlay' ||
+          (n.classList &&
+            (n.classList.contains('lanternCardDetailOverlay') || n.classList.contains('lanternSurfaceShell')))
         ) {
-          hinted = n;
+          return n;
         }
+        n = n.parentElement;
+      }
+      n = el;
+      while (n && n !== global.document.body && n !== global.document.documentElement) {
         try {
           var st = global.getComputedStyle ? global.getComputedStyle(n) : null;
-          if (st) {
-            var oy = st.overflowY;
-            if (oy === 'auto' || oy === 'scroll') {
-              return n;
-            }
+          if (
+            st &&
+            (st.overflowY === 'auto' || st.overflowY === 'scroll') &&
+            n.scrollHeight > n.clientHeight + 1
+          ) {
+            return n;
           }
         } catch (err) {}
         n = n.parentElement;
       }
-      return hinted || global.document.scrollingElement || global.document.documentElement;
+      return global.document.scrollingElement || global.document.documentElement;
     }
 
     function ensureScrollRoom(scroller, extra) {
