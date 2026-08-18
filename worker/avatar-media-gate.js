@@ -223,6 +223,43 @@ export async function loadLatestApprovedAvatarSubmission(db, candidates) {
   return null;
 }
 
+export function isUnapprovedAvatarStatus(status) {
+  const s = String(status || '').trim().toLowerCase();
+  return s === 'pending' || s === 'rejected';
+}
+
+export async function loadAvatarSubmissionForImageKey(db, candidates, imageKey) {
+  const key = String(imageKey || '').trim();
+  const list = collectAvatarLookupCandidates(...(Array.isArray(candidates) ? candidates : []));
+  if (!db || !key || !list.length) return null;
+  for (let i = 0; i < list.length; i++) {
+    try {
+      const row = await db
+        .prepare(
+          `SELECT id, character_name, image_key, status, approved_at, created_at
+           FROM lantern_avatar_submissions
+           WHERE character_name = ? AND image_key = ?
+           ORDER BY created_at DESC LIMIT 1`
+        )
+        .bind(list[i], key)
+        .first();
+      if (row && String(row.image_key || '').trim()) return row;
+    } catch (_) {}
+  }
+  return null;
+}
+
+/**
+ * Public surfaces may use current only when that key is not a pending/rejected submission.
+ * A current key with no submission row remains valid (staff/legacy approved current).
+ */
+export function selectPublicAvatarKey(currentKey, approvedKey, currentSubmissionStatus) {
+  const cur = String(currentKey || '').trim();
+  const appr = String(approvedKey || '').trim();
+  if (cur && !isUnapprovedAvatarStatus(currentSubmissionStatus)) return cur;
+  return appr || '';
+}
+
 export async function loadLatestPendingAvatarSubmission(db, candidates) {
   const list = collectAvatarLookupCandidates(...(Array.isArray(candidates) ? candidates : []));
   if (!db || !list.length) return null;
@@ -244,8 +281,8 @@ export async function loadLatestPendingAvatarSubmission(db, candidates) {
 /**
  * Current = lantern_avatar_profiles.current_avatar_key (selection).
  * Approved = lantern_avatar_submissions.status = 'approved' (public-eligible).
- * Public surfaces use current when present; otherwise an already-approved fallback.
- * Pending is never returned as publicImageKey.
+ * Public surfaces use current when it is public-safe; otherwise an already-approved fallback.
+ * Pending/rejected keys are never returned as publicImageKey, even if stored as current.
  */
 export async function resolveCanonicalAvatarState(db, requestedName, opts) {
   const requested = String(requestedName || '').trim();
@@ -256,7 +293,10 @@ export async function resolveCanonicalAvatarState(db, requestedName, opts) {
   const pending = opts && opts.includePending ? await loadLatestPendingAvatarSubmission(db, candidates) : null;
   const currentKey = profile && String(profile.current_avatar_key || '').trim() ? String(profile.current_avatar_key).trim() : '';
   const approvedKey = approved && String(approved.image_key || '').trim() ? String(approved.image_key).trim() : '';
-  const publicImageKey = currentKey || approvedKey || '';
+  const currentSubmission = currentKey ? await loadAvatarSubmissionForImageKey(db, candidates, currentKey) : null;
+  const currentStatus = currentSubmission ? String(currentSubmission.status || '') : '';
+  const publicImageKey = selectPublicAvatarKey(currentKey, approvedKey, currentStatus);
+  const currentIsPublicSafe = !!(currentKey && publicImageKey === currentKey);
   return {
     requested,
     candidates,
@@ -266,7 +306,8 @@ export async function resolveCanonicalAvatarState(db, requestedName, opts) {
     currentKey: currentKey || null,
     approvedKey: approvedKey || null,
     publicImageKey: publicImageKey || null,
-    source: currentKey ? 'current' : approvedKey ? 'approved_fallback' : null,
+    currentIsPublicSafe,
+    source: currentIsPublicSafe ? 'current' : publicImageKey && approvedKey ? 'approved_fallback' : null,
     resolvedCharacterName:
       (profile && profile.character_name) ||
       (approved && approved.character_name) ||

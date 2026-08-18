@@ -6351,8 +6351,10 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
       .bind(key)
       .first();
     const ownerName = (profile && profile.character_name) || (pending && pending.character_name) || '';
-    const isCurrentPublicKey = !!(profile && profile.character_name);
-    const isApprovedPublicKey = !!(pending && String(pending.status || '').toLowerCase() === 'approved');
+    const submissionStatus = String((pending && pending.status) || '').toLowerCase();
+    const isUnapprovedSubmission = submissionStatus === 'pending' || submissionStatus === 'rejected';
+    const isApprovedPublicKey = submissionStatus === 'approved';
+    const isCurrentPublicKey = !!(profile && profile.character_name) && !isUnapprovedSubmission;
     const restricted = ownerName ? await studentAvatarIsRestricted(db, ownerName) : false;
     const privateReview = !(isCurrentPublicKey || isApprovedPublicKey) || restricted;
     if (privateReview) {
@@ -8958,13 +8960,29 @@ async function handleGamesRoutes(request, url, path, env, cors) {
     } catch (_) {
       return jsonResponse({ ok: true, characters: [] }, 200, cors);
     }
+    const unapprovedCurrent = new Set();
+    try {
+      const unsafeRows = await db
+        .prepare(
+          `SELECT character_name, image_key FROM lantern_avatar_submissions
+           WHERE lower(trim(status)) IN ('pending', 'rejected') AND image_key IS NOT NULL AND TRIM(image_key) != ''`
+        )
+        .all();
+      (unsafeRows.results || []).forEach((r) => {
+        const name = String(r.character_name || '').trim().toLowerCase();
+        const key = String(r.image_key || '').trim();
+        if (name && key) unapprovedCurrent.add(name + '\0' + key);
+      });
+    } catch (_) {}
     try {
       const profiles = await db.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
       (profiles.results || []).forEach((p) => {
-        if (p.character_name && p.current_avatar_key) {
-          avatarByChar[p.character_name] = p.current_avatar_key;
-          avatarByChar[String(p.character_name).toLowerCase()] = p.current_avatar_key;
-        }
+        const name = String(p.character_name || '').trim();
+        const key = String(p.current_avatar_key || '').trim();
+        if (!name || !key) return;
+        if (unapprovedCurrent.has(name.toLowerCase() + '\0' + key)) return;
+        avatarByChar[name] = key;
+        avatarByChar[name.toLowerCase()] = key;
       });
     } catch (_) {}
     try {

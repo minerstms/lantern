@@ -13,6 +13,7 @@ import {
   loadAvatarProfileByCandidates,
   loadLatestApprovedAvatarSubmission,
   resolveCanonicalAvatarState,
+  selectPublicAvatarKey,
 } from '../avatar-media-gate.js';
 import { buildAvatarMatchPool } from '../avatar-match-pool.js';
 import { buildLockerMeResponse } from '../locker-handlers.js';
@@ -34,6 +35,10 @@ function makeDb(state) {
         async first() {
           if (s.includes('FROM lantern_avatar_profiles WHERE character_name = ?')) {
             return state.profiles[binds[0]] || null;
+          }
+          if (s.includes('FROM lantern_avatar_submissions') && s.includes('AND image_key = ?')) {
+            const rows = (state.submissions || []).filter((r) => r.character_name === binds[0] && r.image_key === binds[1]);
+            return rows[rows.length - 1] || null;
           }
           if (s.includes('FROM lantern_avatar_submissions') && s.includes("status = 'approved'")) {
             const rows = (state.submissions || []).filter((r) => r.character_name === binds[0] && r.status === 'approved');
@@ -129,6 +134,33 @@ if (!pendingOnly.publicImageKey && pendingOnly.pending && pendingOnly.pending.im
   ok('pending-only identity has no public image key');
 } else bad('pending public leak', pendingOnly);
 
+if (selectPublicAvatarKey('avatars/pending.png', 'avatars/approved-only.png', 'pending') === 'avatars/approved-only.png') {
+  ok('selectPublicAvatarKey refuses pending current');
+} else bad('selectPublicAvatarKey pending current');
+
+const leakedCurrent = await resolveCanonicalAvatarState(makeDb({
+  profiles: {
+    '20889': { character_name: '20889', current_avatar_key: 'avatars/pending.png', updated_at: '2026-08-12T00:00:00.000Z' },
+  },
+  submissions: [
+    { id: 'av-ok3', character_name: '20889', image_key: 'avatars/approved-only.png', status: 'approved', approved_at: '2026-08-01T00:00:00.000Z' },
+    { id: 'av-pend3', character_name: '20889', image_key: 'avatars/pending.png', status: 'pending', created_at: '2026-08-12T00:00:00.000Z' },
+  ],
+}), '20889', { includePending: true });
+if (leakedCurrent.publicImageKey === 'avatars/approved-only.png' && leakedCurrent.publicImageKey !== 'avatars/pending.png' && leakedCurrent.source === 'approved_fallback') {
+  ok('pending stored as current is not public; approved fallback used');
+} else bad('pending current leak', leakedCurrent);
+
+const pendingCurrentOnly = await resolveCanonicalAvatarState(makeDb({
+  profiles: {
+    '20889': { character_name: '20889', current_avatar_key: 'avatars/pending-only.png', updated_at: '2026-08-12T00:00:00.000Z' },
+  },
+  submissions: [{ id: 'av-p2', character_name: '20889', image_key: 'avatars/pending-only.png', status: 'pending' }],
+}), '20889', { includePending: true });
+if (!pendingCurrentOnly.publicImageKey) {
+  ok('pending current with no approved fallback has no public image');
+} else bad('pending current only leak', pendingCurrentOnly);
+
 const approvedRow = await loadLatestApprovedAvatarSubmission(noCurrentDb, ['lucas', '20889']);
 if (approvedRow && approvedRow.image_key === 'avatars/approved-only.png') ok('latest approved submission found by alias');
 else bad('latest approved', approvedRow);
@@ -209,7 +241,12 @@ const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');
 const lockerShell = fs.readFileSync(path.join(root, 'app/js/lantern-locker-shell.js'), 'utf8');
 const avatarJs = fs.readFileSync(path.join(root, 'app/js/lantern-avatar.js'), 'utf8');
 
-if (workerIndex.includes('isApprovedPublicKey') && workerIndex.includes("status || '').toLowerCase() === 'approved'")) {
+if (
+  workerIndex.includes('isApprovedPublicKey') &&
+  workerIndex.includes("status || '').toLowerCase() === 'approved'") &&
+  workerIndex.includes('isUnapprovedSubmission') &&
+  workerIndex.includes('!isUnapprovedSubmission')
+) {
   ok('image route treats approved keys as public-safe, not pending');
 } else bad('image approved public gate');
 if (workerIndex.includes('already_approved') && workerIndex.includes('can_set_current') && workerIndex.includes('loadLatestApprovedAvatarSubmission')) {
