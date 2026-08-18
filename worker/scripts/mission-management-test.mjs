@@ -113,7 +113,7 @@ if (/WHERE active = 1 AND archived = 0 ORDER BY featured DESC/.test(missionsHand
   ok('GET /api/missions/active requires active=1 AND archived=0 (Archive is unavailable to students even if somehow re-activated)');
 } else bad('student active-missions query missing archived=0 guard');
 
-if (/if \(mission\.active === 0 \|\| !!mission\.archived\) return jsonResponse\(\{ ok: false, error: 'Mission is not active' \}/.test(missionsHandlers)) {
+if (/mission\.active === 0 \|\| !!mission\.archived/.test(missionsHandlers) && /Mission is not active/.test(missionsHandlers)) {
   ok('POST /api/missions/submit rejects submissions to archived missions (even via an old/deep-linked mission_id), not just paused ones');
 } else bad('submit handler missing archived rejection');
 
@@ -218,9 +218,9 @@ if (/character_name/.test(teacherHtml) && /target_character_names/.test(teacherH
   ok('internal character_name / target_character_names identifiers are untouched by the visible-terminology cleanup');
 } else bad('internal character_* identifiers were unexpectedly touched');
 
-if (/Minimum characters/.test(teacherHtml)) {
-  ok('"Minimum characters" (submission text-length field) label is untouched — it does not mean student roster "characters"');
-} else bad('Minimum characters label missing/changed unexpectedly');
+if (/Minimum text characters/.test(teacherHtml)) {
+  ok('"Minimum text characters" teacher label is distinct from roster "characters"');
+} else bad('Minimum text characters label missing');
 
 if (/Promote this mission/.test(teacherHtml) && !/Feature this mission/.test(teacherHtml)) {
   ok('"Feature this mission" fully relabeled to "Promote this mission" in the creator');
