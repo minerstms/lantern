@@ -541,6 +541,110 @@
       parentChoices.classList.add('lanternRxChoices--racing');
     }
 
+    var overlay = root.closest('.lanternCardDetailOverlay, .lanternSurfaceShell');
+    if (overlay) overlay.classList.add('lanternCardDetailOverlay--rx-racing');
+
+    var raceStageHeight = 0;
+    var scrollPad = 0;
+    var stage = panel.querySelector('[data-rx-race-stage]');
+    if (!stage) {
+      stage = global.document.createElement('div');
+      stage.className = 'lanternRxRaceStage';
+      stage.setAttribute('data-rx-race-stage', '');
+      stage.setAttribute('aria-hidden', 'true');
+      var arena = panel.querySelector('.lanternFinalRxRaceArena');
+      if (arena && parentChoices && parentChoices.parentNode === arena) {
+        arena.insertBefore(stage, parentChoices);
+      } else if (parentChoices && parentChoices.parentNode) {
+        parentChoices.parentNode.insertBefore(stage, parentChoices);
+      } else {
+        var heading = panel.querySelector('.lanternFinalRxHeading');
+        if (heading && heading.nextSibling) {
+          panel.insertBefore(stage, heading.nextSibling);
+        } else {
+          panel.appendChild(stage);
+        }
+      }
+    }
+    stage.style.height = '0px';
+
+    function findRaceScrollParent(el) {
+      var n = el;
+      var hinted = null;
+      while (n && n !== global.document.body && n !== global.document.documentElement) {
+        if (
+          n.classList &&
+          (n.classList.contains('lanternCardDetailOverlay') ||
+            n.classList.contains('lanternSurfaceShell') ||
+            n.id === 'lanternCardDetailOverlay')
+        ) {
+          hinted = n;
+        }
+        try {
+          var st = global.getComputedStyle ? global.getComputedStyle(n) : null;
+          if (st) {
+            var oy = st.overflowY;
+            if (oy === 'auto' || oy === 'scroll') {
+              return n;
+            }
+          }
+        } catch (err) {}
+        n = n.parentElement;
+      }
+      return hinted || global.document.scrollingElement || global.document.documentElement;
+    }
+
+    function ensureScrollRoom(scroller, extra) {
+      if (!scroller || !(extra > 0)) return;
+      var maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      var room = maxScroll - scroller.scrollTop;
+      if (room >= extra - 1) return;
+      var add = Math.ceil(extra - room);
+      scrollPad += add;
+      var padTarget =
+        (modal && modal.querySelector('.lanternSurfaceContent')) ||
+        (overlay && overlay.querySelector('.lanternSurfaceContent')) ||
+        modal ||
+        panel;
+      if (padTarget && padTarget.style) {
+        padTarget.style.paddingBottom = scrollPad + 'px';
+      }
+    }
+
+    function lockIconFloor() {
+      var part = lanes[0];
+      if (!part || !part.btn) return;
+      var shown = Number((part.bar && part.bar.getAttribute('data-race-shown')) || 0);
+      var h = Math.round((clampPct(shown) / 100) * MAX_BAR_PX);
+      var expectedY = (part.startTop || 0) - h;
+      var nowY = part.btn.getBoundingClientRect().top;
+      var drift = nowY - expectedY;
+      if (!isFinite(drift) || Math.abs(drift) < 0.5) return;
+      var scroller = findRaceScrollParent(panel);
+      if (!scroller) return;
+      ensureScrollRoom(scroller, drift);
+      scroller.scrollTop += drift;
+    }
+
+    function applyStageHeight(targetH) {
+      var next = Math.max(0, Math.min(MAX_BAR_PX, Math.round(targetH || 0)));
+      if (next !== raceStageHeight) {
+        raceStageHeight = next;
+        if (stage) stage.style.height = next + 'px';
+      }
+      lockIconFloor();
+    }
+
+    function syncRaceStage() {
+      var maxH = 0;
+      for (var si = 0; si < lanes.length; si++) {
+        var shownH = Number((lanes[si].bar && lanes[si].bar.getAttribute('data-race-shown')) || 0);
+        var px = Math.round((clampPct(shownH) / 100) * MAX_BAR_PX);
+        if (px > maxH) maxH = px;
+      }
+      applyStageHeight(maxH);
+    }
+
     function captureLayoutHold(part) {
       if (!part || !part.btn) return;
       part.btn.style.transform = 'none';
@@ -551,6 +655,7 @@
       part.btn.style.transform = 'translateY(' + part.layoutHold + 'px)';
     }
     lanes.forEach(captureLayoutHold);
+    applyStageHeight(0);
 
     var live = root.querySelector('[data-race-live]') || attachLive(panel, token);
 
@@ -583,6 +688,7 @@
         part.btn.style.transition = 'none';
         part.btn.style.transform = 'translateY(' + y + 'px)';
       }
+      syncRaceStage();
     }
 
     function finishVisual(part) {

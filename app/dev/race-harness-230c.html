@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Race harness #230C</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; --line: rgba(255,255,255,.12); }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+      padding: 16px 12px 48px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 24px; margin: 28px 0 12px; }
+    p, li { font-size: 22px; line-height: 1.35; }
+    .banner {
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-weight: 800;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,.04);
+      margin-bottom: 16px;
+    }
+    button.replay {
+      width: 100%;
+      min-height: 52px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+    #hud {
+      font-size: 18px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      background: #071018;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+    #lanternCardDetailOverlay.harnessOverlay {
+      position: relative;
+      inset: auto;
+      display: flex;
+      height: 78vh;
+      z-index: 1;
+    }
+    .harnessPhoto {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      background:
+        linear-gradient(135deg, #1e3a5f 0%, #0b1220 55%, #16324d 100%);
+    }
+    .harnessPhotoLabel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 900;
+      color: #eaf0ff;
+      pointer-events: none;
+    }
+    .lanternCardDetailVisualInner { position: relative; }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY visual harness. Mounts the production opened-post DOM. Fixture percentages only. Does not write D1 or create users.</p>
+  <h1>Race harness #230C</h1>
+  <p>Acceptance: icon row is the race floor. Dedicated stage height opens <strong>above</strong> the icons. Post photo/text must move up. Bars must not overlay content.</p>
+
+  <h2>Explore opened-post modal (production chrome)</h2>
+  <div class="lanternCardDetailOverlay lanternSurfaceShell show harnessOverlay" id="lanternCardDetailOverlay">
+    <div class="lanternCardDetailModal lanternSurface" role="dialog" aria-modal="true" aria-labelledby="lanternCardDetailTitle">
+      <div class="lanternSurfaceContent">
+        <header class="lanternCardDetailHeader" role="presentation">
+          <button type="button" class="lanternCardDetailClose" aria-label="Close">✕</button>
+        </header>
+        <div class="lanternCardDetailStage">
+          <div class="lanternCardDetailVisual" id="lanternCardDetailVisual">
+            <div class="lanternCardDetailVisualInner">
+              <div class="exploreCardVisual lanternDetailMediaImageInner">
+                <svg class="harnessPhoto" viewBox="0 0 1600 900" role="img" aria-label="Opened post photo">
+                  <defs>
+                    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#4c7bd1"/>
+                      <stop offset="100%" stop-color="#1b3358"/>
+                    </linearGradient>
+                  </defs>
+                  <rect width="1600" height="900" fill="url(#sky)"/>
+                  <circle cx="1280" cy="180" r="70" fill="#ffe27a"/>
+                  <rect x="0" y="620" width="1600" height="280" fill="#2a4a2e"/>
+                  <text x="800" y="460" text-anchor="middle" fill="#eaf0ff" font-size="72" font-family="system-ui,sans-serif" font-weight="800">POST PHOTO</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <h2 class="lanternCardDetailTitle" id="lanternCardDetailTitle">Opened Explore post — race stage must not cover this</h2>
+          <div class="lanternCardDetailIdentityWrap" id="lanternCardDetailIdentityWrap">
+            <div class="lanternCardDetailIdentity">Student Name</div>
+          </div>
+          <div class="lanternCardDetailMeta" id="lanternCardDetailMeta">Explore · fixture card</div>
+          <div class="lanternCardDetailBody" id="lanternCardDetailBody">
+            <div class="lanternCardDetailBodyRead">
+              This is the actual opened-post body copy. If the reaction bars are only painted over the modal, this paragraph and the photo above stay put and become unreadable. The reserved race stage must push this text and photo upward so the bars occupy dedicated space above the reaction icons.
+            </div>
+          </div>
+          <div class="lanternCardDetailReactions" id="lanternCardDetailReactions">
+            <div class="lanternFinalRxHost" id="exploreRxHost"></div>
+          </div>
+        </div>
+        <footer class="lanternCardDetailFooter">
+          <div class="lanternCardDetailActions" id="lanternCardDetailActions"></div>
+        </footer>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="replay" id="exploreTap">Tap ⭐ in place (no rebuild)</button>
+  <button type="button" class="replay" id="exploreReset">Reset Explore draft icons</button>
+  <button type="button" class="replay" id="scrollThenTap">Scroll overlay, then tap ⭐</button>
+
+  <h2>Poll mine-cart race (regression only)</h2>
+  <div class="panel">
+    <div id="pollRoot"></div>
+    <button type="button" class="replay" id="pollReplay">Replay poll race</button>
+  </div>
+
+  <h2>Live attachment log</h2>
+  <div id="hud">Waiting…</div>
+
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script>
+    (function () {
+      var FIXTURES = [
+        { label: 'Twelve', emoji: '❤️', type: 'heart', percentage: 12, selected: false },
+        { label: 'Thirty-four', emoji: '⭐', type: 'star', percentage: 34, selected: true },
+        { label: 'Fifty-seven', emoji: '💡', type: 'lightbulb', percentage: 57, selected: false },
+        { label: 'Eighty-three', emoji: '🤝', type: 'teamwork', percentage: 83, selected: false },
+        { label: 'Hundred', emoji: '🔥', type: 'fire', percentage: 100, selected: false }
+      ];
+      var POLL = [
+        { label: '12%', percentage: 12, selected: false },
+        { label: '34%', percentage: 34, selected: true },
+        { label: '57%', percentage: 57, selected: false },
+        { label: '83%', percentage: 83, selected: false },
+        { label: '100%', percentage: 100, selected: false }
+      ];
+      var hud = document.getElementById('hud');
+      var samples = [];
+      var finishes = { rx: {}, poll: {} };
+      var startTops = [];
+      var startBodyBottom = 0;
+      var startPhotoBottom = 0;
+      var maxDownPx = 0;
+      var firstFrameDownPx = 0;
+      var sampledFrames = 0;
+      var maxStageH = 0;
+      var overlapHits = 0;
+
+      function rxHtml() {
+        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1">';
+        FIXTURES.forEach(function (v) {
+          html +=
+            '<div class="lanternRxLane">' +
+            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
+            '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>' +
+            '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
+            '</div>';
+        });
+        return html + '</div></div>';
+      }
+
+      function paintExploreDraft() {
+        var host = document.getElementById('exploreRxHost');
+        host.innerHTML = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>' + rxHtml() + '</div>';
+        startTops = [];
+        startBodyBottom = 0;
+        startPhotoBottom = 0;
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        maxStageH = 0;
+        overlapHits = 0;
+        finishes.rx = {};
+      }
+
+      function captureContentAnchors() {
+        var body = document.getElementById('lanternCardDetailBody');
+        var photo = document.getElementById('lanternCardDetailVisual');
+        startBodyBottom = body ? body.getBoundingClientRect().bottom : 0;
+        startPhotoBottom = photo ? photo.getBoundingClientRect().bottom : 0;
+      }
+
+      function tapExploreInPlace() {
+        var root = document.querySelector('#exploreRxHost .lanternFinalRxPanel');
+        if (!root) return;
+        startTops = [];
+        root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+          startTops.push(btn.getBoundingClientRect().top);
+        });
+        captureContentAnchors();
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        maxStageH = 0;
+        overlapHits = 0;
+        finishes.rx = {};
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, FIXTURES, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: false
+        });
+      }
+
+      function mountPoll() {
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(document.getElementById('pollRoot'), POLL, {
+          listLabel: 'Harness poll results',
+          playAudio: false
+        });
+      }
+
+      function gap(a, b) {
+        return Math.round(Math.abs(a - b));
+      }
+
+      function rectsOverlap(a, b) {
+        return a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      }
+
+      function sampleOnce() {
+        var lines = [];
+        var rxOk = true;
+        var pollOk = true;
+        var body = document.getElementById('lanternCardDetailBody');
+        var photo = document.getElementById('lanternCardDetailVisual');
+        var stage = document.querySelector('[data-rx-race-stage]');
+        var bodyRect = body ? body.getBoundingClientRect() : null;
+        var photoRect = photo ? photo.getBoundingClientRect() : null;
+        var stageRect = stage ? stage.getBoundingClientRect() : null;
+        var stageH = stage ? Math.round(stage.getBoundingClientRect().height) : 0;
+        if (stageH > maxStageH) maxStageH = stageH;
+        document.querySelectorAll('#exploreRxHost .lanternRxLane').forEach(function (lane, i) {
+          var bar = lane.querySelector('[data-race-fill]');
+          var btn = lane.querySelector('.lanternFinalRxChoice');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!bar || !btn) return;
+          var br = bar.getBoundingClientRect();
+          var ir = btn.getBoundingClientRect();
+          var shown = Number(bar.getAttribute('data-race-shown') || 0);
+          var attach = gap(ir.bottom, br.top);
+          var down = startTops[i] != null ? Math.round(ir.top - startTops[i]) : 0;
+          if (down > maxDownPx) maxDownPx = down;
+          if (sampledFrames === 0 && startTops.length) firstFrameDownPx = down;
+          if (shown > 2 && attach > 10) rxOk = false;
+          if (down > 2) rxOk = false;
+          if (shown > 8 && (rectsOverlap(br, bodyRect) || rectsOverlap(br, photoRect))) {
+            overlapHits += 1;
+            rxOk = false;
+          }
+          if (shown >= FIXTURES[i].percentage && !finishes.rx[i]) finishes.rx[i] = Date.now();
+          lines.push(
+            'RX ' + FIXTURES[i].percentage + '% shown=' + shown +
+            ' startY=' + Math.round(startTops[i] || 0) +
+            ' nowY=' + Math.round(ir.top) +
+            ' downPx=' + down +
+            ' iconΔbarTop=' + attach + 'px' +
+            ' pct=' + (pctEl && pctEl.textContent || '—')
+          );
+        });
+        if (startTops.length) sampledFrames += 1;
+        document.querySelectorAll('#pollRoot .lanternPollRaceLane').forEach(function (lane, i) {
+          var fill = lane.querySelector('[data-race-fill]');
+          var cart = lane.querySelector('[data-race-cart]');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!fill || !cart) return;
+          var fr = fill.getBoundingClientRect();
+          var cr = cart.getBoundingClientRect();
+          var shown = Number(fill.getAttribute('data-race-shown') || 0);
+          var attach = gap(cr.left + cr.width / 2, fr.right);
+          if (shown > 2 && attach > 14) pollOk = false;
+          if (shown >= POLL[i].percentage && !finishes.poll[i]) finishes.poll[i] = Date.now();
+          lines.push(
+            'POLL ' + POLL[i].percentage + '% shown=' + shown +
+            ' fillW=' + Math.round(fr.width) +
+            ' cartΔfillEdge=' + attach + 'px' +
+            ' pct=' + (pctEl && pctEl.textContent || '—')
+          );
+        });
+        var rxOrder = Object.keys(finishes.rx).map(Number).sort(function (a, b) { return finishes.rx[a] - finishes.rx[b]; });
+        var pollOrder = Object.keys(finishes.poll).map(Number).sort(function (a, b) { return finishes.poll[a] - finishes.poll[b]; });
+        var bodyUp = startBodyBottom ? Math.round(startBodyBottom - (bodyRect ? bodyRect.bottom : 0)) : 0;
+        var photoUp = startPhotoBottom ? Math.round(startPhotoBottom - (photoRect ? photoRect.bottom : 0)) : 0;
+        var stageAboveRow = true;
+        if (stageRect) {
+          var row = document.querySelector('#exploreRxHost .lanternFinalRxChoices');
+          var rowRect = row ? row.getBoundingClientRect() : null;
+          if (rowRect && stageRect.bottom > rowRect.top + 2) stageAboveRow = false;
+        }
+        lines.push('RX finish order: ' + rxOrder.map(function (i) { return FIXTURES[i].percentage + '%'; }).join(' → '));
+        lines.push('POLL finish order: ' + pollOrder.map(function (i) { return POLL[i].percentage + '%'; }).join(' → '));
+        lines.push('first-frame downward px: ' + firstFrameDownPx);
+        lines.push('max downward px: ' + maxDownPx);
+        lines.push('stage height: ' + stageH + 'px (max ' + maxStageH + ')');
+        lines.push('stage above icon row: ' + (stageAboveRow ? 'YES' : 'NO'));
+        lines.push('body moved up px: ' + bodyUp);
+        lines.push('photo moved up px: ' + photoUp);
+        lines.push('bar/content overlap hits: ' + overlapHits);
+        lines.push('icon never dropped: ' + (maxDownPx <= 2 ? 'YES' : 'NO'));
+        lines.push('icon rides bar: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
+        hud.textContent = lines.join('\n');
+        samples.push({
+          t: Date.now(),
+          rxOk: rxOk,
+          pollOk: pollOk,
+          maxDownPx: maxDownPx,
+          firstFrameDownPx: firstFrameDownPx,
+          stageH: stageH,
+          bodyUp: bodyUp,
+          photoUp: photoUp,
+          overlapHits: overlapHits
+        });
+      }
+
+      document.getElementById('exploreTap').addEventListener('click', tapExploreInPlace);
+      document.getElementById('exploreReset').addEventListener('click', paintExploreDraft);
+      document.getElementById('scrollThenTap').addEventListener('click', function () {
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        overlay.scrollTop = Math.max(0, overlay.scrollHeight - overlay.clientHeight);
+        tapExploreInPlace();
+      });
+      document.getElementById('pollReplay').addEventListener('click', function () {
+        finishes.poll = {};
+        mountPoll();
+      });
+
+      paintExploreDraft();
+      mountPoll();
+      setInterval(sampleOnce, 80);
+      window.__LANTERN_RACE_HARNESS = {
+        fixtures: FIXTURES,
+        poll: POLL,
+        finishes: finishes,
+        samples: samples,
+        tapExploreInPlace: tapExploreInPlace,
+        paintExploreDraft: paintExploreDraft
+      };
+    })();
+  </script>
+</body>
+</html>

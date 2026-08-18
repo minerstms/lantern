@@ -1952,8 +1952,15 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 }
 .lanternCardDetailModal--rx-racing,
 .lanternCardDetailModal--rx-racing .lanternCardDetailReactions,
-.lanternCardDetailModal--rx-racing .lanternCardDetailBody{
+.lanternCardDetailModal--rx-racing .lanternCardDetailBody,
+.lanternCardDetailModal--rx-racing .lanternCardDetailStage,
+.lanternCardDetailOverlay--rx-racing .lanternFinalRxRaceArena,
+.lanternCardDetailOverlay--rx-racing .lanternCardDetailReactions{
   overflow: visible;
+}
+.lanternCardDetailOverlay.lanternCardDetailOverlay--rx-racing{
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .lanternCardDetailOverlay .lanternCardDetailReactions:empty{
   display: none;
