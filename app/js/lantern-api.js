@@ -682,7 +682,14 @@
       id: id,
       title: String(opts.title || '').trim().slice(0, 200),
       description: String(opts.description || '').trim().slice(0, 1000),
-      reward_amount: 1,
+      reward_amount: (function () {
+        if (opts.reward_amount == null || opts.reward_amount === '') return 1;
+        var n = parseInt(opts.reward_amount, 10);
+        if (!Number.isFinite(n)) return 1;
+        if (n < 0) return 0;
+        if (n > 5) return 5;
+        return n;
+      })(),
       submission_type: ['text', 'link', 'image_url', 'confirmation'].indexOf(String(opts.submission_type || 'text').trim()) >= 0 ? String(opts.submission_type || 'text').trim() : 'text',
       created_by_teacher_id: teacherId,
       created_by_teacher_name: teacherName,
@@ -720,7 +727,13 @@
     if (updates.active !== undefined) missions[idx].active = !!updates.active;
     if (updates.title !== undefined) missions[idx].title = String(updates.title).trim().slice(0, 200);
     if (updates.description !== undefined) missions[idx].description = String(updates.description).trim().slice(0, 1000);
-    if (updates.reward_amount !== undefined) missions[idx].reward_amount = 1;
+    if (updates.reward_amount !== undefined) {
+      var nextReward = parseInt(updates.reward_amount, 10);
+      if (!Number.isFinite(nextReward)) nextReward = missions[idx].reward_amount;
+      else if (nextReward < 0) nextReward = 0;
+      else if (nextReward > 5) nextReward = 5;
+      missions[idx].reward_amount = nextReward;
+    }
     if (updates.featured !== undefined) missions[idx].featured = !!updates.featured;
     if (updates.site_eligible !== undefined) missions[idx].site_eligible = !!updates.site_eligible;
     if (updates.allows_image !== undefined) missions[idx].allows_image = !!updates.allows_image;

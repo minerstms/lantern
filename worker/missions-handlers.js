@@ -87,8 +87,13 @@ function missionRowToJson(r, origin) {
     id: r.id,
     title: r.title || '',
     description: r.description || '',
-    // Prompt #159: ordinary mission reward is always 1 in API responses (definitions normalized).
-    reward_amount: 1,
+    // Prompt #229A: expose the saved mission reward (0 is legitimate; missing → 1).
+    reward_amount: (() => {
+      if (r.reward_amount == null || r.reward_amount === '') return 1;
+      const n = Number(r.reward_amount);
+      if (!Number.isFinite(n) || n < 0) return 1;
+      return Math.trunc(n);
+    })(),
     submission_type: r.submission_type || 'text',
     created_by_teacher_id: r.teacher_id || 'teacher',
     created_by_teacher_name: r.teacher_name || 'Teacher',
@@ -1067,6 +1072,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (!missionEligibleForParticipant(mission, identity)) {
       return jsonResponse({ ok: false, error: 'Mission not available' }, 403, cors);
     }
+    const submitRewardAmount = await resolveStoredMissionPayout(db, mission.reward_amount);
     // Prompt #165 — Daily Check-In / First Game use dedicated event endpoints, not free-form submit.
     if (missionId === WAVE2_MISSION_IDS.DAILY_CHECKIN) {
       return jsonResponse({ ok: false, error: 'use_daily_checkin', message: 'Use Daily Check-In to complete this mission.' }, 400, cors);
@@ -1103,7 +1109,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
             .first();
           const finExisting = await finalizeMissionSubmission(db, env, {
             submissionRow: pendingRow,
-            rewardAmount: 1,
+            rewardAmount: submitRewardAmount,
             reviewerLabel: 'system',
           });
           if (!finExisting.ok) {
@@ -1180,7 +1186,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           submission_type: validated.submissionType,
           submission_content: validated.content,
         },
-        rewardAmount: 1,
+        rewardAmount: submitRewardAmount,
         reviewerLabel: 'system',
       });
       if (!fin.ok) {
@@ -1275,12 +1281,17 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       .all();
     // Prompt #13 — auto-finalize any staff leftover pending rows so they never sit in Review Submissions.
     const rawPending = subRows.results || [];
+    const rewardByMissionId = {};
+    (missionRows.results || []).forEach((m) => {
+      rewardByMissionId[m.id] = m.reward_amount;
+    });
     for (const s of rawPending) {
       if (!isStaffEconomyKey(s.character_name)) continue;
       try {
+        const leftoverReward = await resolveStoredMissionPayout(db, rewardByMissionId[s.mission_id]);
         await finalizeMissionSubmission(db, env, {
           submissionRow: s,
-          rewardAmount: 1,
+          rewardAmount: leftoverReward,
           reviewerLabel: 'system',
         });
       } catch (_) {}

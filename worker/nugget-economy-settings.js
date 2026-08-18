@@ -252,6 +252,26 @@ export async function resolveStoredMissionPayout(db, storedReward) {
   return n;
 }
 
+/**
+ * Event completions (trivia, check-in, first game, thank-you, fight song, …):
+ * persisted mission.reward_amount → Default Mission Reward → documented fallback (1).
+ * Never trusts a client-supplied amount. 0 is a real saved reward (no TMS credit).
+ */
+export async function resolveEventMissionPayout(db, missionId) {
+  const mid = String(missionId || '').trim();
+  if (db && mid) {
+    try {
+      const row = await db.prepare('SELECT reward_amount FROM lantern_missions WHERE id = ?').bind(mid).first();
+      if (row && row.reward_amount != null && row.reward_amount !== '') {
+        return resolveStoredMissionPayout(db, row.reward_amount);
+      }
+    } catch (_err) {
+      /* missing table/row → configured default */
+    }
+  }
+  return resolveEconomyAmount(db, 'mission_default');
+}
+
 export function economyPublicPayload(bundle) {
   const rows = ECONOMY_ROW_ORDER.map((id) => {
     const def = ECONOMY_SETTING_DEFS[id];

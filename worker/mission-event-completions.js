@@ -4,6 +4,7 @@
  * Does not create a second reward ledger.
  */
 import { creditMissionApprovalReward } from './missions-reward.js';
+import { resolveEventMissionPayout } from './nugget-economy-settings.js';
 import { denverLocalDateYYYYMMDD, SCHOOL_SCHEDULE_TIMEZONE } from './school-schedule.js';
 
 export const WAVE2_MISSION_IDS = {
@@ -166,7 +167,8 @@ async function insertCompletionRow(db, row) {
 }
 
 /**
- * Verified event → durable completion → exactly +1 via TMS (unless skipReward / already paid).
+ * Verified event → durable completion → saved mission reward via TMS
+ * (unless skipReward / already paid). Amount is never hardcoded.
  *
  * @param {'once'|'daily'} opts.cadence
  * @param {boolean} [opts.skipReward] reconcile historical completion without awarding again
@@ -297,13 +299,16 @@ export async function completeMissionByEvent(db, env, opts) {
 
   let rewarded = false;
   let rewardIdempotent = false;
+  let nuggets = 0;
   if (!skipReward) {
-    const credit = await creditMissionApprovalReward(db, characterName, submissionId, 1, note, { env });
+    const rewardAmount = await resolveEventMissionPayout(db, missionId);
+    const credit = await creditMissionApprovalReward(db, characterName, submissionId, rewardAmount, note, { env });
     if (!credit.ok) {
       return { ok: false, error: credit.error || 'reward_failed', submission_id: submissionId };
     }
-    rewarded = !credit.idempotent;
+    rewarded = !credit.idempotent && !credit.skipped && (Number(credit.delta) || 0) > 0;
     rewardIdempotent = !!credit.idempotent;
+    nuggets = credit.skipped ? 0 : Number(credit.delta) || 0;
   }
 
   const compId = completionIdForEventKey(eventKey);
@@ -347,6 +352,7 @@ export async function completeMissionByEvent(db, env, opts) {
     completed: true,
     rewarded: rewarded,
     reward_idempotent: rewardIdempotent,
+    nuggets: nuggets,
     mission_id: missionId,
     event_key: eventKey,
     submission_id: submissionId,

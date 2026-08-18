@@ -292,9 +292,9 @@ if (!studentHtml.includes('nuggetEconomySave') && !gamesHtml.includes('nuggetEco
 if (!migrations.some((f) => /229|nugget_economy|economy_settings/.test(f))) {
   ok('no new D1 economy/mission-reward migration added');
 } else bad('unexpected migration file');
-if (/creditMissionApprovalReward\(db, characterName, submissionId, 1,/.test(eventSrc)) {
-  ok('event missions still pass hardcoded +1 (not Default Mission Reward)');
-} else bad('event mission reward drift');
+if (/resolveEventMissionPayout/.test(eventSrc) && !/creditMissionApprovalReward\(db, characterName, submissionId, 1,/.test(eventSrc)) {
+  ok('event missions resolve saved/configured mission reward (no hardcoded +1)');
+} else bad('event mission reward still hardcoded');
 if (analyticsSrc.includes('earned += delta') && analyticsSrc.includes('Number(row.delta)')) {
   ok('analytics sums persisted ledger deltas, not today\'s setting');
 } else bad('analytics ledger sum');

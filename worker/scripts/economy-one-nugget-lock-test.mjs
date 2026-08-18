@@ -94,9 +94,13 @@ if (teacherHtml.includes('data-edit="reward_amount"') && teacherHtml.includes('C
   ok('Teacher edit form includes Nugget Reward with future-only helper copy');
 } else bad('teacher edit reward UI');
 
-if (missionsPage.includes("return '🟡 +1 Nugget'") || missionsPage.includes('return "🟡 +1 Nugget"')) {
-  ok('student mission cards render canonical +1 Nugget');
-} else bad('student card +1 display');
+if (
+  missionsPage.includes('formatMissionNuggetReward') &&
+  missionsPage.includes("Nugget' : 'Nuggets'") &&
+  !missionsPage.includes("return '🟡 +1 Nugget'")
+) {
+  ok('student mission cards format the saved reward with singular/plural copy');
+} else bad('student card reward display');
 
 if (gamesHtml.includes('var REWARDS = { easy: 1, medium: 1, hard: 1 }')) {
   ok('Nugget Hunt client rewards normalized to 1');

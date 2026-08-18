@@ -73,10 +73,10 @@ if (EDU.SPONSORED_FREE_MISSION_ID === 'perm_local_history_trivia' && EDU.SPONSOR
 if (
   missionsPageJs.includes("item.id === 'perm_srp_safety'") &&
   missionsPageJs.includes("item.id === 'perm_local_history_trivia'") &&
-  missionsPageJs.includes("return 'FREE · +1 Nugget'") &&
+  missionsPageJs.includes('formatMissionNuggetReward') &&
   missionsPageJs.includes('assets/icons/nugget.png')
 ) {
-  ok('37/38. Mission card says FREE and +1 Nugget');
+  ok('37/38. Mission card formats saved reward with FREE + nugget icon for sponsored ids');
 } else bad('37/38 card');
 
 if (
@@ -129,8 +129,8 @@ if (catalogSrc.includes("image: 'assets/srp-safety.png'") && fs.existsSync(srpGa
 if (cardsSrc.includes("perm_handbook_trivia: 'assets/handbook-triva-card.png'") && cardsSrc.includes("perm_local_history_trivia: 'assets/history-trivia-card.png'")) {
   ok('12. unrelated Mission artwork unchanged');
 } else bad('12 other mission art');
-if (missionsPageJs.includes("item.id === 'perm_srp_safety'") && missionsPageJs.includes('FREE · <img src="assets/icons/nugget.png"') && missionsPageJs.includes('+1 Nugget')) {
-  ok('5/6/7. Mission still paints FREE + canonical Nugget icon + +1 Nugget');
+if (missionsPageJs.includes("item.id === 'perm_srp_safety'") && missionsPageJs.includes('FREE · <img src="assets/icons/nugget.png"') && missionsPageJs.includes('formatMissionNuggetReward')) {
+  ok('5/6/7. Mission still paints FREE + canonical Nugget icon using saved reward');
 } else bad('overlays');
 try {
   const png = fs.readFileSync(srpMissionArt);

@@ -762,9 +762,14 @@
     if (instruction) instruction.textContent = INSTRUCTION;
     if (previewInstruction) previewInstruction.textContent = INSTRUCTION;
     if (meta) {
+      var rewardN = Number(opts.rewardAmount);
+      if (!Number.isFinite(rewardN) || rewardN < 0) rewardN = 1;
+      var rewardCopy = rewardN > 0
+        ? ('🟡 +' + rewardN + ' Nugget' + (rewardN === 1 ? '' : 's'))
+        : 'No Nugget reward';
       meta.textContent = state.alreadyCompleted
-        ? '🟡 +1 Nugget · Reward already earned (redo allowed)'
-        : '🟡 +1 Nugget';
+        ? (rewardCopy + ' · Reward already earned (redo allowed)')
+        : rewardCopy;
     }
     if (checkBtn) {
       checkBtn.disabled = false;

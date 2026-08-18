@@ -228,8 +228,8 @@ else bad('cosmetic price');
 if (/resolveStoredMissionPayout|rewardAmount/.test(missionsRewardSrc) && /tmsStaffEconomyTransact/.test(missionsRewardSrc)) {
   ok('11/21. mission approval uses saved/clamped reward; staff principal supported');
 } else bad('mission reward');
-if (/FREE · \+1 Nugget/.test(missionsPage) && /perm_local_history_trivia/.test(eduMissions) && /perm_srp_safety/.test(eduMissions)) {
-  ok('14-19. Trinidad/SRP advertised FREE · +1');
+if (/formatMissionNuggetReward/.test(missionsPage) && /perm_local_history_trivia/.test(eduMissions) && /perm_srp_safety/.test(eduMissions)) {
+  ok('14-19. Trinidad/SRP still sponsored; card copy uses saved reward');
 } else bad('sponsored copy');
 if (/SPONSORED_FREE_PAIRS/.test(eduMissions) && /srp-safety-trivia/.test(eduMissions)) ok('20. sponsored pairs are exact mission+game');
 else bad('sponsored pairs');

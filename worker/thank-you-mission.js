@@ -285,7 +285,7 @@ async function loadStudentDisplayLabel(db, account, characterName) {
 }
 
 /**
- * Full Thank-You send → audit → completeMissionByEvent (+1). Idempotent per Denver day.
+ * Full Thank-You send → audit → completeMissionByEvent (saved mission reward). Idempotent per Denver day.
  */
 export async function sendThankYouMission(db, env, opts) {
   const account = opts && opts.account;
@@ -337,7 +337,7 @@ export async function sendThankYouMission(db, env, opts) {
       day,
       timezone: SCHOOL_SCHEDULE_TIMEZONE,
       recipient_label: existingSend.recipient_display_label,
-      nuggets: 1,
+      nuggets: Number(completed && completed.nuggets) || 0,
     };
   }
 
@@ -490,7 +490,7 @@ export async function sendThankYouMission(db, env, opts) {
     day,
     timezone: SCHOOL_SCHEDULE_TIMEZONE,
     recipient_label: recipient.display_label,
-    nuggets: 1,
+    nuggets: Number(completed.nuggets) || 0,
     provider_accepted: true,
   };
 }

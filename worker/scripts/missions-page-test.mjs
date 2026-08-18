@@ -129,7 +129,8 @@ if (helpJs.includes('Finished missions stay in this same list') && !helpJs.inclu
 } else bad('help copy outdated');
 
 // Mock workflow: buildUnifiedMissionItems status mapping
-const buildFnMatch = missionsHtml.match(/function buildUnifiedMissionItems\([\s\S]*?return items;\s*\}/);
+// Prompt #229A — include saved-reward helpers; the builder now calls them.
+const buildFnMatch = missionsHtml.match(/function savedMissionReward\([\s\S]*?function buildUnifiedMissionItems\([\s\S]*?return items;\s*\}/);
 if (buildFnMatch) {
   const sandbox = {
     todayStr: () => '2026-08-07',
@@ -214,6 +215,21 @@ if (buildFnMatch) {
     if (new Set(dupIds).size === dupIds.length) {
       ok('no duplicate mission IDs in unified list');
     } else bad('duplicate mission IDs');
+    const thankYou = items.find((i) => i.id === 'm1');
+    const photo = items.find((i) => i.id === 'm2');
+    const returned = items.find((i) => i.id === 'm3');
+    if (thankYou && thankYou.reward === 5 && photo && photo.reward === 3 && returned && returned.reward === 2) {
+      ok('unified items carry each mission saved reward_amount (not hardcoded +1)');
+    } else bad('saved reward on unified items', { thankYou: thankYou && thankYou.reward, photo: photo && photo.reward, returned: returned && returned.reward });
+    if (sandbox.formatSavedMissionReward({ reward_amount: 0 }) === '' &&
+        sandbox.formatSavedMissionReward({ reward_amount: 1 }) === '+1 Nugget' &&
+        sandbox.formatSavedMissionReward({ reward_amount: 3 }) === '+3 Nuggets') {
+      ok('formatSavedMissionReward uses singular/plural and omits a +1 for 0');
+    } else bad('formatSavedMissionReward copy', {
+      zero: sandbox.formatSavedMissionReward({ reward_amount: 0 }),
+      one: sandbox.formatSavedMissionReward({ reward_amount: 1 }),
+      three: sandbox.formatSavedMissionReward({ reward_amount: 3 }),
+    });
   } catch (e) {
     bad('buildUnifiedMissionItems mock run', e.message);
   }

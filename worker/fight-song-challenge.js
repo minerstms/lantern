@@ -138,10 +138,10 @@ export function overlayFightSongMission(list) {
       title: m.title || FIGHT_SONG_MISSION.title,
       description: m.description || FIGHT_SONG_MISSION.description,
       participant_scope: 'everyone',
-      reward_amount: FIGHT_SONG_REWARD_NUGGETS,
+      reward_amount: m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : FIGHT_SONG_REWARD_NUGGETS,
       activity: {
         type: FIGHT_SONG_ACTIVITY_TYPE,
-        reward_nuggets: FIGHT_SONG_REWARD_NUGGETS,
+        reward_nuggets: m.reward_amount != null && m.reward_amount !== '' ? m.reward_amount : FIGHT_SONG_REWARD_NUGGETS,
         line_count: FIGHT_SONG_LINES.length,
       },
     };
