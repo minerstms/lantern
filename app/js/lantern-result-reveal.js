@@ -327,8 +327,137 @@
     el.textContent = pct + '%';
   }
 
+  function existingPollLanes(root) {
+    if (!root || !root.querySelectorAll) return [];
+    return Array.prototype.slice.call(root.querySelectorAll('.lanternPollRaceLane'));
+  }
+
+  function ensurePollTrack(lane) {
+    if (!lane) return null;
+    var track = lane.querySelector('.lanternPollRaceTrack');
+    if (!track) {
+      track = global.document.createElement('div');
+      track.className = 'lanternPollRaceTrack';
+      track.setAttribute('aria-hidden', 'true');
+      lane.appendChild(track);
+    }
+    var fill = track.querySelector('[data-race-fill]');
+    if (!fill) {
+      fill = global.document.createElement('div');
+      fill.className = 'lanternPollRaceFill';
+      fill.setAttribute('data-race-fill', '');
+      track.appendChild(fill);
+    }
+    var cart = track.querySelector('[data-race-cart]');
+    if (!cart) {
+      cart = global.document.createElement('div');
+      cart.className = 'lanternMineCart';
+      cart.setAttribute('data-race-cart', '');
+      track.appendChild(cart);
+    }
+    if (!cart.querySelector('svg')) cart.innerHTML = mineCartSvg();
+    return track;
+  }
+
+  /**
+   * Paint the same option-row nodes used before tap and during the race.
+   * Tracks/carts/percent slots are reserved up front so submit cannot add height.
+   */
+  function preparePollChoiceLanes(host, labels, opts) {
+    if (!host) return null;
+    opts = opts || {};
+    var doc = host.ownerDocument || global.document;
+    var group = host.classList && host.classList.contains('pollChoiceGroup') ? host : null;
+    if (!group && host.children) {
+      for (var gi = 0; gi < host.children.length; gi++) {
+        if (host.children[gi].classList && host.children[gi].classList.contains('pollChoiceGroup')) {
+          group = host.children[gi];
+          break;
+        }
+      }
+    }
+    if (!group) {
+      host.innerHTML = '';
+      group = doc.createElement('div');
+      host.appendChild(group);
+    } else {
+      group.innerHTML = '';
+    }
+    group.className = 'pollChoiceGroup lanternPollRace';
+    group.setAttribute('role', opts.disabled ? 'list' : 'radiogroup');
+    group.setAttribute('aria-label', opts.listLabel || (opts.disabled ? 'Poll results' : 'Poll choices'));
+    (labels || []).forEach(function (choice, idx) {
+      var lane = doc.createElement('div');
+      lane.className = 'lanternPollRaceLane pollChoiceRow';
+      lane.setAttribute('data-poll-choice-index', String(idx));
+      lane.setAttribute('data-race-index', String(idx));
+      if (opts.disabled) lane.setAttribute('role', 'listitem');
+      var btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pollChoiceBtn';
+      if (opts.disabled) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+      } else {
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-checked', 'false');
+      }
+      var text = doc.createElement('span');
+      text.className = 'pollChoiceText';
+      text.textContent = choice || 'Choice ' + (idx + 1);
+      var meta = doc.createElement('span');
+      meta.className = 'pollChoiceMeta';
+      var mark = doc.createElement('em');
+      mark.className = 'pollYourChoiceMark';
+      mark.textContent = 'Your choice';
+      var pct = doc.createElement('span');
+      pct.className = 'lanternResultRacePct is-pending';
+      pct.setAttribute('data-race-pct', '');
+      pct.setAttribute('aria-hidden', 'true');
+      meta.appendChild(mark);
+      meta.appendChild(pct);
+      btn.appendChild(text);
+      btn.appendChild(meta);
+      lane.appendChild(btn);
+      ensurePollTrack(lane);
+      if (typeof opts.onChoice === 'function') opts.onChoice(btn, lane, idx);
+      group.appendChild(lane);
+    });
+    return group;
+  }
+
+  function attachPollFloatingSound(fromEl) {
+    var pollAudio = audioApi();
+    var modal = fromEl && fromEl.closest ? fromEl.closest('.lanternCardDetailModal') : null;
+    var title = modal && modal.querySelector ? modal.querySelector('.lanternCardDetailTitle') : null;
+    var pollHost = title || fromEl;
+    if (pollAudio && typeof pollAudio.attachFloatingMuteToolbar === 'function') {
+      pollAudio.attachFloatingMuteToolbar(pollHost, {
+        extraClass: 'lanternRaceToolbar--poll',
+        searchRoot: modal || fromEl,
+      });
+      return;
+    }
+    var pollTb = (modal || fromEl).querySelector && (modal || fromEl).querySelector('.lanternRaceToolbar');
+    if (!pollTb) {
+      pollTb = global.document.createElement('div');
+      pollTb.className = 'lanternRaceToolbar lanternRaceToolbar--float lanternRaceToolbar--poll';
+      pollTb.setAttribute('data-race-sound-float', '1');
+      pollTb.style.position = 'absolute';
+      pollTb.style.top = '0';
+      pollTb.style.right = '0';
+      pollTb.style.left = 'auto';
+      pollTb.style.bottom = 'auto';
+      pollTb.style.margin = '0';
+      pollTb.innerHTML = muteToolbarHtml();
+      pollHost.appendChild(pollTb);
+      bindMute(pollHost);
+    }
+  }
+
   /**
    * Horizontal poll mine-cart race. Choice order is preserved.
+   * Preferred path reuses the original option-row nodes in place.
    */
   function mountPollMineCartRace(container, items, opts) {
     if (!container) return;
@@ -338,34 +467,42 @@
     container.setAttribute('data-race-kind', 'poll-minecart');
     var rows = normalizeItems(items);
     var maxPct = maxOf(rows);
-    var html = '<div class="lanternRaceToolbar">' + muteToolbarHtml() + '</div>';
-    if (opts.summaryHtml) html += opts.summaryHtml;
-    html += '<div class="lanternPollRace" role="list" aria-label="' + esc(opts.listLabel || 'Poll results') + '">';
+    var lanes = opts.reuseRows === false ? [] : existingPollLanes(container);
+    if (!lanes.length) {
+      preparePollChoiceLanes(container, rows.map(function (r) { return r.label; }), {
+        disabled: true,
+        listLabel: opts.listLabel || 'Poll results',
+      });
+      lanes = existingPollLanes(container);
+    }
+    var group = container.classList && container.classList.contains('pollChoiceGroup')
+      ? container
+      : container.querySelector && container.querySelector('.pollChoiceGroup');
+    if (group) {
+      group.classList.add('is-racing', 'lanternPollRace');
+      group.setAttribute('role', 'list');
+      group.setAttribute('aria-label', opts.listLabel || 'Poll results');
+    }
+    container.classList.add('lanternPollRaceHost');
     rows.forEach(function (r, i) {
-      html +=
-        '<div class="lanternPollRaceLane' +
-        (r.selected ? ' lanternPollRaceLane--yours pollResultRow--yours' : '') +
-        '" role="listitem" data-race-index="' +
-        i +
-        '">' +
-        '<div class="lanternPollRaceLabel">' +
-        '<span>' +
-        esc(r.label) +
-        (r.selected ? ' <em class="pollYourChoiceMark">Your choice</em>' : '') +
-        '</span>' +
-        '<span class="lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
-        '</div>' +
-        '<div class="lanternPollRaceTrack" aria-hidden="true">' +
-        '<div class="lanternPollRaceFill" data-race-fill></div>' +
-        '<div class="lanternMineCart" data-race-cart>' +
-        mineCartSvg() +
-        '</div>' +
-        '</div>' +
-        '</div>';
+      var lane = lanes[i];
+      if (!lane) return;
+      lane.classList.add('lanternPollRaceLane', 'lanternPollRaceLane--live');
+      lane.setAttribute('data-race-index', String(i));
+      lane.classList.toggle('lanternPollRaceLane--yours', !!r.selected);
+      lane.classList.toggle('pollResultRow--yours', !!r.selected);
+      var btn = lane.querySelector('.pollChoiceBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        btn.classList.toggle('is-selected', !!r.selected);
+        btn.setAttribute('aria-checked', r.selected ? 'true' : 'false');
+      }
+      var mark = lane.querySelector('.pollYourChoiceMark');
+      if (mark) mark.classList.toggle('is-on', !!r.selected);
+      ensurePollTrack(lane);
     });
-    html += '</div>';
-    container.innerHTML = html;
-    bindMute(container);
+    if (opts.skipMuteToolbar !== true) attachPollFloatingSound(container);
     var live = attachLive(container, token);
 
     function stillCurrent() {
@@ -462,24 +599,41 @@
     var buttons = root.querySelectorAll(choiceSelector);
     if (!buttons.length) return;
 
-    var startRects = [];
-    for (var s = 0; s < buttons.length; s++) {
-      var r0 = buttons[s].getBoundingClientRect();
-      startRects.push({ top: r0.top, left: r0.left, width: r0.width, height: r0.height });
-    }
-
     var panel = root.closest('.lanternFinalRxPanel, .lanternReactionBar, .lanternCardDetailReactions') || root;
     panel.classList.add('lanternRxRaceLive');
     var modal = root.closest('.lanternCardDetailModal');
     if (modal) modal.classList.add('lanternCardDetailModal--rx-racing');
 
-    var existingTb = panel.querySelector('.lanternRaceToolbar');
-    if (!existingTb) {
-      var tb = global.document.createElement('div');
-      tb.className = 'lanternRaceToolbar';
-      tb.innerHTML = muteToolbarHtml();
-      panel.appendChild(tb);
-      bindMute(panel);
+    if (opts.skipMuteToolbar !== true) {
+      var aTb = audioApi();
+      if (aTb && typeof aTb.attachFloatingMuteToolbar === 'function') {
+        aTb.attachFloatingMuteToolbar(panel, {
+          extraClass: 'lanternRaceToolbar--rx',
+          mark: 'data-rx-sound-float',
+        });
+      } else {
+        var existingTb = panel.querySelector('.lanternRaceToolbar');
+        if (!existingTb) {
+          existingTb = global.document.createElement('div');
+          existingTb.innerHTML = muteToolbarHtml();
+          panel.appendChild(existingTb);
+          bindMute(panel);
+        }
+        existingTb.className = 'lanternRaceToolbar lanternRaceToolbar--rx';
+        existingTb.setAttribute('data-rx-sound-float', '1');
+        existingTb.style.position = 'absolute';
+        existingTb.style.top = '0';
+        existingTb.style.right = '0';
+        existingTb.style.left = 'auto';
+        existingTb.style.bottom = 'auto';
+        existingTb.style.margin = '0';
+      }
+    }
+
+    var startRects = [];
+    for (var s = 0; s < buttons.length; s++) {
+      var r0 = buttons[s].getBoundingClientRect();
+      startRects.push({ top: r0.top, left: r0.left, width: r0.width, height: r0.height });
     }
 
     var byType = {};
@@ -614,28 +768,16 @@
       }
     }
 
-    function lockIconFloor() {
-      var part = lanes[0];
-      if (!part || !part.btn) return;
-      var shown = Number((part.bar && part.bar.getAttribute('data-race-shown')) || 0);
-      var h = Math.round((clampPct(shown) / 100) * MAX_BAR_PX);
-      var expectedY = (part.startTop || 0) - h;
-      var nowY = part.btn.getBoundingClientRect().top;
-      var drift = nowY - expectedY;
-      if (!isFinite(drift) || Math.abs(drift) < 0.5) return;
-      var scroller = findRaceScrollParent(panel);
-      if (!scroller) return;
-      ensureScrollRoom(scroller, drift);
-      scroller.scrollTop += drift;
-    }
-
     function applyStageHeight(targetH) {
       var next = Math.max(0, Math.min(MAX_BAR_PX, Math.round(targetH || 0)));
       if (next !== raceStageHeight) {
+        var grew = next - raceStageHeight;
         raceStageHeight = next;
         if (stage) stage.style.height = next + 'px';
+        if (grew > 0) {
+          ensureScrollRoom(findRaceScrollParent(panel), grew);
+        }
       }
-      lockIconFloor();
     }
 
     function syncRaceStage() {
@@ -868,6 +1010,7 @@
     mountResultRace: mountResultRace,
     mountPollMineCartRace: mountPollMineCartRace,
     mountReactionSpatialRace: mountReactionSpatialRace,
+    preparePollChoiceLanes: preparePollChoiceLanes,
     mineCartSvg: mineCartSvg,
   };
 })(typeof window !== 'undefined' ? window : self);

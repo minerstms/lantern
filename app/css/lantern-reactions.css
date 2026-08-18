@@ -157,15 +157,37 @@
 
 /* ===== Immutable finalized feed reactions (Lock In) ===== */
 .lanternFinalRxPanel {
-  margin-top: 12px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  margin-top: 0;
+  padding-top: 4px;
+  border-top: none;
 }
 .lanternFinalRxHeading {
   margin: 0 0 12px 0;
+  padding-right: 7.5rem;
   font-size: 22px;
   font-weight: 900;
   color: var(--ink, #eaf0ff);
+}
+.lanternFinalRxPanel > .lanternRaceToolbar,
+.lanternFinalRxPanel > .lanternRaceToolbar--rx,
+.lanternRxRaceLive > .lanternRaceToolbar--rx{
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  bottom: auto;
+  margin: 0;
+  width: auto;
+  height: auto;
+  z-index: 5;
+  pointer-events: none;
+}
+.lanternFinalRxPanel > .lanternRaceToolbar .lanternRaceSoundBtn,
+.lanternRaceToolbar--rx .lanternRaceSoundBtn{
+  pointer-events: auto;
+  min-width: 44px;
+  min-height: 44px;
 }
 .lanternFinalRxRaceArena{
   position: relative;
@@ -183,8 +205,10 @@
   box-sizing: border-box;
   pointer-events: none;
   overflow: hidden;
-  background: #0b1628;
-  border-radius: 10px 10px 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .lanternFinalRxPanel.lanternRxRaceLive,
 .lanternFinalRxPanel.lanternRxRaceLive .lanternFinalRxRaceArena,
