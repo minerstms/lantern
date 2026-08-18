@@ -382,6 +382,8 @@
       }
       if (cart) {
         cart.style.left = p + '%';
+        cart.style.transform = 'translate(-50%, -50%)';
+        cart.setAttribute('data-race-shown', String(p));
       }
     }
 
@@ -507,10 +509,11 @@
       pctEl.classList.add('is-pending');
       pctEl.textContent = '';
       bar.style.height = '0px';
+      btn.style.transition = 'none';
       btn.style.transform = 'translateY(0px)';
       btn.disabled = true;
       btn.setAttribute('aria-disabled', 'true');
-      lanes.push({ btn: btn, bar: bar, pctEl: pctEl, lane: lane, row: row });
+      lanes.push({ btn: btn, bar: bar, pctEl: pctEl, lane: lane, row: row, barFromBottom: 8 });
     }
 
     var parentChoices = buttons[0] && buttons[0].closest('.lanternFinalRxChoices, .lanternReactionBar');
@@ -525,13 +528,27 @@
       return root.getAttribute('data-race-token') === token;
     }
 
+    function measureRide(part) {
+      if (!part || !part.lane || !part.btn) return;
+      part.btn.style.transform = 'translateY(0px)';
+      var laneH = part.lane.clientHeight || 0;
+      var btnBottom = (part.btn.offsetTop || 0) + (part.btn.offsetHeight || 0);
+      var fromBottom = Math.round(laneH - btnBottom);
+      if (!isFinite(fromBottom) || fromBottom < 0) fromBottom = 0;
+      part.barFromBottom = fromBottom;
+      if (part.bar) part.bar.style.bottom = fromBottom + 'px';
+    }
+
     function applyVert(part, grownPct) {
       var h = Math.round((clampPct(grownPct) / 100) * MAX_BAR_PX);
+      var fromBottom = part.barFromBottom != null ? part.barFromBottom : 8;
       if (part.bar) {
+        part.bar.style.bottom = fromBottom + 'px';
         part.bar.style.height = h + 'px';
         part.bar.setAttribute('data-race-shown', String(clampPct(grownPct)));
       }
       if (part.btn) {
+        part.btn.style.transition = 'none';
         part.btn.style.transform = 'translateY(-' + h + 'px)';
       }
     }
@@ -557,6 +574,7 @@
 
     whenVisible(root, function () {
       if (!stillCurrent()) return;
+      lanes.forEach(measureRide);
       animateRace(
         lanes.map(function (part) {
           return {

@@ -51,6 +51,8 @@ assert(!/🛒|🏎️/.test(revealSrc), 'no emoji cart/car');
 assert(/data-race-kind', 'poll-minecart'/.test(revealSrc) || /poll-minecart/.test(revealSrc), 'horizontal poll race kind');
 assert(/data-race-kind', 'reaction-spatial'/.test(revealSrc) || /reaction-spatial/.test(revealSrc), 'vertical reaction race kind');
 assert(/translateY\(-\$\{h\}px\)/.test(revealSrc) || /translateY\(-' \+ h \+ 'px\)/.test(revealSrc), 'icon lifts with bar');
+assert(/function measureRide/.test(revealSrc) && /barFromBottom/.test(revealSrc), 'bar bottom pinned to icon rest position');
+assert(/cart\.style\.left = p \+ '%'/.test(revealSrc), 'cart left follows leading edge');
 assert(/MAX_BAR_PX/.test(revealSrc) && /grown = elapsed \* velocity/.test(revealSrc), 'shared %-point velocity');
 assert(/maxPct \/ MAX_MS/.test(revealSrc), 'speed = maxResult / 3s');
 assert(/prefersReducedMotion/.test(revealSrc), 'reduced motion respected');

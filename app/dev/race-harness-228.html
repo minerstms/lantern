@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Race harness #228</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; --line: rgba(255,255,255,.12); }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+      padding: 16px 12px 48px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 24px; margin: 28px 0 12px; }
+    p, li { font-size: 22px; line-height: 1.35; }
+    .banner {
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-weight: 800;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,.04);
+      margin-bottom: 16px;
+    }
+    button.replay {
+      width: 100%;
+      min-height: 52px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+    #hud {
+      font-size: 18px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      background: #071018;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+    .lanternFinalRxPanel { margin-top: 0; border-top: 0; padding-top: 0; }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY visual harness. Not a student page. Fixture percentages only. Does not write D1 or create users.</p>
+  <h1>Race harness #228</h1>
+  <p>Fixtures: 12%, 34%, 57%, 83%, 100%. Same production race helpers.</p>
+
+  <h2>Reaction spatial race</h2>
+  <div class="panel" id="rxPanel">
+    <div class="lanternFinalRxPanel" id="rxRoot"></div>
+    <button type="button" class="replay" id="rxReplay">Replay reaction race</button>
+  </div>
+
+  <h2>Poll mine-cart race</h2>
+  <div class="panel">
+    <div id="pollRoot"></div>
+    <button type="button" class="replay" id="pollReplay">Replay poll race</button>
+  </div>
+
+  <h2>Live attachment log</h2>
+  <div id="hud">Waiting…</div>
+
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script>
+    (function () {
+      var FIXTURES = [
+        { label: 'Twelve', emoji: '❤️', type: 'heart', percentage: 12, selected: false },
+        { label: 'Thirty-four', emoji: '⭐', type: 'star', percentage: 34, selected: true },
+        { label: 'Fifty-seven', emoji: '💡', type: 'lightbulb', percentage: 57, selected: false },
+        { label: 'Eighty-three', emoji: '🤝', type: 'teamwork', percentage: 83, selected: false },
+        { label: 'Hundred', emoji: '🔥', type: 'fire', percentage: 100, selected: false }
+      ];
+      var POLL = [
+        { label: '12%', percentage: 12, selected: false },
+        { label: '34%', percentage: 34, selected: true },
+        { label: '57%', percentage: 57, selected: false },
+        { label: '83%', percentage: 83, selected: false },
+        { label: '100%', percentage: 100, selected: false }
+      ];
+      var hud = document.getElementById('hud');
+      var samples = [];
+      var finishes = { rx: {}, poll: {} };
+
+      function rxHtml() {
+        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1">';
+        FIXTURES.forEach(function (v) {
+          html +=
+            '<div class="lanternRxLane">' +
+            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
+            '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>' +
+            '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
+            '</div>';
+        });
+        return html + '</div></div>';
+      }
+
+      function mountRx() {
+        var root = document.getElementById('rxRoot');
+        root.innerHTML = rxHtml();
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, FIXTURES, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: false
+        });
+      }
+
+      function mountPoll() {
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(document.getElementById('pollRoot'), POLL, {
+          listLabel: 'Harness poll results',
+          playAudio: false
+        });
+      }
+
+      function gap(a, b) {
+        return Math.round(Math.abs(a - b));
+      }
+
+      function sampleOnce() {
+        var lines = [];
+        var rxOk = true;
+        var pollOk = true;
+        document.querySelectorAll('#rxRoot .lanternRxLane').forEach(function (lane, i) {
+          var bar = lane.querySelector('[data-race-fill]');
+          var btn = lane.querySelector('.lanternFinalRxChoice');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!bar || !btn) return;
+          var br = bar.getBoundingClientRect();
+          var ir = btn.getBoundingClientRect();
+          var shown = Number(bar.getAttribute('data-race-shown') || 0);
+          var attach = gap(ir.bottom, br.top);
+          if (shown > 2 && attach > 10) rxOk = false;
+          if (shown >= FIXTURES[i].percentage && !finishes.rx[i]) finishes.rx[i] = Date.now();
+          lines.push(
+            'RX ' + FIXTURES[i].percentage + '% shown=' + shown +
+            ' barH=' + Math.round(br.height) +
+            ' iconΔbarTop=' + attach + 'px' +
+            ' pct=' + (pctEl && pctEl.textContent || '—')
+          );
+        });
+        document.querySelectorAll('#pollRoot .lanternPollRaceLane').forEach(function (lane, i) {
+          var fill = lane.querySelector('[data-race-fill]');
+          var cart = lane.querySelector('[data-race-cart]');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!fill || !cart) return;
+          var fr = fill.getBoundingClientRect();
+          var cr = cart.getBoundingClientRect();
+          var shown = Number(fill.getAttribute('data-race-shown') || 0);
+          var attach = gap(cr.left + cr.width / 2, fr.right);
+          if (shown > 2 && attach > 14) pollOk = false;
+          if (shown >= POLL[i].percentage && !finishes.poll[i]) finishes.poll[i] = Date.now();
+          lines.push(
+            'POLL ' + POLL[i].percentage + '% shown=' + shown +
+            ' fillW=' + Math.round(fr.width) +
+            ' cartΔfillEdge=' + attach + 'px' +
+            ' pct=' + (pctEl && pctEl.textContent || '—')
+          );
+        });
+        var rxOrder = Object.keys(finishes.rx).map(Number).sort(function (a, b) { return finishes.rx[a] - finishes.rx[b]; });
+        var pollOrder = Object.keys(finishes.poll).map(Number).sort(function (a, b) { return finishes.poll[a] - finishes.poll[b]; });
+        lines.push('RX finish order: ' + rxOrder.map(function (i) { return FIXTURES[i].percentage + '%'; }).join(' → '));
+        lines.push('POLL finish order: ' + pollOrder.map(function (i) { return POLL[i].percentage + '%'; }).join(' → '));
+        lines.push('icon rides bar: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
+        hud.textContent = lines.join('\n');
+        samples.push({ t: Date.now(), rxOk: rxOk, pollOk: pollOk });
+      }
+
+      document.getElementById('rxReplay').addEventListener('click', function () {
+        finishes.rx = {};
+        mountRx();
+      });
+      document.getElementById('pollReplay').addEventListener('click', function () {
+        finishes.poll = {};
+        mountPoll();
+      });
+
+      mountRx();
+      mountPoll();
+      setInterval(sampleOnce, 120);
+      window.__LANTERN_RACE_HARNESS = { fixtures: FIXTURES, poll: POLL, finishes: finishes, samples: samples };
+    })();
+  </script>
+</body>
+</html>

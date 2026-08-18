@@ -1349,9 +1349,11 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 }
 .lanternPollRaceTrack{
   position: relative;
-  height: 28px;
+  height: 40px;
   border-radius: 999px;
-  background: rgba(255,255,255,.12);
+  background:
+    linear-gradient(180deg, transparent 16px, rgba(232,196,92,.55) 16px, rgba(232,196,92,.55) 24px, transparent 24px),
+    rgba(255,255,255,.1);
   overflow: visible;
 }
 .lanternPollRaceFill{

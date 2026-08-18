@@ -175,8 +175,22 @@
 .lanternFinalRxPanel.lanternRxRaceLive .lanternFinalRxRaceArena,
 .lanternFinalRxChoices.lanternRxChoices--racing,
 .lanternReactionBar.lanternRxChoices--racing{
-  min-height: 220px;
+  min-height: 252px;
   overflow: visible;
+}
+.lanternRxChoices--racing .lanternRxLane,
+.lanternRxRaceLive .lanternRxLane{
+  min-height: 252px;
+}
+.lanternRxLane .lanternFinalRxChoice,
+.lanternRxLane .lanternReactionBtn{
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s !important;
+}
+.lanternRxChoices--racing .lanternFinalRxChoice,
+.lanternRxChoices--racing .lanternReactionBtn,
+.lanternRxRaceLive .lanternFinalRxChoice[aria-disabled="true"],
+.lanternRxRaceLive .lanternReactionBtn:disabled{
+  opacity: 1 !important;
 }
 .lanternFinalRxChoices {
   display: grid;
@@ -208,6 +222,7 @@
   background: linear-gradient(180deg, rgba(90,167,255,.9), rgba(90,167,255,.28));
   z-index: 1;
   pointer-events: none;
+  transform-origin: bottom center;
 }
 .lanternRxLane--yours .lanternRxRaceBar{
   background: linear-gradient(180deg, rgba(56,208,124,.95), rgba(56,208,124,.3));
