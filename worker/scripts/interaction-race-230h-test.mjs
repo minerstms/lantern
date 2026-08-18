@@ -66,7 +66,14 @@ assert(!!panelBlock, 'reaction panel rule present');
 assert(panelBlock && /border-top:\s*none/.test(panelBlock[0]), 'divider above Leave a reaction! removed');
 assert(panelBlock && !/border-top:\s*1px/.test(panelBlock[0]), 'panel rule does not replace the divider');
 assert(/Leave a reaction!/.test(finalRx) && /lanternFinalRxHeading/.test(finalRx), 'heading preserved');
-assert(/padding-top:\s*14px/.test(panelBlock ? panelBlock[0] : ''), 'comfortable spacing above heading kept');
+assert(panelBlock && /padding-top:\s*4px/.test(panelBlock[0]), 'heading keeps tight panel padding after the line is gone');
+const overlayRx = cardsCss.match(/\.lanternCardDetailOverlay \.lanternCardDetailReactions\{[^}]+\}/);
+assert(!!overlayRx, 'opened-post reaction panel rule present');
+assert(
+  overlayRx && overlayRx[0].lastIndexOf('border-top:') > overlayRx[0].lastIndexOf('border:'),
+  'opened-post reaction top border stays removed after the border shorthand'
+);
+assert(/rxscroll230h/.test(explore), 'Explore cache-busts cards + reaction CSS for #230H');
 
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 assert(/data-race-kind', 'poll-minecart'/.test(pollFn), 'poll race kind unchanged');
@@ -77,7 +84,6 @@ assert(!/textContent = 'Lock In'/.test(cardUi) && /submitPollChoice/.test(cardUi
 assert(/C_MAJOR_HZ/.test(audioSrc) && /261\.626/.test(audioSrc) && /523\.251/.test(audioSrc), 'C-major audio unchanged');
 assert(/lantern\.raceSound\.muted/.test(audioSrc) && /muteControlHtml/.test(audioSrc), 'mute preference + control unchanged');
 assert(/MAX_MS = 3000/.test(revealSrc) && /maxPct \/ MAX_MS/.test(revealSrc), 'race timing unchanged');
-assert(/rxscroll230h/.test(explore), 'Explore cache-busts reaction CSS for #230H');
 assert(/overflow-y:\s*auto/.test(cardsCss) && /lanternCardDetailOverlay--rx-racing/.test(cardsCss), 'opened-post overlay stays scrollable during race');
 
 console.log('\n--- interaction-race-230h-test: ' + pass + ' passed, ' + fail + ' failed ---');

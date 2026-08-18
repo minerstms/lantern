@@ -158,8 +158,8 @@
 /* ===== Immutable finalized feed reactions (Lock In) ===== */
 .lanternFinalRxPanel {
   position: relative;
-  margin-top: 12px;
-  padding-top: 14px;
+  margin-top: 0;
+  padding-top: 4px;
   border-top: none;
 }
 .lanternFinalRxHeading {
