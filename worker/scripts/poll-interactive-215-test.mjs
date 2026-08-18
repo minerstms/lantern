@@ -32,7 +32,7 @@ const workerSrc = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'app/css/lantern-cards.css'), 'utf8');
 
 assert(/type === 'poll'[\s\S]{0,200}openPoll/.test(cardUi), 'H. openFeedItem routes poll → openPoll');
-assert(/pollLockInBtn/.test(cardUi) && /Lock In/.test(cardUi), 'Lock In commit control present');
+assert(!/textContent = 'Lock In'/.test(cardUi) && /submitPollChoice/.test(cardUi), 'direct submit — no Lock In');
 assert(/role',\s*'radiogroup'/.test(cardUi) || /role="radiogroup"/.test(cardUi), 'radiogroup semantics');
 assert(/is-selected/.test(cardUi) && /is-selected/.test(css), 'selected visual state');
 assert(/credentials:\s*'include'/.test(cardUi) && /\/api\/polls\//.test(cardUi), 'poll GET uses credentials');

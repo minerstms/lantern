@@ -313,7 +313,8 @@ if (finalizeBody.body.total_responses === undefined && finalizeBody.status === 4
 
 const reactionsCss = fs.readFileSync(path.join(root, 'app/css/lantern-reactions.css'), 'utf8');
 if (
-  reactionsCss.includes('grid-template-columns: repeat(5, 1fr)') &&
+  (reactionsCss.includes('grid-template-columns: repeat(5, 1fr)') ||
+    reactionsCss.includes('grid-template-columns: repeat(5, minmax(0, 1fr))')) &&
   reactionsCss.includes('.lanternFinalRxResultCell')
 ) {
   ok('five-column reaction grid CSS');
@@ -323,7 +324,7 @@ const finalJs = fs.readFileSync(path.join(root, 'app/js/lantern-final-reactions.
 if (
   finalJs.includes('Leave a reaction!') &&
   !finalJs.includes('How did this make you feel?') &&
-  finalJs.includes('lanternFinalRxConfirmCancel') &&
+  finalJs.includes('submitChoice') &&
   FINAL_REACTION_TYPES.length === 5 &&
   !finalJs.includes('Student reactions appear') &&
   !finalJs.includes('students_only') &&

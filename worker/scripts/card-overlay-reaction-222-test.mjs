@@ -122,13 +122,13 @@ assert((spanHtml.match(/identity-chip/g) || []).length === 1, '22c. one avatar o
 assert(!/lanternCanonicalCardMetaRow[\s\S]*identity-chip/.test(spanHtml), '22d. avatar not nested inside MetaRow');
 
 assert(FR && Array.isArray(FR.VOCAB) && FR.VOCAB.length === 5, '23. five reactions preserved');
-assert(!/lanternFinalRxLockBtn/.test(rxJs) || /display:\s*none/.test(rxCss), '24. permanent Lock In hidden/removed');
-assert(/Lock it in!/.test(rxJs), '25. Lock it in! copy');
-assert(/Choose another\./.test(rxJs), '26. Choose another. copy');
-assert(/lanternFinalRxConfirmOk/.test(rxCss) && /56,\s*132,\s*255|90,\s*167,\s*255/.test(rxCss), '27. Lock it in blue styling');
-assert(/190,\s*48,\s*48|220,\s*72,\s*72/.test(rxCss), '28. Choose another red styling');
-assert(/clearTentative|draft = null/.test(rxJs), '29. Choose another clears tentative');
-assert(/submitting/.test(rxJs) && /Could not lock in response/.test(rxJs), '30. failure restores interactive state');
+assert(!/Lock it in!/.test(rxJs) && !/confirmPopoverHtml/.test(rxJs), '24. no Lock it in confirmation');
+assert(/submitChoice/.test(rxJs) && /finalizeReaction/.test(rxJs), '25. tap submits immediately');
+assert(/mountReactionSpatialRace/.test(rxJs), '26. spatial reaction race');
+assert(/Could not save response/.test(rxJs), '27. failure restores interactive state');
+assert(/submitting/.test(rxJs), '28. in-flight submit guard');
+assert(/changed after you choose/.test(rxJs), '29. locked notice copy');
+assert(/lanternFinalRxChoice--on/.test(rxJs), '30. selected reaction marked');
 assert(!/renderResultsHtml\(/.test(rxJs.split('function renderDraft')[1].split('function ')[0]) || true, '31. draft path does not auto-show percentages');
 assert(/status\.finalized/.test(rxJs) && /renderLocked/.test(rxJs), '32. return visit locked + results');
 

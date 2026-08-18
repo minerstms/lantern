@@ -1249,6 +1249,9 @@
           <label for="newsBody" id="newsBodyLabel">Description</label>
           <textarea id="newsBody" class="studioBodyInput" placeholder="Your story…" rows="6"></textarea>
         </div>
+        <div id="contributeReactionPickerWrap" class="contributeCreateFullRow" style="display:none;">
+          <div id="contributeReactionPickerHost"></div>
+        </div>
         </div>
 
         <div class="contributeActionRow" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;align-items:stretch;">
@@ -1334,6 +1337,8 @@
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-studio-stream-grid.js"></script>
   <script src="js/lantern-studio-opened-preview-scale.js"></script>
+  <script src="js/lantern-race-audio.js"></script>
+  <script src="js/lantern-reaction-bank.js"></script>
   <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-reactions.js"></script>
   <script src="js/lantern-final-reactions.js"></script>
@@ -1717,6 +1722,8 @@
       if (peopleWrap) peopleWrap.style.display = (t === 'post' || t === 'poll') ? 'block' : 'none';
       var pollAns = el('contributePollAnswersRow');
       if (pollAns) pollAns.style.display = t === 'poll' ? 'block' : 'none';
+      var rxPick = el('contributeReactionPickerWrap');
+      if (rxPick) rxPick.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
       if (document.body) {
         document.body.classList.add('contributeStudioOpen');
       }
@@ -1933,6 +1940,14 @@
       } catch (e) {}
     })();
     rebuildPollOptionInputs(3);
+    (function mountContributeReactionPicker(){
+      var host = el('contributeReactionPickerHost');
+      if (!host || !window.LANTERN_REACTION_BANK || typeof window.LANTERN_REACTION_BANK.mountPicker !== 'function') return;
+      window.__lanternContributeReactionPicker = window.LANTERN_REACTION_BANK.mountPicker(host, {
+        collapsed: true,
+        selectedTypes: window.LANTERN_REACTION_BANK.DEFAULT_FIVE.map(function (v) { return v.type; })
+      });
+    })();
     syncContributeTypeUI();
     // Prompt #190 — shared People picker (Recognizing required for Shout-Out; optional People for News/Poll).
     (function mountContributePeoplePickers(){

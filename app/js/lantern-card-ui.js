@@ -220,7 +220,7 @@
     if (!body) return;
     var read = body.querySelector('.lanternCardDetailBodyRead');
     var hasText = !!(read && String(read.textContent || '').trim());
-    var hasPollUi = !!(read && (read.querySelector('.pollChoiceBtn, .pollChoiceGroup, .pollResultsWrap, #lanternPollDetailChoices, .pollLockInBtn')));
+    var hasPollUi = !!(read && (read.querySelector('.pollChoiceBtn, .pollChoiceGroup, .pollResultsWrap, #lanternPollDetailChoices, .lanternPollRace')));
     body.style.display = hasText || hasPollUi ? '' : 'none';
   }
 
@@ -317,7 +317,7 @@
       chrome.read.dataset.lanternReadWired = '1';
       chrome.read.addEventListener('click', function (e) {
         var t = e.target;
-        if (t && t.closest && t.closest('a, button, input, textarea, select, video, .pollChoiceBtn, .pollLockInBtn')) return;
+        if (t && t.closest && t.closest('a, button, input, textarea, select, video, .pollChoiceBtn, .lanternRaceSoundBtn')) return;
         if (!modalRoot.classList.contains('lanternCardDetailModal--truncated')) return;
         if (modalRoot.classList.contains('lanternCardDetailModal--reading')) return;
         if (modalRoot.classList.contains('lanternCardDetailModal--poll')) return;
@@ -387,7 +387,7 @@
     if (read) read.scrollTop = 0;
     ensureCanonicalBodyChrome(modalRoot);
     var kind = String(ctx.kind || '').toLowerCase();
-    var isPoll = kind === 'poll' || !!(modalRoot.querySelector('#lanternPollDetailChoices, .pollChoiceGroup, .pollLockInBtn'));
+    var isPoll = kind === 'poll' || !!(modalRoot.querySelector('#lanternPollDetailChoices, .pollChoiceGroup, .lanternPollRace'));
     modalRoot.classList.toggle('lanternCardDetailModal--poll', isPoll);
     var hasVideo = !!(modalRoot.querySelector('.lanternDetailMedia--video, video.newsCardVideo, video.lcCardVideo'));
     modalRoot.classList.toggle('lanternCardDetailModal--video', hasVideo);
@@ -1789,8 +1789,16 @@
   function revealPollResults(resultsEl, results, votedChoiceIndex) {
     if (!resultsEl) return;
     var items = pollResultItems(results, votedChoiceIndex);
-    if (global.LANTERN_RESULT_REVEAL && typeof global.LANTERN_RESULT_REVEAL.mountResultRace === 'function') {
-      global.LANTERN_RESULT_REVEAL.mountResultRace(resultsEl, items, {
+    var api = global.LANTERN_RESULT_REVEAL;
+    if (api && typeof api.mountPollMineCartRace === 'function') {
+      api.mountPollMineCartRace(resultsEl, items, {
+        summaryHtml: '<p class="pollResultsSummary">You voted</p>',
+        listLabel: 'Poll results',
+      });
+      return;
+    }
+    if (api && typeof api.mountResultRace === 'function') {
+      api.mountResultRace(resultsEl, items, {
         summaryHtml: '<p class="pollResultsSummary">You voted</p>',
         listLabel: 'Poll results',
       });
@@ -2003,75 +2011,47 @@
       resultsEl.style.display = 'none';
       nuggetEl.style.display = 'none';
       choicesEl.innerHTML = '';
-      var selectedIdx = null;
-      var lockBtn = null;
       var group = global.document.createElement('div');
       group.className = 'pollChoiceGroup';
       group.setAttribute('role', 'radiogroup');
       group.setAttribute('aria-label', 'Poll choices');
 
-      function syncChoiceSelection() {
+      function armRaceAudio() {
+        var a = global.LANTERN_RACE_AUDIO;
+        if (a && typeof a.ensureFromGesture === 'function') a.ensureFromGesture();
+      }
+
+      function setChoicesBusy(on, selectedIdx) {
+        group._busy = !!on;
         var buttons = group.querySelectorAll('.pollChoiceBtn');
         for (var bi = 0; bi < buttons.length; bi++) {
-          var on = selectedIdx === bi;
-          buttons[bi].classList.toggle('is-selected', on);
-          buttons[bi].setAttribute('aria-checked', on ? 'true' : 'false');
-        }
-        if (lockBtn) {
-          lockBtn.disabled = selectedIdx == null;
+          buttons[bi].disabled = !!on;
+          var isOn = selectedIdx === bi;
+          buttons[bi].classList.toggle('is-selected', isOn);
+          buttons[bi].setAttribute('aria-checked', isOn ? 'true' : 'false');
         }
       }
 
-      (p.choices || []).forEach(function (choice, idx) {
-        var btn = global.document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'pollChoiceBtn';
-        btn.setAttribute('role', 'radio');
-        btn.setAttribute('aria-checked', 'false');
-        btn.textContent = choice || ('Choice ' + (idx + 1));
-        btn.addEventListener('click', function () {
-          if (selectedIdx === idx) {
-            selectedIdx = null;
-          } else {
-            selectedIdx = idx;
-          }
-          syncChoiceSelection();
-        });
-        group.appendChild(btn);
-      });
-      choicesEl.appendChild(group);
-
-      lockBtn = global.document.createElement('button');
-      lockBtn.type = 'button';
-      lockBtn.className = 'btn good pollLockInBtn';
-      lockBtn.textContent = 'Lock In';
-      lockBtn.disabled = true;
-      lockBtn.addEventListener('click', function () {
-        if (selectedIdx == null || lockBtn._busy) return;
+      function submitPollChoice(idx) {
+        if (group._busy) return;
         if (!characterName) {
           try {
             global.alert('Sign in to vote on this poll.');
           } catch (e3) {}
           return;
         }
-        lockBtn._busy = true;
-        lockBtn.disabled = true;
-        lockBtn.textContent = 'Saving…';
-        var choiceButtons = group.querySelectorAll('.pollChoiceBtn');
-        for (var di = 0; di < choiceButtons.length; di++) choiceButtons[di].disabled = true;
+        armRaceAudio();
+        setChoicesBusy(true, idx);
         global.fetch(apiBase + '/api/polls/vote', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ poll_id: pollId, choice_index: selectedIdx })
+          body: JSON.stringify({ poll_id: pollId, choice_index: idx })
         })
           .then(function (resp) { return resp.json(); })
           .then(function (voteRes) {
             if (!voteRes || !voteRes.ok) {
-              lockBtn._busy = false;
-              lockBtn.textContent = 'Lock In';
-              lockBtn.disabled = selectedIdx == null;
-              for (var ei = 0; ei < choiceButtons.length; ei++) choiceButtons[ei].disabled = false;
+              setChoicesBusy(false, null);
               try {
                 global.alert(voteRes && voteRes.error ? voteRes.error : 'Vote failed');
               } catch (e4) {}
@@ -2081,7 +2061,6 @@
             var r2 = modalRoot.querySelector('#lanternPollDetailResults');
             var n2 = modalRoot.querySelector('#lanternPollDetailNugget');
             if (c2) c2.innerHTML = '';
-            if (lockBtn && lockBtn.parentNode) lockBtn.parentNode.removeChild(lockBtn);
             if (r2) {
               r2.style.display = 'block';
               revealPollResults(r2, voteRes.results || [], voteRes.voted_choice_index);
@@ -2092,17 +2071,26 @@
             }
           })
           .catch(function () {
-            lockBtn._busy = false;
-            lockBtn.textContent = 'Lock In';
-            lockBtn.disabled = selectedIdx == null;
-            for (var fi = 0; fi < choiceButtons.length; fi++) choiceButtons[fi].disabled = false;
+            setChoicesBusy(false, null);
             try {
               global.alert('Unable to save your vote. Please try again.');
             } catch (e5) {}
           });
+      }
+
+      (p.choices || []).forEach(function (choice, idx) {
+        var btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pollChoiceBtn';
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-checked', 'false');
+        btn.textContent = choice || ('Choice ' + (idx + 1));
+        btn.addEventListener('click', function () {
+          submitPollChoice(idx);
+        });
+        group.appendChild(btn);
       });
-      choicesEl.appendChild(lockBtn);
-      syncChoiceSelection();
+      choicesEl.appendChild(group);
     }
     } finally {
       prepareCanonicalOpenedModal(modalRoot, { kind: 'poll' });

@@ -258,26 +258,26 @@
     });
     container.appendChild(wrap);
     if (computed.total > 0) {
-      var host = document.createElement('div');
-      host.className = 'lanternReactionResultsHost';
-      container.appendChild(host);
       var raceItems = vocab.map(function (r) {
         return {
           label: r.label,
           emoji: r.emoji,
+          type: r.type,
           percentage: computed.percents[r.type] != null ? computed.percents[r.type] : 0,
           selected: !!mySet[r.type],
         };
       });
-      if (global.LANTERN_RESULT_REVEAL && typeof global.LANTERN_RESULT_REVEAL.mountResultRace === 'function') {
-        global.LANTERN_RESULT_REVEAL.mountResultRace(host, raceItems, { listLabel: 'Reaction results' });
-      } else {
-        host.innerHTML = raceItems.map(function (it) {
-          return '<div class="lanternResultRaceRow' + (it.selected ? ' lanternResultRaceRow--yours' : '') + '">' +
-            '<div class="pollResultLabel"><span>' + it.emoji + ' ' + it.label +
-            (it.selected ? ' <em class="pollYourChoiceMark">Your choice</em>' : '') +
-            '</span><span>' + it.percentage + '%</span></div></div>';
-        }).join('');
+      var api = global.LANTERN_RESULT_REVEAL;
+      if (api && typeof api.mountReactionSpatialRace === 'function') {
+        api.mountReactionSpatialRace(wrap, raceItems, {
+          choiceSelector: '.lanternReactionBtn',
+          typeAttr: 'data-reaction-type',
+        });
+      } else if (api && typeof api.mountResultRace === 'function') {
+        var host = document.createElement('div');
+        host.className = 'lanternReactionResultsHost';
+        container.appendChild(host);
+        api.mountResultRace(host, raceItems, { listLabel: 'Reaction results' });
       }
     }
   }

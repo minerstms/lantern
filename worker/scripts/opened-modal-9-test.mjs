@@ -29,7 +29,7 @@ assert(/overscroll-behavior:\s*contain/.test(cardsCss), '9. overlay overscroll c
 assert(/touch-action:\s*pan-y/.test(cardsCss), '10. overlay allows vertical pan');
 assert(/linear-gradient\(180deg,\s*rgba\(22,\s*36,\s*62/.test(cardsCss), '11. branded modal surface gradient');
 assert(/pollChoiceBtn[\s\S]{0,200}linear-gradient\(180deg,\s*rgba\(90,167,255/.test(cardsCss), '12. poll choices polished');
-assert(/\.pollLockInBtn\s*\{[\s\S]{0,280}linear-gradient\(180deg,\s*rgba\(90,167,255/.test(cardsCss), '13. lock-in button polished');
+assert(/submitPollChoice/.test(cardUi) && !/textContent = 'Lock In'/.test(cardUi), '13. poll tap submits immediately');
 assert(/lanternCardDetailBody[\s\S]{0,120}border-radius:\s*14px/.test(cardsCss), '14. body section surface');
 assert(/lanternCardDetailReactions[\s\S]{0,160}border-radius:\s*14px/.test(cardsCss), '15. reactions section surface');
 
@@ -38,7 +38,7 @@ assert(/function unlockPageScrollForDetail/.test(cardUi), '17. page scroll unloc
 assert(/function showDetailOverlay/.test(cardUi), '18. shared showDetailOverlay');
 assert(/showDetailOverlay\(el\)/.test(cardUi) && /openNews|openCreation|openPoll|openTextDetail|openFeedItem/.test(cardUi), '19. open paths use show helper');
 assert(/unlockPageScrollForDetail\(\)/.test(cardUi) && /function closeDetail/.test(cardUi), '20. close unlocks scroll');
-assert(/fillPollDetailModal/.test(cardUi) && /Lock In|Lock it in/.test(cardUi), '21. poll lock-in flow preserved');
+assert(/fillPollDetailModal/.test(cardUi) && /submitPollChoice/.test(cardUi), '21. poll direct-submit flow preserved');
 assert(/openPoll/.test(cardUi) && /type === 'poll'/.test(cardUi), '22. poll routing preserved');
 assert(/fillCreationDetailModal|openCreation/.test(cardUi), '23. mission/creation modal preserved');
 assert(/fillNewsDetailModal|openNews/.test(cardUi), '24. news/shout modal preserved');

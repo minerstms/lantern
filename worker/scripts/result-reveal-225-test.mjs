@@ -63,10 +63,10 @@ if (/scaleX/.test(src) && /is-pending/.test(src) && /whenVisible/.test(src) && /
   ok('race uses scaleX + waits for visible container + shared %-point velocity');
 } else bad('race visibility/transform model');
 
-if (/mountResultRace/.test(finalRx) && /Your choice/.test(finalRx)) ok('final reactions use shared race + your choice');
+if (/mountReactionSpatialRace/.test(finalRx) && /Your choice/.test(finalRx)) ok('final reactions use spatial race + your choice');
 else bad('final reaction race');
 
-if (/mountResultRace/.test(rx) && /is-mine/.test(rx) && /lanternReactionResultsHost/.test(rx)) ok('explore reactions race percentages and keep is-mine');
+if ((/mountReactionSpatialRace/.test(rx) || /mountResultRace/.test(rx)) && /is-mine/.test(rx)) ok('explore reactions race percentages and keep is-mine');
 else bad('explore reaction race');
 
 if (/lantern-result-reveal\.js/.test(explore)) ok('explore.html loads shared reveal');
