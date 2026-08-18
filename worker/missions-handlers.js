@@ -31,6 +31,7 @@ import {
   validateMissionSubmissionPayload,
 } from './missions-auth.js';
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
+import { resolveTeacherMissionReward, resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import {
   WAVE2_MISSION_IDS,
   claimDailyCheckInForCharacter,
@@ -745,9 +746,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const description = (body.description || '').trim().slice(0, 1000);
-    // Prompt #159: ordinary mission reward is locked to exactly 1 Nugget.
-    // Client-supplied reward_amount is ignored (was clamp 1–99; DB default still 3 cosmetically).
-    const rewardAmount = 1;
+    // Prompt #229: teacher chooses reward; server clamps to System Admin mission min/max.
+    const rewardAmount = await resolveTeacherMissionReward(db, body.reward_amount);
     const submissionType = normalizeSubmissionType(body.submission_type, 'text');
     // Prompt #10 — normal manual missions are school-wide for every authenticated participant.
     // Preserve audience/participant_scope columns historically, but new creates normalize to
@@ -931,9 +931,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       bindings.push(String(body.description).trim().slice(0, 1000));
     }
     if (body.reward_amount !== undefined) {
-      // Prompt #159: ordinary mission reward is not editable — always persist 1.
+      const nextReward = await resolveTeacherMissionReward(db, body.reward_amount);
       updates.push('reward_amount = ?');
-      bindings.push(1);
+      bindings.push(nextReward);
     }
     if (body.featured !== undefined) {
       updates.push('featured = ?');
@@ -1574,8 +1574,8 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if (isSelfMissionSubmission(auth.account, row.character_name)) {
       return jsonResponse({ ok: false, error: 'self_approval_forbidden', message: 'You cannot approve or reward your own mission submission.' }, 403, cors);
     }
-    // Prompt #159: approval always awards exactly +1 Nugget (do not trust mission row / client).
-    const reward = 1;
+    // Prompt #229: future completions use the saved mission reward. Prior txs are not rewritten.
+    const reward = await resolveStoredMissionPayout(db, mission.reward_amount);
     const reviewer = reviewerLabelFromAccount(auth.account);
     const result = await finalizeMissionSubmission(db, env, {
       submissionRow: row,

@@ -13,6 +13,8 @@
  * stays constant across pages/viewports/content lengths.
  */
 
+import { handleNuggetEconomySettings } from './nugget-economy-settings.js';
+
 export const MARQUEE_SPEED_SETTING_KEY = 'marquee_speed_px_per_second';
 
 /**
@@ -141,6 +143,9 @@ export async function setVisibleWatermarkEnabled(db, enabled, updatedBy) {
 export async function handleSettingsRoutes(request, url, path, env, cors, deps) {
   const db = env.DB;
   if (!db) return deps.jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+
+  const economyRes = await handleNuggetEconomySettings(request, path, env, cors, deps);
+  if (economyRes) return economyRes;
 
   if (request.method === 'GET' && path === '/api/settings/marquee-speed') {
     const pxPerSecond = await getMarqueeSpeedPxPerSecond(db);

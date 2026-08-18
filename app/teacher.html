@@ -2274,6 +2274,11 @@
             <input type="checkbox" id="missionRequireImage" />
             <span class="teacherCheckboxLabel">Require image</span>
           </label>
+          <div id="missionRewardWrap" style="margin-top:12px;max-width:220px;">
+            <label for="missionRewardAmount">Nugget Reward</label>
+            <input type="number" id="missionRewardAmount" class="teacherInput teacherInput--sm" min="0" max="5" value="1" />
+            <p class="teacherFieldHint">Teacher chooses this. It is not calculated from image or character count. Changes apply to future submissions only.</p>
+          </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsVideo" />
             <span class="teacherCheckboxLabel">Video upload</span>
@@ -2288,7 +2293,7 @@
         <div class="teacherFieldGroup">Reward</div>
         <div class="teacherFieldRow teacherFieldRow--2">
           <div class="teacherField">
-            <p class="teacherFieldHint" id="missionRewardHint">Reward: <strong>1 Nugget</strong> (fixed for every ordinary mission).</p>
+            <p class="teacherFieldHint" id="missionRewardHint">Nugget Reward is in Submission requirements. Existing missions keep their saved reward if the default later changes.</p>
             <p class="teacherFieldHint">Active missions are available to every signed-in Lantern account (students, teachers, and admins).</p>
           </div>
         </div>
@@ -3245,6 +3250,28 @@
       return new Promise(function(resolve){
         run.withSuccessHandler(resolve).withFailureHandler(function(){ resolve({ ok: false }); }).returnGradeReflectionForImprovements({ id: id, reason: reason, returned_by: 'Teacher' });
       });
+    }
+    function applyMissionEconomyGuardrails(bundle){
+      var vals = bundle && bundle.values ? bundle.values : {};
+      var min = Number.isFinite(Number(vals.mission_min)) ? Number(vals.mission_min) : 0;
+      var max = Number.isFinite(Number(vals.mission_max)) ? Number(vals.mission_max) : 5;
+      var def = Number.isFinite(Number(vals.mission_default)) ? Number(vals.mission_default) : 1;
+      var createEl = el('missionRewardAmount');
+      if (createEl) {
+        createEl.min = String(min);
+        createEl.max = String(max);
+        createEl.value = String(def);
+      }
+      window.LANTERN_MISSION_ECONOMY = { min: min, max: max, default: def };
+    }
+    function loadMissionEconomyGuardrails(){
+      if (avatarApiBase === null) return;
+      fetch(avatarApiBase + '/api/settings/nugget-economy', { credentials: 'include' })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (res && res.ok) applyMissionEconomyGuardrails(res);
+        })
+        .catch(function(){});
     }
     function callCreateTeacherMission(opts){
       if (avatarApiBase !== null) {
@@ -4898,6 +4925,10 @@
       var n = Number(m && m.min_characters);
       return Number.isFinite(n) && n >= 0 ? String(Math.floor(n)) : '0';
     }
+    function missionRewardAmountValue(m){
+      var n = Number(m && (m.reward_amount != null ? m.reward_amount : m.mission_reward));
+      return Number.isFinite(n) && n >= 0 ? String(Math.floor(n)) : '1';
+    }
     function missionRequireImageOn(m){
       return !!(m && (m.require_image || Number(m.allows_image) >= 2));
     }
@@ -4907,7 +4938,8 @@
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (missionRequireImageOn(m) ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
           '<p class="teacherFieldHint">ON = students must attach an image. OFF = image is not required (uploads stay available).</p>' +
           '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
-          '<p class="teacherFieldHint">0 = no minimum. Changes apply to future submissions only.</p>' +
+          '<div style="margin-bottom:12px;max-width:220px;"><label>Nugget Reward</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="0" max="5" value="' + missionRewardAmountValue(m) + '" /></div>' +
+          '<p class="teacherFieldHint">0 = no minimum / no Nugget. Changes apply to future submissions only. Already-issued rewards are not rewritten.</p>' +
         '</div>'
       );
     }
@@ -4939,7 +4971,7 @@
         '<div class="teacherField"><label>Instructions</label><textarea class="teacherTextarea" data-edit="description">' + esc(m.description || '') + '</textarea></div>' +
         missionCardImageEditorHtml(m) +
         '<div class="teacherFieldRow teacherFieldRow--2">' +
-          '<div class="teacherField"><p class="teacherFieldHint">Reward: <strong>1 Nugget</strong> (fixed — not editable).</p></div>' +
+          '<div class="teacherField"><p class="teacherFieldHint">Nugget Reward is with submission requirements. Changes apply to future submissions only.</p></div>' +
           '<div class="teacherField"><label class="teacherCheckboxField"><input type="checkbox" data-edit="featured"' + (m.featured ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Promote this mission</span></label></div>' +
         '</div>' +
         (hasSubmissions
@@ -4995,10 +5027,15 @@
         if (cardKeyInput) updates.card_image_r2_key = (cardKeyInput.value || '').trim() || null;
         var requireEl = wrap.querySelector('[data-edit="require_image"]');
         var minEl = wrap.querySelector('[data-edit="min_characters"]');
+        var rewardEl = wrap.querySelector('[data-edit="reward_amount"]');
         if (requireEl) updates.require_image = !!requireEl.checked;
         if (minEl) {
           var minEditRaw = parseInt(minEl.value, 10);
           updates.min_characters = Number.isFinite(minEditRaw) && minEditRaw >= 0 ? minEditRaw : 0;
+        }
+        if (rewardEl) {
+          var rewardEditRaw = parseInt(rewardEl.value, 10);
+          updates.reward_amount = Number.isFinite(rewardEditRaw) ? rewardEditRaw : undefined;
         }
         if (!hasSubmissions) {
           updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
@@ -5847,8 +5884,10 @@
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
         var minRaw = parseInt(el('missionMinChars') && el('missionMinChars').value, 10);
         var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? minRaw : 0;
+        var rewardRaw = parseInt(el('missionRewardAmount') && el('missionRewardAmount').value, 10);
+        var rewardAmount = Number.isFinite(rewardRaw) ? rewardRaw : undefined;
         // Prompt #10/#78 — site_eligible archived; audience/participant_scope normalized server-side to school-wide/everyone.
-        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        var opts = { title: title, description: desc, reward_amount: rewardAmount, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();
         if (cardKeyCreate) opts.card_image_r2_key = cardKeyCreate;
         var res = await callCreateTeacherMission(opts);
@@ -6364,6 +6403,7 @@
       refreshShoutOuts();
     })();
 
+    loadMissionEconomyGuardrails();
     refresh();
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>

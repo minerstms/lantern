@@ -145,9 +145,9 @@ if (migrationFiles.length === 1) {
 // ---------------------------------------------------------------------------
 // Reward safety — Prompt #159 locks ordinary approval payout to exactly +1 Nugget
 // ---------------------------------------------------------------------------
-if (/const reward = 1;/.test(missionsHandlers) && /Prompt #159/.test(missionsHandlers)) {
-  ok('approval awards exactly 1 Nugget (Prompt #159 lock; does not trust mission.reward_amount)');
-} else bad('approval reward lock not found at expected call site');
+if (/resolveStoredMissionPayout/.test(missionsHandlers) && /resolveTeacherMissionReward/.test(missionsHandlers)) {
+  ok('approval pays the saved mission reward; create/update clamp via System Admin bounds');
+} else bad('approval/create reward resolver not found');
 
 if (/export function missionRewardTxId\(submissionId\)/.test(missionsReward) && /findMissionRewardTx/.test(missionsReward)) {
   ok('reward credit is keyed by a deterministic tx id derived from the submission id, not the mission\u2019s reward_amount — editing reward_amount later cannot alter an already-created tx');

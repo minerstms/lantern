@@ -1021,6 +1021,22 @@
     </div>
   </details>
 
+  <details class="card teacherCollapsibleList" id="nuggetEconomyCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Nugget Economy</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="nuggetEconomySummaryPill">Settings</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">System Admin configures routine Nugget amounts. Positive = earn. Negative = spend. 0 = no Nugget transaction. TMS remains the authoritative ledger. Historical transactions are never rewritten.</p>
+      <div id="nuggetEconomyMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+      <div id="nuggetEconomyRows"></div>
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn good" id="nuggetEconomySave">Save Nugget Economy</button>
+        <button type="button" class="btn" id="nuggetEconomyRefresh">Reload current</button>
+      </div>
+    </div>
+  </details>
+
   <details class="card teacherCollapsibleList" id="marqueeSpeedCard">
     <summary class="cardHd teacherCollapsibleListHd">
       <div class="teacherCollapsibleListTitle"><div class="h">Marquee (ticker) speed</div></div>
@@ -3996,6 +4012,97 @@
       }
     }
 
+    var ECONOMY_GROUP_LABELS = {
+      participation: 'Participation',
+      games: 'Games',
+      creation: 'Creation / Community',
+      discovery: 'Discovery',
+      missions: 'Missions'
+    };
+
+    function showNuggetEconomyMsg(text, kind) {
+      var el = document.getElementById('nuggetEconomyMsg');
+      if (!el) return;
+      if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
+      el.style.display = 'block';
+      el.textContent = text;
+      el.className = 'usersMsg' + (kind === 'err' ? ' err' : '');
+    }
+
+    function renderNuggetEconomyRows(payload) {
+      var host = document.getElementById('nuggetEconomyRows');
+      if (!host) return;
+      var rows = (payload && payload.rows) || [];
+      var html = '';
+      var lastGroup = '';
+      rows.forEach(function (row) {
+        if (row.group !== lastGroup) {
+          lastGroup = row.group;
+          html += '<div class="teacherFieldGroup" style="margin-top:16px;">' + (ECONOMY_GROUP_LABELS[row.group] || row.group) + '</div>';
+        }
+        html +=
+          '<div class="teacherField" style="margin-bottom:12px;" data-economy-id="' + row.id + '">' +
+          '<label for="economyVal_' + row.id + '">' + row.label +
+          (row.kind ? ' <span class="pendingMeta">(' + row.kind + ')</span>' : '') +
+          '</label>' +
+          '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">' +
+          '<input type="number" id="economyVal_' + row.id + '" class="teacherInput teacherInput--sm" min="' + row.min + '" max="' + row.max + '" step="1" value="' + row.value + '" />' +
+          '<span class="pendingMeta">now ' + row.value + (row.source === 'stored' ? '' : ' (fallback)') + '</span>' +
+          '</div>' +
+          '<p class="teacherFieldHint">' + (row.help || '') + ' Range ' + row.min + ' to ' + row.max + '.</p>' +
+          '</div>';
+      });
+      host.innerHTML = html;
+    }
+
+    function loadNuggetEconomy() {
+      fetch(api + '/api/settings/nugget-economy', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok) {
+            renderNuggetEconomyRows(res);
+            showNuggetEconomyMsg('', '');
+          } else {
+            showNuggetEconomyMsg('Could not load Nugget Economy settings.', 'err');
+          }
+        })
+        .catch(function () {
+          showNuggetEconomyMsg('Could not load Nugget Economy settings (network).', 'err');
+        });
+    }
+
+    var nuggetEconomySaveBtn = document.getElementById('nuggetEconomySave');
+    if (nuggetEconomySaveBtn) {
+      nuggetEconomySaveBtn.addEventListener('click', function () {
+        var values = {};
+        var nodes = document.querySelectorAll('#nuggetEconomyRows [data-economy-id]');
+        nodes.forEach(function (node) {
+          var id = node.getAttribute('data-economy-id');
+          var input = document.getElementById('economyVal_' + id);
+          if (id && input) values[id] = input.value;
+        });
+        nuggetEconomySaveBtn.disabled = true;
+        patchAdminJson('/api/settings/nugget-economy', { values: values }).then(function (res) {
+          if (res && res.body && res.body.ok) {
+            renderNuggetEconomyRows(res.body);
+            showNuggetEconomyMsg('Saved.', '');
+          } else {
+            showNuggetEconomyMsg((res && res.body && (res.body.error || res.body.message)) || 'Could not save.', 'err');
+          }
+          nuggetEconomySaveBtn.disabled = false;
+        }).catch(function () {
+          showNuggetEconomyMsg('Could not save (network).', 'err');
+          nuggetEconomySaveBtn.disabled = false;
+        });
+      });
+    }
+    var nuggetEconomyRefreshBtn = document.getElementById('nuggetEconomyRefresh');
+    if (nuggetEconomyRefreshBtn) {
+      nuggetEconomyRefreshBtn.addEventListener('click', function () {
+        loadNuggetEconomy();
+      });
+    }
+
     function loadMarqueeSpeed() {
       fetch(api + '/api/settings/marquee-speed', { credentials: 'include' })
         .then(function (r) { return r.json(); })
@@ -6354,6 +6461,7 @@
     loadPending();
     loadMarqueeSpeed();
     loadVisibleWatermark();
+    loadNuggetEconomy();
     setInterval(loadPending, 60000);
     setInterval(loadFeedModeration, 120000);
   })();

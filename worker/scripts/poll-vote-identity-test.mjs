@@ -82,6 +82,7 @@ function makeEnv(state) {
   state.transactions = state.transactions || [];
   state.wallets = state.wallets || {};
   state.identityLinks = state.identityLinks || {}; // lantern_username lower → { tms_staff_id }
+  state.settings = state.settings || {};
 
   function prepare(sql) {
     const s = String(sql);
@@ -114,6 +115,10 @@ function makeEnv(state) {
           const bal = state.wallets[binds[0]];
           return bal != null ? { balance: bal } : null;
         }
+        if (s.includes('FROM lantern_settings WHERE key')) {
+          const key = String(binds[0] || '');
+          return state.settings[key] != null ? { value: String(state.settings[key]) } : null;
+        }
         return null;
       },
       async all() {
@@ -131,6 +136,8 @@ function makeEnv(state) {
           state.transactions.push({ id: binds[0], character_name: binds[1], delta: binds[2], kind: binds[3], meta_json: binds[7] });
         } else if (s.includes('INSERT INTO lantern_wallets')) {
           state.wallets[binds[0]] = (state.wallets[binds[0]] || 0) + Number(binds[3] || 0);
+        } else if (s.includes('INSERT INTO lantern_settings')) {
+          state.settings[binds[0]] = binds[1];
         }
         return { success: true, meta: { changes: 1 } };
       },
@@ -198,6 +205,7 @@ async function main() {
     const state = {
       accounts: { '20889': studentAccount() },
       polls: { poll_2: { id: 'poll_2', choices_json: JSON.stringify(['A', 'B']) } },
+      settings: { 'economy.poll_response': '1' },
     };
     const env = makeEnv(state);
     const cookie = await cookieFor(studentAccount());
@@ -238,6 +246,7 @@ async function main() {
     const state = {
       accounts: { sam_star: demoAccount },
       polls: { poll_3: { id: 'poll_3', choices_json: JSON.stringify(['A', 'B']) } },
+      settings: { 'economy.poll_response': '1' },
     };
     const env = makeEnv(state);
     const cookie = await cookieFor(demoAccount);
@@ -266,6 +275,7 @@ async function main() {
     const state = {
       accounts: { ms_carter: teacherAccount },
       polls: { poll_4: { id: 'poll_4', choices_json: JSON.stringify(['A', 'B']) } },
+      settings: { 'economy.poll_response': '1' },
     };
     const env = makeEnv(state);
     const cookie = await cookieFor(teacherAccount);
@@ -306,6 +316,7 @@ async function main() {
       accounts: { ms_carter: teacherAccount },
       identityLinks: { ms_carter: { tms_staff_id: 'Carter', lantern_username: 'ms_carter' } },
       polls: { poll_5: { id: 'poll_5', choices_json: JSON.stringify(['A', 'B']) } },
+      settings: { 'economy.poll_response': '1' },
     };
     const env = makeEnv(state);
     const cookie = await cookieFor(teacherAccount);
@@ -337,6 +348,30 @@ async function main() {
     ) {
       ok('linked teacher reload/change-after-lock does not award a second Nugget');
     } else bad('linked teacher duplicate poll reward', replay);
+  });
+
+  // 6. Prompt #229 — default/missing poll_response is 0: vote saves, no TMS credit.
+  await withMockedBridge(() => ({ body: { ok: true, delta: 1 } }), async (getCalls) => {
+    const state = {
+      accounts: { '20889': studentAccount() },
+      polls: { poll_zero: { id: 'poll_zero', choices_json: JSON.stringify(['A', 'B']) } },
+    };
+    const env = makeEnv(state);
+    const cookie = await cookieFor(studentAccount());
+    const { status, json } = await postVote(env, cookie, { poll_id: 'poll_zero', choice_index: 0 });
+    const vote = state.votes.find((v) => v.poll_id === 'poll_zero');
+    const marker = state.voterRewards.find((v) => v.poll_id === 'poll_zero');
+    if (
+      status === 200 &&
+      json.ok &&
+      json.voter_nuggets === 0 &&
+      (json.reward_status === 'skipped' || json.reward_status === 'already') &&
+      vote &&
+      marker &&
+      getCalls().length === 0
+    ) {
+      ok('default poll_response 0 saves the vote and skips TMS (no zero-value ledger credit)');
+    } else bad('default poll reward 0', { status, json, vote, marker, tms: getCalls() });
   });
 
   console.log(`\npoll-vote-identity-test: ${pass} PASS ${fail} FAIL`);

@@ -209,8 +209,8 @@ export function missionVisibleToStudent(missionRow, studentKey) {
  * (regardless of that submission's later status) — changing audience/requirements mid-flight
  * would silently break students who already submitted under the old rules. `title`,
  * `description`, `active`, `featured`, `archived`, and `reward_amount` are intentionally NOT
- * listed here: they remain safe to edit at any time (reward_amount only affects FUTURE
- * approvals — historical paid rewards are frozen by missions-reward.js's idempotent tx id).
+ * listed here: they remain safe to edit at any time (Prompt #229 — reward_amount only affects
+ * FUTURE approvals; historical paid rewards are frozen by missions-reward.js's idempotent tx id).
  */
 export const MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION = [
   'audience',

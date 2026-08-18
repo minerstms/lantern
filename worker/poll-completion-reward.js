@@ -1,5 +1,6 @@
 /**
- * Prompt #169 — Poll completion Nugget: +1 once per poll per account.
+ * Prompt #169 / #229 — Poll completion Nugget: configured amount once per poll per account.
+ * Default/fallback is 0 (no TMS credit). Idempotency remains per poll + account.
  *
  * TMS references are globally unique, so the key MUST include the account:
  *   lantern:poll_complete:<poll_id>:<account_key>
@@ -9,6 +10,7 @@
  */
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
 import { isKnownDemoPersonaName } from './demo-persona-guard.js';
+import { resolveEconomyAmount } from './nugget-economy-settings.js';
 
 export function pollCompleteReference(pollId, characterName) {
   const poll = String(pollId || '').trim();
@@ -37,9 +39,26 @@ export async function creditPollCompletionReward(db, env, pollId, characterName)
     return { ok: true, status: 'already', voter_nuggets: 0 };
   }
 
+  const amount = await resolveEconomyAmount(db, 'poll_response');
+  if (amount === 0) {
+    const nowZero = new Date().toISOString();
+    const rewardIdZero = 'pvr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    try {
+      await db
+        .prepare(
+          'INSERT INTO lantern_poll_voter_rewards (id, poll_id, character_name, created_at) VALUES (?, ?, ?, ?)'
+        )
+        .bind(rewardIdZero, poll, who, nowZero)
+        .run();
+    } catch (e) {
+      if (!(e && /UNIQUE/i.test(String(e.message || e)))) throw e;
+    }
+    return { ok: true, status: 'skipped', voter_nuggets: 0 };
+  }
+
   const applied = await applyAuthoritativeNuggetDelta(db, env, {
     characterName: who,
-    delta: 1,
+    delta: amount,
     kind: 'poll_complete',
     source: 'POLL',
     note: 'Poll participation',
@@ -75,16 +94,22 @@ export async function creditPollCompletionReward(db, env, pollId, characterName)
   return {
     ok: true,
     status: applied.status === 'legacy' ? 'granted' : applied.status,
-    voter_nuggets: 1,
+    voter_nuggets: amount,
     authority: applied.authority,
   };
 }
 
 export function pollRewardResponseFields(reward) {
   reward = reward || {};
-  const newlyGranted = !!(reward.ok && reward.voter_nuggets && reward.status !== 'already');
+  const amount = Number(reward.voter_nuggets) || 0;
+  const newlyGranted = !!(
+    reward.ok &&
+    amount &&
+    reward.status !== 'already' &&
+    reward.status !== 'skipped'
+  );
   return {
-    voter_nuggets: newlyGranted ? 1 : 0,
+    voter_nuggets: newlyGranted ? amount : 0,
     reward_status: reward.status || 'none',
     reward_error: reward.ok ? null : reward.error || null,
   };

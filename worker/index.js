@@ -67,6 +67,7 @@ import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun, evaluatePaidRunForWin
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
+import { resolveEconomyAmount } from './nugget-economy-settings.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
 import { handleStaffStarterNuggets, isSystemWebAdminAccount } from './staff-starter-nuggets.js';
 import { handleInteractionsAnalytics } from './interactions-analytics.js';
@@ -6961,23 +6962,25 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     }
     let delta = Math.floor(Number(body.delta));
     if (kind === 'game_play') {
-      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== -1) {
+      const serverCost = await resolveEconomyAmount(db, 'game_play');
+      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== serverCost) {
         return jsonResponse(
-          { ok: false, error: 'client_delta_rejected', server_delta: -1, message: 'game_play costs exactly 1 Nugget' },
+          { ok: false, error: 'client_delta_rejected', server_delta: serverCost, message: 'game_play cost is server-authoritative' },
           400,
           cors
         );
       }
-      delta = -1;
+      delta = serverCost;
     } else if (kind === 'game_win') {
-      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== 1) {
+      const serverWin = await resolveEconomyAmount(db, 'game_win');
+      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== serverWin) {
         return jsonResponse(
-          { ok: false, error: 'client_delta_rejected', server_delta: 1, message: 'game_win awards exactly 1 Nugget' },
+          { ok: false, error: 'client_delta_rejected', server_delta: serverWin, message: 'game_win award is server-authoritative' },
           400,
           cors
         );
       }
-      delta = 1;
+      delta = serverWin;
       // Prompt #220 — win credit requires an existing paid game_play for this session
       // principal. Client transaction IDs / idempotency keys cannot mint a second credit.
       if (!secretOk) {
@@ -6998,17 +7001,18 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         meta.idempotency_key = runId;
       }
     } else if (kind === 'avatar_upload') {
-      // Prompt #179 — ordinary avatar submission costs exactly 1 Nugget (server-authoritative).
-      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== -1) {
+      const serverAvatar = await resolveEconomyAmount(db, 'avatar_upload');
+      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== serverAvatar) {
         return jsonResponse(
-          { ok: false, error: 'client_delta_rejected', server_delta: -1, message: 'avatar_upload costs exactly 1 Nugget' },
+          { ok: false, error: 'client_delta_rejected', server_delta: serverAvatar, message: 'avatar_upload cost is server-authoritative' },
           400,
           cors
         );
       }
-      delta = -1;
+      delta = serverAvatar;
     }
-    if (delta === 0) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
+    const allowZeroLedger = (kind === 'game_play' || kind === 'game_win' || kind === 'avatar_upload') && delta === 0;
+    if (delta === 0 && !allowZeroLedger) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const now = new Date().toISOString();
     const displayName = String(body.display_name ?? '').trim();
     if (displayName) {
@@ -7028,6 +7032,28 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     // (e.g. insufficient balance) or a transient bridge error must NOT silently fall back to a
     // second ledger; it must be returned to the caller as-is.
     const reference = buildLanternEconomyReference(kind, meta, body, txId);
+
+    if (allowZeroLedger) {
+      try {
+        await db.prepare(
+          'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(txId, characterName, 0, kind, source, note, now, JSON.stringify({ ...meta, tms_skipped: true, reason: 'configured_zero' })).run();
+      } catch (_) {}
+      if (kind === 'game_play') {
+        try {
+          await ensureFirstGameMissionCompletion(db, env, characterName, txId);
+        } catch (_) {}
+      }
+      return jsonResponse({
+        ok: true,
+        id: txId,
+        character_name: characterName,
+        delta: 0,
+        balance_after: null,
+        skipped: true,
+        economy_authority: 'configured_zero',
+      }, 200, cors);
+    }
 
     // Prompt #107 — staff principal spends/grants (games cost, rewards) use TMS staff ledger.
     if (isStaffEconomyKey(characterName)) {

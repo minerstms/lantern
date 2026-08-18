@@ -118,6 +118,9 @@ function makeMissionsDb(seed) {
       const row = missions.get(binds[0]);
       return row ? { reward_amount: row.reward_amount, teacher_id: row.teacher_id } : null;
     }
+    if (s.includes('FROM lantern_settings WHERE key')) {
+      return null;
+    }
     throw new Error('Unhandled SELECT (.first): ' + s);
   }
 
