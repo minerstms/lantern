@@ -247,8 +247,21 @@
       btn.textContent = r.emoji;
       var span = document.createElement('span');
       span.className = 'lanternReactionPct';
-      span.textContent = pct + '%';
+      span.hidden = computed.total > 0;
+      span.setAttribute('aria-hidden', computed.total > 0 ? 'true' : 'false');
+      span.textContent = computed.total > 0 ? '' : (pct + '%');
       btn.appendChild(span);
+      var track = document.createElement('span');
+      track.className = 'lanternReactionRaceTrack';
+      track.setAttribute('aria-hidden', 'true');
+      var fill = document.createElement('span');
+      fill.className = 'lanternReactionRaceFill';
+      fill.style.width = '0%';
+      track.appendChild(fill);
+      btn.appendChild(track);
+      btn._raceFill = fill;
+      btn._racePct = span;
+      btn._racePctValue = pct;
       if (characterName && !isMine) {
         btn.addEventListener('click', function () {
           if (btn.disabled) return;
@@ -261,6 +274,30 @@
       wrap.appendChild(btn);
     });
     container.appendChild(wrap);
+    if (computed.total > 0 && global.LANTERN_RESULT_REVEAL && typeof global.LANTERN_RESULT_REVEAL.animateFills === 'function') {
+      var maxPct = 0;
+      var parts = [];
+      wrap.querySelectorAll('.lanternReactionBtn').forEach(function (btnEl) {
+        var value = Number(btnEl._racePctValue) || 0;
+        if (value > maxPct) maxPct = value;
+        parts.push({
+          fill: btnEl._raceFill,
+          pctEl: btnEl._racePct,
+          percentage: value,
+        });
+      });
+      parts.forEach(function (p) { p.maxPct = maxPct; });
+      global.LANTERN_RESULT_REVEAL.animateFills(parts);
+    } else if (computed.total > 0) {
+      wrap.querySelectorAll('.lanternReactionBtn').forEach(function (btnEl) {
+        if (btnEl._raceFill) btnEl._raceFill.style.width = (btnEl._racePctValue || 0) + '%';
+        if (btnEl._racePct) {
+          btnEl._racePct.hidden = false;
+          btnEl._racePct.removeAttribute('aria-hidden');
+          btnEl._racePct.textContent = (btnEl._racePctValue || 0) + '%';
+        }
+      });
+    }
   }
 
   global.LANTERN_REACTIONS = {

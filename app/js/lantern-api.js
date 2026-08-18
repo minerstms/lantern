@@ -697,10 +697,15 @@
       featured: !!opts.featured,
       site_eligible: !!opts.site_eligible,
       allows_text: opts.allows_text !== false,
-      allows_image: !!(opts.allows_image),
+      allows_image: !!(opts.allows_image || opts.require_image),
+      require_image: !!opts.require_image || Number(opts.allows_image) >= 2,
       allows_video: !!(opts.allows_video),
       allows_link: !!(opts.allows_link),
-      min_characters: opts.min_characters !== undefined && opts.min_characters !== null ? Math.max(0, Math.floor(Number(opts.min_characters)) || 200) : 200,
+      min_characters: (function () {
+        if (opts.min_characters === undefined || opts.min_characters === null) return 200;
+        var n = Number(opts.min_characters);
+        return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+      })(),
     };
     missions.push(m);
     DATA.setToLS(LS.TEACHER_MISSIONS, missions);
@@ -718,6 +723,15 @@
     if (updates.reward_amount !== undefined) missions[idx].reward_amount = 1;
     if (updates.featured !== undefined) missions[idx].featured = !!updates.featured;
     if (updates.site_eligible !== undefined) missions[idx].site_eligible = !!updates.site_eligible;
+    if (updates.allows_image !== undefined) missions[idx].allows_image = !!updates.allows_image;
+    if (updates.require_image !== undefined) {
+      missions[idx].require_image = !!updates.require_image;
+      if (missions[idx].require_image) missions[idx].allows_image = true;
+    }
+    if (updates.min_characters !== undefined) {
+      var mc = Number(updates.min_characters);
+      missions[idx].min_characters = Number.isFinite(mc) && mc >= 0 ? Math.floor(mc) : missions[idx].min_characters;
+    }
     if (updates.audience !== undefined) missions[idx].audience = ['my_students', 'selected_students', 'school_mission'].indexOf(String(updates.audience).trim()) >= 0 ? String(updates.audience).trim() : missions[idx].audience || 'school_mission';
     if (updates.target_character_names !== undefined) missions[idx].target_character_names = Array.isArray(updates.target_character_names) ? updates.target_character_names.slice() : undefined;
     DATA.setToLS(LS.TEACHER_MISSIONS, missions);

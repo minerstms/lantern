@@ -114,6 +114,14 @@
     .lockerOptionsItem[aria-current="page"]{
       color: var(--accent, #5aa7ff);
     }
+    .lockerOptionsGroup{
+      margin: 8px 8px 2px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--surface-muted, #b9c6ea);
+    }
 
   </style>
 </head>
@@ -484,6 +492,7 @@
   <script src="js/lantern-media.js"></script>
   <script src="js/lantern-scroller.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-final-reactions.js"></script>
   <script src="js/lantern-feature-flags.js"></script>
@@ -582,6 +591,10 @@
               window.LANTERN_LOCKER_SHELL.openAboutBioEditor();
             }
           }, 0);
+          return;
+        }
+        if (action === 'install-app') {
+          location.href = 'https://log.tmslantern.org/index.html?intent=install';
         }
       });
       window.addEventListener('hashchange', function(){ applyLockerHash(); });

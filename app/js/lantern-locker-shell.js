@@ -220,6 +220,8 @@
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="store">Store</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-profile" data-help="edit_profile">Edit Profile</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-about">Edit About</button>' +
+      '<p class="lockerOptionsGroup" role="presentation">Account / Device</p>' +
+      '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="install-app">Install Lantern App</button>' +
       '</div>' +
       '</div>'
     );

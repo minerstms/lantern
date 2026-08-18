@@ -1775,10 +1775,33 @@
     return '';
   }
 
-  function buildPollResultsBarsHtml(results, votedChoiceIndex) {
-    var total = (results || []).reduce(function (s, r) { return s + (r.count || 0); }, 0);
+  function pollResultItems(results, votedChoiceIndex) {
     var yoursIdx = votedChoiceIndex != null && !isNaN(Number(votedChoiceIndex)) ? Math.floor(Number(votedChoiceIndex)) : -1;
-    var html = '<p class="pollResultsSummary">You voted · ' + total + ' total vote' + (total !== 1 ? 's' : '') + '</p>';
+    return (results || []).map(function (r, i) {
+      return {
+        label: (r && r.choice) || '',
+        percentage: (r && r.percentage) || 0,
+        selected: !!(r && r.is_yours) || (yoursIdx >= 0 && i === yoursIdx),
+      };
+    });
+  }
+
+  function revealPollResults(resultsEl, results, votedChoiceIndex) {
+    if (!resultsEl) return;
+    var items = pollResultItems(results, votedChoiceIndex);
+    if (global.LANTERN_RESULT_REVEAL && typeof global.LANTERN_RESULT_REVEAL.mountResultRace === 'function') {
+      global.LANTERN_RESULT_REVEAL.mountResultRace(resultsEl, items, {
+        summaryHtml: '<p class="pollResultsSummary">You voted</p>',
+        listLabel: 'Poll results',
+      });
+      return;
+    }
+    resultsEl.innerHTML = buildPollResultsBarsHtml(results, votedChoiceIndex);
+  }
+
+  function buildPollResultsBarsHtml(results, votedChoiceIndex) {
+    var yoursIdx = votedChoiceIndex != null && !isNaN(Number(votedChoiceIndex)) ? Math.floor(Number(votedChoiceIndex)) : -1;
+    var html = '<p class="pollResultsSummary">You voted</p>';
     (results || []).forEach(function (r, i) {
       var isYours = !!(r && r.is_yours) || (yoursIdx >= 0 && i === yoursIdx);
       html +=
@@ -1973,8 +1996,8 @@
 
     if (hasVoted && results && results.length && choicesEl && resultsEl && nuggetEl) {
       choicesEl.innerHTML = '';
-      resultsEl.innerHTML = buildPollResultsBarsHtml(results, votedIdx);
       resultsEl.style.display = 'block';
+      revealPollResults(resultsEl, results, votedIdx);
       applyPollRewardCopy(nuggetEl, res);
     } else if (choicesEl && resultsEl && nuggetEl) {
       resultsEl.style.display = 'none';
@@ -2060,8 +2083,8 @@
             if (c2) c2.innerHTML = '';
             if (lockBtn && lockBtn.parentNode) lockBtn.parentNode.removeChild(lockBtn);
             if (r2) {
-              r2.innerHTML = buildPollResultsBarsHtml(voteRes.results || [], voteRes.voted_choice_index);
               r2.style.display = 'block';
+              revealPollResults(r2, voteRes.results || [], voteRes.voted_choice_index);
             }
             applyPollRewardCopy(n2, voteRes);
             if (voteRes && voteRes.ok && global.LanternWallet && typeof global.LanternWallet.refreshBalance === 'function') {

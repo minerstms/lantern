@@ -69,6 +69,7 @@ import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaff
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
 import { parseStaffEconomyKey, resolveStaffTmsPrincipal, isStaffEconomyKey, resolveTmsStaffIdForLanternAccount, resolvePrimaryLanternUsernameForTmsStaff } from './staff-economy.js';
 import { handleStaffStarterNuggets, isSystemWebAdminAccount } from './staff-starter-nuggets.js';
+import { handleInteractionsAnalytics } from './interactions-analytics.js';
 import {
   canonicalLanternStaffDisplayName,
   ensureBlCompatIdentityForLanternStaff,
@@ -2389,6 +2390,10 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
   if (pilotAccountRequiresChangePassword(account)) {
     return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/admin/interactions-analytics') {
+    return handleInteractionsAnalytics(url, db, cors, jsonResponse);
   }
 
   if (request.method === 'GET' && path === '/api/admin/protected/trace') {

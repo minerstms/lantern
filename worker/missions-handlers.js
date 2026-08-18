@@ -26,6 +26,8 @@ import {
   reviewerLabelFromAccount,
   sessionTeacherId,
   teacherOwnsMission,
+  persistAllowsImageValue,
+  missionRequiresImage,
   validateMissionSubmissionPayload,
 } from './missions-auth.js';
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
@@ -101,12 +103,14 @@ function missionRowToJson(r, origin) {
     site_eligible: !!r.site_eligible,
     allows_text: r.allows_text !== undefined && r.allows_text !== null ? !!r.allows_text : true,
     allows_image: !!(r.allows_image),
+    require_image: missionRequiresImage(r),
     allows_video: !!(r.allows_video),
     allows_link: !!(r.allows_link),
-    min_characters:
-      r.min_characters !== undefined && r.min_characters !== null
-        ? Math.max(0, Math.floor(Number(r.min_characters)) || 200)
-        : 200,
+    min_characters: (() => {
+      if (r.min_characters === undefined || r.min_characters === null) return 200;
+      const n = Number(r.min_characters);
+      return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
+    })(),
     // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
     card_image_r2_key: cardKey || null,
     card_image_url: cardKey ? missionCardImageUrl(origin, cardKey) : null,
@@ -755,7 +759,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const active = body.active !== false;
     const siteEligible = !!body.site_eligible;
     const allowsText = body.allows_text !== false;
-    const allowsImage = !!(body.allows_image);
+    const allowsImageVal = persistAllowsImageValue(body, 0);
+    const allowsImage = allowsImageVal > 0;
+    const requiresImage = allowsImageVal >= 2;
     const allowsVideo = !!(body.allows_video);
     const allowsLink = !!(body.allows_link);
     let minChars = Math.max(0, Math.floor(Number(body.min_characters)));
@@ -793,7 +799,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           active ? 1 : 0,
           siteEligible ? 1 : 0,
           allowsText ? 1 : 0,
-          allowsImage ? 1 : 0,
+          allowsImageVal,
           allowsVideo ? 1 : 0,
           allowsLink ? 1 : 0,
           minChars,
@@ -824,7 +830,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
           active ? 1 : 0,
           siteEligible ? 1 : 0,
           allowsText ? 1 : 0,
-          allowsImage ? 1 : 0,
+          allowsImageVal,
           allowsVideo ? 1 : 0,
           allowsLink ? 1 : 0,
           minChars,
@@ -849,6 +855,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       site_eligible: siteEligible,
       allows_text: allowsText,
       allows_image: allowsImage,
+      require_image: requiresImage,
       allows_video: allowsVideo,
       allows_link: allowsLink,
       min_characters: minChars,
@@ -871,7 +878,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     } catch (_) {
       return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
-    const row = await db.prepare('SELECT id, teacher_id FROM lantern_missions WHERE id = ?').bind(id).first();
+    const row = await db.prepare('SELECT id, teacher_id, allows_image FROM lantern_missions WHERE id = ?').bind(id).first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
     if (!teacherOwnsMission(auth.account, row.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized' }, 403, cors);
@@ -953,9 +960,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       updates.push('allows_text = ?');
       bindings.push(body.allows_text ? 1 : 0);
     }
-    if (body.allows_image !== undefined) {
+    if (body.allows_image !== undefined || body.require_image !== undefined) {
       updates.push('allows_image = ?');
-      bindings.push(body.allows_image ? 1 : 0);
+      bindings.push(persistAllowsImageValue(body, row.allows_image));
     }
     if (body.allows_video !== undefined) {
       updates.push('allows_video = ?');

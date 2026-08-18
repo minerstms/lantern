@@ -111,6 +111,13 @@
     .missionSubmitInlineError.is-visible{ display:block; }
     #missionSubmitBtn:disabled{ opacity:0.72; cursor:wait; }
     .missionSubmitProgressWrap{ margin-top: 10px; }
+    .missionSubmitRequirements{
+      margin: 0 0 14px;
+      padding: 0 0 0 22px;
+      color: var(--warn);
+      font-size: 22px;
+      font-weight: 800;
+    }
     .missionSubmitProgressBar{ height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; width: 100%; }
     .missionSubmitProgressFill{ height: 100%; border-radius: 999px; transition: width .25s ease; }
     .missionSubmitProgressFill.neutral{ background: rgba(255,255,255,.25); }
@@ -249,6 +256,7 @@
         <button type="button" id="missionDetailClose" class="missionDetailClose" aria-label="Close mission">× Close</button>
       </div>
       <p id="missionDetailDesc" class="missionDetailDesc"></p>
+      <ul id="missionSubmitRequirements" class="missionSubmitRequirements" style="display:none;" aria-label="Submission requirements"></ul>
       <div id="missionDetailBody">
         <div id="missionSubmitFormWrap">
           <div id="missionSubmitTextWrap">
@@ -374,6 +382,7 @@
   <script src="js/lantern-missions-page.js"></script>
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-fight-song-challenge.js"></script>
+  <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
@@ -1812,6 +1821,8 @@
       if (isPollMission || isBugMission) {
         currentMissionMinChars = 0;
         currentMissionRequiresImage = false;
+        var reqClear = el('missionSubmitRequirements');
+        if (reqClear) { reqClear.innerHTML = ''; reqClear.style.display = 'none'; }
       } else {
         // A returned text+image combo submission is stored as a JSON envelope
         // ({text, image_url}) — decode it so resubmit prefills the textarea with the
@@ -1821,16 +1832,30 @@
           : { isEnvelope: false, text: '', image_url: '' };
         if (contentEl) contentEl.value = allowsText ? (pfEnvelope.isEnvelope ? pfEnvelope.text : pf) : '';
         if (imageUrlEl) imageUrlEl.value = pfEnvelope.isEnvelope ? pfEnvelope.image_url : (m.submission_type === 'image_url' ? pf : '');
-        var minChars = m.min_characters !== undefined && m.min_characters !== null ? Math.max(0, parseInt(m.min_characters, 10) || 200) : 0;
+        var minRaw = Number(m.min_characters);
+        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? Math.floor(minRaw) : 200;
         var enforceMin = allowsText && minChars > 0;
         currentMissionMinChars = enforceMin ? minChars : 0;
-        currentMissionRequiresImage = allowsImage && !allowsText && !allowsVideo && !allowsLink;
+        currentMissionRequiresImage = !!(m.require_image) || Number(m.allows_image) >= 2 || (allowsImage && !allowsText && !allowsVideo && !allowsLink);
         var minCharsHint = el('missionSubmitMinCharsHint');
         if (minCharsHint) {
           if (allowsText && minChars > 0) {
-            minCharsHint.textContent = 'Minimum characters required: ' + minChars;
+            minCharsHint.textContent = 'Minimum ' + minChars + ' characters';
             minCharsHint.style.display = 'block';
           } else minCharsHint.style.display = 'none';
+        }
+        var reqList = el('missionSubmitRequirements');
+        if (reqList) {
+          var chips = [];
+          if (currentMissionRequiresImage) chips.push('Image required');
+          if (currentMissionMinChars > 0) chips.push('Minimum ' + currentMissionMinChars + ' characters');
+          if (chips.length) {
+            reqList.innerHTML = chips.map(function(c){ return '<li>' + String(c).replace(/</g, '') + '</li>'; }).join('');
+            reqList.style.display = 'block';
+          } else {
+            reqList.innerHTML = '';
+            reqList.style.display = 'none';
+          }
         }
         var progressWrap = el('missionSubmitProgressWrap');
         if (progressWrap) progressWrap.style.display = currentMissionMinChars > 0 ? 'block' : 'none';
@@ -1994,6 +2019,11 @@
       var validImage = allowsImage && imageVal.length > 0;
       var validVideo = allowsVideo && (missionVideoUploadedUrl || videoVal.length > 0);
       var validLink = allowsLink && linkVal.length > 0;
+      if (currentMissionRequiresImage && !validImage) {
+        setMissionSubmitInlineError('Image required');
+        toast('Image required');
+        return;
+      }
       if (!(validText || validImage || validVideo || validLink)) {
         var needMsg = 'Please add a valid submission before sending.';
         if (allowsText && minChars > 0 && textVal.length > 0 && textVal.length < minChars) {

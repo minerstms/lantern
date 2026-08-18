@@ -64,6 +64,14 @@ if (/data-locker-action="edit-profile"/.test(shellJs) && /data-locker-action="ed
   ok('distinct Edit Profile + Edit About menu items present');
 } else bad('edit actions missing or not distinct');
 
+if (/data-locker-action="install-app"/.test(shellJs) && /Install Lantern App/.test(shellJs) && /Account \/ Device/.test(shellJs)) {
+  ok('Locker Options includes Account/Device Install Lantern App');
+} else bad('install app locker entry missing');
+
+if (/intent=install/.test(lockerHtml) && /install-app/.test(lockerHtml)) {
+  ok('locker.html reuses existing install URL via install-app action');
+} else bad('locker install wiring missing');
+
 if (/wireLockerOptions/.test(lockerHtml) && /navigateLockerTab/.test(lockerHtml)) {
   ok('locker.html wires Locker Options navigation');
 } else bad('locker options wiring missing');

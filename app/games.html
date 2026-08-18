@@ -2481,7 +2481,7 @@
         function fetchThenStart(){
           function failClosedPool(){
             characters = [];
-            failGamePlayerStart('Avatar Match needs at least four approved avatars from active accounts.');
+            failGamePlayerStart('Avatar Match needs at least 4 eligible avatars from active accounts.');
           }
           if (gamesApiBase) {
             fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){

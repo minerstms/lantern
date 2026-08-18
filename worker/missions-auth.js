@@ -229,7 +229,12 @@ export const MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION = [
  */
 export function missionEditLockedFieldsPresent(body) {
   if (!body || typeof body !== 'object') return [];
-  return MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.filter((f) => body[f] !== undefined);
+  const found = MISSION_FIELDS_LOCKED_AFTER_FIRST_SUBMISSION.filter((f) => body[f] !== undefined);
+  // Prompt #225 — require_image is persisted on allows_image; treat it as the same lock.
+  if (body.require_image !== undefined && found.indexOf('allows_image') < 0) {
+    found.push('allows_image');
+  }
+  return found;
 }
 
 /**
@@ -369,11 +374,41 @@ export function extractMissionSubmissionMedia(submissionType, submissionContent)
   return { caption, image_url: imageUrl, video_url: videoUrl };
 }
 
+export function missionAllowsImage(mission) {
+  return Number(mission && mission.allows_image) > 0 || mission && mission.require_image === true;
+}
+
+export function missionRequiresImage(mission) {
+  if (!mission) return false;
+  if (mission.require_image === true) return true;
+  const n = Number(mission.allows_image);
+  if (n >= 2) return true;
+  const allowsText = mission.allows_text !== 0 && mission.allows_text !== false;
+  const allowsVideo = !!(mission.allows_video);
+  const allowsLink = !!(mission.allows_link);
+  return n > 0 && !allowsText && !allowsVideo && !allowsLink;
+}
+
+export function persistAllowsImageValue(body, current) {
+  const requireOn = !!(body && (body.require_image === true || body.require_image === 1 || Number(body.allows_image) >= 2));
+  const allowOn = !!(body && (body.allows_image || requireOn));
+  if (body && body.require_image === false && body.allows_image !== undefined) {
+    return body.allows_image ? 1 : 0;
+  }
+  if (requireOn) return 2;
+  if (allowOn) return 1;
+  if (current != null && body && body.require_image === undefined && body.allows_image === undefined) {
+    return Number(current) || 0;
+  }
+  return 0;
+}
+
 export function validateMissionSubmissionPayload(mission, submissionType, content) {
   const st = normalizeSubmissionType(submissionType, mission.submission_type);
   const text = String(content || '').trim();
   const allowsText = mission.allows_text !== 0 && mission.allows_text !== false;
-  const allowsImage = !!(mission.allows_image);
+  const allowsImage = missionAllowsImage(mission);
+  const requiresImage = missionRequiresImage(mission);
   const allowsVideo = !!(mission.allows_video);
   const allowsLink = !!(mission.allows_link);
   const minChars =
@@ -422,6 +457,9 @@ export function validateMissionSubmissionPayload(mission, submissionType, conten
       }
       const hasText = innerText.length > 0;
       const hasImage = allowsImage && innerImage.length > 0;
+      if (requiresImage && !hasImage) {
+        return { ok: false, error: 'Image required' };
+      }
       if (!hasText && !hasImage) {
         return { ok: false, error: 'Invalid submission for mission requirements' };
       }
@@ -432,6 +470,9 @@ export function validateMissionSubmissionPayload(mission, submissionType, conten
     }
     if (minChars > 0 && text.length < minChars) {
       return { ok: false, error: `Minimum ${minChars} characters required` };
+    }
+    if (requiresImage) {
+      return { ok: false, error: 'Image required' };
     }
     if (text.length > 0) valid = true;
   }

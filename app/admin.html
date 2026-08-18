@@ -117,6 +117,24 @@
     .visibleWatermarkToggle input[type="checkbox"] {
       width: 28px; height: 28px; margin: 0; accent-color: var(--accent); flex-shrink: 0;
     }
+    .iaSummary{
+      display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0 16px;
+    }
+    .iaCard{
+      border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:rgba(10,20,40,.4);
+    }
+    .iaCardLabel{ color:var(--muted); font-size:16px; font-weight:800; margin:0 0 4px; }
+    .iaCardValue{ font-size:28px; font-weight:900; margin:0; }
+    .iaRange{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+    .iaRangeBtn{
+      height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--line);
+      background:#0a1428; color:var(--ink); font-size:18px; font-family:inherit; font-weight:800; cursor:pointer;
+    }
+    .iaRangeBtn.is-on{ border-color:rgba(90,167,255,.55); background:rgba(90,167,255,.16); }
+    .iaTable{ width:100%; border-collapse:collapse; font-size:18px; }
+    .iaTable th, .iaTable td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+    .iaNote{ color:var(--muted); font-size:16px; margin:10px 0 0; }
+    @media (max-width:640px){ .iaSummary{ grid-template-columns:1fr; } }
     .visibleWatermarkState {
       min-width: 3.2em; font-weight: 900; letter-spacing: .04em;
     }
@@ -246,6 +264,84 @@
   <p class="sub">Approval queue, accounts, and visibility. Session is server-enforced.</p>
   <p><a href="/explore.html">Lantern (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
   <p id="logoutMsg" role="status" aria-live="polite" style="display:none;"></p>
+
+  <details class="card teacherCollapsibleList" id="adminInteractionsAnalyticsCard" open>
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Interactions Analytics</div></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="iaNote">What students are doing, earning, spending, and completing. System Admin only. Totals use persisted Lantern records, not client card counts.</p>
+      <div class="iaRange" role="group" aria-label="Date range">
+        <button type="button" class="iaRangeBtn is-on" data-ia-range="today">Today</button>
+        <button type="button" class="iaRangeBtn" data-ia-range="7d">7 Days</button>
+        <button type="button" class="iaRangeBtn" data-ia-range="30d">30 Days</button>
+        <button type="button" class="iaRangeBtn" data-ia-range="all">All Time</button>
+      </div>
+      <p id="iaPeriodLabel" class="iaNote">Loading…</p>
+      <div class="iaSummary" id="iaSummary"></div>
+      <h3 class="cardHd" style="font-size:22px;margin-top:8px;">Earnings</h3>
+      <table class="iaTable" id="iaEarnTable"><thead><tr><th>Source</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
+      <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Spending</h3>
+      <table class="iaTable" id="iaSpendTable"><thead><tr><th>Destination</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
+      <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Game spending</h3>
+      <table class="iaTable" id="iaGameTable"><thead><tr><th>Game</th><th>Nuggets spent</th><th>Plays</th></tr></thead><tbody></tbody></table>
+      <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Learning / participation</h3>
+      <table class="iaTable" id="iaLearnTable"><thead><tr><th>Signal</th><th>Completions</th><th>Participants</th></tr></thead><tbody></tbody></table>
+      <p id="iaLimits" class="iaNote"></p>
+    </div>
+  </details>
+  <script>
+  (function () {
+    var currentRange = 'today';
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function fillTable(table, rows, cols) {
+      var tb = table && table.tBodies && table.tBodies[0];
+      if (!tb) return;
+      tb.innerHTML = (rows && rows.length)
+        ? rows.map(function (r) {
+            return '<tr>' + cols.map(function (c) { return '<td>' + esc(r[c]) + '</td>'; }).join('') + '</tr>';
+          }).join('')
+        : '<tr><td colspan="' + cols.length + '">None in this period</td></tr>';
+    }
+    function loadIa(range) {
+      currentRange = range || 'today';
+      document.querySelectorAll('.iaRangeBtn').forEach(function (b) {
+        b.classList.toggle('is-on', b.getAttribute('data-ia-range') === currentRange);
+      });
+      fetch('/api/admin/interactions-analytics?range=' + encodeURIComponent(currentRange), { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.ok) {
+            document.getElementById('iaPeriodLabel').textContent = (d && d.error) || 'Could not load analytics.';
+            return;
+          }
+          var s = d.summary || {};
+          document.getElementById('iaPeriodLabel').textContent = (d.period && d.period.label ? d.period.label : currentRange) +
+            ' · An interaction is one persisted poll vote, reaction, game play, or mission submission.';
+          document.getElementById('iaSummary').innerHTML =
+            '<div class="iaCard"><p class="iaCardLabel">Total interactions</p><p class="iaCardValue">' + esc(s.total_interactions) + '</p></div>' +
+            '<div class="iaCard"><p class="iaCardLabel">Participating users</p><p class="iaCardValue">' + esc(s.unique_participants) + '</p></div>' +
+            '<div class="iaCard"><p class="iaCardLabel">Nuggets earned</p><p class="iaCardValue">' + esc(s.nuggets_earned) + '</p></div>' +
+            '<div class="iaCard"><p class="iaCardLabel">Nuggets spent</p><p class="iaCardValue">' + esc(s.nuggets_spent) + '</p></div>';
+          fillTable(document.getElementById('iaEarnTable'), d.earnings || [], ['category', 'nuggets']);
+          fillTable(document.getElementById('iaSpendTable'), d.spending || [], ['category', 'nuggets']);
+          fillTable(document.getElementById('iaGameTable'), d.game_spending || [], ['game', 'nuggets_spent', 'plays']);
+          fillTable(document.getElementById('iaLearnTable'), d.learning || [], ['label', 'completions', 'unique_participants']);
+          document.getElementById('iaLimits').textContent = (d.limitations || []).join(' ');
+        })
+        .catch(function () {
+          document.getElementById('iaPeriodLabel').textContent = 'Could not load analytics.';
+        });
+    }
+    document.querySelectorAll('.iaRangeBtn').forEach(function (b) {
+      b.addEventListener('click', function () { loadIa(b.getAttribute('data-ia-range')); });
+    });
+    loadIa('today');
+  })();
+  </script>
 
   <details class="card teacherCollapsibleList" id="adminStudentsCard">
     <summary class="cardHd teacherCollapsibleListHd">

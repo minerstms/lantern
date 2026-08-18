@@ -74,16 +74,40 @@
     return map;
   }
 
-  function renderResultsHtml(results) {
+  function renderResultsHtml(results, selectedType) {
     var pctMap = percentageByType(results);
     var html = '<div class="lanternFinalRxResults" role="list">';
     FINAL_VOCAB.forEach(function (v) {
       var pct = pctMap[v.type] != null ? pctMap[v.type] : 0;
-      html += '<div class="lanternFinalRxResultCell" role="listitem">' +
-        esc(v.emoji) + ' ' + esc(String(pct)) + '%</div>';
+      var yours = selectedType && v.type === selectedType;
+      html += '<div class="lanternFinalRxResultCell' + (yours ? ' lanternFinalRxResultCell--yours' : '') + '" role="listitem">' +
+        esc(v.emoji) + (yours ? ' <em class="pollYourChoiceMark">Your choice</em>' : '') + '</div>';
     });
     html += '</div>';
     return html;
+  }
+
+  function reactionResultItems(results, selectedType) {
+    var pctMap = percentageByType(results);
+    return FINAL_VOCAB.map(function (v) {
+      return {
+        label: v.label,
+        emoji: v.emoji,
+        percentage: pctMap[v.type] != null ? pctMap[v.type] : 0,
+        selected: !!(selectedType && v.type === selectedType),
+      };
+    });
+  }
+
+  function revealReactionResults(host, results, selectedType) {
+    if (!host) return;
+    if (global.LANTERN_RESULT_REVEAL && typeof global.LANTERN_RESULT_REVEAL.mountResultRace === 'function') {
+      global.LANTERN_RESULT_REVEAL.mountResultRace(host, reactionResultItems(results, selectedType), {
+        listLabel: 'Reaction results',
+      });
+      return;
+    }
+    host.innerHTML = renderResultsHtml(results, selectedType);
   }
 
   function showLockedChangeNotice(panel) {
@@ -244,14 +268,15 @@
       html += '<button type="button" class="lanternFinalRxChoice' + on + '" data-locked="true" data-rx-type="' + esc(v.type) + '" aria-disabled="true" aria-label="' + esc(v.label) + '">' + v.emoji + '</button>';
     });
     html += '</div>';
-    if (status.results && status.results.length) {
-      html += renderResultsHtml(status.results);
-    }
+    html += '<div class="lanternFinalRxResultsHost"></div>';
     if (rt) {
       html += '<p class="lanternFinalRxYour">Your response: ' + esc(em) + '</p>';
     }
     html += '</div>';
     container.innerHTML = html;
+    if (status.results && status.results.length) {
+      revealReactionResults(container.querySelector('.lanternFinalRxResultsHost'), status.results, rt);
+    }
     var panel = container.querySelector('.lanternFinalRxPanel');
     wireLockedChoiceAttempts(panel, rt);
   }

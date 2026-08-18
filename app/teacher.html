@@ -2260,12 +2260,16 @@
             <span class="teacherCheckboxLabel">Written response</span>
           </label>
           <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:12px;max-width:160px;">
-            <label for="missionMinChars">Minimum characters</label>
+            <label for="missionMinChars">Minimum text characters</label>
             <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="200" />
           </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsImage" />
             <span class="teacherCheckboxLabel">Image upload</span>
+          </label>
+          <label class="teacherCheckboxField">
+            <input type="checkbox" id="missionRequireImage" />
+            <span class="teacherCheckboxLabel">Require image</span>
           </label>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsVideo" />
@@ -2619,6 +2623,7 @@
   <script src="js/lantern-unified-media-field.js"></script>
   <script src="js/lantern-people-picker.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-result-reveal.js"></script>
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
@@ -4889,8 +4894,9 @@
       return (
         '<div class="teacherField"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_text"' + (m.allows_text ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Written response</span></label>' +
-          '<div style="margin-left:34px;margin-bottom:12px;max-width:160px;"><label>Minimum characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + (m.min_characters != null ? m.min_characters : 200) + '" /></div>' +
+          '<div style="margin-left:34px;margin-bottom:12px;max-width:160px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + (m.min_characters != null ? m.min_characters : 200) + '" /></div>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_image"' + (m.allows_image ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Image upload</span></label>' +
+          '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (m.require_image ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_video"' + (m.allows_video ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Video upload</span></label>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="allows_link"' + (m.allows_link ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Link/file</span></label>' +
         '</div>'
@@ -4972,9 +4978,12 @@
         if (!hasSubmissions) {
           updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
           updates.allows_image = !!wrap.querySelector('[data-edit="allows_image"]').checked;
+          updates.require_image = !!wrap.querySelector('[data-edit="require_image"]').checked;
+          if (updates.require_image) updates.allows_image = true;
           updates.allows_video = !!wrap.querySelector('[data-edit="allows_video"]').checked;
           updates.allows_link = !!wrap.querySelector('[data-edit="allows_link"]').checked;
-          updates.min_characters = Math.max(0, parseInt(wrap.querySelector('[data-edit="min_characters"]').value, 10) || 0);
+          var minEditRaw = parseInt(wrap.querySelector('[data-edit="min_characters"]').value, 10);
+          updates.min_characters = Number.isFinite(minEditRaw) && minEditRaw >= 0 ? minEditRaw : 0;
         }
         var saveBtn = wrap.querySelector('.teacherMissionEditSaveBtn');
         saveBtn.disabled = true;
@@ -5733,17 +5742,27 @@
         toggleMinChars();
       }
       var typeSel = el('missionType');
+      var imgCb = el('missionAllowsImage');
+      var requireCb = el('missionRequireImage');
+      if (requireCb && imgCb) {
+        requireCb.addEventListener('change', function(){
+          if (requireCb.checked) imgCb.checked = true;
+        });
+        imgCb.addEventListener('change', function(){
+          if (!imgCb.checked) requireCb.checked = false;
+        });
+      }
       if (typeSel) {
         typeSel.addEventListener('change', function(){
           var v = (this.value || '').trim();
-          var textCb = el('missionAllowsText'); var imgCb = el('missionAllowsImage'); var vidCb = el('missionAllowsVideo'); var linkCb = el('missionAllowsLink');
-          if (!textCb || !imgCb || !vidCb || !linkCb) return;
-          if (v === 'text') { textCb.checked = true; imgCb.checked = false; vidCb.checked = false; linkCb.checked = false; }
-          else if (v === 'image_url') { textCb.checked = false; imgCb.checked = true; vidCb.checked = false; linkCb.checked = false; }
-          else if (v === 'video') { textCb.checked = false; imgCb.checked = false; vidCb.checked = true; linkCb.checked = false; }
-          else if (v === 'mixed') { textCb.checked = true; imgCb.checked = true; vidCb.checked = true; linkCb.checked = true; }
-          else if (v === 'poll') { textCb.checked = false; imgCb.checked = false; vidCb.checked = false; linkCb.checked = false; }
-          else if (v === 'bug_report') { textCb.checked = true; imgCb.checked = true; vidCb.checked = false; linkCb.checked = false; }
+          var textCb = el('missionAllowsText'); var imgCb2 = el('missionAllowsImage'); var vidCb = el('missionAllowsVideo'); var linkCb = el('missionAllowsLink');
+          if (!textCb || !imgCb2 || !vidCb || !linkCb) return;
+          if (v === 'text') { textCb.checked = true; imgCb2.checked = false; vidCb.checked = false; linkCb.checked = false; if (requireCb) requireCb.checked = false; }
+          else if (v === 'image_url') { textCb.checked = false; imgCb2.checked = true; vidCb.checked = false; linkCb.checked = false; }
+          else if (v === 'video') { textCb.checked = false; imgCb2.checked = false; vidCb.checked = true; linkCb.checked = false; if (requireCb) requireCb.checked = false; }
+          else if (v === 'mixed') { textCb.checked = true; imgCb2.checked = true; vidCb.checked = true; linkCb.checked = true; }
+          else if (v === 'poll') { textCb.checked = false; imgCb2.checked = false; vidCb.checked = false; linkCb.checked = false; if (requireCb) requireCb.checked = false; }
+          else if (v === 'bug_report') { textCb.checked = true; imgCb2.checked = true; vidCb.checked = false; linkCb.checked = false; }
           if (minCharsWrap) minCharsWrap.style.display = textCb.checked ? 'block' : 'none';
         });
       }
@@ -5802,11 +5821,14 @@
       try {
         var allowsText = !!(el('missionAllowsText') && el('missionAllowsText').checked);
         var allowsImage = !!(el('missionAllowsImage') && el('missionAllowsImage').checked);
+        var requireImage = !!(el('missionRequireImage') && el('missionRequireImage').checked);
+        if (requireImage) allowsImage = true;
         var allowsVideo = !!(el('missionAllowsVideo') && el('missionAllowsVideo').checked);
         var allowsLink = !!(el('missionAllowsLink') && el('missionAllowsLink').checked);
-        var minChars = allowsText ? (Math.max(0, parseInt(el('missionMinChars') && el('missionMinChars').value || 200, 10)) || 200) : 200;
+        var minRaw = parseInt(el('missionMinChars') && el('missionMinChars').value, 10);
+        var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? minRaw : 200;
         // Prompt #10/#78 — site_eligible archived; audience/participant_scope normalized server-side to school-wide/everyone.
-        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        var opts = { title: title, description: desc, reward_amount: 1, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();
         if (cardKeyCreate) opts.card_image_r2_key = cardKeyCreate;
         var res = await callCreateTeacherMission(opts);

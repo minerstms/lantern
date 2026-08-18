@@ -109,9 +109,10 @@ function makeMissionsDb(seed) {
   }
 
   function runFirst(s, binds) {
-    if (s.startsWith('SELECT id, teacher_id FROM lantern_missions WHERE id = ?')) {
+    if (s.startsWith('SELECT id, teacher_id, allows_image FROM lantern_missions WHERE id = ?') ||
+        s.startsWith('SELECT id, teacher_id FROM lantern_missions WHERE id = ?')) {
       const row = missions.get(binds[0]);
-      return row ? { id: row.id, teacher_id: row.teacher_id } : null;
+      return row ? { id: row.id, teacher_id: row.teacher_id, allows_image: row.allows_image || 0 } : null;
     }
     if (s.startsWith('SELECT reward_amount, teacher_id FROM lantern_missions WHERE id = ?')) {
       const row = missions.get(binds[0]);
