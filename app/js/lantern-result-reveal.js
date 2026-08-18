@@ -462,24 +462,33 @@
     var buttons = root.querySelectorAll(choiceSelector);
     if (!buttons.length) return;
 
-    var startRects = [];
-    for (var s = 0; s < buttons.length; s++) {
-      var r0 = buttons[s].getBoundingClientRect();
-      startRects.push({ top: r0.top, left: r0.left, width: r0.width, height: r0.height });
-    }
-
     var panel = root.closest('.lanternFinalRxPanel, .lanternReactionBar, .lanternCardDetailReactions') || root;
     panel.classList.add('lanternRxRaceLive');
     var modal = root.closest('.lanternCardDetailModal');
     if (modal) modal.classList.add('lanternCardDetailModal--rx-racing');
 
-    var existingTb = panel.querySelector('.lanternRaceToolbar');
-    if (!existingTb) {
-      var tb = global.document.createElement('div');
-      tb.className = 'lanternRaceToolbar';
-      tb.innerHTML = muteToolbarHtml();
-      panel.appendChild(tb);
-      bindMute(panel);
+    if (opts.skipMuteToolbar !== true) {
+      var existingTb = panel.querySelector('.lanternRaceToolbar');
+      if (!existingTb) {
+        existingTb = global.document.createElement('div');
+        existingTb.innerHTML = muteToolbarHtml();
+        panel.appendChild(existingTb);
+        bindMute(panel);
+      }
+      existingTb.className = 'lanternRaceToolbar lanternRaceToolbar--rx';
+      existingTb.setAttribute('data-rx-sound-float', '1');
+      existingTb.style.position = 'absolute';
+      existingTb.style.top = '0';
+      existingTb.style.right = '0';
+      existingTb.style.left = 'auto';
+      existingTb.style.bottom = 'auto';
+      existingTb.style.margin = '0';
+    }
+
+    var startRects = [];
+    for (var s = 0; s < buttons.length; s++) {
+      var r0 = buttons[s].getBoundingClientRect();
+      startRects.push({ top: r0.top, left: r0.left, width: r0.width, height: r0.height });
     }
 
     var byType = {};

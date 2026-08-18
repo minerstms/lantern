@@ -1309,12 +1309,17 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
 .lanternRxRaceLive > .lanternRaceToolbar,
 .lanternFinalRxPanel > .lanternRaceToolbar,
 .lanternReactionBar > .lanternRaceToolbar,
-.lanternCardDetailReactions > .lanternRaceToolbar{
+.lanternCardDetailReactions > .lanternRaceToolbar,
+.lanternRaceToolbar--rx{
   position: absolute;
   top: 0;
   right: 0;
+  left: auto;
+  bottom: auto;
   margin: 0;
-  z-index: 4;
+  width: auto;
+  height: auto;
+  z-index: 5;
 }
 .lanternRaceSoundBtn{
   display: inline-flex;
