@@ -386,9 +386,17 @@ else bad('race hook');
 if (harness.includes('DEVELOPMENT-ONLY') && harness.includes('Not a server claim') && !nav.includes('hidden-nugget-harness-230')) {
   ok('fixture harness exists and is not in student nav');
 } else bad('harness');
-if (contract.includes('RED — HIDDEN NUGGET MIGRATION REQUIRED') && !migrations.includes('075_lantern_hidden_nugget') && !migrations.includes('hidden_nugget_assignments')) {
-  ok('migration SQL documented and not placed in worker/migrations');
-} else bad('migration file leak');
+const mig075 = fs.readFileSync(path.join(root, 'worker/migrations/075_lantern_hidden_nugget_assignments.sql'), 'utf8');
+if (
+  contract.includes('lantern_hidden_nugget_assignments') &&
+  migrations.includes('075_lantern_hidden_nugget_assignments.sql') &&
+  mig075.includes('CREATE TABLE IF NOT EXISTS lantern_hidden_nugget_assignments') &&
+  mig075.includes('CREATE UNIQUE INDEX IF NOT EXISTS idx_hidden_nugget_account_day') &&
+  mig075.includes('CREATE INDEX IF NOT EXISTS idx_hidden_nugget_day') &&
+  !/DROP TABLE|DELETE FROM|INSERT INTO/i.test(mig075)
+) {
+  ok('075 Hidden Nugget migration file is additive and matches #230 SQL');
+} else bad('075 migration file');
 
 const sandbox = { window: {}, document: { getElementById: () => null, createElement: () => ({ textContent: '', appendChild: () => {} }), head: { appendChild: () => {} }, body: { appendChild: () => {} } }, LANTERN_RACE_AUDIO: { playSparkle: () => {} } };
 vm.createContext(sandbox);

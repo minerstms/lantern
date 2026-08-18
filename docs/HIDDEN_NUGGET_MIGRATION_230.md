@@ -8,7 +8,7 @@ Durable once-per-student-per-school-day assignment cannot fit cleanly in existin
 - `lantern_mission_completions` is a mission audit table; do not abuse it to avoid a migration.
 - `lantern_transactions` is the Nugget ledger. Claim/idempotency belongs there; the assigned **card id** does not.
 
-Do **not** run this migration from #230. Worker Hidden Nugget routes no-op when the table is missing so Explore stays safe.
+#230 documented this SQL and did not run it. #230A approved applying the same additive schema as `worker/migrations/075_lantern_hidden_nugget_assignments.sql`. Worker Hidden Nugget routes no-op when the table is missing.
 
 ## Exact SQL (do not run)
 
