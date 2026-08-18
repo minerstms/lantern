@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Race harness #230D</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: #eaf0ff; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+    }
+    .banner {
+      position: relative;
+      z-index: 1;
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 12px;
+      font-weight: 800;
+    }
+    .dock {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 10001;
+      background: rgba(7, 16, 28, 0.96);
+      border-top: 1px solid rgba(255,255,255,.16);
+      padding: 10px 12px 14px;
+      font-size: 18px;
+    }
+    .dock button {
+      min-height: 48px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin: 4px 4px 0 0;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    #hud {
+      white-space: pre-wrap;
+      max-height: 22vh;
+      overflow: auto;
+      margin-top: 8px;
+      font-size: 16px;
+      line-height: 1.35;
+    }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY. Uses LanternCardUI.openFeedItem and the production #lanternCardDetailOverlay (position:fixed; inset:0). No D1 writes.</p>
+  <div id="pollRoot" hidden></div>
+  <div class="dock">
+    <button type="button" id="openPost">Open Explore post</button>
+    <button type="button" id="exploreTap">Tap ⭐ in place</button>
+    <button type="button" id="scrollThenTap">Scroll overlay, then tap ⭐</button>
+    <button type="button" id="pollReplay">Replay poll race</button>
+    <div id="hud">Waiting…</div>
+  </div>
+
+  <script src="/js/lantern-cards.js"></script>
+  <script src="/js/lantern-media.js"></script>
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-reaction-bank.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script src="/js/lantern-card-ui.js"></script>
+  <script src="/js/lantern-final-reactions.js"></script>
+  <script>
+    (function () {
+      var FIXTURES = [
+        { label: 'Twelve', emoji: '❤️', type: 'heart', percentage: 12, selected: false },
+        { label: 'Thirty-four', emoji: '⭐', type: 'star', percentage: 34, selected: true },
+        { label: 'Fifty-seven', emoji: '💡', type: 'lightbulb', percentage: 57, selected: false },
+        { label: 'Eighty-three', emoji: '🤝', type: 'teamwork', percentage: 83, selected: false },
+        { label: 'Hundred', emoji: '🔥', type: 'fire', percentage: 100, selected: false }
+      ];
+      var POLL = [
+        { label: '12%', percentage: 12, selected: false },
+        { label: '34%', percentage: 34, selected: true },
+        { label: '57%', percentage: 57, selected: false },
+        { label: '83%', percentage: 83, selected: false },
+        { label: '100%', percentage: 100, selected: false }
+      ];
+      var ITEM = {
+        id: 'fixture-230d',
+        type: 'article',
+        typeLabel: 'Explore',
+        title: 'Opened Explore post — race stage must not cover this',
+        body: 'This is the actual opened-post body copy. If the reaction bars are only painted over the modal, this paragraph and the photo above stay put and become unreadable. The reserved race stage must push this text and photo upward so the bars occupy dedicated space above the reaction icons.',
+        authorDisplayName: 'Student Name',
+        createdAt: '2026-08-18T00:00:00.000Z'
+      };
+      var hud = document.getElementById('hud');
+      var samples = [];
+      var finishes = { rx: {}, poll: {} };
+      var startTops = [];
+      var startBodyBottom = 0;
+      var startPhotoBottom = 0;
+      var maxDownPx = 0;
+      var firstFrameDownPx = 0;
+      var sampledFrames = 0;
+
+      function rxHtml() {
+        var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
+        html += '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1">';
+        FIXTURES.forEach(function (v) {
+          html +=
+            '<div class="lanternRxLane">' +
+            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
+            '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>' +
+            '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
+            '</div>';
+        });
+        return html + '</div></div></div>';
+      }
+
+      function paintReactions() {
+        var host = document.querySelector('#lanternCardDetailReactions .lanternFinalRxHost') ||
+          document.getElementById('lanternCardDetailReactions');
+        if (!host) return;
+        if (!host.classList.contains('lanternFinalRxHost')) {
+          host.innerHTML = '<div class="lanternFinalRxHost"></div>';
+          host = host.querySelector('.lanternFinalRxHost');
+        }
+        host.innerHTML = rxHtml();
+        startTops = [];
+        startBodyBottom = 0;
+        startPhotoBottom = 0;
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        finishes.rx = {};
+      }
+
+      function openExplorePost() {
+        if (!window.LanternCardUI || typeof window.LanternCardUI.openFeedItem !== 'function') return;
+        window.LanternCardUI.openFeedItem(ITEM, { mode: 'studio-preview' });
+        paintReactions();
+      }
+
+      function captureAnchors(root) {
+        startTops = [];
+        root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+          startTops.push(btn.getBoundingClientRect().top);
+        });
+        var body = document.getElementById('lanternCardDetailBody');
+        var photo = document.getElementById('lanternCardDetailVisual');
+        startBodyBottom = body ? body.getBoundingClientRect().bottom : 0;
+        startPhotoBottom = photo ? photo.getBoundingClientRect().bottom : 0;
+      }
+
+      function tapExploreInPlace() {
+        var root = document.querySelector('#lanternCardDetailReactions .lanternFinalRxPanel');
+        if (!root) {
+          openExplorePost();
+          root = document.querySelector('#lanternCardDetailReactions .lanternFinalRxPanel');
+        }
+        if (!root) return;
+        captureAnchors(root);
+        maxDownPx = 0;
+        firstFrameDownPx = 0;
+        sampledFrames = 0;
+        finishes.rx = {};
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, FIXTURES, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: false
+        });
+      }
+
+      function mountPoll() {
+        document.getElementById('pollRoot').hidden = false;
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(document.getElementById('pollRoot'), POLL, {
+          listLabel: 'Harness poll results',
+          playAudio: false
+        });
+      }
+
+      function gap(a, b) { return Math.round(Math.abs(a - b)); }
+      function rectsOverlap(a, b) {
+        return a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      }
+
+      function sampleOnce() {
+        var lines = [];
+        var rxOk = true;
+        var pollOk = true;
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        var ovStyle = overlay ? getComputedStyle(overlay) : null;
+        var body = document.getElementById('lanternCardDetailBody');
+        var photo = document.getElementById('lanternCardDetailVisual');
+        var stage = document.querySelector('[data-rx-race-stage]');
+        var bodyRect = body ? body.getBoundingClientRect() : null;
+        var photoRect = photo ? photo.getBoundingClientRect() : null;
+        var stageH = stage ? Math.round(stage.getBoundingClientRect().height) : 0;
+        document.querySelectorAll('#lanternCardDetailReactions .lanternRxLane').forEach(function (lane, i) {
+          var bar = lane.querySelector('[data-race-fill]');
+          var btn = lane.querySelector('.lanternFinalRxChoice');
+          var pctEl = lane.querySelector('[data-race-pct]');
+          if (!bar || !btn) return;
+          var br = bar.getBoundingClientRect();
+          var ir = btn.getBoundingClientRect();
+          var shown = Number(bar.getAttribute('data-race-shown') || 0);
+          var attach = gap(ir.bottom, br.top);
+          var down = startTops[i] != null ? Math.round(ir.top - startTops[i]) : 0;
+          if (down > maxDownPx) maxDownPx = down;
+          if (sampledFrames === 0 && startTops.length) firstFrameDownPx = down;
+          if (shown > 2 && attach > 10) rxOk = false;
+          if (down > 2) rxOk = false;
+          if (shown > 8 && (rectsOverlap(br, bodyRect) || rectsOverlap(br, photoRect))) rxOk = false;
+          if (shown >= FIXTURES[i].percentage && !finishes.rx[i]) finishes.rx[i] = Date.now();
+          lines.push('RX ' + FIXTURES[i].percentage + '% shown=' + shown + ' downPx=' + down + ' iconΔbarTop=' + attach + 'px pct=' + (pctEl && pctEl.textContent || '—'));
+        });
+        if (startTops.length) sampledFrames += 1;
+        document.querySelectorAll('#pollRoot .lanternPollRaceLane').forEach(function (lane, i) {
+          var fill = lane.querySelector('[data-race-fill]');
+          var cart = lane.querySelector('[data-race-cart]');
+          if (!fill || !cart) return;
+          var fr = fill.getBoundingClientRect();
+          var cr = cart.getBoundingClientRect();
+          var shown = Number(fill.getAttribute('data-race-shown') || 0);
+          var attach = gap(cr.left + cr.width / 2, fr.right);
+          if (shown > 2 && attach > 14) pollOk = false;
+          if (shown >= POLL[i].percentage && !finishes.poll[i]) finishes.poll[i] = Date.now();
+        });
+        var rxOrder = Object.keys(finishes.rx).map(Number).sort(function (a, b) { return finishes.rx[a] - finishes.rx[b]; });
+        var bodyUp = startBodyBottom && bodyRect ? Math.round(startBodyBottom - bodyRect.bottom) : 0;
+        var photoUp = startPhotoBottom && photoRect ? Math.round(startPhotoBottom - photoRect.bottom) : 0;
+        lines.push('overlay position=' + (ovStyle && ovStyle.position) + ' inset-fixed=' + !!(ovStyle && ovStyle.position === 'fixed'));
+        lines.push('RX finish order: ' + rxOrder.map(function (i) { return FIXTURES[i].percentage + '%'; }).join(' → '));
+        lines.push('first-frame downward px: ' + firstFrameDownPx);
+        lines.push('max downward px: ' + maxDownPx);
+        lines.push('stage height: ' + stageH + 'px');
+        lines.push('body moved up px: ' + bodyUp);
+        lines.push('photo moved up px: ' + photoUp);
+        lines.push('icon never dropped: ' + (maxDownPx <= 2 ? 'YES' : 'NO'));
+        lines.push('icon rides bar / no overlay: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
+        hud.textContent = lines.join('\n');
+        samples.push({ t: Date.now(), rxOk: rxOk, pollOk: pollOk, maxDownPx: maxDownPx, firstFrameDownPx: firstFrameDownPx, stageH: stageH, bodyUp: bodyUp, photoUp: photoUp });
+      }
+
+      document.getElementById('openPost').addEventListener('click', openExplorePost);
+      document.getElementById('exploreTap').addEventListener('click', tapExploreInPlace);
+      document.getElementById('scrollThenTap').addEventListener('click', function () {
+        if (!document.getElementById('lanternCardDetailOverlay')) openExplorePost();
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        if (overlay) overlay.scrollTop = Math.max(80, Math.round(overlay.scrollHeight * 0.35));
+        tapExploreInPlace();
+      });
+      document.getElementById('pollReplay').addEventListener('click', function () {
+        finishes.poll = {};
+        mountPoll();
+      });
+
+      openExplorePost();
+      mountPoll();
+      setInterval(sampleOnce, 80);
+      window.__LANTERN_RACE_HARNESS = {
+        fixtures: FIXTURES,
+        poll: POLL,
+        finishes: finishes,
+        samples: samples,
+        tapExploreInPlace: tapExploreInPlace,
+        openExplorePost: openExplorePost
+      };
+    })();
+  </script>
+</body>
+</html>

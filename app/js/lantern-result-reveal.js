@@ -543,6 +543,18 @@
 
     var overlay = root.closest('.lanternCardDetailOverlay, .lanternSurfaceShell');
     if (overlay) overlay.classList.add('lanternCardDetailOverlay--rx-racing');
+    if (modal) {
+      modal.style.height = 'auto';
+      modal.style.maxHeight = 'none';
+      modal.style.overflow = 'visible';
+      modal.style.flexGrow = '0';
+      modal.style.flexShrink = '0';
+      modal.style.flexBasis = 'auto';
+    }
+    if (overlay) {
+      overlay.style.overflowX = 'hidden';
+      overlay.style.overflowY = 'auto';
+    }
 
     var raceStageHeight = 0;
     var scrollPad = 0;
@@ -597,6 +609,8 @@
       return global.document.scrollingElement || global.document.documentElement;
     }
 
+    var overlayPadBase = null;
+
     function ensureScrollRoom(scroller, extra) {
       if (!scroller || !(extra > 0)) return;
       var maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
@@ -604,6 +618,18 @@
       if (room >= extra - 1) return;
       var add = Math.ceil(extra - room);
       scrollPad += add;
+      if (overlay && (scroller === overlay || scroller.id === 'lanternCardDetailOverlay')) {
+        if (overlayPadBase == null) {
+          try {
+            var cs = global.getComputedStyle ? global.getComputedStyle(overlay) : null;
+            overlayPadBase = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
+          } catch (errPad) {
+            overlayPadBase = 0;
+          }
+        }
+        overlay.style.paddingBottom = overlayPadBase + scrollPad + 'px';
+        return;
+      }
       var padTarget =
         (modal && modal.querySelector('.lanternSurfaceContent')) ||
         (overlay && overlay.querySelector('.lanternSurfaceContent')) ||
@@ -627,6 +653,12 @@
       if (!scroller) return;
       ensureScrollRoom(scroller, drift);
       scroller.scrollTop += drift;
+      var now2 = part.btn.getBoundingClientRect().top;
+      var leftover = now2 - expectedY;
+      if (isFinite(leftover) && leftover > 0.5) {
+        ensureScrollRoom(scroller, leftover);
+        scroller.scrollTop += leftover;
+      }
     }
 
     function applyStageHeight(targetH) {

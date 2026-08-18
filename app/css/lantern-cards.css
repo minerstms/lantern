@@ -1962,6 +1962,29 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   overflow-x: hidden;
   overflow-y: auto;
 }
+/* Prompt #230D — Explore overlay is position:fixed flex; keep it the only scroller
+   and let the modal grow with reserved race height (no nested 100% surface). */
+#lanternCardDetailOverlay.lanternCardDetailOverlay--rx-racing.lanternSurfaceShell{
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-items: center;
+  justify-content: flex-start;
+}
+#lanternCardDetailOverlay.lanternCardDetailOverlay--rx-racing .lanternCardDetailModal,
+#lanternCardDetailOverlay.lanternCardDetailOverlay--rx-racing .lanternCardDetailModal.lanternSurface{
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+#lanternCardDetailOverlay.lanternCardDetailOverlay--rx-racing .lanternSurfaceContent,
+#lanternCardDetailOverlay.lanternCardDetailOverlay--rx-racing .lanternCardDetailStage{
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
+  overflow: visible;
+}
 .lanternCardDetailOverlay .lanternCardDetailReactions:empty{
   display: none;
 }
