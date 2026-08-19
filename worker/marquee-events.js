@@ -277,6 +277,7 @@ function eventRecord(partial) {
     excluded_reason: partial.excluded_reason || null,
     public_display_name: primaryName,
     author_avatar_key: trimStr(partial.author_avatar_key),
+    subject_avatar_key: trimStr(partial.subject_avatar_key),
     secondary_display_name: trimStr(partial.secondary_display_name),
     ticker_icon: trimStr(partial.ticker_icon) || tickerIconForType(type),
     ticker_type_label: trimStr(partial.ticker_type_label) || tickerTypeLabel(type),
@@ -524,6 +525,7 @@ export function eventsToTickerSlides(events) {
         marquee_type: e.type,
         source_id: e.source_id,
         author_avatar_key: trimStr(e.author_avatar_key),
+        subject_avatar_key: trimStr(e.subject_avatar_key),
         public_display_name: trimStr(e.public_display_name),
         secondary_display_name: trimStr(e.secondary_display_name),
         ticker_icon: trimStr(e.ticker_icon) || tickerIconForType(e.type),
@@ -596,6 +598,7 @@ export async function collectMarqueeEvents(db, opts) {
         created_at: row.approved_at || row.created_at,
         public_text: formatTickerCopy({ type: MARQUEE_EVENT_TYPES.POLL_CREATED, primary_name: who, object_title: q }),
         author_avatar_key: actor.author_avatar_key,
+        subject_avatar_key: actor.author_avatar_key,
         public_display_name: who,
       })
     );
@@ -615,6 +618,7 @@ export async function collectMarqueeEvents(db, opts) {
         created_at: row.created_at,
         public_text: formatTickerCopy({ type: MARQUEE_EVENT_TYPES.MISSION_CREATED, primary_name: who, object_title: title }),
         author_avatar_key: actor.author_avatar_key,
+        subject_avatar_key: actor.author_avatar_key,
         public_display_name: who,
       })
     );
@@ -634,6 +638,7 @@ export async function collectMarqueeEvents(db, opts) {
         created_at: row.reviewed_at || row.created_at,
         public_text: formatTickerCopy({ type: MARQUEE_EVENT_TYPES.MISSION_COMPLETED, primary_name: who, object_title: title }),
         author_avatar_key: actor.author_avatar_key,
+        subject_avatar_key: actor.author_avatar_key,
         public_display_name: who,
       })
     );
@@ -657,6 +662,8 @@ export async function collectMarqueeEvents(db, opts) {
       shoutRecipientDisplayFallback(overlaid) ||
       (isShout && title && !/^shout-?outs?$/i.test(title) ? title : '');
     const senderActor = resolveMarqueeActorIdentity(staffIndex, [overlaid.actor_id]);
+    const recognizedKey = firstRecognizedPersonKey(people);
+    const recipientActor = resolveMarqueeActorIdentity(staffIndex, [recognizedKey]);
     const senderName = senderActor.public_display_name || author;
     const newsKind = tickerNewsKind(overlaid.category);
     const newsLabel = tickerTypeLabel(newsKind);
@@ -683,6 +690,7 @@ export async function collectMarqueeEvents(db, opts) {
         created_at: overlaid.reviewed_at || overlaid.created_at,
         public_text: publicText,
         author_avatar_key: senderActor.author_avatar_key,
+        subject_avatar_key: isShout ? recipientActor.author_avatar_key : senderActor.author_avatar_key,
         public_display_name: actorName,
         secondary_display_name: isShout ? recognized : '',
         ticker_icon: isShout ? tickerIconForType(MARQUEE_EVENT_TYPES.SHOUT_OUT) : tickerIconForType(newsKind),
@@ -713,6 +721,7 @@ export async function collectMarqueeEvents(db, opts) {
           object_title: subject === author ? '' : subject,
         }),
         author_avatar_key: senderActor.author_avatar_key,
+        subject_avatar_key: recipientActor.author_avatar_key,
         public_display_name: author,
         secondary_display_name: who,
       })
@@ -743,6 +752,7 @@ export async function collectMarqueeEvents(db, opts) {
           rank,
         }),
         author_avatar_key: actor.author_avatar_key,
+        subject_avatar_key: actor.author_avatar_key,
         public_display_name: who,
       })
     );

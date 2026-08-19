@@ -116,6 +116,23 @@
     return { name: '', rest: full };
   }
 
+  /**
+   * Prompt #235 — avatar chip follows the item SUBJECT identity, never the viewer.
+   * Shout-Out / recognition use the recognized person's durable key only (no author fallback,
+   * no display-name guess). Other types use subject_avatar_key or the named author/player.
+   */
+  function tickerFaceLookupKeys(meta) {
+    var m = meta || {};
+    var subject = String(m.subject_avatar_key || '').trim();
+    var author = String(m.author_avatar_key || m.actor_id || '').trim();
+    var t = String(m.marquee_type || '').trim();
+    if (t === 'shout_out' || t === 'recognition') return subject ? [subject] : [];
+    if (subject && author && subject !== author) return [subject, author];
+    if (subject) return [subject];
+    if (author) return [author];
+    return [];
+  }
+
   function looksLikeSystemLogTickerCopy(text) {
     var t = String(text || '');
     return (
@@ -212,8 +229,7 @@
     }
     (slides || []).forEach(function (s) {
       var m = s.meta || {};
-      if (m.author_avatar_key) addName(m.author_avatar_key);
-      if (m.actor_id) addName(m.actor_id);
+      tickerFaceLookupKeys(m).forEach(function (k) { addName(k); });
     });
     (recognitionList || []).forEach(function (r) {
       if (r.author_avatar_key) addName(r.author_avatar_key);
@@ -239,7 +255,7 @@
       }
       (slides || []).forEach(function (s) {
         s.meta = s.meta || {};
-        var hit = pick([s.meta.author_avatar_key, s.meta.actor_id]);
+        var hit = pick(tickerFaceLookupKeys(s.meta));
         if (hit) s.meta._canonicalAvatar = hit;
       });
       (recognitionList || []).forEach(function (r) {
@@ -297,7 +313,8 @@
     var urlFb = meta._canonicalAvatar && meta._canonicalAvatar.imageUrl ? String(meta._canonicalAvatar.imageUrl).trim() : '';
     var marqueeType = String(meta.marquee_type || '').trim();
     var canonicalIcon = String(meta.ticker_icon || '').trim() || tickerIconForType(marqueeType);
-    var authorKey = String(meta.author_avatar_key || meta.actor_id || '').trim();
+    var faceKeys = tickerFaceLookupKeys(meta);
+    var authorKey = faceKeys.length ? faceKeys[0] : '';
 
     if (marqueeType) {
       var parsed = parseCompactTickerCopy(titleRaw);
@@ -725,6 +742,7 @@
     formatTickerCopy: formatTickerCopy,
     parseCompactTickerCopy: parseCompactTickerCopy,
     tickerNameAndRest: tickerNameAndRest,
+    tickerFaceLookupKeys: tickerFaceLookupKeys,
     looksLikeSystemLogTickerCopy: looksLikeSystemLogTickerCopy,
     safeTickerHref: safeTickerHref,
     normalizeTickerWhitespace: normalizeTickerWhitespace

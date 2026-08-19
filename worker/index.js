@@ -2371,6 +2371,27 @@ async function handleAuthRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 
+/** Prompt #235/#235A — every pending avatar is eligible for bulk approval. Restriction is informational only. */
+async function listPendingAvatarRowsForBulkApproval(db) {
+  const rows = await db
+    .prepare(
+      `SELECT id, character_name, image_key, status, created_at, approved_by
+       FROM lantern_avatar_submissions WHERE status = ? ORDER BY created_at ASC`
+    )
+    .bind('pending')
+    .all();
+  const pending = [];
+  const restricted = [];
+  for (const r of rows.results || []) {
+    if (String(r.status || '').trim().toLowerCase() !== 'pending') continue;
+    pending.push(r);
+    if (await studentAvatarIsRestricted(db, r.character_name)) {
+      restricted.push(r);
+    }
+  }
+  return { pending, restricted };
+}
+
 async function handleAdminRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -2974,6 +2995,7 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         media_restricted: mediaRestricted ? 1 : 0,
         can_activate: !!(pending && targetRole === 'student' && !mediaRestricted),
         can_set_current: canSetCurrent,
+        can_unapprove: !!(approved && targetRole === 'student'),
       },
       200,
       cors
@@ -3206,6 +3228,123 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         already_approved: alreadyApproved,
         nugget_charged: 0,
         approved_by: alreadyApproved ? undefined : adminLabel,
+      },
+      200,
+      cors
+    );
+  }
+
+  // Prompt #235 — Web Admin bulk approve + unapprove (same canManageLanternAvatars gate).
+  if (request.method === 'GET' && path === '/api/admin/avatar/pending-approval-summary') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
+    const listed = await listPendingAvatarRowsForBulkApproval(db);
+    return jsonResponse(
+      {
+        ok: true,
+        pending_count: listed.pending.length,
+        restricted_count: listed.restricted.length,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/avatar/approve-all') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
+    const listed = await listPendingAvatarRowsForBulkApproval(db);
+    const now = new Date().toISOString();
+    const reviewer = adminAuditLabel(account);
+    let approvedCount = 0;
+    const currentPreserved = [];
+    for (const row of listed.pending) {
+      await db
+        .prepare('UPDATE lantern_avatar_submissions SET status = ?, approved_at = ?, approved_by = ? WHERE id = ? AND status = ?')
+        .bind('approved', now, reviewer, row.id, 'pending')
+        .run();
+      approvedCount += 1;
+      const profile = await db
+        .prepare('SELECT current_avatar_key FROM lantern_avatar_profiles WHERE character_name = ?')
+        .bind(row.character_name)
+        .first();
+      const currentKey = profile && String(profile.current_avatar_key || '').trim();
+      currentPreserved.push({
+        id: row.id,
+        character_name: row.character_name,
+        current_unchanged: true,
+        pending_was_current: !!(currentKey && currentKey === String(row.image_key || '').trim()),
+        media_restricted: listed.restricted.some((x) => x.id === row.id),
+      });
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        approved_count: approvedCount,
+        restricted_count: listed.restricted.length,
+        current_selections_preserved: true,
+        items: currentPreserved,
+        nugget_charged: 0,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'POST' && path === '/api/admin/avatar/unapprove') {
+    if (!canManageLanternAvatars(account)) {
+      return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
+    }
+    let body;
+    try {
+      body = await request.json();
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const requestedId = String((body && body.id) || '').trim();
+    const username = String((body && body.username) || '').trim();
+    let row = null;
+    if (requestedId) {
+      row = await db
+        .prepare('SELECT id, character_name, image_key, status FROM lantern_avatar_submissions WHERE id = ?')
+        .bind(requestedId)
+        .first();
+    } else if (username) {
+      const target = await resolveAdminAvatarTarget(db, env, username);
+      if (!target.ok) {
+        return jsonResponse({ ok: false, error: target.error }, target.status || 404, cors);
+      }
+      row = await loadLatestApprovedAvatarSubmission(db, [target.characterName, target.username]);
+    } else {
+      return jsonResponse({ ok: false, error: 'id_or_username_required' }, 400, cors);
+    }
+    if (!row || !row.id) {
+      return jsonResponse({ ok: false, error: 'approved_avatar_not_found' }, 404, cors);
+    }
+    if (String(row.status || '').trim().toLowerCase() !== 'approved') {
+      return jsonResponse({ ok: false, error: 'not_approved' }, 400, cors);
+    }
+    await db
+      .prepare('UPDATE lantern_avatar_submissions SET status = ? WHERE id = ? AND status = ?')
+      .bind('pending', row.id, 'approved')
+      .run();
+    row.status = 'pending';
+    const profile = await db
+      .prepare('SELECT current_avatar_key FROM lantern_avatar_profiles WHERE character_name = ?')
+      .bind(row.character_name)
+      .first();
+    return jsonResponse(
+      {
+        ok: true,
+        id: row.id,
+        character_name: row.character_name,
+        image_key: row.image_key,
+        status: 'pending',
+        media_deleted: false,
+        current_avatar_key: profile && profile.current_avatar_key ? String(profile.current_avatar_key) : null,
+        current_unchanged: true,
       },
       200,
       cors
@@ -6399,9 +6538,10 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (!characterName) return jsonResponse({ ok: false, error: 'Missing character_name' }, 400, cors);
     const account = await getPilotAccountFromRequest(request, env);
     const targetAccount = await findAvatarTargetAccount(db, characterName);
+    // Prompt #235 — resolve ONLY the requested subject. Never add the signed-in
+    // viewer as an alias candidate (that reused the viewer's avatar on every ticker item).
     const aliasCandidates = collectAvatarLookupCandidates(
-      ...avatarCandidatesFromPilotAccount(targetAccount),
-      ...avatarCandidatesFromPilotAccount(account)
+      ...avatarCandidatesFromPilotAccount(targetAccount)
     );
     const resolved = await resolveCanonicalAvatarState(db, characterName, {
       candidates: aliasCandidates,
@@ -6430,7 +6570,9 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
       pending = pendingState.pending;
     }
     const restricted = await studentAvatarIsRestricted(db, resolved.resolvedCharacterName || characterName);
-    const advertiseActive = !!resolved.publicImageKey && (!restricted || canSeePending);
+    // Public active_image is canonical-public only. Session may reveal pending_*, never a
+    // private/restricted/viewer avatar, even when the caller is authenticated.
+    const advertiseActive = !!resolved.publicImageKey && !restricted;
     const stamp = resolved.profile && resolved.profile.updated_at
       ? resolved.profile.updated_at
       : (resolved.approved && (resolved.approved.approved_at || resolved.approved.created_at)) || '';
