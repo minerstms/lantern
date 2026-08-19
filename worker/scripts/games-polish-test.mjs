@@ -110,6 +110,10 @@ if (gamesHtml.includes('teachingRevealCopy') && gamesHtml.includes("playAgainHtm
   ok('Avatar Match teaches the name on reveal and offers Play Again at the result screen');
 } else bad('Avatar Match reveal/Play Again missing');
 
+if (gamesHtml.includes("!overlay.classList.contains('is-avatar-match')) showTriviaFeedback")) {
+  ok('Avatar Match does not reuse the trivia Correct! banner');
+} else bad('Avatar Match trivia banner still shared');
+
 // ---------------------------------------------------------------------------
 // Trivia family (Lantern Live Trivia, Handbook Trivia, Local History Trivia) — shared runTriviaGame
 // ---------------------------------------------------------------------------

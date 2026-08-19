@@ -33,7 +33,8 @@
 
   function teachingRevealCopy(displayName) {
     var name = String(displayName || '').trim();
-    return name ? "That's " + name + '.' : "That's the correct person.";
+    if (!name) return "That's the correct person.";
+    return /[.!?]$/.test(name) ? "That's " + name : "That's " + name + '.';
   }
 
   function revealDelayMs(isCorrect, reducedMotion) {

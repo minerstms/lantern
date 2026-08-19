@@ -2545,7 +2545,7 @@
           });
         }
         if (!isCorrect && !prefersReducedMotion) selectedBtn.classList.add('choiceShake');
-        showTriviaFeedback(isCorrect);
+        if (!overlay.classList.contains('is-avatar-match')) showTriviaFeedback(isCorrect);
         if (overlayScore) {
           overlayScore.classList.remove('scorePulse');
           if (isCorrect && !prefersReducedMotion) {

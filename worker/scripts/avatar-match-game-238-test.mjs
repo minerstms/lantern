@@ -39,6 +39,14 @@ if (questionProgressLabel(1, 10) === 'Question 1 of 10' && questionProgressLabel
   ok('Question X of Y wording');
 } else bad('progress label');
 
+if (teachingRevealCopy('Athena D.') === "That's Athena D." && teachingRevealCopy('Alex') === "That's Alex." && AM.teachingRevealCopy('Athena D.') === "That's Athena D.") {
+  ok('teaching reveal does not double-period public names');
+} else bad('teaching copy');
+
+if (gamesHtml.includes("!overlay.classList.contains('is-avatar-match')) showTriviaFeedback")) {
+  ok('Avatar Match skips leftover trivia Correct! banner');
+} else bad('trivia banner skip');
+
 if (!/Round \d+ of 5/.test(gamesHtml) && gamesHtml.includes('questionProgressLabel') && !gamesHtml.includes('roundsTotal = 5')) {
   ok('games.html no longer uses 5-round copy');
 } else bad('old round copy', /Round 1 of 5/.test(gamesHtml));

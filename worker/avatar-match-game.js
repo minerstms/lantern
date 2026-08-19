@@ -36,7 +36,8 @@ export function questionProgressLabel(index, total) {
 
 export function teachingRevealCopy(displayName) {
   const name = String(displayName || '').trim();
-  return name ? "That's " + name + '.' : "That's the correct person.";
+  if (!name) return "That's the correct person.";
+  return /[.!?]$/.test(name) ? "That's " + name : "That's " + name + '.';
 }
 
 export function avatarMatchRevealDelayMs(isCorrect, reducedMotion) {
