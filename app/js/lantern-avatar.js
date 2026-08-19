@@ -14,7 +14,14 @@
 (function (global) {
   var DEFAULT_EMOJI = '🌟';
 
-  /** Prompt #149/#161 — one neutral person placeholder (same SVG as LanternCards). */
+  /** Prompt #239 — one static T-logo fallback. Not an R2/Web Admin avatar. */
+  var CANONICAL_FALLBACK_AVATAR_PATH = '/assets/fallback-avatar.png';
+
+  function canonicalFallbackAvatarUrl() {
+    return CANONICAL_FALLBACK_AVATAR_PATH;
+  }
+
+  /** Last-resort inline SVG if the static asset fails to load. */
   function svgDefaultAvatarDataUri() {
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#2a3a52"/><circle cx="32" cy="26" r="12" fill="rgba(255,255,255,.35)"/><ellipse cx="32" cy="52" rx="18" ry="14" fill="rgba(255,255,255,.38)"/></svg>';
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -211,6 +218,8 @@
     getAvatarApiBase: getAvatarApiBase,
     toSameOriginAvatarUrl: toSameOriginAvatarUrl,
     svgDefaultAvatarDataUri: svgDefaultAvatarDataUri,
+    canonicalFallbackAvatarUrl: canonicalFallbackAvatarUrl,
+    CANONICAL_FALLBACK_AVATAR_PATH: CANONICAL_FALLBACK_AVATAR_PATH,
     CANONICAL_IDENTITY_KEY: CANONICAL_IDENTITY_KEY,
     DEFAULT_EMOJI: DEFAULT_EMOJI
   };

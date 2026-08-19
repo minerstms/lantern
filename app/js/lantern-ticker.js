@@ -437,17 +437,16 @@
   }
 
   function canonicalPersonFallbackUrl() {
-    /* Prompt #256 — ticker fallback must be a guaranteed silhouette, never a media URL that
-       can 403/404 and collapse the slot. Prefer the shared SVG, then last-resort SVG. */
-    if (global.LanternAvatar && typeof global.LanternAvatar.svgDefaultAvatarDataUri === 'function') {
-      var av = String(global.LanternAvatar.svgDefaultAvatarDataUri() || '').trim();
+    /* Prompt #239 — static T fallback. Prompt #256 — never an R2/media URL that can 403. */
+    if (global.LanternAvatar && typeof global.LanternAvatar.canonicalFallbackAvatarUrl === 'function') {
+      var av = String(global.LanternAvatar.canonicalFallbackAvatarUrl() || '').trim();
       if (av) return av;
     }
-    if (global.LanternCards && typeof global.LanternCards.svgDefaultAvatarDataUri === 'function') {
-      var cardSvg = String(global.LanternCards.svgDefaultAvatarDataUri() || '').trim();
-      if (cardSvg) return cardSvg;
+    if (global.LanternCards && typeof global.LanternCards.getDefaultAvatarImageUrl === 'function') {
+      var card = String(global.LanternCards.getDefaultAvatarImageUrl() || '').trim();
+      if (card && card.indexOf('/api/media/') < 0) return card;
     }
-    return lastResortSilhouetteDataUri();
+    return '/assets/fallback-avatar.png';
   }
 
   function tickerAvatarHtml(it) {

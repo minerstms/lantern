@@ -1275,14 +1275,17 @@
             contentEl.innerHTML = '';
             contentEl.appendChild(img);
           } else {
-            var fallbackEmoji = String(canon.emoji || studentProfileVM.avatar || '🌟').trim() || '🌟';
-            var fallbackDiv = document.createElement('div');
-            fallbackDiv.setAttribute('aria-hidden', 'true');
-            fallbackDiv.style.cssText = 'font-size:72px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%;';
-            fallbackDiv.textContent = fallbackEmoji;
+            var fallbackUrl = (window.LanternAvatar && window.LanternAvatar.canonicalFallbackAvatarUrl)
+              ? window.LanternAvatar.canonicalFallbackAvatarUrl()
+              : '/assets/fallback-avatar.png';
+            var img = document.createElement('img');
+            img.alt = 'Avatar';
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+            img.onload = function(){ revEl.classList.add('revealed'); };
+            img.onerror = function(){ revEl.classList.add('revealed'); };
+            img.src = fallbackUrl;
             contentEl.innerHTML = '';
-            contentEl.appendChild(fallbackDiv);
-            requestAnimationFrame(function(){ revEl.classList.add('revealed'); });
+            contentEl.appendChild(img);
           }
         }
         var hero = el('profileHeroEl') || document.querySelector('.profileHero');

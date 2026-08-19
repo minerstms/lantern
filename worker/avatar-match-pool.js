@@ -3,7 +3,7 @@
  * Public-safe = approved current OR canonical approved fallback (selectPublicAvatarKey).
  * No legacy/static roster. Labels are resolvePublicDisplayName only.
  */
-import { resolvePublicDisplayName } from './staff-public-name.js';
+import { isSystemWebAdminAccount, resolvePublicDisplayName } from './staff-public-name.js';
 import { isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { studentIdIsRestricted } from './media-publicity.js';
 
@@ -15,12 +15,34 @@ function lower(v) {
   return trimStr(v).toLowerCase();
 }
 
+const SYSTEM_AVATAR_MATCH_USERNAMES = new Set(['admin', 'system', 'operator']);
+
+/**
+ * Prompt #239 — Web Admin / system / operator identities never enter Avatar Match,
+ * even if they have an uploaded/approved avatar. Ordinary real staff stay eligible.
+ */
+export function isLanternSystemAvatarMatchIdentity(row) {
+  if (!row) return true;
+  if (isSystemWebAdminAccount(row)) return true;
+  const u = lower(row.username);
+  if (SYSTEM_AVATAR_MATCH_USERNAMES.has(u)) return true;
+  const dn = lower(row.display_name);
+  const pdn = lower(row.public_display_name);
+  if (dn === 'web admin' || pdn === 'web admin') return true;
+  if (lower(row.tms_staff_id) === 'webadmin') return true;
+  if (u === 'lantern' && (dn === 'lantern' || pdn === 'lantern' || dn === 'web admin' || dn === 'system')) {
+    return true;
+  }
+  return false;
+}
+
 export function isExcludedAvatarMatchAccount(row) {
   if (!row) return true;
   const active = row.is_active != null ? Number(row.is_active) : 1;
   if (active === 0) return true;
   const u = lower(row.username);
   if (!u) return true;
+  if (isLanternSystemAvatarMatchIdentity(row)) return true;
   if (u.startsWith('test_')) return true;
   if (u.startsWith('e2e_') || u.startsWith('verify_')) return true;
   if (isKnownDemoPersonaName(row.display_name) || isKnownDemoPersonaName(row.public_display_name)) return true;

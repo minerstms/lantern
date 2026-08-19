@@ -2567,10 +2567,11 @@
         openAvatarMatch();
       });
 
-      function avatarFallbackChar(displayName){
-        var name = (displayName || '').trim();
-        if (name.length) return name.charAt(0).toUpperCase();
-        return '?';
+      function canonicalAvatarFallbackUrl(){
+        if (window.LanternAvatar && typeof window.LanternAvatar.canonicalFallbackAvatarUrl === 'function') {
+          return window.LanternAvatar.canonicalFallbackAvatarUrl();
+        }
+        return '/assets/fallback-avatar.png';
       }
 
       function openAvatarMatch(){
@@ -2689,21 +2690,15 @@
           var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim())
             ? String(canonAm.imageUrl).trim()
             : String((pickTarget && pickTarget.avatar_url) || '').trim();
-          var fallbackLetter = avatarFallbackChar(pickTarget.display_name);
+          var fallbackUrl = canonicalAvatarFallbackUrl();
           var html = '<div class="avatarMatchShell">';
           html += '<p class="avatarMatchPrompt">Who is this?</p>';
           html += '<div class="avatarMatchScoreRow"><span class="round">' + esc(AM.questionProgressLabel(qNum, runState.questionTotal)) + '</span><span class="score">' + runState.correctCount + ' correct</span></div>';
           html += '<p class="avatarMatchFeedback" role="status" aria-live="polite"></p>';
           html += '<div class="avatarMatchImgWrap">';
-          if (avatarUrl) {
-            html += '<img src="' + esc(avatarUrl) + '" alt="" onerror="var w=this.parentElement; if(w){ var f=w.querySelector(\'.avatarFallback\'); if(f){ f.classList.remove(\'avatarFallbackHidden\'); } this.style.display=\'none\'; }">';
-            html += '<span class="avatarFallback avatarFallbackHidden"><span class="avatarInitial">' + esc(fallbackLetter) + '</span></span>';
-          } else {
-            html += '<span class="avatarFallback"><span class="avatarInitial">' + esc(fallbackLetter) + '</span></span>';
-          }
+          html += '<img src="' + esc(avatarUrl || fallbackUrl) + '" alt="" onerror="this.onerror=null;this.src=\'' + esc(fallbackUrl) + '\';">';
           html += '</div><div class="avatarMatchChoices">';
-          options.forEach(function(opt){
-            var name = String((opt.display_name) || '').trim();
+          options.forEach(function(opt){            var name = String((opt.display_name) || '').trim();
             html += '<button type="button" class="choiceBtn" data-name="' + esc(name) + '"><span class="choiceLabel">' + esc(name) + '</span></button>';
           });
           html += '</div></div>';

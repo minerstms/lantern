@@ -529,7 +529,7 @@ sandbox.document.getElementById = function (id) {
 };
 LT.render('lanternTicker', noAvatarItems);
 assert(
-  /default_avatar|data:image\/svg\+xml/.test(container.innerHTML),
+  /fallback-avatar\.png/.test(container.innerHTML),
   '44b/V. generic person silhouette used when approved avatar missing',
   container.innerHTML.slice(0, 280)
 );
@@ -537,7 +537,7 @@ assert(/lanternTickerItemName/.test(container.innerHTML) && /Mr\. Radle/.test(co
 assert(/lanternTickerItemType/.test(container.innerHTML) && /lanternTickerItemSubject/.test(container.innerHTML), '55. type + subject spans');
 
 LT.render('lanternTicker', [LT.FALLBACK_TICKER_ITEM]);
-assert(/lanternTickerItemAvatar/.test(container.innerHTML) && /data:image\/svg\+xml/.test(container.innerHTML), '45/W. system fallback still renders the required avatar slot (silhouette)');
+assert(/lanternTickerItemAvatar/.test(container.innerHTML) && /fallback-avatar\.png/.test(container.innerHTML), '45/W. system fallback still renders the required avatar slot (canonical T)');
 assert(/lanternTickerItemType/.test(container.innerHTML) && /News · Spotlights · Community/.test(container.innerHTML), '45b. system fallback copy');
 
 LT.render('lanternTicker', [missionItem]);

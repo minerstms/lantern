@@ -136,7 +136,7 @@ const missingItems = LT.buildDisplayTickerItems([missingSlide]);
 const box = { querySelector: function () { return null; }, style: {}, innerHTML: '' };
 sandbox.document.getElementById = function (id) { return id === 'lanternTicker' ? box : null; };
 LT.render('lanternTicker', missingItems);
-if (/default_avatar|data:image\/svg\+xml/.test(box.innerHTML) && /lanternTickerItemAvatar/.test(box.innerHTML)) {
+if (/fallback-avatar\.png/.test(box.innerHTML) && /lanternTickerItemAvatar/.test(box.innerHTML)) {
   ok('15. missing eligible avatar receives neutral fallback');
 } else bad('15. fallback', box.innerHTML.slice(0, 240));
 

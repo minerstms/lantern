@@ -272,11 +272,12 @@
       var m = s.meta || {};
       var canon = m._canonicalAvatar;
       var avatarImage = canon && canon.imageUrl ? String(canon.imageUrl).trim() : '';
-      var personFb = (window.LanternCards && typeof window.LanternCards.getDefaultAvatarImageUrl === 'function')
-        ? String(window.LanternCards.getDefaultAvatarImageUrl() || '').trim()
-        : ((window.LanternAvatar && typeof window.LanternAvatar.svgDefaultAvatarDataUri === 'function')
-          ? String(window.LanternAvatar.svgDefaultAvatarDataUri() || '').trim()
-          : '');
+      var personFb = (window.LanternAvatar && typeof window.LanternAvatar.canonicalFallbackAvatarUrl === 'function')
+        ? String(window.LanternAvatar.canonicalFallbackAvatarUrl() || '').trim()
+        : ((window.LanternCards && typeof window.LanternCards.getDefaultAvatarImageUrl === 'function')
+          ? String(window.LanternCards.getDefaultAvatarImageUrl() || '').trim()
+          : '/assets/fallback-avatar.png');
+      if (!personFb) personFb = '/assets/fallback-avatar.png';
       if (!avatarImage) avatarImage = personFb;
       var frameVal = (s.meta && s.meta.frame) ? String(s.meta.frame).replace(/_/g, '-').replace(/[^a-z0-9-]/gi, '') || 'none' : 'none';
       var img = '';
@@ -288,7 +289,7 @@
         var inner = avatarImage
           ? '<img src="' + esc(avatarImage) + '" alt="" class="slideAvatarImg"' +
             (personFb ? ' data-lc-av-def="' + esc(personFb) + '"' : '') +
-            ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;return;}el.style.display=\'none\';">'
+            ' onerror="var el=this;var d=el.getAttribute(\'data-lc-av-def\');if(d&&el.getAttribute(\'src\')!==d){el.src=d;return;}el.style.display=\'\';">'
           : '';
         avatarBlock = '<div class="slideAvatarWrap frame-' + frameVal + '">' + inner + '</div>';
       }

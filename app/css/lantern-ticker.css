@@ -8,8 +8,7 @@
   --lantern-ticker-icon-slot: 1.15em;
   --lantern-ticker-item-gap: clamp(40px, 5vw, 72px);
   --lantern-ticker-copy-gap: 0.4em;
-  --lantern-ticker-silhouette:
-    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232a3a52'/%3E%3Ccircle cx='32' cy='26' r='12' fill='rgba(255,255,255,.35)'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='14' fill='rgba(255,255,255,.38)'/%3E%3C/svg%3E");
+  --lantern-ticker-silhouette: url("/assets/fallback-avatar.png");
 }
 .lanternTicker{
   width: 100%;
