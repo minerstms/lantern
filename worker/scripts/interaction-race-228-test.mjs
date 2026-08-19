@@ -55,7 +55,7 @@ assert(/hold - h/.test(revealSrc) || /layoutHold \|\| 0/.test(revealSrc), 'icon 
 assert(/function measureRide/.test(revealSrc) && /barFromBottom/.test(revealSrc), 'bar bottom pinned to icon rest position');
 assert(/lanternRxRaceStage/.test(revealSrc) && /data-rx-race-stage/.test(revealSrc), 'reserved race stage inserted above icon row');
 assert(/raceStageHeight/.test(revealSrc) && /applyStageHeight/.test(revealSrc) && /syncRaceStage/.test(revealSrc), 'raceStageHeight grows with tallest bar');
-assert(/lockIconFloor/.test(revealSrc) && /scrollTop/.test(revealSrc), 'icon floor stays anchored via scroll, not overlay');
+assert(!/lockIconFloor/.test(revealSrc) && !/scrollTop\s*\+=/.test(revealSrc), 'race loop does not write overlay scrollTop');
 assert(/cart\.style\.left = p \+ '%'/.test(revealSrc), 'cart left follows leading edge');
 assert(!/min-height:\s*252px/.test(rxCss), 'racing CSS does not drop icons to a 252px baseline');
 assert(/lockExistingDraft/.test(finalRx), 'submit races existing icons in place');

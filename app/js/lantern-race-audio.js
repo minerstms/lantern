@@ -221,6 +221,58 @@
     }
   }
 
+  function applyFloatMuteStyles(tb) {
+    if (!tb || !tb.style) return;
+    tb.style.position = 'absolute';
+    tb.style.top = '0';
+    tb.style.right = '0';
+    tb.style.left = 'auto';
+    tb.style.bottom = 'auto';
+    tb.style.margin = '0';
+    tb.style.width = 'auto';
+    tb.style.height = 'auto';
+  }
+
+  function findFloatingMuteToolbar(root) {
+    if (!root || !root.querySelector) return null;
+    return (
+      root.querySelector('[data-race-sound-float]') ||
+      root.querySelector('[data-rx-sound-float]') ||
+      null
+    );
+  }
+
+  /**
+   * Out-of-flow Sound/mute control. Must not add document-flow height.
+   * opts: { extraClass, mark, searchRoot }
+   */
+  function attachFloatingMuteToolbar(panel, opts) {
+    if (!panel) return null;
+    opts = opts || {};
+    var searchRoot = opts.searchRoot || panel;
+    var existing = findFloatingMuteToolbar(searchRoot) || findFloatingMuteToolbar(panel);
+    if (existing) {
+      if (opts.extraClass && existing.className.indexOf(opts.extraClass) === -1) {
+        existing.className += ' ' + opts.extraClass;
+      }
+      if (opts.mark) existing.setAttribute(opts.mark, '1');
+      existing.setAttribute('data-race-sound-float', '1');
+      applyFloatMuteStyles(existing);
+      return existing;
+    }
+    var doc = panel.ownerDocument || global.document;
+    var tb = doc.createElement('div');
+    tb.className = 'lanternRaceToolbar lanternRaceToolbar--float' + (opts.extraClass ? ' ' + opts.extraClass : '');
+    tb.setAttribute('data-race-sound-float', '1');
+    if (opts.mark) tb.setAttribute(opts.mark, '1');
+    tb.setAttribute('aria-label', 'Race sound');
+    applyFloatMuteStyles(tb);
+    tb.innerHTML = muteControlHtml();
+    panel.appendChild(tb);
+    bindMuteControl(panel);
+    return tb;
+  }
+
   global.LANTERN_RACE_AUDIO = {
     PREF_KEY: PREF_KEY,
     C_MAJOR_HZ: C_MAJOR_HZ,
@@ -236,6 +288,8 @@
     degreeForProgress: degreeForProgress,
     muteControlHtml: muteControlHtml,
     bindMuteControl: bindMuteControl,
+    attachFloatingMuteToolbar: attachFloatingMuteToolbar,
+    applyFloatMuteStyles: applyFloatMuteStyles,
     syncMuteButton: syncMuteButton,
     audioAllowed: audioAllowed,
   };

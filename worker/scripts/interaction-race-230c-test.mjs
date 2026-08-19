@@ -40,7 +40,7 @@ assert(/data-rx-race-stage/.test(rxFn) && /lanternRxRaceStage/.test(rxFn), 'stag
 assert(/insertBefore\(stage, parentChoices\)/.test(rxFn), 'stage is inserted above the reaction icon row');
 assert(/raceStageHeight/.test(rxFn) && /style\.height = next \+ 'px'/.test(rxFn), 'stage height is real layout height');
 assert(/applyStageHeight\(0\)/.test(rxFn), 'stage starts at 0 before the race grows');
-assert(/lockIconFloor/.test(rxFn) && /startTop/.test(rxFn) && /scrollTop \+= drift/.test(rxFn), 'floor stays at pre-tap Y via scroll compensation');
+assert(!/lockIconFloor/.test(rxFn) && !/scrollTop\s*\+=/.test(rxFn), 'no per-frame scroll compensation');
 assert(/ensureScrollRoom/.test(rxFn) && /paddingBottom/.test(rxFn), 'modal can scroll when reserved height exceeds the viewport');
 assert(/hold - h/.test(rxFn), 'icons still ride bar tops (translateY hold - h)');
 assert(/layoutHold/.test(rxFn) && /captureLayoutHold/.test(rxFn), '#228 pre-tap icon Y hold preserved');
@@ -52,7 +52,8 @@ assert(!/raceStageHeight|lanternRxRaceStage|lockIconFloor|data-rx-race-stage/.te
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 
 assert(/\.lanternRxRaceStage/.test(rxCss) && /flex: 0 0 auto/.test(rxCss), 'stage CSS is in-flow layout height');
-assert(/#0b1628/.test(rxCss) || /background:\s*#0b1628/.test(rxCss), 'stage background is opaque, not a transparent overlay');
+assert(/\.lanternRxRaceStage\{[\s\S]*?background:\s*transparent/.test(rxCss), 'stage has no light rectangular slab');
+assert(!/#0b1628/.test(rxCss), 'removed #0b1628 race-stage fill');
 assert(/#3b82f6|#1d4ed8/.test(rxCss), 'bars are solid enough to read on the reserved stage');
 assert(/lanternCardDetailOverlay--rx-racing/.test(cardsCss) && /overflow-y:\s*auto/.test(cardsCss), 'opened-post overlay stays vertically scrollable');
 

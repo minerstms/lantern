@@ -24,6 +24,32 @@
     });
   }
 
+  function attachRxMuteToolbar(panel) {
+    if (!panel || panel.querySelector('[data-rx-sound-float]')) return;
+    var audio = global.LANTERN_RACE_AUDIO;
+    if (audio && typeof audio.attachFloatingMuteToolbar === 'function') {
+      audio.attachFloatingMuteToolbar(panel, {
+        extraClass: 'lanternRaceToolbar--rx',
+        mark: 'data-rx-sound-float',
+      });
+      return;
+    }
+    var tb = global.document.createElement('div');
+    tb.className = 'lanternRaceToolbar lanternRaceToolbar--rx';
+    tb.setAttribute('data-rx-sound-float', '1');
+    tb.setAttribute('data-race-sound-float', '1');
+    tb.setAttribute('aria-label', 'Race sound');
+    tb.style.position = 'absolute';
+    tb.style.top = '0';
+    tb.style.right = '0';
+    tb.style.left = 'auto';
+    tb.style.bottom = 'auto';
+    tb.style.margin = '0';
+    tb.innerHTML = audio && typeof audio.muteControlHtml === 'function' ? audio.muteControlHtml() : '';
+    panel.appendChild(tb);
+    if (audio && typeof audio.bindMuteControl === 'function') audio.bindMuteControl(panel);
+  }
+
   function orderedVocab(types) {
     var source = FINAL_VOCAB;
     if (BANK && typeof BANK.canonicalSort === 'function' && types && types.length) {
@@ -212,6 +238,7 @@
     html += choicesHtml(vocab, '');
     html += '</div>';
     container.innerHTML = html;
+    attachRxMuteToolbar(container.querySelector('.lanternFinalRxPanel'));
     var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
 
     function sync() {
@@ -311,6 +338,7 @@
     html += '</div>';
     container.innerHTML = html;
     var panel = container.querySelector('.lanternFinalRxPanel');
+    attachRxMuteToolbar(panel);
     container.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
       var t = btn.getAttribute('data-rx-type');
       btn.setAttribute('data-locked', 'true');
@@ -338,6 +366,7 @@
     container.innerHTML = html;
 
     var panel = container.querySelector('.lanternFinalRxPanel');
+    attachRxMuteToolbar(panel);
     var choiceBtns = container.querySelectorAll('.lanternFinalRxChoice');
 
     function clearError() {
