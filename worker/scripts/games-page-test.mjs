@@ -210,5 +210,9 @@ if (
   ok('economy/paid-start labels untouched (playActionLabel + game_play kind still present)');
 } else bad('economy/paid-start path appears altered');
 
+if (gamesPageJs.includes('gamesAmDivisions') && gamesPageJs.includes('openAvatarMatchLeaderboard') && gamesPageJs.includes("amModalMode: '10'")) {
+  ok('Avatar Match leaderboard exposes visible 10/25/50/100/Full Roster divisions');
+} else bad('Avatar Match visible divisions');
+
 console.log('\nGames page tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

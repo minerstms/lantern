@@ -26,6 +26,8 @@ function bad(label, detail) { fail++; console.error('FAIL', label, detail != nul
 
 const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 const clientJs = fs.readFileSync(path.join(root, 'app/js/lantern-avatar-match.js'), 'utf8');
+const gamesPageJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-page.js'), 'utf8');
+const gamesCss = fs.readFileSync(path.join(root, 'app/css/lantern-games-page.css'), 'utf8');
 const workerIndex = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 const poolJs = fs.readFileSync(path.join(root, 'worker/avatar-match-pool.js'), 'utf8');
 const paidStart = fs.readFileSync(path.join(root, 'app/js/lantern-games-paid-start.js'), 'utf8');
@@ -134,6 +136,53 @@ if (workerIndex.includes("json_extract(meta_json, '$.am_mode')") && workerIndex.
 if (gamesHtml.includes('public_display_name') || workerIndex.includes('public_display_name')) {
   ok('leaderboard identity stays on public_display_name');
 } else bad('privacy label');
+
+if (
+  gamesPageJs.includes('id="gamesAmDivisions"') &&
+  gamesPageJs.includes('data-am-lb-default="10"') &&
+  gamesPageJs.includes('data-am-lb-mode=') &&
+  gamesPageJs.includes("amModalMode: '10'")
+) {
+  ok('visible mode selector exists for leaderboard and defaults to 10');
+} else bad('lb division selector');
+
+if (gamesPageJs.includes("amMode: '10'") && gamesPageJs.includes("url += '&am_mode=' + encodeURIComponent(mode)")) {
+  ok('default Avatar Match carousel/board fetch stays on 10');
+} else bad('default 10 fetch');
+
+if (
+  gamesPageJs.includes("amMode: state.amModalMode") &&
+  gamesPageJs.includes("amQuestions: state.amModalMode === 'full' ? count : 0") &&
+  gamesPageJs.includes("url += '&am_questions='")
+) {
+  ok('selecting a division fetches that mode only; Full Roster includes current am_questions');
+} else bad('division fetch filters');
+
+if (
+  gamesPageJs.includes("{ id: '25'") &&
+  gamesPageJs.includes("{ id: '50'") &&
+  gamesPageJs.includes("{ id: '100'") &&
+  gamesPageJs.includes("loadAvatarMatchModalBoard(game, mode, state.amEligibleCount)") &&
+  gamesPageJs.includes("url += '&am_mode=' + encodeURIComponent(mode)")
+) {
+  ok('selecting 25/50/100 fetches that mode only');
+} else bad('clicked mode fetch');
+
+if (gamesPageJs.includes('openAvatarMatchLeaderboard') && gamesHtml.includes('avatarMatchViewLbBtn') && gamesHtml.includes('openAvatarMatchLeaderboard(modeId, total)')) {
+  ok('results can reach the just-played mode leaderboard');
+} else bad('results lb link');
+
+if (!/openAvatarMatchLeaderboard[\s\S]{0,400}startPaidGame/.test(gamesPageJs) && !/data-am-lb-mode[\s\S]{0,400}startPaidGame/.test(gamesPageJs) && !/avatarMatchViewLbBtn[\s\S]{0,500}startPaidGame/.test(gamesHtml)) {
+  ok('no Nugget charge for leaderboard viewing');
+} else bad('lb view charge leak');
+
+if (gamesPageJs.includes('leaderboardPublicLabel') && gamesPageJs.includes('public_display_name') && !gamesPageJs.includes('username +') && gamesPageJs.includes("return 'Player'")) {
+  ok('privacy-safe names only on Avatar Match boards');
+} else bad('lb privacy');
+
+if (gamesCss.includes('.gamesAmDivisions') && gamesCss.includes('flex-wrap: wrap') && gamesCss.includes('overflow-x: hidden') && gamesCss.includes('z-index: 10200')) {
+  ok('phone layout wraps leaderboard divisions without page overflow');
+} else bad('lb responsive css');
 
 if (gamesHtml.includes('is-avatar-match') && gamesHtml.includes('overflow: hidden') && gamesHtml.includes('100dvh')) {
   ok('modal shell hides normal overflow and uses dvh');
