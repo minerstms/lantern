@@ -266,7 +266,8 @@ const news = (byType.news || [])[0];
 assert(news && news.author_avatar_key === 'rick.radle', '11. News uses author avatar key', news);
 
 const shout = (byType.shout_out || [])[0];
-assert(shout && shout.author_avatar_key === 'frank.begano', '14. Shout-Out chip is the author/sender', shout);
+assert(shout && shout.author_avatar_key === 'frank.begano', '14. Shout-Out author key remains the sender', shout);
+assert(shout && shout.subject_avatar_key === 'eric.colorado', '14-subject. Shout-Out face uses recognized subject key', shout);
 assert(shout && shout.public_display_name === 'Mr. Begano', '14b. Shout-Out name is the author account');
 assert(shout && /Mr\. Colorado/.test(shout.public_text) && /Mr\. Begano/.test(shout.public_text), '14c. compact line still names both people');
 
@@ -309,7 +310,8 @@ const shoutNoKey = await collectMarqueeEvents(
   )
 );
 const shoutFree = shoutNoKey.find((e) => e.type === 'shout_out');
-assert(shoutFree && shoutFree.author_avatar_key === 'frank.begano', '14d. Shout-Out without recipient key still uses sender avatar', shoutFree);
+assert(shoutFree && shoutFree.author_avatar_key === 'frank.begano', '14d. Shout-Out without recipient key keeps sender as author key', shoutFree);
+assert(!shoutFree.subject_avatar_key, '14d-subject. no subject key when recipient is not a durable account', shoutFree);
 assert(shoutFree && shoutFree.author_avatar_key !== 'eric.colorado', '14e. does not guess Colorado from display text');
 assert(
   shoutFree && /Mr\. Colorado/.test(shoutFree.public_text) && /Mr\. Begano/.test(shoutFree.public_text),

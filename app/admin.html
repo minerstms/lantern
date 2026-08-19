@@ -402,6 +402,7 @@
           <option value="8">8th</option>
         </select>
         <button type="button" class="btn" id="studentsRosterRefreshBtn">Refresh</button>
+        <button type="button" class="btn good" id="adminApproveAllPendingBtn">Approve All Pending</button>
         <button type="button" class="btn good" id="studentsAddOpenBtn">+ Add Student</button>
       </div>
       <div id="studentsAddPanel" class="acctInlinePanel" style="display:none;" aria-hidden="true" data-collapsible-editor hidden>
@@ -558,8 +559,25 @@
       <p id="adminAvatarPolicyHint" class="acctPanelHint" style="margin:8px 0 0;">System Admin assignment costs 0 Nuggets. Uses the same Locker cropper.</p>
       <div class="acctPanelActions">
         <button type="button" class="btn good" id="adminAvatarActivateBtn" style="display:none;">Approve &amp; Use</button>
+        <button type="button" class="btn" id="adminAvatarUnapproveBtn" style="display:none;">Unapprove</button>
         <button type="button" class="btn good" id="adminAvatarNextMissingBtn" style="display:none;">Next Missing Avatar</button>
         <button type="button" class="btn" id="adminAvatarCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="adminApproveAllOverlay" aria-hidden="true">
+    <div class="modal" style="max-width:520px;" role="dialog" aria-labelledby="adminApproveAllTitle" aria-modal="true">
+      <div class="modalHd">
+        <div class="h" id="adminApproveAllTitle">Approve All Pending</div>
+        <button type="button" class="x" id="adminApproveAllCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <p id="adminApproveAllCount" class="acctPanelHint" style="font-size:22px;">Loading pending count…</p>
+      <p class="acctPanelHint">This approves every currently pending student avatar that is eligible. Rejected records stay rejected. Current avatar selections are not switched.</p>
+      <p id="adminApproveAllMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
+      <div class="acctPanelActions" style="margin-top:12px;">
+        <button type="button" class="btn" id="adminApproveAllCancelBtn">Cancel</button>
+        <button type="button" class="btn good" id="adminApproveAllConfirmBtn" disabled>Approve All Pending</button>
       </div>
     </div>
   </div>
@@ -2531,6 +2549,11 @@
         activateBtn.style.display = 'none';
         activateBtn.disabled = false;
       }
+      var unapproveBtn = document.getElementById('adminAvatarUnapproveBtn');
+      if (unapproveBtn) {
+        unapproveBtn.style.display = 'none';
+        unapproveBtn.disabled = false;
+      }
       var nextBtn = document.getElementById('adminAvatarNextMissingBtn');
       if (nextBtn) {
         nextBtn.style.display = 'none';
@@ -2571,10 +2594,12 @@
       var msg = document.getElementById('adminAvatarMsg');
       var policy = document.getElementById('adminAvatarPolicyHint');
       var activateBtn = document.getElementById('adminAvatarActivateBtn');
+      var unapproveBtn = document.getElementById('adminAvatarUnapproveBtn');
       var role = String((body && body.role) || '').trim().toLowerCase();
       var isStudent = role === 'student';
       var staged = !!(body && (body.staged || body.staged_image));
       var canSetCurrent = !!(body && body.can_set_current);
+      var canUnapprove = !!(body && body.can_unapprove);
       var restricted = Number(body && body.media_restricted) === 1;
       var preview = (body && (body.staged_image || body.active_image || body.approved_image)) || null;
       setAdminAvatarPreview(preview);
@@ -2590,6 +2615,15 @@
         } else {
           activateBtn.style.display = 'none';
           activateBtn.disabled = true;
+        }
+      }
+      if (unapproveBtn) {
+        if (isStudent && canUnapprove) {
+          unapproveBtn.style.display = 'inline-block';
+          unapproveBtn.disabled = false;
+        } else {
+          unapproveBtn.style.display = 'none';
+          unapproveBtn.disabled = true;
         }
       }
       if (policy) {
@@ -2958,6 +2992,112 @@
         }).catch(function() {
           adminAvatarActivateBtn.disabled = false;
           if (msg) msg.textContent = 'Network error activating avatar.';
+        });
+      });
+    }
+    var adminAvatarUnapproveBtn = document.getElementById('adminAvatarUnapproveBtn');
+    if (adminAvatarUnapproveBtn) {
+      adminAvatarUnapproveBtn.addEventListener('click', function() {
+        var username = String((document.getElementById('adminAvatarUsername') || {}).value || '').trim();
+        var msg = document.getElementById('adminAvatarMsg');
+        if (!username) {
+          if (msg) msg.textContent = 'Missing account username.';
+          return;
+        }
+        if (!window.confirm('Unapprove this avatar? It stays saved and can be approved again. It will no longer be publicly visible.')) return;
+        adminAvatarUnapproveBtn.disabled = true;
+        postAdminJson('/api/admin/avatar/unapprove', { username: username }).then(function(res) {
+          adminAvatarUnapproveBtn.disabled = false;
+          if (res && res.okHttp && res.body && res.body.ok) {
+            if (msg) msg.textContent = 'Avatar unapproved. It is pending and no longer public.';
+            fetch(api + '/api/admin/avatar/status?username=' + encodeURIComponent(username), { credentials: 'include', cache: 'no-store' })
+              .then(function(r) { return r.json(); })
+              .then(function(body) {
+                if (body && body.ok) applyAdminAvatarStatus(body);
+              })
+              .catch(function() {});
+            if (adminAvatarContext.fromStudents) refreshRosterAvatarRow(username, false);
+            return;
+          }
+          if (msg) msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not unapprove avatar.';
+        }).catch(function() {
+          adminAvatarUnapproveBtn.disabled = false;
+          if (msg) msg.textContent = 'Network error unapproving avatar.';
+        });
+      });
+    }
+    function closeAdminApproveAllOverlay() {
+      var overlay = document.getElementById('adminApproveAllOverlay');
+      if (overlay) {
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    }
+    function openAdminApproveAllOverlay() {
+      var overlay = document.getElementById('adminApproveAllOverlay');
+      var countEl = document.getElementById('adminApproveAllCount');
+      var msg = document.getElementById('adminApproveAllMsg');
+      var confirmBtn = document.getElementById('adminApproveAllConfirmBtn');
+      if (!overlay) return;
+      if (countEl) countEl.textContent = 'Loading pending count…';
+      if (msg) msg.textContent = '';
+      if (confirmBtn) confirmBtn.disabled = true;
+      overlay.classList.add('show');
+      overlay.setAttribute('aria-hidden', 'false');
+      fetch(api + '/api/admin/avatar/pending-approval-summary', { credentials: 'include', cache: 'no-store' })
+        .then(function(r) { return r.json().then(function(j) { return { okHttp: r.ok, body: j }; }); })
+        .then(function(res) {
+          var n = res && res.body && Number(res.body.pending_count);
+          if (!(res && res.okHttp && res.body && res.body.ok) || !isFinite(n)) {
+            if (countEl) countEl.textContent = 'Could not load the pending count.';
+            return;
+          }
+          if (countEl) {
+            countEl.textContent = n === 1
+              ? '1 pending student avatar will be approved.'
+              : n + ' pending student avatars will be approved.';
+          }
+          if (confirmBtn) confirmBtn.disabled = n < 1;
+        })
+        .catch(function() {
+          if (countEl) countEl.textContent = 'Could not load the pending count.';
+        });
+    }
+    var adminApproveAllPendingBtn = document.getElementById('adminApproveAllPendingBtn');
+    if (adminApproveAllPendingBtn) {
+      adminApproveAllPendingBtn.addEventListener('click', openAdminApproveAllOverlay);
+    }
+    var adminApproveAllCancelBtn = document.getElementById('adminApproveAllCancelBtn');
+    if (adminApproveAllCancelBtn) adminApproveAllCancelBtn.addEventListener('click', closeAdminApproveAllOverlay);
+    var adminApproveAllCloseBtn = document.getElementById('adminApproveAllCloseBtn');
+    if (adminApproveAllCloseBtn) adminApproveAllCloseBtn.addEventListener('click', closeAdminApproveAllOverlay);
+    var adminApproveAllOverlay = document.getElementById('adminApproveAllOverlay');
+    if (adminApproveAllOverlay) {
+      adminApproveAllOverlay.addEventListener('click', function(ev) {
+        if (ev.target === adminApproveAllOverlay) closeAdminApproveAllOverlay();
+      });
+    }
+    var adminApproveAllConfirmBtn = document.getElementById('adminApproveAllConfirmBtn');
+    if (adminApproveAllConfirmBtn) {
+      adminApproveAllConfirmBtn.addEventListener('click', function() {
+        var msg = document.getElementById('adminApproveAllMsg');
+        adminApproveAllConfirmBtn.disabled = true;
+        postAdminJson('/api/admin/avatar/approve-all', {}).then(function(res) {
+          if (res && res.okHttp && res.body && res.body.ok) {
+            var n = Number(res.body.approved_count) || 0;
+            if (msg) msg.textContent = n === 1 ? 'Approved 1 pending avatar.' : 'Approved ' + n + ' pending avatars.';
+            if (typeof showStudentsRosterMsg === 'function') {
+              showStudentsRosterMsg(n === 1 ? 'Approved 1 pending avatar.' : 'Approved ' + n + ' pending avatars.', 'ok');
+            }
+            setTimeout(closeAdminApproveAllOverlay, 700);
+            if (typeof loadStudentsRoster === 'function') loadStudentsRoster();
+            return;
+          }
+          adminApproveAllConfirmBtn.disabled = false;
+          if (msg) msg.textContent = (res && res.body && (res.body.message || res.body.error)) || 'Could not approve pending avatars.';
+        }).catch(function() {
+          adminApproveAllConfirmBtn.disabled = false;
+          if (msg) msg.textContent = 'Network error approving pending avatars.';
         });
       });
     }
