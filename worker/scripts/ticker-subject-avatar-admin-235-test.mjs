@@ -203,6 +203,8 @@ if (
   workerIndex.includes("path === '/api/admin/avatar/approve-all'") &&
   workerIndex.includes("path === '/api/admin/avatar/unapprove'") &&
   workerIndex.includes("path === '/api/admin/avatar/pending-approval-summary'") &&
+  workerIndex.includes('restricted_count') &&
+  !workerIndex.includes('skipped_restricted') &&
   /approve-all[\s\S]{0,400}canManageLanternAvatars/.test(workerIndex) &&
   /unapprove[\s\S]{0,400}canManageLanternAvatars/.test(workerIndex)
 ) {
@@ -212,11 +214,14 @@ if (
 if (
   adminHtml.includes('Approve All Pending') &&
   adminHtml.includes('adminApproveAllOverlay') &&
+  adminHtml.includes('adminApproveAllRestrictedNote') &&
+  adminHtml.includes('will remain hidden publicly') &&
+  !adminHtml.includes('skipped_restricted') &&
   adminHtml.includes('adminAvatarUnapproveBtn') &&
   adminHtml.includes('Unapprove')
 ) {
-  ok('Web Admin UI has Approve All Pending confirm + Unapprove');
-} else bad('admin UI missing #235 actions');
+  ok('F. dialog reports restricted count as informational, not skipped');
+} else bad('admin UI missing #235A copy');
 
 const sandbox = {
   window: {},
@@ -379,30 +384,63 @@ if (otherAdminAll.status === 403 && otherAdminAll.json && otherAdminAll.json.err
 } else bad('5b. other admin', otherAdminAll);
 
 const summary = await req(env, 'GET', '/api/admin/avatar/pending-approval-summary', adminCookie);
-if (summary.status === 200 && summary.json && summary.json.pending_count === 2 && summary.json.skipped_restricted === 1) {
-  ok('8-count. preview counts eligible pending and skips restricted');
+if (
+  summary.status === 200 &&
+  summary.json &&
+  summary.json.pending_count === 3 &&
+  summary.json.restricted_count === 1 &&
+  summary.json.skipped_restricted == null
+) {
+  ok('E/F. preview includes restricted pending in total; restricted_count is informational');
 } else bad('preview count', summary);
 
 const rejectedBefore = state.submissions.filter((r) => r.status === 'rejected').length;
 const keepCurrentBefore = state.profiles['20920'].current_avatar_key;
 const batch = await req(env, 'POST', '/api/admin/avatar/approve-all', adminCookie, {});
-if (batch.status === 200 && batch.json && batch.json.ok && batch.json.approved_count === 2 && batch.json.current_selections_preserved === true) {
-  ok('4. Web Admin Approve All Pending succeeds');
+if (batch.status === 200 && batch.json && batch.json.ok && batch.json.approved_count === 3 && batch.json.restricted_count === 1 && batch.json.current_selections_preserved === true) {
+  ok('A/B. Approve All Pending approves unrestricted and restricted pending avatars');
 } else bad('4. approve-all', batch);
 
 if (state.submissions.find((r) => r.id === 'av-b-pend').status === 'approved' &&
     state.submissions.find((r) => r.id === 'av-new-pend').status === 'approved') {
-  ok('4b. eligible pending rows are approved');
+  ok('A. unrestricted pending avatar is approved');
 } else bad('4b. pending not approved');
+
+if (state.submissions.find((r) => r.id === 'av-restricted').status === 'approved') {
+  ok('B. media-restricted pending avatar is also approved');
+} else bad('B. restricted still pending');
 
 if (state.submissions.find((r) => r.id === 'av-c-rej').status === 'rejected' &&
     state.submissions.filter((r) => r.status === 'rejected').length === rejectedBefore) {
-  ok('7. batch approval does not change rejected records');
+  ok('G. batch approval does not change rejected records');
 } else bad('7. rejected mutated');
 
-if (state.submissions.find((r) => r.id === 'av-restricted').status === 'pending') {
-  ok('7b. media-restricted pending stays pending');
-} else bad('7b. restricted approved');
+const restrictedPublic = await req(env, 'GET', '/api/avatar/status?character_name=20930', cookieA);
+if (restrictedPublic.json && !restrictedPublic.json.status.active_image) {
+  ok('C. approved restricted avatar remains hidden by public resolver');
+} else bad('C. restricted became public', restrictedPublic);
+
+const restrictedTickerSlide = {
+  type: 'arcade_leader',
+  title: 'Leaderboard: Avatar Match — Hidden',
+  meta: {
+    marquee_type: 'leaderboard_entry',
+    subject_avatar_key: '20930',
+    author_avatar_key: '20930',
+    public_display_name: 'Hidden',
+    object_title: 'Avatar Match',
+    ticker_type_label: 'Leaderboard',
+    _canonicalAvatar: { imageUrl: '' },
+  },
+};
+const restrictedTickerItem = LT.buildDisplayTickerItems([restrictedTickerSlide])[0];
+if (
+  restrictedTickerItem &&
+  !/avatars\/restricted/.test(String(restrictedTickerItem.avatarUrl || '')) &&
+  !restrictedTickerItem.avatarUrl
+) {
+  ok('D. restricted student remains hidden in ticker (neutral fallback)');
+} else bad('D. restricted ticker', restrictedTickerItem);
 
 if (state.profiles['20920'].current_avatar_key === keepCurrentBefore && !state.profileWrites) {
   ok('9. batch approval does not switch current-avatar selection');

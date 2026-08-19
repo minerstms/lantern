@@ -2371,8 +2371,8 @@ async function handleAuthRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 
-/** Prompt #235 — pending student avatars eligible for Web Admin bulk approval. Skips rejected and media-restricted. */
-async function listEligiblePendingAvatarRows(db) {
+/** Prompt #235/#235A — every pending avatar is eligible for bulk approval. Restriction is informational only. */
+async function listPendingAvatarRowsForBulkApproval(db) {
   const rows = await db
     .prepare(
       `SELECT id, character_name, image_key, status, created_at, approved_by
@@ -2380,18 +2380,16 @@ async function listEligiblePendingAvatarRows(db) {
     )
     .bind('pending')
     .all();
-  const eligible = [];
-  const skipped = [];
+  const pending = [];
+  const restricted = [];
   for (const r of rows.results || []) {
     if (String(r.status || '').trim().toLowerCase() !== 'pending') continue;
-    const gate = await studentAvatarActivationBlocked(db, r.character_name);
-    if (gate.blocked) {
-      skipped.push({ id: r.id, character_name: r.character_name, reason: gate.error || 'blocked' });
-      continue;
+    pending.push(r);
+    if (await studentAvatarIsRestricted(db, r.character_name)) {
+      restricted.push(r);
     }
-    eligible.push(r);
   }
-  return { eligible, skipped };
+  return { pending, restricted };
 }
 
 async function handleAdminRoutes(request, url, path, env, cors) {
@@ -3241,12 +3239,12 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!canManageLanternAvatars(account)) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
-    const listed = await listEligiblePendingAvatarRows(db);
+    const listed = await listPendingAvatarRowsForBulkApproval(db);
     return jsonResponse(
       {
         ok: true,
-        pending_count: listed.eligible.length,
-        skipped_restricted: listed.skipped.length,
+        pending_count: listed.pending.length,
+        restricted_count: listed.restricted.length,
       },
       200,
       cors
@@ -3257,12 +3255,12 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     if (!canManageLanternAvatars(account)) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
-    const listed = await listEligiblePendingAvatarRows(db);
+    const listed = await listPendingAvatarRowsForBulkApproval(db);
     const now = new Date().toISOString();
     const reviewer = adminAuditLabel(account);
     let approvedCount = 0;
     const currentPreserved = [];
-    for (const row of listed.eligible) {
+    for (const row of listed.pending) {
       await db
         .prepare('UPDATE lantern_avatar_submissions SET status = ?, approved_at = ?, approved_by = ? WHERE id = ? AND status = ?')
         .bind('approved', now, reviewer, row.id, 'pending')
@@ -3278,13 +3276,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
         character_name: row.character_name,
         current_unchanged: true,
         pending_was_current: !!(currentKey && currentKey === String(row.image_key || '').trim()),
+        media_restricted: listed.restricted.some((x) => x.id === row.id),
       });
     }
     return jsonResponse(
       {
         ok: true,
         approved_count: approvedCount,
-        skipped_restricted: listed.skipped.length,
+        restricted_count: listed.restricted.length,
         current_selections_preserved: true,
         items: currentPreserved,
         nugget_charged: 0,

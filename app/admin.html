@@ -573,7 +573,8 @@
         <button type="button" class="x" id="adminApproveAllCloseBtn" aria-label="Close">✕</button>
       </div>
       <p id="adminApproveAllCount" class="acctPanelHint" style="font-size:22px;">Loading pending count…</p>
-      <p class="acctPanelHint">This approves every currently pending student avatar that is eligible. Rejected records stay rejected. Current avatar selections are not switched.</p>
+      <p id="adminApproveAllRestrictedNote" class="acctPanelHint" style="font-size:22px;"></p>
+      <p class="acctPanelHint">This approves every currently pending student avatar. Media restrictions stay in place, so restricted students remain hidden publicly. Rejected records stay rejected. Current avatar selections are not switched.</p>
       <p id="adminApproveAllMsg" class="acctPanelHint" role="status" aria-live="polite"></p>
       <div class="acctPanelActions" style="margin-top:12px;">
         <button type="button" class="btn" id="adminApproveAllCancelBtn">Cancel</button>
@@ -3036,10 +3037,12 @@
     function openAdminApproveAllOverlay() {
       var overlay = document.getElementById('adminApproveAllOverlay');
       var countEl = document.getElementById('adminApproveAllCount');
+      var restrictedEl = document.getElementById('adminApproveAllRestrictedNote');
       var msg = document.getElementById('adminApproveAllMsg');
       var confirmBtn = document.getElementById('adminApproveAllConfirmBtn');
       if (!overlay) return;
       if (countEl) countEl.textContent = 'Loading pending count…';
+      if (restrictedEl) restrictedEl.textContent = '';
       if (msg) msg.textContent = '';
       if (confirmBtn) confirmBtn.disabled = true;
       overlay.classList.add('show');
@@ -3048,6 +3051,7 @@
         .then(function(r) { return r.json().then(function(j) { return { okHttp: r.ok, body: j }; }); })
         .then(function(res) {
           var n = res && res.body && Number(res.body.pending_count);
+          var restricted = res && res.body ? Number(res.body.restricted_count) : NaN;
           if (!(res && res.okHttp && res.body && res.body.ok) || !isFinite(n)) {
             if (countEl) countEl.textContent = 'Could not load the pending count.';
             return;
@@ -3056,6 +3060,15 @@
             countEl.textContent = n === 1
               ? '1 pending student avatar will be approved.'
               : n + ' pending student avatars will be approved.';
+          }
+          if (restrictedEl) {
+            if (isFinite(restricted) && restricted > 0) {
+              restrictedEl.textContent = restricted === 1
+                ? '1 belongs to a student with media restrictions and will remain hidden publicly.'
+                : restricted + ' belong to students with media restrictions and will remain hidden publicly.';
+            } else {
+              restrictedEl.textContent = '';
+            }
           }
           if (confirmBtn) confirmBtn.disabled = n < 1;
         })
