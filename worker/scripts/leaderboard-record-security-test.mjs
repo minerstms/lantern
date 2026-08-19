@@ -143,6 +143,10 @@ function makeEnv(state) {
         return null;
       },
       async all() {
+        if (s.includes('FROM lantern_pilot_accounts')) {
+          return { results: Object.values(state.accounts) };
+        }
+        if (s.includes('FROM tms_identity_links')) return { results: [] };
         if (s.includes('FROM lantern_leaderboard_entries')) {
           let rows = state.entries.slice();
           if (s.includes('WHERE game_name = ?')) {
@@ -477,7 +481,13 @@ async function main() {
     } else bad('GET unlisted', unlisted);
 
     const listed = await getLeaderboards(env, '?game_name=Nugget%20Click%20Rush&period=all_time');
-    if (listed.status === 200 && listed.json.ok && listed.json.entries.some((e) => e.character_name === '20889')) {
+    const listedRow = listed.json.entries && listed.json.entries.find((e) => e.public_display_name === 'Lucas' || e.display_name === 'Lucas');
+    if (
+      listed.status === 200 &&
+      listed.json.ok &&
+      listedRow &&
+      listed.json.entries.every((e) => !e.character_name && !e.username && !e.student_id)
+    ) {
       ok('GET registered game still returns production scores');
     } else bad('GET listed', listed);
   }

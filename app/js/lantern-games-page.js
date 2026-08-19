@@ -265,14 +265,15 @@
     return medalForRank(ent.rank) + ' ' + name + ' · ' + val;
   }
 
-  function findUserRank(entries, userKey) {
-    if (!userKey || !entries || !entries.length) return null;
-    for (var i = 0; i < entries.length; i++) {
-      if (String(entries[i].character_name || '') === userKey) {
-        return { rank: entries[i].rank || i + 1, entry: entries[i] };
-      }
-    }
-    return null;
+  function sessionLooksSignedIn() {
+    return !!(adoptedName() || friendlyName());
+  }
+
+  function youScoreText(you) {
+    if (!you) return '';
+    if (you.score_display != null && String(you.score_display).trim()) return String(you.score_display);
+    if (you.score != null) return String(you.score);
+    return '';
   }
 
   /**
@@ -304,13 +305,12 @@
     } else {
       lines.push('<p class="gamesLbEmpty">No scores yet. Be the first on the board!</p>');
     }
-    var userKey = adoptedName();
-    var you = findUserRank(entries, userKey);
+    var you = bundle && bundle.you;
     var youLine = '';
-    if (you) {
-      var yVal =
-        you.entry.score_display != null ? String(you.entry.score_display) : String(you.entry.score || '');
-      youLine = '<p class="gamesLbYou">You: #' + you.rank + ' · ' + escapeHtml(yVal) + '</p>';
+    if (you && you.rank) {
+      youLine = '<p class="gamesLbYou">You: #' + you.rank + ' · ' + escapeHtml(youScoreText(you)) + '</p>';
+    } else if (you && youScoreText(you)) {
+      youLine = '<p class="gamesLbYou">You: ' + escapeHtml(youScoreText(you)) + '</p>';
     }
     var playLabel = catalog().playActionLabel(game.play_cost);
     var artworkAlt = escapeHtml(game.name + ' artwork');
@@ -483,7 +483,7 @@
           entries.forEach(function (e, i) {
             if (!e.rank) e.rank = i + 1;
           });
-          return { game: g, entries: entries };
+          return { game: g, entries: entries, you: res && res.ok ? res.you || null : null };
         });
       })
     ).then(function (bundles) {
@@ -494,21 +494,21 @@
     });
   }
 
-  function fillYouLine(youEl, entries) {
+  function fillYouLine(youEl, you) {
     if (!youEl) return;
-    var userKey = adoptedName();
-    var you = findUserRank(entries, userKey);
-    if (you && you.rank > 10) {
-      var yVal =
-        you.entry.score_display != null ? String(you.entry.score_display) : String(you.entry.score || '');
-      youEl.textContent = 'You: #' + you.rank + ' · ' + yVal;
-    } else if (you) {
-      youEl.textContent = '';
-    } else if (userKey) {
-      youEl.textContent = 'You: not ranked in this window yet.';
-    } else {
-      youEl.textContent = '';
+    if (you && you.rank) {
+      youEl.textContent = 'You: #' + you.rank + ' · ' + youScoreText(you);
+      return;
     }
+    if (you && youScoreText(you)) {
+      youEl.textContent = 'You: ' + youScoreText(you);
+      return;
+    }
+    if (sessionLooksSignedIn()) {
+      youEl.textContent = 'You: not ranked in this window yet.';
+      return;
+    }
+    youEl.textContent = '';
   }
 
   function renderGenericLeaderboardList(entries) {
@@ -572,7 +572,7 @@
     }).then(function (res) {
       var entries = res && res.ok && res.entries ? res.entries : [];
       body.innerHTML = renderAmDivisionBar(state.amModalMode, count) + renderAmLeaderboardList(entries);
-      fillYouLine(youEl, entries);
+      fillYouLine(youEl, res && res.ok ? res.you : null);
     });
   }
 
@@ -602,10 +602,11 @@
       var entries = res && res.ok && res.entries ? res.entries : [];
       if (!entries.length) {
         body.innerHTML = '<p class="gamesLbModalEmpty">No scores yet for this timeframe.</p>';
+        fillYouLine(youEl, res && res.ok ? res.you : null);
         return;
       }
       body.innerHTML = renderGenericLeaderboardList(entries);
-      fillYouLine(youEl, entries);
+      fillYouLine(youEl, res && res.ok ? res.you : null);
     });
   }
 
