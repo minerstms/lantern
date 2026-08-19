@@ -252,9 +252,11 @@
       '</section>' +
       '<section class="lockerHeaderIdentity" aria-label="Profile">' +
       '<div class="lockerHeaderAvatarWrap">' +
-      (avatarUrl
-        ? '<img class="lockerHeaderAvatar" src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(displayName) + '">'
-        : '<div class="lockerHeaderAvatar lockerHeaderAvatar--placeholder" aria-hidden="true">🌟</div>') +
+      '<img class="lockerHeaderAvatar" src="' +
+      escapeHtml(avatarUrl || (global.LanternAvatar && global.LanternAvatar.canonicalFallbackAvatarUrl
+        ? global.LanternAvatar.canonicalFallbackAvatarUrl()
+        : '/assets/fallback-avatar.png')) +
+      '" alt="' + escapeHtml(displayName) + '">' +
       '<div class="lockerHeaderAvatarFrame" data-surface-frame-host></div>' +
       '</div>' +
       '<div class="lockerHeaderName">' +
@@ -295,13 +297,13 @@
     var avatarImg = host.querySelector('img.lockerHeaderAvatar');
     if (avatarImg) {
       avatarImg.onerror = function () {
-        var wrap = avatarImg.parentNode;
-        if (!wrap) return;
-        var fallback = global.document.createElement('div');
-        fallback.className = 'lockerHeaderAvatar lockerHeaderAvatar--placeholder';
-        fallback.setAttribute('aria-hidden', 'true');
-        fallback.textContent = '🌟';
-        wrap.replaceChild(fallback, avatarImg);
+        var fb = global.LanternAvatar && global.LanternAvatar.canonicalFallbackAvatarUrl
+          ? global.LanternAvatar.canonicalFallbackAvatarUrl()
+          : '/assets/fallback-avatar.png';
+        if (avatarImg.getAttribute('src') !== fb) {
+          avatarImg.src = fb;
+          return;
+        }
       };
     }
     try {

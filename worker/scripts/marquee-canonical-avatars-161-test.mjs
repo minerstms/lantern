@@ -425,11 +425,11 @@ const handlersSrc = read('worker/marquee-handlers.js');
 assert(/author_avatar_key/.test(eventsSrc) && /resolveMarqueeActorIdentity/.test(eventsSrc), 'backend serializes durable author_avatar_key');
 assert(!/byDisplayName/.test(eventsSrc), '16b. marquee actor resolver does not use display-name index');
 assert(/Mr\. Radle/.test(eventsSrc) === false || !/guess/.test(eventsSrc), '16c. no name-guess comments that imply fuzzy match');
-assert(/getDefaultAvatarImageUrl|svgDefaultAvatarDataUri/.test(tickerSrc), '7/22. ticker uses #149 placeholder helper');
+assert(/canonicalFallbackAvatarUrl|getDefaultAvatarImageUrl|fallback-avatar\.png/.test(tickerSrc), '7/22. ticker uses #239 canonical fallback');
 assert(!/lanternTickerItemAvatar--emoji/.test(tickerSrc) || !/🌟/.test(tickerSrc.match(/function itemToHtml[\s\S]+?function /)[0]), '2. ticker person chip no longer hard-codes sun fallback');
 assert(/author_avatar_key \|\| n\.actor_id/.test(tickerSrc), 'ticker still prefers author_avatar_key/actor_id');
 assert(!/addName\(n\.author_name/.test(tickerSrc) && !/pick\(\[n\.author_avatar_key, n\.actor_id, n\.author_name/.test(tickerSrc), '8b. ticker does not look up avatars by author_name');
-assert(/getDefaultAvatarImageUrl/.test(displaySrc) && /svgDefaultAvatarDataUri/.test(displaySrc), '24. Hallway uses same canonical placeholder');
+assert(/canonicalFallbackAvatarUrl|getDefaultAvatarImageUrl/.test(displaySrc) && /fallback-avatar\.png/.test(displaySrc), '24. Hallway uses same canonical placeholder');
 assert(/eventsToTickerSlides/.test(handlersSrc) && /for_display/.test(handlersSrc), '24b. Hallway still consumes shared /api/marquee/events');
 assert(/\/api\/avatar\/status/.test(avatarSrc) && /\/api\/avatar\/image\?key=/.test(read('worker/index.js')), 'canonical serving path preserved');
 assert(!/r2\.dev|r2\.cloudflarestorage/.test(tickerSrc + displaySrc), '17c. frontend emits no raw R2');
@@ -536,7 +536,7 @@ assert(!/stale-snapshot/.test(container.innerHTML), '8e. snapshot URL not in tic
 
 LT.render('lanternTicker', itemsFb);
 assert(
-  /default_avatar|data:image\/svg\+xml/.test(container.innerHTML),
+  /fallback-avatar\.png/.test(container.innerHTML),
   '5b. missing approved avatar uses #149 placeholder image',
   container.innerHTML.slice(0, 400)
 );

@@ -701,19 +701,21 @@
   }
 
   function getDefaultAvatarImageKey() {
-    return 'default/default_avatar.png';
+    return 'fallback-avatar.png';
   }
 
-  /** Inline SVG when Worker media is unavailable — never blank. */
+  /** Last-resort inline SVG if the static T asset fails to load. */
   function svgDefaultAvatarDataUri() {
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#2a3a52"/><circle cx="32" cy="26" r="12" fill="rgba(255,255,255,.35)"/><ellipse cx="32" cy="52" rx="18" ry="14" fill="rgba(255,255,255,.38)"/></svg>';
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
-  /** Canonical default author avatar for cards — always resolves to a URL or data URI. */
+  /** Prompt #239 — one static T-logo fallback. Never Web Admin / R2 default avatar. */
   function getDefaultAvatarImageUrl() {
-    var b = apiBase();
-    return b ? b + '/api/media/image?key=' + encodeURIComponent(getDefaultAvatarImageKey()) : svgDefaultAvatarDataUri();
+    if (global.LanternAvatar && typeof global.LanternAvatar.canonicalFallbackAvatarUrl === 'function') {
+      return global.LanternAvatar.canonicalFallbackAvatarUrl();
+    }
+    return '/assets/fallback-avatar.png';
   }
 
   /** Row-3 parity: legacy emoji `avatar` → single data-URI img (same node shape as photo URLs). */
