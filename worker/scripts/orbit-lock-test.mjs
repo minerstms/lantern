@@ -29,7 +29,7 @@ const gamesPageJs = fs.readFileSync(path.join(root, 'app/js/lantern-games-page.j
 const playerCss = fs.readFileSync(path.join(root, 'app/css/lantern-game-player.css'), 'utf8');
 const workerIndex = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 const paidRunSrc = fs.readFileSync(path.join(root, 'worker/game-paid-run-proof.js'), 'utf8');
-const cardSvg = fs.readFileSync(path.join(root, 'app/assets/orbit-lock-card.svg'), 'utf8');
+const cardPng = fs.readFileSync(path.join(root, 'app/assets/orbit-lock-card.png'));
 const contract169 = fs.readFileSync(path.join(root, 'worker/scripts/nugget-economy-contract-169-test.mjs'), 'utf8');
 const contract170 = fs.readFileSync(path.join(root, 'worker/scripts/nugget-balance-contract-170-test.mjs'), 'utf8');
 
@@ -280,7 +280,7 @@ if (gamesPageJs.includes('public_display_name') && gamesPageJs.includes('functio
   ok('leaderboard uses canonical public_display_name');
 } else bad('canonical public name');
 
-if (cardSvg.includes('ORBIT LOCK') && cardSvg.includes('<svg') && !/nintendo|sega|sony|disney|pokemon/i.test(cardSvg)) {
+if (cardPng.length > 800 && cardPng[0] === 0x89 && cardPng[1] === 0x50 && cat.getGameById('orbit-lock').image === 'assets/orbit-lock-card.png') {
   ok('original geometric card artwork, no donor branding');
 } else bad('card art');
 
