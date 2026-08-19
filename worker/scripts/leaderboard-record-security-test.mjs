@@ -15,6 +15,7 @@ import {
   sanitizeScoreDisplay,
   sanitizeRunId,
 } from '../lantern-game-catalog.js';
+import { encodeAvatarMatchScore } from '../avatar-match-game.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -400,9 +401,13 @@ async function main() {
     const cookie = await cookieFor(studentAccount());
     const { status, json } = await postRecord(env, cookie, {
       game_name: 'Avatar Match',
-      score: 80,
+      score: encodeAvatarMatchScore(8, 10, 40000),
       score_display: '<script>alert(1)</script>80 pts',
       run_id: 'run_avatar_f',
+      am_mode: '10',
+      am_questions: 10,
+      am_correct: 8,
+      am_elapsed_ms: 40000,
     });
     const row = state.entries[0];
     if (status === 200 && json.ok && row && String(row.score_display).indexOf('<') === -1 && String(row.score_display).indexOf('>') === -1) {

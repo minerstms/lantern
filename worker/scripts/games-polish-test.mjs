@@ -106,9 +106,13 @@ if (gamesHtml.match(/lockAndPaintMcResult\(btn, isCorrect, function\(b\)\{\s*\n\
   ok('Avatar Match reveals the correct character name when the player misses');
 } else bad('Avatar Match correct-answer reveal missing');
 
-if (gamesHtml.includes('var bestStreak = 0;') && gamesHtml.includes("playAgainHtml('avatarMatchPlayAgainBtn')") && gamesHtml.includes("el('avatarMatchPlayAgainBtn')")) {
-  ok('Avatar Match tracks a streak and offers Play Again at the result screen');
-} else bad('Avatar Match streak/Play Again missing');
+if (gamesHtml.includes('teachingRevealCopy') && gamesHtml.includes("playAgainHtml('avatarMatchPlayAgainBtn')") && gamesHtml.includes("el('avatarMatchPlayAgainBtn')")) {
+  ok('Avatar Match teaches the name on reveal and offers Play Again at the result screen');
+} else bad('Avatar Match reveal/Play Again missing');
+
+if (gamesHtml.includes("!overlay.classList.contains('is-avatar-match')) showTriviaFeedback")) {
+  ok('Avatar Match does not reuse the trivia Correct! banner');
+} else bad('Avatar Match trivia banner still shared');
 
 // ---------------------------------------------------------------------------
 // Trivia family (Lantern Live Trivia, Handbook Trivia, Local History Trivia) — shared runTriviaGame

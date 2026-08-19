@@ -70,7 +70,11 @@
     return cat.PERIOD_MAP[periodUi] || 'weekly';
   }
 
-  function fetchLeaderboard(gameName, limit, periodUi) {
+  function isAvatarMatchName(gameName, key) {
+    return String(gameName || '') === 'Avatar Match' || String(key || '') === 'Avatar Match';
+  }
+
+  function fetchLeaderboard(gameName, limit, periodUi, amOpts) {
     var base = apiBase();
     if (base === null) return Promise.resolve({ ok: false, entries: [] });
     var cat = catalog();
@@ -85,6 +89,14 @@
       encodeURIComponent(key) +
       '&limit=' +
       (limit || 25);
+    if (isAvatarMatchName(gameName, key)) {
+      var mode = String((amOpts && amOpts.amMode) || '10').trim().toLowerCase() || '10';
+      url += '&am_mode=' + encodeURIComponent(mode);
+      if (mode === 'full') {
+        var q = Math.floor(Number(amOpts && amOpts.amQuestions != null ? amOpts.amQuestions : state.amEligibleCount) || 0);
+        if (q > 0) url += '&am_questions=' + encodeURIComponent(String(q));
+      }
+    }
     return fetch(url, { credentials: 'include' })
       .then(function (r) {
         return r.json();
@@ -92,6 +104,83 @@
       .catch(function () {
         return { ok: false, entries: [] };
       });
+  }
+
+  function fetchAvatarMatchEligibleCount() {
+    var base = apiBase();
+    if (base === null) return Promise.resolve(0);
+    if (state.amEligibleCount > 0) return Promise.resolve(state.amEligibleCount);
+    return fetch(base + '/api/games/characters', { credentials: 'include', cache: 'no-store' })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (res) {
+        var n = res && res.ok && Array.isArray(res.characters) ? res.characters.length : 0;
+        state.amEligibleCount = n;
+        return n;
+      })
+      .catch(function () {
+        return state.amEligibleCount || 0;
+      });
+  }
+
+  function amDivisionLabel(mode, count) {
+    var id = String(mode || '10').trim().toLowerCase();
+    if (id === 'full') return 'Full Roster · ' + Math.max(0, Math.floor(Number(count) || 0));
+    return id + ' Questions';
+  }
+
+  function renderAmDivisionBar(selected, count) {
+    var n = Math.max(0, Math.floor(Number(count) || 0));
+    var avail =
+      global.LanternAvatarMatch && typeof global.LanternAvatarMatch.modeAvailability === 'function'
+        ? global.LanternAvatarMatch.modeAvailability(n)
+        : null;
+    var modes = avail && avail.modes ? avail.modes : [
+      { id: '10', enabled: n >= 10, requires: 10 },
+      { id: '25', enabled: n >= 25, requires: 25 },
+      { id: '50', enabled: n >= 50, requires: 50 },
+      { id: '100', enabled: n >= 100, requires: 100 },
+      { id: 'full', enabled: n >= 4, questions: n },
+    ];
+    var html = '<div class="gamesAmDivisions" id="gamesAmDivisions" role="tablist" aria-label="Avatar Match leaderboard length" data-am-lb-default="10">';
+    modes.forEach(function (mode) {
+      var viewable = mode.id === '100' ? n >= 100 : true;
+      if (mode.id === 'full') viewable = n >= 4;
+      var reason = '';
+      if (!viewable && global.LanternAvatarMatch && typeof global.LanternAvatarMatch.disabledReason === 'function') {
+        reason = global.LanternAvatarMatch.disabledReason(mode, n);
+      } else if (!viewable && mode.id === '100') {
+        reason = 'Requires 100 eligible users\n' + n + ' available';
+      }
+      var label = mode.id === 'full' ? amDivisionLabel('full', n) : amDivisionLabel(mode.id, n);
+      html +=
+        '<button type="button" class="gamesAmDivBtn' +
+        (String(selected) === String(mode.id) ? ' is-active' : '') +
+        (viewable ? '' : ' is-disabled') +
+        '" data-am-lb-mode="' +
+        escapeHtml(mode.id) +
+        '" role="tab" aria-selected="' +
+        (String(selected) === String(mode.id) ? 'true' : 'false') +
+        '"' +
+        (viewable ? '' : ' disabled aria-disabled="true" title="' + escapeHtml(reason.replace(/\n/g, ' ')) + '"') +
+        '>' +
+        escapeHtml(label) +
+        (!viewable && reason ? '<span class="gamesAmDivWhy">' + escapeHtml(reason) + '</span>' : '') +
+        '</button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function parseAmScoreDisplay(ent) {
+    var raw = ent && ent.score_display != null ? String(ent.score_display) : '';
+    var parts = raw.split(' · ');
+    return {
+      correct: parts[0] || '',
+      accuracy: parts[1] || '',
+      time: parts[2] || raw,
+    };
   }
 
   var state = {
@@ -106,6 +195,8 @@
     autoPaused: false,
     filtersOpen: false,
     playStarting: false,
+    amModalMode: '10',
+    amEligibleCount: 0,
   };
 
   function visibleCarouselCount() {
@@ -246,6 +337,9 @@
       '<h3 class="gamesLbCardTitle">' +
       escapeHtml(game.icon + ' ' + game.name) +
       '</h3>' +
+      (game.id === 'avatar-match' || game.name === 'Avatar Match'
+        ? '<p class="gamesLbAmDefault">10 Questions</p>'
+        : '') +
       '<div class="gamesLbTop3">' +
       lines.join('') +
       '</div>' +
@@ -384,7 +478,7 @@
     var games = cat.leaderboardGames();
     return Promise.all(
       games.map(function (g) {
-        return fetchLeaderboard(g.name, 25, state.period).then(function (res) {
+        return fetchLeaderboard(g.name, 25, state.period, g.id === 'avatar-match' ? { amMode: '10' } : null).then(function (res) {
           var entries = res && res.ok && res.entries ? res.entries : [];
           entries.forEach(function (e, i) {
             if (!e.rank) e.rank = i + 1;
@@ -400,53 +494,127 @@
     });
   }
 
-  function openFullLeaderboard(game) {
+  function fillYouLine(youEl, entries) {
+    if (!youEl) return;
+    var userKey = adoptedName();
+    var you = findUserRank(entries, userKey);
+    if (you && you.rank > 10) {
+      var yVal =
+        you.entry.score_display != null ? String(you.entry.score_display) : String(you.entry.score || '');
+      youEl.textContent = 'You: #' + you.rank + ' · ' + yVal;
+    } else if (you) {
+      youEl.textContent = '';
+    } else if (userKey) {
+      youEl.textContent = 'You: not ranked in this window yet.';
+    } else {
+      youEl.textContent = '';
+    }
+  }
+
+  function renderGenericLeaderboardList(entries) {
+    var html = '<ol class="gamesLbModalList">';
+    entries.forEach(function (ent, i) {
+      var rank = ent.rank || i + 1;
+      html +=
+        '<li><span class="gamesLbModalRank">' +
+        rank +
+        '</span> ' +
+        escapeHtml(leaderboardPublicLabel(ent)) +
+        ' · ' +
+        escapeHtml(ent.score_display != null ? String(ent.score_display) : String(ent.score || '')) +
+        '</li>';
+    });
+    html += '</ol>';
+    return html;
+  }
+
+  function renderAmLeaderboardList(entries) {
+    if (!entries.length) return '<p class="gamesLbModalEmpty">No scores yet for this length.</p>';
+    var html = '<ol class="gamesLbModalList gamesLbModalListAm">';
+    entries.forEach(function (ent, i) {
+      var rank = ent.rank || i + 1;
+      var bits = parseAmScoreDisplay(ent);
+      html +=
+        '<li class="gamesLbModalRow">' +
+        '<span class="gamesLbModalRank">' +
+        rank +
+        '</span>' +
+        '<span class="gamesLbModalName">' +
+        escapeHtml(leaderboardPublicLabel(ent)) +
+        '</span>' +
+        '<span class="gamesLbModalMeta">' +
+        '<span class="gamesLbModalCorrect">' +
+        escapeHtml(bits.correct || '—') +
+        '</span>' +
+        '<span class="gamesLbModalAcc">' +
+        escapeHtml(bits.accuracy || '—') +
+        '</span>' +
+        '<span class="gamesLbModalTime">' +
+        escapeHtml(bits.time || '—') +
+        '</span></span></li>';
+    });
+    html += '</ol>';
+    return html;
+  }
+
+  function loadAvatarMatchModalBoard(game, mode, count) {
+    var body = el('gamesLbModalBody');
+    var youEl = el('gamesLbModalYou');
+    var title = el('gamesLbModalTitle');
+    if (!body) return;
+    state.amModalMode = String(mode || '10');
+    if (title) title.textContent = 'Avatar Match — ' + amDivisionLabel(state.amModalMode, count);
+    body.innerHTML = renderAmDivisionBar(state.amModalMode, count) + '<p class="gamesLbModalLoading">Loading…</p>';
+    if (youEl) youEl.textContent = '';
+    fetchLeaderboard('Avatar Match', 25, state.period, {
+      amMode: state.amModalMode,
+      amQuestions: state.amModalMode === 'full' ? count : 0,
+    }).then(function (res) {
+      var entries = res && res.ok && res.entries ? res.entries : [];
+      body.innerHTML = renderAmDivisionBar(state.amModalMode, count) + renderAmLeaderboardList(entries);
+      fillYouLine(youEl, entries);
+    });
+  }
+
+  function openFullLeaderboard(game, opts) {
     if (!game) return;
     var overlay = el('gamesLbModal');
     var title = el('gamesLbModalTitle');
     var body = el('gamesLbModalBody');
     var youEl = el('gamesLbModalYou');
     if (!overlay || !body) return;
-    if (title) title.textContent = game.name + ' — Leaderboard';
-    body.innerHTML = '<p class="gamesLbModalLoading">Loading…</p>';
     if (youEl) youEl.textContent = '';
     overlay.hidden = false;
+    if (game.id === 'avatar-match' || game.name === 'Avatar Match') {
+      var startMode = String((opts && opts.amMode) || state.amModalMode || '10').trim().toLowerCase() || '10';
+      if (opts && opts.amQuestions) state.amEligibleCount = Math.max(state.amEligibleCount, Math.floor(Number(opts.amQuestions) || 0));
+      if (title) title.textContent = 'Avatar Match — ' + amDivisionLabel(startMode, state.amEligibleCount);
+      body.innerHTML = '<p class="gamesLbModalLoading">Loading…</p>';
+      fetchAvatarMatchEligibleCount().then(function (count) {
+        if (startMode === '100' && count < 100) startMode = '10';
+        loadAvatarMatchModalBoard(game, startMode, count);
+      });
+      return;
+    }
+    if (title) title.textContent = game.name + ' — Leaderboard';
+    body.innerHTML = '<p class="gamesLbModalLoading">Loading…</p>';
     fetchLeaderboard(game.name, 25, state.period).then(function (res) {
       var entries = res && res.ok && res.entries ? res.entries : [];
       if (!entries.length) {
         body.innerHTML = '<p class="gamesLbModalEmpty">No scores yet for this timeframe.</p>';
         return;
       }
-      var html = '<ol class="gamesLbModalList">';
-      entries.forEach(function (ent, i) {
-        var rank = ent.rank || i + 1;
-        html +=
-          '<li><span class="gamesLbModalRank">' +
-          rank +
-          '</span> ' +
-          escapeHtml(leaderboardPublicLabel(ent)) +
-          ' · ' +
-          escapeHtml(ent.score_display != null ? String(ent.score_display) : String(ent.score || '')) +
-          '</li>';
-      });
-      html += '</ol>';
-      body.innerHTML = html;
-      var userKey = adoptedName();
-      var you = findUserRank(entries, userKey);
-      if (youEl) {
-        if (you && you.rank > 10) {
-          var yVal =
-            you.entry.score_display != null
-              ? String(you.entry.score_display)
-              : String(you.entry.score || '');
-          youEl.textContent = 'You: #' + you.rank + ' · ' + yVal;
-        } else if (you) {
-          youEl.textContent = '';
-        } else if (userKey) {
-          youEl.textContent = 'You: not ranked in this window yet.';
-        }
-      }
+      body.innerHTML = renderGenericLeaderboardList(entries);
+      fillYouLine(youEl, entries);
     });
+  }
+
+  function openAvatarMatchLeaderboard(mode, questions) {
+    var cat = catalog();
+    var game = cat && typeof cat.getGameByName === 'function' ? cat.getGameByName('Avatar Match') : null;
+    if (!game && cat && typeof cat.getGameById === 'function') game = cat.getGameById('avatar-match');
+    if (!game) return;
+    openFullLeaderboard(game, { amMode: mode || '10', amQuestions: questions });
   }
 
   function filteredGames() {
@@ -707,6 +875,7 @@
   function wireModal() {
     var overlay = el('gamesLbModal');
     var closeBtn = el('gamesLbModalClose');
+    var body = el('gamesLbModalBody');
     if (closeBtn && overlay) {
       closeBtn.addEventListener('click', function () {
         overlay.hidden = true;
@@ -715,6 +884,18 @@
     if (overlay) {
       overlay.addEventListener('click', function (e) {
         if (e.target === overlay) overlay.hidden = true;
+      });
+    }
+    if (body && !body._amDivWired) {
+      body._amDivWired = true;
+      body.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-am-lb-mode]');
+        if (!btn || btn.disabled) return;
+        var mode = btn.getAttribute('data-am-lb-mode');
+        var cat = catalog();
+        var game = cat && typeof cat.getGameById === 'function' ? cat.getGameById('avatar-match') : null;
+        if (!game) return;
+        loadAvatarMatchModalBoard(game, mode, state.amEligibleCount);
       });
     }
   }
@@ -753,6 +934,8 @@
     refreshWalletDisplay: refreshWalletDisplay,
     loadAllLeaderboards: loadAllLeaderboards,
     renderGameLibrary: renderGameLibrary,
+    openFullLeaderboard: openFullLeaderboard,
+    openAvatarMatchLeaderboard: openAvatarMatchLeaderboard,
     setPlayStarting: function (v) {
       state.playStarting = !!v;
     },

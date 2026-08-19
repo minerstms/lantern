@@ -330,10 +330,101 @@
   background: var(--accent, #5aa7ff);
 }
 
+.gamesLbAmDefault {
+  margin: 0 0 0.5rem;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--muted, #b9c6ea);
+}
+
+.gamesAmDivisions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 1rem;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.gamesAmDivBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink, #eaf0ff);
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  max-width: 100%;
+}
+
+.gamesAmDivBtn.is-active {
+  border-color: var(--accent, #5aa7ff);
+  background: rgba(90, 167, 255, 0.18);
+}
+
+.gamesAmDivBtn.is-disabled,
+.gamesAmDivBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.gamesAmDivWhy {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--muted, #b9c6ea);
+  white-space: pre-line;
+}
+
+.gamesLbModalRow {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 4px 10px;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-wrap: anywhere;
+}
+
+.gamesLbModalName {
+  font-weight: 800;
+}
+
+.gamesLbModalMeta {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--muted, #b9c6ea);
+}
+
+.gamesLbModalListAm {
+  list-style: none;
+  padding-left: 0;
+}
+
+@media (min-width: 520px) {
+  .gamesLbModalRow {
+    grid-template-columns: 2.5rem minmax(0, 1.3fr) auto auto auto;
+    align-items: baseline;
+  }
+  .gamesLbModalMeta {
+    display: contents;
+  }
+}
+
 .gamesLbModal {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 10200;
   background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
@@ -347,9 +438,10 @@
 
 .gamesLbModalPanel {
   width: 100%;
-  max-width: 520px;
+  max-width: 560px;
   max-height: 85vh;
   overflow: auto;
+  overflow-x: hidden;
   background: var(--panel, #0f1b33);
   border: 2px solid rgba(255, 255, 255, 0.15);
   border-radius: 18px;

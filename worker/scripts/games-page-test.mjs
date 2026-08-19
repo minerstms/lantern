@@ -126,8 +126,8 @@ if (feedCss.includes('280px') && gamesHtml.includes('feedGrid')) {
   ok('canonical 280px grid architecture reused');
 } else bad('280px grid');
 
-if (gamesHtml.includes('tryPlay(\'Avatar Match\'') && gamesHtml.includes('tryPlay(\'Handbook Trivia\'')) {
-  ok('culture/trivia games use paid tryPlay');
+if (gamesHtml.includes("startPaidGame('Avatar Match'") && gamesHtml.includes('tryPlay(\'Handbook Trivia\'')) {
+  ok('culture/trivia games use paid start');
 } else bad('culture games paid play');
 
 if (gamesPageJs.includes('leaderboardGames()') && !gamesPageJs.includes('li % ')) {
@@ -209,6 +209,10 @@ if (
 ) {
   ok('economy/paid-start labels untouched (playActionLabel + game_play kind still present)');
 } else bad('economy/paid-start path appears altered');
+
+if (gamesPageJs.includes('gamesAmDivisions') && gamesPageJs.includes('openAvatarMatchLeaderboard') && gamesPageJs.includes("amModalMode: '10'")) {
+  ok('Avatar Match leaderboard exposes visible 10/25/50/100/Full Roster divisions');
+} else bad('Avatar Match visible divisions');
 
 console.log('\nGames page tests:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);

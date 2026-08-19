@@ -347,7 +347,7 @@ const gamesHtml = fs.readFileSync(path.join(root, 'app/games.html'), 'utf8');
 if (
   /gamesApiBase == null/.test(gamesHtml) &&
   /\/api\/games\/characters/.test(gamesHtml) &&
-  /characters\.length >= 4/.test(gamesHtml) &&
+  (/characters\.length >= 4/.test(gamesHtml) || /list\.length < 4/.test(gamesHtml)) &&
   !/if \(gamesApiBase\) \{\s*fetch\(gamesApiBase \+ '\/api\/games\/characters'/.test(gamesHtml)
 ) {
   ok('games.html treats empty LANTERN_AVATAR_API as same-origin and keeps the minimum-4 roster gate');

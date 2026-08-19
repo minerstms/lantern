@@ -612,6 +612,105 @@
     .cultureGameOverlay .resultMsg{ font-size: 28px; font-weight: 900; text-align: center; margin: 20px 0; }
     .cultureGameOverlay .resultMsg.win{ color: var(--good); }
     .cultureGameOverlay .avatarMatchResultScore{ font-size: 32px; margin-top: 12px; color: var(--warn); }
+    .cultureGameOverlay.is-avatar-match{
+      overflow: hidden;
+      height: 100%;
+      max-height: 100%;
+      height: 100dvh;
+      max-height: 100dvh;
+      justify-content: stretch;
+    }
+    .cultureGameOverlay.is-avatar-match .overlayTop{ display: none; }
+    .cultureGameOverlay.is-avatar-match .gameBody{
+      flex: 1 1 auto;
+      min-height: 0;
+      max-width: min(100%, 720px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .cultureGameOverlay.is-avatar-match .avatarMatchShell{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      gap: 8px;
+      box-sizing: border-box;
+    }
+    .cultureGameOverlay.is-avatar-match .avatarMatchPrompt{ margin-bottom: 0; font-size: clamp(22px, 3.4vh, 26px); }
+    .cultureGameOverlay.is-avatar-match .avatarMatchScoreRow{ margin-bottom: 0; gap: 12px; flex-wrap: wrap; }
+    .cultureGameOverlay.is-avatar-match .avatarMatchImgWrap{
+      width: min(28vmin, 160px);
+      height: min(28vmin, 160px);
+      margin: 0 auto;
+      flex: 0 0 auto;
+    }
+    .cultureGameOverlay.is-avatar-match .avatarMatchChoices{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .cultureGameOverlay.is-avatar-match .choiceBtn{
+      margin-bottom: 0;
+      padding: 12px 16px;
+      font-size: clamp(22px, 2.8vh, 24px);
+      min-height: 48px;
+    }
+    .cultureGameOverlay.is-avatar-match .avatarMatchFeedback{
+      min-height: 1.3em;
+      margin: 0;
+      font-size: 22px;
+      font-weight: 900;
+      text-align: center;
+    }
+    .cultureGameOverlay.is-avatar-match .avatarMatchFeedback.is-correct{ color: var(--good); }
+    .cultureGameOverlay.is-avatar-match .avatarMatchFeedback.is-wrong{ color: var(--warn); }
+    .avatarMatchModeHint{ font-size: 22px; font-weight: 700; color: var(--muted); text-align: center; margin: 0; }
+    .avatarMatchModeGrid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      min-height: 0;
+    }
+    .avatarMatchModeBtn{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 64px;
+      padding: 14px 12px;
+      border-radius: 14px;
+      border: 3px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 22px;
+      font-weight: 900;
+      cursor: pointer;
+      text-align: center;
+    }
+    .avatarMatchModeBtn:hover:not(:disabled){ border-color: var(--accent); background: rgba(90,167,255,.22); }
+    .avatarMatchModeBtn.is-disabled,
+    .avatarMatchModeBtn:disabled{
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.4);
+    }
+    .avatarMatchModeTitle{ font-size: 22px; }
+    .avatarMatchModeMeta, .avatarMatchModeWhy{ font-size: 22px; font-weight: 700; color: var(--muted); white-space: pre-line; }
+    .avatarMatchResultHero{ font-size: clamp(28px, 5vh, 36px); font-weight: 900; text-align: center; color: var(--warn); }
+    .avatarMatchResultStats{ font-size: 24px; font-weight: 800; text-align: center; line-height: 1.35; }
+    .avatarMatchPb{ font-size: 22px; font-weight: 800; text-align: center; color: var(--accent); }
+    .avatarMatchViewLbBtn{ display: block; width: 100%; max-width: 420px; margin: 8px auto 0; font-size: 22px; font-weight: 800; }
+    @media (max-width: 420px){
+      .avatarMatchModeGrid{ grid-template-columns: 1fr; }
+      .cultureGameOverlay.is-avatar-match .avatarMatchImgWrap{ width: min(34vw, 140px); height: min(34vw, 140px); }
+    }
+    @media (max-height: 520px), (max-width: 320px){
+      .cultureGameOverlay.is-avatar-match,
+      .cultureGameOverlay.is-avatar-match .gameBody{ overflow: auto; }
+    }
 
     /* Prompt #99 — shared, lightweight feedback polish for the seven non-Hunt games. Reuses the
        .gameArea / .tapZone / .memCard / .cultureGameOverlay class families already defined above;
@@ -1074,6 +1173,7 @@
   <script src="js/lantern-game-bridge.js"></script>
   <script src="js/lantern-minecart-switch.js"></script>
   <script src="js/lantern-orbit-lock.js"></script>
+  <script src="js/lantern-avatar-match.js"></script>
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-games-paid-start.js"></script>
   <script src="js/lantern-game-player.js"></script>
@@ -2052,7 +2152,7 @@
       }
       return gameName;
     }
-    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone){
+    function postLeaderboardScore(gameName, characterName, score, scoreDisplay, onDone, extraMeta){
       var key = canonicalLeaderboardKey(gameName);
       var numericScore = Math.floor(Number(score));
       var resultRunId = (window.LanternGamesPaidStart && typeof window.LanternGamesPaidStart.getLastRunId === 'function' ? window.LanternGamesPaidStart.getLastRunId() : '') || '';
@@ -2073,6 +2173,13 @@
         score_display: scoreDisplay || String(numericScore),
         run_id: resultRunId
       };
+      if (extraMeta && typeof extraMeta === 'object') {
+        payload.meta = extraMeta;
+        if (extraMeta.am_mode) payload.am_mode = extraMeta.am_mode;
+        if (extraMeta.am_questions != null) payload.am_questions = extraMeta.am_questions;
+        if (extraMeta.am_correct != null) payload.am_correct = extraMeta.am_correct;
+        if (extraMeta.am_elapsed_ms != null) payload.am_elapsed_ms = extraMeta.am_elapsed_ms;
+      }
       return fetch(gamesApiBase + '/api/leaderboards/record', {
         method: 'POST',
         credentials: 'include',
@@ -2439,7 +2546,7 @@
           });
         }
         if (!isCorrect && !prefersReducedMotion) selectedBtn.classList.add('choiceShake');
-        showTriviaFeedback(isCorrect);
+        if (!overlay.classList.contains('is-avatar-match')) showTriviaFeedback(isCorrect);
         if (overlayScore) {
           overlayScore.classList.remove('scorePulse');
           if (isCorrect && !prefersReducedMotion) {
@@ -2457,89 +2564,136 @@
       }
 
       el('avatarMatchPlayBtn').addEventListener('click', function(){
-        startAvatarMatch();
+        openAvatarMatch();
       });
 
-      function startAvatarMatch(){
-        tryPlay('Avatar Match', function(){
+      function avatarFallbackChar(displayName){
+        var name = (displayName || '').trim();
+        if (name.length) return name.charAt(0).toUpperCase();
+        return '?';
+      }
+
+      function openAvatarMatch(){
+        if (!window.LanternGamePlayer) { toast('Couldn\'t start game. Try again.'); return; }
         var adopted = loadAdopted();
-        if (!adopted){ failGamePlayerStart('Choose a character in Locker (Overview) to play.'); return; }
+        if (!adopted){ toast('Choose a character in Locker (Overview) to play.'); return; }
+        var AM = window.LanternAvatarMatch;
+        if (!AM) { toast('Couldn\'t start game. Try again.'); return; }
+        overlay.classList.add('is-avatar-match');
+        var opened = window.LanternGamePlayer.open({
+          title: 'Avatar Match',
+          gameName: 'Avatar Match',
+          skipPregame: true,
+          surface: overlay,
+          onExit: function(){
+            overlay.classList.remove('is-avatar-match');
+            closeOverlay();
+          },
+          returnFocus: el('avatarMatchPlayBtn')
+        });
+        if (!opened) {
+          overlay.classList.remove('is-avatar-match');
+          toast('Couldn\'t start game. Try again.');
+          return;
+        }
         openOverlay('Avatar Match');
-        setScore('Round 1');
+        setScore('');
         var characters = [];
-        var round = 0;
-        var totalScore = 0;
-        var roundsTotal = 5;
-        var streak = 0;
-        var bestStreak = 0;
-        function beginRoundsAfterCanonical(){
-          if (window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function' && characters.length) {
-            window.LanternAvatar.attachCanonicalAvatarsToItems(characters).then(function(){ startRound(); });
+        var runState = null;
+        var nextTimer = null;
+        function clearNext(){ if (nextTimer) { clearTimeout(nextTimer); nextTimer = null; } }
+        function failClosedPool(){
+          failGamePlayerStart('Avatar Match needs at least 4 eligible avatars from active accounts.');
+        }
+        function fetchRosterThenSelect(){
+          if (gamesApiBase == null) { failClosedPool(); return; }
+          gameBody.innerHTML = '<p class="avatarMatchPrompt">Loading eligible students and staff…</p>';
+          fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
+            var list = res && res.ok && Array.isArray(res.characters) ? res.characters : [];
+            if (list.length < 4) { failClosedPool(); return; }
+            characters = list;
+            var attach = window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function'
+              ? window.LanternAvatar.attachCanonicalAvatarsToItems(characters)
+              : Promise.resolve();
+            attach.then(function(){ showModeSelector(); });
+          }).catch(function(){ failClosedPool(); });
+        }
+        function showModeSelector(){
+          clearNext();
+          runState = null;
+          var avail = AM.modeAvailability(characters.length);
+          setScore(avail.eligibleCount + ' eligible');
+          var html = '<div class="avatarMatchShell avatarMatchModeShell">';
+          html += '<p class="avatarMatchPrompt">Choose a game length</p>';
+          html += '<p class="avatarMatchModeHint">1 Nugget = 1 Play. Learn student and staff names. No Nugget rewards.</p>';
+          html += '<div class="avatarMatchModeGrid">';
+          avail.modes.forEach(function(mode){
+            var reason = AM.disabledReason(mode, avail.eligibleCount);
+            html += '<button type="button" class="avatarMatchModeBtn' + (mode.enabled ? '' : ' is-disabled') + '" data-mode="' + esc(mode.id) + '"' + (mode.enabled ? '' : ' disabled aria-disabled="true"') + '>';
+            html += '<span class="avatarMatchModeTitle">' + esc(mode.id === 'full' ? 'Full Roster' : mode.label) + '</span>';
+            if (mode.id === 'full') html += '<span class="avatarMatchModeMeta">' + esc(String(mode.questions)) + ' Questions</span>';
+            if (!mode.enabled) html += '<span class="avatarMatchModeWhy">' + esc(reason) + '</span>';
+            html += '</button>';
+          });
+          html += '</div></div>';
+          gameBody.innerHTML = html;
+          gameBody.querySelectorAll('.avatarMatchModeBtn:not([disabled])').forEach(function(btn){
+            btn.addEventListener('click', function(){ confirmMode(btn.getAttribute('data-mode')); });
+          });
+        }
+        function confirmMode(modeId){
+          var avail = AM.modeAvailability(characters.length);
+          var mode = avail.modes.filter(function(m){ return m.id === modeId; })[0];
+          if (!mode || !mode.enabled) return;
+          if (!window.LanternGamesPaidStart || typeof window.LanternGamesPaidStart.startPaidGame !== 'function') {
+            toast('Couldn\'t start the game. Try again.');
             return;
           }
-          startRound();
+          gameBody.querySelectorAll('.avatarMatchModeBtn').forEach(function(b){ b.disabled = true; });
+          window.LanternGamesPaidStart.startPaidGame('Avatar Match', function(){
+            beginAvatarMatchRun(mode);
+          }).then(function(res){
+            if (!res || !res.ok) showModeSelector();
+          });
         }
-        function fetchThenStart(){
-          function failClosedPool(){
-            characters = [];
-            failGamePlayerStart('Avatar Match needs at least 4 eligible avatars from active accounts.');
-          }
-          if (gamesApiBase == null) {
-            failClosedPool();
-          } else {
-            fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
-              if (res && res.ok && res.characters && res.characters.length >= 4) {
-                characters = res.characters;
-                beginRoundsAfterCanonical();
-              } else {
-                failClosedPool();
-              }
-            }).catch(function(){
-              failClosedPool();
-            });
-          }
+        function beginAvatarMatchRun(mode){
+          var targets = AM.selectUniqueTargets(characters, mode.id);
+          if (!targets.length) { failClosedPool(); return; }
+          runState = {
+            mode: mode.id,
+            questionTotal: targets.length,
+            targets: targets,
+            index: 0,
+            correctCount: 0,
+            startedAt: Date.now()
+          };
+          showQuestion();
         }
-        var unusedOwners = [];
-        function refillUnusedOwners(){
-          unusedOwners = window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray
-            ? window.LANTERN_GAME_CONTENT.shuffleArray(characters.slice())
-            : characters.slice().sort(function(){ return Math.random() - 0.5; });
-        }
-        function pickOptions(){
-          if (characters.length < 4) return null;
-          if (!unusedOwners.length) refillUnusedOwners();
-          var correct = unusedOwners.shift();
-          var correctName = String((correct && correct.display_name) || '').trim();
+        function showQuestion(){
+          clearNext();
+          if (!runState || runState.index >= runState.questionTotal) { showAvatarMatchResult(); return; }
+          var pickTarget = runState.targets[runState.index];
+          var qNum = runState.index + 1;
+          var answered = false;
+          setScore(AM.questionProgressLabel(qNum, runState.questionTotal));
+          var correctName = String((pickTarget.display_name) || '').trim();
           var others = characters.filter(function(c){
             return String((c && c.display_name) || '').trim() && String(c.display_name).trim() !== correctName;
           });
           if (window.LANTERN_GAME_CONTENT && window.LANTERN_GAME_CONTENT.shuffleArray) others = window.LANTERN_GAME_CONTENT.shuffleArray(others);
           else others = others.slice().sort(function(){ return Math.random() - 0.5; });
-          var options = [correct].concat(others.slice(0, 3));
-          if (options.length < 4) return null;
-          for (var i = options.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var t = options[i]; options[i] = options[j]; options[j] = t; }
-          return { correct: correct, options: options };
-        }
-        function avatarFallbackChar(displayName){
-          var name = (displayName || '').trim();
-          if (name.length) return name.charAt(0).toUpperCase();
-          return '?';
-        }
-        function startRound(){
-          var pick = pickOptions();
-          if (!pick || round >= roundsTotal){ showAvatarMatchResult(); return; }
-          round++;
-          var answered = false;
-          setScore('Round ' + round + ' / ' + roundsTotal);
-          var startTime = Date.now();
-          var correctName = String((pick.correct.display_name) || '').trim();
-          var canonAm = pick.correct._canonicalAvatar;
+          var options = [pickTarget].concat(others.slice(0, 3));
+          if (options.length < 4) { showAvatarMatchResult(); return; }
+          for (var i = options.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var tmp = options[i]; options[i] = options[j]; options[j] = tmp; }
+          var canonAm = pickTarget._canonicalAvatar;
           var avatarUrl = (canonAm && canonAm.imageUrl && String(canonAm.imageUrl).trim())
             ? String(canonAm.imageUrl).trim()
-            : String((pick.correct && pick.correct.avatar_url) || '').trim();
-          var fallbackLetter = avatarFallbackChar(pick.correct.display_name);
-          var html = '<p class="avatarMatchPrompt">Who is this?</p>';
-          html += '<div class="avatarMatchScoreRow"><span class="round">Round ' + round + ' of ' + roundsTotal + '</span><span class="score">Score: ' + totalScore + '</span>' + streakBadgeHtml(streak) + '</div>';
+            : String((pickTarget && pickTarget.avatar_url) || '').trim();
+          var fallbackLetter = avatarFallbackChar(pickTarget.display_name);
+          var html = '<div class="avatarMatchShell">';
+          html += '<p class="avatarMatchPrompt">Who is this?</p>';
+          html += '<div class="avatarMatchScoreRow"><span class="round">' + esc(AM.questionProgressLabel(qNum, runState.questionTotal)) + '</span><span class="score">' + runState.correctCount + ' correct</span></div>';
+          html += '<p class="avatarMatchFeedback" role="status" aria-live="polite"></p>';
           html += '<div class="avatarMatchImgWrap">';
           if (avatarUrl) {
             html += '<img src="' + esc(avatarUrl) + '" alt="" onerror="var w=this.parentElement; if(w){ var f=w.querySelector(\'.avatarFallback\'); if(f){ f.classList.remove(\'avatarFallbackHidden\'); } this.style.display=\'none\'; }">';
@@ -2547,50 +2701,89 @@
           } else {
             html += '<span class="avatarFallback"><span class="avatarInitial">' + esc(fallbackLetter) + '</span></span>';
           }
-          html += '</div>';
-          pick.options.forEach(function(opt){
+          html += '</div><div class="avatarMatchChoices">';
+          options.forEach(function(opt){
             var name = String((opt.display_name) || '').trim();
             html += '<button type="button" class="choiceBtn" data-name="' + esc(name) + '"><span class="choiceLabel">' + esc(name) + '</span></button>';
           });
+          html += '</div></div>';
           gameBody.innerHTML = html;
           gameBody.querySelectorAll('.choiceBtn').forEach(function(btn){
             btn.addEventListener('click', function(){
               if (answered) return;
               answered = true;
-              gameBody.querySelectorAll('.choiceBtn').forEach(function(b){ b.disabled = true; });
               var chosen = (btn.dataset.name || '').trim();
               var isCorrect = chosen === correctName;
-              var elapsed = Math.floor((Date.now() - startTime) / 1000);
-              var points = isCorrect ? Math.max(10, 100 - elapsed * 5) : 0;
-              totalScore += points;
+              if (isCorrect) runState.correctCount += 1;
               lockAndPaintMcResult(btn, isCorrect, function(b){
                 return (b.dataset.name || '').trim() === correctName;
               });
-              if (!isCorrect) {
-                streak = 0;
-                sfxCultureWrong();
-              } else {
-                streak++;
-                if (streak > bestStreak) bestStreak = streak;
-                sfxCultureCorrect();
+              var note = gameBody.querySelector('.avatarMatchFeedback');
+              if (note) {
+                note.className = 'avatarMatchFeedback ' + (isCorrect ? 'is-correct' : 'is-wrong');
+                note.textContent = isCorrect ? ('Correct — ' + AM.teachingRevealCopy(correctName)) : AM.teachingRevealCopy(correctName);
               }
-              setTimeout(function(){ startRound(); }, isCorrect ? 800 : 1100);
+              if (isCorrect) sfxCultureCorrect();
+              else sfxCultureWrong();
+              runState.index += 1;
+              var delay = AM.revealDelayMs(isCorrect, prefersReducedMotion);
+              nextTimer = setTimeout(function(){ showQuestion(); }, delay);
             });
           });
         }
         function showAvatarMatchResult(){
-          setScore('Score: ' + totalScore);
+          clearNext();
+          var total = runState ? runState.questionTotal : 0;
+          var correct = runState ? runState.correctCount : 0;
+          var elapsed = runState ? (Date.now() - runState.startedAt) : 1;
+          if (elapsed < 1) elapsed = 1;
+          var acc = AM.accuracyPct(correct, total);
+          var clock = AM.formatClock(elapsed);
+          var score = AM.encodeScore(correct, total, elapsed);
+          var display = AM.formatScoreDisplay(correct, total, elapsed);
+          var modeId = runState && runState.mode;
+          setScore(correct + ' / ' + total);
           sfxCultureComplete();
-          var streakLine = bestStreak > 1 ? ('<div class="triviaProgress">🔥 Best streak: ' + bestStreak + '</div>') : '';
-          gameBody.innerHTML = '<div class="resultMsg win">Match complete!</div><div class="avatarMatchResultScore">' + totalScore + ' points</div>' + streakLine + playAgainHtml('avatarMatchPlayAgainBtn');
-          postLeaderboardScore('Avatar Match', adopted.name, totalScore, totalScore + ' pts', function(ok){
-            if (ok) toast('Score recorded on leaderboard.');
+          var modeLabel = modeId === 'full' ? ('Full Roster · ' + total) : (String(modeId || '') + ' Questions');
+          var html = '<div class="avatarMatchShell avatarMatchResultShell">';
+          html += '<div class="resultMsg win">Match complete!</div>';
+          html += '<div class="avatarMatchResultHero">' + esc(String(correct)) + ' / ' + esc(String(total)) + ' Correct</div>';
+          html += '<div class="avatarMatchResultStats">' + acc.toFixed(1) + '% Accuracy<br>' + esc(clock) + '</div>';
+          html += '<p class="avatarMatchModeHint">' + esc(modeLabel) + '</p>';
+          html += '<p class="avatarMatchPb" id="avatarMatchPb" hidden></p>';
+          html += '<button type="button" class="btn avatarMatchViewLbBtn" id="avatarMatchViewLbBtn">' + esc(modeId === 'full' ? 'View Full Roster Leaderboard' : ('View ' + String(modeId || '10') + ' Question Leaderboard')) + '</button>';
+          html += playAgainHtml('avatarMatchPlayAgainBtn');
+          html += '</div>';
+          gameBody.innerHTML = html;
+          postLeaderboardScore('Avatar Match', adopted.name, score, display, function(){
+            if (gamesApiBase == null) return;
+            var url = gamesApiBase + '/api/leaderboards?period=all_time&game_name=' + encodeURIComponent('Avatar Match') + '&am_mode=' + encodeURIComponent(modeId || '10') + '&limit=5';
+            if (modeId === 'full') url += '&am_questions=' + encodeURIComponent(String(total));
+            fetch(url, { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(board){
+              var pb = gameBody.querySelector('#avatarMatchPb');
+              if (pb && board && board.you && board.you.score_display) {
+                pb.hidden = false;
+                pb.textContent = 'Personal Best: ' + board.you.score_display + (board.you.rank ? (' · #' + board.you.rank) : '');
+              }
+            }).catch(function(){});
+          }, {
+            am_mode: modeId,
+            am_questions: total,
+            am_correct: correct,
+            am_elapsed_ms: elapsed
           });
+          var viewLb = el('avatarMatchViewLbBtn');
+          if (viewLb) {
+            viewLb.addEventListener('click', function(){
+              if (window.LanternGamesPage && typeof window.LanternGamesPage.openAvatarMatchLeaderboard === 'function') {
+                window.LanternGamesPage.openAvatarMatchLeaderboard(modeId, total);
+              }
+            });
+          }
           var again = el('avatarMatchPlayAgainBtn');
-          if (again) again.addEventListener('click', startAvatarMatch);
+          if (again) again.addEventListener('click', showModeSelector);
         }
-        fetchThenStart();
-        }, { surface: overlay, onExit: closeOverlay, returnFocus: el('avatarMatchPlayBtn') });
+        fetchRosterThenSelect();
       }
 
       function runTriviaGame(title, gameName, getQuestions){

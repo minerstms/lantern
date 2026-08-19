@@ -21,7 +21,7 @@
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
-      description: 'Match the avatar to the correct character name. Score based on speed and correctness.',
+      description: 'Learn student and staff names. Match each avatar. 1 Nugget = 1 Play. No Nugget rewards.',
     },
     {
       id: 'lantern-live-trivia',
