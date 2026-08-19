@@ -156,6 +156,8 @@ const lockerHtml = fs.readFileSync(path.join(root, 'app/locker.html'), 'utf8');
 const profileJs = fs.readFileSync(path.join(root, 'app/js/lantern-profile-app.js'), 'utf8');
 const settingsSrc = fs.readFileSync(path.join(root, 'worker/nugget-economy-settings.js'), 'utf8');
 const workerIndex = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
+const lockerSource = fs.readFileSync(path.join(root, 'app/locker-sources/index.full.html'), 'utf8');
+const builderSrc = fs.readFileSync(path.join(root, 'app/build-locker.cjs'), 'utf8');
 
 const student = {
   username: '20889', display_name: 'Lucas R.', public_display_name: 'Lucas R.', role: 'student',
@@ -295,6 +297,27 @@ if (
 }
 
 // H. economy.avatar_upload setting definition not changed
+if (
+  !lockerSource.includes('id="avatarCropOverlay"') &&
+  !lockerSource.includes('Submit avatar') &&
+  lockerSource.includes('id="editProfileOverlay"') &&
+  lockerSource.includes('id="avatarUploadStatus"') &&
+  lockerSource.includes("error: 'student_avatar_upload_disabled'") &&
+  !lockerSource.includes('Avatar uploads cost 1 Nugget')
+) {
+  ok('I. authoritative locker-sources snapshot has no student crop/upload UI');
+} else bad('I. snapshot still has student upload UI');
+
+if (
+  !builderSrc.includes('modals missing id="avatarCropOverlay"') &&
+  builderSrc.includes('student avatar crop overlay must not be spliced') &&
+  builderSrc.includes('id="avatarUploadStatus"') &&
+  !builderSrc.includes('cropper.min.css') &&
+  !builderSrc.includes('cropper.min.js')
+) {
+  ok('I2. builder no longer requires or injects student cropper');
+} else bad('I2. builder still requires/injects cropper');
+
 if (
   ECONOMY_SETTING_DEFS.avatar_upload.key === 'economy.avatar_upload' &&
   ECONOMY_SETTING_DEFS.avatar_upload.min === -10 &&

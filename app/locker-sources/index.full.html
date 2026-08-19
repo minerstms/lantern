@@ -37,7 +37,6 @@
     } catch (e) {}
   })();
   </script>
-  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
@@ -956,7 +955,6 @@
       padding: 18px;
     }
     .overlay.show{ display: flex; }
-    #avatarCropOverlay.show{ z-index: 10000; }
     .modal{
       width: min(500px, 96vw);
       max-height: 90vh;
@@ -1517,7 +1515,7 @@
     <!-- LOCKER_BUILD:OVERVIEW_END -->
   </div>
 
-  <!-- LOCKER_BUILD:MODALS_START — end marker must stay paired; build-locker.cjs extracts through avatar crop overlay -->
+  <!-- LOCKER_BUILD:MODALS_START — end marker must stay paired; build-locker.cjs extracts beta report + Profile Studio -->
   <!-- Beta issue report modal (simple form for testers) -->
   <div class="overlay" id="betaReportOverlay" style="display:none;">
     <div class="modal" style="max-width: 520px;">
@@ -1616,35 +1614,6 @@
       </form>
     </div>
   </div>
-
-  <!-- Avatar crop overlay -->
-  <div class="overlay" id="avatarCropOverlay">
-    <div class="modal" style="max-width:520px;">
-      <div class="modalHd">
-        <div class="h">Crop Avatar</div>
-        <button class="x" id="avatarCropCloseBtn">✕</button>
-      </div>
-      <div style="font-size:19px; color:var(--muted); margin-bottom:10px;">
-        Drag to position your avatar. Keep your face centered. Square crop only.
-      </div>
-      <div id="avatarCropContainer" style="width:100%; max-width:400px; height:400px; margin:0 auto 10px; background:rgba(0,0,0,.5); border-radius:16px; overflow:hidden;">
-        <img id="avatarCropImage" alt="Avatar preview" style="max-width:100%; max-height:100%; display:block;">
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px;">
-        <div style="display:flex; gap:8px;">
-          <button type="button" class="btn small" id="avatarCropZoomInBtn">Zoom in</button>
-          <button type="button" class="btn small" id="avatarCropZoomOutBtn">Zoom out</button>
-          <button type="button" class="btn small" id="avatarCropRotateLeftBtn">Rotate</button>
-        </div>
-        <div style="font-size:18px; color:var(--muted);">Exported at 384×384 · JPEG</div>
-      </div>
-      <div style="display:flex; gap:10px; margin-top:4px;">
-        <button type="button" class="btn" id="avatarCropCancelBtn" style="flex:1;">Cancel</button>
-        <button type="button" class="btn good" id="avatarCropSubmitBtn" style="flex:1;">Submit avatar (1 Nugget)</button>
-      </div>
-      <div id="avatarCropError" style="margin-top:8px; font-size:18px; color:#ffcc66;"></div>
-    </div>
-  </div>
   <!-- LOCKER_BUILD:MODALS_END -->
   </div>
 
@@ -1670,7 +1639,6 @@
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
-  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script>
     /* ===== Bootstrap: ensure base data exists ===== */
     (function(){
@@ -1932,42 +1900,7 @@
     }
 
     function callSubmitAvatarUpload(name, imageData, cost){
-      var base = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
-      if (base) {
-        return fetch(base + '/api/avatar/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ character_name: name, image: imageData })
-        }).then(function(r){ return r.json(); }).then(function(upRes){
-          if (!upRes || !upRes.ok) return Promise.reject(new Error(upRes && upRes.error || 'Upload failed'));
-          if (economyApiBase) {
-            return callEconomyTransact(name, -cost, 'avatar_upload', '', 'Avatar upload', {}).then(function(tRes){
-              if (!tRes || !tRes.ok) return Promise.reject(new Error(tRes && tRes.error || 'Deduction failed'));
-              return { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status };
-            });
-          }
-          var run = createRun ? createRun() : null;
-          if (!run) return { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status };
-          return new Promise(function(resolve, reject){
-            run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost, backend_only: true });
-          }).then(function(){ return { ok: true, id: upRes.id, image_url: upRes.image_url, status: upRes.status }; });
-        }).catch(function(err){ return { ok: false, error: String(err && err.message || err) }; });
-      }
-      if (economyApiBase) {
-        return callEconomyTransact(name, -cost, 'avatar_upload', '', 'Avatar upload', {}).then(function(tRes){
-          if (!tRes || !tRes.ok) return { ok: false, error: tRes && tRes.error || 'Deduction failed' };
-          var run = createRun ? createRun() : null;
-          if (!run) return { ok: true, id: 'local', status: 'pending' };
-          return new Promise(function(resolve, reject){
-            run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ reject(err); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost, economy_backend_charged: true });
-          }).then(function(r){ return { ok: true, id: (r && r.id) || 'local', status: 'pending' }; });
-        }).catch(function(err){ return { ok: false, error: String(err && err.message || err) }; });
-      }
-      var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
-      return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: cost });
-      });
+      return Promise.resolve({ ok: false, error: 'student_avatar_upload_disabled' });
     }
 
     function callGetAvatarStatus(name){
@@ -3585,9 +3518,6 @@
       var themePicker = el('editProfileThemePicker');
       var featuredSelect = el('editProfileFeaturedPost');
     var currentAvatarStatus = null;
-    var avatarCropper = null;
-    var avatarCropDataUrl = null;
-    var avatarCropOpenGuard = false;
 
       function buildFramePicker(selected){
         if (!framePicker) return;
@@ -3860,13 +3790,10 @@
         currentAvatarStatus = avatarStatus && avatarStatus.status ? avatarStatus.status : {};
         var uploadStatusEl = el('avatarUploadStatus');
         if (uploadStatusEl){
-          if (currentAvatarStatus.has_pending){
-            uploadStatusEl.textContent = 'You already have an avatar awaiting approval.';
-            uploadStatusEl.style.color = 'var(--muted)';
-          } else {
-            uploadStatusEl.textContent = 'Avatar uploads cost 1 Nugget and must be school-appropriate.';
-            uploadStatusEl.style.color = 'var(--muted)';
-          }
+          uploadStatusEl.textContent = currentAvatarStatus.active_image
+            ? 'Your current avatar is shown on your profile. Ask an administrator to change it.'
+            : 'No avatar assigned yet. Ask an administrator if you need one.';
+          uploadStatusEl.style.color = 'var(--muted)';
         }
         buildFramePicker(profile.frame || 'none');
         buildThemePicker(normalizeThemeForPicker(profile.theme));
@@ -3967,178 +3894,13 @@
       if (el('editProfileCloseBtn')) el('editProfileCloseBtn').addEventListener('click', function(){ if (overlay) overlay.classList.remove('show'); });
       if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
 
-      function destroyAvatarCropper(){
-        if (avatarCropper){
-          avatarCropper.destroy();
-          avatarCropper = null;
-        }
-      }
-
-      function openAvatarFileChooser(){
-        var adopted = getAdopted();
-        if (!adopted) { toast('Adopt a character first'); return; }
-        if (currentAvatarStatus && currentAvatarStatus.has_pending){
-          toast('You already have an avatar awaiting approval.');
-          return;
-        }
-        var input = el('avatarFileInput');
-        if (input){
-          input.value = '';
-          input.click();
-        }
-      }
-
       var openUploadBtn = el('openAvatarUploadBtn');
       if (openUploadBtn){
         openUploadBtn.hidden = true;
         openUploadBtn.setAttribute('hidden', 'hidden');
       }
-
-      var fileInput = el('avatarFileInput');
-      if (fileInput){
-        fileInput.addEventListener('change', function(){
-          var file = fileInput.files && fileInput.files[0];
-          var errorEl = el('avatarCropError');
-          if (errorEl) errorEl.textContent = '';
-          if (!file){
-            return;
-          }
-          if (!/^image\//i.test(file.type || '')){
-            if (errorEl) errorEl.textContent = 'Please choose an image file.';
-            return;
-          }
-          if (file.size && file.size > 3 * 1024 * 1024){
-            if (errorEl) errorEl.textContent = 'Image is too large. Please keep it under 3MB.';
-            return;
-          }
-          var reader = new FileReader();
-          reader.onload = function(ev){
-            var url = ev.target && ev.target.result;
-            var imgEl = el('avatarCropImage');
-            var overlayEl = el('avatarCropOverlay');
-            if (!imgEl || !overlayEl) return;
-            destroyAvatarCropper();
-            imgEl.src = '';
-            imgEl.removeAttribute('src');
-            overlayEl.classList.add('show');
-            avatarCropOpenGuard = true;
-            setTimeout(function(){ avatarCropOpenGuard = false; }, 400);
-            imgEl.onload = function(){
-              try{
-                var naturalMin = Math.min(imgEl.naturalWidth || 0, imgEl.naturalHeight || 0);
-                if (naturalMin < 128){
-                  if (errorEl) errorEl.textContent = 'Image is too small. Use an image at least 128×128.';
-                  destroyAvatarCropper();
-                  overlayEl.classList.remove('show');
-                  return;
-                }
-                if (window.Cropper){
-                  avatarCropper = new window.Cropper(imgEl, {
-                    aspectRatio: 1,
-                    viewMode: 1,
-                    background: false,
-                    autoCropArea: 0.9,
-                  });
-                } else {
-                  if (errorEl) errorEl.textContent = 'Cropper not loaded. Refresh the page.';
-                }
-              }catch(e){
-                if (errorEl) errorEl.textContent = 'Could not start cropper.';
-              }
-            };
-            imgEl.onerror = function(){
-              if (errorEl) errorEl.textContent = 'Could not load image.';
-              overlayEl.classList.remove('show');
-            };
-            imgEl.src = url;
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-
-      function closeAvatarCropOverlay(){
-        var overlayEl = el('avatarCropOverlay');
-        var errorEl = el('avatarCropError');
-        if (overlayEl) overlayEl.classList.remove('show');
-        if (errorEl) errorEl.textContent = '';
-        destroyAvatarCropper();
-        avatarCropDataUrl = null;
-      }
-
-      var cropCloseBtn = el('avatarCropCloseBtn');
-      var cropCancelBtn = el('avatarCropCancelBtn');
-      if (cropCloseBtn) cropCloseBtn.addEventListener('click', closeAvatarCropOverlay);
-      if (cropCancelBtn) cropCancelBtn.addEventListener('click', closeAvatarCropOverlay);
-      var cropOverlay = el('avatarCropOverlay');
-      if (cropOverlay){
-        cropOverlay.addEventListener('click', function(e){
-          if (e.target !== cropOverlay) return;
-          if (avatarCropOpenGuard) return;
-          closeAvatarCropOverlay();
-        });
-      }
-
-      var zoomInBtn = el('avatarCropZoomInBtn');
-      var zoomOutBtn = el('avatarCropZoomOutBtn');
-      var rotateBtn = el('avatarCropRotateLeftBtn');
-      if (zoomInBtn){
-        zoomInBtn.addEventListener('click', function(){
-          if (avatarCropper) avatarCropper.zoom(0.15);
-        });
-      }
-      if (zoomOutBtn){
-        zoomOutBtn.addEventListener('click', function(){
-          if (avatarCropper) avatarCropper.zoom(-0.15);
-        });
-      }
-      if (rotateBtn){
-        rotateBtn.addEventListener('click', function(){
-          if (avatarCropper) avatarCropper.rotate(90);
-        });
-      }
-
-      var cropSubmitBtn = el('avatarCropSubmitBtn');
-      if (cropSubmitBtn){
-        cropSubmitBtn.addEventListener('click', function(){
-          var adopted = getAdopted();
-          var errorEl = el('avatarCropError');
-          if (!adopted || !adopted.name){
-            if (errorEl) errorEl.textContent = 'Adopt a character first.';
-            return;
-          }
-          if (!avatarCropper){
-            if (errorEl) errorEl.textContent = 'No image to crop.';
-            return;
-          }
-          try{
-            var canvas = avatarCropper.getCroppedCanvas({ width: 384, height: 384 });
-            if (!canvas){
-              if (errorEl) errorEl.textContent = 'Unable to crop image.';
-              return;
-            }
-            if (canvas.width < 128 || canvas.height < 128){
-              if (errorEl) errorEl.textContent = 'Cropped image is too small.';
-              return;
-            }
-            var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            avatarCropDataUrl = dataUrl;
-          }catch(e){
-            if (errorEl) errorEl.textContent = 'Unable to crop image.';
-            return;
-          }
-          cropSubmitBtn.disabled = true;
-          callSubmitAvatarUpload(adopted.name, avatarCropDataUrl, 25).then(function(res){
-            cropSubmitBtn.disabled = false;
-            if (!res || !res.ok){
-              if (errorEl) errorEl.textContent = (res && res.error) || 'Failed to submit avatar.';
-              return;
-            }
-            toast('Avatar submitted for approval. -1 Nugget');
-            closeAvatarCropOverlay();
-            showProfile();
-          });
-        });
-      }
+      var leftoverFileInput = el('avatarFileInput');
+      if (leftoverFileInput && leftoverFileInput.parentNode) leftoverFileInput.parentNode.removeChild(leftoverFileInput);
 
       if (form){
         form.addEventListener('submit', function(e){

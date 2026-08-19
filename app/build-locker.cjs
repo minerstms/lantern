@@ -65,8 +65,12 @@ function assertOverviewFragment(html) {
 function assertModalsFragment(html) {
   assertFragmentSafeForLocker(html, 'modals');
   if (!/id="betaReportOverlay"/.test(html)) throw new Error('build-locker.cjs: modals missing id="betaReportOverlay"');
-  if (!/id="avatarCropOverlay"/.test(html)) throw new Error('build-locker.cjs: modals missing id="avatarCropOverlay"');
   if (!/id="editProfileOverlay"/.test(html)) throw new Error('build-locker.cjs: modals missing id="editProfileOverlay"');
+  if (!/id="avatarUploadStatus"/.test(html)) throw new Error('build-locker.cjs: Profile Studio missing id="avatarUploadStatus"');
+  if (!/Ask in person/.test(html)) throw new Error('build-locker.cjs: Profile Studio missing assigned-avatar copy');
+  if (/id="avatarCropOverlay"/.test(html)) throw new Error('build-locker.cjs: student avatar crop overlay must not be spliced');
+  if (/avatarCropSubmitBtn|Submit avatar/.test(html)) throw new Error('build-locker.cjs: student avatar submit control must not be spliced');
+  if (/id="avatarFileInput"/.test(html)) throw new Error('build-locker.cjs: student avatar file input must not be spliced');
 }
 
 /* Template already emits classAccessBannerEl / gate / contentWrap — do not splice verifyBlock (was duplicating those nodes). */
@@ -466,7 +470,6 @@ const html = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
   <title>TMS Lantern — Locker</title>
-  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css">
@@ -535,7 +538,6 @@ ${storeOverlay}
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
-  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="js/lantern-post-live-notify.js"></script>
   <script src="js/lantern-profile-app.js"></script>
   <script src="js/lantern-store-app.js"></script>
