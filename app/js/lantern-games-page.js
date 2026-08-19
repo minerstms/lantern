@@ -85,6 +85,9 @@
       encodeURIComponent(key) +
       '&limit=' +
       (limit || 25);
+    if (String(gameName || '') === 'Avatar Match' || String(key || '') === 'Avatar Match') {
+      url += '&am_mode=10';
+    }
     return fetch(url, { credentials: 'include' })
       .then(function (r) {
         return r.json();

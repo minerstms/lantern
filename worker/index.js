@@ -93,6 +93,7 @@ import {
 } from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { buildAvatarMatchCharacters } from './avatar-match-pool.js';
+import { validateAvatarMatchResult } from './avatar-match-game.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -9229,12 +9230,24 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     }
     const gameName = game.name;
 
-    const scoreCheck = validateLeaderboardScore(game, body.score);
-    if (!scoreCheck.ok) {
-      return jsonResponse({ ok: false, error: scoreCheck.error }, 400, cors);
+    let score;
+    let scoreDisplay;
+    let avatarMatchValidated = null;
+    if (game.id === 'avatar-match') {
+      avatarMatchValidated = validateAvatarMatchResult(body);
+      if (!avatarMatchValidated.ok) {
+        return jsonResponse({ ok: false, error: avatarMatchValidated.error }, 400, cors);
+      }
+      score = avatarMatchValidated.score;
+      scoreDisplay = sanitizeScoreDisplay(avatarMatchValidated.score_display, score);
+    } else {
+      const scoreCheck = validateLeaderboardScore(game, body.score);
+      if (!scoreCheck.ok) {
+        return jsonResponse({ ok: false, error: scoreCheck.error }, 400, cors);
+      }
+      score = scoreCheck.score;
+      scoreDisplay = sanitizeScoreDisplay(body.score_display, score);
     }
-    const score = scoreCheck.score;
-    const scoreDisplay = sanitizeScoreDisplay(body.score_display, score);
     const runId = sanitizeRunId(body.run_id || (body.meta && body.meta.run_id));
     if (!runId) {
       return jsonResponse({ ok: false, error: 'invalid_run' }, 400, cors);
@@ -9253,6 +9266,13 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     delete meta.delta;
     meta.run_id = runId;
     meta.game_id = game.id;
+    if (avatarMatchValidated) {
+      meta.am_mode = avatarMatchValidated.mode;
+      meta.am_questions = avatarMatchValidated.questions;
+      meta.am_correct = avatarMatchValidated.correct;
+      meta.am_elapsed_ms = avatarMatchValidated.elapsed;
+      meta.am_accuracy = avatarMatchValidated.accuracy;
+    }
 
     try {
       const existing = await db.prepare(
@@ -9318,43 +9338,43 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     const agg = lowerBetter ? 'MIN(score)' : 'MAX(score)';
     const orderBy = lowerBetter ? 'ORDER BY score ASC' : 'ORDER BY score DESC';
     const inPlaceholders = catalogNames.map(() => '?').join(',');
+    const amMode = registered && registered.id === 'avatar-match'
+      ? String(url.searchParams.get('am_mode') || '10').trim().toLowerCase()
+      : '';
+    const amQuestions = amMode === 'full' ? Math.floor(Number(url.searchParams.get('am_questions') || 0)) : 0;
     let rows;
     try {
-      // Prompt #99: also select score_display as a bare column alongside the single MIN()/MAX()
-      // aggregate. SQLite (D1's engine) guarantees bare columns in this shape are taken from the
-      // same row that produced the aggregate value, so this now returns the *actual* display
-      // string (e.g. "342 ms", "12 taps") for each player's best score instead of always falling
-      // back to the bare numeric score on the client (see lantern-games-page.js formatEntryLine).
+      const where = [];
+      const binds = [];
       if (gameName) {
-        if (since == null && !until) {
-          rows = await db.prepare(
-            `SELECT character_name, score_display, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? GROUP BY character_name ${orderBy} LIMIT ?`
-          ).bind(gameName, limit).all();
-        } else if (until) {
-          rows = await db.prepare(
-            `SELECT character_name, score_display, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? AND created_at <= ? GROUP BY character_name ${orderBy} LIMIT ?`
-          ).bind(gameName, since, until, limit).all();
-        } else {
-          rows = await db.prepare(
-            `SELECT character_name, score_display, ${agg} AS score FROM lantern_leaderboard_entries WHERE game_name = ? AND created_at >= ? GROUP BY character_name ${orderBy} LIMIT ?`
-          ).bind(gameName, since, limit).all();
-        }
+        where.push('game_name = ?');
+        binds.push(gameName);
       } else {
-        // Combined view: only registered production games (unlisted/lab names cannot leak).
-        if (since == null && !until) {
-          rows = await db.prepare(
-            `SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE game_name IN (${inPlaceholders}) GROUP BY character_name ORDER BY score DESC LIMIT ?`
-          ).bind(...catalogNames, limit).all();
-        } else if (until) {
-          rows = await db.prepare(
-            `SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE game_name IN (${inPlaceholders}) AND created_at >= ? AND created_at <= ? GROUP BY character_name ORDER BY score DESC LIMIT ?`
-          ).bind(...catalogNames, since, until, limit).all();
-        } else {
-          rows = await db.prepare(
-            `SELECT character_name, score_display, MAX(score) AS score FROM lantern_leaderboard_entries WHERE game_name IN (${inPlaceholders}) AND created_at >= ? GROUP BY character_name ORDER BY score DESC LIMIT ?`
-          ).bind(...catalogNames, since, limit).all();
+        where.push(`game_name IN (${inPlaceholders})`);
+        binds.push(...catalogNames);
+      }
+      if (since) {
+        where.push('created_at >= ?');
+        binds.push(since);
+      }
+      if (until) {
+        where.push('created_at <= ?');
+        binds.push(until);
+      }
+      if (amMode) {
+        where.push("json_extract(meta_json, '$.am_mode') = ?");
+        binds.push(amMode);
+        if (amMode === 'full' && amQuestions > 0) {
+          where.push("CAST(json_extract(meta_json, '$.am_questions') AS INTEGER) = ?");
+          binds.push(amQuestions);
         }
       }
+      binds.push(limit);
+      const combinedAgg = gameName ? agg : 'MAX(score)';
+      const combinedOrder = gameName ? orderBy : 'ORDER BY score DESC';
+      rows = await db.prepare(
+        `SELECT character_name, score_display, ${combinedAgg} AS score FROM lantern_leaderboard_entries WHERE ${where.join(' AND ')} GROUP BY character_name ${combinedOrder} LIMIT ?`
+      ).bind(...binds).all();
     } catch (e) {
       return jsonResponse({ ok: true, period, entries: [] }, 200, cors);
     }
@@ -9382,7 +9402,63 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
         score_display: r.score_display != null ? r.score_display : String(Number(r.score) || 0),
       };
     });
-    return jsonResponse({ ok: true, period, entries }, 200, cors);
+    let you = null;
+    if (registered && registered.id === 'avatar-match') {
+      try {
+        const acct = await getPilotAccountFromRequest(request, env);
+        if (acct) {
+          const identityAuth = resolveEconomyGamePlayTransact(acct, '', pilotEconomyCharacterName);
+          const me = identityAuth && identityAuth.ok ? String(identityAuth.characterName || '').trim() : '';
+          if (me) {
+            const hit = entries.find((e) => String(e.character_name || '').trim().toLowerCase() === me.toLowerCase());
+            const youWhere = [];
+            const youBinds = [me, gameName];
+            youWhere.push('character_name = ?');
+            youWhere.push('game_name = ?');
+            if (since) {
+              youWhere.push('created_at >= ?');
+              youBinds.push(since);
+            }
+            if (until) {
+              youWhere.push('created_at <= ?');
+              youBinds.push(until);
+            }
+            if (amMode) {
+              youWhere.push("json_extract(meta_json, '$.am_mode') = ?");
+              youBinds.push(amMode);
+              if (amMode === 'full' && amQuestions > 0) {
+                youWhere.push("CAST(json_extract(meta_json, '$.am_questions') AS INTEGER) = ?");
+                youBinds.push(amQuestions);
+              }
+            }
+            const pbRow = await db.prepare(
+              `SELECT score, score_display FROM lantern_leaderboard_entries WHERE ${youWhere.join(' AND ')} ${orderBy} LIMIT 1`
+            ).bind(...youBinds).first();
+            if (pbRow && pbRow.score != null) {
+              const mine = (nameIndex.byUsername && nameIndex.byUsername[me.toLowerCase()])
+                || (nameIndex.byStudentKey && nameIndex.byStudentKey[me.toLowerCase()])
+                || (nameIndex.byTeacherId && nameIndex.byTeacherId[me.toLowerCase()])
+                || null;
+              const mineLabel = mine ? resolvePublicDisplayName(mine) : '';
+              you = {
+                rank: hit ? hit.rank : null,
+                score: Number(pbRow.score) || 0,
+                score_display: pbRow.score_display != null ? pbRow.score_display : String(Number(pbRow.score) || 0),
+                public_display_name: (hit && hit.public_display_name) || mineLabel || null,
+              };
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    return jsonResponse({
+      ok: true,
+      period,
+      entries,
+      am_mode: amMode || null,
+      am_questions: amQuestions || null,
+      you,
+    }, 200, cors);
   }
 
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);

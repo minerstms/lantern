@@ -143,8 +143,8 @@ if (gamesHtml.match(/playAgainBtn\.addEventListener\('click', startMemoryRound\)
   ok('Memory Match Play Again re-enters tryPlay (fresh paid run, fresh board/moves state), not a free replay');
 } else bad('Memory Match Play Again does not re-charge');
 
-if (gamesHtml.match(/again\.addEventListener\('click', startAvatarMatch\)/)) {
-  ok('Avatar Match Play Again calls the full start function again (fresh paid run, fresh characters/round/score state)');
+if (gamesHtml.match(/again\.addEventListener\('click', showModeSelector\)/) && gamesHtml.includes("startPaidGame('Avatar Match'")) {
+  ok('Avatar Match Play Again returns to mode select; a new run charges via startPaidGame');
 } else bad('Avatar Match Play Again does not restart cleanly');
 
 if (gamesHtml.match(/again\.addEventListener\('click', function\(\)\{\s*\n\s*el\(playBtnIdForGameName\(gameName\)\)\.click\(\);/)) {

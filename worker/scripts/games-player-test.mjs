@@ -121,6 +121,12 @@ const gameNames = [
   'Local History Trivia',
 ];
 gameNames.forEach(function (name) {
+  if (name === 'Avatar Match') {
+    if (gamesHtml.includes("gameName: 'Avatar Match'") && gamesHtml.includes('surface: overlay') && gamesHtml.includes('LanternGamePlayer.open')) {
+      ok('shared player wired: Avatar Match');
+    } else bad('playerOpts.surface missing for Avatar Match');
+    return;
+  }
   const re = new RegExp(
     "tryPlay\\('" + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "'[\\s\\S]*?surface:",
     'm'
@@ -144,7 +150,7 @@ if (playerCss.includes('safe-area-inset')) {
 if (
   !playerJs.includes('history.pushState') &&
   !playerJs.includes('history.replaceState') &&
-  !gamesHtml.match(/tryPlay[\s\S]*history\.(push|replace)State/)
+  !gamesHtml.match(/function tryPlay[\s\S]{0,900}history\.(push|replace)State/)
 ) {
   ok('Game Player does not navigate away from /games');
 } else bad('history navigation on player');

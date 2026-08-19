@@ -17,6 +17,7 @@ import {
   paidRunGameMatches,
 } from '../game-paid-run-proof.js';
 import { EDUCATIONAL_TRIVIA_REWARD_NUGGETS } from '../educational-trivia-missions.js';
+import { encodeAvatarMatchScore } from '../avatar-match-game.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 let pass = 0;
@@ -368,14 +369,15 @@ async function main() {
     const state = { accounts: { '20889': me } };
     addPaidRun(state, { characterName: '20889', gameName: 'Avatar Match', gameId: 'avatar-match', runId: 'run-avatar' });
     const env = makeEnv(state);
-    const first = await postRecord(env, cookie, { game_name: 'Avatar Match', score: 80, run_id: 'run-avatar' });
-    const second = await postRecord(env, cookie, { game_name: 'Avatar Match', score: 99, run_id: 'run-avatar' });
+    const amScore = encodeAvatarMatchScore(8, 10, 40000);
+    const first = await postRecord(env, cookie, { game_name: 'Avatar Match', score: amScore, run_id: 'run-avatar', am_mode: '10', am_questions: 10, am_correct: 8, am_elapsed_ms: 40000 });
+    const second = await postRecord(env, cookie, { game_name: 'Avatar Match', score: amScore, run_id: 'run-avatar', am_mode: '10', am_questions: 10, am_correct: 8, am_elapsed_ms: 40000 });
     if (
       first.status === 200 &&
       second.status === 200 &&
       second.json.idempotent === true &&
       state.entries.length === 1 &&
-      state.entries[0].score === 80
+      state.entries[0].score === amScore
     ) {
       ok('12/13. duplicate result cannot insert twice; retry is idempotent');
     } else bad('12/13 idempotent', { first, second, n: state.entries.length });
@@ -491,8 +493,17 @@ async function main() {
     const runId = 'run-all-' + g.id;
     addPaidRun(state, { characterName: '20889', gameName: g.name, gameId: g.id, runId });
     const env = makeEnv(state);
-    const score = g.lowerIsBetter ? Math.max(g.scoreMin, 1) : 10;
-    const r = await postRecord(env, cookie, { game_id: g.id, score, run_id: runId });
+    const score = g.id === 'avatar-match'
+      ? encodeAvatarMatchScore(8, 10, 40000)
+      : (g.lowerIsBetter ? Math.max(g.scoreMin, 1) : 10);
+    const body = { game_id: g.id, score, run_id: runId };
+    if (g.id === 'avatar-match') {
+      body.am_mode = '10';
+      body.am_questions = 10;
+      body.am_correct = 8;
+      body.am_elapsed_ms = 40000;
+    }
+    const r = await postRecord(env, cookie, body);
     if (r.status === 200 && r.json.ok && r.json.game_name === g.name) ok('33. paid-run binding: ' + g.id);
     else bad('33 binding ' + g.id, r);
   }

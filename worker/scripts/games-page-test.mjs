@@ -126,8 +126,8 @@ if (feedCss.includes('280px') && gamesHtml.includes('feedGrid')) {
   ok('canonical 280px grid architecture reused');
 } else bad('280px grid');
 
-if (gamesHtml.includes('tryPlay(\'Avatar Match\'') && gamesHtml.includes('tryPlay(\'Handbook Trivia\'')) {
-  ok('culture/trivia games use paid tryPlay');
+if (gamesHtml.includes("startPaidGame('Avatar Match'") && gamesHtml.includes('tryPlay(\'Handbook Trivia\'')) {
+  ok('culture/trivia games use paid start');
 } else bad('culture games paid play');
 
 if (gamesPageJs.includes('leaderboardGames()') && !gamesPageJs.includes('li % ')) {

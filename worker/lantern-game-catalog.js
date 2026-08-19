@@ -17,7 +17,7 @@ export const LANTERN_LEADERBOARD_GAMES = [
     name: 'Avatar Match',
     lowerIsBetter: false,
     scoreMin: 0,
-    scoreMax: 500,
+    scoreMax: 1000099999999,
     leaderboard: true,
     status: 'playable',
   },
