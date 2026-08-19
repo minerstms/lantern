@@ -1,0 +1,168 @@
+/* Lantern Create — Audio / Song studio (local preview only). */
+
+.studioFeedHero{
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 12px;
+  box-sizing: border-box;
+}
+.studioFeedHero .exploreCard,
+.studioFeedHero .exploreCard.lanternCanonicalCard,
+.studioFeedHero .exploreCard.exploreCard--rail,
+.studioFeedHero .exploreCard.exploreCard--size-rail,
+.studioFeedHero a.exploreCard{
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  flex: 1 1 auto !important;
+  height: auto !important;
+  aspect-ratio: auto;
+  box-sizing: border-box;
+}
+.studioFeedHero .exploreCardVisual,
+.studioFeedHero .exploreCardVisual.exploreCardVisualIconRail,
+.studioFeedHero .lanternAudioCardArt{
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  height: auto;
+  object-fit: cover;
+}
+.studioFeedHero .lanternAudioCardArt{
+  display: block;
+  border-radius: 12px;
+  background: #070614;
+}
+
+.lanternAudioStudio{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.lanternAudioStudio label{
+  font-weight: 800;
+}
+.lanternAudioFileRow{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.lanternAudioFileRow input[type="file"]{
+  min-width: 0;
+  max-width: 100%;
+}
+.lanternAudioStyleRow,
+.lanternAudioGlowRow,
+.lanternAudioColorGrid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 12px;
+  min-width: 0;
+}
+.lanternAudioColorField{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.lanternAudioColorField input[type="color"]{
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--line, rgba(255,255,255,.12));
+  border-radius: 10px;
+  background: transparent;
+}
+.lanternAudioSwatches{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lanternAudioSwatch{
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,.35);
+  cursor: pointer;
+  padding: 0;
+}
+.lanternAudioSwatch:focus-visible{
+  outline: 2px solid #5aa7ff;
+  outline-offset: 2px;
+}
+
+.lanternAudioOpened{
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.lanternAudioStage{
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #070614;
+  position: relative;
+}
+.lanternAudioStage canvas{
+  width: 100%;
+  height: 100%;
+  display: block;
+  max-width: 100%;
+}
+.lanternAudioControls{
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  margin-top: 10px;
+  min-width: 0;
+}
+.lanternAudioControls .lanternAudioPlayBtn,
+.lanternAudioControls .lanternAudioMuteBtn{
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 22px;
+  font-weight: 800;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: rgba(90,167,255,.2);
+  color: inherit;
+  cursor: pointer;
+}
+.lanternAudioScrub{
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+}
+.lanternAudioTimes{
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  grid-column: 1 / -1;
+}
+@media (max-width: 420px){
+  .lanternAudioControls{
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lanternAudioControls .lanternAudioMuteBtn{
+    grid-column: 1;
+  }
+}
+
+.studioOpenedPreviewInner .lanternCardDetailModal--studioPreview{
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}

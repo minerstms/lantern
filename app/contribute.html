@@ -15,8 +15,9 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-rails.css">
-  <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
+  <link rel="stylesheet" href="css/lantern-cards.css?v=20260819-preview232">
   <link rel="stylesheet" href="css/lantern-reactions.css">
+  <link rel="stylesheet" href="css/lantern-audio-studio.css?v=20260819-audio232">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <style>
     :root{
@@ -441,9 +442,9 @@
       .studioColCenter{
         position: relative;
         z-index: 1;
-        width: var(--lantern-studio-center-render-width, var(--lantern-studio-center-width));
-        min-width: var(--lantern-studio-center-render-width, var(--lantern-studio-center-width));
-        max-width: var(--lantern-studio-center-render-width, var(--lantern-studio-center-width));
+        width: min(100%, var(--lantern-studio-center-render-width, var(--lantern-studio-center-width)));
+        min-width: 0;
+        max-width: min(100%, var(--lantern-studio-center-render-width, var(--lantern-studio-center-width)));
         /* + right-extend cancels the extend baked into render-width so Create's LEFT stays at the #110 edge. */
         margin-left: calc(50vw + var(--lantern-studio-center-right-half) - var(--lantern-studio-center-render-width, var(--lantern-studio-center-width)) + var(--lantern-studio-center-right-extend, 0px));
         margin-right: 0;
@@ -608,6 +609,99 @@
          */
         --lantern-studio-center-right-extend: clamp(48px, 5vw, 140px);
         --lantern-studio-center-render-width: calc(var(--lantern-studio-center-width) + 2 * (var(--lantern-pad-x, 12px) + 10px) + var(--lantern-studio-center-right-extend));
+      }
+    }
+    /*
+     * Prompt #232 — zoom / tablet / phone reflow.
+     * Wide fine-pointer canvas stays above. When CSS width is insufficient
+     * (browser zoom, split-screen, tablet), drop absolute columns for grid.
+     */
+    @media (hover: hover) and (pointer: fine) and (max-width: 1099px){
+      #contributeWriteWrap{
+        width: auto;
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        overflow-x: hidden;
+      }
+      #creationStudioShell,
+      body.contributeStudioOpen #creationStudioShell,
+      body.contributeStudioOpen #contributeWriteWrap{
+        max-height: none;
+        overflow-x: hidden;
+      }
+      .containerStudio3Panel.studioThreeCols,
+      body.contributeStudioOpen .containerStudio3Panel.studioThreeCols{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+          "editor editor"
+          "feed opened";
+        gap: 16px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        position: relative;
+      }
+      .studioColCenter,
+      body.contributeStudioOpen .studioColCenter{
+        grid-area: editor;
+        position: static;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        overflow-x: hidden;
+      }
+      .studioColLeft,
+      body.contributeStudioOpen .studioColLeft{
+        grid-area: feed;
+        position: static;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        left: auto;
+        right: auto;
+        bottom: auto;
+      }
+      .studioColRight,
+      body.contributeStudioOpen .studioColRight{
+        grid-area: opened;
+        position: static;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        left: auto;
+        right: auto;
+        bottom: auto;
+      }
+    }
+    @media (max-width: 699px){
+      .containerStudio3Panel.studioThreeCols,
+      body.contributeStudioOpen .containerStudio3Panel.studioThreeCols{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "editor"
+          "feed"
+          "opened";
+        gap: 14px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+      .studioColCenter{ grid-area: editor; order: -1; }
+      .studioColLeft{ grid-area: feed; }
+      .studioColRight{ grid-area: opened; }
+      .studioColLeft,
+      .studioColRight,
+      .studioColCenter{
+        position: static;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        margin-left: 0;
       }
     }
     .studioCenterCard{
@@ -825,6 +919,9 @@
       flex: 1 1 auto;
       -webkit-overflow-scrolling: touch;
     }
+    @media (max-width: 699px){
+      .studioStreamGridHost{ display: none; }
+    }
     .studioOpenedPreviewInner{
       width: 100%;
       max-width: 100%;
@@ -878,8 +975,9 @@
       overflow: auto;
     }
     #contributePreviewInner{
-      width: max-content;
-      min-width: var(--lantern-rail-card-outer-width, 280px);
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       box-sizing: border-box;
     }
     .missionStudioFormPanel{
@@ -1065,6 +1163,7 @@
                 <div class="studioSidePanelTitle">In the feed</div>
               </div>
               <div class="studioSidePanelBd">
+                <div id="studioFeedHero" class="studioFeedHero" aria-label="Explore card preview"></div>
                 <div id="studioStreamGrid" class="studioStreamGridHost" aria-label="Feed preview grid"></div>
               </div>
             </div>
@@ -1084,6 +1183,7 @@
           <option value="post">News / Update</option>
           <option value="shoutout">Shout-Out!</option>
           <option value="poll">Poll</option>
+          <option value="audio">Audio / Song</option>
         </select>
         </div>
 
@@ -1245,6 +1345,49 @@
           </div>
         </div>
 
+        <div id="variantAudio" class="contributeVariant contributeCreateFullRow lanternAudioStudio" style="display:none;">
+          <label for="audioFileInput">Audio File</label>
+          <div class="lanternAudioFileRow">
+            <input type="file" id="audioFileInput" accept="audio/mpeg,audio/mp3,.mp3" />
+            <span id="audioFileName" class="studioPanelMicro">Local MP3 for preview only — not uploaded.</span>
+          </div>
+          <label for="audioTitle">Title</label>
+          <input type="text" id="audioTitle" class="studioHeadlineInput" maxlength="200" placeholder="Song title…" />
+          <label for="audioDescription">Description</label>
+          <textarea id="audioDescription" class="studioBodyInput" rows="4" maxlength="800" placeholder="What should listeners know?"></textarea>
+          <label>Visualizer style</label>
+          <div class="lanternAudioStyleRow" role="radiogroup" aria-label="Visualizer style">
+            <label><input type="radio" name="audioVizStyle" value="neon-burst" checked /> Neon Burst</label>
+            <label><input type="radio" name="audioVizStyle" value="sonic-storm" /> Sonic Storm</label>
+            <label><input type="radio" name="audioVizStyle" value="tunnel-beam" /> Tunnel Beam</label>
+          </div>
+          <div class="lanternAudioColorGrid">
+            <div class="lanternAudioColorField">
+              <label for="audioColor1">Color 1</label>
+              <input type="color" id="audioColor1" value="#5ce1ff" />
+            </div>
+            <div class="lanternAudioColorField">
+              <label for="audioColor2">Color 2</label>
+              <input type="color" id="audioColor2" value="#ff4fd8" />
+            </div>
+            <div class="lanternAudioColorField">
+              <label for="audioColor3">Color 3</label>
+              <input type="color" id="audioColor3" value="#ffe566" />
+            </div>
+            <div class="lanternAudioColorField">
+              <label for="audioBackground">Background</label>
+              <input type="color" id="audioBackground" value="#070614" />
+            </div>
+          </div>
+          <div class="lanternAudioSwatches" id="audioSwatches" aria-label="Color presets"></div>
+          <div class="lanternAudioGlowRow">
+            <label>Glow</label>
+            <label><input type="radio" name="audioGlow" value="low" /> Low</label>
+            <label><input type="radio" name="audioGlow" value="medium" checked /> Medium</label>
+            <label><input type="radio" name="audioGlow" value="high" /> High</label>
+          </div>
+          <button type="button" class="btn" id="audioRandomizeBtn">Randomize Colors</button>
+        </div>
         <div id="sharedStoryBlock" class="contributeCreateFullRow">
           <label for="newsBody" id="newsBodyLabel">Description</label>
           <textarea id="newsBody" class="studioBodyInput" placeholder="Your story…" rows="6"></textarea>
@@ -1337,6 +1480,7 @@
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-studio-stream-grid.js"></script>
   <script src="js/lantern-studio-opened-preview-scale.js"></script>
+  <script src="js/lantern-audio-studio.js"></script>
   <script src="js/lantern-race-audio.js"></script>
   <script src="js/lantern-reaction-bank.js"></script>
   <script src="js/lantern-result-reveal.js"></script>
@@ -1415,6 +1559,20 @@
       return window.LanternCards.materializeFeedPostCard(p, Object.assign({ mode: mode }, options || {}));
     }
     function renderStudioLeftDraft(draftCardEl, escFn){
+      var hero = el('studioFeedHero');
+      if (hero) {
+        hero.innerHTML = '';
+        if (draftCardEl) {
+          var heroCard = draftCardEl.cloneNode ? draftCardEl.cloneNode(true) : draftCardEl;
+          if (heroCard && heroCard.classList) heroCard.classList.add('studioScrollerCardActive');
+          hero.appendChild(heroCard);
+          if (window.LANTERN_STUDIO_STREAM_GRID && typeof window.LANTERN_STUDIO_STREAM_GRID.inertifyCard === 'function') {
+            window.LANTERN_STUDIO_STREAM_GRID.inertifyCard(heroCard);
+          } else if (heroCard && heroCard.style) {
+            heroCard.style.pointerEvents = 'none';
+          }
+        }
+      }
       var host = el('studioStreamGrid');
       if (!host || !window.LANTERN_STUDIO_STREAM_GRID || typeof window.LANTERN_STUDIO_STREAM_GRID.mount !== 'function') return;
       window.LANTERN_STUDIO_STREAM_GRID.mount(host, draftCardEl, { esc: escFn });
@@ -1696,11 +1854,15 @@
       if (vprofR) vprofR.style.display = 'none';
       if (vmR) vmR.style.display = 'none';
       if (ss) ss.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
-      if (media) media.style.display = t === 'profile_post' ? 'none' : 'block';
-      if (mountWrap) mountWrap.style.display = t === 'profile_post' ? 'none' : 'block';
+      var va = el('variantAudio');
+      if (va) va.style.display = t === 'audio' ? 'block' : 'none';
+      if (media) media.style.display = (t === 'profile_post' || t === 'audio') ? 'none' : 'block';
+      if (mountWrap) mountWrap.style.display = (t === 'profile_post' || t === 'audio') ? 'none' : 'block';
       if (sub){
         sub.style.display = 'inline-flex';
-        if (t === 'poll') {
+        if (t === 'audio') {
+          sub.textContent = 'Preview only — not published';
+        } else if (t === 'poll') {
           var atPoll = resolveSessionAuthorType();
           sub.textContent = (atPoll === 'student') ? 'Submit poll for approval' : 'Publish Poll';
         } else {
@@ -1711,6 +1873,9 @@
       if (bl) bl.textContent = t === 'shoutout' ? 'Message' : 'Description';
       var ntb = el('contributeNewsTitleBlock');
       if (ntb) ntb.style.display = (t === 'post' || t === 'shoutout') ? 'block' : 'none';
+      if (t !== 'audio' && window.LANTERN_AUDIO_STUDIO && typeof window.LANTERN_AUDIO_STUDIO.pause === 'function') {
+        window.LANTERN_AUDIO_STUDIO.pause();
+      }
       var pibA = el('contributePostIdentityAuthor');
       var pibC = el('contributePostIdentityCategory');
       if (pibA) pibA.style.display = 'none';
@@ -1734,6 +1899,9 @@
 
     el('contributeTypeSelect').addEventListener('change', function(){
       hideContributePostSuccessBanner();
+      if (getContributeType() !== 'audio' && window.LANTERN_AUDIO_STUDIO) {
+        window.LANTERN_AUDIO_STUDIO.pause();
+      }
       syncContributeTypeUI();
     });
     /* Prompt #186 — why-writing / shout category / poll style selectors removed from Create. */
@@ -1920,6 +2088,7 @@
           el('contributeDerivedCategory').value = 'Photo';
         }
         if (sel && (tp === 'shoutout' || tp === 'shout_out' || tp === 'shout-out')) sel.value = 'shoutout';
+        if (sel && (tp === 'audio' || tp === 'song' || tp === 'music')) sel.value = 'audio';
         /* Prompt #117 ARCHIVE: stale ?type=profile_post falls back to default Create type. */
         if (sel && (tp === 'profile_post' || tp === 'profilepost')) sel.value = DEFAULT_CONTRIBUTE_TYPE;
         var rawN = sessionStorage.getItem('LANTERN_NEWS_ARTICLE_RESUBMIT');
@@ -2014,6 +2183,141 @@
         })
         .catch(function(){ toast('Could not load returned poll.'); });
     })();
+
+    function readAudioFormState(){
+      var studio = window.LANTERN_AUDIO_STUDIO;
+      if (!studio) return null;
+      var styleEl = document.querySelector('input[name="audioVizStyle"]:checked');
+      var glowEl = document.querySelector('input[name="audioGlow"]:checked');
+      return studio.setState({
+        style: styleEl ? styleEl.value : 'neon-burst',
+        glow: glowEl ? glowEl.value : 'medium',
+        color1: el('audioColor1') && el('audioColor1').value,
+        color2: el('audioColor2') && el('audioColor2').value,
+        color3: el('audioColor3') && el('audioColor3').value,
+        background: el('audioBackground') && el('audioBackground').value,
+        title: el('audioTitle') && el('audioTitle').value,
+        description: el('audioDescription') && el('audioDescription').value
+      });
+    }
+
+    function paintAudioCardArt(){
+      var studio = window.LANTERN_AUDIO_STUDIO;
+      if (!studio) return '';
+      var scratch = document.createElement('canvas');
+      return studio.renderCardArt(scratch, { title: (el('audioTitle') && el('audioTitle').value) || 'Audio / Song' }) || '';
+    }
+
+    function wireAudioOpenedControls(root){
+      var studio = window.LANTERN_AUDIO_STUDIO;
+      if (!studio || !root) return;
+      var audio = studio.getAudioElement();
+      var playBtn = root.querySelector('[data-audio-play]');
+      var muteBtn = root.querySelector('[data-audio-mute]');
+      var scrub = root.querySelector('[data-audio-scrub]');
+      var cur = root.querySelector('[data-audio-current]');
+      var dur = root.querySelector('[data-audio-duration]');
+      function paintTimes(){
+        if (cur) cur.textContent = studio.formatTime(audio.currentTime);
+        if (dur) dur.textContent = studio.formatTime(audio.duration || 0);
+        if (scrub && audio.duration && isFinite(audio.duration)) {
+          scrub.max = '1000';
+          scrub.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
+        }
+        if (playBtn) playBtn.textContent = audio.paused ? 'Play' : 'Pause';
+      }
+      if (playBtn && !playBtn._wired) {
+        playBtn._wired = true;
+        playBtn.addEventListener('click', function(){
+          if (audio.paused) studio.play().then(paintTimes);
+          else { studio.pause(); paintTimes(); }
+        });
+      }
+      if (muteBtn && !muteBtn._wired) {
+        muteBtn._wired = true;
+        muteBtn.addEventListener('click', function(){
+          audio.muted = !audio.muted;
+          muteBtn.textContent = audio.muted ? 'Unmute' : 'Mute';
+        });
+      }
+      if (scrub && !scrub._wired) {
+        scrub._wired = true;
+        scrub.addEventListener('input', function(){
+          if (!audio.duration || !isFinite(audio.duration)) return;
+          audio.currentTime = (Number(scrub.value) / 1000) * audio.duration;
+          paintTimes();
+        });
+      }
+      audio.addEventListener('timeupdate', paintTimes);
+      audio.addEventListener('loadedmetadata', paintTimes);
+      audio.addEventListener('play', paintTimes);
+      audio.addEventListener('pause', paintTimes);
+      paintTimes();
+    }
+
+    function mountAudioStudioPreviews(escFn){
+      var studio = window.LANTERN_AUDIO_STUDIO;
+      var openedEl = el('studioOpenedPreviewInner');
+      if (!studio) return;
+      var st = readAudioFormState() || {};
+      var title = (st.title || '').trim() || 'Audio / Song';
+      var body = (st.description || '').trim();
+      var art = paintAudioCardArt();
+      var ident = resolveSessionPublicIdentity();
+      var draft = {
+        id: 'preview-audio',
+        title: title,
+        body: body,
+        category: 'Audio',
+        author_name: ident.author_name,
+        character_name: ident.character_name,
+        author_avatar_key: ident.author_avatar_key,
+        author_public_label: ident.author_public_label,
+        author_type: ident.author_type,
+        created_at: new Date().toISOString(),
+        approved_at: new Date().toISOString(),
+        image_url: art,
+        type: 'news'
+      };
+      function finish(){
+        renderStudioLeftDraft(appendStudioNewsCardNode(draft, escFn, true), escFn);
+        var heroArt = el('studioFeedHero') && el('studioFeedHero').querySelector('img, canvas');
+        if (el('studioFeedHero')) {
+          var img = el('studioFeedHero').querySelector('img');
+          if (img && art) img.src = art;
+        }
+        if (openedEl && window.LanternCardUI && window.LanternCardUI.mountStudioNewsOpenedInto) {
+          openedEl.innerHTML = '';
+          window.LanternCardUI.mountStudioNewsOpenedInto(openedEl, draft, { contributeType: 'audio', characterName: ident.character_name });
+          var visual = openedEl.querySelector('.lanternCardDetailVisual');
+          if (visual) {
+            visual.innerHTML = '<div class="lanternAudioStage"><canvas id="audioLiveCanvas" aria-label="Live audio visualizer"></canvas></div>';
+            var canvas = visual.querySelector('#audioLiveCanvas');
+            studio.attachLiveCanvas(canvas, visual.querySelector('.lanternAudioStage'));
+          }
+          var actions = openedEl.querySelector('.lanternCardDetailActions');
+          if (actions) {
+            actions.innerHTML =
+              '<div class="lanternAudioControls">' +
+              '<button type="button" class="lanternAudioPlayBtn" data-audio-play>Play</button>' +
+              '<input type="range" class="lanternAudioScrub" data-audio-scrub min="0" max="1000" value="0" aria-label="Song position" />' +
+              '<button type="button" class="lanternAudioMuteBtn" data-audio-mute>Mute</button>' +
+              '<div class="lanternAudioTimes"><span data-audio-current>0:00</span><span data-audio-duration>0:00</span></div>' +
+              '</div>';
+            wireAudioOpenedControls(actions);
+          }
+        }
+        var prev = el('contributePreviewCompact');
+        var inner = el('contributePreviewInner');
+        if (inner) inner.innerHTML = '';
+        if (prev) prev.style.display = 'none';
+      }
+      if ((draft.character_name || draft.author_name) && window.LanternAvatar && typeof window.LanternAvatar.attachCanonicalAvatarsToItems === 'function') {
+        window.LanternAvatar.attachCanonicalAvatarsToItems([draft]).then(finish);
+      } else {
+        finish();
+      }
+    }
 
     function updateStudioAll(){
       function esc(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
@@ -2137,6 +2441,10 @@
       }
       if (!window.LanternCards) return;
       var LC = window.LanternCards;
+      if (ct === 'audio'){
+        mountAudioStudioPreviews(esc);
+        return;
+      }
       if (ct === 'poll'){
         var pq = (el('pollQuestion') && el('pollQuestion').value || '').trim() || 'Your question';
         var choices = getPollChoices();
@@ -2355,6 +2663,57 @@
       }, true);
     })();
 
+    (function wireAudioStudioForm(){
+      var studio = window.LANTERN_AUDIO_STUDIO;
+      var file = el('audioFileInput');
+      if (file) file.addEventListener('change', function(){
+        var f = file.files && file.files[0];
+        if (!f || !studio) return;
+        var res = studio.selectLocalFile(f);
+        var nameEl = el('audioFileName');
+        if (nameEl) nameEl.textContent = (res && res.ok) ? (res.fileName + ' — preview only, not uploaded') : ((res && res.error) || 'Could not open that file');
+        updateStudioAll();
+      });
+      ['audioTitle','audioDescription','audioColor1','audioColor2','audioColor3','audioBackground'].forEach(function(id){
+        var n = el(id);
+        if (n) n.addEventListener('input', updateStudioAll);
+      });
+      document.querySelectorAll('input[name="audioVizStyle"], input[name="audioGlow"]').forEach(function(r){
+        r.addEventListener('change', updateStudioAll);
+      });
+      var rand = el('audioRandomizeBtn');
+      if (rand && studio) rand.addEventListener('click', function(){
+        var next = studio.randomizeColors();
+        if (el('audioColor1')) el('audioColor1').value = next.color1;
+        if (el('audioColor2')) el('audioColor2').value = next.color2;
+        if (el('audioColor3')) el('audioColor3').value = next.color3;
+        if (el('audioBackground')) el('audioBackground').value = next.background;
+        updateStudioAll();
+      });
+      var sw = el('audioSwatches');
+      if (sw && studio && studio.PRESET_SWATCHES) {
+        sw.innerHTML = '';
+        studio.PRESET_SWATCHES.forEach(function(p){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'lanternAudioSwatch';
+          b.style.background = 'linear-gradient(135deg,' + p.c1 + ',' + p.c2 + ',' + p.c3 + ')';
+          b.setAttribute('aria-label', 'Apply color preset');
+          b.addEventListener('click', function(){
+            if (el('audioColor1')) el('audioColor1').value = p.c1;
+            if (el('audioColor2')) el('audioColor2').value = p.c2;
+            if (el('audioColor3')) el('audioColor3').value = p.c3;
+            if (el('audioBackground')) el('audioBackground').value = p.bg;
+            updateStudioAll();
+          });
+          sw.appendChild(b);
+        });
+      }
+      window.addEventListener('pagehide', function(){
+        if (window.LANTERN_AUDIO_STUDIO) window.LANTERN_AUDIO_STUDIO.dispose();
+      });
+    })();
+
     [['newsTitle','input'],['newsBody','input'],['newsPhotoCredit','input']].forEach(function(pair){
       var node = el(pair[0]);
       if (node) node.addEventListener(pair[1], function(){ updateStudioAll(); });
@@ -2370,6 +2729,10 @@
 
     el('submitNewsBtn').addEventListener('click', async function(){
       var ct = getContributeType();
+      if (ct === 'audio'){
+        toast('Audio / Song is a local preview studio in this pass. The MP3 is not uploaded or saved.');
+        return;
+      }
       if (ct === 'poll'){
         var authorTypePoll = resolveSessionAuthorType();
         var isStaffPoll = authorTypePoll === 'teacher' || authorTypePoll === 'staff' || authorTypePoll === 'admin';

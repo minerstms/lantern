@@ -347,6 +347,7 @@
 
   global.LANTERN_STUDIO_STREAM_GRID = {
     mount: mount,
+    inertifyCard: inertifyCard,
     CENTER_INDEX: CENTER_INDEX,
     CANONICAL_CARD_WIDTH: CANONICAL_W,
     CANONICAL_CARD_HEIGHT: CANONICAL_H,

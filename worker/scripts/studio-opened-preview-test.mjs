@@ -328,7 +328,10 @@ if (/#studioOpenedPreviewInner \.studioOpenedPreviewScaleStage[\s\S]*transform-o
   ok('RIGHT scale stage uses top-left origin for measured wrapper');
 } else bad('RIGHT scale stage origin');
 
-if (/#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*width:\s*var\(--lantern-opened-content-max-width/.test(cardsCss)) {
+if (
+  /#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*--lantern-opened-content-max-width/.test(cardsCss) &&
+  /#studioOpenedPreviewInner \.lanternCardDetailModal--studioPreview[\s\S]*min-width:\s*0/.test(cardsCss)
+) {
   ok('RIGHT canonical modal stage uses production width token');
 } else bad('RIGHT canonical width');
 

@@ -2106,9 +2106,9 @@ a.exploreCard{ display: block; text-decoration: none; color: inherit; }
   transform-origin: top left;
 }
 #studioOpenedPreviewInner .lanternCardDetailModal--studioPreview {
-  width: var(--lantern-opened-content-max-width, 520px);
-  min-width: var(--lantern-opened-content-max-width, 520px);
-  max-width: var(--lantern-opened-content-max-width, 520px);
+  width: 100%;
+  min-width: 0;
+  max-width: min(100%, var(--lantern-opened-content-max-width, 520px));
   margin-inline: auto;
   margin-block: 0;
   box-sizing: border-box;
