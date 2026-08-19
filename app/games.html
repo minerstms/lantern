@@ -2484,7 +2484,9 @@
             characters = [];
             failGamePlayerStart('Avatar Match needs at least 4 eligible avatars from active accounts.');
           }
-          if (gamesApiBase) {
+          if (gamesApiBase == null) {
+            failClosedPool();
+          } else {
             fetch(gamesApiBase + '/api/games/characters', { credentials: 'include', cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(res){
               if (res && res.ok && res.characters && res.characters.length >= 4) {
                 characters = res.characters;
@@ -2495,8 +2497,6 @@
             }).catch(function(){
               failClosedPool();
             });
-          } else {
-            failClosedPool();
           }
         }
         var unusedOwners = [];

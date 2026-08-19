@@ -1,5 +1,6 @@
 /**
- * Prompt #147 — Avatar Match pool from real active accounts with approved avatars.
+ * Prompt #147/#236 — Avatar Match pool from real active accounts with public-safe avatars.
+ * Public-safe = approved current OR canonical approved fallback (selectPublicAvatarKey).
  * No legacy/static roster. Labels are resolvePublicDisplayName only.
  */
 import { resolvePublicDisplayName } from './staff-public-name.js';
@@ -28,7 +29,7 @@ export function isExcludedAvatarMatchAccount(row) {
 
 /**
  * @param {object[]} accounts
- * @param {Record<string, string>} avatarByChar character_name → current_avatar_key
+ * @param {Record<string, string>} avatarByChar character_name → public-safe image key
  * @param {string} origin
  * @param {(row: object) => string} avatarKeyFn
  * @param {{ restrictedSet?: Set<string> }} [opts]
@@ -130,6 +131,25 @@ function resolveRosterAvatarLookup(row, avatarByChar) {
     if (hit) return avatarByChar[hit];
   }
   return '';
+}
+
+/**
+ * Same roster the Avatar Match API returns. Count must equal this array's length.
+ * When TMS roster students are present, students come from that roster (no login required);
+ * staff still come from active pilot accounts.
+ */
+export function buildAvatarMatchCharacters(accounts, rosterStudents, avatarByChar, origin, avatarKeyFn, opts) {
+  const restrictedSet = opts && opts.restrictedSet;
+  let pool;
+  if (rosterStudents) {
+    const staffAccounts = (accounts || []).filter((a) => String(a.role || '').trim().toLowerCase() !== 'student');
+    pool = buildAvatarMatchPool(staffAccounts, avatarByChar, origin, avatarKeyFn, { restrictedSet }).concat(
+      buildRosterStudentAvatarMatchPool(rosterStudents, avatarByChar, origin, { restrictedSet })
+    );
+  } else {
+    pool = buildAvatarMatchPool(accounts, avatarByChar, origin, avatarKeyFn, { restrictedSet });
+  }
+  return uniqueAvatarMatchByLabel(pool);
 }
 
 /** Unique public labels only. Ambiguous duplicate names are dropped from a question, not disambiguated with IDs. */

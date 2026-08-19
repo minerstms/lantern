@@ -95,6 +95,9 @@ function makeEnv(state) {
         if (s.includes('FROM lantern_avatar_submissions') && s.includes('status = ?')) {
           return { results: state.submissions.filter((r) => r.status === binds[0]) };
         }
+        if (s.includes('FROM lantern_avatar_submissions')) {
+          return { results: state.submissions.slice() };
+        }
         if (s.includes('FROM lantern_student_identities')) return { results: [] };
         return { results: [] };
       },
@@ -356,7 +359,7 @@ if (/unusedOwners/.test(gamesHtml) && /display_name/.test(gamesHtml) && !/opt\.d
   ok('21-23. Avatar Match uses display names, unused-owner coverage, shuffled choices');
 } else bad('games.html pickOptions');
 
-if (workerIndex.includes('buildAvatarMatchPool') && workerIndex.includes('uniqueAvatarMatchByLabel') && workerIndex.includes('canManageLanternAvatars')) {
+if (workerIndex.includes('buildAvatarMatchCharacters') && workerIndex.includes('loadPublicAvatarKeyMap') && workerIndex.includes('canManageLanternAvatars')) {
   ok('shared pool + canonical auth predicate reused');
 } else bad('shared helpers missing');
 
