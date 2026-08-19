@@ -192,7 +192,7 @@
       playBtnId: 'orbitLockPlayBtn',
       play_cost: 1,
       icon: '◉',
-      image: 'assets/orbit-lock-card.svg',
+      image: 'assets/orbit-lock-card.png',
       featured: false,
       status: 'playable',
       scoring: { lowerIsBetter: false },
