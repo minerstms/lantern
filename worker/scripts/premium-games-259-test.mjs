@@ -237,7 +237,7 @@ if (
   ok('36. Orbit Lock leaderboard is higher-is-better; no invented win reward');
 } else bad('36. orbit lb');
 
-if (orbitProv.includes('No donor artwork') && exists('app/assets/orbit-lock-card.svg') && read('app/assets/orbit-lock-card.svg').includes('ORBIT LOCK')) {
+if (orbitProv.includes('No donor artwork') && exists('app/assets/orbit-lock-card.png')) {
   ok('37. Orbit Lock has original card art and no donor media');
 } else bad('37. orbit media');
 

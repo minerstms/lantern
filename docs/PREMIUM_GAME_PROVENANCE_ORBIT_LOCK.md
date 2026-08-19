@@ -13,7 +13,7 @@ There is no donor game tree. This is an original Lantern arcade.
 
 | Asset / file | Source | License / ownership | Transformed? | Shipping path |
 |---|---|---|---|---|
-| Play card | Original Lantern SVG (orbit ring / stars / title) | Lantern-owned | Original | `app/assets/orbit-lock-card.svg` |
+| Play card | Original Lantern 16:9 title card | Lantern-owned | Original | `app/assets/orbit-lock-card.png` |
 | Gameplay | Original canvas engine (orbit marker, target arc, stages) | Lantern-owned | Original | `app/js/lantern-orbit-lock.js` |
 | Layout CSS | Original Lantern CSS in `games.html` + player sheet | Lantern-owned | Original | `app/games.html`, `app/css/lantern-game-player.css` |
 | SFX | Web Audio tones from `games.html` (`playGameTone`) | Lantern-owned | Original | `app/games.html` |
