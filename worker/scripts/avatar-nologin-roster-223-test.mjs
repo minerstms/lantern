@@ -87,6 +87,9 @@ function makeEnv(state) {
             })),
           };
         }
+        if (s.includes('FROM lantern_avatar_submissions')) {
+          return { results: state.submissions.slice() };
+        }
         if (s.includes('FROM lantern_student_identities')) return { results: [] };
         return { results: [] };
       },
@@ -179,7 +182,7 @@ if (adminHtml.includes('Not Created') && !/Avatar requires|need a Lantern login 
 
 if (
   workerIndex.includes('resolveAdminAvatarTarget') &&
-  workerIndex.includes('buildRosterStudentAvatarMatchPool') &&
+  workerIndex.includes('buildAvatarMatchCharacters') &&
   workerIndex.includes("source: 'roster'") &&
   !/INSERT INTO lantern_pilot_accounts/.test(workerIndex.slice(workerIndex.indexOf('async function resolveAdminAvatarTarget'), workerIndex.indexOf('async function resolveAdminAvatarTarget') + 2500))
 ) {

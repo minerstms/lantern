@@ -92,7 +92,7 @@ import {
   parsePollChoices,
 } from './poll-publish.js';
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
-import { buildAvatarMatchPool, buildRosterStudentAvatarMatchPool, uniqueAvatarMatchByLabel } from './avatar-match-pool.js';
+import { buildAvatarMatchCharacters } from './avatar-match-pool.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -143,6 +143,8 @@ import {
   isAdminStagedAvatarMarker,
   loadApprovedAvatarCharacterSet,
   loadLatestApprovedAvatarSubmission,
+  loadPublicAvatarKeyMap,
+  expandPublicAvatarAliases,
   matchRosterStudentsById,
   resolveAvatarKeyFromMap,
   resolveCanonicalAvatarState,
@@ -9146,7 +9148,6 @@ async function handleGamesRoutes(request, url, path, env, cors) {
     const db = env.DB;
     if (!db) return jsonResponse({ ok: true, characters: [] }, 200, cors);
     let accounts = [];
-    let avatarByChar = {};
     try {
       const acc = await db
         .prepare(
@@ -9159,55 +9160,7 @@ async function handleGamesRoutes(request, url, path, env, cors) {
     } catch (_) {
       return jsonResponse({ ok: true, characters: [] }, 200, cors);
     }
-    const unapprovedCurrent = new Set();
-    try {
-      const unsafeRows = await db
-        .prepare(
-          `SELECT character_name, image_key FROM lantern_avatar_submissions
-           WHERE lower(trim(status)) IN ('pending', 'rejected') AND image_key IS NOT NULL AND TRIM(image_key) != ''`
-        )
-        .all();
-      (unsafeRows.results || []).forEach((r) => {
-        const name = String(r.character_name || '').trim().toLowerCase();
-        const key = String(r.image_key || '').trim();
-        if (name && key) unapprovedCurrent.add(name + '\0' + key);
-      });
-    } catch (_) {}
-    try {
-      const profiles = await db.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
-      (profiles.results || []).forEach((p) => {
-        const name = String(p.character_name || '').trim();
-        const key = String(p.current_avatar_key || '').trim();
-        if (!name || !key) return;
-        if (unapprovedCurrent.has(name.toLowerCase() + '\0' + key)) return;
-        avatarByChar[name] = key;
-        avatarByChar[name.toLowerCase()] = key;
-      });
-    } catch (_) {}
-    try {
-      const approvedRows = await db
-        .prepare(
-          `SELECT character_name, image_key FROM lantern_avatar_submissions
-           WHERE status = 'approved' AND image_key IS NOT NULL AND TRIM(image_key) != ''`
-        )
-        .all();
-      (approvedRows.results || []).forEach((r) => {
-        const name = String(r.character_name || '').trim();
-        const key = String(r.image_key || '').trim();
-        if (!name || !key) return;
-        if (!avatarByChar[name]) avatarByChar[name] = key;
-        const low = name.toLowerCase();
-        if (!avatarByChar[low]) avatarByChar[low] = key;
-      });
-    } catch (_) {}
-    accounts.forEach((row) => {
-      const resolved = resolveAvatarKeyFromMap(avatarCandidatesFromPilotAccount(row).concat([avatarCharacterNameForPilotAccount(row)]), avatarByChar);
-      const img = resolved ? avatarByChar[resolved] : '';
-      if (!img) return;
-      collectAvatarLookupCandidates(resolved, avatarCharacterNameForPilotAccount(row), ...avatarCandidatesFromPilotAccount(row)).forEach((alias) => {
-        if (!avatarByChar[alias]) avatarByChar[alias] = img;
-      });
-    });
+    const avatarByChar = expandPublicAvatarAliases(await loadPublicAvatarKeyMap(db), accounts);
     const restrictedSet = await loadRestrictedStudentIdSet(db);
     let rosterStudents = null;
     try {
@@ -9236,19 +9189,14 @@ async function handleGamesRoutes(request, url, path, env, cors) {
     } catch (_) {
       rosterStudents = null;
     }
-    let pool;
-    if (rosterStudents) {
-      const staffAccounts = accounts.filter((a) => String(a.role || '').trim().toLowerCase() !== 'student');
-      pool = uniqueAvatarMatchByLabel(
-        buildAvatarMatchPool(staffAccounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet }).concat(
-          buildRosterStudentAvatarMatchPool(rosterStudents, avatarByChar, origin, { restrictedSet })
-        )
-      );
-    } else {
-      pool = uniqueAvatarMatchByLabel(
-        buildAvatarMatchPool(accounts, avatarByChar, origin, avatarCharacterNameForPilotAccount, { restrictedSet })
-      );
-    }
+    const pool = buildAvatarMatchCharacters(
+      accounts,
+      rosterStudents,
+      avatarByChar,
+      origin,
+      avatarCharacterNameForPilotAccount,
+      { restrictedSet }
+    );
     return jsonResponse({ ok: true, characters: pool }, 200, cors);
   }
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

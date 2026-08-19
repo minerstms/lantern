@@ -260,6 +260,88 @@ export function selectPublicAvatarKey(currentKey, approvedKey, currentSubmission
   return appr || '';
 }
 
+/**
+ * Prompt #236 — same public-safe key as resolveCanonicalAvatarState / selectPublicAvatarKey.
+ * Current is used only when that image is not pending/rejected; otherwise latest approved fallback.
+ * Never writes pending, rejected, or empty keys into the map.
+ */
+export function buildPublicAvatarKeyMapFromRows(profiles, submissions) {
+  const latestApproved = Object.create(null);
+  const statusByPair = Object.create(null);
+  (submissions || []).forEach((r) => {
+    const name = String(r.character_name || '').trim();
+    const key = String(r.image_key || '').trim();
+    if (!name || !key) return;
+    const status = String(r.status || '').trim().toLowerCase();
+    statusByPair[name.toLowerCase() + '\0' + key] = status;
+    if (status !== 'approved') return;
+    const stamp = String(r.approved_at || r.created_at || '');
+    const low = name.toLowerCase();
+    const prev = latestApproved[low];
+    if (!prev || stamp >= prev.stamp) latestApproved[low] = { key, stamp, name };
+  });
+  const map = Object.create(null);
+  function put(name, key) {
+    const n = String(name || '').trim();
+    const k = String(key || '').trim();
+    if (!n || !k) return;
+    map[n] = k;
+    map[n.toLowerCase()] = k;
+  }
+  (profiles || []).forEach((p) => {
+    const name = String(p.character_name || '').trim();
+    if (!name) return;
+    const currentKey = String(p.current_avatar_key || '').trim();
+    const approvedRow = latestApproved[name.toLowerCase()];
+    const approvedKey = approvedRow ? approvedRow.key : '';
+    const currentStatus = currentKey ? statusByPair[name.toLowerCase() + '\0' + currentKey] || '' : '';
+    put(name, selectPublicAvatarKey(currentKey, approvedKey, currentStatus));
+  });
+  Object.keys(latestApproved).forEach((low) => {
+    if (map[low]) return;
+    put(latestApproved[low].name, latestApproved[low].key);
+  });
+  return map;
+}
+
+export async function loadPublicAvatarKeyMap(db) {
+  if (!db) return Object.create(null);
+  let profiles = [];
+  let submissions = [];
+  try {
+    const pr = await db.prepare('SELECT character_name, current_avatar_key FROM lantern_avatar_profiles').all();
+    profiles = pr.results || [];
+  } catch (_) {}
+  try {
+    const sr = await db
+      .prepare(
+        `SELECT character_name, image_key, status, approved_at, created_at
+         FROM lantern_avatar_submissions
+         WHERE image_key IS NOT NULL AND TRIM(image_key) != ''`
+      )
+      .all();
+    submissions = sr.results || [];
+  } catch (_) {}
+  return buildPublicAvatarKeyMapFromRows(profiles, submissions);
+}
+
+/** Copy one identity's public key onto that same account's durable aliases. Never copies another person. */
+export function expandPublicAvatarAliases(avatarByChar, accounts) {
+  const map = avatarByChar || Object.create(null);
+  (accounts || []).forEach((row) => {
+    const candidates = avatarCandidatesFromPilotAccount(row);
+    const resolved = resolveAvatarKeyFromMap(candidates, map);
+    const img = resolved ? map[resolved] : '';
+    if (!img) return;
+    collectAvatarLookupCandidates(resolved, ...candidates).forEach((alias) => {
+      if (!map[alias]) map[alias] = img;
+      const low = String(alias).toLowerCase();
+      if (!map[low]) map[low] = img;
+    });
+  });
+  return map;
+}
+
 export async function loadLatestPendingAvatarSubmission(db, candidates) {
   const list = collectAvatarLookupCandidates(...(Array.isArray(candidates) ? candidates : []));
   if (!db || !list.length) return null;

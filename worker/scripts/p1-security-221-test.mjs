@@ -110,6 +110,9 @@ function makeEnv(state) {
         if (s.includes('FROM lantern_avatar_submissions') && s.includes("status = ?")) {
           return { results: state.submissions.filter((r) => r.status === binds[0]) };
         }
+        if (s.includes('FROM lantern_avatar_submissions')) {
+          return { results: state.submissions.slice() };
+        }
         return { results: [] };
       },
       async run() {

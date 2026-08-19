@@ -213,7 +213,7 @@ assert(/character_name/.test(gamesPage), '21. durable character_name kept for ra
 const indexJs = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 assert(/resolvePublicDisplayName\(account\)/.test(indexJs), '34. TMS mint sends resolvePublicDisplayName');
 assert(/defaultPublicDisplayName/.test(indexJs), '1b. provisioning assigns default public_display_name');
-assert(/buildAvatarMatchPool/.test(indexJs) && /uniqueAvatarMatchByLabel/.test(indexJs), '23f. games/characters uses live account/avatar pool');
+assert(/buildAvatarMatchCharacters/.test(indexJs) && /loadPublicAvatarKeyMap/.test(indexJs), '23f. games/characters uses live account/avatar pool');
 assert(/public_display_label/.test(indexJs), '30c. /api/pilot/me exposes public_display_label');
 assert(/authorAvatarKey/.test(fs.readFileSync(path.join(root, 'worker/staff-public-name.js'), 'utf8')), '5g. resolver uses durable authorAvatarKey');
 assert(/authorAvatarKey,/.test(indexJs), '5h. direct-open poll path passes authorAvatarKey into resolver');
