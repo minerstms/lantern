@@ -94,6 +94,13 @@ import {
 import { filterOutDemoPersonas, isKnownDemoPersonaName } from './demo-persona-guard.js';
 import { buildAvatarMatchCharacters } from './avatar-match-pool.js';
 import { validateAvatarMatchResult } from './avatar-match-game.js';
+import {
+  entryMatchesViewer,
+  publicLeaderboardEntry,
+  publicLeaderboardYou,
+  resolveLeaderboardPublicName,
+  viewerLeaderboardIdentityKeys,
+} from './leaderboard-public-identity.js';
 import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
@@ -9383,15 +9390,9 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
     // fake/demo persona name could still surface as though it were a real student's score.
     const filteredRows = filterOutDemoPersonas(rows.results || [], 'character_name');
     const nameIndex = await loadStaffPublicNameIndex(db);
-    const entries = filteredRows.map((r, i) => {
+    const internalEntries = filteredRows.map((r, i) => {
       const key = String(r.character_name || '').trim();
-      const low = key.toLowerCase();
-      const row =
-        (nameIndex.byUsername && nameIndex.byUsername[low]) ||
-        (nameIndex.byStudentKey && nameIndex.byStudentKey[low]) ||
-        (nameIndex.byTeacherId && nameIndex.byTeacherId[low]) ||
-        null;
-      const label = row ? resolvePublicDisplayName(row) : '';
+      const label = resolveLeaderboardPublicName(nameIndex, key);
       return {
         rank: i + 1,
         character_name: key,
@@ -9403,58 +9404,58 @@ async function handleLeaderboardRoutes(request, url, path, env, cors) {
       };
     });
     let you = null;
-    if (registered && registered.id === 'avatar-match') {
-      try {
-        const acct = await getPilotAccountFromRequest(request, env);
-        if (acct) {
-          const identityAuth = resolveEconomyGamePlayTransact(acct, '', pilotEconomyCharacterName);
-          const me = identityAuth && identityAuth.ok ? String(identityAuth.characterName || '').trim() : '';
-          if (me) {
-            const hit = entries.find((e) => String(e.character_name || '').trim().toLowerCase() === me.toLowerCase());
-            const youWhere = [];
-            const youBinds = [me, gameName];
-            youWhere.push('character_name = ?');
-            youWhere.push('game_name = ?');
-            if (since) {
-              youWhere.push('created_at >= ?');
-              youBinds.push(since);
-            }
-            if (until) {
-              youWhere.push('created_at <= ?');
-              youBinds.push(until);
-            }
-            if (amMode) {
-              youWhere.push("json_extract(meta_json, '$.am_mode') = ?");
-              youBinds.push(amMode);
-              if (amMode === 'full' && amQuestions > 0) {
-                youWhere.push("CAST(json_extract(meta_json, '$.am_questions') AS INTEGER) = ?");
-                youBinds.push(amQuestions);
-              }
-            }
-            const pbRow = await db.prepare(
-              `SELECT score, score_display FROM lantern_leaderboard_entries WHERE ${youWhere.join(' AND ')} ${orderBy} LIMIT 1`
-            ).bind(...youBinds).first();
-            if (pbRow && pbRow.score != null) {
-              const mine = (nameIndex.byUsername && nameIndex.byUsername[me.toLowerCase()])
-                || (nameIndex.byStudentKey && nameIndex.byStudentKey[me.toLowerCase()])
-                || (nameIndex.byTeacherId && nameIndex.byTeacherId[me.toLowerCase()])
-                || null;
-              const mineLabel = mine ? resolvePublicDisplayName(mine) : '';
-              you = {
-                rank: hit ? hit.rank : null,
-                score: Number(pbRow.score) || 0,
-                score_display: pbRow.score_display != null ? pbRow.score_display : String(Number(pbRow.score) || 0),
-                public_display_name: (hit && hit.public_display_name) || mineLabel || null,
-              };
+    try {
+      const acct = await getPilotAccountFromRequest(request, env);
+      if (acct && gameName) {
+        const identityAuth = resolveEconomyGamePlayTransact(acct, '', pilotEconomyCharacterName);
+        const economyKey = identityAuth && identityAuth.ok ? String(identityAuth.characterName || '').trim() : '';
+        const viewerKeys = viewerLeaderboardIdentityKeys(acct, economyKey);
+        if (viewerKeys.length) {
+          const hit = internalEntries.find((e) => entryMatchesViewer(e.character_name, viewerKeys));
+          const placeholders = viewerKeys.map(() => '?').join(',');
+          const youWhere = [];
+          const youBinds = [];
+          youWhere.push('character_name IN (' + placeholders + ')');
+          youBinds.push(...viewerKeys);
+          youWhere.push('game_name = ?');
+          youBinds.push(gameName);
+          if (since) {
+            youWhere.push('created_at >= ?');
+            youBinds.push(since);
+          }
+          if (until) {
+            youWhere.push('created_at <= ?');
+            youBinds.push(until);
+          }
+          if (amMode) {
+            youWhere.push("json_extract(meta_json, '$.am_mode') = ?");
+            youBinds.push(amMode);
+            if (amMode === 'full' && amQuestions > 0) {
+              youWhere.push("CAST(json_extract(meta_json, '$.am_questions') AS INTEGER) = ?");
+              youBinds.push(amQuestions);
             }
           }
+          const pbRow = await db.prepare(
+            `SELECT score, score_display FROM lantern_leaderboard_entries WHERE ${youWhere.join(' AND ')} ${orderBy} LIMIT 1`
+          ).bind(...youBinds).first();
+          if (pbRow && pbRow.score != null) {
+            const mineLabel = resolveLeaderboardPublicName(nameIndex, economyKey || viewerKeys[0])
+              || (hit && hit.public_display_name)
+              || '';
+            you = publicLeaderboardYou({
+              rank: hit ? hit.rank : null,
+              score: Number(pbRow.score) || 0,
+              score_display: pbRow.score_display != null ? pbRow.score_display : String(Number(pbRow.score) || 0),
+              public_display_name: mineLabel || null,
+            });
+          }
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
     return jsonResponse({
       ok: true,
       period,
-      entries,
+      entries: internalEntries.map(publicLeaderboardEntry),
       am_mode: amMode || null,
       am_questions: amQuestions || null,
       you,

@@ -180,6 +180,10 @@ if (gamesPageJs.includes('leaderboardPublicLabel') && gamesPageJs.includes('publ
   ok('privacy-safe names only on Avatar Match boards');
 } else bad('lb privacy');
 
+if (gamesPageJs.includes('res.you') && !gamesPageJs.includes('findUserRank')) {
+  ok('You matching uses server account identity, not rendered labels');
+} else bad('you matching source');
+
 if (gamesCss.includes('.gamesAmDivisions') && gamesCss.includes('flex-wrap: wrap') && gamesCss.includes('overflow-x: hidden') && gamesCss.includes('z-index: 10200')) {
   ok('phone layout wraps leaderboard divisions without page overflow');
 } else bad('lb responsive css');

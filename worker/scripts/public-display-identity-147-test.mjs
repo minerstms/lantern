@@ -208,7 +208,7 @@ assert(/authorPublicLabel/.test(cardsJs), '5c. Explore cards use authorPublicLab
 
 const gamesPage = fs.readFileSync(path.join(root, 'app/js/lantern-games-page.js'), 'utf8');
 assert(/leaderboardPublicLabel/.test(gamesPage) && /public_display_name/.test(gamesPage), '20. leaderboard UI uses public_display_name');
-assert(/character_name/.test(gamesPage), '21. durable character_name kept for rank match');
+assert(/res\.you/.test(gamesPage) && !/findUserRank/.test(gamesPage), '21. You rank match uses server account identity');
 
 const indexJs = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 assert(/resolvePublicDisplayName\(account\)/.test(indexJs), '34. TMS mint sends resolvePublicDisplayName');
