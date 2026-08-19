@@ -31,8 +31,9 @@ const workerIndex = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
 if (/lantern-wallet\.js/.test(lockerHtml)) ok('locker.html loads shared lantern-wallet.js');
 else bad('locker.html missing lantern-wallet.js');
 
-if (/avatarCropBalanceStatus/.test(lockerHtml)) ok('locker.html: avatar crop balance status element');
-else bad('locker.html missing avatarCropBalanceStatus');
+if (!/avatarCropBalanceStatus/.test(lockerHtml) && !/avatarCropSubmitBtn/.test(lockerHtml) && !/id="avatarCropOverlay"/.test(lockerHtml)) {
+  ok('locker.html: student avatar crop/upload controls removed');
+} else bad('locker.html still has student avatar crop/upload controls');
 
 if (/\/api\/economy\/balance/.test(walletJs) && /cache: 'no-store'/.test(walletJs)) {
   ok('lantern-wallet.js: authoritative economy balance fetch');
@@ -42,13 +43,9 @@ if (/AVATAR_UPLOAD_COST\s*=\s*1/.test(walletJs) && !/AVATAR_UPLOAD_COST\s*=\s*25
   ok('lantern-wallet.js: avatar cost constant is 1 Nugget');
 } else bad('lantern-wallet.js avatar cost must be 1');
 
-if (/Submit avatar \(1 Nugget\)/.test(lockerHtml) && /costs <strong>1 Nugget<\/strong>/.test(lockerHtml)) {
-  ok('locker.html: avatar copy uses 1 Nugget');
-} else bad('locker.html still references 25 nuggets for avatar');
-
-if (!/Submit avatar \(25/.test(lockerHtml) && !/costs <strong>25 nuggets<\/strong>/.test(lockerHtml)) {
-  ok('locker.html: no leftover 25-nugget avatar product copy');
-} else bad('locker.html still has 25-nugget avatar product copy');
+if (!/Submit avatar \(1 Nugget\)/.test(lockerHtml) && !/Submit avatar \(25/.test(lockerHtml)) {
+  ok('locker.html: no student avatar submit/cost action copy');
+} else bad('locker.html still advertises student avatar submit');
 
 if (/fetchMyBalance/.test(walletJs) && /\/api\/economy\/balance'/.test(walletJs)) {
   ok('lantern-wallet.js: session-scoped self balance fetch');
@@ -61,45 +58,9 @@ if (/fetchMyBalance/.test(storeJs) || /callGetBalance\(\)/.test(storeJs)) {
 if (!/locker\.wallet\.balance/.test(profileJs)) ok('profile-app: no stale locker.wallet.balance shortcut');
 else bad('profile-app still uses stale locker.wallet.balance cache');
 
-if (/refreshAvatarCropAffordability\(\)/.test(profileJs) && /callGetBalance\(\)/.test(profileJs)) {
-  ok('profile-app: crop modal refreshes session wallet with loading state');
-} else bad('profile-app missing crop modal session wallet refresh');
-
-if (/avatarCropAvailable == null/.test(profileJs) && (/AvatarCropper\.isSubmitting|state\.submitting|lockerAvatarSubmitAllowed/.test(profileJs))) {
-  ok('profile-app: blocks submit while loading or in flight');
-} else bad('profile-app missing submit guards');
-
-if (/syncAvatarCropSubmitState/.test(profileJs) && (/lockerAvatarSubmitAllowed|state\.imageReady/.test(profileJs))) {
-  ok('profile-app: submit gated on image ready and wallet');
-} else bad('profile-app missing combined submit gate');
-
-if (/avatarCropAvailable >= cost|avatarCropAvailable >= AVATAR_UPLOAD_COST/.test(profileJs)) {
-  ok('profile-app: affordability uses Available threshold');
-} else bad('profile-app missing Available affordability check');
-
-if (/refreshWalletAfterAvatarPurchase/.test(profileJs) && /invalidateLockerMe/.test(profileJs)) {
-  ok('profile-app: post-purchase wallet refresh');
-} else bad('profile-app missing post-purchase refresh');
-
-if (/credentials:\s*'include'/.test(profileJs) && profileJs.includes('/api/avatar/upload')) {
-  ok('profile-app: avatar upload uses session credentials');
-} else bad('profile-app avatar upload missing credentials include');
-
-if (/useHttp/.test(profileJs) && /canUseHttpEconomy/.test(profileJs) && /idempotency_key/.test(profileJs)) {
-  ok('profile-app: same-origin HTTP spend + idempotency for avatar_upload');
-} else bad('profile-app missing same-origin/idempotent avatar charge path');
-
-if (/Charge authoritative TMS first|callEconomyTransact\(name, -costAmt, 'avatar_upload'/.test(profileJs)) {
-  ok('profile-app: charges TMS before creating avatar submission');
-} else bad('profile-app missing charge-then-upload ordering');
-
-if (/insufficient/.test(profileJs) && /available/.test(profileJs)) {
-  ok('profile-app: insufficient funds message includes available');
-} else bad('profile-app missing insufficient funds formatting');
-
-if (/You need .+ to submit an avatar/.test(profileJs)) {
-  ok('profile-app: zero-balance message is clear');
-} else bad('profile-app missing zero-balance copy');
+if (profileJs.includes("error: 'student_avatar_upload_disabled'") && !/callEconomyTransact\(name, -costAmt, 'avatar_upload'/.test(profileJs)) {
+  ok('profile-app: leftover upload helper refuses without charging Nuggets');
+} else bad('profile-app still charges or uploads for student avatar');
 
 if (/kind === 'avatar_upload'/.test(workerIndex) && /resolveEconomyAmount\(db, 'avatar_upload'\)/.test(workerIndex) && /client_delta_rejected/.test(workerIndex)) {
   ok('server: avatar_upload cost is server-authoritative');

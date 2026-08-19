@@ -286,70 +286,8 @@
     }
 
     function callSubmitAvatarUpload(name, imageData, cost){
-      // Prompt #179 — empty LANTERN_AVATAR_API means same-origin HTTP (Pages), not localStorage.
-      var apiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null)
-        ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '')
-        : null;
-      var useHttp = apiBase != null || (window.LanternWallet && typeof window.LanternWallet.canUseHttpEconomy === 'function' && window.LanternWallet.canUseHttpEconomy());
-      var costAmt = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST != null)
-        ? Number(window.LanternWallet.AVATAR_UPLOAD_COST)
-        : 1;
-      if (!Number.isFinite(costAmt) || costAmt < 1) costAmt = 1;
-      costAmt = Math.floor(costAmt);
-      function formatInsufficient(err, available) {
-        if (err === 'insufficient' || err === 'insufficient_balance' || (typeof err === 'string' && err.indexOf('insufficient') >= 0)) {
-          return 'Not enough nuggets. Need ' + costAmt + ', available ' + (available != null ? available : 0);
-        }
-        return err || 'Failed to submit avatar.';
-      }
-      if (useHttp && typeof fetch === 'function') {
-        var prefix = apiBase != null ? apiBase : '';
-        var idemKey = 'avatar_upload-' + (window.crypto && window.crypto.randomUUID
-          ? window.crypto.randomUUID()
-          : (String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10)));
-        // Charge authoritative TMS first; only then create the pending avatar submission.
-        return callEconomyTransact(name, -costAmt, 'avatar_upload', 'LOCKER', 'Avatar upload', {
-          idempotency_key: idemKey
-        }).then(function(tRes){
-          if (!tRes || !tRes.ok) {
-            return {
-              ok: false,
-              error: formatInsufficient(tRes && tRes.error, tRes && (tRes.available != null ? tRes.available : tRes.balance_after)),
-              available: tRes && (tRes.available != null ? tRes.available : null)
-            };
-          }
-          return fetch(prefix + '/api/avatar/upload', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ character_name: name, image: imageData })
-          }).then(function(r){ return r.json(); }).then(function(upRes){
-            if (!upRes || !upRes.ok) {
-              return {
-                ok: false,
-                error: (upRes && upRes.error) || 'Upload failed after Nugget charge. Contact a teacher if balance looks wrong.',
-                available_after: tRes.balance_after
-              };
-            }
-            return {
-              ok: true,
-              id: upRes.id,
-              image_url: upRes.image_url,
-              status: upRes.status,
-              available_after: tRes.balance_after,
-              idempotent: !!tRes.idempotent
-            };
-          });
-        }).catch(function(err){
-          return { ok: false, error: String(err && err.message || err) };
-        });
-      }
-      // Local/dev runner only when HTTP economy is unavailable.
-      var run = createRun ? createRun() : null;
-      if (!run) return Promise.resolve({ ok: false, error: 'API not loaded' });
-      return new Promise(function(resolve){
-        run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitAvatarUpload({ character_name: name, image_data: imageData, cost: costAmt });
-      });
+      // Prompt #234 — student self-upload is closed. Do not charge Nuggets.
+      return Promise.resolve({ ok: false, error: 'student_avatar_upload_disabled' });
     }
 
     function callGetAvatarStatus(name){
@@ -1673,26 +1611,6 @@
       var themePicker = el('editProfileThemePicker');
       var featuredSelect = el('editProfileFeaturedPost');
     var currentAvatarStatus = null;
-    var avatarCropAvailable = null;
-    var avatarCropBalanceLoaded = false;
-    var AVATAR_UPLOAD_COST = (window.LanternWallet && window.LanternWallet.AVATAR_UPLOAD_COST != null)
-      ? Number(window.LanternWallet.AVATAR_UPLOAD_COST)
-      : 1;
-    if (!Number.isFinite(AVATAR_UPLOAD_COST) || AVATAR_UPLOAD_COST < 1) AVATAR_UPLOAD_COST = 1;
-    AVATAR_UPLOAD_COST = Math.floor(AVATAR_UPLOAD_COST);
-    var AvatarCropper = window.LanternAvatarCropper || null;
-
-    function avatarCostLabel(cost){
-      var n = Number(cost) || 1;
-      return n === 1 ? '1 Nugget' : (n + ' Nuggets');
-    }
-
-    function syncAvatarCropSubmitState(){
-      if (AvatarCropper && typeof AvatarCropper.syncSubmitState === 'function') {
-        AvatarCropper.setSubmitLabel('Submit avatar (' + avatarCostLabel(AVATAR_UPLOAD_COST) + ')');
-        AvatarCropper.syncSubmitState();
-      }
-    }
 
     function refreshProfileBalanceDisplay(res){
       if (!res || !res.ok || res.available == null) return;
@@ -1710,105 +1628,6 @@
         be.textContent = String(studentProfileVM.nuggets);
       }
       updateNuggetProgress(studentProfileVM.nuggets);
-    }
-
-    function updateAvatarCropAffordability(opts){
-      opts = opts || {};
-      var statusEl = el('avatarCropBalanceStatus');
-      var cost = AVATAR_UPLOAD_COST;
-      if (opts.loading) {
-        avatarCropBalanceLoaded = false;
-        avatarCropAvailable = null;
-        if (statusEl) statusEl.textContent = 'Checking balance…';
-        syncAvatarCropSubmitState();
-        return;
-      }
-      if (!opts.ok || opts.available == null) {
-        avatarCropBalanceLoaded = false;
-        avatarCropAvailable = null;
-        if (statusEl) statusEl.textContent = opts.error || 'Could not check balance. Try again.';
-        syncAvatarCropSubmitState();
-        return;
-      }
-      avatarCropBalanceLoaded = true;
-      var parsedAvailable = Number(opts.available);
-      if (!Number.isFinite(parsedAvailable)) {
-        avatarCropBalanceLoaded = false;
-        avatarCropAvailable = null;
-        if (statusEl) statusEl.textContent = opts.error || 'Could not check balance. Try again.';
-        syncAvatarCropSubmitState();
-        return;
-      }
-      avatarCropAvailable = parsedAvailable;
-      if (statusEl) {
-        if (avatarCropAvailable >= cost) {
-          statusEl.textContent = 'Available: ' + avatarCropAvailable + (avatarCropAvailable === 1 ? ' Nugget' : ' Nuggets');
-        } else if (avatarCropAvailable === 0) {
-          statusEl.textContent = 'Available: 0 Nuggets. You need ' + avatarCostLabel(cost) + ' to submit an avatar.';
-        } else {
-          statusEl.textContent = 'Not enough nuggets. Need ' + cost + ', available ' + avatarCropAvailable;
-        }
-      }
-      syncAvatarCropSubmitState();
-    }
-
-    function refreshAvatarCropAffordability(){
-      updateAvatarCropAffordability({ loading: true });
-      return callGetBalance().then(function(res){
-        updateAvatarCropAffordability({
-          ok: !!(res && res.ok),
-          available: res && res.available,
-          error: res && res.error,
-        });
-        return res;
-      });
-    }
-
-    function lockerAvatarSubmitAllowed(state){
-      state = state || {};
-      return !!(state.imageReady
-        && avatarCropBalanceLoaded
-        && avatarCropAvailable != null
-        && avatarCropAvailable >= AVATAR_UPLOAD_COST
-        && !state.submitting);
-    }
-
-    function openLockerAvatarCropper(file){
-      if (!AvatarCropper || typeof AvatarCropper.openFromFile !== 'function') {
-        toast('Cropper not loaded. Refresh the page.');
-        return;
-      }
-      AvatarCropper.openFromFile(file, {
-        submitLabel: 'Submit avatar (' + avatarCostLabel(AVATAR_UPLOAD_COST) + ')',
-        balanceStatusText: 'Checking balance…',
-        isSubmitAllowed: lockerAvatarSubmitAllowed,
-        blockedMessage: function(){
-          if (!avatarCropBalanceLoaded || avatarCropAvailable == null) return 'Checking balance…';
-          if (avatarCropAvailable < AVATAR_UPLOAD_COST) {
-            return 'Not enough nuggets. Need ' + AVATAR_UPLOAD_COST + ', available ' + avatarCropAvailable;
-          }
-          return 'Cannot submit yet.';
-        },
-        onOpen: function(){
-          refreshAvatarCropAffordability();
-        },
-        onConfirm: function(dataUrl){
-          var adopted = getAdopted();
-          if (!adopted || !adopted.name) {
-            return Promise.resolve({ ok: false, error: 'Adopt a character first.' });
-          }
-          return callSubmitAvatarUpload(adopted.name, dataUrl, AVATAR_UPLOAD_COST);
-        },
-        onConfirmFailed: function(){
-          refreshAvatarCropAffordability();
-        },
-        onConfirmSuccess: function(){
-          toast('Avatar submitted for approval. -' + avatarCostLabel(AVATAR_UPLOAD_COST));
-          refreshWalletAfterAvatarPurchase().then(function(){
-            showProfile();
-          });
-        },
-      });
     }
 
     function refreshWalletAfterAvatarPurchase(){
@@ -2214,29 +2033,16 @@
       if (el('editProfileCloseBtn')) el('editProfileCloseBtn').addEventListener('click', function(){ if (overlay) overlay.classList.remove('show'); });
       if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.classList.remove('show'); });
 
-      function openAvatarFileChooser(){
-        var adopted = getAdopted();
-        if (!adopted) { toast('Adopt a character first'); return; }
-        if (currentAvatarStatus && currentAvatarStatus.has_pending){
-          toast('You already have an avatar awaiting approval.');
-          return;
-        }
-        var input = el('avatarFileInput');
-        if (input){
-          input.value = '';
-          input.click();
-        }
-      }
-
       var openUploadBtn = el('openAvatarUploadBtn');
       if (openUploadBtn){
         openUploadBtn.hidden = true;
         openUploadBtn.setAttribute('hidden', 'hidden');
+        openUploadBtn.style.display = 'none';
       }
 
       var fileInput = el('avatarFileInput');
-      if (fileInput){
-        fileInput.hidden = true;
+      if (fileInput && fileInput.parentNode){
+        fileInput.parentNode.removeChild(fileInput);
       }
 
       if (form){

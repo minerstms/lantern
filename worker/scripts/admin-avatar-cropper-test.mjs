@@ -58,9 +58,13 @@ if (!adminHtml.includes('free=true') && !adminHtml.includes("cost: 0")) {
   ok('admin.html: no client free/cost privilege flags');
 } else bad('admin.html client privilege flags');
 
-if (lockerHtml.includes('lantern-avatar-cropper.js') && lockerHtml.includes('id="avatarCropOverlay"')) {
-  ok('locker.html: loads shared cropper helper with same overlay ids');
-} else bad('locker.html missing shared cropper load');
+if (
+  !lockerHtml.includes('id="avatarCropOverlay"') &&
+  !lockerHtml.includes('avatarCropSubmitBtn') &&
+  !lockerHtml.includes('lantern-avatar-cropper.js')
+) {
+  ok('locker.html: student crop/upload overlay removed');
+} else bad('locker.html still has student crop/upload overlay');
 
 if (
   cropperJs.includes('aspectRatio: 1') &&
