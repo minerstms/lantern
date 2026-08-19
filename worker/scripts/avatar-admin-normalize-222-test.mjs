@@ -301,7 +301,7 @@ for (const [label, cookie] of [
 }
 
 const upload = await req(env, 'POST', '/api/avatar/upload', studentCookie, { image: TINY_PNG_B64, character_name: 'ms_carter' });
-if (upload.status === 403 && upload.json && upload.json.code === 'avatar_self_service_disabled') {
+if (upload.status === 403 && upload.json && upload.json.error === 'student_avatar_upload_disabled') {
   ok('11. direct upload API cannot bypass UI; body.character_name ignored');
 } else bad('upload bypass', upload);
 

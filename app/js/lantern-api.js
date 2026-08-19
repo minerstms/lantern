@@ -1428,6 +1428,7 @@
   }
 
   function submitAvatarUpload(characterName, imageData, costPerSubmit, backendOnly, economyBackendCharged) {
+    return { ok: false, error: 'student_avatar_upload_disabled' };
     var key = String(characterName || '').trim();
     if (!key) return { ok: false, error: 'character_name required' };
     var dataUrl = String(imageData || '').trim();

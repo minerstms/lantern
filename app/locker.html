@@ -13,8 +13,6 @@
   <script src="js/lantern-locker-me.js?v=20260806-session"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>Locker | Lantern</title>
-  <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
-  <link rel="stylesheet" href="css/lantern-avatar-cropper.css">
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
@@ -444,37 +442,6 @@
     </div>
   </div>
 
-  <!-- Avatar crop overlay -->
-  <div class="overlay" id="avatarCropOverlay">
-    <div class="modal" style="max-width:520px;">
-      <div class="modalHd">
-        <div class="h">Crop Avatar</div>
-        <button class="x" id="avatarCropCloseBtn">✕</button>
-      </div>
-      <div style="font-size:19px; color:var(--muted); margin-bottom:10px;">
-        Drag to position your avatar. Keep your face centered. Square crop only.
-      </div>
-      <div id="avatarCropContainer" style="width:100%; max-width:400px; height:400px; margin:0 auto 10px; background:rgba(0,0,0,.5); border-radius:16px; overflow:hidden;">
-        <img id="avatarCropImage" alt="Avatar preview" style="max-width:100%; max-height:100%; display:block;">
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px;">
-        <div style="display:flex; gap:8px;">
-          <button type="button" class="btn small" id="avatarCropZoomInBtn">Zoom in</button>
-          <button type="button" class="btn small" id="avatarCropZoomOutBtn">Zoom out</button>
-          <button type="button" class="btn small" id="avatarCropRotateLeftBtn">Rotate</button>
-        </div>
-        <div style="font-size:18px; color:var(--muted);">Exported at 384×384 · JPEG</div>
-      </div>
-      <div style="display:flex; gap:10px; margin-top:4px;">
-        <button type="button" class="btn" id="avatarCropCancelBtn" style="flex:1;">Cancel</button>
-        <button type="button" class="btn good" id="avatarCropSubmitBtn" style="flex:1;">Submit avatar (1 Nugget)</button>
-      </div>
-      <p id="avatarCropImageStatus" class="avatarCropImageStatus" aria-live="polite"></p>
-      <p id="avatarCropBalanceStatus" class="avatarCropBalanceStatus" aria-live="polite"></p>
-      <div id="avatarCropError" style="margin-top:8px; font-size:18px; color:#ffcc66;"></div>
-    </div>
-  </div>
-
   <div class="overlay" id="storePurchaseOverlay" style="display:none;">
     <div class="modal">
       <div class="modalHd">
@@ -511,8 +478,6 @@
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
-  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/lantern-avatar-cropper.js"></script>
   <script src="js/lantern-post-live-notify.js"></script>
   <script src="js/lantern-profile-app.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-store-app.js"></script>

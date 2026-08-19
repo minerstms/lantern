@@ -311,7 +311,7 @@ await withMockedBridge((call) => {
   else bad('8 hunt', hunt);
 
   const avatar = await postTransact(env, studentCookie, { character_name: 'Jane', delta: -1, kind: 'avatar_upload' });
-  if (avatar.json.ok && avatar.json.character_name === '20889' && avatar.json.economy_authority === 'tms_nuggets') ok('9. avatar spend uses student TMS principal');
+  if (avatar.status === 403 && avatar.json && avatar.json.error === 'student_avatar_upload_disabled') ok('9. student avatar spend disabled (upload closed)');
   else bad('9 avatar', avatar);
 
   const t = await getBalance(env, teacherCookie);

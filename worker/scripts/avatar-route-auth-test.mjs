@@ -67,11 +67,11 @@ if (
 }
 
 if (
+  uploadSlice.includes("student_avatar_upload_disabled") &&
   uploadSlice.includes("avatar_self_service_disabled") &&
-  uploadSlice.includes("error: 'forbidden'") &&
   !/INSERT INTO lantern_avatar_submissions/.test(uploadSlice)
 ) {
-  ok('upload: self-service closed with forbidden');
+  ok('upload: student self-service closed with student_avatar_upload_disabled');
 } else bad('upload self-service not closed');
 
 if (

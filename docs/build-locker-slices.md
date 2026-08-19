@@ -21,8 +21,8 @@ Markers live in **`apps/lantern-app/locker-sources/index.full.html`**. Each **ST
 |--------|-------------------|------|
 | **`LOCKER_BUILD:OVERVIEW_START`** | `MARK_OVERVIEW_START` (`<!-- LOCKER_BUILD:OVERVIEW_START`) | Opens the block spliced into **`#lockerPanelOverview`**: student picker through **`#profileView`** close. |
 | **`LOCKER_BUILD:OVERVIEW_END`** | `MARK_OVERVIEW_END` (`<!-- LOCKER_BUILD:OVERVIEW_END -->`) | Closes the overview region **before** the standalone **`#classAccessContentWrap`** close used on the full index page. |
-| **`LOCKER_BUILD:MODALS_START`** | `MARK_MODALS_START` (`<!-- LOCKER_BUILD:MODALS_START`) | Opens the modal stack (beta report through avatar crop). |
-| **`LOCKER_BUILD:MODALS_END`** | `MARK_MODALS_END` (`<!-- LOCKER_BUILD:MODALS_END -->`) | Ends after **`#avatarCropOverlay`** and **before** the extra **`</div>`** that closes **`.wrap.lanternContent`** on the full page. |
+| **`LOCKER_BUILD:MODALS_START`** | `MARK_MODALS_START` (`<!-- LOCKER_BUILD:MODALS_START`) | Opens the modal stack (beta report through Profile Studio). |
+| **`LOCKER_BUILD:MODALS_END`** | `MARK_MODALS_END` (`<!-- LOCKER_BUILD:MODALS_END -->`) | Ends after **`#editProfileOverlay`** (Profile Studio) and **before** the extra **`</div>`** that closes **`.wrap.lanternContent`** on the full page. |
 
 **Pairing:** keep each START/END pair in sync when editing `index.full.html`. Moving or deleting markers without updating both ends will break the build or produce invalid HTML.
 
@@ -45,7 +45,7 @@ The script **throws** and does not write a half-broken **`locker.html`** when ch
 | **Empty fragment** | Trimmed overview or modals body is empty. |
 | **Document / style leakage** | Fragment matches `<html`, `<head`, `<body`, `</head>`, `</style>`, or `<style` (unexpected shell or stylesheet spill — e.g. markers drifted into `<style>`). |
 | **Overview shape** | `overviewMain` must contain **`id="pickerCard"`** and **`id="profileView"`**. |
-| **Modals shape** | `modals` must contain **`id="betaReportOverlay"`**, **`id="avatarCropOverlay"`**, and **`id="editProfileOverlay"`**. |
+| **Modals shape** | `modals` must contain **`id="betaReportOverlay"`**, **`id="editProfileOverlay"`**, and **`id="avatarUploadStatus"`**. Must **not** contain student crop/upload controls (`#avatarCropOverlay`, Submit avatar, `#avatarFileInput`). |
 
 ---
 

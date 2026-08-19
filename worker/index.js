@@ -6386,7 +6386,11 @@ async function handleAvatarRoutes(request, url, path, env, cors) {
     if (!characterName) {
       return jsonResponse({ ok: false, error: 'avatar_identity_unavailable' }, 400, cors);
     }
-    // Prompt #222 — self-service upload/request is closed. Rick assigns avatars from Admin.
+    // Prompt #222/#234 — self-service upload is closed. Web Admin assigns avatars.
+    const role = String(account.role || '').trim().toLowerCase();
+    if (role === 'student') {
+      return jsonResponse({ ok: false, error: 'student_avatar_upload_disabled' }, 403, cors);
+    }
     return jsonResponse({ ok: false, error: 'forbidden', code: 'avatar_self_service_disabled' }, 403, cors);
   }
 
@@ -6904,6 +6908,20 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
           message: 'Poll Nuggets are awarded only by completing a Poll.',
         },
         400,
+        cors
+      );
+    }
+
+    // Prompt #234 — student self-upload is forbidden regardless of Nugget balance.
+    // Do not let a leftover avatar_upload spend become a backdoor charge.
+    if (!secretOk && actorRole === 'student' && kind === 'avatar_upload') {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'student_avatar_upload_disabled',
+          message: 'Students cannot upload or replace their own avatar.',
+        },
+        403,
         cors
       );
     }

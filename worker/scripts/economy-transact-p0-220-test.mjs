@@ -313,8 +313,8 @@ await withMockedBridge((call) => {
   } else bad('game_play lock', playBadDelta);
 
   const avatarBad = await postTransact(env, studentCookie, { character_name: '20889', delta: 10, kind: 'avatar_upload' });
-  if (avatarBad.status === 400 && avatarBad.json.error === 'client_delta_rejected' && avatarBad.json.server_delta === -1) {
-    ok('student avatar_upload amount is server-locked to -1');
+  if (avatarBad.status === 403 && avatarBad.json.error === 'student_avatar_upload_disabled') {
+    ok('student avatar_upload spend is disabled regardless of amount');
   } else bad('avatar lock', avatarBad);
 
   const winNoRun = await postTransact(env, studentCookie, { character_name: '20889', delta: 1, kind: 'game_win' });
@@ -404,8 +404,8 @@ await withMockedBridge((call) => {
   } else bad('game_play ok', playOk);
 
   const avatarOk = await postTransact(env, studentCookie, { kind: 'avatar_upload', delta: -1 });
-  if (avatarOk.status === 200 && avatarOk.json.ok && avatarOk.json.delta === -1) {
-    ok('legitimate fixed-cost avatar_upload still works');
+  if (avatarOk.status === 403 && avatarOk.json && avatarOk.json.error === 'student_avatar_upload_disabled') {
+    ok('student avatar_upload transact remains disabled at the configured cost');
   } else bad('avatar ok', avatarOk);
 
   const adj = await postTransact(env, adminCookie, {
