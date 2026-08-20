@@ -110,6 +110,11 @@ export function denverLocalDateYYYYMMDD(now) {
   return localPartsInTimeZone(date, SCHOOL_SCHEDULE_TIMEZONE).localDate;
 }
 
+/** Absolute instant of America/Denver local midnight for the Denver calendar day containing `now`. */
+export function denverLocalDayStartUtc(now) {
+  return denverWallClockToInstant(denverLocalDateYYYYMMDD(now), '00:00');
+}
+
 /**
  * Evaluate the canonical 2026-27 school-hours schedule at `now`.
  *

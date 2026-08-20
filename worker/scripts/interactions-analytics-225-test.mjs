@@ -47,8 +47,8 @@ if (
 } else bad('analytics route auth placement');
 
 const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');
-if (/adminInteractionsAnalyticsCard/.test(adminHtml) && /Today/.test(adminHtml) && /All Time/.test(adminHtml) && !/<details[^>]+adminInteractionsAnalyticsCard/.test(adminHtml)) {
-  ok('admin.html has always-visible Interactions Analytics + period chips');
+if (/adminInteractionsAnalyticsCard/.test(adminHtml) && /Today/.test(adminHtml) && /All Time/.test(adminHtml) && /<details[^>]+adminInteractionsAnalyticsCard/.test(adminHtml) && /teacherCollapsibleList/.test(adminHtml)) {
+  ok('admin.html has Interactions Analytics as a System Admin collapsible + period chips');
 } else bad('admin analytics UI');
 if (!/mountResultRace/.test(adminHtml) && !/lantern-result-reveal/.test(adminHtml)) {
   ok('admin dashboard does not use poll race animation');
