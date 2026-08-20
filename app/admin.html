@@ -122,19 +122,26 @@
     }
     .iaCard{
       border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:rgba(10,20,40,.4);
+      min-width:0;
     }
-    .iaCardLabel{ color:var(--muted); font-size:16px; font-weight:800; margin:0 0 4px; }
-    .iaCardValue{ font-size:28px; font-weight:900; margin:0; }
+    .iaCardLabel{ color:var(--muted); font-size:22px; font-weight:800; margin:0 0 4px; }
+    .iaCardValue{ font-size:28px; font-weight:900; margin:0; overflow-wrap:anywhere; }
     .iaRange{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
     .iaRangeBtn{
       height:40px; padding:0 14px; border-radius:999px; border:1px solid var(--line);
       background:#0a1428; color:var(--ink); font-size:18px; font-family:inherit; font-weight:800; cursor:pointer;
     }
     .iaRangeBtn.is-on{ border-color:rgba(90,167,255,.55); background:rgba(90,167,255,.16); }
+    .iaTableWrap{ width:100%; max-width:100%; overflow-x:auto; }
     .iaTable{ width:100%; border-collapse:collapse; font-size:18px; }
-    .iaTable th, .iaTable td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+    .iaTable th, .iaTable td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
     .iaNote{ color:var(--muted); font-size:16px; margin:10px 0 0; }
-    @media (max-width:640px){ .iaSummary{ grid-template-columns:1fr; } }
+    .iaSectionHd{ font-size:22px; margin:0; }
+    #iaCollapsedSummary{ max-width:min(100%, 28rem); white-space:normal; text-align:right; line-height:1.2; }
+    @media (max-width:640px){
+      .iaSummary{ grid-template-columns:1fr; }
+      #iaCollapsedSummary{ text-align:left; max-width:100%; }
+    }
     .visibleWatermarkState {
       min-width: 3.2em; font-weight: 900; letter-spacing: .04em;
     }
@@ -265,27 +272,49 @@
   <p><a href="/explore.html">Lantern (read-only view)</a> · <button type="button" class="btn" id="logoutBtn">Sign out</button></p>
   <p id="logoutMsg" role="status" aria-live="polite" style="display:none;"></p>
 
-  <div class="card" id="adminInteractionsAnalyticsCard">
-    <div class="cardHd">Interactions Analytics</div>
-    <p class="iaNote">What students are doing, earning, spending, and completing. System Admin only. Totals use persisted Lantern records, not client card counts.</p>
-    <div class="iaRange" role="group" aria-label="Date range">
-      <button type="button" class="iaRangeBtn" data-ia-range="today">Today</button>
-      <button type="button" class="iaRangeBtn is-on" data-ia-range="7d">7 Days</button>
-      <button type="button" class="iaRangeBtn" data-ia-range="30d">30 Days</button>
-      <button type="button" class="iaRangeBtn" data-ia-range="all">All Time</button>
+  <details class="card teacherCollapsibleList" id="adminInteractionsAnalyticsCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Interactions Analytics</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="iaCollapsedSummary">Loading…</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="iaNote">What students are doing, earning, spending, and completing. System Admin only. Totals use persisted Lantern records, not client card counts.</p>
+      <div class="iaRange" role="group" aria-label="Date range">
+        <button type="button" class="iaRangeBtn" data-ia-range="today">Today</button>
+        <button type="button" class="iaRangeBtn is-on" data-ia-range="7d">7 Days</button>
+        <button type="button" class="iaRangeBtn" data-ia-range="30d">30 Days</button>
+        <button type="button" class="iaRangeBtn" data-ia-range="all">All Time</button>
+      </div>
+      <p id="iaPeriodLabel" class="iaNote">Loading…</p>
+      <h3 class="iaSectionHd">Overview</h3>
+      <div class="iaSummary" id="iaSummary"></div>
+      <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="iaEngageSection">
+        <summary class="cardHd teacherCollapsibleListHd"><div class="teacherCollapsibleListTitle"><div class="h iaSectionHd">Engagement breakdown</div></div></summary>
+        <div class="cardBd teacherCollapsibleListBd">
+          <div class="iaSummary" id="iaEngageSummary"></div>
+        </div>
+      </details>
+      <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="iaEconomySection">
+        <summary class="cardHd teacherCollapsibleListHd"><div class="teacherCollapsibleListTitle"><div class="h iaSectionHd">Nugget economy</div></div></summary>
+        <div class="cardBd teacherCollapsibleListBd">
+          <h4 class="iaSectionHd">Earnings by source</h4>
+          <div class="iaTableWrap"><table class="iaTable" id="iaEarnTable"><thead><tr><th>Source</th><th>Nuggets</th></tr></thead><tbody></tbody></table></div>
+          <h4 class="iaSectionHd" style="margin-top:16px;">Spending by destination</h4>
+          <div class="iaTableWrap"><table class="iaTable" id="iaSpendTable"><thead><tr><th>Destination</th><th>Nuggets</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </details>
+      <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="iaDetailSection">
+        <summary class="cardHd teacherCollapsibleListHd"><div class="teacherCollapsibleListTitle"><div class="h iaSectionHd">Game / mission detail</div></div></summary>
+        <div class="cardBd teacherCollapsibleListBd">
+          <h4 class="iaSectionHd">Game spending</h4>
+          <div class="iaTableWrap"><table class="iaTable" id="iaGameTable"><thead><tr><th>Game</th><th>Nuggets spent</th><th>Plays</th></tr></thead><tbody></tbody></table></div>
+          <h4 class="iaSectionHd" style="margin-top:16px;">Learning / participation</h4>
+          <div class="iaTableWrap"><table class="iaTable" id="iaLearnTable"><thead><tr><th>Signal</th><th>Completions</th><th>Participants</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </details>
+      <p id="iaLimits" class="iaNote"></p>
     </div>
-    <p id="iaPeriodLabel" class="iaNote">Loading…</p>
-    <div class="iaSummary" id="iaSummary"></div>
-    <h3 class="cardHd" style="font-size:22px;margin-top:8px;">Earnings</h3>
-    <table class="iaTable" id="iaEarnTable"><thead><tr><th>Source</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
-    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Spending</h3>
-    <table class="iaTable" id="iaSpendTable"><thead><tr><th>Destination</th><th>Nuggets</th></tr></thead><tbody></tbody></table>
-    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Game spending</h3>
-    <table class="iaTable" id="iaGameTable"><thead><tr><th>Game</th><th>Nuggets spent</th><th>Plays</th></tr></thead><tbody></tbody></table>
-    <h3 class="cardHd" style="font-size:22px;margin-top:16px;">Learning / participation</h3>
-    <table class="iaTable" id="iaLearnTable"><thead><tr><th>Signal</th><th>Completions</th><th>Participants</th></tr></thead><tbody></tbody></table>
-    <p id="iaLimits" class="iaNote"></p>
-  </div>
+  </details>
   <script>
   (function () {
     var currentRange = '7d';
@@ -323,13 +352,27 @@
             return;
           }
           var s = d.summary || {};
-          if (label) label.textContent = (d.period && d.period.label ? d.period.label : currentRange) +
-            ' · An interaction is one persisted poll vote, reaction, game play, or mission submission.';
+          var periodLabel = d.period && d.period.label ? d.period.label : currentRange;
+          if (label) label.textContent = periodLabel +
+            ' · An interaction is one persisted poll vote, finalized reaction, game play, or mission submission.';
           document.getElementById('iaSummary').innerHTML =
             '<div class="iaCard"><p class="iaCardLabel">Total interactions</p><p class="iaCardValue">' + esc(s.total_interactions) + '</p></div>' +
             '<div class="iaCard"><p class="iaCardLabel">Participating users</p><p class="iaCardValue">' + esc(s.unique_participants) + '</p></div>' +
             '<div class="iaCard"><p class="iaCardLabel">Nuggets earned</p><p class="iaCardValue">' + esc(s.nuggets_earned) + '</p></div>' +
             '<div class="iaCard"><p class="iaCardLabel">Nuggets spent</p><p class="iaCardValue">' + esc(s.nuggets_spent) + '</p></div>';
+          var engage = document.getElementById('iaEngageSummary');
+          if (engage) {
+            engage.innerHTML =
+              '<div class="iaCard"><p class="iaCardLabel">Poll votes</p><p class="iaCardValue">' + esc(s.poll_votes) + '</p></div>' +
+              '<div class="iaCard"><p class="iaCardLabel">Reactions</p><p class="iaCardValue">' + esc(s.reactions) + '</p></div>' +
+              '<div class="iaCard"><p class="iaCardLabel">Game plays</p><p class="iaCardValue">' + esc(s.game_plays) + '</p></div>' +
+              '<div class="iaCard"><p class="iaCardLabel">Mission submissions</p><p class="iaCardValue">' + esc(s.mission_submissions) + '</p></div>';
+          }
+          var pill = document.getElementById('iaCollapsedSummary');
+          if (pill) {
+            pill.textContent = periodLabel + ': ' + String(s.total_interactions == null ? 0 : s.total_interactions) +
+              ' interactions · ' + String(s.unique_participants == null ? 0 : s.unique_participants) + ' users';
+          }
           fillTable(document.getElementById('iaEarnTable'), d.earnings || [], ['category', 'nuggets']);
           fillTable(document.getElementById('iaSpendTable'), d.spending || [], ['category', 'nuggets']);
           fillTable(document.getElementById('iaGameTable'), d.game_spending || [], ['game', 'nuggets_spent', 'plays']);

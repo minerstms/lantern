@@ -1,37 +1,51 @@
 /**
- * Prompt #225 — Web Admin Interactions Analytics (read-only aggregates).
+ * Prompt #225 / #243 — Web Admin Interactions Analytics (read-only aggregates).
  * Uses existing D1 tables. No new indexes or migrations.
+ *
+ * "Today" is the America/Denver school day, not the Worker UTC calendar day.
+ * Reactions are finalized responses (lantern_final_reaction_responses), not the
+ * legacy lantern_reactions toggle table.
  */
+import { denverLocalDateYYYYMMDD, denverLocalDayStartUtc, SCHOOL_SCHEDULE_TIMEZONE } from './school-schedule.js';
 
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
-/** SQLite-style timestamp so space-separated created_at rows are not excluded by ISO `T` cutoffs. */
+/**
+ * UTC SQLite-style timestamp. Persisted created_at / finalized_at values are ISO UTC;
+ * local getters would shift the cutoff on a non-UTC host.
+ */
 export function toSqlTimestamp(d) {
   const x = d instanceof Date ? d : new Date(d);
   return (
-    x.getFullYear() +
+    x.getUTCFullYear() +
     '-' +
-    pad2(x.getMonth() + 1) +
+    pad2(x.getUTCMonth() + 1) +
     '-' +
-    pad2(x.getDate()) +
+    pad2(x.getUTCDate()) +
     ' ' +
-    pad2(x.getHours()) +
+    pad2(x.getUTCHours()) +
     ':' +
-    pad2(x.getMinutes()) +
+    pad2(x.getUTCMinutes()) +
     ':' +
-    pad2(x.getSeconds())
+    pad2(x.getUTCSeconds())
   );
 }
 
-export function rangeCutoff(range) {
+export function rangeCutoff(range, nowInput) {
   const r = String(range || '7d').trim().toLowerCase();
-  const now = Date.now();
+  const nowDate = nowInput instanceof Date ? nowInput : new Date(nowInput == null ? Date.now() : nowInput);
+  const now = nowDate.getTime();
   if (r === 'today') {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return { key: 'today', since: toSqlTimestamp(d), label: 'Today' };
+    const start = denverLocalDayStartUtc(nowDate);
+    return {
+      key: 'today',
+      since: toSqlTimestamp(start),
+      label: 'Today',
+      timezone: SCHOOL_SCHEDULE_TIMEZONE,
+      local_date: denverLocalDateYYYYMMDD(nowDate),
+    };
   }
   if (r === '30d' || r === '30') {
     return { key: '30d', since: toSqlTimestamp(new Date(now - 30 * 24 * 60 * 60 * 1000)), label: '30 Days' };
@@ -83,11 +97,11 @@ async function safeAll(db, sql, binds) {
   }
 }
 
-export async function buildInteractionsAnalytics(db, rangeKey) {
-  const period = rangeCutoff(rangeKey);
+export async function buildInteractionsAnalytics(db, rangeKey, nowInput) {
+  const period = rangeCutoff(rangeKey, nowInput);
   const txSince = dateClause('created_at', period.since);
   const pollSince = dateClause('created_at', period.since);
-  const rxSince = dateClause('created_at', period.since);
+  const rxSince = dateClause('finalized_at', period.since);
   const missSince = dateClause('created_at', period.since);
 
   const txRows = await safeAll(
@@ -130,7 +144,8 @@ export async function buildInteractionsAnalytics(db, rangeKey) {
   );
   const reactions = await safeAll(
     db,
-    `SELECT COUNT(*) AS c, COUNT(DISTINCT character_name) AS u FROM lantern_reactions WHERE 1=1${rxSince.sql}`,
+    `SELECT COUNT(*) AS c, COUNT(DISTINCT COALESCE(NULLIF(TRIM(reactor_character_name), ''), reactor_username)) AS u
+     FROM lantern_final_reaction_responses WHERE 1=1${rxSince.sql}`,
     rxSince.binds
   );
   const missions = await safeAll(
@@ -195,7 +210,10 @@ export async function buildInteractionsAnalytics(db, rangeKey) {
   );
   const rxNames = await safeAll(
     db,
-    `SELECT DISTINCT character_name FROM lantern_reactions WHERE character_name IS NOT NULL AND TRIM(character_name) != ''${rxSince.sql}`,
+    `SELECT DISTINCT COALESCE(NULLIF(TRIM(reactor_character_name), ''), reactor_username) AS character_name
+     FROM lantern_final_reaction_responses
+     WHERE COALESCE(NULLIF(TRIM(reactor_character_name), ''), reactor_username) IS NOT NULL
+       AND TRIM(COALESCE(NULLIF(TRIM(reactor_character_name), ''), reactor_username)) != ''${rxSince.sql}`,
     rxSince.binds
   );
   const missNames = await safeAll(
@@ -242,7 +260,7 @@ export async function buildInteractionsAnalytics(db, rangeKey) {
     ok: true,
     period: period,
     interaction_definition:
-      'One persisted student action: a poll vote, a reaction, a game_play transaction, or a mission submission created in the selected period. Client rerenders are not counted.',
+      'One persisted poll vote, finalized reaction, game play, or mission submission in the selected period. Opening a card, Reveal Results, Replay Results, and page views are not counted.',
     summary: {
       total_interactions: interaction,
       unique_participants: interactionKeys.size,
