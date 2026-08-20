@@ -1801,20 +1801,31 @@
     if (live) live.textContent = 'You voted';
   }
 
-  function revealPollResults(hostEl, results, votedChoiceIndex, hiddenNugget) {
+  function revealPollResults(hostEl, results, votedChoiceIndex, hiddenNugget, extra) {
+    extra = extra || {};
     if (!hostEl) return;
     var items = pollResultItems(results, votedChoiceIndex);
     var api = global.LANTERN_RESULT_REVEAL;
     var hnApi = global.LANTERN_HIDDEN_NUGGET;
-    var hnPayload = hnApi && typeof hnApi.payloadFromResponse === 'function'
-      ? hnApi.payloadFromResponse({ hidden_nugget: hiddenNugget })
-      : null;
+    function scheduleHn(payloadSource) {
+      if (!hnApi || typeof hnApi.payloadFromResponse !== 'function') return;
+      var hnPayload = hnApi.payloadFromResponse(payloadSource && payloadSource.hidden_nugget
+        ? payloadSource
+        : { hidden_nugget: payloadSource });
+      if (hnPayload) hnApi.scheduleAfterRace(hnPayload, hostEl);
+    }
     if (api && typeof api.mountPollMineCartRace === 'function') {
       api.mountPollMineCartRace(hostEl, items, {
         reuseRows: true,
         listLabel: 'Poll results',
         onAllDone: function () {
-          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, hostEl);
+          if (extra.hiddenNuggetPromise) {
+            extra.hiddenNuggetPromise.then(function (res) {
+              scheduleHn(res);
+            });
+            return;
+          }
+          scheduleHn({ hidden_nugget: hiddenNugget });
         },
       });
       return;
@@ -2054,8 +2065,32 @@
       if (resultsEl) resultsEl.style.display = 'none';
       var votedGroup = paintChoiceLanes(true);
       announcePollVoted(modalRoot);
-      revealPollResults(votedGroup || choicesEl, results, votedIdx);
+      var revealApi = global.LANTERN_RESULT_REVEAL;
+      if (revealApi && typeof revealApi.markPriorPollChoice === 'function') {
+        revealApi.markPriorPollChoice(votedGroup || choicesEl, votedIdx);
+      }
       applyPollRewardCopy(nuggetEl, res);
+      if (revealApi && typeof revealApi.mountRevealResultsControl === 'function') {
+        revealApi.mountRevealResultsControl(choicesEl, {
+          onReveal: function (isReplay) {
+            var host = votedGroup || choicesEl;
+            if (revealApi.ensureRaceAreaVisibleOnce) revealApi.ensureRaceAreaVisibleOnce(host);
+            var hnApi = global.LANTERN_HIDDEN_NUGGET;
+            var claimPromise = null;
+            if (!isReplay && hnApi && typeof hnApi.claimReveal === 'function') {
+              var cardId = (payload.sourceItem && payload.sourceItem.id) || (pollId ? 'poll:' + pollId : '');
+              claimPromise = hnApi.claimReveal(cardId);
+            }
+            function startPollRace() {
+              revealPollResults(host, results, votedIdx, null, {
+                hiddenNuggetPromise: claimPromise,
+              });
+            }
+            if (global.requestAnimationFrame) global.requestAnimationFrame(startPollRace);
+            else startPollRace();
+          },
+        });
+      }
     } else if (choicesEl && nuggetEl) {
       if (resultsEl) resultsEl.style.display = 'none';
       nuggetEl.style.display = 'none';

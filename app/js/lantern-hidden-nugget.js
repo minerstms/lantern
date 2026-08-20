@@ -83,11 +83,39 @@
     }, wait);
   }
 
+  function getApiBase() {
+    if (typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) return null;
+    return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
+  }
+
+  /**
+   * Server-authoritative Hidden Nugget claim for Reveal Results.
+   * Never credits Nuggets from client display state.
+   */
+  function claimReveal(cardId) {
+    var apiBase = getApiBase();
+    var id = String(cardId || '').trim();
+    if (apiBase === null || !id) return Promise.resolve({ ok: false, error: 'no_api' });
+    return fetch(apiBase + '/api/hidden-nugget/reveal-claim', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_id: id }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .catch(function () {
+        return { ok: false, error: 'network' };
+      });
+  }
+
   global.LANTERN_HIDDEN_NUGGET = {
     formatRewardCopy: formatRewardCopy,
     payloadFromResponse: payloadFromResponse,
     showReveal: showReveal,
     scheduleAfterRace: scheduleAfterRace,
     prefersReducedMotion: prefersReducedMotion,
+    claimReveal: claimReveal,
   };
 })(typeof window !== 'undefined' ? window : self);
