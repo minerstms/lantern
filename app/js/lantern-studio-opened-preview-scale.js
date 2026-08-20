@@ -43,22 +43,26 @@
     if (!scaleHost || !stage) return null;
 
     var canonicalW = readCanonicalWidth();
-    stage.style.width = canonicalW + 'px';
+    var availableW = host.clientWidth;
+    var scale = 1;
+    stage.style.width = '100%';
+    stage.style.maxWidth = '100%';
+    stage.style.minWidth = '0';
     stage.style.transform = 'none';
     stage.style.transformOrigin = 'top left';
 
     var naturalH = measureStageNaturalHeight(stage);
-    var availableW = host.clientWidth;
-    var scale = computeScale(availableW, canonicalW);
-    var scaledW = canonicalW * scale;
-    var scaledH = naturalH * scale;
+    var scaledW = availableW > 0 ? availableW : canonicalW;
+    var scaledH = naturalH;
 
-    scaleHost.style.width = scaledW + 'px';
+    scaleHost.style.width = '100%';
+    scaleHost.style.maxWidth = '100%';
+    scaleHost.style.minWidth = '0';
     scaleHost.style.height = scaledH + 'px';
     scaleHost.style.marginLeft = 'auto';
     scaleHost.style.marginRight = 'auto';
 
-    stage.style.transform = 'scale(' + scale + ')';
+    stage.style.transform = 'none';
 
     host.style.setProperty('--studio-opened-preview-scale', String(scale));
     host.style.setProperty('--studio-opened-preview-scaled-w', scaledW + 'px');

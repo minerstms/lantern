@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Create preview #232</title>
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-audio-studio.css">
+  <style>
+    :root { --bg:#0b1220; --ink:#eaf0ff; --line:rgba(255,255,255,.12); --lantern-pad-x:12px; }
+    html,body{ margin:0; background:#0b1220; color:#eaf0ff; font:22px/1.35 system-ui,sans-serif; overflow-x:hidden; }
+    .banner{ background:#5a1d1d; border:2px solid #ff8080; border-radius:12px; padding:10px 12px; margin:12px; font-weight:800; }
+    #shell{ width:100%; max-width:100%; min-width:0; padding:12px; box-sizing:border-box; }
+    .containerStudio3Panel.studioThreeCols{
+      display:grid;
+      grid-template-columns: minmax(0,1fr) minmax(0,minmax(420px,42vw)) minmax(0,1fr);
+      grid-template-areas:"feed editor opened";
+      gap:16px;
+      width:100%;
+      max-width:100%;
+      min-width:0;
+    }
+    .studioColLeft{ grid-area:feed; min-width:0; max-width:100%; }
+    .studioColCenter{ grid-area:editor; min-width:0; max-width:100%; }
+    .studioColRight{ grid-area:opened; min-width:0; max-width:100%; }
+    .panel{ border:1px solid var(--line); border-radius:14px; padding:12px; background:rgba(255,255,255,.04); min-width:0; max-width:100%; }
+    @media (max-width:1099px){
+      .containerStudio3Panel.studioThreeCols{
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+        grid-template-areas:"editor editor" "feed opened";
+      }
+    }
+    @media (max-width:699px){
+      .containerStudio3Panel.studioThreeCols{
+        grid-template-columns:minmax(0,1fr);
+        grid-template-areas:"editor" "feed" "opened";
+      }
+    }
+  </style>
+</head>
+<body>
+  <p class="banner">DEV ONLY. Local Audio / Song preview. Does not upload, write D1, or deploy.</p>
+  <div id="shell">
+    <div class="containerStudio3Panel studioThreeCols" id="studioRow">
+      <aside class="studioColLeft panel">
+        <div>In the feed</div>
+        <div class="studioFeedHero" id="hero"></div>
+      </aside>
+      <div class="studioColCenter panel">
+        <label>Visualizer</label>
+        <div>
+          <label><input type="radio" name="st" value="neon-burst" checked> Neon Burst</label>
+          <label><input type="radio" name="st" value="sonic-storm"> Sonic Storm</label>
+          <label><input type="radio" name="st" value="tunnel-beam"> Tunnel Beam</label>
+        </div>
+        <button type="button" id="pick">Use demo tone</button>
+        <button type="button" id="play">Play</button>
+        <button type="button" id="rand">Randomize Colors</button>
+      </div>
+      <aside class="studioColRight panel">
+        <div>When opened</div>
+        <div class="lanternAudioStage" id="stage"><canvas id="live"></canvas></div>
+      </aside>
+    </div>
+  </div>
+  <pre id="hud"></pre>
+  <script src="/js/lantern-audio-studio.js"></script>
+  <script>
+    (function(){
+      var AS = window.LANTERN_AUDIO_STUDIO;
+      var canvas = document.getElementById('live');
+      AS.attachLiveCanvas(canvas, document.getElementById('stage'));
+      var art = document.createElement('canvas');
+      art.className = 'lanternAudioCardArt';
+      document.getElementById('hero').appendChild(art);
+      AS.attachCardCanvas(art);
+      function toneFile(){
+        var sr = 22050, sec = 2, n = sr * sec;
+        var buf = new ArrayBuffer(44 + n * 2);
+        var v = new DataView(buf);
+        function w(s, o){ for (var i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }
+        w('RIFF',0); v.setUint32(4, 36+n*2, true); w('WAVE',8); w('fmt ',12);
+        v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+        v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+        w('data',36); v.setUint32(40,n*2,true);
+        for (var i=0;i<n;i++) v.setInt16(44+i*2, Math.round(Math.sin(i/12)*12000), true);
+        return new File([buf], 'demo.wav', { type: 'audio/wav' });
+      }
+      document.getElementById('pick').onclick = function(){ AS.selectLocalFile(toneFile()); AS.syncCanvasResolution(); };
+      document.getElementById('play').onclick = function(){ AS.play(); };
+      document.getElementById('rand').onclick = function(){ AS.randomizeColors(); };
+      document.querySelectorAll('input[name="st"]').forEach(function(r){
+        r.onchange = function(){ AS.setState({ style: r.value }); };
+      });
+      function report(){
+        var row = document.getElementById('studioRow');
+        document.getElementById('hud').textContent = JSON.stringify({
+          vw: innerWidth,
+          overflowX: document.documentElement.scrollWidth > innerWidth + 1,
+          rowW: Math.round(row.getBoundingClientRect().width),
+          stage: document.getElementById('stage').getBoundingClientRect(),
+          artRatio: +(art.width && art.height ? (art.width/art.height).toFixed(3) : 0)
+        }, null, 2);
+      }
+      setInterval(report, 300);
+      window.__H232 = { AS: AS, report: report, toneFile: toneFile };
+    })();
+  </script>
+</body>
+</html>
