@@ -53,6 +53,8 @@ const playerJs = read('app/js/lantern-game-player.js');
 const gamesPageJs = read('app/js/lantern-games-page.js');
 const gamesPageCss = read('app/css/lantern-games-page.css');
 const missionsHtml = read('app/missions.html');
+const harness245 = read('app/dev/interactive-surface-245-harness.html');
+const navJs = read('app/js/lantern-nav.js');
 const missionsCss = read('app/css/lantern-missions-page.css');
 
 const avatarMatchBlock = gamesHtml.slice(
@@ -229,6 +231,15 @@ assert(
     sandbox._scrolled &&
     sandbox._scrolled[1] === 40,
   'final unlock restores page scroll'
+);
+
+assert(
+  /DEVELOPMENT-ONLY/.test(harness245) &&
+    /lanternInteractiveSurface/.test(harness245) &&
+    /avatarMatchChoices/.test(harness245) &&
+    /missionSubmitBtn/.test(harness245) &&
+    !navJs.includes('interactive-surface-245-harness'),
+  'dev harness exists for browser zoom clicks and is not in student nav'
 );
 
 console.log('\ninteractive-surface-245-test: ' + pass + ' PASS ' + fail + ' FAIL');
