@@ -14,6 +14,9 @@ const login = fs.readFileSync(new URL('../../app/login.html', import.meta.url), 
 const change = fs.readFileSync(new URL('../../app/change-password.html', import.meta.url), 'utf8');
 const authSrc = fs.readFileSync(new URL('../../app/js/lantern-pilot-auth.js', import.meta.url), 'utf8');
 const failSrc = fs.readFileSync(new URL('../geppetto-student-handoff.js', import.meta.url), 'utf8');
+const SAFE_GENERIC = 'https://mrradle.us/api/stem-daily/student/lantern-callback?next=%2Fdigital-art.html';
+const SAFE_MAKEUP =
+  'https://mrradle.us/api/stem-daily/student/lantern-callback?next=' + encodeURIComponent('/?makeup=1');
 
 function loadAuth(search, pathname) {
   const document = { title: 'Sign in | Lantern' };
@@ -72,8 +75,23 @@ function testHeadScripts() {
 }
 
 function testCopyAndResume() {
-  if (!login.includes('Student Sign In') || !login.includes('Sign in to continue to your Make Up Assignment.')) {
-    return bad('3. class-website heading copy missing');
+  if (!login.includes('Student Sign In') || !login.includes('Sign in to continue to Class Website.')) {
+    return bad('3. generic class-website heading copy missing');
+  }
+  if (!login.includes('Sign in to continue to your Make Up Assignment.')) {
+    return bad('3. explicit Make Up heading copy missing');
+  }
+  if (!login.includes('isGeppettoMakeupReturn') || !change.includes('isGeppettoMakeupReturn')) {
+    return bad('3. login/change-password must detect makeup purpose');
+  }
+  const auth = loadAuth('', '/login.html');
+  const genericSub = auth.classWebsiteSignInSubtitle('/api/auth/geppetto-student-authorize?return=' + encodeURIComponent(SAFE_GENERIC));
+  const makeupSub = auth.classWebsiteSignInSubtitle('/api/auth/geppetto-student-authorize?return=' + encodeURIComponent(SAFE_MAKEUP));
+  if (genericSub !== 'Sign in to continue to Class Website.') {
+    return bad('generic subtitle must be Class Website', genericSub);
+  }
+  if (makeupSub !== 'Sign in to continue to your Make Up Assignment.') {
+    return bad('makeup subtitle must stay Make Up', makeupSub);
   }
   if (!login.includes('isClassWebsiteSsoReturn') || !login.includes('location.replace(returnTo)')) {
     return bad('5. login must still resume authorize');

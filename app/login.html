@@ -21,7 +21,7 @@
     })();
   </script>
   <script>window.LANTERN_AVATAR_API = '';</script>
-  <script src="js/lantern-pilot-auth.js?v=20260816-sso260"></script>
+  <script src="js/lantern-pilot-auth.js?v=20260821-sso246a"></script>
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <link rel="stylesheet" href="css/lantern-header.css">
   <style>
@@ -118,7 +118,13 @@
         var subEl = document.getElementById('loginSub');
         var linksEl = document.getElementById('classWebsiteLinks');
         if (titleEl) titleEl.textContent = 'Student Sign In';
-        if (subEl) subEl.textContent = 'Sign in to continue to your Make Up Assignment.';
+        if (subEl) {
+          if (window.LanternAuth && typeof window.LanternAuth.isGeppettoMakeupReturn === 'function' && window.LanternAuth.isGeppettoMakeupReturn(ret)) {
+            subEl.textContent = 'Sign in to continue to your Make Up Assignment.';
+          } else {
+            subEl.textContent = 'Sign in to continue to Class Website.';
+          }
+        }
         if (linksEl) linksEl.style.display = 'block';
         return true;
       }

@@ -54,6 +54,56 @@
     return pathOnly === '/api/auth/geppetto-student-authorize';
   }
 
+  function isMakeupQueryFlag(raw) {
+    try {
+      return new URL(String(raw || ''), 'https://mrradle.us').searchParams.get('makeup') === '1';
+    } catch (e) {
+      return /(?:^|[?&])makeup=1(?:&|#|$)/.test(String(raw || ''));
+    }
+  }
+
+  /** Makeup wording only when sanitized callback next carries makeup=1. */
+  function classWebsiteSsoPurposeFromReturn(pathOrUrl) {
+    var s = String(pathOrUrl || '').trim();
+    if (!s) return 'class-website';
+    var candidate = s;
+    try {
+      var base = s.indexOf('://') >= 0 ? s : 'https://tmslantern.org' + (s.charAt(0) === '/' ? s : '/' + s);
+      var u = new URL(base);
+      if (isGeppettoStudentAuthorizeReturn(u.pathname)) {
+        candidate = String(u.searchParams.get('return') || '').trim();
+      }
+    } catch (e) {}
+    if (!candidate) return 'class-website';
+    var next = '';
+    try {
+      var cb = new URL(candidate);
+      next =
+        cb.pathname === '/api/stem-daily/student/lantern-callback'
+          ? String(cb.searchParams.get('next') || '')
+          : cb.pathname + cb.search + cb.hash;
+    } catch (e2) {
+      next = candidate.charAt(0) === '/' ? candidate : '';
+    }
+    return isMakeupQueryFlag(next) ? 'makeup' : 'class-website';
+  }
+
+  function isGeppettoMakeupReturn(pathOrUrl) {
+    return classWebsiteSsoPurposeFromReturn(pathOrUrl) === 'makeup';
+  }
+
+  function classWebsiteSignInSubtitle(returnPath) {
+    return isGeppettoMakeupReturn(returnPath)
+      ? 'Sign in to continue to your Make Up Assignment.'
+      : 'Sign in to continue to Class Website.';
+  }
+
+  function classWebsiteChangePasswordSubtitle(returnPath) {
+    return isGeppettoMakeupReturn(returnPath)
+      ? 'Choose a new password to continue to your Make Up Assignment.'
+      : 'Choose a new password to continue to Class Website.';
+  }
+
   /** True when login/change-password was opened for Class Website / Make Up SSO. */
   function isClassWebsiteSignInSearch(search) {
     var q = String(search == null ? '' : search);
@@ -424,6 +474,10 @@
     fetchMe: fetchMe,
     normalizeRole: normalizeRole,
     isGeppettoStudentAuthorizeReturn: isGeppettoStudentAuthorizeReturn,
+    isGeppettoMakeupReturn: isGeppettoMakeupReturn,
+    classWebsiteSsoPurposeFromReturn: classWebsiteSsoPurposeFromReturn,
+    classWebsiteSignInSubtitle: classWebsiteSignInSubtitle,
+    classWebsiteChangePasswordSubtitle: classWebsiteChangePasswordSubtitle,
     isClassWebsiteSignInSearch: isClassWebsiteSignInSearch,
     classWebsiteSignInDocumentTitle: classWebsiteSignInDocumentTitle,
     applyClassWebsiteDocumentTitle: applyClassWebsiteDocumentTitle,
