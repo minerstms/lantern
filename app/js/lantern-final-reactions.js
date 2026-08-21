@@ -140,20 +140,31 @@
     });
   }
 
-  function revealReactionResults(host, results, selectedType, anchorRoot, hiddenNugget) {
+  function revealReactionResults(host, results, selectedType, anchorRoot, hiddenNugget, extra) {
+    extra = extra || {};
     var items = reactionResultItems(results, selectedType);
     var api = global.LANTERN_RESULT_REVEAL;
     var hnApi = global.LANTERN_HIDDEN_NUGGET;
-    var hnPayload = hnApi && typeof hnApi.payloadFromResponse === 'function'
-      ? hnApi.payloadFromResponse({ hidden_nugget: hiddenNugget })
-      : null;
     var root = anchorRoot || host;
+    function scheduleHn(payloadSource) {
+      if (!hnApi || typeof hnApi.payloadFromResponse !== 'function') return;
+      var hnPayload = hnApi.payloadFromResponse(
+        payloadSource && payloadSource.hidden_nugget ? payloadSource : { hidden_nugget: payloadSource }
+      );
+      if (hnPayload) hnApi.scheduleAfterRace(hnPayload, root);
+    }
     if (api && typeof api.mountReactionSpatialRace === 'function' && root) {
       api.mountReactionSpatialRace(root, items, {
         choiceSelector: '.lanternFinalRxChoice',
         typeAttr: 'data-rx-type',
         onAllDone: function () {
-          if (hnApi && hnPayload) hnApi.scheduleAfterRace(hnPayload, root);
+          if (extra.hiddenNuggetPromise) {
+            extra.hiddenNuggetPromise.then(function (res) {
+              scheduleHn(res);
+            });
+            return;
+          }
+          scheduleHn({ hidden_nugget: hiddenNugget });
         },
       });
       return;
@@ -277,6 +288,8 @@
       return;
     }
     container.innerHTML = '<p class="lanternFinalRxLoading">Loading reactions…</p>';
+    container.setAttribute('data-rx-item-id', itemId);
+    container.setAttribute('data-rx-item-type', itemType);
 
     getFinalizedStatus(itemType, itemId).then(function (status) {
       if (!status || !status.ok) {
@@ -285,6 +298,7 @@
       }
 
       if (status.finalized) {
+        status.item_id = status.item_id || itemId;
         renderLocked(container, status);
         return;
       }
@@ -325,6 +339,30 @@
     wireLockedChoiceAttempts(panel);
   }
 
+  function attachLockedRevealControl(container, panel, status) {
+    var api = global.LANTERN_RESULT_REVEAL;
+    if (!api || typeof api.mountRevealResultsControl !== 'function' || !panel) return;
+    if (!status || !status.results || !status.results.length) return;
+    var host = panel.querySelector('.lanternFinalRxRaceArena') || panel;
+    api.mountRevealResultsControl(host, {
+      onReveal: function (isReplay) {
+        if (api.ensureRaceAreaVisibleOnce) api.ensureRaceAreaVisibleOnce(panel);
+        var hnApi = global.LANTERN_HIDDEN_NUGGET;
+        var claimPromise = null;
+        if (!isReplay && hnApi && typeof hnApi.claimReveal === 'function') {
+          claimPromise = hnApi.claimReveal(container.getAttribute('data-rx-item-id') || status.item_id || '');
+        }
+        function startRxRace() {
+          revealReactionResults(null, status.results, status.reaction_type, panel, null, {
+            hiddenNuggetPromise: claimPromise,
+          });
+        }
+        if (global.requestAnimationFrame) global.requestAnimationFrame(startRxRace);
+        else startRxRace();
+      },
+    });
+  }
+
   function renderLocked(container, status) {
     var rt = status.reaction_type;
     var em = emojiForType(rt);
@@ -350,9 +388,7 @@
         if (lane) lane.classList.add('lanternRxLane--yours');
       }
     });
-    if (status.results && status.results.length) {
-      revealReactionResults(null, status.results, rt, panel || container, status.hidden_nugget);
-    }
+    attachLockedRevealControl(container, panel || container, status);
     wireLockedChoiceAttempts(panel);
   }
 

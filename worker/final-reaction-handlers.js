@@ -157,6 +157,7 @@ export async function handleFinalReactionRoutes(request, url, path, env, cors, d
         accountKey: charSnap || username,
         cardId: itemId,
         trigger: 'reaction',
+        origin: url && url.origin,
       });
     } catch (_) {
       hiddenNugget = { found: false };

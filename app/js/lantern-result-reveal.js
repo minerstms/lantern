@@ -999,6 +999,73 @@
     });
   }
 
+  /**
+   * At most one positioning scroll so the race area is visible, then release.
+   * Call once before animation. Do not call from the race loop.
+   */
+  function ensureRaceAreaVisibleOnce(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return;
+    try {
+      var rect = el.getBoundingClientRect();
+      var vh =
+        global.innerHeight ||
+        (global.document && global.document.documentElement && global.document.documentElement.clientHeight) ||
+        0;
+      if (!vh) return;
+      var visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
+      var need = Math.min(140, Math.max(48, rect.height * 0.35));
+      if (visible >= need) return;
+      if (typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      }
+    } catch (e) {}
+  }
+
+  function markPriorPollChoice(group, votedIdx) {
+    if (!group) return;
+    var idx = votedIdx != null && !isNaN(Number(votedIdx)) ? Math.floor(Number(votedIdx)) : -1;
+    if (idx < 0) return;
+    var lanes = group.querySelectorAll('.lanternPollRaceLane, .pollChoiceRow');
+    var lane = lanes[idx];
+    if (!lane) return;
+    lane.classList.add('lanternPollRaceLane--prior');
+    var btn = lane.querySelector('.pollChoiceBtn');
+    if (btn) {
+      btn.classList.add('is-selected', 'is-prior-choice');
+      btn.setAttribute('aria-checked', 'true');
+    }
+    var mark = lane.querySelector('.pollYourChoiceMark');
+    if (mark) mark.classList.add('is-on');
+  }
+
+  function mountRevealResultsControl(host, opts) {
+    opts = opts || {};
+    if (!host || !global.document) return null;
+    var existing = host.querySelector && host.querySelector('[data-reveal-results]');
+    if (existing) return existing;
+    var wrap = global.document.createElement('div');
+    wrap.className = 'lanternRevealResultsWrap';
+    var btn = global.document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lanternRevealResultsBtn';
+    btn.setAttribute('data-reveal-results', '1');
+    btn.textContent = opts.revealLabel || 'Reveal Results';
+    var revealed = false;
+    btn.addEventListener('click', function () {
+      if (btn.getAttribute('data-busy') === '1') return;
+      btn.setAttribute('data-busy', '1');
+      var isReplay = revealed;
+      if (typeof opts.onReveal === 'function') opts.onReveal(isReplay, btn);
+      revealed = true;
+      btn.textContent = opts.replayLabel || 'Replay Results';
+      btn.setAttribute('data-replay', '1');
+      btn.removeAttribute('data-busy');
+    });
+    wrap.appendChild(btn);
+    host.appendChild(wrap);
+    return btn;
+  }
+
   global.LANTERN_RESULT_REVEAL = {
     MAX_MS: MAX_MS,
     MAX_BAR_PX: MAX_BAR_PX,
@@ -1012,5 +1079,8 @@
     mountReactionSpatialRace: mountReactionSpatialRace,
     preparePollChoiceLanes: preparePollChoiceLanes,
     mineCartSvg: mineCartSvg,
+    ensureRaceAreaVisibleOnce: ensureRaceAreaVisibleOnce,
+    markPriorPollChoice: markPriorPollChoice,
+    mountRevealResultsControl: mountRevealResultsControl,
   };
 })(typeof window !== 'undefined' ? window : self);

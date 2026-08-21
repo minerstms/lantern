@@ -874,8 +874,11 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     const viewerCharacterName = (params.viewer || params.character_name || '').trim();
     const pageLimit = Math.min(EXPLORE_PAGE_SIZE, Math.max(1, parseInt(params.limit || String(EXPLORE_PAGE_SIZE), 10) || EXPLORE_PAGE_SIZE));
     const cursor = parseFeedCursor(params.cursor);
-    let items = await collectApprovedFeed(db, origin, { limit: pageLimit + 1, cursor });
+    const isFirstPage = !cursor;
+    const collectLimit = isFirstPage ? Math.min(400, Math.max(pageLimit + 1, 200)) : pageLimit + 1;
+    let items = await collectApprovedFeed(db, origin, { limit: collectLimit, cursor });
     const page = paginateFeedItems(items, params);
+    const hnOrderedItems = isFirstPage ? filterFeedItems(items, { skipLimit: true }) : null;
     let account = null;
     if (deps && typeof deps.getPilotAccountFromRequest === 'function') {
       try {
@@ -895,7 +898,7 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       accountKey: sessionKey,
       origin,
       pageSize: EXPLORE_PAGE_SIZE,
-      fetchItem: (cardId) => fetchApprovedFeedItemById(db, origin, cardId),
+      orderedItems: hnOrderedItems,
     });
     items = await attachReactionsAndComments(db, hn.items, sessionKey || viewerCharacterName);
     return feedJson({

@@ -48,7 +48,7 @@ import {
 import { handleFeedRoutes, handleTriviaRoutes, isApprovedFeedItem, isPeerShoutOutNewsSubmission } from './feed-handlers.js';
 import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar-key.js';
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
-import { cardIdForPoll, hiddenNuggetResponseFields, maybeAwardHiddenNuggetAfterInteraction } from './hidden-nugget.js';
+import { cardIdForPoll, handleHiddenNuggetRoutes, hiddenNuggetResponseFields, maybeAwardHiddenNuggetAfterInteraction } from './hidden-nugget.js';
 import { handleLockerRoutes } from './locker-handlers.js';
 import { handleMissionsRoutes } from './missions-handlers.js';
 import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './missions-auth.js';
@@ -406,6 +406,7 @@ export default {
         path.startsWith('/api/moderation') ||
         path.startsWith('/api/missions') ||
         path.startsWith('/api/feed') ||
+        path.startsWith('/api/hidden-nugget') ||
         path.startsWith('/api/trivia') ||
         path.startsWith('/api/marquee') ||
         path.startsWith('/api/locker') ||
@@ -529,6 +530,18 @@ export default {
           pilotAccountRequiresChangePassword,
         };
         return await handleFeedRoutes(request, url, path, env, feedCors, feedDeps);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
+      }
+    }
+    if (path.startsWith('/api/hidden-nugget')) {
+      try {
+        return await handleHiddenNuggetRoutes(request, url, path, env, corsForPilot(request), {
+          getPilotAccountFromRequest,
+          pilotEconomyCharacterName,
+          jsonResponse,
+        });
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
@@ -9046,6 +9059,7 @@ async function handlePollsRoutes(request, url, path, env, cors) {
         accountKey: characterName,
         cardId: cardIdForPoll(pollId),
         trigger: 'poll',
+        origin: url && url.origin,
       });
     } catch (_) {
       hiddenNugget = { found: false };

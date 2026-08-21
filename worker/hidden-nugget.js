@@ -1,13 +1,23 @@
 /**
- * Prompt #230 — Hidden Nugget daily treasure hunt.
+ * Prompt #230 / #242 / #242A — Hidden Nugget daily treasure hunt.
  *
  * One assignment per eligible student per America/Denver school day.
- * Assignment is a stable Explore card id. Discovery is an accepted poll vote
- * or finalized reaction on that card. Reward comes from economy.hidden_nugget.
+ * What stays stable that day is the student's entitlement, personalized
+ * ring seed (stored card_id), and one-claim status — not the concrete
+ * Explore card. The live target is a moving position in the first
+ * N = min(60, assignableCount) eligible Explore cards (newest-first).
+ * Already-interacted cards stay in the ring. There is no preference for
+ * new / untouched / unvoted cards, and no Hidden Nugget card is injected
+ * or pinned into Explore.
+ *
+ * Discovery is an accepted first poll vote / finalized reaction, or a
+ * verified Reveal Results on a card the student already interacted with,
+ * against the CURRENT resolved target or the stored snapshot seed.
+ * Reward comes from economy.hidden_nugget.
  *
  * Durable assignment requires lantern_hidden_nugget_assignments (see
  * docs/HIDDEN_NUGGET_MIGRATION_230.md). This module no-ops if the table is
- * missing. Do not run that migration from #230.
+ * missing. Do not run that migration from this prompt.
  */
 import { denverLocalDateYYYYMMDD, SCHOOL_SCHEDULE_TIMEZONE } from './school-schedule.js';
 import { isStaffEconomyKey } from './staff-economy.js';
@@ -25,6 +35,7 @@ export const HIDDEN_NUGGET_REACTION_TYPES = new Set([
 ]);
 
 export const HIDDEN_NUGGET_TABLE = 'lantern_hidden_nugget_assignments';
+export const HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE = 60;
 
 let tableReadyCache = null;
 
@@ -88,16 +99,21 @@ export function cardIdForPoll(pollId) {
   return raw ? `poll:${raw}` : '';
 }
 
-export function isEligibleHiddenNuggetCard(item, interactionState) {
+export function isAssignableHiddenNuggetCard(item) {
   if (!item || !item.id) return false;
+  const type = String(item.type || '').trim();
+  if (type === 'poll') return !!pollIdFromCard(item);
+  return HIDDEN_NUGGET_REACTION_TYPES.has(type);
+}
+
+export function isEligibleHiddenNuggetCard(item, interactionState) {
+  if (!isAssignableHiddenNuggetCard(item)) return false;
   const type = String(item.type || '').trim();
   if (type === 'poll') {
     const pid = pollIdFromCard(item);
-    if (!pid) return false;
     if (interactionState && interactionState.votedPollIds && interactionState.votedPollIds.has(pid)) return false;
     return true;
   }
-  if (!HIDDEN_NUGGET_REACTION_TYPES.has(type)) return false;
   if (interactionState && interactionState.reactedItemIds && interactionState.reactedItemIds.has(String(item.id))) {
     return false;
   }
@@ -106,6 +122,21 @@ export function isEligibleHiddenNuggetCard(item, interactionState) {
 
 export function eligibleHiddenNuggetCards(items, interactionState) {
   return (items || []).filter((item) => isEligibleHiddenNuggetCard(item, interactionState));
+}
+
+/**
+ * First N assignable cards in the student's current Explore order.
+ * Includes already-voted / already-reacted cards. If fewer than N exist,
+ * the pool is however many assignable cards exist.
+ */
+export function hiddenNuggetAssignmentPool(orderedItems, limit) {
+  const cap = Math.max(1, Number(limit) || HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE);
+  const out = [];
+  (orderedItems || []).forEach((item) => {
+    if (out.length >= cap) return;
+    if (isAssignableHiddenNuggetCard(item)) out.push(item);
+  });
+  return out;
 }
 
 /** Deterministic pick from a frozen first-page eligible set. Not a reroll. */
@@ -128,18 +159,87 @@ export function pickAssignedCardId(accountKey, schoolDay, eligibleItems) {
   return String(list[idx].id || '').trim();
 }
 
+export function listAssignableHiddenNuggetCards(orderedItems) {
+  if (!Array.isArray(orderedItems)) return [];
+  return orderedItems.filter(isAssignableHiddenNuggetCard);
+}
+
 /**
- * Keep natural keyset cursor. If the assigned card fell off page 1, show newest
- * 59 + the target (max 60) without changing next_cursor.
+ * Personalized 1-based slot in the current first-N assignable window.
+ * N = min(60, assignableCount). Independent per accountKey + schoolDay + N.
  */
-export function pinAssignedCardOnFirstPage(naturalItems, targetItem, pageSize) {
+export function hiddenNuggetPersonalizedPosition(accountKey, schoolDay, assignableCount) {
+  const n = Math.min(HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE, Math.max(0, Number(assignableCount) || 0));
+  if (n <= 0) return 0;
+  return stablePickIndex(accountKey, schoolDay, n) + 1;
+}
+
+/**
+ * Resolve the CURRENT first-60 ring occupant from a stored snapshot card id.
+ *
+ * storedCardId is the ring seed: the card occupying the student's
+ * personalized slot when the assignment row was created. Explore is
+ * newest-first, so a newly approved eligible card prepends and shifts
+ * existing cards down one slot. The seed's index increases; modulo 60
+ * wraps the live occupant back into the first-60 window (60 -> 1).
+ *
+ * Do not rewrite stored card_id when the live occupant changes. Leaving
+ * the original seed is the loaded-snapshot claim contract: a still-open
+ * Explore page can still win on the card the student actually loaded.
+ */
+export function resolveCurrentHiddenNuggetCardId(storedCardId, orderedItems, opts) {
+  const list = listAssignableHiddenNuggetCards(orderedItems);
+  if (!list.length) return null;
+  const stored = String(storedCardId || '').trim();
+  const idx = stored ? list.findIndex((item) => String(item.id) === stored) : -1;
+  if (idx >= 0) {
+    const current = list[idx % HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE];
+    return current && current.id ? String(current.id).trim() : null;
+  }
+  const windowN = Math.min(HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE, list.length);
+  const accountKey = String((opts && opts.accountKey) || '').trim();
+  const schoolDay = String((opts && opts.schoolDay) || '').trim();
+  if (accountKey && schoolDay) {
+    const fallback = list[stablePickIndex(accountKey, schoolDay, windowN)];
+    return fallback && fallback.id ? String(fallback.id).trim() : null;
+  }
+  return list[0] && list[0].id ? String(list[0].id).trim() : null;
+}
+
+export function hiddenNuggetFirstWindowSize(orderedItems) {
+  return Math.min(HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE, listAssignableHiddenNuggetCards(orderedItems).length);
+}
+
+export function isCardInFirstHiddenNuggetWindow(cardId, orderedItems) {
+  const id = String(cardId || '').trim();
+  if (!id) return false;
+  const list = listAssignableHiddenNuggetCards(orderedItems);
+  const windowN = Math.min(HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE, list.length);
+  const idx = list.findIndex((item) => String(item.id) === id);
+  return idx >= 0 && idx < windowN;
+}
+
+/**
+ * Claimable if the trigger is the stored snapshot seed (still-open loaded
+ * page) or the CURRENT wrapped occupant. Unrelated cards cannot claim.
+ */
+export function isHiddenNuggetClaimableTrigger(triggerCardId, storedCardId, orderedItems, opts) {
+  const trigger = String(triggerCardId || '').trim();
+  const stored = String(storedCardId || '').trim();
+  if (!trigger || !stored) return false;
+  if (trigger === stored) return true;
+  const current = resolveCurrentHiddenNuggetCardId(stored, orderedItems, opts);
+  return !!current && current === trigger;
+}
+
+/**
+ * #242A: Explore stays in natural order. Hidden Nugget is never injected
+ * or pinned. Kept as a first-page slice so callers share one entry point.
+ */
+export function pinAssignedCardOnFirstPage(naturalItems, _targetItem, pageSize) {
   const lim = Math.max(1, Number(pageSize) || 60);
   const items = Array.isArray(naturalItems) ? naturalItems.slice() : [];
-  if (!targetItem || !targetItem.id) return items.slice(0, lim);
-  if (items.some((it) => it && it.id === targetItem.id)) return items.slice(0, lim);
-  const head = items.slice(0, Math.max(0, lim - 1));
-  head.push(targetItem);
-  return head.slice(0, lim);
+  return items.slice(0, lim);
 }
 
 export async function hiddenNuggetTableReady(db) {
@@ -221,9 +321,34 @@ async function insertAssignment(db, accountKey, schoolDay, cardId, nowIso) {
   return loadAssignment(db, accountKey, schoolDay);
 }
 
+async function loadAssignableSequence(db, origin, opts) {
+  if (opts && Array.isArray(opts.orderedItems) && opts.orderedItems.length) {
+    return opts.orderedItems;
+  }
+  if (opts && typeof opts.listAssignableCards === 'function') {
+    try {
+      const listed = await opts.listAssignableCards();
+      return Array.isArray(listed) ? listed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  if (!db) return [];
+  try {
+    const feed = await import('./feed-handlers.js');
+    const collected = await feed.collectApprovedFeed(db, origin || '', { limit: 400 });
+    return feed.filterFeedItems(collected || [], { skipLimit: true });
+  } catch (_) {
+    return [];
+  }
+}
+
 /**
- * First Explore page only. Assigns from the natural first-60 eligible set.
- * Pins the assigned card into page 1 before it is found. Never leaks which card.
+ * First Explore page only. Inserts a same-day ring seed from the current
+ * top-60 assignable Explore cards (newest-first, including already-interacted
+ * cards). Existing same-day rows are never rewritten. Explore items stay in
+ * natural order — the live target is resolved at claim time, never pinned.
+ * Never leaks which card.
  */
 export async function applyFirstPageHiddenNugget(db, env, opts) {
   const page = opts && opts.page ? opts.page : { items: [], has_more: false, next_cursor: '' };
@@ -245,28 +370,15 @@ export async function applyFirstPageHiddenNugget(db, env, opts) {
   const schoolDay = denverLocalDateYYYYMMDD(now);
   let row = await loadAssignment(db, accountKey, schoolDay);
   if (!row) {
-    const interaction = await loadInteractionState(db, accountKey, account && account.username);
-    const eligible = eligibleHiddenNuggetCards(out.items, interaction);
-    const cardId = pickAssignedCardId(accountKey, schoolDay, eligible);
+    const ordered =
+      opts && Array.isArray(opts.orderedItems) && opts.orderedItems.length ? opts.orderedItems : out.items;
+    const pool = hiddenNuggetAssignmentPool(ordered, opts.poolSize || HIDDEN_NUGGET_ASSIGNMENT_POOL_SIZE);
+    const cardId = pickAssignedCardId(accountKey, schoolDay, pool);
     if (cardId) {
       row = await insertAssignment(db, accountKey, schoolDay, cardId, now.toISOString());
     }
   }
   out.assignment = row;
-  if (!row || row.claimed_at) return out;
-
-  const already = out.items.some((it) => it && it.id === row.card_id);
-  if (already) return out;
-  const fetchItem = opts && typeof opts.fetchItem === 'function' ? opts.fetchItem : null;
-  if (!fetchItem) return out;
-  let target = null;
-  try {
-    target = await fetchItem(row.card_id);
-  } catch (_) {
-    target = null;
-  }
-  if (!target) return out;
-  out.items = pinAssignedCardOnFirstPage(out.items, target, opts.pageSize || 60);
   return out;
 }
 
@@ -331,8 +443,18 @@ export async function maybeAwardHiddenNuggetAfterInteraction(db, env, opts) {
 
   const schoolDay = denverLocalDateYYYYMMDD(now);
   const assignment = await loadAssignment(db, accountKey, schoolDay);
-  if (!assignment || String(assignment.card_id) !== triggerCardId) {
-    return { ...empty, skipped: true, wrong_card: !!(assignment && assignment.card_id) };
+  if (!assignment) {
+    return { ...empty, skipped: true };
+  }
+  if (String(assignment.card_id) !== triggerCardId) {
+    const sequence = await loadAssignableSequence(db, opts && opts.origin, opts);
+    const currentId = resolveCurrentHiddenNuggetCardId(assignment.card_id, sequence, {
+      accountKey,
+      schoolDay,
+    });
+    if (!currentId || currentId !== triggerCardId) {
+      return { ...empty, skipped: true, wrong_card: true };
+    }
   }
 
   const eventKey = hiddenNuggetEventKey(accountKey, schoolDay);
@@ -445,4 +567,132 @@ export async function maybeAwardHiddenNuggetAfterInteraction(db, env, opts) {
     timezone: SCHOOL_SCHEDULE_TIMEZONE,
     economy_authority: economyAuthority,
   };
+}
+
+/**
+ * Server-side prior-interaction check. Poll votes key by economy character name;
+ * finalized reactions key by username. Client display state is ignored.
+ */
+export async function userHasPriorInteractionOnCard(db, opts) {
+  const cardId = String((opts && opts.cardId) || '').trim();
+  const accountKey = String((opts && opts.accountKey) || '').trim();
+  const username = String((opts && opts.username) || '').trim();
+  if (!cardId) return false;
+  if (cardId.indexOf('poll:') === 0) {
+    const pollId = cardId.slice(5);
+    if (!pollId || !accountKey) return false;
+    try {
+      const row = await db
+        .prepare('SELECT 1 AS ok FROM lantern_poll_votes WHERE poll_id = ? AND character_name = ? LIMIT 1')
+        .bind(pollId, accountKey)
+        .first();
+      return !!(row && (row.ok || row['1']));
+    } catch (_) {
+      return false;
+    }
+  }
+  if (!username) return false;
+  try {
+    const row = await db
+      .prepare(
+        'SELECT 1 AS ok FROM lantern_final_reaction_responses WHERE item_type = ? AND item_id = ? AND lower(trim(reactor_username)) = lower(trim(?)) LIMIT 1'
+      )
+      .bind('feed', cardId, username)
+      .first();
+    return !!(row && (row.ok || row['1']));
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Reveal Results on an already-interacted card. Presentation-only on the client.
+ * Awards only through maybeAwardHiddenNuggetAfterInteraction after D1 verifies
+ * a prior vote/reaction belonging to this user on this card.
+ */
+export async function claimHiddenNuggetViaReveal(db, env, opts) {
+  const empty = {
+    ok: false,
+    found: false,
+    already: false,
+    amount: 0,
+    discovery_recorded: false,
+    prior_verified: false,
+  };
+  const account = opts && opts.account;
+  const accountKey = String((opts && opts.accountKey) || '').trim();
+  const cardId = String((opts && opts.cardId) || '').trim();
+  if (!account) return { ...empty, error: 'Sign in required', code: 401 };
+  if (!isHiddenNuggetEligibleAccount(account, accountKey)) {
+    return { ...empty, error: 'not_eligible', code: 403, skipped_role: true };
+  }
+  if (!cardId) return { ...empty, error: 'Missing card_id', code: 400 };
+  const prior = await userHasPriorInteractionOnCard(db, {
+    cardId,
+    accountKey,
+    username: account.username,
+  });
+  if (!prior) {
+    return { ...empty, error: 'no_prior_interaction', code: 403 };
+  }
+  const result = await maybeAwardHiddenNuggetAfterInteraction(db, env, {
+    account,
+    accountKey,
+    cardId,
+    trigger: 'reveal',
+    now: opts && opts.now,
+    origin: opts && opts.origin,
+    orderedItems: opts && opts.orderedItems,
+    listAssignableCards: opts && opts.listAssignableCards,
+  });
+  return {
+    ok: true,
+    ...result,
+    prior_verified: true,
+    code: 200,
+  };
+}
+
+export async function handleHiddenNuggetRoutes(request, url, path, env, cors, deps) {
+  const jsonResponse = deps && deps.jsonResponse;
+  if (!jsonResponse) return null;
+  if (request.method === 'POST' && path === '/api/hidden-nugget/reveal-claim') {
+    const db = env && env.DB;
+    if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
+    const getAccount = deps.getPilotAccountFromRequest;
+    let account = null;
+    try {
+      account = getAccount ? await getAccount(request, env) : null;
+    } catch (_) {
+      account = null;
+    }
+    if (!account) return jsonResponse({ ok: false, error: 'Sign in required' }, 401, cors);
+    const accountKey =
+      deps.pilotEconomyCharacterName && typeof deps.pilotEconomyCharacterName === 'function'
+        ? String(deps.pilotEconomyCharacterName(account) || '').trim()
+        : String(account.username || '').trim();
+    let body;
+    try {
+      body = JSON.parse(await request.text() || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const result = await claimHiddenNuggetViaReveal(db, env, {
+      account,
+      accountKey,
+      cardId: (body && body.card_id) || '',
+      origin: url && url.origin,
+    });
+    return jsonResponse(
+      {
+        ok: !!result.ok,
+        error: result.error || undefined,
+        prior_verified: !!result.prior_verified,
+        ...hiddenNuggetResponseFields(result),
+      },
+      result.code || (result.ok ? 200 : 400),
+      cors
+    );
+  }
+  return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
