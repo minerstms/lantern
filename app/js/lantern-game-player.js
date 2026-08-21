@@ -80,16 +80,24 @@
 
   function lockScroll() {
     state.scrollY = global.scrollY || global.document.documentElement.scrollTop || 0;
-    global.document.body.classList.add('lantern-game-player-scroll-lock');
-    global.document.body.style.top = '-' + state.scrollY + 'px';
+    if (global.LanternInteractiveSurface && typeof global.LanternInteractiveSurface.lockPage === 'function') {
+      global.LanternInteractiveSurface.lockPage();
+    } else {
+      global.document.body.classList.add('lantern-game-player-scroll-lock');
+      global.document.body.style.top = '-' + state.scrollY + 'px';
+    }
     global.document.body.classList.add('lantern-game-player-active');
   }
 
   function unlockScroll() {
-    global.document.body.classList.remove('lantern-game-player-scroll-lock');
+    if (global.LanternInteractiveSurface && typeof global.LanternInteractiveSurface.unlockPage === 'function') {
+      global.LanternInteractiveSurface.unlockPage();
+    } else {
+      global.document.body.classList.remove('lantern-game-player-scroll-lock');
+      global.document.body.style.top = '';
+      global.scrollTo(0, state.scrollY);
+    }
     global.document.body.classList.remove('lantern-game-player-active');
-    global.document.body.style.top = '';
-    global.scrollTo(0, state.scrollY);
   }
 
   function reparentToStage(surface) {

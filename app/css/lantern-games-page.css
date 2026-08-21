@@ -427,7 +427,7 @@
   z-index: 10200;
   background: rgba(0, 0, 0, 0.65);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 1.5rem;
 }
@@ -446,6 +446,17 @@
   border: 2px solid rgba(255, 255, 255, 0.15);
   border-radius: 18px;
   padding: 1.25rem;
+}
+
+.gamesLbModal.lanternInteractiveSurface {
+  align-items: flex-start;
+}
+
+.gamesLbModalPanel.lanternInteractiveSurfaceContent {
+  max-height: none;
+  overflow: visible;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .gamesLbModalTitle {

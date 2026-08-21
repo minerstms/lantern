@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
   <link rel="stylesheet" href="css/lantern-feed.css">
+  <link rel="stylesheet" href="css/lantern-interactive-surface.css">
   <link rel="stylesheet" href="css/lantern-games-page.css">
   <link rel="stylesheet" href="css/lantern-game-player.css?v=277">
   <link rel="stylesheet" href="css/lantern-minecart-switch.css">
@@ -612,29 +613,24 @@
     .cultureGameOverlay .resultMsg{ font-size: 28px; font-weight: 900; text-align: center; margin: 20px 0; }
     .cultureGameOverlay .resultMsg.win{ color: var(--good); }
     .cultureGameOverlay .avatarMatchResultScore{ font-size: 32px; margin-top: 12px; color: var(--warn); }
+    /* Prompt #245 — Avatar Match uses the universal surface. Overlay/stage is the
+       one vertical scroll owner; question + four choices stay in normal document flow.
+       Do not reintroduce overflow:hidden / 100dvh height traps on this shell. */
     .cultureGameOverlay.is-avatar-match{
-      overflow: hidden;
-      height: 100%;
-      max-height: 100%;
-      height: 100dvh;
-      max-height: 100dvh;
-      justify-content: stretch;
+      justify-content: flex-start;
     }
     .cultureGameOverlay.is-avatar-match .overlayTop{ display: none; }
     .cultureGameOverlay.is-avatar-match .gameBody{
-      flex: 1 1 auto;
-      min-height: 0;
       max-width: min(100%, 720px);
-      overflow: hidden;
+      overflow: visible;
       display: flex;
       flex-direction: column;
     }
     .cultureGameOverlay.is-avatar-match .avatarMatchShell{
       display: flex;
       flex-direction: column;
-      min-height: 0;
-      height: 100%;
-      gap: 8px;
+      height: auto;
+      gap: 12px;
       box-sizing: border-box;
     }
     .cultureGameOverlay.is-avatar-match .avatarMatchPrompt{ margin-bottom: 0; font-size: clamp(22px, 3.4vh, 26px); }
@@ -648,14 +644,13 @@
     .cultureGameOverlay.is-avatar-match .avatarMatchChoices{
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      min-height: 0;
-      overflow: hidden;
+      gap: 10px;
+      overflow: visible;
     }
     .cultureGameOverlay.is-avatar-match .choiceBtn{
       margin-bottom: 0;
-      padding: 12px 16px;
-      font-size: clamp(22px, 2.8vh, 24px);
+      padding: 18px 24px;
+      font-size: 24px;
       min-height: 48px;
     }
     .cultureGameOverlay.is-avatar-match .avatarMatchFeedback{
@@ -706,10 +701,6 @@
     @media (max-width: 420px){
       .avatarMatchModeGrid{ grid-template-columns: 1fr; }
       .cultureGameOverlay.is-avatar-match .avatarMatchImgWrap{ width: min(34vw, 140px); height: min(34vw, 140px); }
-    }
-    @media (max-height: 520px), (max-width: 320px){
-      .cultureGameOverlay.is-avatar-match,
-      .cultureGameOverlay.is-avatar-match .gameBody{ overflow: auto; }
     }
 
     /* Prompt #99 — shared, lightweight feedback polish for the seven non-Hunt games. Reuses the
@@ -984,8 +975,8 @@
       </div>
     </section>
 
-    <div id="gamesLbModal" class="gamesLbModal" hidden>
-      <div class="gamesLbModalPanel" role="dialog" aria-labelledby="gamesLbModalTitle">
+    <div id="gamesLbModal" class="gamesLbModal lanternInteractiveSurface lanternInteractiveSurface--overlay" hidden>
+      <div class="gamesLbModalPanel lanternInteractiveSurfaceContent" role="dialog" aria-labelledby="gamesLbModalTitle">
         <h2 id="gamesLbModalTitle" class="gamesLbModalTitle">Leaderboard</h2>
         <div id="gamesLbModalBody"></div>
         <p id="gamesLbModalYou" class="gamesLbModalYou"></p>
@@ -1120,13 +1111,13 @@
       </div>
     </div>
     <!-- Culture games shared overlay -->
-    <div class="cultureGameOverlay lanternOverlayBelowNav" id="cultureGameOverlay">
+    <div class="cultureGameOverlay lanternOverlayBelowNav lanternInteractiveSurface" id="cultureGameOverlay">
       <div class="overlayTop">
         <span class="overlayTitle" id="cultureGameOverlayTitle">Game</span>
         <span class="overlayScore" id="cultureGameOverlayScore"></span>
         <button type="button" class="overlayBackBtn" id="cultureGameOverlayBackBtn">Back</button>
       </div>
-      <div class="gameBody" id="cultureGameBody"></div>
+      <div class="gameBody lanternInteractiveSurfaceContent" id="cultureGameBody"></div>
     </div>
   </div>
 
@@ -1141,7 +1132,7 @@
         </div>
         <button type="button" id="lanternGamePlayerExit" class="lanternGamePlayerExit" aria-label="Exit Game">× Exit Game</button>
       </div>
-      <div id="lanternGamePlayerPregame" class="lanternGamePlayerPregame" hidden>
+      <div id="lanternGamePlayerPregame" class="lanternGamePlayerPregame lanternInteractiveSurface" hidden>
         <div class="lanternGamePlayerHero">
           <img id="lanternGamePlayerHeroImg" class="lanternGamePlayerHeroImg" alt="" hidden>
         </div>
@@ -1151,7 +1142,7 @@
         <p id="lanternGamePlayerPregameStatus" class="lanternGamePlayerPregameStatus" role="status" aria-live="polite" hidden></p>
         <button type="button" id="lanternGamePlayerStartBtn" class="lanternGamePlayerStartBtn">Start</button>
       </div>
-      <div id="lanternGamePlayerStage" class="lanternGamePlayerStage"></div>
+      <div id="lanternGamePlayerStage" class="lanternGamePlayerStage lanternInteractiveSurface"></div>
     </div>
   </div>
 
@@ -1176,6 +1167,7 @@
   <script src="js/lantern-avatar-match.js"></script>
   <script src="js/lantern-educational-trivia-missions.js"></script>
   <script src="js/lantern-games-paid-start.js"></script>
+  <script src="js/lantern-interactive-surface.js"></script>
   <script src="js/lantern-game-player.js"></script>
   <script src="js/lantern-games-page.js"></script>
   <script src="js/lantern-feed-api.js"></script>
