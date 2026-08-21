@@ -46,5 +46,6 @@ DROP TABLE IF EXISTS lantern_hidden_nugget_assignments;
 ## Other
 
 - Backfill: none
-- Routes: `GET /api/feed` (first page assign/pin), `POST /api/polls/vote`, `POST /api/reactions/finalize`
+- Routes: `GET /api/feed` (first page assign; #242A moving position, no pin), `POST /api/polls/vote`, `POST /api/reactions/finalize`, `POST /api/hidden-nugget/reveal-claim`
+- #242A storage: `card_id` is the daily ring seed (snapshot occupant at insert). The live target is resolved at read/claim time as `index(seed) % 60` in the current newest-first assignable sequence. Do not encode a position integer into `card_id`. No schema change.
 - Privacy: rows store economy account key + Explore card id + school day. No student popularity ranking. Staff/admin/operator are never assigned.

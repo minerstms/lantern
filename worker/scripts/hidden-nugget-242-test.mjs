@@ -211,7 +211,7 @@ assert(
     hundred.slice(0, 60).some((c) => c.id === first.assignment.card_id) &&
     first.assignment.card_id !== 'news:n60' &&
     first.assignment.card_id !== 'news:n99',
-  '3. refresh/reload keeps the same-day assignment inside the original top 60'
+  '3. refresh/reload keeps the same-day ring seed (stored card_id) from the original top 60'
 );
 
 const assignedId = first.assignment.card_id;

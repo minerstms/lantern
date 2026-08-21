@@ -9059,6 +9059,7 @@ async function handlePollsRoutes(request, url, path, env, cors) {
         accountKey: characterName,
         cardId: cardIdForPoll(pollId),
         trigger: 'poll',
+        origin: url && url.origin,
       });
     } catch (_) {
       hiddenNugget = { found: false };

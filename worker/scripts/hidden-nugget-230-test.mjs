@@ -182,11 +182,11 @@ else bad('empty pick');
 const pageItems = Array.from({ length: 60 }, (_, i) => ({ id: 'news:n' + i, type: 'news' }));
 const target = { id: 'news:old80', type: 'news' };
 const pinned = pinAssignedCardOnFirstPage(pageItems, target, 60);
-if (pinned.length === 60 && pinned.some((it) => it.id === 'news:old80') && pinned[0].id === 'news:n0') {
-  ok('target remains in first page before found; still maximum 60 cards');
+if (pinned.length === 60 && !pinned.some((it) => it.id === 'news:old80') && pinned[0].id === 'news:n0') {
+  ok('off-page assigned card is not pinned/injected into first page');
 } else bad('pin', { len: pinned.length, has: pinned.some((it) => it.id === 'news:old80') });
 const afterFound = pinAssignedCardOnFirstPage(pageItems, null, 60);
-if (afterFound.length === 60 && !afterFound.some((it) => it.id === 'news:old80')) ok('after found, pin helper does not inject');
+if (afterFound.length === 60 && !afterFound.some((it) => it.id === 'news:old80')) ok('pin helper never injects an off-page card');
 else bad('no pin after found');
 
 resetHiddenNuggetTableCache();
