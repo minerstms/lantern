@@ -32,9 +32,10 @@
       flex-wrap: wrap;
       gap: 8px;
       padding: 12px;
-      position: relative;
-      z-index: 1;
     }
+    /* Keep harness controls in their own strip so they never cover answers. */
+    #lanternGamePlayerOverlay { top: 210px; }
+    #missionDetailOverlay, #gamesLbModal { top: 210px; }
     .harnessBar button {
       font-size: 22px;
       font-weight: 800;
