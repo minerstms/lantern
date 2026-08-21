@@ -584,7 +584,11 @@
     var youEl = el('gamesLbModalYou');
     if (!overlay || !body) return;
     if (youEl) youEl.textContent = '';
+    var wasHidden = overlay.hidden;
     overlay.hidden = false;
+    if (wasHidden && global.LanternInteractiveSurface && typeof global.LanternInteractiveSurface.lockPage === 'function') {
+      global.LanternInteractiveSurface.lockPage();
+    }
     if (game.id === 'avatar-match' || game.name === 'Avatar Match') {
       var startMode = String((opts && opts.amMode) || state.amModalMode || '10').trim().toLowerCase() || '10';
       if (opts && opts.amQuestions) state.amEligibleCount = Math.max(state.amEligibleCount, Math.floor(Number(opts.amQuestions) || 0));
@@ -873,18 +877,27 @@
     }
   }
 
+  function closeFullLeaderboard() {
+    var overlay = el('gamesLbModal');
+    if (!overlay || overlay.hidden) return;
+    overlay.hidden = true;
+    if (global.LanternInteractiveSurface && typeof global.LanternInteractiveSurface.unlockPage === 'function') {
+      global.LanternInteractiveSurface.unlockPage();
+    }
+  }
+
   function wireModal() {
     var overlay = el('gamesLbModal');
     var closeBtn = el('gamesLbModalClose');
     var body = el('gamesLbModalBody');
     if (closeBtn && overlay) {
       closeBtn.addEventListener('click', function () {
-        overlay.hidden = true;
+        closeFullLeaderboard();
       });
     }
     if (overlay) {
       overlay.addEventListener('click', function (e) {
-        if (e.target === overlay) overlay.hidden = true;
+        if (e.target === overlay) closeFullLeaderboard();
       });
     }
     if (body && !body._amDivWired) {

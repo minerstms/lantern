@@ -188,8 +188,12 @@ if (gamesCss.includes('.gamesAmDivisions') && gamesCss.includes('flex-wrap: wrap
   ok('phone layout wraps leaderboard divisions without page overflow');
 } else bad('lb responsive css');
 
-if (gamesHtml.includes('is-avatar-match') && gamesHtml.includes('overflow: hidden') && gamesHtml.includes('100dvh')) {
-  ok('modal shell hides normal overflow and uses dvh');
+if (
+  gamesHtml.includes('is-avatar-match') &&
+  gamesHtml.includes('lanternInteractiveSurface') &&
+  !/\.cultureGameOverlay\.is-avatar-match\{[\s\S]*?overflow:\s*hidden/.test(gamesHtml)
+) {
+  ok('Avatar Match uses the universal surface; no overflow:hidden zoom trap');
 } else bad('modal css');
 
 if (poolJs.includes('buildAvatarMatchCharacters') && workerIndex.includes('loadPublicAvatarKeyMap') && workerIndex.includes('expandPublicAvatarAliases')) {
