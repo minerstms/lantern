@@ -184,24 +184,70 @@ export function isGeppettoStudentAuthorizePath(raw) {
   return pathOnly === '/api/auth/geppetto-student-authorize';
 }
 
+export function isMakeupQueryFlag(raw) {
+  const s = String(raw || '');
+  try {
+    return new URL(s, 'https://mrradle.us').searchParams.get('makeup') === '1';
+  } catch (_) {
+    return /(?:^|[?&])makeup=1(?:&|#|$)/.test(s);
+  }
+}
+
+/** Unwrap authorize?return=… then read callback next. Makeup only when next has makeup=1. */
+export function classWebsiteSsoPurposeFromReturn(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return 'class-website';
+  let candidate = s;
+  try {
+    const base = s.indexOf('://') >= 0 ? s : 'https://tmslantern.org' + (s.charAt(0) === '/' ? s : '/' + s);
+    const u = new URL(base);
+    if (isGeppettoStudentAuthorizePath(u.pathname)) {
+      candidate = String(u.searchParams.get('return') || '').trim();
+    }
+  } catch (_) {
+    /* keep candidate */
+  }
+  let next = '';
+  if (!candidate) return 'class-website';
+  try {
+    const cb = new URL(candidate);
+    next =
+      cb.pathname === '/api/stem-daily/student/lantern-callback'
+        ? String(cb.searchParams.get('next') || '')
+        : cb.pathname + cb.search + cb.hash;
+  } catch (_) {
+    next = candidate.charAt(0) === '/' ? candidate : '';
+  }
+  return isMakeupQueryFlag(next) ? 'makeup' : 'class-website';
+}
+
+export function isGeppettoMakeupReturn(raw) {
+  return classWebsiteSsoPurposeFromReturn(raw) === 'makeup';
+}
+
 export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) {
+  const makeup = isGeppettoMakeupReturn(retryHref);
   const messages = {
     return_not_allowed: 'This sign-in link is not valid. Return to the class website and try Student Sign In again.',
     lantern_account_not_student: 'This sign-in is for student accounts only.',
     lantern_account_disabled: 'This student account is inactive. Ask your teacher for help.',
-    missing_roster_id:
-      'This student account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using Make Up Assignment.',
+    missing_roster_id: makeup
+      ? 'This student account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using Make Up Assignment.'
+      : 'This student account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using the class website.',
     mint_failed: 'Could not finish Student Sign In. Return to the class website and try again.',
     handoff_unavailable: 'Student Sign In is temporarily unavailable. Try again shortly.',
   };
   const msg = messages[errorCode] || 'Could not finish Student Sign In. Ask your teacher for help.';
   const retry = isGeppettoStudentAuthorizePath(retryHref) ? String(retryHref) : '';
+  const heading = makeup ? 'Could not continue to Make Up Assignment' : 'Could not continue to Class Website';
   const links =
     '<a href="https://mrradle.us">Back to Class Website</a>' +
     (retry ? ' · <a href="' + retry.replace(/"/g, '') + '">Try Again</a>' : '');
   const html =
     '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Student Sign In</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
-    '<h1 style="font-size:28px;">Could not continue to Make Up Assignment</h1><p style="font-size:20px;">' +
+    '<h1 style="font-size:28px;">' +
+    heading +
+    '</h1><p style="font-size:20px;">' +
     msg +
     '</p><p style="font-size:18px;">' +
     links +

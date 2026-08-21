@@ -9,6 +9,8 @@ import worker from '../index.js';
 import {
   sanitizeGeppettoStudentReturn,
   redeemGeppettoStudentHandoff,
+  classWebsiteSsoPurposeFromReturn,
+  isGeppettoMakeupReturn,
   GEPPETTO_STUDENT_AUDIENCE,
 } from '../geppetto-student-handoff.js';
 import { hashOpaqueSecret } from '../device-enrollment.js';
@@ -21,6 +23,8 @@ function bad(label, detail) { fail++; console.error('FAIL', label, detail != nul
 const TEST_PILOT_SECRET = 'test-secret-not-a-real-pilot-session-secret';
 const TEST_GEPPETTO_BRIDGE = 'test-geppetto-bridge-secret-not-real';
 const SAFE_RETURN = 'https://mrradle.us/api/stem-daily/student/lantern-callback?next=%2Fdigital-art.html';
+const SAFE_MAKEUP_RETURN =
+  'https://mrradle.us/api/stem-daily/student/lantern-callback?next=' + encodeURIComponent('/?makeup=1');
 
 function b64url(bytes) {
   let bin = '';
@@ -192,6 +196,7 @@ async function testMissingRosterFails() {
   const text = await res.text();
   if (res.status === 302) return bad('missing roster must not mint', res.headers.get('Location'));
   if (!/not linked to a school student ID/i.test(text)) return bad('missing roster should explain link needed', text.slice(0, 200));
+  if (/Make Up Assignment/.test(text)) return bad('generic missing roster must not mention Make Up', text.slice(0, 240));
   ok('2. student without mtss_student_id cannot mint');
 }
 
@@ -202,8 +207,15 @@ async function testTeacherAdminFailClosed() {
     const acc = account({ username: role + '1', role, mtss_student_id: '999' });
     state.accounts[acc.username] = acc;
     const res = await authorize(env, await cookieFor(acc), SAFE_RETURN);
+    const text = await res.text();
     if (res.status === 302 && (res.headers.get('Location') || '').includes('code=')) {
       return bad(role + ' must not mint student handoff', res.headers.get('Location'));
+    }
+    if (/Could not continue to Make Up Assignment/.test(text)) {
+      return bad(role + ' generic authorize must not use Make Up heading', text.slice(0, 240));
+    }
+    if (!/Could not continue to Class Website/.test(text) || !/student accounts only/i.test(text)) {
+      return bad(role + ' generic authorize must use Class Website student-only copy', text.slice(0, 240));
     }
   }
   ok('3. teacher/admin cannot mint student handoff');
@@ -310,9 +322,7 @@ async function testStaffRoutesUnchanged() {
 }
 
 async function testNoSessionRedirectsToLogin() {
-  const makeupReturn =
-    'https://mrradle.us/api/stem-daily/student/lantern-callback?next=' +
-    encodeURIComponent('/?makeup=1');
+  const makeupReturn = SAFE_MAKEUP_RETURN;
   const env = makeEnv({});
   const res = await authorize(env, '', makeupReturn);
   const loc = res.headers.get('Location') || '';
@@ -332,6 +342,24 @@ async function testNoSessionRedirectsToLogin() {
     return bad('4. makeup callback must survive login return', authorizeReturn);
   }
   ok('4. no session preserves authorize + makeup return through login');
+
+  const generic = await authorize(makeEnv({}), '', SAFE_RETURN);
+  const genericLoc = generic.headers.get('Location') || '';
+  if (generic.status !== 302 || !genericLoc.startsWith('/login.html?return=')) {
+    return bad('generic no session must redirect to login', { status: generic.status, genericLoc });
+  }
+  const genericLogin = new URL(genericLoc, 'https://tmslantern.org');
+  if (genericLogin.searchParams.get('intent') !== 'class-website') {
+    return bad('generic login must mark class-website intent', genericLoc);
+  }
+  const genericReturn = genericLogin.searchParams.get('return') || '';
+  if (!genericReturn.startsWith('/api/auth/geppetto-student-authorize?return=')) {
+    return bad('generic login return must resume authorize', genericReturn);
+  }
+  if (/makeup=1/.test(genericReturn) || /makeup=1/.test(decodeURIComponent(genericReturn))) {
+    return bad('generic Student Login must not introduce makeup=1', genericReturn);
+  }
+  ok('4b. generic class-website login resumes authorize without makeup=1');
 }
 
 async function testFailurePageNeutralCopy() {
@@ -345,7 +373,36 @@ async function testFailurePageNeutralCopy() {
   if (!/Back to Class Website/.test(text) || !/https:\/\/mrradle\.us/.test(text)) {
     return bad('failure page must offer Back to Class Website', text.slice(0, 240));
   }
+  if (/Could not continue to Make Up Assignment/.test(text)) {
+    return bad('unsafe return failure must not use Make Up heading', text.slice(0, 240));
+  }
   ok('11. authorize failure stays neutral and returns to mrradle.us');
+}
+
+async function testPurposeAwareFailureCopy() {
+  if (classWebsiteSsoPurposeFromReturn(SAFE_RETURN) !== 'class-website') {
+    return bad('generic callback purpose must be class-website');
+  }
+  if (!isGeppettoMakeupReturn(SAFE_MAKEUP_RETURN) || classWebsiteSsoPurposeFromReturn(SAFE_MAKEUP_RETURN) !== 'makeup') {
+    return bad('makeup callback purpose must be makeup');
+  }
+  const authorizeSelf =
+    '/api/auth/geppetto-student-authorize?return=' + encodeURIComponent(SAFE_MAKEUP_RETURN);
+  if (!isGeppettoMakeupReturn(authorizeSelf)) return bad('authorize wrapper must still detect makeup next');
+
+  const state = {};
+  const env = makeEnv(state);
+  const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: '999' });
+  state.accounts[staff.username] = staff;
+  const makeupRes = await authorize(env, await cookieFor(staff), SAFE_MAKEUP_RETURN);
+  const makeupText = await makeupRes.text();
+  if (makeupRes.status === 302 && (makeupRes.headers.get('Location') || '').includes('code=')) {
+    return bad('staff makeup authorize must not mint', makeupRes.headers.get('Location'));
+  }
+  if (!/Could not continue to Make Up Assignment/.test(makeupText) || !/student accounts only/i.test(makeupText)) {
+    return bad('explicit Make Up staff failure must keep Make Up heading', makeupText.slice(0, 240));
+  }
+  ok('3b. staff Make Up authorize stays rejected with Make Up wording');
 }
 
 async function testLoginPagesPreserveAuthorize() {
@@ -355,8 +412,23 @@ async function testLoginPagesPreserveAuthorize() {
   if (!authJs.includes('function isGeppettoStudentAuthorizeReturn')) {
     return bad('login helper must recognize geppetto authorize return');
   }
-  if (!login.includes('Student Sign In') || !login.includes('Sign in to continue to your Make Up Assignment.')) {
-    return bad('class-website login copy missing');
+  if (!login.includes('Student Sign In') || !login.includes('Sign in to continue to Class Website.')) {
+    return bad('generic class-website login copy missing');
+  }
+  if (!login.includes('Sign in to continue to your Make Up Assignment.')) {
+    return bad('explicit Make Up login copy missing');
+  }
+  if (!login.includes('isGeppettoMakeupReturn')) {
+    return bad('login must choose copy from makeup purpose');
+  }
+  if (!change.includes('Choose a new password to continue to Class Website.')) {
+    return bad('generic change-password copy missing');
+  }
+  if (!change.includes('Choose a new password to continue to your Make Up Assignment.')) {
+    return bad('explicit Make Up change-password copy missing');
+  }
+  if (!authJs.includes('function isGeppettoMakeupReturn') || !authJs.includes('function classWebsiteSignInSubtitle')) {
+    return bad('shared purpose helper missing');
   }
   if (!login.includes('isClassWebsiteSsoReturn') || !login.includes('location.replace(returnTo)')) {
     return bad('login must hard-preserve authorize return');
@@ -423,6 +495,7 @@ await testReturnAllowlist();
 await testStaffRoutesUnchanged();
 await testNoSessionRedirectsToLogin();
 await testFailurePageNeutralCopy();
+await testPurposeAwareFailureCopy();
 await testLoginPagesPreserveAuthorize();
 
 console.log(pass + ' passed, ' + fail + ' failed');
