@@ -59,7 +59,7 @@ assert(/data-race-kind', 'poll-minecart'/.test(pollFn), 'poll race kind unchange
 assert(/submitPollChoice/.test(cardUi) && !/textContent = 'Lock In'/.test(cardUi), 'tap still submits immediately');
 assert(!/18 votes|12 reactions|23 responses/.test(pollFn + cardUi), 'percentage-only: no raw counts');
 
-assert(/layoutHold/.test(rxFn) && /hold - h/.test(rxFn) && /lanternRxRaceStage/.test(rxFn), 'reaction race geometry unchanged');
+assert(/lanternRxRaceStage/.test(rxFn) && /bar\.style\.height = h \+ 'px'/.test(rxFn) && !/hold - h/.test(rxFn), 'reaction bars still grow; icons no longer ride hold - h');
 assert(/attachFloatingMuteToolbar/.test(audioSrc) && /lanternRaceToolbar--poll/.test(cardsCss), 'floating Sound control kept');
 assert(/C_MAJOR_HZ/.test(audioSrc) && /MAX_MS = 3000/.test(revealSrc), 'audio + timing unchanged');
 assert(/\.lanternRaceToolbar--rx/.test(rxCss), 'reaction Sound CSS unchanged');

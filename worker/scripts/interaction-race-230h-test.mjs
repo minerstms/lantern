@@ -44,9 +44,9 @@ assert(!/\.scrollTo\s*\(/.test(rxFn) && !/scrollIntoView/.test(rxFn), 'race does
 assert(/ensureScrollRoom/.test(rxFn) && /paddingBottom/.test(rxFn), 'tall races may add bottom padding without moving scrollTop');
 assert(/applyStageHeight/.test(rxFn) && /syncRaceStage/.test(rxFn), 'in-flow stage height still reserved as bars grow');
 
-assert(/hold - h/.test(rxFn) && /layoutHold/.test(rxFn) && /captureLayoutHold/.test(rxFn), 'icon no-drop: hold - h ride preserved');
-assert(/startRects/.test(rxFn) && /startTop/.test(rxFn), 'icons still begin from the tapped row');
-assert(/bar\.style\.height = h \+ 'px'/.test(rxFn), 'bars still grow by measured height');
+assert(!/hold - h/.test(rxFn) && !/layoutHold/.test(rxFn) && !/captureLayoutHold/.test(rxFn), 'icons stay put; no hold - h ride');
+assert(/bar\.style\.height = h \+ 'px'/.test(rxFn) && !/btn\.style\.transform = 'translateY/.test(rxFn), 'bars grow by measured height; icons are not translated');
+assert(/parentChoices\.nextSibling/.test(rxFn), 'growth is allocated after the tapped icon row');
 assert(!/min-height:\s*252px/.test(rxCss), 'does not revive the 252px icon-drop baseline');
 
 assert(/lanternRaceToolbar--rx/.test(rxFn) && /data-rx-sound-float/.test(rxFn), 'Sound still marked floating');
@@ -73,7 +73,7 @@ assert(
   overlayRx && overlayRx[0].lastIndexOf('border-top:') > overlayRx[0].lastIndexOf('border:'),
   'opened-post reaction top border stays removed after the border shorthand'
 );
-assert(/rxscroll230h/.test(explore), 'Explore cache-busts cards + reaction CSS for #230H');
+assert(/rxlayout247/.test(explore), 'Explore cache-busts cards + reaction CSS for #247');
 
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 assert(/data-race-kind', 'poll-minecart'/.test(pollFn), 'poll race kind unchanged');

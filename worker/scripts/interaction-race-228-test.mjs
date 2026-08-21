@@ -50,11 +50,11 @@ assert(/lanternMineCartSvg/.test(revealSrc) && /viewBox="0 0 48 36"/.test(reveal
 assert(!/🛒|🏎️/.test(revealSrc), 'no emoji cart/car');
 assert(/data-race-kind', 'poll-minecart'/.test(revealSrc) || /poll-minecart/.test(revealSrc), 'horizontal poll race kind');
 assert(/data-race-kind', 'reaction-spatial'/.test(revealSrc) || /reaction-spatial/.test(revealSrc), 'vertical reaction race kind');
-assert(/layoutHold/.test(revealSrc) && /startTop/.test(revealSrc) && /getBoundingClientRect/.test(revealSrc), 'pre-race icon Y captured before layout');
-assert(/hold - h/.test(revealSrc) || /layoutHold \|\| 0/.test(revealSrc), 'icon Y = startY - barHeight');
-assert(/function measureRide/.test(revealSrc) && /barFromBottom/.test(revealSrc), 'bar bottom pinned to icon rest position');
-assert(/lanternRxRaceStage/.test(revealSrc) && /data-rx-race-stage/.test(revealSrc), 'reserved race stage inserted above icon row');
-assert(/raceStageHeight/.test(revealSrc) && /applyStageHeight/.test(revealSrc) && /syncRaceStage/.test(revealSrc), 'raceStageHeight grows with tallest bar');
+assert(!/hold - h/.test(revealSrc) && !/layoutHold/.test(revealSrc), 'icons no longer translate with bar height');
+assert(!/function measureRide/.test(revealSrc) && !/barFromBottom/.test(revealSrc), 'bars no longer pin to a moving icon floor');
+assert(/lanternRxRaceStage/.test(revealSrc) && /data-rx-race-stage/.test(revealSrc), 'race stage marker still present');
+assert(/parentChoices\.nextSibling/.test(revealSrc), 'allocated growth sits after the icon row');
+assert(/raceStageHeight/.test(revealSrc) && /applyStageHeight/.test(revealSrc) && /syncRaceStage/.test(revealSrc), 'tallest bar still tracked as the race grows');
 assert(!/lockIconFloor/.test(revealSrc) && !/scrollTop\s*\+=/.test(revealSrc), 'race loop does not write overlay scrollTop');
 assert(/cart\.style\.left = p \+ '%'/.test(revealSrc), 'cart left follows leading edge');
 assert(!/min-height:\s*252px/.test(rxCss), 'racing CSS does not drop icons to a 252px baseline');

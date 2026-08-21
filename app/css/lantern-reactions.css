@@ -238,7 +238,7 @@
   margin-bottom: 14px;
   width: 100%;
   box-sizing: border-box;
-  align-items: end;
+  align-items: start;
   overflow: visible;
 }
 .lanternRxLane{
@@ -246,22 +246,24 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-height: 64px;
   overflow: visible;
 }
 .lanternRxRaceBar{
-  position: absolute;
-  left: 50%;
-  bottom: 8px;
+  position: relative;
+  left: auto;
+  bottom: auto;
   width: 14px;
   height: 0;
-  margin-left: -7px;
+  margin: 6px 0 0;
+  flex: 0 0 auto;
+  align-self: center;
   border-radius: 8px 8px 3px 3px;
   background: linear-gradient(180deg, #7ec2ff 0%, #3b82f6 55%, #1d4ed8 100%);
   z-index: 1;
   pointer-events: none;
-  transform-origin: bottom center;
+  transform-origin: top center;
 }
 .lanternRxLane--yours .lanternRxRaceBar{
   background: linear-gradient(180deg, #6ee7a8 0%, #22c55e 55%, #15803d 100%);

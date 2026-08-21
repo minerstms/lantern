@@ -630,12 +630,6 @@
       }
     }
 
-    var startRects = [];
-    for (var s = 0; s < buttons.length; s++) {
-      var r0 = buttons[s].getBoundingClientRect();
-      startRects.push({ top: r0.top, left: r0.left, width: r0.width, height: r0.height });
-    }
-
     var byType = {};
     rows.forEach(function (r) {
       if (r.type) byType[r.type] = r;
@@ -662,7 +656,10 @@
         bar.className = 'lanternRxRaceBar';
         bar.setAttribute('data-race-fill', '');
         bar.setAttribute('aria-hidden', 'true');
-        lane.insertBefore(bar, lane.firstChild);
+      }
+      if (bar.parentNode !== lane || btn.nextSibling !== bar) {
+        if (btn.nextSibling) lane.insertBefore(bar, btn.nextSibling);
+        else lane.appendChild(bar);
       }
       var pctEl = lane.querySelector('[data-race-pct]');
       if (!pctEl) {
@@ -684,9 +681,6 @@
         pctEl: pctEl,
         lane: lane,
         row: row,
-        barFromBottom: 8,
-        startTop: startRects[i] ? startRects[i].top : 0,
-        layoutHold: 0,
       });
     }
 
@@ -708,16 +702,12 @@
       stage.setAttribute('aria-hidden', 'true');
       var arena = panel.querySelector('.lanternFinalRxRaceArena');
       if (arena && parentChoices && parentChoices.parentNode === arena) {
-        arena.insertBefore(stage, parentChoices);
+        if (parentChoices.nextSibling) arena.insertBefore(stage, parentChoices.nextSibling);
+        else arena.appendChild(stage);
       } else if (parentChoices && parentChoices.parentNode) {
-        parentChoices.parentNode.insertBefore(stage, parentChoices);
+        parentChoices.parentNode.insertBefore(stage, parentChoices.nextSibling);
       } else {
-        var heading = panel.querySelector('.lanternFinalRxHeading');
-        if (heading && heading.nextSibling) {
-          panel.insertBefore(stage, heading.nextSibling);
-        } else {
-          panel.appendChild(stage);
-        }
+        panel.appendChild(stage);
       }
     }
     stage.style.height = '0px';
@@ -773,7 +763,7 @@
       if (next !== raceStageHeight) {
         var grew = next - raceStageHeight;
         raceStageHeight = next;
-        if (stage) stage.style.height = next + 'px';
+        if (stage) stage.style.height = '0px';
         if (grew > 0) {
           ensureScrollRoom(findRaceScrollParent(panel), grew);
         }
@@ -790,16 +780,6 @@
       applyStageHeight(maxH);
     }
 
-    function captureLayoutHold(part) {
-      if (!part || !part.btn) return;
-      part.btn.style.transform = 'none';
-      var nowTop = part.btn.getBoundingClientRect().top;
-      var hold = Math.round((part.startTop || 0) - nowTop);
-      part.layoutHold = isFinite(hold) ? hold : 0;
-      part.btn.style.transition = 'none';
-      part.btn.style.transform = 'translateY(' + part.layoutHold + 'px)';
-    }
-    lanes.forEach(captureLayoutHold);
     applyStageHeight(0);
 
     var live = root.querySelector('[data-race-live]') || attachLive(panel, token);
@@ -808,30 +788,15 @@
       return root.getAttribute('data-race-token') === token;
     }
 
-    function measureRide(part) {
-      if (!part || !part.lane || !part.btn) return;
-      part.btn.style.transform = 'translateY(' + (part.layoutHold || 0) + 'px)';
-      var laneRect = part.lane.getBoundingClientRect();
-      var btnRect = part.btn.getBoundingClientRect();
-      var fromBottom = Math.round(laneRect.bottom - btnRect.bottom);
-      if (!isFinite(fromBottom)) fromBottom = 0;
-      part.barFromBottom = fromBottom;
-      if (part.bar) part.bar.style.bottom = fromBottom + 'px';
-    }
-
     function applyVert(part, grownPct) {
       var h = Math.round((clampPct(grownPct) / 100) * MAX_BAR_PX);
-      var hold = part.layoutHold || 0;
-      var y = hold - h;
-      var fromBottom = part.barFromBottom != null ? part.barFromBottom : 8;
       if (part.bar) {
-        part.bar.style.bottom = fromBottom + 'px';
         part.bar.style.height = h + 'px';
         part.bar.setAttribute('data-race-shown', String(clampPct(grownPct)));
       }
       if (part.btn) {
         part.btn.style.transition = 'none';
-        part.btn.style.transform = 'translateY(' + y + 'px)';
+        part.btn.style.transform = '';
       }
       syncRaceStage();
     }
@@ -862,7 +827,6 @@
 
     whenVisible(root, function () {
       if (!stillCurrent()) return;
-      lanes.forEach(measureRide);
       animateRace(
         lanes.map(function (part) {
           return {

@@ -224,7 +224,6 @@
     vocab.forEach(function (v) {
       html +=
         '<div class="lanternRxLane">' +
-        '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
         '<button type="button" class="lanternFinalRxChoice' +
         (extraClass || '') +
         '" data-rx-type="' +
@@ -234,6 +233,7 @@
         '" aria-pressed="false">' +
         v.emoji +
         '</button>' +
+        '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
         '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
         '</div>';
     });

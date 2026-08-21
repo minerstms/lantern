@@ -66,9 +66,8 @@ assert(!/18 votes|12 reactions|23 responses/.test(pollFn + cardUi), 'percentage-
 
 assert(/attachFloatingMuteToolbar/.test(finalRx) && /lanternRaceToolbar--rx/.test(finalRx), 'reaction Sound still uses the shared float helper');
 assert(/lanternRaceToolbar--rx/.test(rxFn) && /data-rx-sound-float/.test(rxFn), 'reaction race still marks its Sound float');
-assert(/var startRects = \[\]/.test(rxFn), 'reaction pre-tap icon rects still captured');
-assert(/layoutHold/.test(rxFn) && /hold - h/.test(rxFn), 'reaction icons still ride hold - h');
-assert(/lanternRxRaceStage/.test(rxFn), 'reaction reserved stage unchanged');
+assert(!/var startRects = \[\]/.test(rxFn) && !/hold - h/.test(rxFn), 'reaction icons no longer ride hold - h');
+assert(/lanternRxRaceStage/.test(rxFn) && /parentChoices\.nextSibling/.test(rxFn), 'reaction growth stays after the icon row');
 assert(/\.lanternRaceToolbar--rx/.test(rxCss) && /position:\s*absolute/.test(rxCss), 'reaction CSS still keeps Sound out of flow');
 
 assert(/C_MAJOR_HZ/.test(audioSrc) && /261\.626/.test(audioSrc) && /lantern\.raceSound\.muted/.test(audioSrc), 'C-major audio + mute preference unchanged');
