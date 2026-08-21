@@ -200,16 +200,12 @@
       var overlapHits = 0;
 
       function rxHtml() {
-        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1">';
+        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + FIXTURES.length + ',minmax(0,1fr))">';
         FIXTURES.forEach(function (v) {
           html +=
-            '<div class="lanternRxLane">' +
-            '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>' +
-            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
-            '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
-            '</div>';
+            '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>';
         });
-        return html + '</div></div>';
+        return html + '</div><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div></div>';
       }
 
       function paintExploreDraft() {
