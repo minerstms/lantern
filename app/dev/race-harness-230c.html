@@ -231,10 +231,10 @@
       function captureContentAnchors() {
         var body = document.getElementById('lanternCardDetailBody');
         var photo = document.getElementById('lanternCardDetailVisual');
-        startBodyBottom = body ? body.getBoundingClientRect().bottom : 0;
-        startPhotoBottom = photo ? photo.getBoundingClientRect().bottom : 0;
+        startBodyBottom = body ? overlayY(body) + body.getBoundingClientRect().height : 0;
+        startPhotoBottom = photo ? overlayY(photo) + photo.getBoundingClientRect().height : 0;
         var follow = document.getElementById('lanternFollowingPoll');
-        startFollowTop = follow ? follow.getBoundingClientRect().top : 0;
+        startFollowTop = follow ? overlayY(follow) : 0;
       }
 
       function tapExploreInPlace() {
@@ -242,7 +242,7 @@
         if (!root) return;
         startTops = [];
         root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
-          startTops.push(btn.getBoundingClientRect().top);
+          startTops.push(overlayY(btn));
         });
         captureContentAnchors();
         maxDownPx = 0;
@@ -264,6 +264,15 @@
           listLabel: 'Harness poll results',
           playAudio: false
         });
+      }
+
+      function overlayY(el) {
+        if (!el) return 0;
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        var r = el.getBoundingClientRect();
+        var o = overlay ? overlay.getBoundingClientRect() : { top: 0 };
+        var st = overlay ? overlay.scrollTop : (window.scrollY || 0);
+        return r.top - o.top + st;
       }
 
       function gap(a, b) {
@@ -297,7 +306,7 @@
           var ir = btn.getBoundingClientRect();
           var shown = Number(bar.getAttribute('data-race-shown') || 0);
           var attach = gap(ir.bottom, br.top);
-          var delta = startTops[i] != null ? Math.round(ir.top - startTops[i]) : 0;
+          var delta = startTops[i] != null ? Math.round(overlayY(btn) - startTops[i]) : 0;
           var down = Math.max(0, delta);
           var up = Math.max(0, -delta);
           if (down > maxDownPx) maxDownPx = down;
@@ -314,7 +323,7 @@
           lines.push(
             'RX ' + FIXTURES[i].percentage + '% shown=' + shown +
             ' startY=' + Math.round(startTops[i] || 0) +
-            ' nowY=' + Math.round(ir.top) +
+            ' nowY=' + Math.round(overlayY(btn)) +
             ' downPx=' + down +
             ' iconΔbarTop=' + attach + 'px' +
             ' pct=' + (pctEl && pctEl.textContent || '—')
@@ -341,9 +350,9 @@
         });
         var rxOrder = Object.keys(finishes.rx).map(Number).sort(function (a, b) { return finishes.rx[a] - finishes.rx[b]; });
         var pollOrder = Object.keys(finishes.poll).map(Number).sort(function (a, b) { return finishes.poll[a] - finishes.poll[b]; });
-        var bodyUp = startBodyBottom ? Math.round(startBodyBottom - (bodyRect ? bodyRect.bottom : 0)) : 0;
-        var photoUp = startPhotoBottom ? Math.round(startPhotoBottom - (photoRect ? photoRect.bottom : 0)) : 0;
-        var followDown = startFollowTop && followRect ? Math.round(followRect.top - startFollowTop) : 0;
+        var bodyUp = startBodyBottom && body ? Math.round(startBodyBottom - (overlayY(body) + body.getBoundingClientRect().height)) : 0;
+        var photoUp = startPhotoBottom && photo ? Math.round(startPhotoBottom - (overlayY(photo) + photo.getBoundingClientRect().height)) : 0;
+        var followDown = startFollowTop && follow ? Math.round(overlayY(follow) - startFollowTop) : 0;
         var stageAboveRow = false;
         if (stageRect) {
           var row = document.querySelector('#exploreRxHost .lanternFinalRxChoices');
