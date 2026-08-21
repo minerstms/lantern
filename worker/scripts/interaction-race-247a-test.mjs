@@ -63,7 +63,7 @@ assert(!/<div class="lanternRxLane">/.test(finalRx), 'production markup does not
 assert(/fillFeedItemDetailModal/.test(cardUi) && /lanternCardDetailReactions/.test(cardUi), 'Explore still mounts reactions in the opened-post overlay');
 assert(/lanternCardDetailBody[\s\S]*lanternCardDetailReactions/.test(cardUi), 'canonical overlay keeps body then reactions');
 assert(/overflow-y:\s*auto/.test(cardsCss) && /lanternInteractiveSurface/.test(surfaceCss), 'PR #38 overlay/surface scroll model remains');
-assert(/rxlayout247a/.test(explore), 'Explore cache-busts #247A assets');
+assert(/rxlayout247b/.test(explore), 'Explore cache-busts #247B assets');
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 assert(!/applyStageHeight|lanternRxRaceStage|unwrapBtn/.test(pollFn), 'poll race was not given reaction layout logic');
 

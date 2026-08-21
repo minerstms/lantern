@@ -666,14 +666,11 @@
       panel.appendChild(stage);
     }
     stage.style.height = '';
-    var copiedCols = parentChoices && parentChoices.style ? parentChoices.style.gridTemplateColumns : '';
-    if (!copiedCols && parentChoices && global.getComputedStyle) {
-      try {
-        var computedCols = global.getComputedStyle(parentChoices).gridTemplateColumns;
-        if (computedCols && computedCols !== 'none') copiedCols = computedCols;
-      } catch (errCols) {}
+    var copiedCols = parentChoices && parentChoices.style ? String(parentChoices.style.gridTemplateColumns || '').trim() : '';
+    if (!copiedCols || copiedCols === 'none') {
+      copiedCols = 'repeat(' + String(buttons.length || 1) + ',minmax(0,1fr))';
     }
-    stage.style.gridTemplateColumns = copiedCols || 'repeat(' + String(buttons.length || 1) + ',minmax(0,1fr))';
+    stage.style.gridTemplateColumns = copiedCols;
 
     function directChildLanes(el) {
       var found = [];

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Explore real reaction path #247B</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-interactive-surface.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body { font-family: system-ui, sans-serif; font-size: 22px; padding: 16px 12px 32px; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    .banner { background: #5a1d1d; border: 2px solid #ff8080; border-radius: 12px; padding: 12px; margin-bottom: 16px; font-weight: 800; }
+    button.run { width: 100%; max-width: 720px; min-height: 52px; font-size: 22px; font-weight: 800; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(90,167,255,.22); color: inherit; margin: 8px 0; cursor: pointer; }
+    #report { font-size: 16px; white-space: pre-wrap; background: #071018; border-radius: 12px; padding: 12px; margin-top: 12px; }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY. Real LanternCardUI.ensureOverlay → fillFeedItemDetailModal → mountFinalReactionPanel. Fetch is stubbed. No D1 writes.</p>
+  <h1>Real Explore reaction path #247B</h1>
+  <button type="button" class="run" id="freshBtn">Fresh reaction</button>
+  <button type="button" class="run" id="revealBtn">Previously answered → Reveal Results</button>
+  <button type="button" class="run" id="replayBtn">Replay Results</button>
+  <button type="button" class="run" id="pollBtn">Poll mine-cart regression</button>
+  <div id="report">Ready.</div>
+
+  <script src="/js/lantern-interactive-surface.js"></script>
+  <script src="/js/lantern-cards.js"></script>
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-reaction-bank.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script src="/js/lantern-card-ui.js"></script>
+  <script src="/js/lantern-final-reactions.js"></script>
+  <script>
+    (function () {
+      var RESULTS = [
+        { reaction_type: 'heart', percentage: 12 },
+        { reaction_type: 'star', percentage: 34 },
+        { reaction_type: 'lightbulb', percentage: 57 },
+        { reaction_type: 'teamwork', percentage: 83 },
+        { reaction_type: 'fire', percentage: 100 }
+      ];
+      var POLL = [
+        { label: 'Alpha', percentage: 12, selected: false },
+        { label: 'Bravo', percentage: 34, selected: true },
+        { label: 'Charlie', percentage: 57, selected: false }
+      ];
+      var mode = 'fresh';
+      var last = null;
+
+      window.LANTERN_AVATAR_API = 'https://lantern-247b-stub.local';
+      var nativeFetch = window.fetch.bind(window);
+      window.fetch = function (url, opts) {
+        var u = String(url || '');
+        if (u.indexOf('/api/reactions/finalized-status') !== -1) {
+          var body = mode === 'fresh'
+            ? { ok: true, finalized: false }
+            : { ok: true, finalized: true, reaction_type: 'star', item_id: 'fixture-247b', results: RESULTS };
+          return Promise.resolve({ json: function () { return Promise.resolve(body); } });
+        }
+        if (u.indexOf('/api/reactions/finalize') !== -1) {
+          return Promise.resolve({
+            json: function () {
+              return Promise.resolve({
+                ok: true,
+                finalized: true,
+                reaction_type: 'star',
+                item_id: 'fixture-247b',
+                results: RESULTS
+              });
+            }
+          });
+        }
+        return nativeFetch(url, opts);
+      };
+
+      function overlay() { return document.getElementById('lanternCardDetailOverlay'); }
+      function docY(el) {
+        if (!el) return 0;
+        var owner = overlay();
+        return el.getBoundingClientRect().top + (owner ? owner.scrollTop : 0);
+      }
+      function sectionY(el, section) {
+        if (!el || !section) return 0;
+        return el.getBoundingClientRect().top - section.getBoundingClientRect().top;
+      }
+
+      function fixtureItem() {
+        return {
+          id: 'fixture-247b',
+          title: 'Opened Explore post — icons stay, results grow below',
+          body: 'Real opened-post body above the reaction row. Following content is the next sibling after .lanternCardDetailReactions.',
+          type: 'article',
+          typeLabel: 'News',
+          authorDisplayName: 'Student Name',
+          createdAt: '2026-08-21T00:00:00.000Z'
+        };
+      }
+
+      function openExplorePost(nextMode) {
+        mode = nextMode || 'fresh';
+        if (!window.LanternCardUI) throw new Error('LanternCardUI missing');
+        window.LanternCardUI.ensureOverlay();
+        var el = overlay();
+        var modal = el.querySelector('.lanternCardDetailModal');
+        window.LanternCardUI.fillFeedItemDetailModal(modal, fixtureItem(), {});
+        el.classList.add('show');
+        el.setAttribute('aria-hidden', 'false');
+        var follow = el.querySelector('#lanternCardDetailAdminModeration');
+        if (follow) {
+          follow.style.display = 'block';
+          follow.setAttribute('data-247b-follow', '1');
+          follow.innerHTML = '<div style="padding:12px;border:1px dashed rgba(255,255,255,.35);border-radius:12px;">Following poll / admin / modal content. Must move down.</div>';
+        }
+        return new Promise(function (resolve) {
+          var tries = 0;
+          var t = setInterval(function () {
+            tries += 1;
+            var ready = el.querySelector('.lanternFinalRxChoice') || el.querySelector('.lanternFinalRxHint') || el.querySelector('.lanternFinalRxLoading');
+            if (el.querySelector('.lanternFinalRxChoice') || tries > 40) {
+              clearInterval(t);
+              resolve(el);
+            }
+            if (ready && ready.classList && ready.classList.contains('lanternFinalRxLoading') && tries > 40) {
+              clearInterval(t);
+              resolve(el);
+            }
+          }, 50);
+        });
+      }
+
+      function capture(label) {
+        var el = overlay();
+        var section = el.querySelector('.lanternCardDetailReactions');
+        var icon = el.querySelector('.lanternFinalRxChoice[data-rx-type="star"]') || el.querySelector('.lanternFinalRxChoice');
+        var follow = el.querySelector('[data-247b-follow="1"]');
+        var stage = el.querySelector('[data-rx-race-stage]');
+        var bars = el.querySelectorAll('[data-race-fill]');
+        var rec = {
+          label: label,
+          iconDocY: docY(icon),
+          iconSectionY: sectionY(icon, section),
+          followDocY: docY(follow),
+          stageH: stage ? Math.round(stage.getBoundingClientRect().height) : 0,
+          barInStage: !!(stage && bars[0] && stage.contains(bars[0])),
+          iconInStage: !!(stage && icon && stage.contains(icon)),
+          iconCount: el.querySelectorAll('.lanternFinalRxChoice').length,
+          maxBarH: 0,
+          revealBelowStage: false
+        };
+        bars.forEach(function (b) { rec.maxBarH = Math.max(rec.maxBarH, Math.round(b.getBoundingClientRect().height)); });
+        var reveal = el.querySelector('.lanternRevealResultsWrap');
+        rec.revealBelowStage = !!(reveal && stage && reveal.getBoundingClientRect().top >= stage.getBoundingClientRect().top - 1);
+        return rec;
+      }
+
+      function waitForChoices() {
+        return new Promise(function (resolve, reject) {
+          var n = 0;
+          var t = setInterval(function () {
+            n += 1;
+            if (overlay().querySelector('.lanternFinalRxChoice')) {
+              clearInterval(t);
+              resolve();
+            } else if (n > 50) {
+              clearInterval(t);
+              reject(new Error('choices never painted'));
+            }
+          }, 40);
+        });
+      }
+
+      function watchRace(before) {
+        return new Promise(function (resolve) {
+          var during = null;
+          var started = Date.now();
+          var timer = setInterval(function () {
+            var now = capture('during');
+            if (!during && now.maxBarH > 18) during = now;
+            if (now.maxBarH >= 140 || Date.now() - started > 3800) {
+              clearInterval(timer);
+              var after = capture('after');
+              var iconDrift = Math.max(
+                Math.abs((during && during.iconSectionY) - before.iconSectionY),
+                Math.abs(after.iconSectionY - before.iconSectionY)
+              );
+              last = {
+                ok: iconDrift <= 2 && (after.followDocY - before.followDocY) >= 70 && after.barInStage && !after.iconInStage && after.stageH > 20,
+                iconDrift: iconDrift,
+                followDown: Math.round(after.followDocY - before.followDocY),
+                before: before,
+                during: during || now,
+                after: after
+              };
+              document.getElementById('report').textContent = JSON.stringify(last, null, 2);
+              window.__LANTERN_247B = last;
+              resolve(last);
+            }
+          }, 80);
+        });
+      }
+
+      async function runFresh() {
+        await openExplorePost('fresh');
+        await waitForChoices();
+        var before = capture('before');
+        var star = overlay().querySelector('.lanternFinalRxChoice[data-rx-type="star"]');
+        star.click();
+        return watchRace(before);
+      }
+
+      async function runReveal() {
+        await openExplorePost('locked');
+        await waitForChoices();
+        var before = capture('before');
+        var btn = overlay().querySelector('[data-reveal-results]');
+        if (!btn) throw new Error('Reveal Results missing');
+        btn.click();
+        return watchRace(before);
+      }
+
+      async function runReplay() {
+        if (!overlay() || !overlay().querySelector('[data-reveal-results]')) {
+          await runReveal();
+        }
+        var before = capture('replay-before');
+        var btn = overlay().querySelector('[data-reveal-results]');
+        btn.click();
+        return watchRace(before);
+      }
+
+      async function runPoll() {
+        var box = document.getElementById('poll247b') || document.createElement('div');
+        box.id = 'poll247b';
+        document.body.appendChild(box);
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(box, POLL, { listLabel: '247B poll', playAudio: false });
+        await new Promise(function (r) { setTimeout(r, 700); });
+        return { ok: box.querySelectorAll('[data-race-cart]').length > 0, carts: box.querySelectorAll('[data-race-cart]').length };
+      }
+
+      document.getElementById('freshBtn').onclick = function () { runFresh(); };
+      document.getElementById('revealBtn').onclick = function () { runReveal(); };
+      document.getElementById('replayBtn').onclick = function () { runReplay(); };
+      document.getElementById('pollBtn').onclick = function () { runPoll(); };
+
+      async function openFresh() {
+        await openExplorePost('fresh');
+        await waitForChoices();
+        return capture('before');
+      }
+      async function openLocked() {
+        await openExplorePost('locked');
+        await waitForChoices();
+        return capture('before');
+      }
+
+      window.__LANTERN_247B_RUN = {
+        runFresh: runFresh,
+        runReveal: runReveal,
+        runReplay: runReplay,
+        runPoll: runPoll,
+        openFresh: openFresh,
+        openLocked: openLocked,
+        capture: capture,
+        overlay: overlay
+      };
+    })();
+  </script>
+</body>
+</html>
