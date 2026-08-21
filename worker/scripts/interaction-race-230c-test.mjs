@@ -37,13 +37,13 @@ assert(!!rxFn, 'reaction spatial race function present');
 assert(!!pollFn, 'poll mine-cart function present');
 
 assert(/data-rx-race-stage/.test(rxFn) && /lanternRxRaceStage/.test(rxFn), 'stage node inserted in reaction race only');
-assert(/insertBefore\(stage, parentChoices\)/.test(rxFn), 'stage is inserted above the reaction icon row');
-assert(/raceStageHeight/.test(rxFn) && /style\.height = next \+ 'px'/.test(rxFn), 'stage height is real layout height');
-assert(/applyStageHeight\(0\)/.test(rxFn), 'stage starts at 0 before the race grows');
+assert(/parentChoices\.nextSibling/.test(rxFn), 'allocated growth sits after the reaction icon row');
+assert(/raceStageHeight/.test(rxFn) && /applyStageHeight/.test(rxFn), 'tallest bar height is still tracked');
+assert(/applyStageHeight\(0\)/.test(rxFn), 'tracked height starts at 0 before the race grows');
 assert(!/lockIconFloor/.test(rxFn) && !/scrollTop\s*\+=/.test(rxFn), 'no per-frame scroll compensation');
 assert(/ensureScrollRoom/.test(rxFn) && /paddingBottom/.test(rxFn), 'modal can scroll when reserved height exceeds the viewport');
-assert(/hold - h/.test(rxFn), 'icons still ride bar tops (translateY hold - h)');
-assert(/layoutHold/.test(rxFn) && /captureLayoutHold/.test(rxFn), '#228 pre-tap icon Y hold preserved');
+assert(!/hold - h/.test(rxFn) && !/layoutHold/.test(rxFn) && !/captureLayoutHold/.test(rxFn), 'icons stay on the original row while bars grow');
+assert(/bar\.style\.height = h \+ 'px'/.test(rxFn) && !/btn\.style\.transform = 'translateY/.test(rxFn), 'only bars change height; icons are not translated');
 assert(!/min-height:\s*252px/.test(rxCss), 'does not revive the flex-end 252px drop bug');
 assert(/MAX_MS = 3000/.test(revealSrc) && /maxPct \/ MAX_MS/.test(revealSrc), 'race timing unchanged');
 assert(/C_MAJOR_HZ/.test(audioSrc) && /muteControlHtml/.test(audioSrc), 'C-major audio + mute unchanged');

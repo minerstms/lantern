@@ -36,10 +36,10 @@ const pollFn = pollFnMatch ? pollFnMatch[0] : '';
 assert(!!rxFn && !!pollFn, 'reaction + poll functions present');
 assert(/lanternRaceToolbar--rx/.test(rxFn) && /data-rx-sound-float/.test(rxFn), 'reaction mute toolbar is marked floating');
 assert(/style\.position = 'absolute'/.test(rxFn) && /style\.top = '0'/.test(rxFn) && /style\.right = '0'/.test(rxFn), 'reaction mute toolbar forced out of flow in JS');
-assert(/var startRects = \[\]/.test(rxFn), 'pre-tap icon rects still captured');
-const startIdx = rxFn.indexOf('var startRects = []');
+assert(!/var startRects = \[\]/.test(rxFn), 'icon row no longer depends on startRects compensation');
 const tbIdx = rxFn.indexOf("style.position = 'absolute'");
-assert(tbIdx > -1 && startIdx > tbIdx, 'floating toolbar is placed before startRects are captured');
+const laneIdx = rxFn.indexOf("lane.className = 'lanternRxLane'");
+assert(tbIdx > -1 && (laneIdx === -1 || tbIdx < laneIdx), 'floating toolbar is still placed before lane/bar growth');
 assert(/skipMuteToolbar/.test(rxFn), 'diagnosis hook can mount a race without inserting Sound');
 assert(!/insertBefore\(tb, panel\.firstChild\)/.test(rxFn), 'mute toolbar is not inserted above icons in flow');
 

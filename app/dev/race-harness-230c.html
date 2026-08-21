@@ -103,7 +103,7 @@
 <body>
   <p class="banner">DEVELOPMENT-ONLY visual harness. Mounts the production opened-post DOM. Fixture percentages only. Does not write D1 or create users.</p>
   <h1>Race harness #230C</h1>
-  <p>Acceptance: icon row is the race floor. Dedicated stage height opens <strong>above</strong> the icons. Post photo/text must move up. Bars must not overlay content.</p>
+  <p>Acceptance #247: reaction icons stay on the original row. Bars grow <strong>below</strong> the icons in normal flow. Following content is pushed down. Bars must not overlay the photo/text above.</p>
 
   <h2>Explore opened-post modal (production chrome)</h2>
   <div class="lanternCardDetailOverlay lanternSurfaceShell show harnessOverlay" id="lanternCardDetailOverlay">
@@ -143,6 +143,9 @@
           </div>
           <div class="lanternCardDetailReactions" id="lanternCardDetailReactions">
             <div class="lanternFinalRxHost" id="exploreRxHost"></div>
+          </div>
+          <div class="lanternCardDetailBody" id="lanternFollowingPoll" style="margin-top:12px;padding:12px;border:1px dashed rgba(255,255,255,.28);border-radius:12px;">
+            Following poll / results stand-in. This block must move down as reaction bars grow. It must not sit underneath the race.
           </div>
         </div>
         <footer class="lanternCardDetailFooter">
@@ -188,7 +191,9 @@
       var startTops = [];
       var startBodyBottom = 0;
       var startPhotoBottom = 0;
+      var startFollowTop = 0;
       var maxDownPx = 0;
+      var maxUpPx = 0;
       var firstFrameDownPx = 0;
       var sampledFrames = 0;
       var maxStageH = 0;
@@ -199,8 +204,8 @@
         FIXTURES.forEach(function (v) {
           html +=
             '<div class="lanternRxLane">' +
-            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
             '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>' +
+            '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
             '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
             '</div>';
         });
@@ -213,7 +218,9 @@
         startTops = [];
         startBodyBottom = 0;
         startPhotoBottom = 0;
+        startFollowTop = 0;
         maxDownPx = 0;
+        maxUpPx = 0;
         firstFrameDownPx = 0;
         sampledFrames = 0;
         maxStageH = 0;
@@ -224,8 +231,10 @@
       function captureContentAnchors() {
         var body = document.getElementById('lanternCardDetailBody');
         var photo = document.getElementById('lanternCardDetailVisual');
-        startBodyBottom = body ? body.getBoundingClientRect().bottom : 0;
-        startPhotoBottom = photo ? photo.getBoundingClientRect().bottom : 0;
+        startBodyBottom = body ? overlayY(body) + body.getBoundingClientRect().height : 0;
+        startPhotoBottom = photo ? overlayY(photo) + photo.getBoundingClientRect().height : 0;
+        var follow = document.getElementById('lanternFollowingPoll');
+        startFollowTop = follow ? overlayY(follow) : 0;
       }
 
       function tapExploreInPlace() {
@@ -233,10 +242,11 @@
         if (!root) return;
         startTops = [];
         root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
-          startTops.push(btn.getBoundingClientRect().top);
+          startTops.push(overlayY(btn));
         });
         captureContentAnchors();
         maxDownPx = 0;
+        maxUpPx = 0;
         firstFrameDownPx = 0;
         sampledFrames = 0;
         maxStageH = 0;
@@ -256,6 +266,15 @@
         });
       }
 
+      function overlayY(el) {
+        if (!el) return 0;
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        var r = el.getBoundingClientRect();
+        var o = overlay ? overlay.getBoundingClientRect() : { top: 0 };
+        var st = overlay ? overlay.scrollTop : (window.scrollY || 0);
+        return r.top - o.top + st;
+      }
+
       function gap(a, b) {
         return Math.round(Math.abs(a - b));
       }
@@ -270,9 +289,11 @@
         var pollOk = true;
         var body = document.getElementById('lanternCardDetailBody');
         var photo = document.getElementById('lanternCardDetailVisual');
+        var follow = document.getElementById('lanternFollowingPoll');
         var stage = document.querySelector('[data-rx-race-stage]');
         var bodyRect = body ? body.getBoundingClientRect() : null;
         var photoRect = photo ? photo.getBoundingClientRect() : null;
+        var followRect = follow ? follow.getBoundingClientRect() : null;
         var stageRect = stage ? stage.getBoundingClientRect() : null;
         var stageH = stage ? Math.round(stage.getBoundingClientRect().height) : 0;
         if (stageH > maxStageH) maxStageH = stageH;
@@ -285,12 +306,16 @@
           var ir = btn.getBoundingClientRect();
           var shown = Number(bar.getAttribute('data-race-shown') || 0);
           var attach = gap(ir.bottom, br.top);
-          var down = startTops[i] != null ? Math.round(ir.top - startTops[i]) : 0;
+          var delta = startTops[i] != null ? Math.round(overlayY(btn) - startTops[i]) : 0;
+          var down = Math.max(0, delta);
+          var up = Math.max(0, -delta);
           if (down > maxDownPx) maxDownPx = down;
+          if (up > maxUpPx) maxUpPx = up;
           if (sampledFrames === 0 && startTops.length) firstFrameDownPx = down;
-          if (shown > 2 && attach > 10) rxOk = false;
-          if (down > 2) rxOk = false;
-          if (shown > 8 && (rectsOverlap(br, bodyRect) || rectsOverlap(br, photoRect))) {
+          if (shown > 8 && attach > 14) rxOk = false;
+          if (down > 2 || up > 2) rxOk = false;
+          if (shown > 8 && br.top + 1 < ir.bottom) rxOk = false;
+          if (shown > 8 && (rectsOverlap(br, bodyRect) || rectsOverlap(br, photoRect) || rectsOverlap(br, followRect))) {
             overlapHits += 1;
             rxOk = false;
           }
@@ -298,7 +323,7 @@
           lines.push(
             'RX ' + FIXTURES[i].percentage + '% shown=' + shown +
             ' startY=' + Math.round(startTops[i] || 0) +
-            ' nowY=' + Math.round(ir.top) +
+            ' nowY=' + Math.round(overlayY(btn)) +
             ' downPx=' + down +
             ' iconΔbarTop=' + attach + 'px' +
             ' pct=' + (pctEl && pctEl.textContent || '—')
@@ -325,25 +350,29 @@
         });
         var rxOrder = Object.keys(finishes.rx).map(Number).sort(function (a, b) { return finishes.rx[a] - finishes.rx[b]; });
         var pollOrder = Object.keys(finishes.poll).map(Number).sort(function (a, b) { return finishes.poll[a] - finishes.poll[b]; });
-        var bodyUp = startBodyBottom ? Math.round(startBodyBottom - (bodyRect ? bodyRect.bottom : 0)) : 0;
-        var photoUp = startPhotoBottom ? Math.round(startPhotoBottom - (photoRect ? photoRect.bottom : 0)) : 0;
-        var stageAboveRow = true;
+        var bodyUp = startBodyBottom && body ? Math.round(startBodyBottom - (overlayY(body) + body.getBoundingClientRect().height)) : 0;
+        var photoUp = startPhotoBottom && photo ? Math.round(startPhotoBottom - (overlayY(photo) + photo.getBoundingClientRect().height)) : 0;
+        var followDown = startFollowTop && follow ? Math.round(overlayY(follow) - startFollowTop) : 0;
+        var stageAboveRow = false;
         if (stageRect) {
           var row = document.querySelector('#exploreRxHost .lanternFinalRxChoices');
           var rowRect = row ? row.getBoundingClientRect() : null;
-          if (rowRect && stageRect.bottom > rowRect.top + 2) stageAboveRow = false;
+          if (rowRect && stageRect.bottom <= rowRect.top + 2) stageAboveRow = true;
         }
         lines.push('RX finish order: ' + rxOrder.map(function (i) { return FIXTURES[i].percentage + '%'; }).join(' → '));
         lines.push('POLL finish order: ' + pollOrder.map(function (i) { return POLL[i].percentage + '%'; }).join(' → '));
         lines.push('first-frame downward px: ' + firstFrameDownPx);
         lines.push('max downward px: ' + maxDownPx);
+        lines.push('max upward px: ' + maxUpPx);
         lines.push('stage height: ' + stageH + 'px (max ' + maxStageH + ')');
         lines.push('stage above icon row: ' + (stageAboveRow ? 'YES' : 'NO'));
         lines.push('body moved up px: ' + bodyUp);
         lines.push('photo moved up px: ' + photoUp);
+        lines.push('following content down px: ' + followDown);
         lines.push('bar/content overlap hits: ' + overlapHits);
-        lines.push('icon never dropped: ' + (maxDownPx <= 2 ? 'YES' : 'NO'));
-        lines.push('icon rides bar: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('icons stay put: ' + (maxDownPx <= 2 && maxUpPx <= 2 ? 'YES' : 'NO'));
+        lines.push('bars grow below icons: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('following content pushed down: ' + (followDown >= 8 ? 'YES' : 'NO'));
         lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
         hud.textContent = lines.join('\n');
         samples.push({
