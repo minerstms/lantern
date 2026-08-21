@@ -52,11 +52,11 @@ function startServer() {
 function findChrome() {
   var candidates = [
     process.env.CHROME_PATH,
+    '/usr/local/bin/google-chrome',
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
-    '/usr/bin/microsoft-edge',
   ].filter(Boolean);
   for (var i = 0; i < candidates.length; i++) {
     if (fs.existsSync(candidates[i])) return candidates[i];
@@ -64,65 +64,30 @@ function findChrome() {
   return null;
 }
 
-async function measureWithPlaywright(url, viewport, zoom) {
-  var playwright;
-  try {
-    playwright = await import('playwright');
-  } catch (err) {
-    return null;
-  }
-  var browser = await playwright.chromium.launch({
-    headless: true,
-    args: ['--disable-dev-shm-usage'],
-  });
-  var context = await browser.newContext({
-    viewport: viewport,
-    deviceScaleFactor: 1,
-  });
-  var page = await context.newPage();
-  await page.goto(url, { waitUntil: 'networkidle' });
-  if (zoom && zoom !== 1) {
-    await page.evaluate(function (z) {
-      document.body.style.zoom = String(z);
-    }, zoom);
-  }
-  var result = await page.evaluate(function () {
-    return window.__LANTERN_247A_RUN.runReactionRace();
-  });
-  var poll = await page.evaluate(function () {
-    return window.__LANTERN_247A_RUN.runPollRace();
-  });
-  var scroll = await page.evaluate(function () {
-    var overlay = document.getElementById('lanternCardDetailOverlay');
-    if (!overlay) return { ok: false, reason: 'no overlay' };
-    var before = overlay.scrollTop;
-    overlay.scrollTop = 40;
-    var mid = overlay.scrollTop;
-    overlay.scrollTop = before;
-    return { ok: mid >= 30, before: before, mid: mid };
-  });
-  await browser.close();
-  return { result: result, poll: poll, scroll: scroll, via: 'playwright' };
-}
-
-function cdp(wsUrl, method, params, id) {
+function wsCall(wsUrl) {
   return new Promise(function (resolve, reject) {
-    import('ws').then(function (mod) {
-      var WebSocket = mod.default || mod.WebSocket || mod;
-      var ws = new WebSocket(wsUrl);
-      ws.on('open', function () {
+    var ws = new WebSocket(wsUrl);
+    var nextId = 1;
+    var pending = {};
+    function send(method, params) {
+      var id = nextId++;
+      return new Promise(function (res, rej) {
+        pending[id] = { res: res, rej: rej };
         ws.send(JSON.stringify({ id: id, method: method, params: params || {} }));
       });
-      ws.on('message', function (raw) {
-        var msg = JSON.parse(String(raw));
-        if (msg.id === id) {
-          ws.close();
-          if (msg.error) reject(new Error(JSON.stringify(msg.error)));
-          else resolve(msg.result);
-        }
-      });
-      ws.on('error', reject);
-    }).catch(reject);
+    }
+    ws.addEventListener('message', function (ev) {
+      var msg = JSON.parse(String(ev.data));
+      if (msg.id && pending[msg.id]) {
+        if (msg.error) pending[msg.id].rej(new Error(JSON.stringify(msg.error)));
+        else pending[msg.id].res(msg.result);
+        delete pending[msg.id];
+      }
+    });
+    ws.addEventListener('error', reject);
+    ws.addEventListener('open', function () {
+      resolve({ send: send, close: function () { ws.close(); } });
+    });
   });
 }
 
@@ -139,9 +104,9 @@ async function measureWithChrome(chromePath, url, viewport, zoom) {
     '--window-size=' + viewport.width + ',' + viewport.height,
     'about:blank',
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
-  var port = await new Promise(function (resolve, reject) {
+  var debugUrl = await new Promise(function (resolve, reject) {
     var buf = '';
-    var timer = setTimeout(function () { reject(new Error('chrome debug port timeout')); }, 15000);
+    var timer = setTimeout(function () { reject(new Error('chrome debug port timeout')); }, 20000);
     function onData(chunk) {
       buf += String(chunk);
       var m = buf.match(/DevTools listening on (ws:\/\/[^\s]+)/);
@@ -154,102 +119,65 @@ async function measureWithChrome(chromePath, url, viewport, zoom) {
     chrome.stdout.on('data', onData);
     chrome.on('error', reject);
   });
-  var versionRes = await fetch('http://127.0.0.1:' + new URL(port).port + '/json/version');
-  var version = await versionRes.json();
-  var wsUrl = version.webSocketDebuggerUrl;
+  var port = new URL(debugUrl).port;
   try {
-    var wsMod = await import('ws');
-    var WebSocket = wsMod.default || wsMod.WebSocket || wsMod;
-    var result = await new Promise(function (resolve, reject) {
-      var ws = new WebSocket(wsUrl);
-      var nextId = 1;
-      var pending = {};
-      function send(method, params) {
-        var id = nextId++;
-        return new Promise(function (res, rej) {
-          pending[id] = { res: res, rej: rej };
-          ws.send(JSON.stringify({ id: id, method: method, params: params || {} }));
-        });
-      }
-      ws.on('message', function (raw) {
-        var msg = JSON.parse(String(raw));
-        if (msg.id && pending[msg.id]) {
-          if (msg.error) pending[msg.id].rej(new Error(JSON.stringify(msg.error)));
-          else pending[msg.id].res(msg.result);
-          delete pending[msg.id];
-        }
-      });
-      ws.on('error', reject);
-      ws.on('open', async function () {
-        try {
-          await send('Target.createTarget', { url: 'about:blank' });
-          var pages = await fetch('http://127.0.0.1:' + new URL(port).port + '/json/list').then(function (r) { return r.json(); });
-          var page = pages.find(function (p) { return p.url && p.url.indexOf('about:blank') === 0 && p.type === 'page'; }) || pages[0];
-          ws.close();
-          var pageWs = new WebSocket(page.webSocketDebuggerUrl);
-          var pNext = 1;
-          var pPend = {};
-          function pSend(method, params) {
-            var id = pNext++;
-            return new Promise(function (res, rej) {
-              pPend[id] = { res: res, rej: rej };
-              pageWs.send(JSON.stringify({ id: id, method: method, params: params || {} }));
-            });
-          }
-          pageWs.on('message', function (raw) {
-            var msg = JSON.parse(String(raw));
-            if (msg.id && pPend[msg.id]) {
-              if (msg.error) pPend[msg.id].rej(new Error(JSON.stringify(msg.error)));
-              else pPend[msg.id].res(msg.result);
-              delete pPend[msg.id];
-            }
-          });
-          await new Promise(function (res, rej) {
-            pageWs.on('open', res);
-            pageWs.on('error', rej);
-          });
-          await pSend('Page.enable');
-          await pSend('Runtime.enable');
-          await pSend('Emulation.setDeviceMetricsOverride', {
-            width: viewport.width,
-            height: viewport.height,
-            deviceScaleFactor: 1,
-            mobile: viewport.width <= 430,
-          });
-          await pSend('Page.navigate', { url: url });
-          await new Promise(function (res) { setTimeout(res, 900); });
-          if (zoom && zoom !== 1) {
-            await pSend('Runtime.evaluate', {
-              expression: 'document.body.style.zoom=' + JSON.stringify(String(zoom)),
-            });
-          }
-          var evalRes = await pSend('Runtime.evaluate', {
-            expression: 'window.__LANTERN_247A_RUN.runReactionRace().then(function(r){window.__LANTERN_247A_LAST=r; return r;})',
-            awaitPromise: true,
-            returnByValue: true,
-          });
-          var pollRes = await pSend('Runtime.evaluate', {
-            expression: 'window.__LANTERN_247A_RUN.runPollRace()',
-            awaitPromise: true,
-            returnByValue: true,
-          });
-          var scrollRes = await pSend('Runtime.evaluate', {
-            expression: '(function(){var o=document.getElementById("lanternCardDetailOverlay"); if(!o) return {ok:false}; var b=o.scrollTop; o.scrollTop=40; var m=o.scrollTop; o.scrollTop=b; return {ok:m>=30,before:b,mid:m};})()',
-            returnByValue: true,
-          });
-          pageWs.close();
-          resolve({
-            result: evalRes.result && evalRes.result.value,
-            poll: pollRes.result && pollRes.result.value,
-            scroll: scrollRes.result && scrollRes.result.value,
-            via: 'chrome-cdp',
-          });
-        } catch (err) {
-          reject(err);
-        }
-      });
+    var version = await fetch('http://127.0.0.1:' + port + '/json/version').then(function (r) { return r.json(); });
+    var browser = await wsCall(version.webSocketDebuggerUrl);
+    await browser.send('Target.createTarget', { url: 'about:blank' });
+    var pages = await fetch('http://127.0.0.1:' + port + '/json/list').then(function (r) { return r.json(); });
+    var pageMeta = pages.find(function (p) { return p.type === 'page' && String(p.url || '').indexOf('about:blank') === 0; }) || pages.find(function (p) { return p.type === 'page'; });
+    if (!pageMeta) throw new Error('no chrome page target');
+    var page = await wsCall(pageMeta.webSocketDebuggerUrl);
+    await page.send('Page.enable');
+    await page.send('Runtime.enable');
+    await page.send('Emulation.setDeviceMetricsOverride', {
+      width: viewport.width,
+      height: viewport.height,
+      deviceScaleFactor: 1,
+      mobile: viewport.width <= 430,
     });
-    return result;
+    await page.send('Page.navigate', { url: url });
+    await new Promise(function (res) { setTimeout(res, 1200); });
+    if (zoom && zoom !== 1) {
+      await page.send('Runtime.evaluate', {
+        expression: 'document.body.style.zoom=' + JSON.stringify(String(zoom)),
+      });
+    }
+    var ready = await page.send('Runtime.evaluate', {
+      expression: '!!(window.__LANTERN_247A_RUN && window.LanternCardUI && window.LANTERN_RESULT_REVEAL)',
+      returnByValue: true,
+    });
+    if (!ready.result || ready.result.value !== true) {
+      throw new Error('Explore 247A page did not initialize');
+    }
+    var evalRes = await page.send('Runtime.evaluate', {
+      expression: 'window.__LANTERN_247A_RUN.runReactionRace()',
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    var pollRes = await page.send('Runtime.evaluate', {
+      expression: 'window.__LANTERN_247A_RUN.runPollRace()',
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    var scrollRes = await page.send('Runtime.evaluate', {
+      expression: '(function(){var o=document.getElementById("lanternCardDetailOverlay"); if(!o) return {ok:false}; var b=o.scrollTop; o.scrollTop=80; var m=o.scrollTop; o.scrollTop=b; return {ok:m>=30,before:b,mid:m};})()',
+      returnByValue: true,
+    });
+    var replayRes = await page.send('Runtime.evaluate', {
+      expression: '(async function(){var before=window.__LANTERN_247A_RUN.capture("replay-before"); window.__LANTERN_247A_RUN.openExplorePost(); var panel=document.querySelector(".lanternFinalRxPanel"); window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(panel, window.__LANTERN_247A_RUN.fixtures, {choiceSelector:".lanternFinalRxChoice",typeAttr:"data-rx-type",playAudio:false}); await new Promise(function(r){setTimeout(r,3200);}); var after=window.__LANTERN_247A_RUN.capture("replay-after"); return {ok:after.maxBarH>=80 && Math.abs(after.iconSectionY-before.iconSectionY)<=2, before:before, after:after};})()',
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    page.close();
+    browser.close();
+    return {
+      result: evalRes.result && evalRes.result.value,
+      poll: pollRes.result && pollRes.result.value,
+      scroll: scrollRes.result && scrollRes.result.value,
+      replay: replayRes.result && replayRes.result.value,
+      via: 'chrome-cdp',
+    };
   } finally {
     chrome.kill('SIGKILL');
   }
@@ -258,6 +186,8 @@ async function measureWithChrome(chromePath, url, viewport, zoom) {
 async function main() {
   var launched = await startServer();
   var url = 'http://127.0.0.1:' + launched.port + '/dev/race-explore-247a.html';
+  var chrome = findChrome();
+  if (!chrome) throw new Error('Chrome is required for Explore overlay measurement');
   var cases = [
     { name: 'desktop-100', viewport: { width: 1280, height: 800 }, zoom: 1 },
     { name: 'desktop-150', viewport: { width: 1280, height: 800 }, zoom: 1.5 },
@@ -270,22 +200,19 @@ async function main() {
   try {
     for (var i = 0; i < cases.length; i++) {
       var c = cases[i];
-      var measured = await measureWithPlaywright(url, c.viewport, c.zoom);
-      if (!measured) {
-        var chrome = findChrome();
-        if (!chrome) throw new Error('No Playwright and no Chrome for ' + c.name);
-        measured = await measureWithChrome(chrome, url, c.viewport, c.zoom);
-      }
+      var measured = await measureWithChrome(chrome, url, c.viewport, c.zoom);
       out[c.name] = measured;
       var r = measured && measured.result;
-      var ok = r && r.ok && measured.poll && measured.poll.ok && measured.scroll && measured.scroll.ok;
+      var ok = !!(r && r.ok && measured.poll && measured.poll.ok && measured.scroll && measured.scroll.ok && measured.replay && measured.replay.ok);
       console.log((ok ? 'PASS' : 'FAIL'), c.name, JSON.stringify({
         iconDrift: r && r.iconDrift,
         followDown: r && r.followDown,
         stageH: r && r.after && r.after.stageH,
         barInStage: r && r.after && r.after.barInStage,
+        iconInStage: r && r.after && r.after.iconInStage,
         poll: measured.poll,
         scroll: measured.scroll,
+        replay: measured.replay && { ok: measured.replay.ok, maxBarH: measured.replay.after && measured.replay.after.maxBarH },
         via: measured.via,
       }));
       if (!ok) fail += 1;
