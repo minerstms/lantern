@@ -1,5 +1,5 @@
 /**
- * Prompt #246C — staff student-authorize rejection recovery + safe logout continue.
+ * Prompt #246C-FIX — silent non-student session discard on student-authorize.
  * Usage: node worker/scripts/geppetto-staff-logout-246c-test.mjs
  */
 import fs from 'fs';
@@ -10,7 +10,6 @@ import {
   sanitizeGeppettoStudentAuthorizeContinue,
   geppettoStudentAuthorizeLoginLocation,
   geppettoStudentAuthorizeSelfHref,
-  geppettoStudentAuthorizeFailurePage,
 } from '../geppetto-student-handoff.js';
 
 let pass = 0;
@@ -22,6 +21,8 @@ const TEST_PILOT_SECRET = 'test-secret-not-a-real-pilot-session-secret';
 const SAFE_RETURN = 'https://mrradle.us/api/stem-daily/student/lantern-callback?next=%2Fdigital-art.html';
 const SAFE_MAKEUP_RETURN =
   'https://mrradle.us/api/stem-daily/student/lantern-callback?next=' + encodeURIComponent('/?makeup=1');
+const STAFF_DISCLOSURE =
+  /staff account|You're signed in|You&#39;re signed in|Log Out of Lantern|student accounts only|This sign-in is for student/i;
 
 function b64url(bytes) {
   let bin = '';
@@ -135,6 +136,31 @@ function cookieCleared(res) {
   return /lantern_pilot=/.test(raw) && /Max-Age=0/.test(raw);
 }
 
+function cookieNotCleared(res) {
+  const raw = res.headers.get('Set-Cookie') || '';
+  return !raw || !/Max-Age=0/.test(raw);
+}
+
+function parseStudentSignIn(loc) {
+  if (!loc) return null;
+  try {
+    return new URL(loc, 'https://tmslantern.org');
+  } catch (_) {
+    return null;
+  }
+}
+
+function authorizeReturnFromLogin(login) {
+  if (!login) return '';
+  const loginReturn = login.searchParams.get('return') || '';
+  if (!loginReturn.startsWith('/api/auth/geppetto-student-authorize?return=')) return '';
+  try {
+    return decodeURIComponent(loginReturn.split('return=')[1] || '');
+  } catch (_) {
+    return '';
+  }
+}
+
 const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: '999' });
 
 {
@@ -144,20 +170,27 @@ const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: 
   const res = await authorize(env, await cookieFor(staff), SAFE_RETURN);
   const text = await res.text();
   const loc = res.headers.get('Location') || '';
-  if (res.status !== 401 || loc.includes('code=')) {
-    bad('1. generic staff remains 401/rejected', { status: res.status, loc });
-  } else if (!/Could not continue to Class Website/.test(text)) {
-    bad('1. Class Website heading', text.slice(0, 240));
-  } else if (!/You&#39;re signed in to Lantern with a staff account\.|You're signed in to Lantern with a staff account\./.test(text)) {
-    bad('1. staff-account notice', text.slice(0, 320));
-  } else if (!/Log Out of Lantern/.test(text) || !/action="\/api\/auth\/logout"/.test(text)) {
-    bad('1. Log Out of Lantern action present', text.slice(0, 400));
-  } else if (/Make Up Assignment/.test(text)) {
-    bad('1. no Make Up wording', text.slice(0, 320));
-  } else if (!/Student Login requires a student account/.test(text) || /role !== 'student'/.test(text) === false && !/student account/.test(text)) {
-    ok('1. Generic Student Login + staff: rejected Class Website recovery, role guard unchanged');
+  const login = parseStudentSignIn(loc);
+  const loginReturn = login ? login.searchParams.get('return') || '' : '';
+  const dest = authorizeReturnFromLogin(login);
+  if (res.status !== 302 || !login || !login.pathname.endsWith('/login.html')) {
+    bad('1. staff generic authorize must 302 to Student Sign In', { status: res.status, loc, text: text.slice(0, 240) });
+  } else if (!cookieCleared(res)) {
+    bad('1. staff generic authorize must invalidate Lantern session', res.headers.get('Set-Cookie'));
+  } else if (login.searchParams.get('intent') !== 'class-website') {
+    bad('1. Student Sign In must keep class-website intent', loc);
+  } else if (!loginReturn.startsWith('/api/auth/geppetto-student-authorize?return=')) {
+    bad('1. project continuation must be preserved', loginReturn);
+  } else if (/makeup=1/.test(loginReturn) || /makeup=1/.test(dest)) {
+    bad('1. generic flow must not gain makeup=1', dest);
+  } else if (!dest.includes('digital-art.html')) {
+    bad('1. generic project destination missing', dest);
+  } else if (loc.includes('code=') || Object.keys(state.handoffs).length) {
+    bad('1. staff must not mint a student handoff', { loc, handoffs: state.handoffs });
+  } else if (STAFF_DISCLOSURE.test(text) || STAFF_DISCLOSURE.test(loc)) {
+    bad('1. no staff-session disclosure', text.slice(0, 320) || loc);
   } else {
-    ok('1. Generic Student Login + staff: rejected Class Website recovery, role guard unchanged');
+    ok('1. Staff + generic authorize: silent session clear, 302 Student Sign In, project preserved');
   }
 }
 
@@ -167,92 +200,23 @@ const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: 
   state.accounts[staff.username] = staff;
   const res = await authorize(env, await cookieFor(staff), SAFE_MAKEUP_RETURN);
   const text = await res.text();
-  if (res.status !== 401) {
-    bad('2. explicit Make Up + staff remains rejected', res.status);
-  } else if (!/Could not continue to Make Up Assignment/.test(text)) {
-    bad('2. Make Up heading', text.slice(0, 240));
-  } else if (!/staff account/.test(text) || !/Make Up Assignment requires a student account/.test(text)) {
-    bad('2. staff-account Make Up notice', text.slice(0, 320));
-  } else if (!/Log Out of Lantern/.test(text) || /Student Login requires a student account/.test(text)) {
-    bad('2. Log Out present without generic Student Login sentence', text.slice(0, 400));
-  } else {
-    ok('2. Explicit Make Up + staff: rejected Make Up recovery');
-  }
-}
-
-{
-  const env = makeEnv({});
-  const cont = geppettoStudentAuthorizeSelfHref(SAFE_RETURN);
-  const cookie = await cookieFor(staff);
-  const res = await logout(env, { cookie, form: cont });
   const loc = res.headers.get('Location') || '';
-  const login = loc ? new URL(loc, 'https://tmslantern.org') : null;
-  const loginReturn = login ? login.searchParams.get('return') || '' : '';
-  if (res.status !== 302 || !cookieCleared(res)) {
-    bad('3. logout destroys session and continues', { status: res.status, loc, cookie: res.headers.get('Set-Cookie') });
-  } else if (login.searchParams.get('intent') !== 'class-website' || !login.pathname.endsWith('/login.html')) {
-    bad('3. routes to student login', loc);
-  } else if (!loginReturn.startsWith('/api/auth/geppetto-student-authorize?return=')) {
-    bad('3. preserves only sanitized authorize continuation', loginReturn);
-  } else if (/makeup=1/.test(loginReturn) || /makeup=1/.test(decodeURIComponent(loginReturn))) {
-    bad('3. generic flow must not gain makeup=1', loginReturn);
-  } else if (!decodeURIComponent(loginReturn.split('return=')[1] || '').includes('digital-art.html')) {
-    bad('3. generic project destination missing', loginReturn);
+  const login = parseStudentSignIn(loc);
+  const dest = authorizeReturnFromLogin(login);
+  if (res.status !== 302 || !login || !login.pathname.endsWith('/login.html')) {
+    bad('2. staff Make Up authorize must 302 to Student Sign In', { status: res.status, loc, text: text.slice(0, 240) });
+  } else if (!cookieCleared(res)) {
+    bad('2. staff Make Up authorize must invalidate Lantern session', res.headers.get('Set-Cookie'));
+  } else if (login.searchParams.get('intent') !== 'class-website') {
+    bad('2. Make Up Student Sign In must keep class-website intent', loc);
+  } else if (!/makeup=1|makeup%3D1/.test(dest)) {
+    bad('2. Make Up must preserve makeup=1', dest);
+  } else if (loc.includes('code=') || Object.keys(state.handoffs).length) {
+    bad('2. staff Make Up must not mint', { loc, handoffs: state.handoffs });
+  } else if (STAFF_DISCLOSURE.test(text) || STAFF_DISCLOSURE.test(loc)) {
+    bad('2. no staff disclosure on Make Up silent logout', text.slice(0, 320) || loc);
   } else {
-    ok('3. Logout continuation: generic project preserved through Student Sign In');
-  }
-}
-
-{
-  const env = makeEnv({});
-  const cont = geppettoStudentAuthorizeSelfHref(SAFE_MAKEUP_RETURN);
-  const res = await logout(env, { cookie: await cookieFor(staff), form: cont });
-  const loc = res.headers.get('Location') || '';
-  const login = new URL(loc, 'https://tmslantern.org');
-  const loginReturn = login.searchParams.get('return') || '';
-  const authorizeReturn = decodeURIComponent(loginReturn.split('return=')[1] || '');
-  if (res.status !== 302 || !cookieCleared(res)) {
-    bad('3b. makeup logout continue', { status: res.status, loc });
-  } else if (
-    !authorizeReturn.includes('lantern-callback') ||
-    !/makeup=1|makeup%3D1/.test(authorizeReturn)
-  ) {
-    bad('3b. Make Up retains makeup=1', authorizeReturn);
-  } else {
-    ok('3b. Logout continuation: Make Up retains makeup=1');
-  }
-}
-
-{
-  const env = makeEnv({});
-  const cookie = await cookieFor(staff);
-  const evil = await logout(env, { cookie, form: 'https://evil.example/steal' });
-  const loc = evil.headers.get('Location') || '';
-  if (evil.status !== 302 || loc !== '/login.html') {
-    bad('4. unsafe continue cannot smuggle a destination', { status: evil.status, loc });
-  } else if (!cookieCleared(evil)) {
-    bad('4. unsafe continue still logs out', evil.headers.get('Set-Cookie'));
-  } else if (sanitizeGeppettoStudentAuthorizeContinue('https://evil.example/steal')) {
-    bad('4. helper accepted evil URL');
-  } else if (sanitizeGeppettoStudentAuthorizeContinue('/api/auth/geppetto-student-authorize?return=https://evil.example/steal')) {
-    bad('4. helper accepted authorize+evil return');
-  } else if (geppettoStudentAuthorizeLoginLocation('/login.html?return=https://evil.example')) {
-    bad('4. login location helper accepted open redirect');
-  } else {
-    ok('4. Unsafe return cannot be smuggled through logout continuation');
-  }
-}
-
-{
-  const env = makeEnv({});
-  const res = await authorize(env, '', SAFE_RETURN);
-  const loc = res.headers.get('Location') || '';
-  if (res.status !== 302 || !loc.startsWith('/login.html?return=')) {
-    bad('5. no-session continues to Student Sign In', { status: res.status, loc });
-  } else if (/Log Out of Lantern/.test(loc) || res.status === 401) {
-    bad('5. no-session must not show logout page', loc);
-  } else {
-    ok('5. No-session student authorize continues to normal Student Sign In');
+    ok('2. Staff + Make Up authorize: silent session clear, 302 Student Sign In, makeup=1 preserved');
   }
 }
 
@@ -264,9 +228,77 @@ const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: 
   const res = await authorize(env, await cookieFor(acc), SAFE_RETURN);
   const loc = res.headers.get('Location') || '';
   if (res.status !== 302 || !loc.startsWith('https://mrradle.us/api/stem-daily/student/lantern-callback') || !/[?&]code=/.test(loc)) {
-    bad('6. actual student authorize unchanged', { status: res.status, loc });
+    bad('3. existing student authorize unchanged', { status: res.status, loc });
+  } else if (!cookieNotCleared(res)) {
+    bad('3. existing student session must not be logged out', res.headers.get('Set-Cookie'));
   } else {
-    ok('6. Actual student account successful authorize unchanged');
+    ok('3. Existing student session is not logged out; successful authorize unchanged');
+  }
+}
+
+{
+  const env = makeEnv({});
+  const res = await authorize(env, '', SAFE_RETURN);
+  const loc = res.headers.get('Location') || '';
+  const login = parseStudentSignIn(loc);
+  const dest = authorizeReturnFromLogin(login);
+  if (res.status !== 302 || !login || !login.pathname.endsWith('/login.html')) {
+    bad('4. no-session continues to Student Sign In', { status: res.status, loc });
+  } else if (cookieCleared(res)) {
+    bad('4. no-session must not emit a session-clear cookie', res.headers.get('Set-Cookie'));
+  } else if (login.searchParams.get('intent') !== 'class-website') {
+    bad('4. no-session Student Sign In intent', loc);
+  } else if (!dest.includes('digital-art.html') || /makeup=1/.test(dest)) {
+    bad('4. no-session generic continuation', dest);
+  } else if (STAFF_DISCLOSURE.test(loc)) {
+    bad('4. no-session must not mention staff', loc);
+  } else {
+    ok('4. No session: ordinary Student Sign In redirect unchanged');
+  }
+}
+
+{
+  const state = {};
+  const env = makeEnv(state);
+  state.accounts[staff.username] = staff;
+  const res = await authorize(env, await cookieFor(staff), 'https://evil.example/steal');
+  const text = await res.text();
+  const loc = res.headers.get('Location') || '';
+  if (res.status === 302 || loc) {
+    bad('5. unsafe return must remain rejected', { status: res.status, loc });
+  } else if (cookieCleared(res)) {
+    bad('5. unsafe return must not silently log out / continue', res.headers.get('Set-Cookie'));
+  } else if (Object.keys(state.handoffs).length) {
+    bad('5. unsafe return must not mint', state.handoffs);
+  } else if (STAFF_DISCLOSURE.test(text)) {
+    bad('5. unsafe return must not disclose staff', text.slice(0, 320));
+  } else if (sanitizeGeppettoStudentReturn('https://evil.example/api/stem-daily/student/lantern-callback')) {
+    bad('5. allowlist widened');
+  } else if (sanitizeGeppettoStudentAuthorizeContinue('/api/auth/geppetto-student-authorize?return=https://evil.example/steal')) {
+    bad('5. helper accepted authorize+evil return');
+  } else if (geppettoStudentAuthorizeLoginLocation('/login.html?return=https://evil.example')) {
+    bad('5. login location helper accepted open redirect');
+  } else {
+    ok('5. Unsafe return remains rejected and cannot pass through silent logout');
+  }
+}
+
+{
+  const state = {};
+  const env = makeEnv(state);
+  state.accounts[staff.username] = staff;
+  const cookie = await cookieFor(staff);
+  const me = await worker.fetch(
+    new Request('https://tmslantern.org/api/auth/me', { method: 'GET', headers: { Cookie: cookie } }),
+    env
+  );
+  const meJson = await me.json();
+  if (me.status !== 200 || !meJson || meJson.authenticated !== true || meJson.username !== staff.username) {
+    bad('6. ordinary staff /api/auth/me must stay signed in', { status: me.status, meJson });
+  } else if (cookieCleared(me)) {
+    bad('6. ordinary staff navigation must not auto-log out', me.headers.get('Set-Cookie'));
+  } else {
+    ok('6. Normal staff Lantern navigation does not auto-log out');
   }
 }
 
@@ -283,7 +315,25 @@ const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: 
   } else if (res.headers.get('Location')) {
     bad('7. ordinary logout must not redirect', res.headers.get('Location'));
   } else {
-    ok('7. Existing ordinary Lantern logout behavior unchanged');
+    ok('7. Ordinary /api/auth/logout remains JSON cookie-clear');
+  }
+}
+
+{
+  const env = makeEnv({});
+  const cont = geppettoStudentAuthorizeSelfHref(SAFE_RETURN);
+  const res = await logout(env, { cookie: await cookieFor(staff), form: cont });
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); } catch (_) { json = null; }
+  if (res.status !== 200 || !json || json.ok !== true) {
+    bad('7b. form POST logout must stay ordinary JSON', { status: res.status, text: text.slice(0, 200) });
+  } else if (res.headers.get('Location')) {
+    bad('7b. logout must not honor a continue form field', res.headers.get('Location'));
+  } else if (!cookieCleared(res)) {
+    bad('7b. form POST logout still clears cookie');
+  } else {
+    ok('7b. Logout form continue is ignored; ordinary logout unchanged');
   }
 }
 
@@ -293,31 +343,17 @@ const staff = account({ username: 'teacher1', role: 'teacher', mtss_student_id: 
     makeEnv({})
   );
   const workerSrc = fs.readFileSync(fileURLToPath(new URL('../index.js', import.meta.url)), 'utf8');
+  const handoffSrc = fs.readFileSync(fileURLToPath(new URL('../geppetto-student-handoff.js', import.meta.url)), 'utf8');
   if (getLogout.status === 302 && /login\.html/.test(getLogout.headers.get('Location') || '')) {
     bad('GET logout must not auto-log-out / continue', getLogout.headers.get('Location'));
-  } else if (/request\.method === 'GET' && path === '\/api\/pilot\/logout'/.test(workerSrc)) {
-    bad('must not add GET logout');
+  } else if (/readPilotLogoutContinueField/.test(workerSrc)) {
+    bad('logout continue helper must be removed');
+  } else if (/Log Out of Lantern/.test(handoffSrc) || /staff account/.test(handoffSrc)) {
+    bad('handoff failure page must not disclose staff');
   } else if (sanitizeGeppettoStudentReturn('https://evil.example/api/stem-daily/student/lantern-callback')) {
     bad('allowlist widened');
   } else {
-    ok('role guard / allowlist / no GET logout remain constrained');
-  }
-}
-
-{
-  const page = geppettoStudentAuthorizeFailurePage(
-    'lantern_account_not_student',
-    {},
-    geppettoStudentAuthorizeSelfHref(SAFE_RETURN)
-  );
-  const html = await page.text();
-  if (/Try Again/.test(html)) bad('staff recovery should not keep useless Try Again', html.slice(0, 400));
-  else if (!/Back to Class Website/.test(html) || !/https:\/\/mrradle\.us/.test(html)) {
-    bad('secondary Back to Class Website missing');
-  } else if (!/font-size:22px/.test(html) || !/btn primary/.test(html)) {
-    bad('failure page should use readable Lantern-like styling');
-  } else {
-    ok('staff page is a readable recovery UI without Try Again');
+    ok('role guard / allowlist / ordinary logout remain constrained');
   }
 }
 
