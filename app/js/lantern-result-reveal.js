@@ -583,8 +583,8 @@
   }
 
   /**
-   * Vertical spatial race from the ACTUAL reaction icons.
-   * Each icon is the horse; a bar grows up from beneath it and lifts it.
+   * Reaction icons stay on a stable row. Bars/percents grow in a sibling
+   * result stage so that band consumes real document-flow height.
    */
   function mountReactionSpatialRace(root, items, opts) {
     if (!root) return;
@@ -635,55 +635,6 @@
       if (r.type) byType[r.type] = r;
     });
 
-    var lanes = [];
-    for (var i = 0; i < buttons.length; i++) {
-      var btn = buttons[i];
-      var typ = String(btn.getAttribute(typeAttr) || btn.getAttribute('data-reaction-type') || '').toLowerCase();
-      var row = byType[typ] || rows[i] || { percentage: 0, selected: false, label: btn.getAttribute('aria-label') || '', emoji: '' };
-      var lane = btn.closest('.lanternRxLane');
-      if (!lane) {
-        lane = global.document.createElement('div');
-        lane.className = 'lanternRxLane';
-        btn.parentNode.insertBefore(lane, btn);
-        lane.appendChild(btn);
-      }
-      lane.classList.toggle('lanternRxLane--yours', !!row.selected);
-      lane.setAttribute('data-race-index', String(i));
-      lane.setAttribute('data-rx-type', typ);
-      var bar = lane.querySelector('[data-race-fill]');
-      if (!bar) {
-        bar = global.document.createElement('div');
-        bar.className = 'lanternRxRaceBar';
-        bar.setAttribute('data-race-fill', '');
-        bar.setAttribute('aria-hidden', 'true');
-      }
-      if (bar.parentNode !== lane || btn.nextSibling !== bar) {
-        if (btn.nextSibling) lane.insertBefore(bar, btn.nextSibling);
-        else lane.appendChild(bar);
-      }
-      var pctEl = lane.querySelector('[data-race-pct]');
-      if (!pctEl) {
-        pctEl = global.document.createElement('span');
-        pctEl.className = 'lanternRxRacePct lanternResultRacePct is-pending';
-        pctEl.setAttribute('data-race-pct', '');
-        pctEl.setAttribute('aria-hidden', 'true');
-        lane.appendChild(pctEl);
-      }
-      pctEl.classList.add('is-pending');
-      pctEl.textContent = '';
-      bar.style.height = '0px';
-      btn.style.transition = 'none';
-      btn.disabled = true;
-      btn.setAttribute('aria-disabled', 'true');
-      lanes.push({
-        btn: btn,
-        bar: bar,
-        pctEl: pctEl,
-        lane: lane,
-        row: row,
-      });
-    }
-
     var parentChoices = buttons[0] && buttons[0].closest('.lanternFinalRxChoices, .lanternReactionBar');
     if (parentChoices) {
       parentChoices.classList.add('lanternRxChoices--racing');
@@ -694,23 +645,111 @@
 
     var raceStageHeight = 0;
     var scrollPad = 0;
+    var arena = panel.querySelector('.lanternFinalRxRaceArena');
     var stage = panel.querySelector('[data-rx-race-stage]');
     if (!stage) {
       stage = global.document.createElement('div');
-      stage.className = 'lanternRxRaceStage';
       stage.setAttribute('data-rx-race-stage', '');
       stage.setAttribute('aria-hidden', 'true');
-      var arena = panel.querySelector('.lanternFinalRxRaceArena');
-      if (arena && parentChoices && parentChoices.parentNode === arena) {
+    }
+    stage.className = 'lanternRxRaceStage';
+    if (arena && parentChoices && parentChoices.parentNode === arena) {
+      if (stage.parentNode !== arena || parentChoices.nextSibling !== stage) {
         if (parentChoices.nextSibling) arena.insertBefore(stage, parentChoices.nextSibling);
         else arena.appendChild(stage);
-      } else if (parentChoices && parentChoices.parentNode) {
+      }
+    } else if (parentChoices && parentChoices.parentNode) {
+      if (stage.parentNode !== parentChoices.parentNode || parentChoices.nextSibling !== stage) {
         parentChoices.parentNode.insertBefore(stage, parentChoices.nextSibling);
-      } else {
-        panel.appendChild(stage);
+      }
+    } else if (!stage.parentNode) {
+      panel.appendChild(stage);
+    }
+    stage.style.height = '';
+    var copiedCols = parentChoices && parentChoices.style ? parentChoices.style.gridTemplateColumns : '';
+    if (!copiedCols && parentChoices && global.getComputedStyle) {
+      try {
+        var computedCols = global.getComputedStyle(parentChoices).gridTemplateColumns;
+        if (computedCols && computedCols !== 'none') copiedCols = computedCols;
+      } catch (errCols) {}
+    }
+    stage.style.gridTemplateColumns = copiedCols || 'repeat(' + String(buttons.length || 1) + ',minmax(0,1fr))';
+
+    function directChildLanes(el) {
+      var found = [];
+      if (!el || !el.children) return found;
+      for (var c = 0; c < el.children.length; c++) {
+        if (el.children[c].classList && el.children[c].classList.contains('lanternRxLane')) {
+          found.push(el.children[c]);
+        }
+      }
+      return found;
+    }
+
+    for (var u = 0; u < buttons.length; u++) {
+      var unwrapBtn = buttons[u];
+      var wrapLane = unwrapBtn.closest('.lanternRxLane');
+      if (wrapLane && wrapLane.contains(unwrapBtn) && !stage.contains(wrapLane)) {
+        if (wrapLane.parentNode) wrapLane.parentNode.insertBefore(unwrapBtn, wrapLane);
       }
     }
-    stage.style.height = '0px';
+
+    var leftoverLanes = directChildLanes(parentChoices);
+    var lanes = [];
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      var typ = String(btn.getAttribute(typeAttr) || btn.getAttribute('data-reaction-type') || '').toLowerCase();
+      var row = byType[typ] || rows[i] || { percentage: 0, selected: false, label: btn.getAttribute('aria-label') || '', emoji: '' };
+      var lane =
+        stage.querySelector('.lanternRxLane[data-race-index="' + String(i) + '"]') || leftoverLanes[i] || null;
+      if (!lane) {
+        lane = global.document.createElement('div');
+      }
+      lane.className = 'lanternRxLane';
+      lane.classList.toggle('lanternRxLane--yours', !!row.selected);
+      lane.setAttribute('data-race-index', String(i));
+      lane.setAttribute('data-rx-type', typ);
+      if (lane.parentNode !== stage) stage.appendChild(lane);
+
+      var bar = lane.querySelector('[data-race-fill]');
+      if (!bar && btn.nextElementSibling && btn.nextElementSibling.getAttribute('data-race-fill') != null) {
+        bar = btn.nextElementSibling;
+      }
+      if (!bar) {
+        bar = global.document.createElement('div');
+        bar.setAttribute('data-race-fill', '');
+        bar.setAttribute('aria-hidden', 'true');
+      }
+      bar.className = 'lanternRxRaceBar';
+      if (bar.parentNode !== lane) lane.insertBefore(bar, lane.firstChild);
+
+      var pctEl = lane.querySelector('[data-race-pct]');
+      if (!pctEl && btn.nextElementSibling && btn.nextElementSibling.getAttribute('data-race-pct') != null) {
+        pctEl = btn.nextElementSibling;
+      }
+      if (!pctEl) {
+        pctEl = global.document.createElement('span');
+        pctEl.setAttribute('data-race-pct', '');
+        pctEl.setAttribute('aria-hidden', 'true');
+      }
+      pctEl.className = 'lanternRxRacePct lanternResultRacePct is-pending';
+      if (pctEl.parentNode !== lane) lane.appendChild(pctEl);
+      pctEl.classList.add('is-pending');
+      pctEl.textContent = '';
+      bar.style.height = '0px';
+      bar.style.transform = '';
+      btn.style.transition = 'none';
+      btn.style.transform = '';
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      lanes.push({
+        btn: btn,
+        bar: bar,
+        pctEl: pctEl,
+        lane: lane,
+        row: row,
+      });
+    }
 
     function findRaceScrollParent(el) {
       var n = el;
@@ -763,7 +802,7 @@
       if (next !== raceStageHeight) {
         var grew = next - raceStageHeight;
         raceStageHeight = next;
-        if (stage) stage.style.height = '0px';
+        if (stage) stage.style.height = '';
         if (grew > 0) {
           ensureScrollRoom(findRaceScrollParent(panel), grew);
         }

@@ -223,7 +223,6 @@
     var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
     vocab.forEach(function (v) {
       html +=
-        '<div class="lanternRxLane">' +
         '<button type="button" class="lanternFinalRxChoice' +
         (extraClass || '') +
         '" data-rx-type="' +
@@ -232,12 +231,9 @@
         esc(v.label) +
         '" aria-pressed="false">' +
         v.emoji +
-        '</button>' +
-        '<div class="lanternRxRaceBar" data-race-fill aria-hidden="true"></div>' +
-        '<span class="lanternRxRacePct lanternResultRacePct is-pending" data-race-pct aria-hidden="true"></span>' +
-        '</div>';
+        '</button>';
     });
-    html += '</div></div>';
+    html += '</div><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div></div>';
     return html;
   }
 

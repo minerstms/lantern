@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Explore reaction layout #247A</title>
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-interactive-surface.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; --line: rgba(255,255,255,.12); }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+      padding: 16px 12px 48px;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    p { font-size: 22px; line-height: 1.35; }
+    .banner {
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-weight: 800;
+    }
+    #hud, #report {
+      font-size: 18px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      background: #071018;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+    button.run {
+      width: 100%;
+      max-width: 720px;
+      min-height: 52px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY. Uses LanternCardUI.ensureOverlay + fillFeedItemDetailModal, then the production reaction race. Fixture percentages only. No D1 writes.</p>
+  <h1>Explore overlay reaction layout #247A</h1>
+  <p>Icons must stay put. The result stage must grow in document flow and push the following sibling down.</p>
+  <button type="button" class="run" id="openAndRace">Open Explore post and run reaction race</button>
+  <button type="button" class="run" id="replayRace">Replay Results</button>
+  <button type="button" class="run" id="runPoll">Poll mine-cart regression</button>
+  <div id="hud">Waiting…</div>
+  <div id="report"></div>
+
+  <script src="/js/lantern-interactive-surface.js"></script>
+  <script src="/js/lantern-cards.js"></script>
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-reaction-bank.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script src="/js/lantern-card-ui.js"></script>
+  <script src="/js/lantern-final-reactions.js"></script>
+  <script>
+    (function () {
+      var FIXTURES = [
+        { label: 'Love', emoji: '❤️', type: 'heart', percentage: 12, selected: false },
+        { label: 'Star', emoji: '⭐', type: 'star', percentage: 34, selected: true },
+        { label: 'Idea', emoji: '💡', type: 'lightbulb', percentage: 57, selected: false },
+        { label: 'Handshake', emoji: '🤝', type: 'teamwork', percentage: 83, selected: false },
+        { label: 'Fire', emoji: '🔥', type: 'fire', percentage: 100, selected: false }
+      ];
+      var POLL = [
+        { label: 'Alpha', percentage: 12, selected: false },
+        { label: 'Bravo', percentage: 34, selected: true },
+        { label: 'Charlie', percentage: 57, selected: false }
+      ];
+      var samples = [];
+      var lastReport = null;
+
+      function overlayEl() {
+        return document.getElementById('lanternCardDetailOverlay');
+      }
+      function scrollOwner() {
+        return overlayEl();
+      }
+      function docY(el) {
+        if (!el) return 0;
+        var r = el.getBoundingClientRect();
+        var owner = scrollOwner();
+        var st = owner ? owner.scrollTop : (window.scrollY || 0);
+        return r.top + st;
+      }
+      function sectionY(el, section) {
+        if (!el || !section) return 0;
+        var er = el.getBoundingClientRect();
+        var sr = section.getBoundingClientRect();
+        return er.top - sr.top;
+      }
+
+      function paintProductionReactionPanel(host) {
+        var vocab = window.LANTERN_FINAL_REACTIONS && window.LANTERN_FINAL_REACTIONS.VOCAB
+          ? window.LANTERN_FINAL_REACTIONS.VOCAB
+          : FIXTURES;
+        var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--locked"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
+        html += '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
+        vocab.forEach(function (v) {
+          html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>';
+        });
+        html += '</div><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div></div>';
+        html += '<p class="lanternFinalRxYour">Your response: ⭐</p></div>';
+        host.innerHTML = html;
+      }
+
+      function openExplorePost() {
+        if (!window.LanternCardUI) throw new Error('LanternCardUI missing');
+        window.LanternCardUI.ensureOverlay();
+        var overlay = overlayEl();
+        var modal = overlay.querySelector('.lanternCardDetailModal');
+        window.LanternCardUI.fillFeedItemDetailModal(modal, {
+          id: 'fixture-247a',
+          title: 'Opened Explore post — icons must stay put',
+          body: 'This is the real opened-post body. It sits above the reaction row in production. Following content is the next sibling after .lanternCardDetailReactions.',
+          type: 'article',
+          typeLabel: 'News',
+          summary: 'Canonical Explore overlay path.',
+          authorDisplayName: 'Student Name',
+          createdAt: '2026-08-21T00:00:00.000Z'
+        }, { mode: 'studio-preview' });
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+        var rx = overlay.querySelector('#lanternCardDetailReactions');
+        paintProductionReactionPanel(rx);
+        var follow = overlay.querySelector('#lanternCardDetailAdminModeration');
+        if (follow) {
+          follow.style.display = 'block';
+          follow.setAttribute('data-247a-follow', '1');
+          follow.innerHTML = '<div style="padding:12px;border:1px dashed rgba(255,255,255,.3);border-radius:12px;">Following poll / admin / modal content. Must move down as the result stage grows.</div>';
+        }
+        return overlay;
+      }
+
+      function capture(label) {
+        var overlay = overlayEl();
+        var section = overlay.querySelector('.lanternCardDetailReactions');
+        var icons = overlay.querySelectorAll('.lanternFinalRxChoice');
+        var follow = overlay.querySelector('[data-247a-follow="1"]') || overlay.querySelector('#lanternCardDetailAdminModeration');
+        var stage = overlay.querySelector('[data-rx-race-stage]');
+        var bars = overlay.querySelectorAll('[data-race-fill]');
+        var owner = scrollOwner();
+        var icon = icons[1] || icons[0];
+        var rec = {
+          label: label,
+          scrollTop: owner ? owner.scrollTop : 0,
+          iconDocY: docY(icon),
+          iconSectionY: sectionY(icon, section),
+          iconViewportTop: icon ? icon.getBoundingClientRect().top : 0,
+          followDocY: docY(follow),
+          followSectionY: sectionY(follow, section),
+          stageH: stage ? Math.round(stage.getBoundingClientRect().height) : 0,
+          barInStage: !!(stage && bars[0] && stage.contains(bars[0])),
+          iconInStage: !!(stage && icon && stage.contains(icon)),
+          maxBarH: 0
+        };
+        bars.forEach(function (b) {
+          rec.maxBarH = Math.max(rec.maxBarH, Math.round(b.getBoundingClientRect().height));
+        });
+        return rec;
+      }
+
+      function startRace() {
+        var overlay = overlayEl();
+        var panel = overlay.querySelector('.lanternFinalRxPanel');
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(panel, FIXTURES, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: false
+        });
+      }
+
+      function summarize(before, during, after, extra) {
+        extra = extra || {};
+        var iconDrift = Math.max(
+          Math.abs((during && during.iconSectionY) - before.iconSectionY),
+          Math.abs((after && after.iconSectionY) - before.iconSectionY)
+        );
+        var followDown = Math.round((after && after.followDocY) - before.followDocY);
+        var stageGrew = after && after.stageH > 8;
+        var ok = iconDrift <= 2 && followDown >= 80 && stageGrew && after.barInStage && !after.iconInStage;
+        lastReport = {
+          ok: ok,
+          iconDrift: iconDrift,
+          followDown: followDown,
+          before: before,
+          during: during,
+          after: after,
+          extra: extra
+        };
+        document.getElementById('report').textContent = JSON.stringify(lastReport, null, 2);
+        window.__LANTERN_247A = lastReport;
+        return lastReport;
+      }
+
+      function runReactionRace() {
+        openExplorePost();
+        var before = capture('before');
+        startRace();
+        var during = null;
+        var started = Date.now();
+        return new Promise(function (resolve) {
+          var timer = setInterval(function () {
+            var now = capture('during');
+            if (!during && now.maxBarH > 20) during = now;
+            samples.push(now);
+            var done = now.maxBarH >= 150 || Date.now() - started > 3600;
+            if (done) {
+              clearInterval(timer);
+              var after = capture('after');
+              resolve(summarize(before, during || now, after));
+            }
+          }, 80);
+        });
+      }
+
+      function runPollRace() {
+        var host = document.getElementById('hud');
+        var box = document.createElement('div');
+        box.id = 'poll247a';
+        host.parentNode.insertBefore(box, host);
+        window.LANTERN_RESULT_REVEAL.mountPollMineCartRace(box, POLL, {
+          listLabel: '247A poll regression',
+          playAudio: false
+        });
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            var carts = box.querySelectorAll('[data-race-cart]');
+            var fills = box.querySelectorAll('[data-race-fill]');
+            resolve({
+              ok: carts.length > 0 && fills.length > 0,
+              carts: carts.length,
+              fills: fills.length
+            });
+          }, 800);
+        });
+      }
+
+      document.getElementById('openAndRace').addEventListener('click', function () {
+        runReactionRace();
+      });
+      document.getElementById('replayRace').addEventListener('click', function () {
+        if (!overlayEl()) openExplorePost();
+        startRace();
+      });
+      document.getElementById('runPoll').addEventListener('click', function () {
+        runPollRace();
+      });
+
+      window.__LANTERN_247A_RUN = {
+        openExplorePost: openExplorePost,
+        runReactionRace: runReactionRace,
+        runPollRace: runPollRace,
+        capture: capture,
+        fixtures: FIXTURES
+      };
+      document.getElementById('hud').textContent = 'Ready. Overlay will be created with LanternCardUI.';
+    })();
+  </script>
+</body>
+</html>
