@@ -2310,6 +2310,20 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     if (!safeReturn) return geppettoStudentAuthorizeFailurePage('return_not_allowed', cors);
     const authorizeSelf = geppettoStudentAuthorizeSelfHref(safeReturn);
     const account = await getPilotAccountFromRequest(request, env);
+    const role = account ? String(account.role || '').trim().toLowerCase() : '';
+    if (account && role !== 'student') {
+      const loginLoc = geppettoStudentAuthorizeLoginLocation(authorizeSelf);
+      const secure = url.protocol === 'https:';
+      return new Response(null, {
+        status: 302,
+        headers: {
+          ...cors,
+          Location: loginLoc || '/login.html',
+          'Set-Cookie': pilotClearCookieHeader(secure),
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
     if (!account) {
       const loginLoc = '/login.html?return=' + encodeURIComponent(authorizeSelf) + '&intent=class-website';
       return new Response(null, {
@@ -2326,8 +2340,6 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     }
     const isActive = account.is_active != null ? Number(account.is_active) : 1;
     if (isActive === 0) return geppettoStudentAuthorizeFailurePage('lantern_account_disabled', cors, authorizeSelf);
-    const role = String(account.role || '').trim().toLowerCase();
-    if (role !== 'student') return geppettoStudentAuthorizeFailurePage('lantern_account_not_student', cors, authorizeSelf);
     const mtssStudentId = account.mtss_student_id != null ? String(account.mtss_student_id).trim() : '';
     if (!mtssStudentId) return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors, authorizeSelf);
 
@@ -4578,17 +4590,6 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 
-async function readPilotLogoutContinueField(request) {
-  const ct = String((request && request.headers && request.headers.get('Content-Type')) || '').toLowerCase();
-  if (ct.indexOf('application/x-www-form-urlencoded') === -1) return '';
-  try {
-    const text = await request.text();
-    return String(new URLSearchParams(text).get('continue') || '').trim();
-  } catch (_) {
-    return '';
-  }
-}
-
 async function handlePilotRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -4678,24 +4679,13 @@ async function handlePilotRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/pilot/logout') {
-    const headers = {
-      ...cors,
-      'Set-Cookie': pilotClearCookieHeader(secure),
-      'Cache-Control': 'no-store',
-    };
-    const continueRaw = await readPilotLogoutContinueField(request);
-    if (continueRaw) {
-      const loginLoc = geppettoStudentAuthorizeLoginLocation(continueRaw);
-      return new Response(null, {
-        status: 302,
-        headers: { ...headers, Location: loginLoc || '/login.html' },
-      });
-    }
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: {
-        ...headers,
+        ...cors,
         'Content-Type': 'application/json',
+        'Set-Cookie': pilotClearCookieHeader(secure),
+        'Cache-Control': 'no-store',
       },
     });
   }

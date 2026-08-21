@@ -208,19 +208,19 @@ async function testTeacherAdminFailClosed() {
     state.accounts[acc.username] = acc;
     const res = await authorize(env, await cookieFor(acc), SAFE_RETURN);
     const text = await res.text();
-    if (res.status === 302 && (res.headers.get('Location') || '').includes('code=')) {
-      return bad(role + ' must not mint student handoff', res.headers.get('Location'));
+    const loc = res.headers.get('Location') || '';
+    const setCookie = res.headers.get('Set-Cookie') || '';
+    if (loc.includes('code=')) {
+      return bad(role + ' must not mint student handoff', loc);
     }
-    if (/Could not continue to Make Up Assignment/.test(text)) {
-      return bad(role + ' generic authorize must not use Make Up heading', text.slice(0, 240));
+    if (res.status !== 302 || !loc.startsWith('/login.html?return=')) {
+      return bad(role + ' non-student session must 302 to Student Sign In', { status: res.status, loc, text: text.slice(0, 240) });
     }
-    if (
-      !/Could not continue to Class Website/.test(text) ||
-      !/staff account/i.test(text) ||
-      !/Student Login requires a student account/i.test(text) ||
-      !/Log Out of Lantern/.test(text)
-    ) {
-      return bad(role + ' generic authorize must use Class Website staff recovery copy', text.slice(0, 320));
+    if (!/lantern_pilot=/.test(setCookie) || !/Max-Age=0/.test(setCookie)) {
+      return bad(role + ' non-student session must be invalidated', setCookie);
+    }
+    if (/makeup=1/.test(loc) || /staff account|Log Out of Lantern/i.test(text) || /staff account|Log Out of Lantern/i.test(loc)) {
+      return bad(role + ' silent logout must not disclose staff or add makeup=1', { loc, text: text.slice(0, 240) });
     }
   }
   ok('3. teacher/admin cannot mint student handoff');
@@ -401,18 +401,26 @@ async function testPurposeAwareFailureCopy() {
   state.accounts[staff.username] = staff;
   const makeupRes = await authorize(env, await cookieFor(staff), SAFE_MAKEUP_RETURN);
   const makeupText = await makeupRes.text();
-  if (makeupRes.status === 302 && (makeupRes.headers.get('Location') || '').includes('code=')) {
-    return bad('staff makeup authorize must not mint', makeupRes.headers.get('Location'));
+  const makeupLoc = makeupRes.headers.get('Location') || '';
+  const makeupCookie = makeupRes.headers.get('Set-Cookie') || '';
+  if (makeupLoc.includes('code=')) {
+    return bad('staff makeup authorize must not mint', makeupLoc);
   }
-  if (
-    !/Could not continue to Make Up Assignment/.test(makeupText) ||
-    !/staff account/i.test(makeupText) ||
-    !/Make Up Assignment requires a student account/i.test(makeupText) ||
-    !/Log Out of Lantern/.test(makeupText)
-  ) {
-    return bad('explicit Make Up staff failure must keep Make Up recovery copy', makeupText.slice(0, 320));
+  if (makeupRes.status !== 302 || !makeupLoc.startsWith('/login.html?return=')) {
+    return bad('staff Make Up must 302 to Student Sign In', { status: makeupRes.status, makeupLoc, makeupText: makeupText.slice(0, 240) });
   }
-  ok('3b. staff Make Up authorize stays rejected with Make Up wording');
+  if (!/lantern_pilot=/.test(makeupCookie) || !/Max-Age=0/.test(makeupCookie)) {
+    return bad('staff Make Up must invalidate the Lantern session', makeupCookie);
+  }
+  const makeupLogin = new URL(makeupLoc, 'https://tmslantern.org');
+  const makeupReturn = decodeURIComponent(makeupLogin.searchParams.get('return') || '');
+  if (!/makeup=1|makeup%3D1/.test(makeupReturn)) {
+    return bad('staff Make Up silent logout must preserve makeup=1', makeupReturn);
+  }
+  if (/staff account|Log Out of Lantern/i.test(makeupText) || /staff account|Log Out of Lantern/i.test(makeupLoc)) {
+    return bad('staff Make Up must not disclose a staff session', makeupText.slice(0, 320) || makeupLoc);
+  }
+  ok('3b. staff Make Up authorize silently resumes Student Sign In with makeup=1');
 }
 
 async function testLoginPagesPreserveAuthorize() {

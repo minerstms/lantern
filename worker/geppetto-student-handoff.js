@@ -271,12 +271,8 @@ export function geppettoStudentAuthorizeLoginLocation(authorizeHref) {
 export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) {
   const continueHref = sanitizeGeppettoStudentAuthorizeContinue(retryHref);
   const makeup = isGeppettoMakeupReturn(continueHref || retryHref);
-  const staffBlocked = errorCode === 'lantern_account_not_student';
   const messages = {
     return_not_allowed: 'This sign-in link is not valid. Return to the class website and try Student Sign In again.',
-    lantern_account_not_student: makeup
-      ? 'Make Up Assignment requires a student account. Log out of Lantern, then have the student sign in.'
-      : 'Student Login requires a student account. Log out of Lantern, then have the student sign in.',
     lantern_account_disabled: 'This student account is inactive. Ask your teacher for help.',
     missing_roster_id: makeup
       ? 'This student account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using Make Up Assignment.'
@@ -286,21 +282,9 @@ export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) 
   };
   const msg = messages[errorCode] || 'Could not finish Student Sign In. Ask your teacher for help.';
   const heading = makeup ? 'Could not continue to Make Up Assignment' : 'Could not continue to Class Website';
-  const notice = staffBlocked
-    ? '<p class="notice">You\'re signed in to Lantern with a staff account.</p>'
+  const retry = continueHref
+    ? '<a class="btn secondary" href="' + escapeHtml(continueHref) + '">Try Again</a>'
     : '';
-  const logoutForm = staffBlocked && continueHref
-    ? '<form method="POST" action="/api/auth/logout">' +
-      '<input type="hidden" name="continue" value="' +
-      escapeHtml(continueHref) +
-      '"/>' +
-      '<button type="submit" class="btn primary">Log Out of Lantern</button>' +
-      '</form>'
-    : '';
-  const retry =
-    !staffBlocked && continueHref
-      ? '<a class="btn secondary" href="' + escapeHtml(continueHref) + '">Try Again</a>'
-      : '';
   const html =
     '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>' +
     '<meta name="viewport" content="width=device-width,initial-scale=1"/>' +
@@ -312,20 +296,15 @@ export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) 
     '.wrap{max-width:440px;margin:0 auto;}' +
     'h1{font-size:28px;font-weight:900;margin:0 0 14px;line-height:1.25;}' +
     'p{font-size:22px;margin:0 0 16px;}' +
-    '.notice{font-weight:800;}' +
     '.btn{display:block;width:100%;box-sizing:border-box;margin:12px 0 0;padding:16px 18px;' +
     'border-radius:14px;font-size:24px;font-weight:800;text-align:center;text-decoration:none;' +
     'font-family:inherit;cursor:pointer;min-height:56px;}' +
-    '.btn.primary{border:1px solid rgba(90,167,255,.5);background:rgba(90,167,255,.28);color:var(--ink);}' +
     '.btn.secondary{border:2px solid var(--line);background:transparent;color:var(--ink);}' +
     '</style></head><body><div class="wrap"><h1>' +
     escapeHtml(heading) +
-    '</h1>' +
-    notice +
-    '<p>' +
+    '</h1><p>' +
     escapeHtml(msg) +
     '</p>' +
-    logoutForm +
     '<a class="btn secondary" href="https://mrradle.us">Back to Class Website</a>' +
     retry +
     '</div></body></html>';
