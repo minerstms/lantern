@@ -218,6 +218,8 @@ import {
   appendHandoffCodeToReturn,
   resolveGeppettoStudentDisplayName,
   geppettoStudentAuthorizeFailurePage,
+  geppettoStudentAuthorizeSelfHref,
+  geppettoStudentAuthorizeLoginLocation,
   bearerTokenFromRequest,
   mintGeppettoStudentHandoff,
   redeemGeppettoStudentHandoff,
@@ -2306,10 +2308,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/auth/geppetto-student-authorize') {
     const safeReturn = sanitizeGeppettoStudentReturn(url.searchParams.get('return'));
     if (!safeReturn) return geppettoStudentAuthorizeFailurePage('return_not_allowed', cors);
-    const authorizeSelf =
-      url.pathname +
-      '?return=' +
-      encodeURIComponent(url.searchParams.get('return') || safeReturn);
+    const authorizeSelf = geppettoStudentAuthorizeSelfHref(safeReturn);
     const account = await getPilotAccountFromRequest(request, env);
     if (!account) {
       const loginLoc = '/login.html?return=' + encodeURIComponent(authorizeSelf) + '&intent=class-website';
@@ -4579,6 +4578,17 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
 }
 
+async function readPilotLogoutContinueField(request) {
+  const ct = String((request && request.headers && request.headers.get('Content-Type')) || '').toLowerCase();
+  if (ct.indexOf('application/x-www-form-urlencoded') === -1) return '';
+  try {
+    const text = await request.text();
+    return String(new URLSearchParams(text).get('continue') || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 async function handlePilotRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -4668,12 +4678,24 @@ async function handlePilotRoutes(request, url, path, env, cors) {
   }
 
   if (request.method === 'POST' && path === '/api/pilot/logout') {
+    const headers = {
+      ...cors,
+      'Set-Cookie': pilotClearCookieHeader(secure),
+      'Cache-Control': 'no-store',
+    };
+    const continueRaw = await readPilotLogoutContinueField(request);
+    if (continueRaw) {
+      const loginLoc = geppettoStudentAuthorizeLoginLocation(continueRaw);
+      return new Response(null, {
+        status: 302,
+        headers: { ...headers, Location: loginLoc || '/login.html' },
+      });
+    }
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: {
+        ...headers,
         'Content-Type': 'application/json',
-        ...cors,
-        'Set-Cookie': pilotClearCookieHeader(secure),
       },
     });
   }

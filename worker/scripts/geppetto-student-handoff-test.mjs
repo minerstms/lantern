@@ -214,8 +214,13 @@ async function testTeacherAdminFailClosed() {
     if (/Could not continue to Make Up Assignment/.test(text)) {
       return bad(role + ' generic authorize must not use Make Up heading', text.slice(0, 240));
     }
-    if (!/Could not continue to Class Website/.test(text) || !/student accounts only/i.test(text)) {
-      return bad(role + ' generic authorize must use Class Website student-only copy', text.slice(0, 240));
+    if (
+      !/Could not continue to Class Website/.test(text) ||
+      !/staff account/i.test(text) ||
+      !/Student Login requires a student account/i.test(text) ||
+      !/Log Out of Lantern/.test(text)
+    ) {
+      return bad(role + ' generic authorize must use Class Website staff recovery copy', text.slice(0, 320));
     }
   }
   ok('3. teacher/admin cannot mint student handoff');
@@ -399,8 +404,13 @@ async function testPurposeAwareFailureCopy() {
   if (makeupRes.status === 302 && (makeupRes.headers.get('Location') || '').includes('code=')) {
     return bad('staff makeup authorize must not mint', makeupRes.headers.get('Location'));
   }
-  if (!/Could not continue to Make Up Assignment/.test(makeupText) || !/student accounts only/i.test(makeupText)) {
-    return bad('explicit Make Up staff failure must keep Make Up heading', makeupText.slice(0, 240));
+  if (
+    !/Could not continue to Make Up Assignment/.test(makeupText) ||
+    !/staff account/i.test(makeupText) ||
+    !/Make Up Assignment requires a student account/i.test(makeupText) ||
+    !/Log Out of Lantern/.test(makeupText)
+  ) {
+    return bad('explicit Make Up staff failure must keep Make Up recovery copy', makeupText.slice(0, 320));
   }
   ok('3b. staff Make Up authorize stays rejected with Make Up wording');
 }

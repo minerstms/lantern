@@ -225,11 +225,58 @@ export function isGeppettoMakeupReturn(raw) {
   return classWebsiteSsoPurposeFromReturn(raw) === 'makeup';
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Only a first-party authorize path whose callback already passes the
+ * Geppetto allowlist. Never an arbitrary external URL.
+ */
+export function sanitizeGeppettoStudentAuthorizeContinue(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s.length > 800) return '';
+  let u;
+  try {
+    u = s.indexOf('://') >= 0 ? new URL(s) : new URL(s, 'https://tmslantern.org');
+  } catch (_) {
+    return '';
+  }
+  if (!isGeppettoStudentAuthorizePath(u.pathname)) return '';
+  if (s.indexOf('://') >= 0) {
+    const host = String(u.hostname || '').toLowerCase();
+    if (host && host !== 'tmslantern.org' && host !== 'www.tmslantern.org') return '';
+  }
+  const safeReturn = sanitizeGeppettoStudentReturn(u.searchParams.get('return'));
+  if (!safeReturn) return '';
+  return '/api/auth/geppetto-student-authorize?return=' + encodeURIComponent(safeReturn);
+}
+
+export function geppettoStudentAuthorizeSelfHref(safeReturn) {
+  const cleaned = sanitizeGeppettoStudentReturn(safeReturn);
+  if (!cleaned) return '';
+  return '/api/auth/geppetto-student-authorize?return=' + encodeURIComponent(cleaned);
+}
+
+export function geppettoStudentAuthorizeLoginLocation(authorizeHref) {
+  const cont = sanitizeGeppettoStudentAuthorizeContinue(authorizeHref);
+  if (!cont) return '';
+  return '/login.html?return=' + encodeURIComponent(cont) + '&intent=class-website';
+}
+
 export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) {
-  const makeup = isGeppettoMakeupReturn(retryHref);
+  const continueHref = sanitizeGeppettoStudentAuthorizeContinue(retryHref);
+  const makeup = isGeppettoMakeupReturn(continueHref || retryHref);
+  const staffBlocked = errorCode === 'lantern_account_not_student';
   const messages = {
     return_not_allowed: 'This sign-in link is not valid. Return to the class website and try Student Sign In again.',
-    lantern_account_not_student: 'This sign-in is for student accounts only.',
+    lantern_account_not_student: makeup
+      ? 'Make Up Assignment requires a student account. Log out of Lantern, then have the student sign in.'
+      : 'Student Login requires a student account. Log out of Lantern, then have the student sign in.',
     lantern_account_disabled: 'This student account is inactive. Ask your teacher for help.',
     missing_roster_id: makeup
       ? 'This student account is not linked to a school student ID yet. Ask your teacher or school admin to link it before using Make Up Assignment.'
@@ -238,20 +285,50 @@ export function geppettoStudentAuthorizeFailurePage(errorCode, cors, retryHref) 
     handoff_unavailable: 'Student Sign In is temporarily unavailable. Try again shortly.',
   };
   const msg = messages[errorCode] || 'Could not finish Student Sign In. Ask your teacher for help.';
-  const retry = isGeppettoStudentAuthorizePath(retryHref) ? String(retryHref) : '';
   const heading = makeup ? 'Could not continue to Make Up Assignment' : 'Could not continue to Class Website';
-  const links =
-    '<a href="https://mrradle.us">Back to Class Website</a>' +
-    (retry ? ' · <a href="' + retry.replace(/"/g, '') + '">Try Again</a>' : '');
+  const notice = staffBlocked
+    ? '<p class="notice">You\'re signed in to Lantern with a staff account.</p>'
+    : '';
+  const logoutForm = staffBlocked && continueHref
+    ? '<form method="POST" action="/api/auth/logout">' +
+      '<input type="hidden" name="continue" value="' +
+      escapeHtml(continueHref) +
+      '"/>' +
+      '<button type="submit" class="btn primary">Log Out of Lantern</button>' +
+      '</form>'
+    : '';
+  const retry =
+    !staffBlocked && continueHref
+      ? '<a class="btn secondary" href="' + escapeHtml(continueHref) + '">Try Again</a>'
+      : '';
   const html =
-    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Student Sign In</title></head><body style="font-family:system-ui;padding:24px;max-width:560px;margin:40px auto;line-height:1.45;">' +
-    '<h1 style="font-size:28px;">' +
-    heading +
-    '</h1><p style="font-size:20px;">' +
-    msg +
-    '</p><p style="font-size:18px;">' +
-    links +
-    '</p></body></html>';
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"/>' +
+    '<title>Student Sign In</title><style>' +
+    ':root{--ink:#eaf0ff;--muted:#b9c6ea;--accent:#5aa7ff;--line:rgba(255,255,255,.12);}' +
+    'html,body{margin:0;min-height:100%;background:#0b1220;color:var(--ink);}' +
+    'body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:22px;' +
+    'padding:24px 16px 48px;line-height:1.45;}' +
+    '.wrap{max-width:440px;margin:0 auto;}' +
+    'h1{font-size:28px;font-weight:900;margin:0 0 14px;line-height:1.25;}' +
+    'p{font-size:22px;margin:0 0 16px;}' +
+    '.notice{font-weight:800;}' +
+    '.btn{display:block;width:100%;box-sizing:border-box;margin:12px 0 0;padding:16px 18px;' +
+    'border-radius:14px;font-size:24px;font-weight:800;text-align:center;text-decoration:none;' +
+    'font-family:inherit;cursor:pointer;min-height:56px;}' +
+    '.btn.primary{border:1px solid rgba(90,167,255,.5);background:rgba(90,167,255,.28);color:var(--ink);}' +
+    '.btn.secondary{border:2px solid var(--line);background:transparent;color:var(--ink);}' +
+    '</style></head><body><div class="wrap"><h1>' +
+    escapeHtml(heading) +
+    '</h1>' +
+    notice +
+    '<p>' +
+    escapeHtml(msg) +
+    '</p>' +
+    logoutForm +
+    '<a class="btn secondary" href="https://mrradle.us">Back to Class Website</a>' +
+    retry +
+    '</div></body></html>';
   return new Response(html, {
     status: 401,
     headers: { ...(cors || {}), 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },

@@ -14,3 +14,7 @@ See the canonical contract:
 Do not create a second identity system. Do not share session cookies across
 `tmslantern.org` and `mrradle.us`. Do not widen `geppetto-student-authorize`
 to staff.
+
+When a staff session reaches student-authorize, Lantern stays rejected and
+offers Log Out of Lantern. Logout reuses `POST /api/auth/logout` and may
+continue only through the already-sanitized authorize path into Student Sign In.
