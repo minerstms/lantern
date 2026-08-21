@@ -103,8 +103,13 @@ async function evalValue(page, expression, awaitPromise) {
   return res.result && res.result.value;
 }
 
+async function pinReactionSection(page) {
+  await evalValue(page, '(function(){var o=document.getElementById("lanternCardDetailOverlay"); var rx=o&&o.querySelector(".lanternCardDetailReactions"); if(!o||!rx) return 0; var rel=rx.getBoundingClientRect().top-o.getBoundingClientRect().top+o.scrollTop; o.scrollTop=Math.max(0,rel-4); return o.scrollTop;})()');
+}
+
 async function shotModal(page, name) {
-  var clip = await evalValue(page, '(function(){var m=document.querySelector("#lanternCardDetailOverlay .lanternCardDetailModal"); if(!m) return null; var r=m.getBoundingClientRect(); return {x:Math.max(0,r.x),y:Math.max(0,r.y),width:Math.max(8,Math.min(r.width, window.innerWidth-Math.max(0,r.x))),height:Math.max(8,Math.min(r.height, window.innerHeight-Math.max(0,r.y)))};})()');
+  await pinReactionSection(page);
+  var clip = await evalValue(page, '(function(){var o=document.getElementById("lanternCardDetailOverlay"); var m=o&&o.querySelector(".lanternCardDetailModal"); var rx=o&&o.querySelector(".lanternCardDetailReactions"); var follow=o&&o.querySelector("[data-247b-follow=\\"1\\"]"); if(!m||!rx) return null; var mr=m.getBoundingClientRect(); var rr=rx.getBoundingClientRect(); var fr=follow?follow.getBoundingClientRect():rr; var top=Math.max(0, rr.top-8); var bottom=Math.min(window.innerHeight, Math.max(fr.bottom, rr.bottom)+12); return {x:Math.max(0,mr.left),y:top,width:Math.max(8,Math.min(mr.width, window.innerWidth-Math.max(0,mr.left))),height:Math.max(8,bottom-top)};})()');
   var params = { format: 'png', fromSurface: true };
   if (clip) {
     params.clip = { x: clip.x, y: clip.y, width: clip.width, height: Math.min(clip.height, 1600), scale: 1 };

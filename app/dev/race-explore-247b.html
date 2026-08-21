@@ -122,11 +122,17 @@
         window.LanternCardUI.fillFeedItemDetailModal(modal, fixtureItem(), {});
         el.classList.add('show');
         el.setAttribute('aria-hidden', 'false');
+        var vis = el.querySelector('.lanternCardDetailVisual');
+        if (vis) {
+          vis.style.aspectRatio = 'auto';
+          vis.style.height = '72px';
+          vis.style.maxHeight = '72px';
+        }
         var follow = el.querySelector('#lanternCardDetailAdminModeration');
         if (follow) {
           follow.style.display = 'block';
           follow.setAttribute('data-247b-follow', '1');
-          follow.innerHTML = '<div style="padding:12px;border:1px dashed rgba(255,255,255,.35);border-radius:12px;">Following poll / admin / modal content. Must move down.</div>';
+          follow.innerHTML = '<div style="padding:12px;border:2px dashed #7ec2ff;border-radius:12px;font-weight:800;">FOLLOWING CONTENT — must move down as the result well grows.</div>';
         }
         return new Promise(function (resolve) {
           var tries = 0;
