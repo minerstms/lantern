@@ -305,15 +305,23 @@ if (
 } else bad('avatar image auth');
 
 const newsImgSliceStart = workerIndex.indexOf("path === '/api/news/image'");
-const newsImgSlice = newsImgSliceStart >= 0 ? workerIndex.slice(newsImgSliceStart, newsImgSliceStart + 1800) : '';
-if (newsImgSlice.includes("error: 'not_authenticated'") && newsImgSlice.includes('protectedDeliveryHeaders')) {
-  ok('news image route is auth-gated with private no-store delivery headers');
+const newsImgSlice = newsImgSliceStart >= 0 ? workerIndex.slice(newsImgSliceStart, newsImgSliceStart + 2400) : '';
+if (
+  newsImgSlice.includes("error: 'not_authenticated'") &&
+  newsImgSlice.includes('protectedDeliveryHeaders') &&
+  newsImgSlice.includes('authorizeNewsMediaDelivery')
+) {
+  ok('news image route is auth-gated with per-object delivery authorization and private no-store headers');
 } else bad('news image auth/headers');
 
 const newsVidSliceStart = workerIndex.indexOf("path === '/api/news/video'");
-const newsVidSlice = newsVidSliceStart >= 0 ? workerIndex.slice(newsVidSliceStart, newsVidSliceStart + 1600) : '';
-if (newsVidSlice.includes("error: 'not_authenticated'") && newsVidSlice.includes('protectedDeliveryHeaders')) {
-  ok('news video route is auth-gated with private no-store delivery headers');
+const newsVidSlice = newsVidSliceStart >= 0 ? workerIndex.slice(newsVidSliceStart, newsVidSliceStart + 2400) : '';
+if (
+  newsVidSlice.includes("error: 'not_authenticated'") &&
+  newsVidSlice.includes('protectedDeliveryHeaders') &&
+  newsVidSlice.includes('authorizeNewsMediaDelivery')
+) {
+  ok('news video route is auth-gated with per-object delivery authorization and private no-store headers');
 } else bad('news video auth/headers');
 
 const mediaSliceStart = workerIndex.indexOf("path === '/api/media/image'");

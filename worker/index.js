@@ -168,6 +168,7 @@ import {
   isNewsDeliveryObjectKey,
   sessionRefFromJwtPayload,
 } from './protected-content.js';
+import { authorizeNewsMediaDelivery } from './news-media-delivery.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -7830,6 +7831,10 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     if (pilotAccountRequiresChangePassword(newsViewer)) {
       return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, corsForPilot(request));
     }
+    const newsImageAuth = await authorizeNewsMediaDelivery(db, newsViewer, key, { pilotEconomyCharacterName });
+    if (!newsImageAuth.ok) {
+      return new Response('Not Found', { status: 404, headers: corsForPilot(request) });
+    }
     const bucketForImage = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucketForImage) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
     const obj = await bucketForImage.get(key);
@@ -7852,6 +7857,10 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     }
     if (pilotAccountRequiresChangePassword(newsVideoViewer)) {
       return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, corsForPilot(request));
+    }
+    const newsVideoAuth = await authorizeNewsMediaDelivery(db, newsVideoViewer, key, { pilotEconomyCharacterName });
+    if (!newsVideoAuth.ok) {
+      return new Response('Not Found', { status: 404, headers: corsForPilot(request) });
     }
     const bucketForVideo = env.NEWS_BUCKET || env.AVATAR_BUCKET;
     if (!bucketForVideo) return jsonResponse({ ok: false, error: 'Bucket not configured' }, 503, cors);
