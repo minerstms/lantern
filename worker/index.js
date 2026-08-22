@@ -50,7 +50,7 @@ import { loadPilotAvatarKeyIndex, resolveAuthorAvatarKey } from './author-avatar
 import { handleFinalReactionRoutes } from './final-reaction-handlers.js';
 import { cardIdForPoll, handleHiddenNuggetRoutes, hiddenNuggetResponseFields, maybeAwardHiddenNuggetAfterInteraction } from './hidden-nugget.js';
 import { handleLockerRoutes } from './locker-handlers.js';
-import { handleMissionsRoutes } from './missions-handlers.js';
+import { handleMissionsRoutes, finalizeMissionSubmission } from './missions-handlers.js';
 import { isTeacherLike, sessionTeacherId, reviewerLabelFromAccount } from './missions-auth.js';
 import { durableAccountKeyFromPilotAccount } from './durable-account-key.js';
 import { executeCosmeticPurchase } from './economy-cosmetic.js';
@@ -119,7 +119,16 @@ import {
   reporterIdentityFromAccount,
   isReportQuarantineLabel,
   reportStatusLabel,
+  clearReportHideIfPresent,
 } from './content-report-quarantine.js';
+import { isModerationSchemaError, schemaErrorResponse } from './moderation-events.js';
+import {
+  handleReviewFoundationRoutes,
+  recordEventForAccount,
+  snapshotFromNews,
+  snapshotFromPollContribution,
+  stripFlaggedReporter,
+} from './moderation-review.js';
 import {
   loadMediaPublicityMap,
   setStudentMediaPublicityRestriction,
@@ -409,6 +418,8 @@ export default {
         path === '/api/content/withdraw' ||
         path.startsWith('/api/report') ||
         path.startsWith('/api/moderation') ||
+        path.startsWith('/api/review') ||
+        path === '/api/action-counts' ||
         path.startsWith('/api/missions') ||
         path.startsWith('/api/feed') ||
         path.startsWith('/api/hidden-nugget') ||
@@ -587,11 +598,31 @@ export default {
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
     }
+    if (path.startsWith('/api/review') || path === '/api/action-counts' || path === '/api/moderation/history') {
+      try {
+        return await handleReviewFoundationRoutes(request, url, path, env, corsForPilot(request), {
+          jsonResponse,
+          getPilotAccountFromRequest,
+          requireStaffPilotSession,
+          pilotAccountRequiresChangePassword,
+          pilotEconomyCharacterName,
+          durableAccountKeyFromPilotAccount,
+          finalizeMissionSubmission,
+          env,
+          origin: url.origin || '',
+        });
+      } catch (err) {
+        if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, corsForPilot(request));
+        const message = err && err.message ? err.message : String(err);
+        return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
+      }
+    }
     if (path.startsWith('/api/report') || path.startsWith('/api/moderation')) {
       try {
         // Prompt #117 — credentialed report + staff flagged list (corsForPilot).
         return await handleModerationRoutes(request, url, path, env, corsForPilot(request));
       } catch (err) {
+        if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, corsForPilot(request));
         const message = err && err.message ? err.message : String(err);
         return jsonResponse({ ok: false, error: message }, 400, corsForPilot(request));
       }
@@ -7591,6 +7622,27 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     if (Object.prototype.hasOwnProperty.call(body, 'category')) {
       categoryNext = String(body.category || '').trim().slice(0, 200) || null;
     }
+    const account = await getPilotAccountFromRequest(request, env);
+    const prior = await db.prepare('SELECT * FROM lantern_news_submissions WHERE id = ?').bind(id).first();
+    try {
+      await recordEventForAccount(db, account, {
+        itemType: 'news',
+        itemId: id,
+        eventType: 'resubmitted',
+        snapshot: snapshotFromNews(
+          Object.assign({}, prior || row, {
+            title: title || (prior && prior.title),
+            body: articleBody || (prior && prior.body),
+            category: categoryNext,
+            status: 'pending',
+          })
+        ),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, cors);
+      throw err;
+    }
     if (title && articleBody) {
       await db.prepare(
         'UPDATE lantern_news_submissions SET title = ?, body = ?, category = ?, status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
@@ -8205,6 +8257,18 @@ async function handleApprovalsRoutes(request, url, path, env) {
           return jsonResponse({ ok: false, error: pub.error || 'poll_publish_failed', detail: pub.detail || null }, 503, approvalsCors);
         }
         if (approvalStatus === 'pending') {
+          try {
+            await recordEventForAccount(db, account, {
+              itemType: 'poll_contribution',
+              itemId: approval.item_id,
+              eventType: 'approved',
+              snapshot: snapshotFromPollContribution(pc),
+              now,
+            });
+          } catch (err) {
+            if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, approvalsCors);
+            throw err;
+          }
           await db.prepare(
             'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
           ).bind('approved', now, staffId || null, staffName, null, id).run();
@@ -8248,9 +8312,25 @@ async function handleApprovalsRoutes(request, url, path, env) {
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
     ).bind('approved', now, staffId || null, staffName, null, id).run();
     if (approval.item_type === 'news') {
+      const newsSnap = await db.prepare('SELECT * FROM lantern_news_submissions WHERE id = ?').bind(approval.item_id).first();
+      try {
+        await recordEventForAccount(db, account, {
+          itemType: 'news',
+          itemId: approval.item_id,
+          eventType: 'approved',
+          snapshot: snapshotFromNews(newsSnap),
+          now,
+        });
+      } catch (err) {
+        if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, approvalsCors);
+        throw err;
+      }
       await db.prepare(
         'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ? WHERE id = ?'
       ).bind('approved', now, staffId || null, staffName, approval.item_id).run();
+      try {
+        await clearReportHideIfPresent(db, 'news', approval.item_id);
+      } catch (_) {}
       try {
         const newsRow = await db
           .prepare('SELECT author_name, author_type, category, image_r2_key, body, title FROM lantern_news_submissions WHERE id = ?')
@@ -8318,6 +8398,27 @@ async function handleApprovalsRoutes(request, url, path, env) {
     }
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
+    let returnSnapshot = null;
+    if (approval.item_type === 'news') {
+      const newsRow = await db.prepare('SELECT * FROM lantern_news_submissions WHERE id = ?').bind(approval.item_id).first();
+      returnSnapshot = snapshotFromNews(newsRow);
+    } else if (approval.item_type === 'poll_contribution') {
+      const pollRow = await db.prepare('SELECT * FROM lantern_poll_contributions WHERE id = ?').bind(approval.item_id).first();
+      returnSnapshot = snapshotFromPollContribution(pollRow);
+    }
+    try {
+      await recordEventForAccount(db, account, {
+        itemType: approval.item_type,
+        itemId: approval.item_id,
+        eventType: 'returned',
+        note: decisionNote,
+        snapshot: returnSnapshot,
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, approvalsCors);
+      throw err;
+    }
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
     ).bind('returned', now, staffId || null, staffName, decisionNote, id).run();
@@ -8351,9 +8452,22 @@ async function handleApprovalsRoutes(request, url, path, env) {
     }
     if ((approval.status || '') !== 'pending') return jsonResponse({ ok: false, error: 'Already reviewed' }, 400, approvalsCors);
     const now = new Date().toISOString();
+    const rejectNote = (body.decision_note || body.reason || '').trim() || null;
+    try {
+      await recordEventForAccount(db, account, {
+        itemType: approval.item_type,
+        itemId: approval.item_id,
+        eventType: 'rejected',
+        note: rejectNote,
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, approvalsCors);
+      throw err;
+    }
     await db.prepare(
       'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
-    ).bind('rejected', now, staffId || null, staffName, (body.decision_note || body.reason || '').trim() || null, id).run();
+    ).bind('rejected', now, staffId || null, staffName, rejectNote, id).run();
     if (approval.item_type === 'news') {
       await db.prepare(
         'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ? WHERE id = ?'
@@ -8421,6 +8535,18 @@ async function handleModerationRoutes(request, url, path, env, cors) {
     if (!reportedBy) return jsonResponse({ ok: false, error: 'Missing reported_by' }, 400, cors);
 
     const now = new Date().toISOString();
+    try {
+      await recordEventForAccount(db, account, {
+        itemType: norm.canonical,
+        itemId,
+        eventType: 'reported',
+        note: reason,
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, cors);
+      throw err;
+    }
     const audit = reportQuarantineAuditLabel(account);
     const hide = await quarantineReportedContent(db, norm.hideKind, itemId, audit, now);
     if (!hide.ok) {
@@ -8458,16 +8584,22 @@ async function handleModerationRoutes(request, url, path, env, cors) {
   if (request.method === 'GET' && path === '/api/moderation/flagged') {
     const account = await getPilotAccountFromRequest(request, env);
     if (!account) return jsonResponse({ ok: false, error: 'not_authenticated' }, 401, cors);
-    if (!isTeacherLike(account)) {
+    if (!isTeacherLike(account.role)) {
       return jsonResponse({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
-    const rows = await db
-      .prepare(
-        'SELECT id, item_type, item_id, reported_by, reason, created_at FROM lantern_content_flags ORDER BY created_at DESC LIMIT ?'
-      )
-      .bind(limit)
-      .all();
+    let rows;
+    try {
+      rows = await db
+        .prepare(
+          'SELECT id, item_type, item_id, reported_by, reason, created_at, resolved_at, resolved_by, resolution, staff_note FROM lantern_content_flags ORDER BY created_at DESC LIMIT ?'
+        )
+        .bind(limit)
+        .all();
+    } catch (err) {
+      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, cors);
+      throw err;
+    }
     const list = [];
     for (const r of rows.results || []) {
       const norm = normalizeReportItemType(r.item_type);
@@ -8510,21 +8642,29 @@ async function handleModerationRoutes(request, url, path, env, cors) {
         } catch (_) {}
       }
       const pendingReview = !!(hiddenAt && String(hiddenAt).trim());
-      list.push({
-        id: r.id,
-        item_type: r.item_type,
-        item_id: r.item_id,
-        reported_by: r.reported_by,
-        reason: r.reason,
-        created_at: r.created_at,
-        hidden_at: hiddenAt || null,
-        hidden_by: hiddenBy || null,
-        quarantine_pending: pendingReview,
-        status_label: pendingReview
-          ? reportStatusLabel(hiddenBy) || 'REPORTED — HIDDEN PENDING REVIEW'
-          : 'Reported',
-        report_quarantine: isReportQuarantineLabel(hiddenBy),
-      });
+      const flagOut = stripFlaggedReporter(
+        {
+          id: r.id,
+          item_type: r.item_type,
+          item_id: r.item_id,
+          reported_by: r.reported_by,
+          reason: r.reason,
+          created_at: r.created_at,
+          resolved_at: r.resolved_at || null,
+          resolved_by: r.resolved_by || null,
+          resolution: r.resolution || null,
+          staff_note: r.staff_note || null,
+          hidden_at: hiddenAt || null,
+          hidden_by: hiddenBy || null,
+          quarantine_pending: pendingReview,
+          status_label: pendingReview
+            ? reportStatusLabel(hiddenBy) || 'REPORTED — HIDDEN PENDING REVIEW'
+            : 'Reported',
+          report_quarantine: isReportQuarantineLabel(hiddenBy),
+        },
+        String(account.role || '').trim().toLowerCase() === 'admin'
+      );
+      list.push(flagOut);
     }
     return jsonResponse({ ok: true, flags: list }, 200, cors);
   }
@@ -8792,6 +8932,24 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     const now = new Date().toISOString();
     const choicesJson = JSON.stringify(choices);
     const fb = fallbackResolved;
+    const pollAccount = await getPilotAccountFromRequest(request, env);
+    try {
+      await recordEventForAccount(db, pollAccount, {
+        itemType: 'poll_contribution',
+        itemId: contribId,
+        eventType: 'resubmitted',
+        snapshot: snapshotFromPollContribution({
+          question,
+          choices,
+          image_url: imageUrl,
+          status: 'pending',
+        }),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, cors);
+      throw err;
+    }
     await db.prepare(
       'UPDATE lantern_poll_contributions SET question = ?, choices_json = ?, image_url = ?, fallback_key = ?, status = ?, decision_note = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
     ).bind(question, choicesJson, imageUrl, fb, 'pending', null, null, null, contribId).run();

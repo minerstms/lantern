@@ -203,6 +203,84 @@ export async function quarantineReportedContent(db, hideKind, itemId, auditLabel
 }
 
 /**
+ * Restore a report-created quarantine only. Does not clear admin/author hides.
+ * Feed items quarantined as status=hidden return to approved (same as existing /api/feed/restore).
+ */
+export async function restoreReportCreatedHide(db, hideKind, itemId) {
+  const id = String(itemId || '').trim();
+  if (!id) return { ok: false, error: 'missing_item_id', code: 400 };
+
+  async function loadRow(sql) {
+    return db.prepare(sql).bind(id).first();
+  }
+
+  let row = null;
+  if (hideKind === 'news') {
+    row = await loadRow('SELECT id, status, hidden_at, hidden_by FROM lantern_news_submissions WHERE id = ?');
+  } else if (hideKind === 'poll') {
+    row = await loadRow('SELECT id, hidden_at, hidden_by FROM lantern_polls WHERE id = ?');
+  } else if (hideKind === 'mission') {
+    row = await loadRow('SELECT id, status, hidden_at, hidden_by FROM lantern_mission_submissions WHERE id = ?');
+  } else if (hideKind === 'feed') {
+    row = await loadRow('SELECT id, status, hidden_at, hidden_by FROM lantern_feed_items WHERE id = ?');
+  } else {
+    return { ok: false, error: 'unsupported_item_type', code: 400 };
+  }
+  if (!row) return { ok: false, error: 'not_found', code: 404 };
+  if (!isAlreadyHidden(row) && String(row.status || '').toLowerCase() !== 'hidden') {
+    return { ok: true, id, already_visible: true, hide_kind: hideKind };
+  }
+  if (!isReportQuarantineLabel(row.hidden_by)) {
+    return { ok: false, error: 'not_report_quarantine', code: 403 };
+  }
+  if (hideKind === 'feed') {
+    await db
+      .prepare("UPDATE lantern_feed_items SET status = 'approved', hidden_at = NULL, hidden_by = NULL WHERE id = ?")
+      .bind(id)
+      .run();
+  } else if (hideKind === 'news') {
+    await db.prepare('UPDATE lantern_news_submissions SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+  } else if (hideKind === 'poll') {
+    await db.prepare('UPDATE lantern_polls SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+  } else if (hideKind === 'mission') {
+    await db.prepare('UPDATE lantern_mission_submissions SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+  }
+  return { ok: true, id, hide_kind: hideKind, restored: true };
+}
+
+/** Clear report-created hide after a later approve, without touching admin/author hides. */
+export async function clearReportHideIfPresent(db, hideKind, itemId) {
+  const id = String(itemId || '').trim();
+  if (!id || !db) return { ok: true, skipped: true };
+  let row = null;
+  if (hideKind === 'news') {
+    row = await db.prepare('SELECT hidden_by FROM lantern_news_submissions WHERE id = ?').bind(id).first();
+    if (row && isReportQuarantineLabel(row.hidden_by)) {
+      await db.prepare('UPDATE lantern_news_submissions SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+    }
+  } else if (hideKind === 'poll') {
+    row = await db.prepare('SELECT hidden_by FROM lantern_polls WHERE id = ?').bind(id).first();
+    if (row && isReportQuarantineLabel(row.hidden_by)) {
+      await db.prepare('UPDATE lantern_polls SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+    }
+  } else if (hideKind === 'mission') {
+    row = await db.prepare('SELECT hidden_by FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
+    if (row && isReportQuarantineLabel(row.hidden_by)) {
+      await db.prepare('UPDATE lantern_mission_submissions SET hidden_at = NULL, hidden_by = NULL WHERE id = ?').bind(id).run();
+    }
+  } else if (hideKind === 'feed') {
+    row = await db.prepare('SELECT hidden_by FROM lantern_feed_items WHERE id = ?').bind(id).first();
+    if (row && isReportQuarantineLabel(row.hidden_by)) {
+      await db
+        .prepare('UPDATE lantern_feed_items SET hidden_at = NULL, hidden_by = NULL WHERE id = ?')
+        .bind(id)
+        .run();
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * Reporter display key for lantern_content_flags.reported_by (staff-only surfaces).
  */
 export function reporterIdentityFromAccount(account, pilotEconomyCharacterName) {
