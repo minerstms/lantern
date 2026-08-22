@@ -7,6 +7,7 @@
 (function (global) {
   var STORAGE_KEY = 'lanternThumbnailBackfillProgressV1';
   var HARD_MAX_BATCH_ITEMS = 25;
+  var VERSION_CHANGED_HINT = 'Source version updated — run Dry Run again.';
 
   function apiBase() {
     if (typeof global.LANTERN_AVATAR_API === 'string') return global.LANTERN_AVATAR_API;
@@ -102,6 +103,7 @@
     if (opts.maxItems) q.set('max_items', String(opts.maxItems));
     if (opts.sourceKind) q.set('source_kind', opts.sourceKind);
     if (opts.sourceId) q.set('source_id', opts.sourceId);
+    if (opts.recover || (!opts.dryRun && opts.sourceId)) q.set('recover', '1');
     if (opts.cursor) q.set('cursor', opts.cursor);
     return fetch(apiBase() + '/api/news/thumbs/candidates?' + q.toString(), { credentials: 'include' }).then(function (r) {
       return r.json().then(function (body) {
@@ -164,17 +166,20 @@
     var kinds = {};
     var already = 0;
     var sidecar = 0;
+    var pending = 0;
     list.forEach(function (it) {
       var k = String((it && it.source_kind) || 'unknown');
       kinds[k] = (kinds[k] || 0) + 1;
       if (it && it.has_thumbnail) already += 1;
       if (it && it.has_sidecar) sidecar += 1;
+      if (it && it.has_sidecar && !it.has_thumbnail) pending += 1;
     });
     return {
       count: list.length,
       already_thumbnailed: already,
       skipped: already,
       sidecar_present: sidecar,
+      sidecar_pending_thumbnail: pending,
       source_kinds: kinds,
     };
   }
@@ -198,6 +203,7 @@
       'Candidates found: ' + summary.count,
       'Already thumbnailed / skipped: ' + summary.already_thumbnailed,
       'Sidecar present: ' + summary.sidecar_present,
+      'Sidecar pending thumbnail: ' + summary.sidecar_pending_thumbnail,
       'Source kinds: ' + kindLine,
       'Max items applied: ' + (opts.maxItems == null || opts.maxItems === '' ? '(default)' : String(opts.maxItems)),
       'Errors: ' + (err || 'none'),
@@ -260,6 +266,7 @@
           already_thumbnailed: summary.already_thumbnailed,
           skipped: summary.skipped,
           sidecar_present: summary.sidecar_present,
+          sidecar_pending_thumbnail: summary.sidecar_pending_thumbnail,
           source_kinds: summary.source_kinds,
           max_items: opts.maxItems || null,
           candidates: items,
@@ -275,6 +282,9 @@
       function processIndex(index) {
         if (stopped || index >= remaining.length) {
           saveProgress(results);
+          var versionChanged = failedIds.some(function (f) {
+            return f && f.reason === 'image_version_changed';
+          });
           return Promise.resolve({
             ok: true,
             dry_run: false,
@@ -286,6 +296,7 @@
             failedIds: failedIds,
             stopped: stopped,
             remaining: Math.max(0, remaining.length - index),
+            operator_hint: versionChanged ? VERSION_CHANGED_HINT : undefined,
           });
         }
         var item = remaining[index];
@@ -315,7 +326,11 @@
           } else if (result.status === 'failed') {
             results[itemKey(item)] = 'failed';
             failed += 1;
-            failedIds.push({ id: itemKey(item), reason: result.error });
+            failedIds.push({
+              id: itemKey(item),
+              reason: result.error,
+              hint: result.error === 'image_version_changed' ? VERSION_CHANGED_HINT : undefined,
+            });
             consecutiveFailures += 1;
           } else {
             results[itemKey(item)] = 'skipped';
@@ -349,6 +364,7 @@
 
   global.LanternThumbnailBackfill = {
     HARD_MAX_BATCH_ITEMS: HARD_MAX_BATCH_ITEMS,
+    VERSION_CHANGED_HINT: VERSION_CHANGED_HINT,
     listCandidates: listCandidates,
     backfillOneItem: backfillOneItem,
     runBackfillBatch: runBackfillBatch,

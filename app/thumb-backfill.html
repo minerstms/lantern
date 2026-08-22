@@ -335,6 +335,10 @@
           api.runBackfillBatch(o).then(function (res) {
             if (!res || res.ok === false) {
               showError('Run One Item failed: ' + ((res && res.error) || 'API or auth error'));
+            } else if (res.operator_hint) {
+              showError(res.operator_hint);
+            } else if (res.failedIds && res.failedIds.some(function (f) { return f && f.reason === 'image_version_changed'; })) {
+              showError('Source version updated — run Dry Run again.');
             }
             showLog(res);
           }).catch(function (e) {
