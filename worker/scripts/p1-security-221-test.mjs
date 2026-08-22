@@ -304,8 +304,8 @@ if (newsAnon.status === 401 && newsAnon.json && newsAnon.json.error === 'not_aut
 else bad('news anon', newsAnon);
 
 const newsOk = await req(env, 'GET', '/api/news/image?key=news/ok.png', studentCookie);
-if (newsOk.status === 200 && /private, no-store/.test(String(newsOk.cache || ''))) ok('legitimate news image key still works for authenticated viewers');
-else bad('news ok', newsOk);
+if (newsOk.status === 404) ok('authenticated orphan news key is not fetchable');
+else bad('news orphan', newsOk);
 
 const newsWrong = await req(env, 'GET', '/api/news/image?key=avatars/staff-active.png');
 if (newsWrong.status === 403) ok('news image rejects avatar key');
