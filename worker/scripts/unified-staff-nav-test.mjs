@@ -65,7 +65,7 @@ async function main() {
 
     const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
     const staffLabels = await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents();
-    const trimmed = staffLabels.map((t) => t.trim());
+    const trimmed = staffLabels.map((t) => t.replace(/\s*\d+\+?\s*$/, '').trim());
     assert(JSON.stringify(trimmed) === JSON.stringify(EXPECTED_STAFF), 'STAFF menu order/labels exact: ' + JSON.stringify(trimmed));
     assert(!trimmed.some((t) => /display|hallway/i.test(t)), 'Global STAFF dropdown has no Display / Display Board / Hallway TV: ' + JSON.stringify(trimmed));
 
@@ -165,7 +165,7 @@ async function main() {
     }, { timeout: 8000 }).catch(() => {});
 
     const staffSection = page.locator('#lanternMenuDropdown .lanternAppBarDropdownSection').filter({ hasText: 'STAFF' });
-    const staffLabels = (await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) => t.trim());
+    const staffLabels = (await staffSection.locator('a.lanternAppBarDropdownLink').allTextContents()).map((t) => t.replace(/\s*\d+\+?\s*$/, '').trim());
     assert(JSON.stringify(staffLabels) === JSON.stringify(['Teacher Tools', 'Behavior Logger']), 'Web Admin STAFF order: ' + JSON.stringify(staffLabels));
     const systemLink = page.locator('#lanternMenuDropdown a[data-page="system"]');
     assert(await systemLink.count() === 1, 'System menuitem present for Web Admin capabilities');

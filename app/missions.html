@@ -390,7 +390,8 @@
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
-  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-action-counts.js"></script>
+  <script src="js/lantern-nav.js"></script
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
   <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
@@ -1289,6 +1290,7 @@
         }
         return 'Mission completed!';
       }
+      if (currentResubmitId) return 'Resubmitted for review';
       if (res && res.redo) return 'Submitted successfully. Reward already earned for this mission.';
       if (currentMissionIsRedo) return 'Submitted successfully. Reward already earned for this mission.';
       return FERPA_STUDENT_SUBMIT_MESSAGE;
@@ -1815,6 +1817,41 @@
       if (!loading && window.LanternMissionsPage && typeof window.LanternMissionsPage.refreshWalletDisplay === 'function') {
         window.LanternMissionsPage.refreshWalletDisplay();
       }
+      if (!loading) maybeOpenReturnedRevision(teacherMissions, submissions);
+    }
+
+    var missionRevisionOpened = false;
+    function maybeOpenReturnedRevision(teacherMissions, submissions){
+      if (missionRevisionOpened) return;
+      var reviseId = '';
+      var stored = null;
+      try {
+        var params = new URLSearchParams(location.search || '');
+        reviseId = (params.get('revise') || '').trim();
+        stored = JSON.parse(sessionStorage.getItem('LANTERN_MISSION_RESUBMIT') || 'null');
+      } catch (_) {}
+      if (stored && stored.id && !reviseId) reviseId = String(stored.id);
+      if (!reviseId) return;
+      var sub = (submissions || []).filter(function(s){ return String(s.id) === String(reviseId); })[0];
+      var missionId = (sub && sub.mission_id) || (stored && stored.mission_id) || '';
+      try {
+        if (!missionId) missionId = (new URLSearchParams(location.search || '').get('mission') || '').trim();
+      } catch (_) {}
+      var m = (teacherMissions || []).filter(function(row){ return String(row.id) === String(missionId); })[0];
+      if (!m && sub) {
+        m = {
+          id: sub.mission_id,
+          title: sub.mission_title || 'Mission',
+          submission_type: sub.submission_type || 'text',
+          allows_text: true,
+        };
+      }
+      if (!m || !sub) return;
+      missionRevisionOpened = true;
+      try { sessionStorage.removeItem('LANTERN_MISSION_RESUBMIT'); } catch (_) {}
+      openMissionSubmitModal(m, sub.id, sub.submission_content || (stored && stored.submission_content) || '', {
+        feedback: sub.returned_reason || (stored && stored.returned_reason) || '',
+      });
     }
 
     function openMissionSubmitModal(m, resubmitId, prefill, opts){
@@ -1848,7 +1885,12 @@
         metaEl.textContent = typeBadgeForTeacher(m) + (rewLabel ? ' · ' + rewLabel : '');
         if (currentMissionIsRedo) metaEl.textContent += ' · Reward already earned (redo allowed)';
       }
-      if (descEl) descEl.textContent = (m.description || '').trim();
+      if (descEl) {
+        var descText = (m.description || '').trim();
+        var feedback = (opts && opts.feedback) || '';
+        if (feedback) descText = (descText ? descText + '\n\n' : '') + 'Teacher feedback: ' + feedback;
+        descEl.textContent = descText;
+      }
       if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
       if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';
       if (pollWrap) pollWrap.style.display = isPollMission ? 'block' : 'none';
@@ -2011,6 +2053,7 @@
             return;
           }
           toast(missionSubmitSuccessToast(resP));
+          if (window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
           closeMissionDetailModal();
           loadMissions();
         }).catch(function(){
@@ -2039,6 +2082,7 @@
             return;
           }
           toast(missionSubmitSuccessToast(resB));
+          if (window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
           closeMissionDetailModal();
           loadMissions();
         }).catch(function(){
@@ -2109,6 +2153,7 @@
           return;
         }
         toast(missionSubmitSuccessToast(res));
+        if (window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
         closeMissionDetailModal();
         loadMissions();
       }).catch(function(){

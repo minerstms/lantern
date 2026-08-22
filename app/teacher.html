@@ -410,6 +410,23 @@
       gap: 6px;
       margin-bottom: 2px;
     }
+    #teacher-approvals .approvalsQueueStateChips{
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px;
+    }
+    #teacher-approvals .approvalQueueStateChip,
+    #teacher-approvals .approvalsQueueStateChip{
+      display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
+    }
+    #teacher-approvals .approvalQueueStateChip--pending_review{ background: rgba(90,167,255,.2); color: #9fd0ff; }
+    #teacher-approvals .approvalQueueStateChip--resubmitted{ background: rgba(242,194,48,.22); color: #f2c230; }
+    #teacher-approvals .approvalQueueStateChip--reported{ background: rgba(255,77,109,.2); color: #ff8aa0; }
+    .reviewFeedbackWrap{ margin: 0 0 12px; }
+    .reviewFeedbackWrap label{ display: block; font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+    .reviewFeedbackHint{ margin: 0 0 8px; font-size: 16px; color: var(--muted); }
+    .reviewFeedbackNote{ width: 100%; min-height: 88px; font-size: 18px; box-sizing: border-box; }
+    .reviewHistoryDetails{ margin-top: 14px; font-size: 16px; }
+    .reviewHistoryDetails ul{ margin: 8px 0 0; padding-left: 1.2em; }
+    .reviewReportedBlock{ margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(255,77,109,.08); border: 1px solid rgba(255,77,109,.25); font-size: 18px; }
     #teacher-approvals .teacherApprovalPendingRow .approvalKindChip{
       display: inline-block;
       font-size: 17px;
@@ -1570,7 +1587,7 @@
           <button type="button" class="teacherSidebarItem" data-workspace-link="economy" data-help="teacher_nuggets"><span class="teacherSidebarIcon" aria-hidden="true">🪙</span><span class="teacherSidebarLabel">Nuggets</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="overview" data-help="teacher_overview"><span class="teacherSidebarIcon" aria-hidden="true">🏠</span><span class="teacherSidebarLabel">Overview</span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="recent-logs" data-help="teacher_recent_logs"><span class="teacherSidebarIcon" aria-hidden="true">📋</span><span class="teacherSidebarLabel">Recent Behavior Logs</span></button>
-          <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Submissions</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden>0</span></button>
+          <button type="button" class="teacherSidebarItem" data-workspace-link="review" data-help="teacher_review"><span class="teacherSidebarIcon" aria-hidden="true">✅</span><span class="teacherSidebarLabel">Review Submissions</span><span class="teacherSidebarBadge" id="teacherSidebarReviewBadge" hidden></span></button>
           <button type="button" class="teacherSidebarItem" data-workspace-link="schoolaccess" data-help="teacher_school_access"><span class="teacherSidebarIcon" aria-hidden="true">🔐</span><span class="teacherSidebarLabel">Lantern Access</span></button>
           <!-- Prompt #118/#119 — Missions & Shout-Out! creation live under Lantern → Create; workspaces/routes retained for deep links & Overview. -->
           <button type="button" class="teacherSidebarItem" data-workspace-link="moderation" data-help="teacher_moderation"><span class="teacherSidebarIcon" aria-hidden="true">🛡️</span><span class="teacherSidebarLabel">Moderation</span></button>
@@ -2011,6 +2028,12 @@
           <button class="btn" id="refreshBtn" type="button">Refresh</button>
         </div>
         <p class="note note-tight">Open a submission before approving.</p>
+        <div class="approvalsQueueStateChips" id="approvalsQueueStateChips" role="group" aria-label="Queue state">
+          <button type="button" class="approvalsKindChip active" data-queue-state-filter="all">All</button>
+          <button type="button" class="approvalsKindChip" data-queue-state-filter="PENDING_REVIEW">Pending Review</button>
+          <button type="button" class="approvalsKindChip" data-queue-state-filter="RESUBMITTED">Resubmitted</button>
+          <button type="button" class="approvalsKindChip" data-queue-state-filter="REPORTED">Reported</button>
+        </div>
         <details class="mediaPublicityRestrictionsPanel" id="mediaPublicityRestrictionsPanel">
           <summary class="mediaPublicityRestrictionsSummary" id="mediaPublicityRestrictionsSummary">
             <span aria-hidden="true">🛡</span>
@@ -2102,6 +2125,11 @@
         </div>
         <div id="reviewPanelBd" class="reviewPanelBd"></div>
         <div id="reviewPanelFt" class="reviewPanelFt" style="display:none;">
+          <div id="reviewFeedbackWrap" class="reviewFeedbackWrap" hidden>
+            <label for="reviewFeedbackNote">Return for Revision</label>
+            <p class="reviewFeedbackHint">Tell the student what they need to change.</p>
+            <textarea id="reviewFeedbackNote" class="teacherTextarea reviewFeedbackNote" rows="3"></textarea>
+          </div>
           <div class="reviewPanelActions" id="reviewPanelActions"></div>
         </div>
       </div>
@@ -2640,6 +2668,8 @@
   <script src="js/lantern-card-ui.js"></script>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
+  <script src="js/lantern-action-counts.js"></script>
+  <script src="js/lantern-review-queue.js"></script>
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
@@ -2704,7 +2734,10 @@
     var pendingApprovalKindFilter = '';
     var pendingApprovalSortOrder = 'newest';
     var pendingApprovalCategoryFilter = '';
+    var pendingApprovalQueueStateFilter = '';
     var pendingApprovalSelectionKeys = new Set();
+    var reviewQueueOk = false;
+    var reviewQueueItems = [];
     var DEFAULT_TEACHER_ID = 'teacherA';
     var approvalStaffId = DEFAULT_TEACHER_ID;
     window.pilotIsAdmin = false;
@@ -3492,8 +3525,25 @@
      * buildClassroomItems/buildSchoolwideItems (same source as pendingApprovalsBadge),
      * active missions from teacherMissions, and recently-reviewed count from approvalHistory.
      */
+    function refreshSharedStaffCount(){
+      if (window.LanternActionCounts && typeof window.LanternActionCounts.refresh === 'function') {
+        return window.LanternActionCounts.refresh({ force: true });
+      }
+      return Promise.resolve();
+    }
+    function currentStaffIsAdmin(){
+      var me = window.LANTERN_PILOT_ME;
+      return !!(me && String(me.role || '').toLowerCase() === 'admin') || !!window.pilotIsAdmin;
+    }
+    function queueStateOf(entry){
+      return String((entry && entry.queueItem && entry.queueItem.queue_state) || (entry && entry.item && entry.item.queue_state) || 'PENDING_REVIEW');
+    }
     function renderOverviewSummary(){
       var pendingCount = (buildClassroomItems().length) + (buildSchoolwideItems().length);
+      var shared = window.LanternActionCounts && typeof window.LanternActionCounts.getStaffReviewCount === 'function'
+        ? window.LanternActionCounts.getStaffReviewCount()
+        : null;
+      if (shared != null) pendingCount = Number(shared) || 0;
       var pendingEl = el('teacherOverviewPendingCount');
       if (pendingEl) pendingEl.textContent = String(pendingCount);
       var activeEl = el('teacherOverviewActiveMissionsCount');
@@ -3529,7 +3579,7 @@
       });
     }
 
-    function buildClassroomItems(){
+    function buildLegacyClassroomItems(){
       var items = [];
       (missionSubmissions || []).forEach(function(s){ items.push({ type: 'mission', item: s }); });
       if (!useApprovalsApi) {
@@ -3539,7 +3589,7 @@
       }
       return items;
     }
-    function buildSchoolwideItems(){
+    function buildLegacySchoolwideItems(){
       var items = [];
       if (useApprovalsApi) {
         (approvalPending || []).forEach(function(a){ items.push({ type: 'approval_item', item: a }); });
@@ -3549,6 +3599,49 @@
         (pendingPosts || []).forEach(function(p){ items.push({ type: 'post', item: p }); });
       }
       return items;
+    }
+    function entryMatchKey(entry){
+      var it = entry && entry.item;
+      if (!it) return '';
+      if (entry.type === 'mission') return 'mission_submission:' + String(it.id || '');
+      var t = it.item_type || (entry.type === 'news' ? 'news' : entry.type === 'post' ? 'feed_item' : entry.type);
+      return String(t) + ':' + String(it.item_id || it.id || '');
+    }
+    function queueEntriesFromServer(){
+      if (!reviewQueueOk || !window.LanternReviewQueue) return null;
+      var mapped = window.LanternReviewQueue.toLegacyEntries(reviewQueueItems || []);
+      var legacyByKey = {};
+      buildLegacyClassroomItems().concat(buildLegacySchoolwideItems()).forEach(function(entry){
+        var k = entryMatchKey(entry);
+        if (k) legacyByKey[k] = entry;
+      });
+      function enrich(list){
+        return (list || []).map(function(entry){
+          var q = entry.queueItem || {};
+          var k = String(q.item_type || '') + ':' + String(q.item_id || '');
+          var legacy = legacyByKey[k];
+          if (legacy && legacy.item) {
+            entry.item = Object.assign({}, legacy.item, entry.item);
+            entry.type = legacy.type;
+          }
+          if (q.queue_state) entry.item.queue_state = q.queue_state;
+          if (q.report_count) entry.item.report_count = q.report_count;
+          if (q.reasons) entry.item.reasons = q.reasons;
+          if (q.reporters) entry.item.reporters = q.reporters;
+          return entry;
+        });
+      }
+      return { classroom: enrich(mapped.classroom), schoolwide: enrich(mapped.schoolwide) };
+    }
+    function buildClassroomItems(){
+      var queued = queueEntriesFromServer();
+      if (queued) return queued.classroom;
+      return buildLegacyClassroomItems();
+    }
+    function buildSchoolwideItems(){
+      var queued = queueEntriesFromServer();
+      if (queued) return queued.schoolwide;
+      return buildLegacySchoolwideItems();
     }
     function approvalKindKey(entry) {
       var t = entry.type;
@@ -3651,7 +3744,11 @@
       var kindF = pendingApprovalKindFilter || '';
       var catF = pendingApprovalCategoryFilter || '';
       var sortOrder = pendingApprovalSortOrder || 'newest';
-      var out = (list || []).filter(function(e){ return pendingEntryMatchesKindFilter(e, kindF) && pendingEntryMatchesCategoryFilter(e, catF); });
+      var out = (list || []).filter(function(e){
+        if (!pendingEntryMatchesKindFilter(e, kindF) || !pendingEntryMatchesCategoryFilter(e, catF)) return false;
+        if (pendingApprovalQueueStateFilter && queueStateOf(e) !== pendingApprovalQueueStateFilter) return false;
+        return true;
+      });
       out.sort(function(a, b){
         var ta = getPendingEntryTimestamp(a);
         var tb = getPendingEntryTimestamp(b);
@@ -3690,6 +3787,7 @@
       var kt = pendingApprovalKindFilter || '';
       parts.push('Type: ' + (kt ? kt : 'All'));
       if (pendingApprovalCategoryFilter) parts.push('Category: ' + pendingApprovalCategoryFilter);
+      if (pendingApprovalQueueStateFilter) parts.push('State: ' + pendingApprovalQueueStateFilter.replace(/_/g, ' '));
       parts.push('Classroom ' + clsShown + '/' + clsRaw + ' · Schoolwide ' + schShown + '/' + schRaw);
       sumEl.textContent = parts.join(' · ');
     }
@@ -3698,12 +3796,36 @@
       if (!root || root.dataset.wired === '1') return;
       root.dataset.wired = '1';
       root.addEventListener('click', function(ev){
+        var stateBtn = ev.target.closest('[data-queue-state-filter]');
+        if (stateBtn) {
+          var sv = stateBtn.getAttribute('data-queue-state-filter') || '';
+          pendingApprovalQueueStateFilter = sv === 'all' ? '' : sv;
+          document.querySelectorAll('#approvalsQueueStateChips [data-queue-state-filter]').forEach(function(b){
+            b.classList.toggle('active', (b.getAttribute('data-queue-state-filter') || '') === (sv || 'all') || (sv === 'all' && (b.getAttribute('data-queue-state-filter') || '') === 'all'));
+          });
+          if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
+          return;
+        }
         var btn = ev.target.closest('[data-kind-filter]');
         if (!btn) return;
         var v = btn.getAttribute('data-kind-filter') || '';
         pendingApprovalKindFilter = v === 'all' ? '' : v;
         if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
       });
+      var stateRoot = el('approvalsQueueStateChips');
+      if (stateRoot && !stateRoot.dataset.wired) {
+        stateRoot.dataset.wired = '1';
+        stateRoot.addEventListener('click', function(ev){
+          var sb = ev.target.closest('[data-queue-state-filter]');
+          if (!sb) return;
+          var sv2 = sb.getAttribute('data-queue-state-filter') || '';
+          pendingApprovalQueueStateFilter = sv2 === 'all' ? '' : sv2;
+          stateRoot.querySelectorAll('[data-queue-state-filter]').forEach(function(b){
+            b.classList.toggle('active', (b.getAttribute('data-queue-state-filter') || '') === (sv2 || 'all'));
+          });
+          if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
+        });
+      }
       var sortSel = el('approvalsSortOrder');
       if (sortSel) sortSel.addEventListener('change', function(){
         pendingApprovalSortOrder = sortSel.value || 'newest';
@@ -3719,7 +3841,11 @@
         pendingApprovalKindFilter = '';
         pendingApprovalSortOrder = 'newest';
         pendingApprovalCategoryFilter = '';
+        pendingApprovalQueueStateFilter = '';
         pendingApprovalSelectionKeys.clear();
+        document.querySelectorAll('#approvalsQueueStateChips [data-queue-state-filter]').forEach(function(b){
+          b.classList.toggle('active', (b.getAttribute('data-queue-state-filter') || '') === 'all');
+        });
         if (sortSel) sortSel.value = 'newest';
         if (catSel) catSel.value = '';
         if (typeof renderUnifiedApprovals === 'function') renderUnifiedApprovals();
@@ -3988,7 +4114,10 @@
       }
       var row = document.createElement('div');
       row.className = 'approvalQueueRow approvalRowClickable teacherApprovalPendingRow approvalQueueRow--' + kindKey;
-      row.innerHTML = selHtml + '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn" aria-label="Review">Review</button><span class="lanternMgmtRecordChev" aria-hidden="true"></span></div>';
+      var qState = queueStateOf(entry);
+      var qLabel = window.LanternReviewQueue && window.LanternReviewQueue.stateChipLabel ? window.LanternReviewQueue.stateChipLabel(qState) : 'Pending Review';
+      var qChip = '<span class="approvalQueueStateChip approvalQueueStateChip--' + esc(String(qState).toLowerCase()) + '">' + esc(qLabel) + '</span>';
+      row.innerHTML = selHtml + '<div class="approvalQueueLeft"><div class="approvalQueueAvatar">' + avatarHtml + '</div><div class="approvalQueueText"><div class="approvalQueueHead"><span class="approvalKindChip approvalKindChip--' + kindKey + '">' + esc(typeLabel) + '</span>' + qChip + catBlock + '</div><div class="approvalQueueTitle">' + esc(title) + '</div><div class="approvalQueueMeta">' + esc(meta) + '</div></div></div>' + thumbHtml + '<div class="approvalQueueRight"><button type="button" class="btn primary small approvalRowReviewBtn" aria-label="Review">Review</button><span class="lanternMgmtRecordChev" aria-hidden="true"></span></div>';
       function openReview(){ onReview(entry); }
       row.addEventListener('click', function(ev){ if (ev.target.closest('.approvalQueueSelectCell')) return; if (ev.target.closest('.approvalRowReviewBtn')) return; openReview(); });
       row.querySelector('.approvalRowReviewBtn').addEventListener('click', function(ev){ ev.stopPropagation(); openReview(); });
@@ -4192,8 +4321,43 @@
         html += '</div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button><button type="button" class="btn small" id="reviewTake">Take</button>';
       }
+      var qState = queueStateOf(entry);
+      if (qState === 'REPORTED') {
+        html += '<div class="reviewReportedBlock">';
+        html += '<p style="margin:0 0 6px;font-weight:800;">Reported · ' + esc(String(item.report_count || entry.queueItem && entry.queueItem.report_count || 1)) + '</p>';
+        var reasons = item.reasons || (entry.queueItem && entry.queueItem.reasons) || [];
+        if (reasons.length) html += '<p style="margin:0 0 6px;">Reason(s): ' + esc(reasons.join(', ')) + '</p>';
+        var reporters = item.reporters || (entry.queueItem && entry.queueItem.reporters) || [];
+        if (currentStaffIsAdmin() && reporters.length) html += '<p style="margin:0;">Reporter(s): ' + esc(reporters.join(', ')) + '</p>';
+        html += '</div>';
+        var keepLabel = currentStaffIsAdmin() ? 'Remove' : 'Keep Hidden';
+        actionsHtml = '<button type="button" class="btn good" id="reviewReportDismiss">Dismiss Report / Restore</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return for Revision</button><button type="button" class="btn bad" id="reviewReportRemove">' + keepLabel + '</button>';
+      }
+      html += '<details class="reviewHistoryDetails"><summary>History</summary><div id="reviewHistoryBody">Loading…</div></details>';
       bd.innerHTML = html;
       if (actionsContainer) actionsContainer.innerHTML = actionsHtml;
+      var reviewItemType = (entry.queueItem && entry.queueItem.item_type) || (type === 'mission' ? 'mission_submission' : type === 'approval_item' ? (item.item_type || '') : type === 'post' ? 'feed_item' : type);
+      var reviewItemId = (entry.queueItem && entry.queueItem.item_id) || item.item_id || item.id || '';
+      if (window.LanternReviewQueue && typeof window.LanternReviewQueue.history === 'function' && reviewItemType && reviewItemId) {
+        window.LanternReviewQueue.history(reviewItemType, reviewItemId).then(function(hres){
+          var host = document.getElementById('reviewHistoryBody');
+          if (!host) return;
+          var events = (hres && hres.events) || [];
+          if (!events.length) { host.textContent = 'No history yet.'; return; }
+          host.innerHTML = '<ul>' + events.map(function(ev){
+            return '<li>' + esc(window.LanternReviewQueue.staffHistoryLabel(ev)) + '</li>';
+          }).join('') + '</ul>';
+        });
+      } else {
+        var host0 = document.getElementById('reviewHistoryBody');
+        if (host0) host0.textContent = 'No history yet.';
+      }
+      var fbWrap = el('reviewFeedbackWrap');
+      var fbNote = el('reviewFeedbackNote');
+      if (fbWrap) {
+        fbWrap.hidden = qState !== 'REPORTED' && !(actionsHtml && actionsHtml.indexOf('reviewReturn') !== -1);
+        if (fbNote) fbNote.value = '';
+      }
       var clearBtn = el('reviewExternalMediaClearBtn');
       if (clearBtn) {
         clearBtn.addEventListener('click', function(){
@@ -4234,12 +4398,38 @@
       var returnBtn = actionRoot.querySelector('#reviewReturn');
       var rejectBtn = actionRoot.querySelector('#reviewReject');
       var takeBtn = actionRoot.querySelector('#reviewTake');
+      var dismissBtn = actionRoot.querySelector('#reviewReportDismiss');
+      var removeBtn = actionRoot.querySelector('#reviewReportRemove');
+      function reviewFeedbackValue(){
+        var box = el('reviewFeedbackNote');
+        return box ? String(box.value || '').trim() : '';
+      }
+      function syncReturnEnabled(){
+        if (!returnBtn) return;
+        returnBtn.disabled = !reviewFeedbackValue();
+      }
+      if (returnBtn) {
+        returnBtn.textContent = 'Return for Revision';
+        syncReturnEnabled();
+        if (fbNote) fbNote.addEventListener('input', syncReturnEnabled);
+      }
+      function unifiedReviewAct(action, extra){
+        if (window.LanternReviewQueue && typeof window.LanternReviewQueue.act === 'function' && reviewItemType && reviewItemId) {
+          return window.LanternReviewQueue.act(Object.assign({
+            action: action,
+            item_type: reviewItemType,
+            item_id: reviewItemId,
+          }, extra || {}));
+        }
+        return Promise.resolve({ ok: false, error: 'queue_unavailable' });
+      }
       if (approveBtn) approveBtn.onclick = async function(){
         var approvalOv = el('approvalReminderOverlay');
         var doApprove = async function(){
           approveBtn.disabled = true;
           var res = false;
-          if (type === 'mission') res = await callApproveMissionSubmission(item.id);
+          if (window.LanternReviewQueue && reviewItemType && reviewItemId) res = await unifiedReviewAct('approve');
+          else if (type === 'mission') res = await callApproveMissionSubmission(item.id);
           else if (type === 'avatar') res = await callApproveAvatarSubmission(item.id);
           else if (type === 'approval_item') { res = await callApproveApprovalItem(item.id); }
           else if (type === 'news') res = await callApproveNewsArticle(item.id);
@@ -4251,6 +4441,7 @@
           toast('Approved');
           closeReview();
           await refresh();
+          await refreshSharedStaffCount();
         };
         if (!approvalOv){
           await doApprove();
@@ -4273,10 +4464,69 @@
           }
         };
       };
-      if (acceptBtn) acceptBtn.onclick = async function(){ acceptBtn.disabled = true; var res = await callApproveThanks(item.id); acceptBtn.disabled = false; if (!res.ok){ toast(res.error || 'Failed'); return; } toast('Accepted'); closeReview(); refresh(); };
-      if (returnBtn) returnBtn.onclick = async function(){ var reason = (prompt('Reason for return:') || '').trim(); returnBtn.disabled = true; var res = false; if (type === 'mission') res = await callReturnMissionSubmissionForImprovements(item.id, reason); else if (type === 'approval_item') res = await callReturnApprovalItem(item.id, reason); else if (type === 'news') res = await callReturnNewsArticleForImprovements(item.id, reason); else if (type === 'post') res = await callReturnPostForImprovements(item.id, reason); else if (type === 'thanks') res = await callReturnThanksForImprovements(item.id, reason); else if (type === 'grade_reflection') res = await callReturnGradeReflectionForImprovements(item.id, reason); returnBtn.disabled = false; if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; } toast('Returned'); closeReview(); refresh(); };
-      if (rejectBtn) rejectBtn.onclick = async function(){ var reason = (type === 'avatar' || type === 'approval_item') ? (prompt('Reason (optional):') || '').trim() : ''; rejectBtn.disabled = true; var res = false; if (type === 'mission') res = await callRejectMissionSubmission(item.id); else if (type === 'avatar') res = await callRejectAvatarSubmission(item.id, reason); else if (type === 'approval_item') res = await callRejectApprovalItem(item.id, reason); else if (type === 'news') res = await callRejectNewsArticle(item.id); else if (type === 'post') res = await callRejectPost(item.id); else if (type === 'thanks') res = await callRejectThanks(item.id); else if (type === 'grade_reflection') res = await callRejectGradeReflection(item.id); else if (type === 'submission') res = await callRejectSubmission(item.id); rejectBtn.disabled = false; if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; } toast('Rejected'); closeReview(); refresh(); };
-      if (takeBtn) takeBtn.onclick = async function(){ takeBtn.disabled = true; var res = await callTakeApprovalItem(item.id); takeBtn.disabled = false; if (!res.ok){ toast(res.error || 'Failed'); return; } toast('Taken'); closeReview(); refresh(); };
+      if (acceptBtn) acceptBtn.onclick = async function(){ acceptBtn.disabled = true; var res = await callApproveThanks(item.id); acceptBtn.disabled = false; if (!res.ok){ toast(res.error || 'Failed'); return; } toast('Accepted'); closeReview(); refresh(); refreshSharedStaffCount(); };
+      if (returnBtn) returnBtn.onclick = async function(){
+        var reason = reviewFeedbackValue();
+        if (!reason) { toast('Tell the student what they need to change.'); return; }
+        returnBtn.disabled = true;
+        var res = false;
+        var act = qState === 'REPORTED' ? 'report_return' : 'return';
+        if (window.LanternReviewQueue && reviewItemType && reviewItemId) {
+          res = await unifiedReviewAct(act, { note: reason });
+        } else if (type === 'mission') res = await callReturnMissionSubmissionForImprovements(item.id, reason);
+        else if (type === 'approval_item') res = await callReturnApprovalItem(item.id, reason);
+        else if (type === 'news') res = await callReturnNewsArticleForImprovements(item.id, reason);
+        else if (type === 'post') res = await callReturnPostForImprovements(item.id, reason);
+        else if (type === 'thanks') res = await callReturnThanksForImprovements(item.id, reason);
+        else if (type === 'grade_reflection') res = await callReturnGradeReflectionForImprovements(item.id, reason);
+        returnBtn.disabled = false;
+        if (!res || !res.ok){ toast((res && res.error) || 'Failed'); syncReturnEnabled(); return; }
+        toast(qState === 'REPORTED' ? 'Returned for revision' : 'Returned for revision');
+        closeReview();
+        await refresh();
+        await refreshSharedStaffCount();
+      };
+      if (rejectBtn) rejectBtn.onclick = async function(){
+        rejectBtn.disabled = true;
+        var res = false;
+        if (window.LanternReviewQueue && reviewItemType && reviewItemId) res = await unifiedReviewAct('reject');
+        else if (type === 'mission') res = await callRejectMissionSubmission(item.id);
+        else if (type === 'avatar') res = await callRejectAvatarSubmission(item.id, '');
+        else if (type === 'approval_item') res = await callRejectApprovalItem(item.id, '');
+        else if (type === 'news') res = await callRejectNewsArticle(item.id);
+        else if (type === 'post') res = await callRejectPost(item.id);
+        else if (type === 'thanks') res = await callRejectThanks(item.id);
+        else if (type === 'grade_reflection') res = await callRejectGradeReflection(item.id);
+        else if (type === 'submission') res = await callRejectSubmission(item.id);
+        rejectBtn.disabled = false;
+        if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; }
+        toast('Rejected');
+        closeReview();
+        await refresh();
+        await refreshSharedStaffCount();
+      };
+      if (dismissBtn) dismissBtn.onclick = async function(){
+        dismissBtn.disabled = true;
+        var res = await unifiedReviewAct('report_dismiss');
+        dismissBtn.disabled = false;
+        if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; }
+        toast('Report dismissed');
+        closeReview();
+        await refresh();
+        await refreshSharedStaffCount();
+      };
+      if (removeBtn) removeBtn.onclick = async function(){
+        removeBtn.disabled = true;
+        var extra = currentStaffIsAdmin() ? { resolution: 'removed' } : {};
+        var res = await unifiedReviewAct('report_remove', extra);
+        removeBtn.disabled = false;
+        if (!res || !res.ok){ toast((res && res.error) || 'Failed'); return; }
+        toast(currentStaffIsAdmin() ? 'Removed' : 'Kept hidden');
+        closeReview();
+        await refresh();
+        await refreshSharedStaffCount();
+      };
+      if (takeBtn) takeBtn.onclick = async function(){ takeBtn.disabled = true; var res = await callTakeApprovalItem(item.id); takeBtn.disabled = false; if (!res.ok){ toast(res.error || 'Failed'); return; } toast('Taken'); closeReview(); refresh(); refreshSharedStaffCount(); };
       overlay.classList.add('is-open');
     }
     function renderUnifiedApprovals(){
@@ -4294,7 +4544,12 @@
       var schoolwideItems = applyPendingFiltersAndSort(schoolwideItemsRaw);
       pruneApprovalSelectionToVisible(classroomItems.concat(schoolwideItems));
       var shown = classroomItems.length + schoolwideItems.length;
-      if (el('pendingApprovalsBadge')) el('pendingApprovalsBadge').textContent = String(total);
+      if (el('pendingApprovalsBadge')) {
+        var sharedBadge = window.LanternActionCounts && typeof window.LanternActionCounts.getStaffReviewCount === 'function'
+          ? window.LanternActionCounts.getStaffReviewCount()
+          : null;
+        el('pendingApprovalsBadge').textContent = String(sharedBadge != null ? (Number(sharedBadge) || 0) : total);
+      }
       if (el('myClassroomCount')) {
         var cShow = classroomItems.length, cRaw = classroomItemsRaw.length;
         el('myClassroomCount').textContent = '(' + (cShow === cRaw ? String(cShow) : cShow + ' of ' + cRaw) + ')';
@@ -4307,10 +4562,10 @@
       updateApprovalsKindChipActive();
       leftContainer.innerHTML = '';
       rightContainer.innerHTML = '';
-      if (classroomItemsRaw.length === 0) leftContainer.innerHTML = '<div class="placeholderRow">No classroom submissions waiting.</div>';
+      if (classroomItemsRaw.length === 0) leftContainer.innerHTML = '<div class="placeholderRow">' + (reviewQueueOk && schoolwideItemsRaw.length === 0 ? "You're caught up — no submissions need review." : 'No classroom submissions waiting.') + '</div>';
       else if (classroomItems.length === 0) leftContainer.innerHTML = '<div class="placeholderRow">No items match the current filters.</div>';
       else classroomItems.forEach(function(entry){ renderApprovalRow(leftContainer, entry, function(ent){ openReviewModal(ent, 'My Classroom'); }); });
-      if (schoolwideItemsRaw.length === 0) rightContainer.innerHTML = '<div class="placeholderRow">No schoolwide items waiting.</div>';
+      if (schoolwideItemsRaw.length === 0) rightContainer.innerHTML = '<div class="placeholderRow">' + (reviewQueueOk && classroomItemsRaw.length === 0 ? "You're caught up — no submissions need review." : 'No schoolwide items waiting.') + '</div>';
       else if (schoolwideItems.length === 0) rightContainer.innerHTML = '<div class="placeholderRow">No items match the current filters.</div>';
       else schoolwideItems.forEach(function(entry){ renderApprovalRow(rightContainer, entry, function(ent){ openReviewModal(ent, 'Schoolwide Queue'); }); });
       var stripEl = el('approvalsIdentityStrip');
@@ -4599,6 +4854,16 @@
     }
 
     async function refresh(){
+      if (window.LanternReviewQueue && typeof window.LanternReviewQueue.load === 'function') {
+        try {
+          var qres = await window.LanternReviewQueue.load();
+          reviewQueueOk = !!(qres && qres.ok);
+          reviewQueueItems = (qres && qres.items) || [];
+        } catch (_) {
+          reviewQueueOk = false;
+          reviewQueueItems = [];
+        }
+      }
       if (useApprovalsApi) {
         var pendRes = await callGetPendingApprovals(approvalStaffId, approvalFilter, approvalTypeFilter);
         approvalPending = (pendRes && pendRes.pending) || [];
@@ -4669,6 +4934,7 @@
       renderTotals();
       if (avatarApiBase !== null) loadModerationData();
       renderOverviewSummary();
+      refreshSharedStaffCount();
     }
 
     var moderationFetchCred = { credentials: 'include' };

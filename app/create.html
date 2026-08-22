@@ -84,6 +84,7 @@
     <p id="triviaStatus" class="feedPageSub"></p>
   </div>
   <script src="js/lantern-staff-nav.js"></script>
+  <script src="js/lantern-action-counts.js"></script>
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-route-help.js"></script>
@@ -95,6 +96,7 @@
     var draftId = null;
     var triviaId = null;
     var imageKey = null;
+    var isFeedResubmit = false;
     var statusEl = document.getElementById('createStatus');
     var triviaStatus = document.getElementById('triviaStatus');
     try {
@@ -105,6 +107,39 @@
         if (allowed[typeParam]) typeEl.value = typeParam;
       }
     } catch (e) {}
+    (function bootFeedResubmit() {
+      var rid = '';
+      var stored = null;
+      try {
+        rid = (new URLSearchParams(location.search || '').get('resubmit') || '').trim();
+        stored = JSON.parse(sessionStorage.getItem('LANTERN_FEED_RESUBMIT') || 'null');
+        if (stored) sessionStorage.removeItem('LANTERN_FEED_RESUBMIT');
+      } catch (e) {}
+      if (!rid && stored && stored.id) rid = String(stored.id);
+      if (!rid) return;
+      isFeedResubmit = true;
+      draftId = rid;
+      if (stored) {
+        if (stored.type && document.getElementById('createType')) document.getElementById('createType').value = stored.type;
+        if (stored.title && document.getElementById('createTitle')) document.getElementById('createTitle').value = stored.title;
+        if (stored.body && document.getElementById('createBody')) document.getElementById('createBody').value = stored.body;
+        if (stored.image_r2_key) imageKey = stored.image_r2_key;
+        if (stored.private_feedback) setStatus('Teacher feedback: ' + stored.private_feedback);
+      }
+      if (feed && typeof feed.getMine === 'function') {
+        feed.getMine().then(function (res) {
+          var rows = (res && res.items) || [];
+          var row = rows.filter(function (r) { return String(r.id) === String(rid); })[0];
+          if (!row) return;
+          if (row.type && document.getElementById('createType')) document.getElementById('createType').value = row.type;
+          if (row.title && document.getElementById('createTitle')) document.getElementById('createTitle').value = row.title;
+          if ((row.body || row.summary) && document.getElementById('createBody')) document.getElementById('createBody').value = row.body || row.summary;
+          if (row.image_r2_key) imageKey = row.image_r2_key;
+          var note = row.privateFeedback || row.private_feedback || '';
+          if (note) setStatus('Teacher feedback: ' + note);
+        }).catch(function () {});
+      }
+    })();
 
     function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ''; }
     function setTriviaStatus(msg) { if (triviaStatus) triviaStatus.textContent = msg || ''; }
@@ -156,7 +191,9 @@
           });
       chain.then(function (res) {
         if (!res || !res.ok) { setStatus((res && res.error) || 'Submit failed.'); return; }
-        setStatus('Submitted for teacher review!');
+        setStatus(isFeedResubmit ? 'Resubmitted for review' : 'Submitted for teacher review!');
+        isFeedResubmit = false;
+        if (window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
       });
     });
 

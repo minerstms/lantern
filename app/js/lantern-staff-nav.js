@@ -151,12 +151,24 @@
     return caps && typeof caps === 'object' ? caps : null;
   }
 
+  function actionBadgeHtml(kind) {
+    return '<span class="lanternNavBadge" data-action-badge="' + kind + '" hidden></span>';
+  }
+
+  function withWorkflowHash(href, item) {
+    href = String(href || '');
+    if (item && item.id === 'locker' && href.indexOf('#') === -1) return href + '#profileNeedsAttention';
+    if (item && item.id === 'teacher' && href.indexOf('#') === -1) return href + '#review';
+    return href;
+  }
+
   function buildNavigationSectionLinksHtml(current, ctx) {
     ctx = ctx || 'lantern';
     return NAVIGATION_ITEMS.map(function (item) {
-      var href = hrefFor(item.id, ctx);
+      var href = withWorkflowHash(hrefFor(item.id, ctx), item);
       var active = isCurrentNavItem(item, current);
       var label = item.label;
+      var badge = item.id === 'locker' ? actionBadgeHtml('locker') : '';
       return (
         '<a href="' +
         href +
@@ -166,6 +178,7 @@
         item.dataPage +
         '">' +
         label +
+        badge +
         '</a>'
       );
     }).join('');
@@ -181,11 +194,12 @@
     ctx = ctx || 'lantern';
     current = String(current || '');
     return visibleStaffItems(role).map(function (item) {
-      var href = hrefFor(item.id, ctx);
+      var href = withWorkflowHash(hrefFor(item.id, ctx), item);
       var active = current === item.dataPage || current === item.id;
       var attrs = '';
       if (item.id === 'teacher' && ctx === 'tms') attrs += ' data-lantern-teacher-handoff="1"';
       if (item.id === 'behavior' && ctx === 'lantern') attrs += ' data-lantern-behavior-nav="1"';
+      var badge = item.id === 'teacher' ? actionBadgeHtml('teacher') : '';
       return (
         '<a href="' +
         href +
@@ -197,6 +211,7 @@
         attrs +
         '>' +
         item.label +
+        badge +
         '</a>'
       );
     }).join('');
