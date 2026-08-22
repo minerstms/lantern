@@ -192,7 +192,7 @@
 .lanternFinalRxRaceArena{
   position: relative;
   overflow: visible;
-  min-height: 64px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -202,13 +202,15 @@
   width: 100%;
   height: auto;
   min-height: 0;
-  margin: 6px 0 0;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
   flex: 0 0 auto;
   box-sizing: border-box;
   pointer-events: none;
   overflow: visible;
   background: transparent;
   border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 0;
   box-shadow: none;
   align-items: start;
@@ -239,11 +241,12 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
   width: 100%;
   box-sizing: border-box;
   align-items: start;
   overflow: visible;
+  flex: 0 0 auto;
 }
 .lanternRxLane{
   position: relative;

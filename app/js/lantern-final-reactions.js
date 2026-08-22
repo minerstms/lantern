@@ -339,7 +339,8 @@
     var api = global.LANTERN_RESULT_REVEAL;
     if (!api || typeof api.mountRevealResultsControl !== 'function' || !panel) return;
     if (!status || !status.results || !status.results.length) return;
-    var host = panel.querySelector('.lanternFinalRxRaceArena') || panel;
+    var arena = panel.querySelector('.lanternFinalRxRaceArena');
+    var host = panel;
     api.mountRevealResultsControl(host, {
       onReveal: function (isReplay) {
         if (api.ensureRaceAreaVisibleOnce) api.ensureRaceAreaVisibleOnce(panel);
@@ -357,6 +358,11 @@
         else startRxRace();
       },
     });
+    var wrap = panel.querySelector('.lanternRevealResultsWrap');
+    if (wrap && arena && wrap.previousElementSibling !== arena) {
+      if (arena.nextSibling) panel.insertBefore(wrap, arena.nextSibling);
+      else panel.appendChild(wrap);
+    }
   }
 
   function renderLocked(container, status) {
