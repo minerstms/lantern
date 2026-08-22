@@ -1,62 +1,325 @@
 <!DOCTYPE html>
-<html class="lantern-pilot-auth-pending">
+<html class="lantern-pilot-auth-pending" lang="en">
 <head>
   <base target="_top">
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/assets/favicon.png?v=2">
+  <link rel="apple-touch-icon" href="/assets/favicon.png?v=2">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Thumbnail Backfill | Lantern</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <link rel="stylesheet" href="css/lantern-header.css">
   <style>
-    body { margin: 0; background: #0b1220; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-    h1 { font-size: 28px; margin: 8px 0; }
-    p, label { font-size: 22px; line-height: 1.35; }
-    input, button { font-size: 22px; padding: 10px 12px; border-radius: 12px; }
-    button { background: #5aa7ff; border: 0; color: #071018; font-weight: 700; }
-    pre { white-space: pre-wrap; font-size: 18px; background: #0f1b33; padding: 12px; border-radius: 12px; }
-    .note { color: #b9c6ea; font-size: 22px; }
+    :root {
+      --bg: #0b1220;
+      --panel: #0f1b33;
+      --ink: #eaf0ff;
+      --muted: #b9c6ea;
+      --accent: #5aa7ff;
+      --bad: #ff4d6d;
+      --warn: #ffcc66;
+      --line: rgba(255, 255, 255, 0.12);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    h1 { font-size: 32px; margin: 8px 0; line-height: 1.2; }
+    h2 { font-size: 26px; margin: 8px 0 0; }
+    p, label, .status, .warn, .error, .note { font-size: 22px; line-height: 1.35; margin: 0; }
+    .status {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .warn {
+      background: #2a1d08;
+      color: var(--warn);
+      border: 1px solid var(--warn);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .error {
+      background: #2a0f16;
+      color: #ffd0d8;
+      border: 1px solid var(--bad);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .note { color: var(--muted); }
+    label { display: flex; flex-direction: column; gap: 8px; }
+    input, button, select {
+      font-size: 22px;
+      padding: 12px;
+      border-radius: 12px;
+      width: 100%;
+    }
+    input, select {
+      background: #071018;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    button {
+      background: var(--accent);
+      border: 0;
+      color: #071018;
+      font-weight: 700;
+      min-height: 56px;
+    }
+    button.secondary {
+      background: #1e3a5f;
+      color: var(--ink);
+    }
+    button:disabled { opacity: 0.55; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 22px;
+      line-height: 1.35;
+      background: var(--panel);
+      padding: 12px;
+      border-radius: 12px;
+      margin: 0;
+      min-height: 8em;
+    }
+    .hidden { display: none !important; }
+    #staffPanel, #deniedPanel, #signInPanel { display: flex; flex-direction: column; gap: 14px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Stored thumbnail backfill</h1>
-    <p class="note">Staff only. Generates 480px JPEGs in this browser from authorized originals. Does not delete media. Do not run against production until reviewed.</p>
-    <label>Max items <input id="maxItems" type="number" value="1" min="1" max="50"></label>
-    <label>Source kind <input id="sourceKind" placeholder="news"></label>
-    <label>Source id <input id="sourceId" placeholder="one item id"></label>
-    <button type="button" id="dryBtn">Dry run</button>
-    <button type="button" id="oneBtn">Backfill one / batch</button>
-    <pre id="out">Ready.</pre>
+    <h1>THUMBNAIL BACKFILL</h1>
+    <p id="authStatus" class="status">Checking staff session…</p>
+    <div id="errorPanel" class="error hidden" role="alert"></div>
+    <div id="signInPanel" class="hidden">
+      <p class="warn">Sign-in required. This staff page cannot run until you have a Lantern session.</p>
+      <a id="signInLink" href="/login.html" style="color:#5aa7ff;font-size:22px;">Go to Lantern login</a>
+    </div>
+    <div id="deniedPanel" class="hidden">
+      <p class="error">Access denied. Thumbnail backfill is staff-only. No backfill controls or candidate data are available on this page.</p>
+    </div>
+    <div id="staffPanel" class="hidden">
+      <p class="warn">Dry Run performs no writes. NO D1 WRITES. NO R2 WRITES. Nothing runs until you click a button.</p>
+      <p class="note">Safe order: Dry Run → Run One Item → verify → only then a small batch. Bulk backfill is not the default.</p>
+      <label>Max items
+        <input id="maxItems" type="number" value="1" min="1" max="50" inputmode="numeric">
+      </label>
+      <label>Source kind (optional)
+        <input id="sourceKind" placeholder="news">
+      </label>
+      <label>Source ID (optional)
+        <input id="sourceId" placeholder="one item id">
+      </label>
+      <button type="button" id="dryBtn">Dry Run</button>
+      <button type="button" id="oneBtn" class="secondary">Run One Item</button>
+      <h2>Candidates / results</h2>
+      <pre id="out">Ready. No backfill has started.</pre>
+    </div>
   </div>
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-thumbnail.js"></script>
   <script src="js/lantern-thumbnail-backfill.js"></script>
   <script>
-    function opts() {
-      return {
-        dryRun: false,
-        maxItems: document.getElementById('maxItems').value,
-        sourceKind: document.getElementById('sourceKind').value.trim(),
-        sourceId: document.getElementById('sourceId').value.trim()
-      };
-    }
-    function show(v) {
-      document.getElementById('out').textContent = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
-    }
-    document.getElementById('dryBtn').onclick = function () {
-      var o = opts();
-      o.dryRun = true;
-      show('Dry run…');
-      window.LanternThumbnailBackfill.runBackfillBatch(o).then(show).catch(function (e) { show(String(e)); });
-    };
-    document.getElementById('oneBtn').onclick = function () {
-      var o = opts();
-      show('Backfill running…');
-      window.LanternThumbnailBackfill.runBackfillBatch(o).then(show).catch(function (e) { show(String(e)); });
-    };
+    (function () {
+      var booted = false;
+      var writesArmed = false;
+
+      function $(id) {
+        return document.getElementById(id);
+      }
+
+      function reveal() {
+        document.documentElement.classList.remove('lantern-pilot-auth-pending');
+      }
+
+      function setText(id, text) {
+        var el = $(id);
+        if (el) el.textContent = text;
+      }
+
+      function show(el, on) {
+        if (!el) return;
+        if (on) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      }
+
+      function showError(msg) {
+        var panel = $('errorPanel');
+        if (!panel) return;
+        panel.textContent = msg;
+        show(panel, true);
+      }
+
+      function hideError() {
+        show($('errorPanel'), false);
+        setText('errorPanel', '');
+      }
+
+      function roleOf(data, auth) {
+        if (auth && typeof auth.normalizeRole === 'function') return auth.normalizeRole(data && data.role);
+        return String((data && data.role) || '').trim().toLowerCase();
+      }
+
+      function isStaffRole(role) {
+        return role === 'teacher' || role === 'admin';
+      }
+
+      function readOpts() {
+        return {
+          maxItems: $('maxItems') ? $('maxItems').value : '1',
+          sourceKind: $('sourceKind') ? String($('sourceKind').value || '').trim() : '',
+          sourceId: $('sourceId') ? String($('sourceId').value || '').trim() : ''
+        };
+      }
+
+      function showLog(v) {
+        setText('out', typeof v === 'string' ? v : JSON.stringify(v, null, 2));
+      }
+
+      function denyStudent(data) {
+        writesArmed = false;
+        var name = (data && (data.display_name || data.username)) || 'signed-in student';
+        setText('authStatus', 'Signed in as ' + name + ' · role: student · staff access: denied');
+        show($('deniedPanel'), true);
+        show($('staffPanel'), false);
+        show($('signInPanel'), false);
+      }
+
+      function armStaff(data) {
+        writesArmed = true;
+        var name = (data && (data.display_name || data.username)) || 'staff';
+        var role = String((data && data.role) || 'staff');
+        setText('authStatus', 'Signed in as ' + name + ' · role: ' + role + ' · staff access: authorized');
+        show($('staffPanel'), true);
+        show($('deniedPanel'), false);
+        show($('signInPanel'), false);
+        showLog('Ready. No backfill has started. Click Dry Run first. Dry Run writes nothing.');
+      }
+
+      function requireSignIn(auth) {
+        setText('authStatus', 'Not signed in · staff access: required');
+        show($('signInPanel'), true);
+        show($('staffPanel'), false);
+        show($('deniedPanel'), false);
+        var link = $('signInLink');
+        if (link) {
+          link.href = auth && typeof auth.loginUrlWithReturn === 'function'
+            ? auth.loginUrlWithReturn()
+            : '/login.html?return=' + encodeURIComponent('/thumb-backfill.html');
+        }
+      }
+
+      function wireStaffActions() {
+        var dryBtn = $('dryBtn');
+        var oneBtn = $('oneBtn');
+        if (!dryBtn || !oneBtn || !window.LanternThumbnailBackfill) {
+          showError('Backfill scripts failed to load. No writes ran.');
+          return;
+        }
+        dryBtn.onclick = function () {
+          if (!writesArmed) return;
+          hideError();
+          var o = readOpts();
+          o.dryRun = true;
+          showLog('Dry Run in progress… read-only. NO D1 WRITES. NO R2 WRITES.');
+          window.LanternThumbnailBackfill.runBackfillBatch(o).then(function (res) {
+            if (!res || res.ok === false) {
+              showError('Dry Run failed: ' + ((res && res.error) || 'API or auth error'));
+              showLog(window.LanternThumbnailBackfill.formatDryRunReport(res, o));
+              return;
+            }
+            showLog(window.LanternThumbnailBackfill.formatDryRunReport(res, o));
+          }).catch(function (e) {
+            showError('Dry Run failed: ' + String(e && e.message ? e.message : e));
+            showLog(String(e));
+          });
+        };
+        oneBtn.onclick = function () {
+          if (!writesArmed) return;
+          hideError();
+          var o = readOpts();
+          o.dryRun = false;
+          o.maxItems = 1;
+          showLog('Run One Item in progress… this is a write action for a single candidate.');
+          window.LanternThumbnailBackfill.runBackfillBatch(o).then(function (res) {
+            if (!res || res.ok === false) {
+              showError('Run One Item failed: ' + ((res && res.error) || 'API or auth error'));
+            }
+            showLog(res);
+          }).catch(function (e) {
+            showError('Run One Item failed: ' + String(e && e.message ? e.message : e));
+            showLog(String(e));
+          });
+        };
+      }
+
+      function finishBoot(data, auth) {
+        if (booted) return;
+        booted = true;
+        reveal();
+        if (data && data.error === 'network') {
+          setText('authStatus', 'Session check failed · staff access: unknown');
+          showError('Could not reach /api/auth/me. No backfill ran. Dry Run and write controls stay hidden.');
+          show($('staffPanel'), false);
+          return;
+        }
+        if (!data || !data.ok || !data.authenticated) {
+          requireSignIn(auth);
+          if (auth && typeof auth.loginUrlWithReturn === 'function') {
+            location.replace(auth.loginUrlWithReturn());
+          }
+          return;
+        }
+        if (auth && typeof auth.applyStudentStorageFromSession === 'function') {
+          auth.applyStudentStorageFromSession(data);
+        }
+        try { window.LANTERN_PILOT_ME = data; } catch (eMe) {}
+        if (data.must_change_password) {
+          location.replace('/change-password.html?return=' + encodeURIComponent(location.pathname + location.search));
+          return;
+        }
+        var role = roleOf(data, auth);
+        if (!isStaffRole(role)) {
+          denyStudent(data);
+          return;
+        }
+        armStaff(data);
+        wireStaffActions();
+      }
+
+      var auth = window.LanternAuth || window.LanternPilotAuth;
+      if (!auth || typeof auth.fetchMe !== 'function') {
+        reveal();
+        setText('authStatus', 'Auth helper missing · staff access: unknown');
+        showError('Lantern session helper failed to load. Sign-in is required.');
+        show($('signInPanel'), true);
+        return;
+      }
+
+      auth.fetchMe().then(function (data) {
+        finishBoot(data, auth);
+      }).catch(function (err) {
+        reveal();
+        setText('authStatus', 'Session check failed · staff access: unknown');
+        showError('Session check crashed: ' + String(err && err.message ? err.message : err) + '. No backfill ran.');
+      });
+    })();
   </script>
 </body>
 </html>

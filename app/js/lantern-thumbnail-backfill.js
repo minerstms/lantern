@@ -1,7 +1,8 @@
 /**
- * Prompt #249B — staff/browser resumable thumbnail backfill.
+ * Prompt #249B / #249C — staff/browser resumable thumbnail backfill.
  * Fetches authorized originals, generates thumbs client-side, uploads via /api/news/thumb.
  * Never deletes. Isolated per-item errors. Stops after consecutive systemic failures.
+ * Dry-run is GET-only. Page load must not call write paths.
  */
 (function (global) {
   var STORAGE_KEY = 'lanternThumbnailBackfillProgressV1';
@@ -102,8 +103,75 @@
     if (opts.sourceId) q.set('source_id', opts.sourceId);
     if (opts.cursor) q.set('cursor', opts.cursor);
     return fetch(apiBase() + '/api/news/thumbs/candidates?' + q.toString(), { credentials: 'include' }).then(function (r) {
-      return r.json();
+      return r.json().then(function (body) {
+        if (!body || typeof body !== 'object') {
+          return { ok: false, error: 'invalid_json', httpStatus: r.status };
+        }
+        if (!body.httpStatus) body.httpStatus = r.status;
+        return body;
+      }).catch(function () {
+        return { ok: false, error: 'invalid_json', httpStatus: r.status };
+      });
     });
+  }
+
+  function summarizeCandidates(items) {
+    var list = items || [];
+    var kinds = {};
+    var already = 0;
+    var sidecar = 0;
+    list.forEach(function (it) {
+      var k = String((it && it.source_kind) || 'unknown');
+      kinds[k] = (kinds[k] || 0) + 1;
+      if (it && it.has_thumbnail) already += 1;
+      if (it && it.has_sidecar) sidecar += 1;
+    });
+    return {
+      count: list.length,
+      already_thumbnailed: already,
+      skipped: already,
+      sidecar_present: sidecar,
+      source_kinds: kinds,
+    };
+  }
+
+  function formatDryRunReport(payload, opts) {
+    opts = opts || {};
+    var items = (payload && payload.candidates) || [];
+    var summary = summarizeCandidates(items);
+    var kindLine = Object.keys(summary.source_kinds)
+      .sort()
+      .map(function (k) {
+        return k + '=' + summary.source_kinds[k];
+      })
+      .join(', ');
+    if (!kindLine) kindLine = 'none';
+    var err = payload && payload.error ? String(payload.error) : '';
+    var lines = [
+      'DRY RUN — READ ONLY',
+      'NO D1 WRITES',
+      'NO R2 WRITES',
+      'Candidates found: ' + summary.count,
+      'Already thumbnailed / skipped: ' + summary.already_thumbnailed,
+      'Sidecar present: ' + summary.sidecar_present,
+      'Source kinds: ' + kindLine,
+      'Max items applied: ' + (opts.maxItems == null || opts.maxItems === '' ? '(default)' : String(opts.maxItems)),
+      'Errors: ' + (err || 'none'),
+    ];
+    if (items.length) {
+      lines.push('');
+      lines.push('Candidates:');
+      items.forEach(function (it) {
+        lines.push(
+          '- ' +
+            String(it.source_kind || '?') +
+            ' / ' +
+            String(it.source_id || '?') +
+            (it.has_thumbnail ? ' (already thumbnailed)' : '')
+        );
+      });
+    }
+    return lines.join('\n');
   }
 
   function runBackfillBatch(options) {
@@ -126,14 +194,22 @@
       }
       var items = payload.candidates || [];
       if (opts.dryRun) {
+        var summary = summarizeCandidates(items);
         return {
           ok: true,
           dry_run: true,
-          count: items.length,
+          writes: 'none',
+          d1_writes: 0,
+          r2_writes: 0,
+          count: summary.count,
+          already_thumbnailed: summary.already_thumbnailed,
+          skipped: summary.skipped,
+          sidecar_present: summary.sidecar_present,
+          source_kinds: summary.source_kinds,
+          max_items: opts.maxItems || null,
           candidates: items,
           completed: 0,
           failed: 0,
-          skipped: 0,
         };
       }
       var remaining = items.filter(function (item) {
@@ -189,6 +265,8 @@
     listCandidates: listCandidates,
     backfillOneItem: backfillOneItem,
     runBackfillBatch: runBackfillBatch,
+    formatDryRunReport: formatDryRunReport,
+    summarizeCandidates: summarizeCandidates,
     loadProgress: loadProgress,
     clearProgress: clearProgress,
   };
