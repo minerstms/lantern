@@ -1494,10 +1494,10 @@
     var LC = global.LanternCards;
     var p = poll || {};
     var fk = String(p.fallback_key || 'poll').trim();
-    var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : fk === 'shoutout' ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
+    var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : (fk === 'shoutout' || fk === 'shout_out' || fk === 'shout-out') ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
     var imgUrl = String(p.image_url || '').trim();
+    if (LC && typeof LC.isLegacyDefaultMediaUrl === 'function' && LC.isLegacyDefaultMediaUrl(imgUrl)) imgUrl = '';
     if (!imgUrl && LC && LC.resolveCardVisual) imgUrl = LC.resolveCardVisual({ type: typeForDefault, fallbackType: typeForDefault }).cardUrl;
-    else if (!imgUrl && LC && LC.getDefaultImageUrl) imgUrl = LC.getDefaultImageUrl(typeForDefault);
     var q = e(p.question || '');
     var choices = p.choices || [];
     var html = '<div class="pollModal lanternSurface"><div class="lanternSurfaceContent">';
@@ -2000,7 +2000,16 @@
     var p = res.poll;
     var hasVoted = !!res.has_voted;
     var results = res.results;
-    var imgUrl = (p.image_url && String(p.image_url).trim()) || (apiBase ? apiBase + '/api/media/image?key=default/default_poll.png' : '');
+    var imgUrl = (p.image_url && String(p.image_url).trim()) || '';
+    if (LC && typeof LC.isLegacyDefaultMediaUrl === 'function' && LC.isLegacyDefaultMediaUrl(imgUrl)) imgUrl = '';
+    if (!imgUrl && LC && typeof LC.resolveCardVisual === 'function') {
+      imgUrl = LC.resolveCardVisual({
+        type: 'poll',
+        fallbackType: 'poll',
+        storedThumbnailUrl: p.storedThumbnailUrl || p.stored_thumbnail_url,
+        thumbnailUrl: p.thumbnailUrl || p.thumbnail_url,
+      }).cardUrl;
+    }
     if (imgUrl) {
       v.innerHTML =
         '<div class="lanternCardDetailVisualInner">' +
