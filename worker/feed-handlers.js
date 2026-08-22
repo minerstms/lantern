@@ -16,6 +16,7 @@ import {
 import { loadContentPeopleIndex } from './content-people.js';
 import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
 import { applyFirstPageHiddenNugget } from './hidden-nugget.js';
+import { attachStoredThumbnails, extractNewsObjectKeyFromUrl, isStudentOriginalObjectKey, touchSidecarForOriginal } from './image-thumbnails.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -126,14 +127,17 @@ function normalizeFeedItemRow(row, origin, source) {
   const tags = parseTags(row.tags);
   let thumbnailUrl = null;
   let imageUrl = null;
+  let fullImageUrl = null;
   let videoUrl = null;
   if (row.image_r2_key) {
-    thumbnailUrl = newsImageUrl(origin, row.image_r2_key);
-    imageUrl = row.full_image_r2_key ? newsImageUrl(origin, row.full_image_r2_key) : thumbnailUrl;
+    imageUrl = newsImageUrl(origin, row.image_r2_key);
+    fullImageUrl = row.full_image_r2_key ? newsImageUrl(origin, row.full_image_r2_key) : imageUrl;
+    thumbnailUrl = null;
   } else if (row.direct_image_url) {
-    /* Already a complete URL (e.g. mission submission photo) — not an R2 key to resolve. */
-    thumbnailUrl = row.direct_image_url;
     imageUrl = row.direct_image_url;
+    fullImageUrl = row.direct_image_url;
+    const directKey = extractNewsObjectKeyFromUrl(row.direct_image_url);
+    thumbnailUrl = isStudentOriginalObjectKey(directKey) ? null : row.direct_image_url;
   } else if (row.video_r2_key) {
     thumbnailUrl = null;
   }
@@ -160,6 +164,7 @@ function normalizeFeedItemRow(row, origin, source) {
     status: String(row.status || 'approved').toLowerCase(),
     thumbnailUrl,
     imageUrl,
+    fullImageUrl,
     videoUrl,
     detailUrl: null,
     tags,
@@ -682,6 +687,9 @@ export async function collectApprovedFeed(db, origin, opts) {
   // Prompt #220/#133 — staff public author labels (Honorific + Last Name when configured).
   attachAuthorPublicLabels(items, staffNameIndex);
   attachRecognizedStaffPublicLabels(items, staffNameIndex, peopleByContent);
+  try {
+    await attachStoredThumbnails(db, origin, items);
+  } catch (_) {}
   return items;
 }
 
@@ -1019,6 +1027,11 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       body.tags ? JSON.stringify(body.tags) : null,
       id
     ).run();
+    if (body.image_r2_key != null && String(body.image_r2_key).trim()) {
+      try {
+        await touchSidecarForOriginal(db, 'feed', id, String(body.image_r2_key).trim());
+      } catch (_) {}
+    }
     return feedJson({ ok: true, id }, 200, cors);
   }
 

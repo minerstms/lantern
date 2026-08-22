@@ -169,6 +169,8 @@ import {
   sessionRefFromJwtPayload,
 } from './protected-content.js';
 import { authorizeNewsMediaDelivery } from './news-media-delivery.js';
+import { handleNewsThumbnailRoutes } from './image-thumbnail-routes.js';
+import { extractNewsObjectKeyFromUrl, touchSidecarForOriginal } from './image-thumbnails.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -7565,6 +7567,11 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     try {
       await awardAchievementsForNewsCreate(db, authorName, authorType, id);
     } catch (_) {}
+    if (imageR2Key) {
+      try {
+        await touchSidecarForOriginal(db, 'news', id, imageR2Key);
+      } catch (_) {}
+    }
     return jsonResponse({ ok: true, id, status, created_at: now }, 200, cors);
   }
 
@@ -7871,6 +7878,17 @@ async function handleNewsRoutes(request, url, path, env, cors) {
       headers: protectedDeliveryHeaders(obj.httpMetadata?.contentType || 'video/mp4', corsForPilot(request)),
     });
   }
+
+  const thumbRoute = await handleNewsThumbnailRoutes(request, url, path, env, cors, {
+    getPilotAccountFromRequest,
+    pilotAccountRequiresChangePassword,
+    pilotEconomyCharacterName,
+    jsonResponse,
+    corsForPilot,
+    requireStaffPilotSession,
+    protectedDeliveryHeaders,
+  });
+  if (thumbRoute) return thumbRoute;
 
   return jsonResponse({ ok: false, error: 'Method or path not allowed' }, 405, cors);
 }
@@ -8587,6 +8605,12 @@ async function handlePollsRoutes(request, url, path, env, cors) {
       await replaceContentPeople(db, 'poll_contribution', contribId, peopleNorm.people, account.username || characterName);
     } catch (_) {
       return jsonResponse({ ok: false, error: 'people_schema_required' }, 503, cors);
+    }
+    const pollImageKey = extractNewsObjectKeyFromUrl(imageUrl);
+    if (pollImageKey) {
+      try {
+        await touchSidecarForOriginal(db, 'poll_contribution', contribId, pollImageKey);
+      } catch (_) {}
     }
     if (staffPublisher) {
       const pc = {
@@ -9637,6 +9661,11 @@ async function handleRecognitionRoutes(request, url, path, env, cors) {
     try {
       await awardAchievementsForRecognition(db, characterName, category, message, id);
     } catch (_) {}
+    if (imageR2Key) {
+      try {
+        await touchSidecarForOriginal(db, 'recognition', id, imageR2Key);
+      } catch (_) {}
+    }
     return jsonResponse({
       ok: true,
       id,

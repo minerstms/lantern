@@ -1334,6 +1334,7 @@
   <script src="js/lantern-media.js"></script>
   <script src="js/lantern-scroller.js"></script>
   <script src="js/lantern-cards.js"></script>
+  <script src="js/lantern-thumbnail.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script src="js/lantern-studio-stream-grid.js"></script>
   <script src="js/lantern-studio-opened-preview-scale.js"></script>
@@ -2381,9 +2382,11 @@
         if (!pq){ toast('Enter your poll question.'); return; }
         if (pch.length < 2 || pch.length > 5){ toast('Enter 2 to 5 answer choices.'); return; }
         var imgOut = null;
+        var pollImageKey = '';
         if (croppedNewsImageDataUrl){
           var tr = await callUploadNewsImage(croppedNewsImageDataUrl, 'image/png', 'poll.png');
           if (!tr || !tr.ok){ toast(tr && tr.error ? tr.error : 'Image upload failed'); return; }
+          pollImageKey = tr.image_r2_key || '';
           imgOut = newsApiBase + '/api/news/image?key=' + encodeURIComponent(tr.image_r2_key);
         } else if (newsLinkUrl && (/\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(newsLinkUrl) || /\/api\/(media\/image|news\/image)\?/i.test(newsLinkUrl))){
           imgOut = newsLinkUrl.trim().slice(0, 500);
@@ -2426,6 +2429,15 @@
         btnP.disabled = false;
         if (!pres || pres.ok === false){ toast((pres && pres.error) || 'Submit failed'); return; }
         var published = String(pres.status || '').toLowerCase() === 'approved';
+        if (pollImageKey && window.LanternThumbnail && typeof window.LanternThumbnail.uploadBestEffort === 'function') {
+          window.LanternThumbnail.uploadBestEffort({
+            source_kind: published && pres.poll_id ? 'poll' : 'poll_contribution',
+            source_id: (published && pres.poll_id) ? pres.poll_id : pres.id,
+            original_object_key: pollImageKey,
+            image_version: 1,
+            dataUrl: croppedNewsImageDataUrl
+          });
+        }
         toast(published ? 'Published!' : FERPA_STUDENT_SUBMIT_MESSAGE, published ? undefined : 5200);
         resubmitPollContribId = null;
         if (btnP) {
@@ -2562,6 +2574,15 @@
       }
       setPostSubmitBusy(false);
       if (!res || res.ok === false || (!res.id && !wasNewsResubmit)){ toast((res && res.error) || 'Failed'); return; }
+      if (payload.image_r2_key && window.LanternThumbnail && typeof window.LanternThumbnail.uploadBestEffort === 'function') {
+        window.LanternThumbnail.uploadBestEffort({
+          source_kind: 'news',
+          source_id: res.id || newsArticleResubmitId,
+          original_object_key: payload.image_r2_key,
+          image_version: 1,
+          dataUrl: croppedNewsImageDataUrl
+        });
+      }
       newsArticleResubmitId = null;
       if (el('submitNewsBtn')) el('submitNewsBtn').textContent = 'Submit for approval';
       el('newsTitle').value = '';
@@ -3362,6 +3383,22 @@
       }
       btnM.disabled = false;
       if (!res.ok){ toast(res.error || 'Failed'); return; }
+      if (validImage && imageVal && window.LanternThumbnail && typeof window.LanternThumbnail.uploadBestEffort === 'function' && (res.id || currentMissionResubmitId)) {
+        var missionKey = '';
+        try {
+          var parsedKey = imageVal.match(/[?&]key=([^&]+)/i);
+          missionKey = parsedKey ? decodeURIComponent(parsedKey[1]) : '';
+        } catch (eMk) { missionKey = ''; }
+        if (missionKey) {
+          window.LanternThumbnail.uploadBestEffort({
+            source_kind: 'mission_submission',
+            source_id: res.id || currentMissionResubmitId,
+            original_object_key: missionKey,
+            image_version: 1,
+            imageUrl: imageVal
+          });
+        }
+      }
       toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
       closeMissionStudioPanel();
       loadContributeMissions();
