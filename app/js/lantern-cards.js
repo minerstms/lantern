@@ -83,26 +83,41 @@
     if (!u) return false;
     if (IMAGE_URL_RE.test(u)) return true;
     if (/\/api\/media\/image/i.test(u)) return true;
+    if (/\/api\/news\/thumb(\?|$)/i.test(u)) return true;
     if (u.indexOf('data:image/') === 0) return true;
     return false;
   }
 
+  function isStoredThumbnailUrl(url) {
+    return /\/api\/news\/thumb(\?|$)/i.test(String(url || ''));
+  }
+
+  function isStudentOriginalDeliveryUrl(url) {
+    var u = String(url || '');
+    if (isStoredThumbnailUrl(u)) return false;
+    if (/\/api\/news\/video\?/i.test(u)) return true;
+    if (!/\/api\/news\/image\?/i.test(u)) return false;
+    if (/key=missions%2Fcard%2F/i.test(u) || /[?&]key=missions\/card\//i.test(u)) return false;
+    return true;
+  }
+
   /**
    * Safe card-face image resolver — never treats generic item.url as image unless type or URL validates.
+   * Prompt #249B — student originals (/api/news/image, /api/news/video) are not card faces.
    */
   function resolveCardFaceImageUrl(p) {
     p = p || {};
     var type = String(p.type || p.fallbackType || '').toLowerCase();
-    var order = ['thumbnailUrl', 'thumbnail_url', 'thumbnail', 'preview_src', 'preview_url', 'previewImage', 'imageUrl', 'image_url', 'image'];
+    var order = ['storedThumbnailUrl', 'stored_thumbnail_url', 'thumbnailUrl', 'thumbnail_url', 'thumbnail', 'preview_src', 'preview_url', 'previewImage', 'imageUrl', 'image_url', 'image'];
     var i;
     for (i = 0; i < order.length; i++) {
       var v = String(p[order[i]] || '').trim();
-      if (v) return v;
+      if (v && !isStudentOriginalDeliveryUrl(v)) return v;
     }
     var full = String(p.full_image_url || '').trim();
-    if (full) return full;
+    if (full && !isStudentOriginalDeliveryUrl(full)) return full;
     var url = String(p.url || '').trim();
-    if (url && (IMAGE_LIKE_TYPES[type] || looksLikeImageUrl(url))) return url;
+    if (url && !isStudentOriginalDeliveryUrl(url) && (IMAGE_LIKE_TYPES[type] || looksLikeImageUrl(url))) return url;
     return '';
   }
 
@@ -725,15 +740,23 @@
   }
 
   /**
-   * Prompt #249A — one student-facing card visual contract.
-   * real_media → mission_art → type_art → approved_fallback.
-   * Never empty. Never gray "Lantern" SVG. Does not invent full-original fallbacks.
+   * Prompt #249A / #249B — one student-facing card visual contract.
+   * stored_thumbnail → derived real_media → mission_art → type_art → approved_fallback.
+   * Never empty. Never gray "Lantern" SVG. Never uses the full original as a missing-thumb fallback.
    */
   function resolveCardVisual(item) {
     item = item || {};
     var type = String(item.fallbackType || item.type || item.mission_type || '').toLowerCase();
+    var stored = String(item.storedThumbnailUrl || item.stored_thumbnail_url || '').trim();
+    if (!stored) {
+      var thumbField = String(item.thumbnailUrl || item.thumbnail_url || '').trim();
+      if (isStoredThumbnailUrl(thumbField)) stored = thumbField;
+    }
+    if (stored && isStoredThumbnailUrl(stored) && !isDecorativeSvgUrl(stored)) {
+      return { cardUrl: stored, kind: 'stored_thumbnail', source: 'sidecar' };
+    }
     var real = resolveCardFaceImageUrl(item);
-    if (real && !isDecorativeSvgUrl(real)) {
+    if (real && !isDecorativeSvgUrl(real) && !isStudentOriginalDeliveryUrl(real)) {
       return { cardUrl: real, kind: 'real_media', source: 'feed' };
     }
     if (type === 'mission' || type === 'activity' || type === 'school') {
@@ -1684,6 +1707,8 @@
     resolveCardFaceImageUrl: resolveCardFaceImageUrl,
     resolveCardFaceImageUrlWithFallbacks: resolveCardFaceImageUrlWithFallbacks,
     resolveCardVisual: resolveCardVisual,
+    isStoredThumbnailUrl: isStoredThumbnailUrl,
+    isStudentOriginalDeliveryUrl: isStudentOriginalDeliveryUrl,
     approvedTypeArtUrl: approvedTypeArtUrl,
     APPROVED_FINAL_FALLBACK_URL: APPROVED_FINAL_FALLBACK_URL,
     APPROVED_TYPE_ART: APPROVED_TYPE_ART,

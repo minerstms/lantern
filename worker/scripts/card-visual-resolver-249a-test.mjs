@@ -85,7 +85,7 @@ expectVisual(
 );
 
 const broken = LC.resolveCardVisual({ type: 'news', thumbnailUrl: '/api/news/image?key=news/stale-gone' });
-assert(broken.kind === 'real_media' && broken.cardUrl.indexOf('stale-gone') >= 0, '13 broken URL stays real_media (onerror swaps to approved PNG, no new full-original)', broken);
+assert(broken.kind === 'type_art' && broken.cardUrl === 'assets/good-news.png', '13 missing stored thumb uses approved type art, not the original delivery URL', broken);
 
 const emptyBase = loadCards('');
 assert(
@@ -129,7 +129,7 @@ htmlCases.forEach((item) => {
   const tag = img ? img[0] : '';
   assert(!/data:image\/svg\+xml/.test(tag), 'card <img> has no SVG data-URI for ' + item.type, tag);
   assert(!/>Lantern<\/text>/.test(tag), 'card <img> is not gray Lantern SVG for ' + item.type);
-  assert(/src="(assets\/[a-z0-9-]+\.png|\/api\/news\/image[^"]*)"/.test(tag), 'card <img> uses PNG or real media for ' + item.type, tag);
+  assert(/src="(assets\/[a-z0-9-]+\.png|\/api\/news\/thumb[^"]*)"/.test(tag), 'card <img> uses approved PNG or stored thumb for ' + item.type, tag);
   assert(/data-lc-t="assets\/[a-z0-9-]+\.png"/.test(tag), 'onerror type target is approved PNG for ' + item.type, tag);
   assert(/data-lc-u="assets\/mission-card\.png"/.test(tag), 'onerror final target is approved mission-card for ' + item.type, tag);
 });

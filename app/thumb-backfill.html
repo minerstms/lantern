@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html class="lantern-pilot-auth-pending">
+<head>
+  <base target="_top">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thumbnail Backfill | Lantern</title>
+  <script>window.LANTERN_AVATAR_API = '';</script>
+  <script src="js/lantern-pilot-auth.js"></script>
+  <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
+  <link rel="stylesheet" href="css/lantern-header.css">
+  <style>
+    body { margin: 0; background: #0b1220; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 28px; margin: 8px 0; }
+    p, label { font-size: 22px; line-height: 1.35; }
+    input, button { font-size: 22px; padding: 10px 12px; border-radius: 12px; }
+    button { background: #5aa7ff; border: 0; color: #071018; font-weight: 700; }
+    pre { white-space: pre-wrap; font-size: 18px; background: #0f1b33; padding: 12px; border-radius: 12px; }
+    .note { color: #b9c6ea; font-size: 22px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Stored thumbnail backfill</h1>
+    <p class="note">Staff only. Generates 480px JPEGs in this browser from authorized originals. Does not delete media. Do not run against production until reviewed.</p>
+    <label>Max items <input id="maxItems" type="number" value="1" min="1" max="50"></label>
+    <label>Source kind <input id="sourceKind" placeholder="news"></label>
+    <label>Source id <input id="sourceId" placeholder="one item id"></label>
+    <button type="button" id="dryBtn">Dry run</button>
+    <button type="button" id="oneBtn">Backfill one / batch</button>
+    <pre id="out">Ready.</pre>
+  </div>
+  <script src="js/lantern-nav.js"></script>
+  <script src="js/lantern-thumbnail.js"></script>
+  <script src="js/lantern-thumbnail-backfill.js"></script>
+  <script>
+    function opts() {
+      return {
+        dryRun: false,
+        maxItems: document.getElementById('maxItems').value,
+        sourceKind: document.getElementById('sourceKind').value.trim(),
+        sourceId: document.getElementById('sourceId').value.trim()
+      };
+    }
+    function show(v) {
+      document.getElementById('out').textContent = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+    }
+    document.getElementById('dryBtn').onclick = function () {
+      var o = opts();
+      o.dryRun = true;
+      show('Dry run…');
+      window.LanternThumbnailBackfill.runBackfillBatch(o).then(show).catch(function (e) { show(String(e)); });
+    };
+    document.getElementById('oneBtn').onclick = function () {
+      var o = opts();
+      show('Backfill running…');
+      window.LanternThumbnailBackfill.runBackfillBatch(o).then(show).catch(function (e) { show(String(e)); });
+    };
+  </script>
+</body>
+</html>
