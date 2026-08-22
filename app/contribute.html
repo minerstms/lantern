@@ -1349,6 +1349,7 @@
   <script src="js/lantern-submission-celebration.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-staff-nav.js"></script>
+  <script src="js/lantern-action-counts.js"></script>
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
@@ -2438,7 +2439,8 @@
             dataUrl: croppedNewsImageDataUrl
           });
         }
-        toast(published ? 'Published!' : FERPA_STUDENT_SUBMIT_MESSAGE, published ? undefined : 5200);
+        toast(published ? 'Published!' : (isResubmit ? 'Resubmitted for review' : FERPA_STUDENT_SUBMIT_MESSAGE), published ? undefined : 5200);
+        if (isResubmit && window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
         resubmitPollContribId = null;
         if (btnP) {
           btnP.textContent = isStaffPoll ? 'Publish Poll' : 'Submit poll for approval';
@@ -2590,7 +2592,7 @@
       if (el('newsPhotoCredit')) el('newsPhotoCredit').value = '';
       if (newsUnifiedField) newsUnifiedField.clearPreview();
       var msg = wasNewsResubmit
-        ? (authorType === 'student' ? FERPA_STUDENT_SUBMIT_MESSAGE : 'Resubmitted! Pending review.')
+        ? 'Resubmitted for review'
         : (res.status === 'approved' ? 'Published!' : (authorType === 'student' ? FERPA_STUDENT_SUBMIT_MESSAGE : 'Submitted! Your article is in the teacher review queue.'));
       function doneContribute() {
         resetContributeFormPartial();
@@ -2602,7 +2604,7 @@
             if (res.status === 'approved') {
               ban.innerHTML = 'Published<span class="contributePostSuccessSub">Your article is live on Lantern for the school.</span>';
             } else if (wasNewsResubmit) {
-              ban.innerHTML = 'Resubmitted<span class="contributePostSuccessSub">Back in the teacher queue for review.</span>';
+              ban.innerHTML = 'Resubmitted for review<span class="contributePostSuccessSub">Back in the teacher queue for review.</span>';
             } else if (authorType === 'student') {
               ban.innerHTML = 'Sent for review<span class="contributePostSuccessSub">Your teacher approves posts before they appear on Lantern. Track status in Locker → My Articles.</span>';
             } else {
@@ -2611,6 +2613,7 @@
           }
         }
         toast(msg, msg === FERPA_STUDENT_SUBMIT_MESSAGE ? 5200 : undefined);
+        if (wasNewsResubmit && window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
       }
       if (authorType === 'student' && window.LanternSubmissionCelebration && typeof window.LanternSubmissionCelebration.start === 'function') {
         try {

@@ -60,47 +60,14 @@
     return '<div class="lanternAppBarMenuWrap lanternAppBarLanternMenuWrap">' + menuBtn + buildLanternNavDropdownHtml(current) + '</div>';
   }
 
-  /** Same returned semantics as Locker → Overview → My Creations → Needs Attention (status === 'returned'). */
-  function countReturnedRows(rows) {
-    var n = 0;
-    (rows || []).forEach(function (r) {
-      if (r && String(r.status || '').toLowerCase() === 'returned') n++;
-    });
-    return n;
-  }
-
-  function getAdoptedFromStorage() {
-    try {
-      var auth = global.LanternAuth || global.LanternPilotAuth;
-      if (auth && typeof auth.adoptedFromPilotMe === 'function') {
-        var a = auth.adoptedFromPilotMe();
-        if (a && a.name) return a;
-      }
-    } catch (e) {}
-    return null;
-  }
-
   function fetchProfileNeedsAttentionCount() {
-    var apiBase =
-      typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null
-        ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '')
-        : null;
-    var adopted = getAdoptedFromStorage();
-    var characterNameForApi = adopted && String((adopted.character_id || adopted.name || '')).trim();
-    var newsAuthorMine = adopted && String((adopted.name || adopted.character_id || '')).trim();
-    if (apiBase === null || !characterNameForApi) return Promise.resolve(0);
-
-    var urlPoll = apiBase + '/api/polls/contributions?character_name=' + encodeURIComponent(characterNameForApi);
-    var urlMiss = apiBase + '/api/missions/submissions/character';
-    var urlNews = apiBase + '/api/news/mine?author_name=' + encodeURIComponent(newsAuthorMine);
-
-    var pPoll = fetch(urlPoll, { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return (res && res.contributions) || []; }).catch(function () { return []; });
-    var pMiss = fetch(urlMiss, { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (res) { return (res && res.ok && res.submissions) ? res.submissions : []; }).catch(function () { return []; });
-    var pNews = fetch(urlNews).then(function (r) { return r.json(); }).then(function (res) { return (res && res.ok && res.news) ? res.news : []; }).catch(function () { return []; });
-
-    return Promise.all([pPoll, pMiss, pNews]).then(function (arr) {
-      return countReturnedRows(arr[0]) + countReturnedRows(arr[1]) + countReturnedRows(arr[2]);
-    });
+    if (global.LanternActionCounts && typeof global.LanternActionCounts.refresh === 'function') {
+      return global.LanternActionCounts.refresh().then(function (last) {
+        if (last && last.student_revision_count != null) return Number(last.student_revision_count) || 0;
+        return 0;
+      });
+    }
+    return Promise.resolve(0);
   }
 
   var lastAttentionCount = -1;
@@ -226,7 +193,7 @@
       '.lanternAppBarDropdownLogout--avatar{ color: #7a2030; }',
       '@media (max-width: 420px){ .lanternAppBarBrandMenu .lanternAppBarDropdown{ left: 0; right: auto; max-width: min(320px, calc(100vw - 16px)); } }',
       '.lanternNavBadge{ display: inline-block; min-width: 20px; padding: 2px 6px; margin-left: 6px; font-size: 12px; font-weight: 800; background: ' + NAV.columbiaBlue + '; color: ' + NAV.navy + '; border-radius: 10px; }',
-      '.lanternNavBadge:empty{ display: none; }',
+      '.lanternNavBadge:empty,[hidden].lanternNavBadge{ display: none !important; }',
       '/* Header + in-page: same max width (~320px); do not flex-grow to full row. */',
       '.lanternAppBar .lanternAppBarSearchWrap{ flex: 0 1 var(--lantern-appbar-search-max); min-width: 0; max-width: var(--lantern-appbar-search-max); margin: 0 12px; display: flex; align-items: center; gap: 0; transition: max-width .2s ease; }',
       /* Prompt #187 — Explore Search + Filters as one compact action cluster */
@@ -413,6 +380,9 @@
       else dd.appendChild(node);
     });
     wireBehaviorNavClicks(dd);
+    if (global.LanternActionCounts && typeof global.LanternActionCounts.paintNavBadges === 'function') {
+      global.LanternActionCounts.paintNavBadges();
+    }
   }
 
   function init() {
@@ -431,6 +401,7 @@
       dropdown.classList.add('is-open');
       dropdown.removeAttribute('hidden');
       menuTrigger.setAttribute('aria-expanded', 'true');
+      refreshNeedsAttentionBellFromApi();
     }
     function close() {
       dropdown.classList.remove('is-open');
@@ -498,14 +469,19 @@
             : String(data.role || '').trim().toLowerCase();
         if (role === 'student') {
           applyCanonicalLanternMenu('student', null);
+          refreshNeedsAttentionBellFromApi();
           return;
         }
         applyCanonicalLanternMenu(role, data.capabilities || null);
+        refreshNeedsAttentionBellFromApi();
       }).catch(function(){});
     })();
-    document.addEventListener('lantern-needs-attention-count', function (e) {
+    document.addEventListener('lantern-needs-attention-count', function () {
+      refreshNeedsAttentionBellFromApi();
+    });
+    document.addEventListener('lantern-action-counts', function (e) {
       var d = e && e.detail;
-      if (d && typeof d.count === 'number') applyBellCount(d.count);
+      if (d && d.student_revision_count != null) applyBellCount(Number(d.student_revision_count) || 0);
     });
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) refreshNeedsAttentionBellFromApi();

@@ -1047,9 +1047,12 @@
     }
 
     function syncNeedsAttentionNavCountFromCache(){
-      var n = filterMyCreationsForTab(myCreationsItemsCache, 'returned').length;
+      if (window.LanternActionCounts && typeof window.LanternActionCounts.refresh === 'function') {
+        window.LanternActionCounts.refresh();
+        return;
+      }
       try {
-        document.dispatchEvent(new CustomEvent('lantern-needs-attention-count', { detail: { count: n } }));
+        document.dispatchEvent(new CustomEvent('lantern-needs-attention-count', { detail: {} }));
       } catch (e) {}
     }
 
