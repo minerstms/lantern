@@ -42,8 +42,17 @@ export function isSupportedSourceKind(raw) {
   return SOURCE_KIND_SET.has(normalizeSourceKind(raw));
 }
 
-export function normalizeSourceId(raw) {
+const SOURCE_ID_PREFIX =
+  /^(news|feed|recognition|mission_submission|poll|poll_contribution|trivia|mission|shout_out|shoutout):(.+)$/i;
+
+export function stripSourceIdPrefix(raw) {
   const id = raw == null ? '' : String(raw).trim();
+  const m = id.match(SOURCE_ID_PREFIX);
+  return m ? String(m[2] || '').trim() : id;
+}
+
+export function normalizeSourceId(raw) {
+  const id = stripSourceIdPrefix(raw);
   if (!id || id.length > 160) return '';
   if (/[\\/\x00]/.test(id) || id.includes('..')) return '';
   return id;
@@ -494,9 +503,20 @@ export async function attachStoredThumbnails(db, origin, items) {
   return items;
 }
 
+export function sidecarOriginalIsCurrent(sidecar, currentOriginalKey) {
+  if (!sidecar) return false;
+  const current = currentOriginalKey == null ? '' : String(currentOriginalKey).trim();
+  if (!current) return false;
+  return String(sidecar.original_object_key || '').trim() === current;
+}
+
+/** Completeness: current original PLUS persisted thumbnail metadata. A sidecar row alone is not a thumbnail. */
+export function sidecarHasCurrentThumbnail(sidecar, currentOriginalKey) {
+  return sidecarOriginalIsCurrent(sidecar, currentOriginalKey) && hasStoredThumbnail(sidecar);
+}
+
 export function sidecarMatchesCurrentOriginal(sidecar, currentOriginalKey) {
-  if (!sidecar || !hasStoredThumbnail(sidecar)) return false;
-  return String(sidecar.original_object_key || '').trim() === String(currentOriginalKey || '').trim();
+  return sidecarHasCurrentThumbnail(sidecar, currentOriginalKey);
 }
 
 export { contentReferencesObjectKey };

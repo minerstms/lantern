@@ -25,6 +25,7 @@ import {
   normalizeSourceId,
   normalizeSourceKind,
   resolveSourceOriginal,
+  sidecarHasCurrentThumbnail,
   sidecarMatchesCurrentOriginal,
   touchSidecarForOriginal,
   validateThumbnailBytes,
@@ -83,6 +84,7 @@ export async function listBackfillCandidates(db, origin, opts) {
   const maxItems = Math.min(200, Math.max(1, parseInt((opts && opts.maxItems) || '50', 10) || 50));
   const onlyKind = opts && opts.sourceKind ? normalizeSourceKind(opts.sourceKind) : '';
   const onlyId = opts && opts.sourceId ? normalizeSourceId(opts.sourceId) : '';
+  const recover = !!(opts && opts.recover);
   const cursor = opts && opts.cursor ? String(opts.cursor).trim() : '';
   const out = [];
 
@@ -95,8 +97,8 @@ export async function listBackfillCandidates(db, origin, opts) {
     if (!source || !sourceIsPubliclyEligible(source)) return;
     if (String(source.original_object_key || '').trim() !== String(originalKey).trim()) return;
     const side = await loadThumbnailSidecar(db, kind, id);
-    const valid = sidecarMatchesCurrentOriginal(side, originalKey);
-    if (valid) return;
+    const complete = sidecarHasCurrentThumbnail(side, originalKey);
+    if (complete && !recover) return;
     out.push({
       source_kind: kind,
       source_id: id,
@@ -105,8 +107,20 @@ export async function listBackfillCandidates(db, origin, opts) {
       file_url: origin + '/api/news/image?key=' + encodeURIComponent(originalKey),
       has_sidecar: !!side,
       has_thumbnail: hasStoredThumbnail(side),
+      sidecar_pending_thumbnail: !!(side && !hasStoredThumbnail(side)),
       expected_thumbnail_object_key: buildThumbnailObjectKey(kind, id, side ? getImageVersion(side.image_version) : 1),
     });
+  }
+
+  if (onlyId) {
+    const kinds = onlyKind ? [onlyKind] : SOURCE_KINDS;
+    for (let i = 0; i < kinds.length; i++) {
+      const source = await resolveSourceOriginal(db, kinds[i], onlyId);
+      if (!source || !source.original_object_key) continue;
+      await consider(source.source_kind, source.source_id, source.original_object_key);
+      if (out.length >= maxItems) break;
+    }
+    return out.slice(0, maxItems);
   }
 
   const news = await db
@@ -300,6 +314,7 @@ export async function handleNewsThumbnailRoutes(request, url, path, env, cors, d
     const maxItems = url.searchParams.get('max_items') || '50';
     const sourceKind = url.searchParams.get('source_kind') || '';
     const sourceId = url.searchParams.get('source_id') || '';
+    const recover = !dryRun && (url.searchParams.get('recover') === '1' || url.searchParams.get('recover') === 'true');
     const cursor = url.searchParams.get('cursor') || '';
     let candidates = [];
     try {
@@ -307,6 +322,7 @@ export async function handleNewsThumbnailRoutes(request, url, path, env, cors, d
         maxItems: maxItems,
         sourceKind: sourceKind,
         sourceId: sourceId,
+        recover: recover,
         cursor: cursor,
       });
     } catch (err) {
