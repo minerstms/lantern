@@ -89,17 +89,16 @@
 
     if (variant === 'explore') {
       /* Explore variant: blocks stay inside .exploreCardVisual only; overlays are CSS (badges), not title rows. */
-      var BUILTIN_FB = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><defs><linearGradient id="x" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2a3441"/><stop offset="100%" stop-color="#151c26"/></linearGradient></defs><rect width="640" height="360" fill="url(%23x)"/><text x="320" y="188" text-anchor="middle" fill="rgba(255,255,255,.42)" font-size="22" font-family="system-ui,sans-serif">Lantern</text></svg>');
-      var typeFb = (opts && opts.exploreTypeFallback) || BUILTIN_FB;
+      var BUILTIN_FB = 'assets/mission-card.png';
+      var typeFb = (opts && opts.exploreTypeFallback) || 'assets/good-news.png';
       var uniFb = (opts && opts.exploreUniversalFallback) || BUILTIN_FB;
-      var posterAttr = typeFb ? ' poster="' + esc(typeFb) + '"' : '';
       var imgDataAttrs = ' data-lc-t="' + esc(typeFb) + '" data-lc-u="' + esc(uniFb) + '"';
-      var imgErr = ' onerror="var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;}else{el.src=u;}"';
+      var imgErr = ' onerror="var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');var cur=el.getAttribute(\'src\')||\'\';if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';if(t&&t!==cur){el.src=t;return;}el.onerror=null;if(u&&u!==cur)el.src=u;return;}el.onerror=null;if(u&&u!==cur)el.src=u;"';
       var mediaBlock = '';
       if (imageUrl) {
         mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--img lanternCardNewsMedia--railBound lanternProtectedMedia"><img class="lcCardImg lanternProtectedMedia" draggable="false" src="' + esc(imageUrl) + '" alt=""' + imgDataAttrs + imgErr + '></div>';
       } else if (videoUrl) {
-        mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--video lanternCardNewsMedia--railBound lanternProtectedMedia"><video src="' + esc(videoUrl) + '"' + posterAttr + ' controls preload="metadata" class="lcCardVideo lanternProtectedMedia" draggable="false"></video></div>';
+        mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--img lanternCardNewsMedia--railBound lanternProtectedMedia"><img class="lcCardImg lanternProtectedMedia" draggable="false" src="assets/create-something.png" alt=""' + imgDataAttrs + imgErr + '></div>';
       } else if (linkUrl) {
         mediaBlock = '<div class="lanternCardNewsMedia lanternCardNewsMedia--link lanternCardNewsMedia--railBound">' +
           '<span class="lcExploreLinkFill" aria-hidden="true"></span>' +
