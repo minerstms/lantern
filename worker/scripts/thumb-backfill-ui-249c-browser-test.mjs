@@ -219,6 +219,7 @@ async function main() {
   }
 
   const { page: dryPage, pageErrors: dryErrs } = await openPage(browser, teacher.origin, { width: 1440, height: 900 });
+  await dryPage.fill('#maxItems', '2');
   await dryPage.click('#dryBtn');
   await dryPage.waitForFunction(() => /NO D1 WRITES/.test(document.getElementById('out').textContent || '') && /Candidates found:/.test(document.getElementById('out').textContent || ''));
   const dryText = await dryPage.locator('#out').innerText();
@@ -227,7 +228,7 @@ async function main() {
   assert(/Candidates found: 2/.test(dryText), 'dry-run candidate count', dryText);
   assert(/Already thumbnailed \/ skipped: 1/.test(dryText), 'dry-run skipped/already');
   assert(/news=1/.test(dryText) && /poll=1/.test(dryText), 'dry-run source kinds');
-  assert(/Max items applied: 1/.test(dryText), 'dry-run max items');
+  assert(/Max items applied: 2/.test(dryText), 'dry-run max items');
   assert(teacher.hits.recognize === 0 && teacher.hits.thumbWrite === 0, 'dry-run issued no writes', teacher.hits);
   assert(teacher.hits.candidates >= 1, 'dry-run fetched candidates');
   assert(dryErrs.length === 0, 'dry-run no exceptions', dryErrs);
