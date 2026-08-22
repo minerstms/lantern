@@ -14,6 +14,7 @@ import {
   buildThumbnailObjectKey,
   canWriteThumbnail,
   extractNewsObjectKeyFromUrl,
+  missionSubmissionOriginalKey,
   getImageVersion,
   hasStoredThumbnail,
   isNewsThumbObjectKey,
@@ -151,13 +152,13 @@ export async function listBackfillCandidates(db, origin, opts) {
   if (out.length < maxItems) {
     const missions = await db
       .prepare(
-        "SELECT id, submission_content FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY id ASC LIMIT ?"
+        "SELECT id, submission_type, submission_content FROM lantern_mission_submissions WHERE LOWER(TRIM(status)) = 'accepted' AND (hidden_at IS NULL OR hidden_at = '') ORDER BY id ASC LIMIT ?"
       )
       .bind(200)
       .all()
       .catch(() => ({ results: [] }));
     for (const row of missions.results || []) {
-      await consider('mission_submission', row.id, extractNewsObjectKeyFromUrl(row.submission_content));
+      await consider('mission_submission', row.id, missionSubmissionOriginalKey(row));
       if (out.length >= maxItems) break;
     }
   }
