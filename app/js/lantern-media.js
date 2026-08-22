@@ -92,6 +92,10 @@
       var BUILTIN_FB = 'assets/mission-card.png';
       var typeFb = (opts && opts.exploreTypeFallback) || 'assets/good-news.png';
       var uniFb = (opts && opts.exploreUniversalFallback) || BUILTIN_FB;
+      var LCExplore = global.LanternCards;
+      if (imageUrl && LCExplore && typeof LCExplore.isLegacyDefaultMediaUrl === 'function' && LCExplore.isLegacyDefaultMediaUrl(imageUrl)) {
+        imageUrl = '';
+      }
       var imgDataAttrs = ' data-lc-t="' + esc(typeFb) + '" data-lc-u="' + esc(uniFb) + '"';
       var imgErr = ' onerror="var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');var cur=el.getAttribute(\'src\')||\'\';if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';if(t&&t!==cur){el.src=t;return;}el.onerror=null;if(u&&u!==cur)el.src=u;return;}el.onerror=null;if(u&&u!==cur)el.src=u;"';
       var mediaBlock = '';

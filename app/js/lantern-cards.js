@@ -102,6 +102,28 @@
   }
 
   /**
+   * Prompt #249D — R2 default/* cards (blue "DEFAULT POLL", etc.) are not real media.
+   * They were written when fallback_key was present and no upload existed.
+   */
+  function isLegacyDefaultMediaUrl(url) {
+    var u = String(url || '').trim();
+    if (!u) return false;
+    var decoded = u;
+    try {
+      decoded = decodeURIComponent(u);
+    } catch (eDec) {}
+    var hay = (u + '\n' + decoded).toLowerCase().replace(/\+/g, ' ');
+    if (/default\/default_(poll|news|creation|explain|shoutout|generic_stem)\.png/.test(hay)) return true;
+    if (/[?&]key=default\//.test(hay)) return true;
+    if (/(^|\/)default\/default_[a-z0-9_-]+\.png(\?|$)/.test(hay)) return true;
+    return false;
+  }
+
+  function isUnusableCardMediaUrl(url) {
+    return !url || isStudentOriginalDeliveryUrl(url) || isLegacyDefaultMediaUrl(url) || isDecorativeSvgUrl(url);
+  }
+
+  /**
    * Safe card-face image resolver — never treats generic item.url as image unless type or URL validates.
    * Prompt #249B — student originals (/api/news/image, /api/news/video) are not card faces.
    */
@@ -112,12 +134,12 @@
     var i;
     for (i = 0; i < order.length; i++) {
       var v = String(p[order[i]] || '').trim();
-      if (v && !isStudentOriginalDeliveryUrl(v)) return v;
+      if (v && !isUnusableCardMediaUrl(v)) return v;
     }
     var full = String(p.full_image_url || '').trim();
-    if (full && !isStudentOriginalDeliveryUrl(full)) return full;
+    if (full && !isUnusableCardMediaUrl(full)) return full;
     var url = String(p.url || '').trim();
-    if (url && !isStudentOriginalDeliveryUrl(url) && (IMAGE_LIKE_TYPES[type] || looksLikeImageUrl(url))) return url;
+    if (url && !isUnusableCardMediaUrl(url) && (IMAGE_LIKE_TYPES[type] || looksLikeImageUrl(url))) return url;
     return '';
   }
 
@@ -480,6 +502,7 @@
       descriptionPreview: desc,
       exploreOverlay: true,
       gameAchievementOverlay: !!isGameAchievement,
+      storedThumbnailUrl: item.storedThumbnailUrl || item.stored_thumbnail_url || '',
       thumbnailUrl: missionThumb,
       imageUrl: missionImageUrl,
       url: item.url,
@@ -752,11 +775,11 @@
       var thumbField = String(item.thumbnailUrl || item.thumbnail_url || '').trim();
       if (isStoredThumbnailUrl(thumbField)) stored = thumbField;
     }
-    if (stored && isStoredThumbnailUrl(stored) && !isDecorativeSvgUrl(stored)) {
+    if (stored && isStoredThumbnailUrl(stored) && !isDecorativeSvgUrl(stored) && !isLegacyDefaultMediaUrl(stored)) {
       return { cardUrl: stored, kind: 'stored_thumbnail', source: 'sidecar' };
     }
     var real = resolveCardFaceImageUrl(item);
-    if (real && !isDecorativeSvgUrl(real) && !isStudentOriginalDeliveryUrl(real)) {
+    if (real && !isUnusableCardMediaUrl(real)) {
       return { cardUrl: real, kind: 'real_media', source: 'feed' };
     }
     if (type === 'mission' || type === 'activity' || type === 'school') {
@@ -1282,7 +1305,8 @@
     var fk = String(p.fallback_key || 'poll').trim();
     var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : (fk === 'shoutout' || fk === 'shout_out' || fk === 'shout-out') ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
     var imgUrl = String(p.image_url || '').trim();
-    if (!imgUrl) imgUrl = resolveCardVisual({ type: typeForDefault, fallbackType: typeForDefault }).cardUrl;
+    if (isLegacyDefaultMediaUrl(imgUrl) || isDecorativeSvgUrl(imgUrl)) imgUrl = '';
+    if (!imgUrl) imgUrl = resolveCardVisual({ type: typeForDefault, fallbackType: typeForDefault, storedThumbnailUrl: p.storedThumbnailUrl || p.stored_thumbnail_url, thumbnailUrl: p.thumbnailUrl }).cardUrl;
     var q = e(p.question || '');
     var choices = p.choices || [];
     var html = '<div class="pollModal pollModal--studioPreview">';
@@ -1709,6 +1733,7 @@
     resolveCardVisual: resolveCardVisual,
     isStoredThumbnailUrl: isStoredThumbnailUrl,
     isStudentOriginalDeliveryUrl: isStudentOriginalDeliveryUrl,
+    isLegacyDefaultMediaUrl: isLegacyDefaultMediaUrl,
     approvedTypeArtUrl: approvedTypeArtUrl,
     APPROVED_FINAL_FALLBACK_URL: APPROVED_FINAL_FALLBACK_URL,
     APPROVED_TYPE_ART: APPROVED_TYPE_ART,
