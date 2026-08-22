@@ -147,6 +147,7 @@ const db = makeDb(state);
   assert(r.ok && state.feed.f1.status === 'hidden', 'feed item quarantined');
 }
 
+assert(/isTeacherLike\(account\.role\)/.test(indexSrc), 'flagged list uses isTeacherLike(account.role) not account object');
 assert(/not_authenticated/.test(indexSrc) && /resolveReportTargetIds|quarantineReportedContent/.test(indexSrc), 'I server requires auth + quarantine');
 assert(!/This item type is not reportable through the server yet/.test(cardUi), 'J no unsupported toast copy');
 assert(/apiItemType = 'poll'/.test(cardUi) && /mission_submission/.test(cardUi) && /feed_item/.test(cardUi), 'J frontend maps poll/mission/feed');

@@ -17,6 +17,8 @@ import { loadContentPeopleIndex } from './content-people.js';
 import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
 import { applyFirstPageHiddenNugget } from './hidden-nugget.js';
 import { attachStoredThumbnails, extractNewsObjectKeyFromUrl, isStudentOriginalObjectKey, touchSidecarForOriginal } from './image-thumbnails.js';
+import { isModerationSchemaError } from './moderation-events.js';
+import { recordEventForAccount, snapshotFromFeed } from './moderation-review.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -44,7 +46,7 @@ export const EXPLORE_FEED_FILTERS = [
   { id: 'article', label: 'Articles' },
 ];
 
-export const FEED_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'hidden'];
+export const FEED_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'hidden', 'returned'];
 
 export const FEED_REACTION_TYPES = ['clap', 'star', 'celebrate', 'heart', 'fire', 'lightbulb'];
 
@@ -860,7 +862,7 @@ function validateStatusTransition(from, to, isTeacher) {
   const f = String(from || '').toLowerCase();
   const t = String(to || '').toLowerCase();
   if (isTeacher) {
-    if (f === 'submitted' && ['approved', 'rejected', 'draft'].includes(t)) return true;
+    if (f === 'submitted' && ['approved', 'rejected', 'draft', 'returned'].includes(t)) return true;
     if (f === 'approved' && t === 'hidden') return true;
     if (f === 'hidden' && t === 'approved') return true;
     if (f === 'rejected' && t === 'draft') return true;
@@ -869,6 +871,7 @@ function validateStatusTransition(from, to, isTeacher) {
   if (f === 'draft' && t === 'submitted') return true;
   if (f === 'rejected' && t === 'draft') return true;
   if (f === 'rejected' && t === 'submitted') return true;
+  if (f === 'returned' && t === 'submitted') return true;
   return false;
 }
 
@@ -1006,7 +1009,7 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     const isStaff = isTeacherLike(auth.account.role);
     if (!isOwner && !isStaff) return feedJson({ ok: false, error: 'forbidden' }, 403, cors);
     const st = String(row.status || '').toLowerCase();
-    if (!isStaff && !['draft', 'rejected'].includes(st)) {
+    if (!isStaff && !['draft', 'rejected', 'returned'].includes(st)) {
       return feedJson({ ok: false, error: 'Cannot edit while submitted or approved' }, 400, cors);
     }
     if (body.status && String(body.status).toLowerCase() !== st) {
@@ -1048,8 +1051,20 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       return feedJson({ ok: false, error: 'forbidden' }, 403, cors);
     }
     const st = String(row.status || '').toLowerCase();
-    if (!['draft', 'rejected'].includes(st)) return feedJson({ ok: false, error: 'Invalid status for submit' }, 400, cors);
+    if (!['draft', 'rejected', 'returned'].includes(st)) return feedJson({ ok: false, error: 'Invalid status for submit' }, 400, cors);
     const now = new Date().toISOString();
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'feed_item',
+        itemId: id,
+        eventType: st === 'returned' ? 'resubmitted' : 'submitted',
+        snapshot: snapshotFromFeed(Object.assign({}, row, { status: 'submitted' })),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return feedJson({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     await db.prepare(
       "UPDATE lantern_feed_items SET status = 'submitted', submitted_at = ?, private_feedback = NULL WHERE id = ?"
     ).bind(now, id).run();
@@ -1068,6 +1083,18 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       return feedJson({ ok: false, error: 'Invalid transition' }, 400, cors);
     }
     const now = new Date().toISOString();
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'feed_item',
+        itemId: id,
+        eventType: 'approved',
+        snapshot: snapshotFromFeed(row),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return feedJson({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     const approver = String(auth.account.display_name || auth.account.username);
     const slideshow = body.slideshow_eligible ? 1 : (row.slideshow_eligible || 0);
     const featured = body.featured_eligible ? 1 : (row.featured_eligible || 0);
@@ -1106,9 +1133,23 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     const row = await db.prepare('SELECT * FROM lantern_feed_items WHERE id = ?').bind(id).first();
     if (!row) return feedJson({ ok: false, error: 'Not found' }, 404, cors);
     const now = new Date().toISOString();
+    const rejectNote = String(body.private_feedback || body.feedback || '').trim() || null;
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'feed_item',
+        itemId: id,
+        eventType: 'rejected',
+        note: rejectNote,
+        snapshot: snapshotFromFeed(row),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return feedJson({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     await db.prepare(
       "UPDATE lantern_feed_items SET status = 'rejected', private_feedback = ?, approved_at = NULL, approved_by = ? WHERE id = ?"
-    ).bind(String(body.private_feedback || body.feedback || '').trim() || null, String(auth.account.display_name || auth.account.username), id).run();
+    ).bind(rejectNote, String(auth.account.display_name || auth.account.username), id).run();
     return feedJson({ ok: true, id, status: 'rejected' }, 200, cors);
   }
 
@@ -1118,10 +1159,30 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     const body = await parseJsonBody(request);
     if (!body) return feedJson({ ok: false, error: 'Invalid JSON' }, 400, cors);
     const id = String(body.id || '').trim();
+    const row = await db.prepare('SELECT * FROM lantern_feed_items WHERE id = ?').bind(id).first();
+    if (!row) return feedJson({ ok: false, error: 'Not found' }, 404, cors);
+    if (!validateStatusTransition(row.status, 'returned', true)) {
+      return feedJson({ ok: false, error: 'Invalid transition' }, 400, cors);
+    }
+    const now = new Date().toISOString();
+    const returnNote = String(body.private_feedback || body.feedback || 'Please revise and resubmit.').trim();
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'feed_item',
+        itemId: id,
+        eventType: 'returned',
+        note: returnNote,
+        snapshot: snapshotFromFeed(row),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return feedJson({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     await db.prepare(
-      "UPDATE lantern_feed_items SET status = 'rejected', private_feedback = ? WHERE id = ?"
-    ).bind(String(body.private_feedback || body.feedback || 'Please revise and resubmit.').trim(), id).run();
-    return feedJson({ ok: true, id, status: 'rejected' }, 200, cors);
+      "UPDATE lantern_feed_items SET status = 'returned', private_feedback = ? WHERE id = ?"
+    ).bind(returnNote, id).run();
+    return feedJson({ ok: true, id, status: 'returned' }, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/feed/hide') {

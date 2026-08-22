@@ -39,6 +39,8 @@ import {
   ensureFirstGameMissionCompletion,
   getMissionProgressForCharacter,
 } from './mission-event-completions.js';
+import { isModerationSchemaError } from './moderation-events.js';
+import { recordEventForAccount, snapshotFromMission } from './moderation-review.js';
 import { sendThankYouMission } from './thank-you-mission.js';
 import {
   ensureEducationalTriviaMissions,
@@ -1588,6 +1590,17 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     // Prompt #229: future completions use the saved mission reward. Prior txs are not rewritten.
     const reward = await resolveStoredMissionPayout(db, mission.reward_amount);
     const reviewer = reviewerLabelFromAccount(auth.account);
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'mission_submission',
+        itemId: id,
+        eventType: 'approved',
+        snapshot: snapshotFromMission(row),
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return jsonResponse({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     const result = await finalizeMissionSubmission(db, env, {
       submissionRow: row,
       rewardAmount: reward,
@@ -1649,6 +1662,19 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     const now = new Date().toISOString();
     const reviewer = reviewerLabelFromAccount(auth.account);
+    const rejectRow = await db.prepare('SELECT * FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'mission_submission',
+        itemId: id,
+        eventType: 'rejected',
+        snapshot: snapshotFromMission(rejectRow || row),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return jsonResponse({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     await db
       .prepare('UPDATE lantern_mission_submissions SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ? AND status = ?')
       .bind('rejected', reviewer, now, id, 'pending')
@@ -1680,6 +1706,20 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     const now = new Date().toISOString();
     const reviewer = reviewerLabelFromAccount(auth.account);
+    const returnRow = await db.prepare('SELECT * FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'mission_submission',
+        itemId: id,
+        eventType: 'returned',
+        note: reason,
+        snapshot: snapshotFromMission(returnRow || row),
+        now,
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return jsonResponse({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     await db
       .prepare(
         'UPDATE lantern_mission_submissions SET status = ?, returned_reason = ?, returned_by = ?, returned_at = ? WHERE id = ? AND status = ?'
@@ -1719,6 +1759,21 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const stRes = row.submission_type ? String(row.submission_type).trim() : '';
     const contentMaxRes = stRes === 'poll' || stRes === 'bug_report' ? 4000 : 2000;
     const content = String(body.submission_content || '').trim().slice(0, contentMaxRes);
+    try {
+      await recordEventForAccount(db, auth.account, {
+        itemType: 'mission_submission',
+        itemId: id,
+        eventType: 'resubmitted',
+        snapshot: snapshotFromMission({
+          submission_content: content,
+          submission_type: row.submission_type,
+          status: 'pending',
+        }),
+      });
+    } catch (err) {
+      if (isModerationSchemaError(err)) return jsonResponse({ ok: false, error: 'moderation_schema_required' }, 503, cors);
+      throw err;
+    }
     await db
       .prepare(
         'UPDATE lantern_mission_submissions SET submission_content = ?, status = ?, returned_reason = ?, returned_by = ?, returned_at = ? WHERE id = ? AND status = ?'

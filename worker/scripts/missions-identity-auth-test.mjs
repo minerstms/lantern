@@ -48,7 +48,7 @@ const apiJs = fs.readFileSync(path.join(root, 'app/js/lantern-api.js'), 'utf8');
 const missionsHandlers = fs.readFileSync(path.join(root, 'worker/missions-handlers.js'), 'utf8');
 const missionsReward = fs.readFileSync(path.join(root, 'worker/missions-reward.js'), 'utf8');
 
-if (/import \{ handleMissionsRoutes \} from '\.\/missions-handlers\.js'/.test(workerIndex)) {
+if (/import \{[^}]*handleMissionsRoutes[^}]*\} from '\.\/missions-handlers\.js'/.test(workerIndex)) {
   ok('worker imports secured missions-handlers module');
 } else bad('worker missing missions-handlers import');
 
