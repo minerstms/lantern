@@ -86,6 +86,11 @@
       background: #1e3a5f;
       color: var(--ink);
     }
+    button.tertiary {
+      background: #2a1d08;
+      color: var(--warn);
+      border: 2px solid var(--warn);
+    }
     button:disabled { opacity: 0.55; }
     pre {
       white-space: pre-wrap;
@@ -99,7 +104,7 @@
       min-height: 8em;
     }
     .hidden { display: none !important; }
-    #staffPanel, #deniedPanel, #signInPanel { display: flex; flex-direction: column; gap: 14px; }
+    #staffPanel, #deniedPanel, #signInPanel, #confirmPanel { display: flex; flex-direction: column; gap: 14px; }
   </style>
 </head>
 <body>
@@ -116,9 +121,9 @@
     </div>
     <div id="staffPanel" class="hidden">
       <p class="warn">Dry Run performs no writes. NO D1 WRITES. NO R2 WRITES. Nothing runs until you click a button.</p>
-      <p class="note">Safe order: Dry Run → Run One Item → verify → only then a small batch. Bulk backfill is not the default.</p>
+      <p class="note">Safe order: Dry Run → Run One Item → verify → Run Batch. Run Batch processes only the current Max Items set (hard cap 25). It never means all remaining items.</p>
       <label>Max items
-        <input id="maxItems" type="number" value="1" min="1" max="50" inputmode="numeric">
+        <input id="maxItems" type="number" value="1" min="1" max="25" inputmode="numeric">
       </label>
       <label>Source kind (optional)
         <input id="sourceKind" placeholder="news">
@@ -128,6 +133,15 @@
       </label>
       <button type="button" id="dryBtn">Dry Run</button>
       <button type="button" id="oneBtn" class="secondary">Run One Item</button>
+      <button type="button" id="batchBtn" class="tertiary" disabled>Run Batch</button>
+      <p id="batchGateNote" class="note">Run Batch stays disabled until Dry Run succeeds for these exact inputs.</p>
+      <div id="confirmPanel" class="warn hidden" role="dialog" aria-labelledby="confirmCopy">
+        <p id="confirmCopy"></p>
+        <p>This WILL write thumbnail objects to R2 and thumbnail metadata to D1. Originals will NOT be deleted or modified.</p>
+        <button type="button" id="confirmBatchBtn">Confirm Run Batch</button>
+        <button type="button" id="cancelBatchBtn" class="secondary">Cancel</button>
+      </div>
+      <div id="progressPanel" class="status hidden"></div>
       <h2>Candidates / results</h2>
       <pre id="out">Ready. No backfill has started.</pre>
     </div>
@@ -139,6 +153,10 @@
     (function () {
       var booted = false;
       var writesArmed = false;
+      var approvedFingerprint = '';
+      var batchRunning = false;
+      var pendingBatchOpts = null;
+      var api = null;
 
       function $(id) {
         return document.getElementById(id);
@@ -192,6 +210,38 @@
         setText('out', typeof v === 'string' ? v : JSON.stringify(v, null, 2));
       }
 
+      function rejectIfUnbounded(o) {
+        if (!api || typeof api.parseBoundedMaxItems !== 'function') return null;
+        var parsed = api.parseBoundedMaxItems(o.maxItems);
+        if (parsed.ok) return parsed;
+        if (parsed.error === 'max_items_too_large') {
+          showError('Max items cannot exceed 25. Enter 1–25 and Dry Run again. No batch ran.');
+        } else {
+          showError('Max items must be a whole number from 1 to 25. No batch ran.');
+        }
+        return null;
+      }
+
+      function invalidateBatchGate() {
+        approvedFingerprint = '';
+        pendingBatchOpts = null;
+        show($('confirmPanel'), false);
+        syncBatchGate();
+      }
+
+      function syncBatchGate() {
+        var batchBtn = $('batchBtn');
+        var note = $('batchGateNote');
+        var fp = api && api.inputFingerprint ? api.inputFingerprint(readOpts()) : '';
+        var ready = !!(writesArmed && !batchRunning && approvedFingerprint && approvedFingerprint === fp);
+        if (batchBtn) batchBtn.disabled = !ready;
+        if (note) {
+          note.textContent = ready
+            ? 'Dry Run matched these inputs. Run Batch will process at most this Max Items set.'
+            : 'Run Batch stays disabled until Dry Run succeeds for these exact inputs.';
+        }
+      }
+
       function denyStudent(data) {
         writesArmed = false;
         var name = (data && (data.display_name || data.username)) || 'signed-in student';
@@ -210,6 +260,7 @@
         show($('deniedPanel'), false);
         show($('signInPanel'), false);
         showLog('Ready. No backfill has started. Click Dry Run first. Dry Run writes nothing.');
+        syncBatchGate();
       }
 
       function requireSignIn(auth) {
@@ -225,27 +276,50 @@
         }
       }
 
+      function hideConfirm() {
+        show($('confirmPanel'), false);
+        pendingBatchOpts = null;
+      }
+
       function wireStaffActions() {
         var dryBtn = $('dryBtn');
         var oneBtn = $('oneBtn');
-        if (!dryBtn || !oneBtn || !window.LanternThumbnailBackfill) {
+        var batchBtn = $('batchBtn');
+        var confirmBtn = $('confirmBatchBtn');
+        var cancelBtn = $('cancelBatchBtn');
+        if (!dryBtn || !oneBtn || !batchBtn || !window.LanternThumbnailBackfill) {
           showError('Backfill scripts failed to load. No writes ran.');
           return;
         }
+        api = window.LanternThumbnailBackfill;
+        ['maxItems', 'sourceKind', 'sourceId'].forEach(function (id) {
+          var el = $(id);
+          if (!el) return;
+          el.addEventListener('input', invalidateBatchGate);
+          el.addEventListener('change', invalidateBatchGate);
+        });
         dryBtn.onclick = function () {
           if (!writesArmed) return;
           hideError();
+          hideConfirm();
           var o = readOpts();
+          if (!rejectIfUnbounded(o)) return;
           o.dryRun = true;
+          approvedFingerprint = '';
+          syncBatchGate();
           showLog('Dry Run in progress… read-only. NO D1 WRITES. NO R2 WRITES.');
-          window.LanternThumbnailBackfill.runBackfillBatch(o).then(function (res) {
+          api.runBackfillBatch(o).then(function (res) {
             if (!res || res.ok === false) {
               showError('Dry Run failed: ' + ((res && res.error) || 'API or auth error'));
-              showLog(window.LanternThumbnailBackfill.formatDryRunReport(res, o));
+              showLog(api.formatDryRunReport(res, o));
+              invalidateBatchGate();
               return;
             }
-            showLog(window.LanternThumbnailBackfill.formatDryRunReport(res, o));
+            approvedFingerprint = api.inputFingerprint(o);
+            syncBatchGate();
+            showLog(api.formatDryRunReport(res, o));
           }).catch(function (e) {
+            invalidateBatchGate();
             showError('Dry Run failed: ' + String(e && e.message ? e.message : e));
             showLog(String(e));
           });
@@ -253,11 +327,12 @@
         oneBtn.onclick = function () {
           if (!writesArmed) return;
           hideError();
+          hideConfirm();
           var o = readOpts();
           o.dryRun = false;
           o.maxItems = 1;
           showLog('Run One Item in progress… this is a write action for a single candidate.');
-          window.LanternThumbnailBackfill.runBackfillBatch(o).then(function (res) {
+          api.runBackfillBatch(o).then(function (res) {
             if (!res || res.ok === false) {
               showError('Run One Item failed: ' + ((res && res.error) || 'API or auth error'));
             }
@@ -267,6 +342,69 @@
             showLog(String(e));
           });
         };
+        batchBtn.onclick = function () {
+          if (!writesArmed || batchBtn.disabled) return;
+          hideError();
+          var o = readOpts();
+          var parsed = rejectIfUnbounded(o);
+          if (!parsed) return;
+          if (!approvedFingerprint || approvedFingerprint !== api.inputFingerprint(o)) {
+            showError('Dry Run this exact Max Items / Source Kind / Source ID set before Run Batch.');
+            syncBatchGate();
+            return;
+          }
+          o.maxItems = String(parsed.value);
+          pendingBatchOpts = o;
+          setText('confirmCopy', api.formatBatchConfirmCopy(o));
+          show($('confirmPanel'), true);
+        };
+        if (confirmBtn) {
+          confirmBtn.onclick = function () {
+            if (!writesArmed || !pendingBatchOpts || !api) return;
+            var o = pendingBatchOpts;
+            pendingBatchOpts = null;
+            show($('confirmPanel'), false);
+            batchRunning = true;
+            syncBatchGate();
+            show($('progressPanel'), true);
+            setText('progressPanel', 'Starting bounded batch… originals will not be deleted.');
+            o.dryRun = false;
+            o.onProgress = function (p) {
+              setText('progressPanel', api.formatBatchProgress(p));
+              if (p && p.stopped) {
+                showError('BATCH STOPPED — REVIEW ERRORS BEFORE CONTINUING');
+              }
+            };
+            showLog('Run Batch in progress… bounded write for the current Dry Run inputs only.');
+            api.runBackfillBatch(o).then(function (res) {
+              batchRunning = false;
+              approvedFingerprint = '';
+              syncBatchGate();
+              if (!res || res.ok === false) {
+                showError('Run Batch failed: ' + ((res && res.error) || 'API or auth error'));
+              } else if (res.stopped) {
+                showError('BATCH STOPPED — REVIEW ERRORS BEFORE CONTINUING');
+              }
+              showLog(res);
+              if (res && res.stopped) {
+                setText('progressPanel', (api.formatBatchProgress(res) || '') + '\nBATCH STOPPED — REVIEW ERRORS BEFORE CONTINUING');
+              }
+            }).catch(function (e) {
+              batchRunning = false;
+              approvedFingerprint = '';
+              syncBatchGate();
+              showError('Run Batch failed: ' + String(e && e.message ? e.message : e));
+              showLog(String(e));
+            });
+          };
+        }
+        if (cancelBtn) {
+          cancelBtn.onclick = function () {
+            hideConfirm();
+            showLog('Run Batch canceled. No D1 writes. No R2 writes.');
+          };
+        }
+        syncBatchGate();
       }
 
       function finishBoot(data, auth) {

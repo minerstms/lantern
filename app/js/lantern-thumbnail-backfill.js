@@ -6,6 +6,7 @@
  */
 (function (global) {
   var STORAGE_KEY = 'lanternThumbnailBackfillProgressV1';
+  var HARD_MAX_BATCH_ITEMS = 25;
 
   function apiBase() {
     if (typeof global.LANTERN_AVATAR_API === 'string') return global.LANTERN_AVATAR_API;
@@ -115,6 +116,49 @@
     });
   }
 
+  function parseBoundedMaxItems(raw) {
+    if (raw == null || String(raw).trim() === '') return { ok: false, error: 'max_items_invalid' };
+    var text = String(raw).trim();
+    if (!/^\d+$/.test(text)) return { ok: false, error: 'max_items_invalid', requested: raw };
+    var n = parseInt(text, 10);
+    if (!isFinite(n) || n < 1) return { ok: false, error: 'max_items_invalid', requested: n };
+    if (n > HARD_MAX_BATCH_ITEMS) {
+      return { ok: false, error: 'max_items_too_large', requested: n, max: HARD_MAX_BATCH_ITEMS };
+    }
+    return { ok: true, value: n };
+  }
+
+  function inputFingerprint(opts) {
+    opts = opts || {};
+    return [String(opts.maxItems || '').trim(), String(opts.sourceKind || '').trim(), String(opts.sourceId || '').trim()].join('\n');
+  }
+
+  function formatBatchConfirmCopy(opts) {
+    opts = opts || {};
+    var parsed = parseBoundedMaxItems(opts.maxItems);
+    var n = parsed.ok ? parsed.value : String(opts.maxItems || '?');
+    var kind = String(opts.sourceKind || '').trim();
+    var id = String(opts.sourceId || '').trim();
+    if (kind && id) return 'Generate thumbnails for up to ' + n + ' ' + kind + ' item (' + id + ')?';
+    if (kind) return 'Generate thumbnails for up to ' + n + ' ' + kind + ' items?';
+    return 'Generate thumbnails for up to ' + n + ' items?';
+  }
+
+  function formatBatchProgress(p) {
+    p = p || {};
+    var item = p.item || {};
+    var lines = [
+      'Processing ' + (p.index || 0) + ' of ' + (p.total || 0),
+      'Current: ' + String(item.source_kind || '—') + ' / ' + String(item.source_id || '—'),
+      'Generated: ' + (p.generated || 0),
+      'Recognized: ' + (p.recognized || 0),
+      'Skipped: ' + (p.skipped || 0),
+      'Failed: ' + (p.failed || 0),
+    ];
+    if (p.stopped) lines.push('BATCH STOPPED — REVIEW ERRORS BEFORE CONTINUING');
+    return lines.join('\n');
+  }
+
   function summarizeCandidates(items) {
     var list = items || [];
     var kinds = {};
@@ -177,7 +221,17 @@
   function runBackfillBatch(options) {
     var opts = options || {};
     var maxConsecutiveFailures = opts.maxConsecutiveFailures || 3;
-    var concurrency = Math.min(3, Math.max(1, parseInt(opts.concurrency || '1', 10) || 1));
+    var parsedMax = opts.maxItems == null || opts.maxItems === '' ? null : parseBoundedMaxItems(opts.maxItems);
+    if (parsedMax && !parsedMax.ok) {
+      return Promise.resolve({
+        ok: false,
+        error: parsedMax.error,
+        requested: parsedMax.requested,
+        max: parsedMax.max || HARD_MAX_BATCH_ITEMS,
+        dry_run: !!opts.dryRun,
+      });
+    }
+    var boundedMax = parsedMax && parsedMax.ok ? parsedMax.value : null;
     var results = loadProgress();
     var completed = 0;
     var failed = 0;
@@ -193,6 +247,7 @@
         return { ok: false, error: (payload && payload.error) || 'candidates_unavailable', dry_run: !!opts.dryRun };
       }
       var items = payload.candidates || [];
+      if (boundedMax != null && items.length > boundedMax) items = items.slice(0, boundedMax);
       if (opts.dryRun) {
         var summary = summarizeCandidates(items);
         return {
@@ -234,6 +289,22 @@
           });
         }
         var item = remaining[index];
+        if (typeof opts.onProgress === 'function') {
+          try {
+            opts.onProgress({
+              phase: 'item',
+              index: index + 1,
+              total: remaining.length,
+              item: item,
+              completed: completed,
+              failed: failed,
+              skipped: skipped,
+              recognized: recognized,
+              generated: generated,
+              stopped: stopped,
+            });
+          } catch (_) {}
+        }
         return backfillOneItem(item, opts.hooks).then(function (result) {
           if (result.status === 'completed') {
             results[itemKey(item)] = 'completed';
@@ -252,19 +323,39 @@
           }
           saveProgress(results);
           if (consecutiveFailures >= maxConsecutiveFailures) stopped = true;
+          if (typeof opts.onProgress === 'function') {
+            try {
+              opts.onProgress({
+                phase: 'after',
+                index: index + 1,
+                total: remaining.length,
+                item: item,
+                completed: completed,
+                failed: failed,
+                skipped: skipped,
+                recognized: recognized,
+                generated: generated,
+                stopped: stopped,
+              });
+            } catch (_) {}
+          }
           return processIndex(index + 1);
         });
       }
 
-      void concurrency;
       return processIndex(0);
     });
   }
 
   global.LanternThumbnailBackfill = {
+    HARD_MAX_BATCH_ITEMS: HARD_MAX_BATCH_ITEMS,
     listCandidates: listCandidates,
     backfillOneItem: backfillOneItem,
     runBackfillBatch: runBackfillBatch,
+    parseBoundedMaxItems: parseBoundedMaxItems,
+    inputFingerprint: inputFingerprint,
+    formatBatchConfirmCopy: formatBatchConfirmCopy,
+    formatBatchProgress: formatBatchProgress,
     formatDryRunReport: formatDryRunReport,
     summarizeCandidates: summarizeCandidates,
     loadProgress: loadProgress,
