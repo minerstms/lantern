@@ -9,9 +9,10 @@ import {
   accountOwnsNewsRow,
   accountOwnsPollRow,
 } from './content-author-remove.js';
-import { isTeacherLike } from './missions-auth.js';
+import { extractMissionSubmissionMedia, isTeacherLike } from './missions-auth.js';
 import { contentReferencesObjectKey } from './news-media-delivery.js';
-import { isSafeObjectKey } from './r2-key-guards.js';
+import { isNewsDeliveryObjectKey } from './protected-content.js';
+import { isNewsImageObjectKey, isSafeObjectKey } from './r2-key-guards.js';
 
 export const THUMBNAIL_JPEG_MIME = 'image/jpeg';
 export const THUMBNAIL_MAX_LONG_EDGE = 480;
@@ -94,19 +95,50 @@ export function mapStoredThumbnailUrl(origin, sidecar) {
   return buildThumbnailDeliveryUrl(origin, sidecar.source_kind, sidecar.source_id);
 }
 
+function decodeCapturedKey(raw) {
+  const text = raw == null ? '' : String(raw);
+  if (!text) return '';
+  try {
+    return decodeURIComponent(text.replace(/\+/g, '%20')).trim();
+  } catch (_) {
+    return text.trim();
+  }
+}
+
+function extractedKeyIsAcceptable(key) {
+  if (!key || /["'}\s]/.test(key)) return false;
+  if (!isSafeObjectKey(key)) return false;
+  return isNewsDeliveryObjectKey(key) || isNewsImageObjectKey(key);
+}
+
+function extractKeyFromUrlString(s) {
+  if (!s || !/[?&]key=/i.test(s)) return '';
+  const href = /^https?:\/\//i.test(s) ? s : s.charAt(0) === '/' ? s : '';
+  if (!href) return '';
+  try {
+    const key = new URL(href, 'https://lantern.invalid').searchParams.get('key');
+    return key ? String(key).trim() : '';
+  } catch (_) {
+    return '';
+  }
+}
+
 export function extractNewsObjectKeyFromUrl(raw) {
   const s = raw == null ? '' : String(raw).trim();
   if (!s) return '';
-  const q = s.match(/[?&]key=([^&]+)/i);
-  if (q) {
-    try {
-      return decodeURIComponent(q[1].replace(/\+/g, '%20')).trim();
-    } catch (_) {
-      return String(q[1] || '').trim();
-    }
+  let captured = extractKeyFromUrlString(s);
+  if (!captured) {
+    const q = s.match(/[?&]key=([^&"'}\s]+)/i);
+    if (q) captured = decodeCapturedKey(q[1]);
+    else if (/^(news|missions|recognition)\//.test(s) && !/["'}\s]/.test(s)) captured = s;
   }
-  if (/^(news|missions|recognition)\//.test(s)) return s;
-  return '';
+  return extractedKeyIsAcceptable(captured) ? captured : '';
+}
+
+export function missionSubmissionOriginalKey(row) {
+  if (!row) return '';
+  const media = extractMissionSubmissionMedia(row.submission_type, row.submission_content);
+  return extractNewsObjectKeyFromUrl(media && media.image_url ? media.image_url : '');
 }
 
 export function isStudentOriginalObjectKey(key) {
@@ -220,7 +252,7 @@ export async function resolveSourceOriginal(db, sourceKind, sourceId) {
     const row = await safeFirst(
       db
         .prepare(
-          'SELECT id, character_name, status, hidden_at, submission_content FROM lantern_mission_submissions WHERE id = ?'
+          'SELECT id, character_name, status, hidden_at, submission_type, submission_content FROM lantern_mission_submissions WHERE id = ?'
         )
         .bind(id)
         .first()
@@ -229,7 +261,7 @@ export async function resolveSourceOriginal(db, sourceKind, sourceId) {
     return {
       source_kind: kind,
       source_id: id,
-      original_object_key: extractNewsObjectKeyFromUrl(row.submission_content),
+      original_object_key: missionSubmissionOriginalKey(row),
       row: row,
     };
   }
