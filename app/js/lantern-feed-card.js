@@ -180,6 +180,21 @@
     if (!card) return el;
     wireCard(card, item, opts);
     if (cards.applyReportControl) cards.applyReportControl(card);
+    if (global.LanternLockerOrg && typeof global.LanternLockerOrg.bindAuthorLockerLink === 'function') {
+      global.LanternLockerOrg.bindAuthorLockerLink(card, item);
+    }
+    if (!opts.peerLocker && global.LanternLockerOrg && typeof global.LanternLockerOrg.ownerActionBarHtml === 'function') {
+      var surface = global.document && global.document.querySelector && global.document.querySelector('.lanternLockerSurface');
+      var isOwnLocker = surface && global.document.body && global.document.body.classList.contains('lockerShell--owner');
+      if (isOwnLocker && (item.lockerOwned === true || item.featured)) {
+        var bar = global.document.createElement('div');
+        bar.innerHTML = global.LanternLockerOrg.ownerActionBarHtml(item);
+        if (bar.firstElementChild) {
+          card.appendChild(bar.firstElementChild);
+          global.LanternLockerOrg.bindOwnerActions(card, item);
+        }
+      }
+    }
     return el.classList && el.classList.contains('exploreCardOuterWrap') ? el : card;
   }
 
@@ -192,7 +207,7 @@
     card.setAttribute('aria-label', 'Open: ' + (item.title || 'feed item'));
     card.classList.add('exploreCard--activatable');
     function activate(e) {
-      if (e && e.target && e.target.closest('.exploreCardReportBtn')) return;
+      if (e && e.target && e.target.closest('.exploreCardReportBtn, [data-locker-owner-actions], .lockerAuthorLinkWrap, [data-org-action]')) return;
       openDetailOverlay(item, Object.assign({}, opts, { triggerEl: card }));
     }
     card.addEventListener('click', activate);

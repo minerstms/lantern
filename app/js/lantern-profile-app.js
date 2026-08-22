@@ -852,6 +852,8 @@
     }
 
     function refreshProfileFeaturedPost(profile){
+      /* Prompt #252A — D1 featured items are authoritative via lantern_locker_item_state.
+         Legacy LANTERN_PROFILES.featured_post_id remains for local demo posts only. */
       var adopted = getAdopted();
       if (!adopted || !String(adopted.name || '').trim()) return;
       callGetPosts(adopted.name).then(function(res){

@@ -227,17 +227,85 @@
       line-height: 1.4;
       color: var(--muted, #b9c6ea);
     }
-    .lockerNeedsReviseBtn{
+    .lockerNeedsCardActions{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .lockerNeedsReviseBtn,
+    .lockerNeedsArchiveBtn{
       min-height: 48px;
       font-size: 22px;
       width: 100%;
     }
+    .lockerNeedsShowMore{
+      border: 0;
+      background: none;
+      color: var(--accent, #5aa7ff);
+      font-size: 22px;
+      font-weight: 800;
+      padding: 0;
+      cursor: pointer;
+    }
+    .lockerFeaturedHd,
+    .lockerArchivedHd{
+      margin: 0 0 12px;
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--accent, #5aa7ff);
+    }
+    .lockerOrgCard{
+      padding: 14px;
+      margin: 0 0 12px;
+      border-radius: 14px;
+      background: rgba(11,18,32,.55);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .lockerOrgType,
+    .lockerOrgStatus{
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--muted, #b9c6ea);
+    }
+    .lockerOrgTitle{
+      margin: 0 0 10px;
+      font-size: 24px;
+      font-weight: 900;
+    }
+    .lockerOwnerActions,
+    .lockerOrgActions{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .lockerAuthorLinkWrap{ cursor: pointer; }
+    body.lockerShell--peer #profileNeedsAttention,
+    body.lockerShell--peer #lockerArchived,
+    body.lockerShell--peer #lockerPanelItems,
+    body.lockerShell--peer #lockerPanelStore,
+    body.lockerShell--peer .lockerOptions,
+    body.lockerShell--peer .lockerHeaderBioEditBtn,
+    body.lockerShell--peer .lockerHeaderAbout,
+    body.lockerShell--peer .lockerHeaderProgress{ display: none !important; }
     @media (min-width: 720px){
-      .lockerNeedsCard{ flex-direction: row; align-items: flex-start; }
-      .lockerNeedsCardMedia{ flex: 0 0 160px; }
+      .lockerNeedsCard{
+        display: grid;
+        grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+        align-items: start;
+        gap: 16px;
+      }
+      .lockerNeedsCardMain{ min-width: 0; }
+      .lockerNeedsCardAside{ min-width: 0; }
       .lockerNeedsCardMedia img,
       .lockerNeedsCardFallback{ max-height: 140px; }
-      .lockerNeedsReviseBtn{ width: auto; }
+      .lockerNeedsCardActions{ flex-direction: row; flex-wrap: wrap; }
+      .lockerNeedsReviseBtn,
+      .lockerNeedsArchiveBtn{ width: auto; }
+    }
+    @media (max-width: 719px){
+      .lockerNeedsCard{ flex-direction: column; }
     }
 
   </style>
@@ -261,6 +329,9 @@
         if (typeof window.LANTERN_LOCKER_BOOT === 'function') window.LANTERN_LOCKER_BOOT(locker);
         if (window.LANTERN_LOCKER_SHELL && typeof window.LANTERN_LOCKER_SHELL.boot === 'function') {
           window.LANTERN_LOCKER_SHELL.boot(locker);
+        }
+        if (window.LanternLockerOrg && typeof window.LanternLockerOrg.boot === 'function') {
+          window.LanternLockerOrg.boot();
         }
       });
     });
@@ -295,6 +366,12 @@
         <h2 id="lockerNeedsRevisionHd" class="lockerNeedsRevisionHd">Needs Revision <span id="lockerNeedsRevisionCount" hidden></span></h2>
         <p id="lockerNeedsRevisionEmpty" class="lockerNeedsRevisionEmpty">No revisions needed</p>
         <div id="lockerNeedsRevisionList" class="lockerNeedsRevisionList"></div>
+      </section>
+      <section id="lockerFeaturedRail" class="lockerFeaturedRail" hidden></section>
+      <section id="lockerArchived" class="lockerArchived" aria-labelledby="lockerArchivedHd">
+        <h2 id="lockerArchivedHd" class="lockerArchivedHd">Archived</h2>
+        <p id="lockerArchivedEmpty" class="lockerNeedsRevisionEmpty">Nothing archived yet.</p>
+        <div id="lockerArchivedList" class="lockerArchivedList"></div>
       </section>
       <header class="feedHeading feedHeading--lockerCompact" aria-label="Feed controls">
         <div class="feedHeadingRow">
@@ -611,7 +688,7 @@
       if (raw === '#' || raw === '') raw = '#overview';
       if (raw === '#items') return { tab: 'items' };
       if (raw === '#store') return { tab: 'store' };
-      if (raw === '#profileNeedsAttention') return { tab: 'overview' };
+      if (raw === '#profileNeedsAttention' || raw === '#archived') return { tab: 'overview' };
       return { tab: 'overview' };
     }
 
@@ -904,7 +981,8 @@
 
   <script src="js/lantern-canonical-enforce.js"></script>
   <script src="js/lantern-feed-api.js?v=20260808-feedlayout"></script>
-  <script src="js/lantern-locker-revision.js"></script>
+  <script src="js/lantern-locker-org.js?v=20260822-showcase252a"></script>
+  <script src="js/lantern-locker-revision.js?v=20260822-rev252a"></script>
   <script src="js/lantern-feed-card.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-surface-theme.js?v=20260808-feedlayout"></script>
   <script src="js/lantern-feed-explore.js?v=20260808-feedlayout"></script>

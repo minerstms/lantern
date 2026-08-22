@@ -216,6 +216,7 @@
       '</button>' +
       '<div class="lockerOptionsMenu" id="lockerOptionsMenu" role="menu" hidden>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="overview">Overview</button>' +
+      '<a role="menuitem" class="lockerOptionsItem" href="locker.html#archived">Archived</a>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="items">Items</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="store">Store</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-profile" data-help="edit_profile">Edit Profile</button>' +

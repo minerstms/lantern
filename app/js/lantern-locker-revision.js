@@ -119,19 +119,20 @@
     var when = formatWhen(returnedAtFor(item));
     var submitted = formatWhen(item.createdAt || raw.created_at);
     var preview = item.previewText || raw.body || raw.submission_content || raw.question || '';
-    if (typeof preview === 'string' && preview.length > 280) preview = preview.slice(0, 280) + '…';
+    var longFeedback = note && String(note).length > 180;
+    var shownNote = longFeedback ? String(note).slice(0, 180) + '…' : note;
     return (
       '<article class="lockerNeedsCard" data-revision-type="' +
       esc(item.contentType) +
       '" data-revision-id="' +
       esc(raw.id) +
       '">' +
+      '<div class="lockerNeedsCardMain">' +
       '<div class="lockerNeedsCardMedia">' +
       (thumb
         ? '<img src="' + esc(thumb) + '" alt="" loading="lazy">'
         : '<div class="lockerNeedsCardFallback" aria-hidden="true">📝</div>') +
       '</div>' +
-      '<div class="lockerNeedsCardBody">' +
       '<p class="lockerNeedsCardType">' +
       esc(typeLabel(item.contentType)) +
       '</p>' +
@@ -139,19 +140,50 @@
       esc(item.title || 'Untitled') +
       '</h3>' +
       (submitted ? '<p class="lockerNeedsCardMeta">Submitted ' + esc(submitted) + '</p>' : '') +
-      '<p class="lockerNeedsCardStatus">Returned for Revision' +
-      (when ? ' · ' + esc(when) : '') +
-      '</p>' +
+      (when ? '<p class="lockerNeedsCardMeta">Returned ' + esc(when) + '</p>' : '') +
+      '</div>' +
+      '<div class="lockerNeedsCardAside">' +
+      '<p class="lockerNeedsCardStatus">Returned for Revision</p>' +
       (note
-        ? '<div class="lockerNeedsCardFeedback"><strong>Teacher feedback:</strong> ' + esc(note) + '</div>'
+        ? '<div class="lockerNeedsCardFeedback" data-full-feedback="' +
+          esc(note) +
+          '"><strong>Teacher feedback:</strong> <span class="lockerNeedsCardFeedbackText">' +
+          esc(shownNote) +
+          '</span>' +
+          (longFeedback
+            ? ' <button type="button" class="lockerNeedsShowMore">Show more</button>'
+            : '') +
+          '</div>'
         : '<div class="lockerNeedsCardFeedback">Please revise and resubmit.</div>') +
-      (preview ? '<p class="lockerNeedsCardPreview">' + esc(preview) + '</p>' : '') +
+      (preview
+        ? '<p class="lockerNeedsCardPreview lockerNeedsCardPreview--clamp">' + esc(String(preview).slice(0, 140)) + (String(preview).length > 140 ? '…' : '') + '</p>'
+        : '') +
+      '<div class="lockerNeedsCardActions">' +
       '<button type="button" class="btn primary lockerNeedsReviseBtn">Revise &amp; Resubmit</button>' +
+      '<button type="button" class="btn lockerNeedsArchiveBtn">Archive for Later</button>' +
+      '</div>' +
       '</div></article>'
     );
   }
 
+  function itemTypeForState(item) {
+    var t = item.contentType;
+    if (t === 'news_submission' || t === 'news') return 'news';
+    if (t === 'poll_contribution') return 'poll_contribution';
+    if (t === 'mission_submission') return 'mission_submission';
+    return 'feed_item';
+  }
+
   function wireCards(root, items) {
+    Array.prototype.forEach.call(root.querySelectorAll('.lockerNeedsShowMore'), function (btn) {
+      btn.addEventListener('click', function () {
+        var box = btn.closest('.lockerNeedsCardFeedback');
+        if (!box) return;
+        var text = box.querySelector('.lockerNeedsCardFeedbackText');
+        if (text) text.textContent = box.getAttribute('data-full-feedback') || text.textContent;
+        btn.remove();
+      });
+    });
     Array.prototype.forEach.call(root.querySelectorAll('.lockerNeedsReviseBtn'), function (btn) {
       btn.addEventListener('click', function () {
         var art = btn.closest('.lockerNeedsCard');
@@ -166,6 +198,18 @@
         else if (t === 'poll_contribution') openPollRevise(item.raw);
         else if (t === 'mission_submission') openMissionRevise(item.raw);
         else if (t === 'feed_item') openFeedRevise(item.raw);
+      });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('.lockerNeedsArchiveBtn'), function (btn) {
+      btn.addEventListener('click', function () {
+        var art = btn.closest('.lockerNeedsCard');
+        if (!art) return;
+        var id = art.getAttribute('data-revision-id');
+        var item = items.filter(function (it) {
+          return String((it.raw && it.raw.id) || '') === String(id);
+        })[0];
+        if (!item || !global.LanternLockerOrg || typeof global.LanternLockerOrg.runAction !== 'function') return;
+        global.LanternLockerOrg.runAction('archive', itemTypeForState(item), id, 'returned');
       });
     });
   }
@@ -233,7 +277,9 @@
     var countEl = document.getElementById('lockerNeedsRevisionCount');
     if (!host || !list) return;
     var returned = (items || []).filter(function (it) {
-      return String(it.status || '').toLowerCase() === 'returned';
+      if (String(it.status || '').toLowerCase() !== 'returned') return false;
+      if (it.owner_archived_at || (it.raw && it.raw.owner_archived_at)) return false;
+      return true;
     });
     if (countEl) {
       countEl.textContent = returned.length ? String(returned.length) : '';
@@ -264,6 +310,7 @@
         if (!item || !item.id) return;
         var status = String(item.status || '').toLowerCase();
         if (status !== 'returned') return;
+        if (item.owner_archived_at) return;
         if (item.type === 'poll_contribution') {
           items.push({
             contentType: 'poll_contribution',
@@ -272,6 +319,7 @@
             previewText: '',
             decisionNote: item.decision_note || '',
             createdAt: item.created_at || '',
+            owner_archived_at: item.owner_archived_at || null,
             raw: item,
           });
         } else if (item.type === 'mission_submission') {
@@ -283,6 +331,7 @@
             decisionNote: item.returned_reason || '',
             createdAt: item.created_at || '',
             returnedAt: item.returned_at || '',
+            owner_archived_at: item.owner_archived_at || null,
             raw: item,
           });
         } else if (item.type === 'news_submission') {
@@ -293,6 +342,18 @@
             previewText: item.body || '',
             decisionNote: item.decision_note || '',
             createdAt: item.created_at || '',
+            owner_archived_at: item.owner_archived_at || null,
+            raw: item,
+          });
+        } else if (item.type === 'feed_item') {
+          items.push({
+            contentType: 'feed_item',
+            status: status,
+            title: item.title || 'Post',
+            previewText: item.body || '',
+            decisionNote: item.decision_note || '',
+            createdAt: item.created_at || '',
+            owner_archived_at: item.owner_archived_at || null,
             raw: item,
           });
         }
@@ -304,7 +365,15 @@
   function load() {
     var bundleP = fromLockerMe();
     return Promise.all([bundleP, loadFeedReturned()]).then(function (arr) {
-      var items = (arr[0] || []).concat(arr[1] || []);
+      var fromMe = arr[0] || [];
+      var seen = {};
+      fromMe.forEach(function (it) {
+        if (it && it.raw && it.raw.id) seen[String(it.raw.id)] = true;
+      });
+      var extras = (arr[1] || []).filter(function (it) {
+        return it && it.raw && !seen[String(it.raw.id)];
+      });
+      var items = fromMe.concat(extras);
       return enrichFromHistory(items).then(function (enriched) {
         render(enriched);
         return enriched;

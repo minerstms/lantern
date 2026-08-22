@@ -25,6 +25,16 @@ import {
   collectAvatarLookupCandidates,
   resolveCanonicalAvatarState,
 } from './avatar-media-gate.js';
+import {
+  applyLockerItemAction,
+  attachStateToOwnerItems,
+  listLockerItemStatesForOwner,
+  LockerItemStateSchemaError,
+  ownerItemTypeFromSubmission,
+} from './locker-item-state.js';
+import { lockerPublicKeyFromDurableKey } from './locker-public-key.js';
+import { buildLockerShowcase } from './locker-showcase.js';
+import { recordEventForAccount } from './moderation-review.js';
 
 const LOCKER_FORBIDDEN_QUERY_PARAMS = [
   'character_name',
@@ -394,6 +404,36 @@ async function fetchPollContributions(db, characterName) {
   });
 }
 
+async function fetchOwnerFeedItems(db, identityKeys) {
+  const keys = [...new Set((identityKeys || []).map((k) => String(k || '').trim()).filter(Boolean))];
+  if (!keys.length || !db) return [];
+  const ph = keys.map(() => '?').join(',');
+  try {
+    const rows = await db
+      .prepare(
+        `SELECT id, type, title, body, summary, author_id, author_display_name, status, created_at, private_feedback, image_r2_key, hidden_at
+         FROM lantern_feed_items
+         WHERE author_display_name IN (${ph}) OR author_id IN (${ph})
+         ORDER BY created_at DESC LIMIT 100`
+      )
+      .bind(...keys, ...keys)
+      .all();
+    return (rows.results || []).map((r) => ({
+      type: 'feed_item',
+      id: r.id,
+      title: r.title || '',
+      body: r.body || r.summary || '',
+      status: r.status || '',
+      created_at: r.created_at || '',
+      decision_note: r.private_feedback || null,
+      hidden_at: r.hidden_at || null,
+      image_r2_key: r.image_r2_key || null,
+    }));
+  } catch (_) {
+    return [];
+  }
+}
+
 async function fetchRecognitions(db, origin, characterName, limit) {
   if (!characterName) return [];
   const fetchCap = Math.min(100, (limit || 50) + 40);
@@ -516,7 +556,7 @@ export async function buildLockerMeResponse(account, env, origin) {
     } catch (_) {}
   }
 
-  const [profileRaw, accountBioRow, walletBundle, cosmeticSpendRows, news, missions, polls, recognitions, achievementRows, cosmeticRow] =
+  const [profileRaw, accountBioRow, walletBundle, cosmeticSpendRows, news, missions, polls, feedItems, recognitions, achievementRows, cosmeticRow, lockerStateRows, lockerPublicKey] =
     await Promise.all([
     fetchAvatarProfile(db, origin, account, avatarKey),
     db.prepare('SELECT bio FROM lantern_pilot_accounts WHERE username = ?').bind(username).first(),
@@ -532,11 +572,14 @@ export async function buildLockerMeResponse(account, env, origin) {
     fetchNewsSubmissions(db, origin, newsAuthorNames),
     fetchMissionSubmissions(db, submissionKey),
     fetchPollContributions(db, submissionKey),
+    role === 'student' ? fetchOwnerFeedItems(db, newsAuthorNames.concat(economyKey || [])) : Promise.resolve([]),
     role === 'student' && submissionKey
       ? fetchRecognitions(db, origin, submissionKey, 50)
       : Promise.resolve([]),
     economyKey ? fetchAchievementRows(db, economyKey) : Promise.resolve([]),
     economyKey ? fetchCosmeticOwnershipRow(db, economyKey) : Promise.resolve({ owned: [], equipped: {} }),
+    economyKey ? listLockerItemStatesForOwner(db, economyKey) : Promise.resolve([]),
+    role === 'student' && avatarKey ? lockerPublicKeyFromDurableKey(avatarKey) : Promise.resolve(''),
   ]);
 
   const profile = {
@@ -545,7 +588,11 @@ export async function buildLockerMeResponse(account, env, origin) {
   };
   delete profile.legacy_avatar_bio;
 
-  const submissions = [...polls, ...missions, ...news];
+  const submissions = attachStateToOwnerItems(
+    [...polls, ...missions, ...news, ...feedItems],
+    lockerStateRows,
+    ownerItemTypeFromSubmission
+  );
   const txRows = walletBundle.transactions || [];
 
   const ownedItems = economyKey ? deriveOwnedItemsFromTransactions(cosmeticSpendRows) : [];
@@ -646,6 +693,11 @@ export async function buildLockerMeResponse(account, env, origin) {
     achievements: achievementsCategory,
     recognitions: recognitionsCategory,
     progress,
+    locker_public_key: role === 'student' ? lockerPublicKey || null : null,
+    locker_item_state: lockerCategory(true, null, lockerStateRows || [], {
+      featured_count: (lockerStateRows || []).filter((s) => s && s.featured).length,
+      archived_count: (lockerStateRows || []).filter((s) => s && s.owner_archived_at).length,
+    }),
   };
 }
 
@@ -786,6 +838,72 @@ export async function handleLockerRoutes(request, url, path, env, cors, deps) {
       meta: parseTxMeta(r.meta_json),
     }));
     return jsonResponse({ ok: true, transactions, has_more: hasMore, offset, limit }, 200, cors);
+  }
+
+  if (request.method === 'PATCH' && path === '/api/locker/item-state') {
+    const rejectedParam = lockerRejectIdentityParams(url);
+    if (rejectedParam) {
+      return jsonResponse({ ok: false, error: 'identity_params_not_allowed', param: rejectedParam }, 400, cors);
+    }
+    const session = await requireLockerSession(request, env, deps);
+    if (session.error) return jsonResponse(session.error, session.status, cors);
+    if (!session.economyKey) {
+      return jsonResponse({ ok: false, error: 'account_link_missing' }, 400, cors);
+    }
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'invalid_json' }, 400, cors);
+    }
+    const rejectedBodyKey = lockerRejectBodyIdentityKeys(body);
+    if (rejectedBodyKey) {
+      return jsonResponse({ ok: false, error: 'identity_params_not_allowed', param: rejectedBodyKey }, 400, cors);
+    }
+    let result;
+    try {
+      result = await applyLockerItemAction(db, session.account, session.economyKey, body, {
+        pilotEconomyCharacterName: deps.pilotEconomyCharacterName,
+        durableAccountKeyFromPilotAccount,
+      });
+    } catch (err) {
+      if (err instanceof LockerItemStateSchemaError || (err && err.error === 'locker_item_state_schema_required')) {
+        return jsonResponse({ ok: false, error: 'locker_item_state_schema_required' }, 503, cors);
+      }
+      throw err;
+    }
+    if (!result.ok) return jsonResponse(result, result.status || 400, cors);
+    const histAction = String((body && body.action) || '').trim().toLowerCase();
+    if (histAction === 'archive' || histAction === 'reopen_revision') {
+      try {
+        await recordEventForAccount(db, session.account, {
+          itemType: result.item_type,
+          itemId: result.item_id,
+          eventType: histAction === 'archive' ? 'owner_archived' : 'owner_reopened',
+          note:
+            histAction === 'reopen_revision'
+              ? 'Reopened for Revision'
+              : result.archive_kind === 'archive_for_later'
+                ? 'Archived for Later'
+                : 'Archived from My Locker',
+        });
+      } catch (_) {}
+    }
+    return jsonResponse(result, 200, cors);
+  }
+
+  if (request.method === 'GET' && path.startsWith('/api/locker/showcase/')) {
+    const rejectedParam = lockerRejectIdentityParams(url);
+    if (rejectedParam) {
+      return jsonResponse({ ok: false, error: 'identity_params_not_allowed', param: rejectedParam }, 400, cors);
+    }
+    const session = await requireLockerSession(request, env, deps);
+    if (session.error) return jsonResponse(session.error, session.status, cors);
+    const publicKey = decodeURIComponent(path.slice('/api/locker/showcase/'.length).split('/')[0] || '');
+    const origin = url.origin || '';
+    const showcase = await buildLockerShowcase(db, origin, publicKey, session.account, session.economyKey);
+    if (!showcase.ok) return jsonResponse(showcase, showcase.status || 404, cors);
+    return jsonResponse(showcase, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/locker/achievements/unlock') {

@@ -19,6 +19,7 @@ import { applyFirstPageHiddenNugget } from './hidden-nugget.js';
 import { attachStoredThumbnails, extractNewsObjectKeyFromUrl, isStudentOriginalObjectKey, touchSidecarForOriginal } from './image-thumbnails.js';
 import { isModerationSchemaError } from './moderation-events.js';
 import { recordEventForAccount, snapshotFromFeed } from './moderation-review.js';
+import { attachLockerPublicKeys, buildLockerPublicKeyIndex } from './locker-public-key.js';
 
 export const FEED_TYPES = {
   news: 'News',
@@ -686,6 +687,10 @@ export async function collectApprovedFeed(db, origin, opts) {
   );
   // Prompt #218 — attach Locker avatar profile keys (username / student economy id), not display labels.
   attachAuthorAvatarKeys(items, avatarIndex);
+  try {
+    const lockerKeyIndex = await buildLockerPublicKeyIndex(db);
+    attachLockerPublicKeys(items, lockerKeyIndex);
+  } catch (_) {}
   // Prompt #220/#133 — staff public author labels (Honorific + Last Name when configured).
   attachAuthorPublicLabels(items, staffNameIndex);
   attachRecognizedStaffPublicLabels(items, staffNameIndex, peopleByContent);

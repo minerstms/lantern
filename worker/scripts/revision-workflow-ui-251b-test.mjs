@@ -49,9 +49,10 @@ assert(/path\.startsWith\('\/api\/review'\)/.test(indexSrc) && /\/api\/review\/q
 assert(/\/api\/action-counts/.test(indexSrc) && /\/api\/moderation\/history/.test(indexSrc), '2. #251A action-counts + history remain wired');
 assert(/handleReviewFoundationRoutes/.test(indexSrc), '3. foundation handler still routed');
 assert(/lantern_moderation_events/.test(read('worker/moderation-events.js')), '4. lantern_moderation_events support remains');
-assert(!fs.existsSync(path.join(root, 'worker/migrations/078_lantern_revision_workflow.sql')), '5. no new migration 078');
+assert(!fs.existsSync(path.join(root, 'worker/migrations/078_lantern_revision_workflow.sql')), '5. no revision-workflow migration 078');
 const migrations = fs.readdirSync(path.join(root, 'worker/migrations')).filter((f) => /^\d+_/.test(f));
-assert(!migrations.some((f) => Number(f.slice(0, 3)) > 77), '6. no migration after 077');
+assert(fs.existsSync(path.join(root, 'worker/migrations/078_lantern_locker_item_state.sql')), '6. 078 is locker item state');
+assert(!migrations.some((f) => Number(f.slice(0, 3)) > 78), '6b. no migration after 078');
 
 assert(/GET \/api\/action-counts/.test(actionCounts) && /LanternActionCounts/.test(actionCounts), '7. shared LanternActionCounts helper');
 assert(/student_revision_count/.test(actionCounts) && /staff_review_count/.test(actionCounts), '8. role-specific count fields');
