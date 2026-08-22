@@ -76,10 +76,11 @@ const CASES = [
     expected: 'https://cdn/broken.jpg',
   },
   {
-    name: '10 broken image and no fallback URL — withFallbacks uses API default when base set',
+    name: '10 broken image and no fallback URL — withFallbacks uses approved repo news art',
     input: { type: 'news' },
-    expected: '/api/media/image?key=',
+    expected: 'assets/good-news.png',
     withFallbacks: true,
+    exactExpected: true,
     apiBase: 'http://127.0.0.1:8765',
   },
   {

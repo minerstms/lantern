@@ -107,15 +107,8 @@
   }
 
   function resolveCardFaceImageUrlWithFallbacks(p) {
-    var primary = resolveCardFaceImageUrl(p);
-    if (primary) return primary;
-    var type = String((p && (p.fallbackType || p.type)) || '').toLowerCase();
-    if (type === 'mission') {
-      return missionCoverFallbackUrl((p && (p.missionId || p.mission_id || p.id)) || '');
-    }
-    var topicUrl = getTopicLibraryImageUrl(p);
-    if (topicUrl) return topicUrl;
-    return getDefaultImageUrl(p.fallbackType || p.type || 'creation');
+    var visual = resolveCardVisual(p);
+    return visual && visual.cardUrl ? visual.cardUrl : APPROVED_FINAL_FALLBACK_URL;
   }
 
   function truncateCanonicalTitle(s) {
@@ -270,7 +263,7 @@
   }
 
   function buildCanonicalImageOnErrorHandler() {
-    return 'var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;return;}el.onerror=null;el.src=u;';
+    return 'var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');var cur=el.getAttribute(\'src\')||\'\';if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';if(t&&t!==cur){el.src=t;return;}el.onerror=null;if(u&&u!==cur)el.src=u;return;}el.onerror=null;if(u&&u!==cur)el.src=u;';
   }
 
   /**
@@ -284,16 +277,15 @@
     model = model || {};
     shellOpts = shellOpts || {};
     var fbType = model.fallbackType || model.type || 'creation';
-    // Mission cards: if a REAL image URL was set but fails to actually load at runtime (e.g. a
-    // stale/broken reference), gracefully recover to built-in / official Mission cover art rather than
-    // a generic gradient placeholder — presentation only, never asserted as the real photo, and
-    // never used by Teacher Review (which has its own separate, truthful media handling).
-    var typeSvg = fbType === 'mission'
-      ? missionCoverFallbackUrl(model.missionId || model.mission_id || model.id)
-      : svgTypeFallbackDataUri(fbType);
-    var uniSvg = svgUniversalLanternDataUri();
-    var faceUrl = resolveCardFaceImageUrl(model);
-    var remoteUrl = faceUrl || resolveCardFaceImageUrlWithFallbacks(model);
+    // Prompt #249A — student-facing cards always resolve to a real or approved visual.
+    // Broken/stale student media recovers to type art, then final approved PNG.
+    // Teacher Review does not use this compositor for evidence.
+    var visual = resolveCardVisual(model);
+    var remoteUrl = visual.cardUrl;
+    var typeArt = approvedTypeArtUrl(fbType, model);
+    var finalArt = APPROVED_FINAL_FALLBACK_URL;
+    var onErrType = typeArt === remoteUrl ? finalArt : typeArt;
+    var onErrFinal = finalArt;
     var title = esc(truncateCanonicalTitle(model.title || 'Untitled'));
     var exploreOverlay = model.exploreOverlay === true;
     var authorRaw = String(model.author || '').trim();
@@ -351,7 +343,7 @@
     if (model.stateBadge) {
       badgeLayer += '<span class="lanternCanonicalCardStateBadge">' + esc(String(model.stateBadge)) + '</span>';
     }
-    var imgBlock = '<img class="lanternCanonicalCardImage" src="' + esc(remoteUrl) + '" alt="" loading="lazy" decoding="async" data-lc-t="' + esc(typeSvg) + '" data-lc-u="' + esc(uniSvg) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
+    var imgBlock = '<img class="lanternCanonicalCardImage" src="' + esc(remoteUrl) + '" alt="" loading="lazy" decoding="async" data-lc-t="' + esc(onErrType) + '" data-lc-u="' + esc(onErrFinal) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
     var fallbackBlock = '<div class="lanternCanonicalCardFallback" hidden style="background:linear-gradient(135deg,' + svgSpecForContentType(fbType).a + ',' + svgSpecForContentType(fbType).b + ');" aria-hidden="true"></div>';
     var captionInner = '<h3 class="lanternCanonicalCardTitle">' + title + '</h3>';
     if (exploreOverlay && (avatarHtml || metaLine || descLine)) {
@@ -519,7 +511,10 @@
   }
 
   function apiBase() {
-    return (typeof global !== 'undefined' && typeof global.LANTERN_AVATAR_API !== 'undefined' && global.LANTERN_AVATAR_API !== null) ? String(global.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
+    if (typeof global === 'undefined' || typeof global.LANTERN_AVATAR_API === 'undefined' || global.LANTERN_AVATAR_API === null) {
+      return '';
+    }
+    return String(global.LANTERN_AVATAR_API).replace(/\/$/, '');
   }
 
   function esc(s) {
@@ -643,6 +638,35 @@
    * slash) matches the existing app/assets/icons/*.png convention used across the app.
    */
   var MISSION_FALLBACK_COVER_URL = 'assets/mission-card.png';
+  /** Prompt #249A — last-resort student-facing card art. Never the gray "Lantern" SVG. */
+  var APPROVED_FINAL_FALLBACK_URL = 'assets/mission-card.png';
+  var APPROVED_TYPE_ART = {
+    poll: 'assets/make-poll.png',
+    shoutout: 'assets/shout-out-card.png',
+    shout_out: 'assets/shout-out-card.png',
+    'shout-out': 'assets/shout-out-card.png',
+    recognition: 'assets/shout-out-card.png',
+    news: 'assets/good-news.png',
+    article: 'assets/good-news.png',
+    photo: 'assets/good-news.png',
+    link: 'assets/good-news.png',
+    project: 'assets/good-news.png',
+    webapp: 'assets/good-news.png',
+    create: 'assets/create-something.png',
+    creation: 'assets/create-something.png',
+    image: 'assets/create-something.png',
+    video: 'assets/create-something.png',
+    audio: 'assets/create-something.png',
+    song: 'assets/create-something.png',
+    explain: 'assets/explain-something.png',
+    teach: 'assets/teach-us.png',
+    mission: 'assets/mission-card.png',
+    activity: 'assets/mission-card.png',
+    school: 'assets/mission-card.png',
+    bug_report: 'assets/mission-card.png',
+    bug: 'assets/mission-card.png',
+    spotlight: 'assets/shout-out-card.png'
+  };
 
   /**
    * Prompt #11/#15 — built-in / standard mission artwork by stable mission id.
@@ -685,6 +709,46 @@
     return builtInMissionCoverUrl(missionId) || MISSION_FALLBACK_COVER_URL;
   }
 
+  function approvedTypeArtUrl(type, item) {
+    var t = String(type || '').toLowerCase();
+    var mid = String((item && (item.missionId || item.mission_id)) || '').trim();
+    if (mid && BUILT_IN_MISSION_COVER_BY_ID[mid]) return BUILT_IN_MISSION_COVER_BY_ID[mid];
+    if (t === 'mission' || t === 'activity' || t === 'school') {
+      return missionCoverFallbackUrl(mid || ((item && item.id) || ''));
+    }
+    return APPROVED_TYPE_ART[t] || APPROVED_FINAL_FALLBACK_URL;
+  }
+
+  function isDecorativeSvgUrl(url) {
+    var u = String(url || '').trim().toLowerCase();
+    return u.indexOf('data:image/svg') === 0;
+  }
+
+  /**
+   * Prompt #249A — one student-facing card visual contract.
+   * real_media → mission_art → type_art → approved_fallback.
+   * Never empty. Never gray "Lantern" SVG. Does not invent full-original fallbacks.
+   */
+  function resolveCardVisual(item) {
+    item = item || {};
+    var type = String(item.fallbackType || item.type || item.mission_type || '').toLowerCase();
+    var real = resolveCardFaceImageUrl(item);
+    if (real && !isDecorativeSvgUrl(real)) {
+      return { cardUrl: real, kind: 'real_media', source: 'feed' };
+    }
+    if (type === 'mission' || type === 'activity' || type === 'school') {
+      var mid = String(item.missionId || item.mission_id || '').trim();
+      var builtIn = builtInMissionCoverUrl(mid);
+      if (builtIn) return { cardUrl: builtIn, kind: 'mission_art', source: 'built_in' };
+      return { cardUrl: MISSION_FALLBACK_COVER_URL, kind: 'mission_art', source: 'generic_mission' };
+    }
+    var typeArt = approvedTypeArtUrl(type, item);
+    if (typeArt && typeArt !== APPROVED_FINAL_FALLBACK_URL) {
+      return { cardUrl: typeArt, kind: 'type_art', source: type || 'type' };
+    }
+    return { cardUrl: APPROVED_FINAL_FALLBACK_URL, kind: 'approved_fallback', source: 'final' };
+  }
+
   function getDefaultImageKey(type) {
     var t = (type || '').toLowerCase();
     if (t === 'poll') return 'default/default_poll.png';
@@ -696,8 +760,7 @@
   }
 
   function getDefaultImageUrl(type) {
-    var b = apiBase();
-    return b ? b + '/api/media/image?key=' + encodeURIComponent(getDefaultImageKey(type || 'creation')) : '';
+    return apiBase() + '/api/media/image?key=' + encodeURIComponent(getDefaultImageKey(type || 'creation'));
   }
 
   function getDefaultAvatarImageKey() {
@@ -786,20 +849,12 @@
 
   function getTopicLibraryImageUrl(p) {
     var key = getTopicLibraryKey(p.title, p.description, p.question);
-    var b = apiBase();
-    return key && b ? b + '/api/media/image?key=' + encodeURIComponent(key) : '';
+    return key ? apiBase() + '/api/media/image?key=' + encodeURIComponent(key) : '';
   }
 
   function getCardImageUrl(p) {
-    var resolved = resolveCardFaceImageUrl(p);
-    if (resolved) return resolved;
-    var type = String((p && (p.fallbackType || p.type || p.mission_type)) || '').toLowerCase();
-    if (type === 'mission') {
-      return missionCoverFallbackUrl((p && (p.missionId || p.mission_id || p.id)) || '');
-    }
-    var topicUrl = getTopicLibraryImageUrl(p);
-    if (topicUrl) return topicUrl;
-    return getDefaultImageUrl(p.fallbackType || p.type || p.mission_type || 'creation');
+    var visual = resolveCardVisual(p);
+    return visual && visual.cardUrl ? visual.cardUrl : APPROVED_FINAL_FALLBACK_URL;
   }
 
   function svgSpecForContentType(type) {
@@ -827,11 +882,12 @@
   }
 
   function buildGuaranteedExploreImageHtml(contentType, primaryUrl) {
-    var typeSvg = svgTypeFallbackDataUri(contentType);
-    var uniSvg = svgUniversalLanternDataUri();
-    var def = getDefaultImageUrl(contentType);
-    var remote = String(primaryUrl || '').trim() || String(def || '').trim() || typeSvg;
-    return '<img class="lcCardImg" src="' + esc(remote) + '" alt="" data-lc-t="' + esc(typeSvg) + '" data-lc-u="' + esc(uniSvg) + '" onerror="var el=this;var t=el.getAttribute(\'data-lc-t\');var u=el.getAttribute(\'data-lc-u\');if(el.dataset.lc!==\'1\'){el.dataset.lc=\'1\';el.src=t;}else{el.src=u;}">';
+    var visual = resolveCardVisual({ type: contentType, imageUrl: primaryUrl });
+    var remote = visual.cardUrl;
+    var typeArt = approvedTypeArtUrl(contentType, { type: contentType });
+    var finalArt = APPROVED_FINAL_FALLBACK_URL;
+    var onErrType = typeArt === remote ? finalArt : typeArt;
+    return '<img class="lcCardImg" src="' + esc(remote) + '" alt="" data-lc-t="' + esc(onErrType) + '" data-lc-u="' + esc(finalArt) + '" onerror="' + buildCanonicalImageOnErrorHandler() + '">';
   }
 
   /** Canonical card stamp for rail shells — opts.lanternCardType overrides class inference. */
@@ -1047,14 +1103,14 @@
     options = options || {};
     var e = eFn || esc;
     var mediaItem = normalizeNewsMediaItemForExplore(n);
-    var typeFb = svgTypeFallbackDataUri('news');
-    var uniFb = svgUniversalLanternDataUri();
+    var typeFb = approvedTypeArtUrl('news', mediaItem);
+    var uniFb = APPROVED_FINAL_FALLBACK_URL;
     var media = global.LanternMedia && global.LanternMedia.renderMedia ? global.LanternMedia.renderMedia(mediaItem, { esc: e, variant: 'explore', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb }) : { mediaBlock: '' };
     var inner = (media && media.mediaBlock) ? String(media.mediaBlock).trim() : '';
     var visualClass = 'exploreCardVisual' + (options.exploreNewsExploreRail ? ' exploreCardVisual--newsExploreRail' : '');
     var badge = '<span class="exploreCardTypeBadge">' + TYPE_BADGES.news + '</span>';
     if (inner) return '<div class="' + visualClass + '">' + badge + inner + '</div>';
-    var fallbackImg = String(mediaItem.image_url || mediaItem.preview_url || mediaItem.full_image_url || '').trim() || getDefaultImageUrl('news');
+    var fallbackImg = resolveCardVisual({ type: 'news', image_url: mediaItem.image_url, preview_url: mediaItem.preview_url }).cardUrl;
     return '<div class="' + visualClass + '">' + badge + buildGuaranteedExploreImageHtml('news', fallbackImg) + '</div>';
   }
 
@@ -1203,7 +1259,7 @@
     var fk = String(p.fallback_key || 'poll').trim();
     var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : (fk === 'shoutout' || fk === 'shout_out' || fk === 'shout-out') ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
     var imgUrl = String(p.image_url || '').trim();
-    if (!imgUrl) imgUrl = getDefaultImageUrl(typeForDefault);
+    if (!imgUrl) imgUrl = resolveCardVisual({ type: typeForDefault, fallbackType: typeForDefault }).cardUrl;
     var q = e(p.question || '');
     var choices = p.choices || [];
     var html = '<div class="pollModal pollModal--studioPreview">';
@@ -1332,7 +1388,7 @@
     var isEmpty = !String(contentText || '').trim() && !String(imageUrl || '').trim() && !String(videoUrl || '').trim() && !String(linkUrl || '').trim();
     var metaPh = truncateMeta(String(emptyPlaceholder || 'Add your response — preview updates here.').replace(/\s+/g, ' ').trim(), 120) || '';
     var bodySnippet = isEmpty ? metaPh : truncateMeta(String(contentText || '').replace(/\s+/g, ' ').trim(), 200);
-    var imgSrc = String(imageUrl || '').trim() || getDefaultImageUrl(draftType);
+    var imgSrc = String(imageUrl || '').trim() || resolveCardVisual({ type: draftType, fallbackType: draftType }).cardUrl;
     var detHtml = '<div class="lanternDetailPreview">' +
       '<h3 class="lanternDetailPreviewTitle">' + mt + '</h3>' +
       '<div class="lanternDetailPreviewMedia"><img src="' + e2(imgSrc) + '" alt="" /></div>' +
@@ -1627,6 +1683,10 @@
     SHOUT_OUT_DISPLAY_NAME: SHOUT_OUT_DISPLAY_NAME,
     resolveCardFaceImageUrl: resolveCardFaceImageUrl,
     resolveCardFaceImageUrlWithFallbacks: resolveCardFaceImageUrlWithFallbacks,
+    resolveCardVisual: resolveCardVisual,
+    approvedTypeArtUrl: approvedTypeArtUrl,
+    APPROVED_FINAL_FALLBACK_URL: APPROVED_FINAL_FALLBACK_URL,
+    APPROVED_TYPE_ART: APPROVED_TYPE_ART,
     buildCanonicalCardFaceHtml: buildCanonicalCardFaceHtml,
     normalizeFeedItemToFaceModel: normalizeFeedItemToFaceModel,
     compactFaceSpec: compactFaceSpec,

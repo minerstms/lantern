@@ -1101,8 +1101,8 @@
     }
     var type = p.type || 'link';
     var visualUrl = LC.getCardImageUrl ? LC.getCardImageUrl(p) : '';
-    var typeFb = LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(type) : '';
-    var uniFb = LC.getUniversalFallbackMediaDataUri ? LC.getUniversalFallbackMediaDataUri() : '';
+    var typeFb = LC.approvedTypeArtUrl ? LC.approvedTypeArtUrl(type, p) : (LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(type) : '');
+    var uniFb = LC.APPROVED_FINAL_FALLBACK_URL || (LC.getUniversalFallbackMediaDataUri ? LC.getUniversalFallbackMediaDataUri() : '');
     var vidSrc = String(p.video_url || '').trim() || (type === 'video' ? String(p.url || '').trim() : '');
     var hasMedia = (p.image_url && String(p.image_url).trim()) || !!vidSrc || (p.link_url && String(p.link_url).trim()) || (type === 'image' && String(p.url || '').trim());
     var imgSrc = String(p.image_url || '').trim() || (type === 'image' ? String(p.url || '').trim() : '');
@@ -1496,7 +1496,8 @@
     var fk = String(p.fallback_key || 'poll').trim();
     var typeForDefault = fk === 'news' ? 'news' : fk === 'creation' ? 'creation' : fk === 'generic' ? 'creation' : fk === 'shoutout' ? 'shoutout' : fk === 'explain' ? 'explain' : 'poll';
     var imgUrl = String(p.image_url || '').trim();
-    if (!imgUrl && LC && LC.getDefaultImageUrl) imgUrl = LC.getDefaultImageUrl(typeForDefault);
+    if (!imgUrl && LC && LC.resolveCardVisual) imgUrl = LC.resolveCardVisual({ type: typeForDefault, fallbackType: typeForDefault }).cardUrl;
+    else if (!imgUrl && LC && LC.getDefaultImageUrl) imgUrl = LC.getDefaultImageUrl(typeForDefault);
     var q = e(p.question || '');
     var choices = p.choices || [];
     var html = '<div class="pollModal lanternSurface"><div class="lanternSurfaceContent">';
@@ -2481,8 +2482,8 @@
     }
 
     var mediaModel = feedItemToMediaModel(item);
-    var typeFb = LC && LC.getTypeFallbackMediaDataUri ? LC.getTypeFallbackMediaDataUri(item.type || 'article') : '';
-    var uniFb = LC && LC.getUniversalFallbackMediaDataUri ? LC.getUniversalFallbackMediaDataUri() : '';
+    var typeFb = LC && LC.approvedTypeArtUrl ? LC.approvedTypeArtUrl(item.type || 'article', item) : '';
+    var uniFb = LC && LC.APPROVED_FINAL_FALLBACK_URL ? LC.APPROVED_FINAL_FALLBACK_URL : '';
     if (global.LanternMedia && global.LanternMedia.renderMedia) {
       var dm = global.LanternMedia.renderMedia(mediaModel, { esc: esc, variant: 'detail', exploreTypeFallback: typeFb, exploreUniversalFallback: uniFb });
       if (dm && dm.mediaBlock && String(dm.mediaBlock).trim()) {
