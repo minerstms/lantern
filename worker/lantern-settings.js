@@ -14,6 +14,7 @@
  */
 
 import { handleNuggetEconomySettings } from './nugget-economy-settings.js';
+import { handleWritingQualitySettings } from './writing-quality-settings.js';
 
 export const MARQUEE_SPEED_SETTING_KEY = 'marquee_speed_px_per_second';
 
@@ -146,6 +147,9 @@ export async function handleSettingsRoutes(request, url, path, env, cors, deps) 
 
   const economyRes = await handleNuggetEconomySettings(request, path, env, cors, deps);
   if (economyRes) return economyRes;
+
+  const writingQualityRes = await handleWritingQualitySettings(request, path, env, cors, deps);
+  if (writingQualityRes) return writingQualityRes;
 
   if (request.method === 'GET' && path === '/api/settings/marquee-speed') {
     const pxPerSecond = await getMarqueeSpeedPxPerSecond(db);

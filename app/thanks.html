@@ -17,6 +17,7 @@
   <link rel="prefetch" href="teacher.html">
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-writing-quality.css">
 
   <style>
     :root{
@@ -225,7 +226,7 @@
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
-  <script src="js/writing-guard.js"></script>
+  <script src="js/lantern-writing-quality.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); if (window.LANTERN_DATA.ensureStaff) window.LANTERN_DATA.ensureStaff(); if (window.LANTERN_DATA.ensureStartupMode) window.LANTERN_DATA.ensureStartupMode(); } } catch(e){} })();
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
@@ -375,6 +376,7 @@
       if (!adopted) return;
       var text = el('letterText').value || '';
       var btn = el('submitBtn');
+      async function doSubmitThanks() {
       btn.disabled = true;
       if (resubmitThanksId){
         var res = await callResubmitThanks(resubmitThanksId, text);
@@ -424,6 +426,14 @@
       if (writingGuard) onWordCount(0, MIN_WORDS);
       renderHistory();
       toast('Submitted! Pending review for +' + tier + ' nugget' + (tier !== 1 ? 's' : '') + '.');
+      }
+      if (window.LanternWritingQuality) {
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.runBeforeSubmit(text, doSubmitThanks, { focusEl: el('letterText') });
+        });
+        return;
+      }
+      doSubmitThanks();
     });
 
     callGetStaff().then(function(res){
@@ -432,8 +442,10 @@
     });
 
     var ta = el('letterText');
-    if (ta && window.WRITING_GUARD){
-      writingGuard = window.WRITING_GUARD.attach(ta, { minWords: MIN_WORDS, onWordCount: onWordCount });
+    if (ta && window.LanternWritingQuality){
+      window.LanternWritingQuality.loadSettings().then(function () {
+        writingGuard = window.LanternWritingQuality.attachField(ta, { minWords: MIN_WORDS, onWordCount: onWordCount });
+      });
     }
 
     renderHistory();

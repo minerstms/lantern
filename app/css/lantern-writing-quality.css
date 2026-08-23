@@ -1,0 +1,98 @@
+/* Prompt #257C — Writing Quality polish modal + field hints */
+.lwqOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+}
+.lwqCard {
+  width: 100%;
+  max-width: 420px;
+  max-height: min(88vh, 720px);
+  overflow: auto;
+  padding: 22px 20px;
+  border-radius: 18px;
+  border: 2px solid rgba(56, 208, 124, 0.45);
+  background: linear-gradient(180deg, #1a2744, #0f1b33);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  color: #eaf0ff;
+  font-size: 22px;
+  line-height: 1.45;
+}
+.lwqTitle {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 900;
+  color: #38d07c;
+}
+.lwqLead {
+  margin: 0 0 14px;
+  color: #b9c6ea;
+  font-size: 22px;
+}
+.lwqList {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+.lwqList li {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 22px;
+}
+.lwqList li strong {
+  display: block;
+  font-size: 22px;
+  margin-bottom: 4px;
+  color: #5aa7ff;
+}
+.lwqActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lwqActions button {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 14px;
+  font-size: 22px;
+  font-weight: 900;
+  font-family: inherit;
+  cursor: pointer;
+  border: 2px solid rgba(90, 167, 255, 0.45);
+  background: rgba(90, 167, 255, 0.18);
+  color: #eaf0ff;
+}
+.lwqActions button.lwqPrimary {
+  border-color: rgba(56, 208, 124, 0.55);
+  background: rgba(56, 208, 124, 0.22);
+}
+.lwqActions button.lwqGhost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.lwqToast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10060;
+  max-width: calc(100vw - 32px);
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(15, 27, 51, 0.96);
+  border: 1px solid rgba(255, 204, 102, 0.45);
+  color: #ffcc66;
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}

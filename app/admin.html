@@ -1141,6 +1141,56 @@
     </div>
   </details>
 
+  <details class="card teacherCollapsibleList" id="writingQualityCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Writing &amp; Submission Quality</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="writingQualitySummaryPill">ON</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Help students polish their own writing before submission. Blocks importing finished text into student writing fields when enabled; runs a positive pre-submit check — not auto-rewrite or AI writing.</p>
+      <div id="writingQualityMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+
+      <h3 class="teacherSectionLabel" style="margin-top:0;">Master</h3>
+      <label class="visibleWatermarkToggle" for="wqEnabled">
+        <input type="checkbox" id="wqEnabled" checked />
+        <span>Enable Writing Quality checks globally</span>
+        <strong class="visibleWatermarkState" id="wqEnabledState">ON</strong>
+      </label>
+
+      <h3 class="teacherSectionLabel">Authorship / import</h3>
+      <label class="visibleWatermarkToggle" for="wqBlockPaste"><input type="checkbox" id="wqBlockPaste" checked /><span>Block paste into student writing fields</span></label>
+      <label class="visibleWatermarkToggle" for="wqBlockDragDrop"><input type="checkbox" id="wqBlockDragDrop" checked /><span>Block drag/drop text into student writing fields</span></label>
+      <label class="visibleWatermarkToggle" for="wqPreserveSpellcheck"><input type="checkbox" id="wqPreserveSpellcheck" checked /><span>Preserve normal browser spellcheck</span></label>
+      <label class="visibleWatermarkToggle" for="wqPreserveSingleWord"><input type="checkbox" id="wqPreserveSingleWord" checked /><span>Preserve single-word spelling suggestions</span></label>
+      <p class="pendingMeta">Dictation, IME, and normal composition are always preserved.</p>
+
+      <h3 class="teacherSectionLabel">Pre-submit Polish Check</h3>
+      <label class="visibleWatermarkToggle" for="wqRequireCheck"><input type="checkbox" id="wqRequireCheck" checked /><span>Require pre-submit writing check</span></label>
+      <label class="visibleWatermarkToggle" for="wqAllowAnyway"><input type="checkbox" id="wqAllowAnyway" checked /><span>Allow “Submit anyway” after suggestions</span></label>
+      <label class="visibleWatermarkToggle" for="wqShowCount"><input type="checkbox" id="wqShowCount" checked /><span>Show suggestion count before final submit</span></label>
+
+      <h3 class="teacherSectionLabel">Suggestion categories</h3>
+      <div id="writingQualityCategories" class="writingQualityGrid"></div>
+
+      <h3 class="teacherSectionLabel">Quality floor</h3>
+      <label class="visibleWatermarkToggle" for="wqFloorEnabled"><input type="checkbox" id="wqFloorEnabled" checked /><span>Minimum quality enforcement enabled</span></label>
+      <label for="wqRepeatedChar">Repeated-character threshold</label>
+      <input type="number" id="wqRepeatedChar" min="3" max="20" step="1" value="5" />
+      <label for="wqRepeatedPunct">Repeated-punctuation threshold</label>
+      <input type="number" id="wqRepeatedPunct" min="2" max="10" step="1" value="3" />
+      <label for="wqCapsRatio">Max ALL CAPS ratio warning (%)</label>
+      <input type="number" id="wqCapsRatio" min="10" max="90" step="1" value="40" />
+      <label for="wqMinTextLength">Too short to review — minimum text length</label>
+      <input type="number" id="wqMinTextLength" min="0" max="500" step="1" value="12" />
+      <p class="pendingMeta">Polish check skips very short text below this length.</p>
+
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn good" id="writingQualitySave">Save Writing Quality</button>
+        <button type="button" class="btn" id="writingQualityRefresh">Reload current</button>
+      </div>
+    </div>
+  </details>
+
   <details class="card teacherCollapsibleList" id="adminProtectedTraceCard">
     <summary class="cardHd teacherCollapsibleListHd">
       <div class="teacherCollapsibleListTitle"><div class="h">Protected access trace</div></div>
@@ -4510,6 +4560,158 @@
       });
     }
 
+    var WQ_CATEGORY_LABELS = {
+      spelling: 'Spelling',
+      capitalization: 'Capitalization',
+      ending_punctuation: 'Ending punctuation',
+      repeated_punctuation: 'Repeated punctuation',
+      repeated_spaces: 'Repeated spaces',
+      duplicate_words: 'Duplicate adjacent words',
+      lowercase_i: 'Lowercase standalone “i”',
+      excessive_caps: 'Excessive ALL CAPS',
+      low_effort: 'Low-effort / nonsense patterns',
+    };
+
+    function showWritingQualityMsg(text, kind) {
+      var el = document.getElementById('writingQualityMsg');
+      if (!el) return;
+      if (!text) {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.className = 'usersMsg';
+        return;
+      }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function setCheckbox(id, on) {
+      var cb = document.getElementById(id);
+      if (cb) cb.checked = !!on;
+    }
+
+    function readWritingQualityForm() {
+      var cats = {};
+      Object.keys(WQ_CATEGORY_LABELS).forEach(function (k) {
+        var cb = document.getElementById('wqCat_' + k);
+        cats[k] = !!(cb && cb.checked);
+      });
+      return {
+        enabled: !!(document.getElementById('wqEnabled') && document.getElementById('wqEnabled').checked),
+        block_paste: !!(document.getElementById('wqBlockPaste') && document.getElementById('wqBlockPaste').checked),
+        block_drag_drop: !!(document.getElementById('wqBlockDragDrop') && document.getElementById('wqBlockDragDrop').checked),
+        preserve_spellcheck: !!(document.getElementById('wqPreserveSpellcheck') && document.getElementById('wqPreserveSpellcheck').checked),
+        preserve_single_word_suggestions: !!(document.getElementById('wqPreserveSingleWord') && document.getElementById('wqPreserveSingleWord').checked),
+        require_pre_submit_check: !!(document.getElementById('wqRequireCheck') && document.getElementById('wqRequireCheck').checked),
+        allow_submit_anyway: !!(document.getElementById('wqAllowAnyway') && document.getElementById('wqAllowAnyway').checked),
+        show_suggestion_count: !!(document.getElementById('wqShowCount') && document.getElementById('wqShowCount').checked),
+        categories: cats,
+        quality_floor: {
+          enabled: !!(document.getElementById('wqFloorEnabled') && document.getElementById('wqFloorEnabled').checked),
+          repeated_char_threshold: Number(document.getElementById('wqRepeatedChar') && document.getElementById('wqRepeatedChar').value) || 5,
+          repeated_punctuation_threshold: Number(document.getElementById('wqRepeatedPunct') && document.getElementById('wqRepeatedPunct').value) || 3,
+          max_caps_ratio_percent: Number(document.getElementById('wqCapsRatio') && document.getElementById('wqCapsRatio').value) || 40,
+          min_text_length: Number(document.getElementById('wqMinTextLength') && document.getElementById('wqMinTextLength').value) || 12,
+        },
+      };
+    }
+
+    function renderWritingQualityCategories(cats) {
+      var host = document.getElementById('writingQualityCategories');
+      if (!host) return;
+      var html = '';
+      Object.keys(WQ_CATEGORY_LABELS).forEach(function (k) {
+        var on = !cats || cats[k] !== false;
+        html += '<label class="visibleWatermarkToggle" for="wqCat_' + k + '"><input type="checkbox" id="wqCat_' + k + '"' + (on ? ' checked' : '') + ' /><span>' + WQ_CATEGORY_LABELS[k] + '</span></label>';
+      });
+      host.innerHTML = html;
+    }
+
+    function applyWritingQualityForm(settings) {
+      settings = settings || {};
+      var on = settings.enabled !== false;
+      setCheckbox('wqEnabled', on);
+      setCheckbox('wqBlockPaste', settings.block_paste !== false);
+      setCheckbox('wqBlockDragDrop', settings.block_drag_drop !== false);
+      setCheckbox('wqPreserveSpellcheck', settings.preserve_spellcheck !== false);
+      setCheckbox('wqPreserveSingleWord', settings.preserve_single_word_suggestions !== false);
+      setCheckbox('wqRequireCheck', settings.require_pre_submit_check !== false);
+      setCheckbox('wqAllowAnyway', settings.allow_submit_anyway !== false);
+      setCheckbox('wqShowCount', settings.show_suggestion_count !== false);
+      renderWritingQualityCategories(settings.categories || {});
+      var qf = settings.quality_floor || {};
+      setCheckbox('wqFloorEnabled', qf.enabled !== false);
+      var rc = document.getElementById('wqRepeatedChar');
+      var rp = document.getElementById('wqRepeatedPunct');
+      var cr = document.getElementById('wqCapsRatio');
+      var ml = document.getElementById('wqMinTextLength');
+      if (rc) rc.value = qf.repeated_char_threshold != null ? qf.repeated_char_threshold : 5;
+      if (rp) rp.value = qf.repeated_punctuation_threshold != null ? qf.repeated_punctuation_threshold : 3;
+      if (cr) cr.value = qf.max_caps_ratio_percent != null ? qf.max_caps_ratio_percent : 40;
+      if (ml) ml.value = qf.min_text_length != null ? qf.min_text_length : 12;
+      var stateLabel = document.getElementById('wqEnabledState');
+      var summaryPill = document.getElementById('writingQualitySummaryPill');
+      if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+      if (summaryPill) summaryPill.textContent = on ? 'ON' : 'OFF';
+    }
+
+    function loadWritingQuality() {
+      fetch(api + '/api/settings/writing-quality', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok && res.settings) {
+            applyWritingQualityForm(res.settings);
+            showWritingQualityMsg('', '');
+          } else {
+            showWritingQualityMsg('Could not load Writing Quality settings.', 'err');
+          }
+        })
+        .catch(function () {
+          showWritingQualityMsg('Could not load Writing Quality settings (network).', 'err');
+        });
+    }
+
+    var writingQualitySaveBtn = document.getElementById('writingQualitySave');
+    if (writingQualitySaveBtn) {
+      writingQualitySaveBtn.addEventListener('click', function () {
+        writingQualitySaveBtn.disabled = true;
+        patchAdminJson('/api/settings/writing-quality', { settings: readWritingQualityForm() })
+          .then(function (res) {
+            if (res && res.blocked) return;
+            if (res && res.okHttp && res.body && res.body.ok) {
+              applyWritingQualityForm(res.body.settings || readWritingQualityForm());
+              showWritingQualityMsg('Saved.', 'ok');
+            } else {
+              showWritingQualityMsg((res && res.body && (res.body.error || res.body.message)) || 'Could not save.', 'err');
+            }
+          })
+          .catch(function () {
+            showWritingQualityMsg('Could not save (network).', 'err');
+          })
+          .finally(function () {
+            writingQualitySaveBtn.disabled = false;
+          });
+      });
+    }
+    var writingQualityRefreshBtn = document.getElementById('writingQualityRefresh');
+    if (writingQualityRefreshBtn) {
+      writingQualityRefreshBtn.addEventListener('click', function () {
+        showWritingQualityMsg('', '');
+        loadWritingQuality();
+      });
+    }
+    var wqEnabledCb = document.getElementById('wqEnabled');
+    if (wqEnabledCb) {
+      wqEnabledCb.addEventListener('change', function () {
+        var on = !!wqEnabledCb.checked;
+        var stateLabel = document.getElementById('wqEnabledState');
+        var summaryPill = document.getElementById('writingQualitySummaryPill');
+        if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+        if (summaryPill) summaryPill.textContent = on ? 'ON' : 'OFF';
+      });
+    }
+
     function loadPending(){
       fetch(api + '/api/approvals/pending?filter=mine,unassigned', { credentials: 'include' })
         .then(function(r){ return r.json(); })
@@ -6711,6 +6913,7 @@
     loadPending();
     loadMarqueeSpeed();
     loadVisibleWatermark();
+    loadWritingQuality();
     loadNuggetEconomy();
     setInterval(loadPending, 60000);
     setInterval(loadFeedModeration, 120000);

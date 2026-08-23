@@ -158,6 +158,7 @@
   </style>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
+  <link rel="stylesheet" href="css/lantern-writing-quality.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
   <link rel="stylesheet" href="css/lantern-feed.css">
   <link rel="stylesheet" href="css/lantern-interactive-surface.css">
@@ -672,6 +673,13 @@
       wrap.appendChild(card);
       document.body.appendChild(wrap);
 
+      var thankTa = document.getElementById('thankYouMessage');
+      if (thankTa && window.LanternWritingQuality) {
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.attachField(thankTa);
+        });
+      }
+
       var pickerApi = null;
       var host = document.getElementById('thankYouPeopleHost');
       if (window.LanternPeoplePicker && typeof window.LanternPeoplePicker.mount === 'function' && host) {
@@ -710,23 +718,32 @@
           if (statusEl) statusEl.textContent = 'Please write a longer thank-you message.';
           return;
         }
-        sending = true;
-        sendBtn.disabled = true;
-        sendBtn.textContent = 'Sending…';
-        if (statusEl) statusEl.textContent = '';
-        callSendThankYou(token, message).then(function(res){
-          sending = false;
-          if (!res || !res.ok) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = 'Send Thank You';
-            if (statusEl) statusEl.textContent = (res && res.message) || "Your thank-you couldn't be sent. Please try again.";
-            return;
-          }
-          close();
-          var thankN = Number(res.nuggets);
-          toast(thankN > 0 ? ('Thank you sent! +' + thankN + ' Nugget' + (thankN === 1 ? '' : 's')) : 'Thank you sent!');
-          if (typeof onDone === 'function') onDone(res);
-        });
+        function doSendThankYou() {
+          sending = true;
+          sendBtn.disabled = true;
+          sendBtn.textContent = 'Sending…';
+          if (statusEl) statusEl.textContent = '';
+          callSendThankYou(token, message).then(function(res){
+            sending = false;
+            if (!res || !res.ok) {
+              sendBtn.disabled = false;
+              sendBtn.textContent = 'Send Thank You';
+              if (statusEl) statusEl.textContent = (res && res.message) || "Your thank-you couldn't be sent. Please try again.";
+              return;
+            }
+            close();
+            var thankN = Number(res.nuggets);
+            toast(thankN > 0 ? ('Thank you sent! +' + thankN + ' Nugget' + (thankN === 1 ? '' : 's')) : 'Thank you sent!');
+            if (typeof onDone === 'function') onDone(res);
+          });
+        }
+        if (window.LanternWritingQuality) {
+          window.LanternWritingQuality.loadSettings().then(function () {
+            window.LanternWritingQuality.runBeforeSubmit(String(message || '').trim(), doSendThankYou, { focusEl: thankTa });
+          });
+          return;
+        }
+        doSendThankYou();
       });
     }
 
@@ -1912,6 +1929,12 @@
       }
       if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
       if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';
+      if (contentEl && window.LanternWritingQuality && allowsText && !contentEl._lwqAttached) {
+        contentEl._lwqAttached = true;
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.attachField(contentEl);
+        });
+      }
       if (pollWrap) pollWrap.style.display = isPollMission ? 'block' : 'none';
       if (bugWrap) bugWrap.style.display = isBugMission ? 'block' : 'none';
       var outer = el('missionUnifiedMediaOuter');
@@ -2199,6 +2222,7 @@
       else if (allowsVideo && videoVal){ type = 'link'; content = videoVal; }
       else if (allowsLink && linkVal){ type = 'link'; content = linkVal; }
       if (m.submission_type === 'confirmation') type = 'confirmation';
+      function finishMissionTextSubmit() {
       setMissionSubmitBusy(true);
       var resubmitOpts = null;
       var resubmitContent = content;
@@ -2236,6 +2260,14 @@
         setMissionSubmitInlineError(errNet);
         toast(errNet);
       });
+      }
+      if (validText && textVal && window.LanternWritingQuality) {
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.runBeforeSubmit(textVal, finishMissionTextSubmit, { focusEl: el('missionSubmitContent') });
+        });
+        return;
+      }
+      finishMissionTextSubmit();
     }
 
     /* Prompt #164 — remove 'help someone'; Wave-1 title is now "Help Someone" and must stay visible. */
@@ -2443,6 +2475,7 @@
     /* Class access bootstrap runs from js/class-access.js on DOMContentLoaded. */
   </script>
   <script src="js/lantern-people-picker.js"></script>
+  <script src="js/lantern-writing-quality.js"></script>
   <script src="js/lantern-canonical-enforce.js"></script>
 </body>
 </html>

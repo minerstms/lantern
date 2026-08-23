@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="css/lantern-rails.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
   <link rel="stylesheet" href="css/lantern-reactions.css">
+  <link rel="stylesheet" href="css/lantern-writing-quality.css">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <style>
     :root{
@@ -1373,6 +1374,7 @@
   <script src="js/lantern-nav.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-writing-quality.js"></script>
   <script>
     (function(){ try { if (window.LANTERN_DATA) { if (window.LANTERN_DATA.ensureCharacters) window.LANTERN_DATA.ensureCharacters(); if (window.LANTERN_DATA.ensureCatalog) window.LANTERN_DATA.ensureCatalog(); } } catch(e){} })();
     var createRun = (typeof LANTERN_API !== 'undefined' && LANTERN_API.createRun) ? LANTERN_API.createRun : null;
@@ -1390,6 +1392,18 @@
 
     var el = function(id){ return document.getElementById(id); };
     var toastEl = el('toast');
+
+    if (window.LanternWritingQuality && el('newsBody')) {
+      window.LanternWritingQuality.loadSettings().then(function () {
+        window.LanternWritingQuality.attachField(el('newsBody'));
+      });
+    }
+    if (window.LanternWritingQuality && el('missionSubmitContent') && !el('missionSubmitContent')._lwqAttached) {
+      el('missionSubmitContent')._lwqAttached = true;
+      window.LanternWritingQuality.loadSettings().then(function () {
+        window.LanternWritingQuality.attachField(el('missionSubmitContent'));
+      });
+    }
 
     function getAdopted(){
       try {
@@ -2705,7 +2719,7 @@
           : [];
       }
       if (!title){ toast('Enter a title'); return; }
-      if (!body){ toast('Enter your story'); return; }
+      if (!body){ toast(ct === 'shoutout' ? 'Write your shout-out message' : 'Enter your story'); return; }
       var authorName = resolveSessionAuthorName(authorType);
       if (authorType === 'student' && !authorName){ toast('Adopt a character first (Locker → Overview).'); return; }
       if (!authorName){ toast('Could not resolve your signed-in name. Sign in again.'); return; }
@@ -2727,6 +2741,7 @@
           btn.textContent = 'Submit for approval';
         }
       }
+      async function continueNewsSubmit(){
       hideContributePostSuccessBanner();
       setPostSubmitBusy(true, isPostFlow ? 'Preparing…' : undefined);
       var payload = { title: title, body: body, category: category, author_name: authorName, author_type: authorType, photo_credit: photoCredit };
@@ -2858,6 +2873,14 @@
       } else {
         doneContribute();
       }
+      }
+      if (authorType === 'student' && window.LanternWritingQuality && (ct === 'post' || ct === 'shoutout')) {
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.runBeforeSubmit(bodyRaw, continueNewsSubmit, { focusEl: el('newsBody') });
+        });
+        return;
+      }
+      continueNewsSubmit();
     });
 
     // —— Mission path: fetch missions, list, in-studio form panel ——
@@ -3663,6 +3686,7 @@
       else if (allowsVideo){ type = missionVideoUploadedUrl ? 'video' : 'link'; content = missionVideoUploadedUrl || videoVal; }
       else if (allowsLink){ type = 'link'; content = linkVal; }
       if (m.submission_type === 'confirmation') type = 'confirmation';
+      async function finishContributeMissionSubmit() {
       btnM.disabled = true;
       var res;
       if (currentMissionResubmitId) {
@@ -3701,6 +3725,14 @@
       toast(FERPA_STUDENT_SUBMIT_MESSAGE, 5200);
       closeMissionStudioPanel();
       loadContributeMissions();
+      }
+      if (validText && textVal && window.LanternWritingQuality) {
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.runBeforeSubmit(textVal, finishContributeMissionSubmit, { focusEl: el('missionSubmitContent') });
+        });
+        return;
+      }
+      finishContributeMissionSubmit();
     });
   </script>
   <script src="js/lantern-canonical-enforce.js"></script>
