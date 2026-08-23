@@ -15,6 +15,8 @@ export const MODERATION_EVENT_TYPES = Object.freeze([
   'report_removed',
   'hidden',
   'restored',
+  'owner_archived',
+  'owner_reopened',
 ]);
 
 export const REPORT_RESOLUTIONS = Object.freeze(['dismissed', 'returned', 'removed', 'hidden']);

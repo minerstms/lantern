@@ -32,6 +32,7 @@ function jsonResponse(obj, status, cors) {
 function makeDb(state) {
   state.achievements = state.achievements || {};
   state.cosmeticOwnership = state.cosmeticOwnership || {};
+  state.publicKeys = state.publicKeys || [];
 
   return {
     prepare(sql) {
@@ -64,6 +65,12 @@ function makeDb(state) {
           if (s.includes('FROM lantern_cosmetic_ownership')) {
             const key = binds[0];
             return state.cosmeticOwnership[key] || null;
+          }
+          if (s.includes('FROM lantern_locker_public_keys') && s.includes('public_key = ?')) {
+            return state.publicKeys.find((r) => r.public_key === binds[0]) || null;
+          }
+          if (s.includes('FROM lantern_locker_public_keys') && s.includes('character_name = ?')) {
+            return state.publicKeys.find((r) => r.character_name === binds[0]) || null;
           }
           return null;
         },
@@ -104,6 +111,9 @@ function makeDb(state) {
           }
           if (s.includes('FROM lantern_missions WHERE id IN')) {
             return { results: state.missionDefs || [] };
+          }
+          if (s.includes('FROM lantern_locker_public_keys')) {
+            return { results: state.publicKeys.slice() };
           }
           return { results: [] };
         },
@@ -146,6 +156,17 @@ function makeDb(state) {
                 updated_at,
               };
             }
+            return { success: true };
+          }
+          if (s.includes('INSERT INTO lantern_locker_public_keys')) {
+            const row = { character_name: binds[0], public_key: binds[1], created_at: binds[2] };
+            if (state.publicKeys.some((r) => r.character_name === row.character_name)) {
+              throw new Error('UNIQUE constraint failed: lantern_locker_public_keys.character_name');
+            }
+            if (state.publicKeys.some((r) => r.public_key === row.public_key)) {
+              throw new Error('UNIQUE constraint failed: lantern_locker_public_keys.public_key');
+            }
+            state.publicKeys.push(row);
             return { success: true };
           }
           return { success: true };
@@ -237,6 +258,10 @@ async function testStudentResponseShape() {
   if (body.equipped_items.equipped.frame !== 'frame_gold') return bad('equipped map', body.equipped_items.equipped);
   if (!body.owned_items.available || body.owned_items.items.length < 1) return bad('owned_items', body.owned_items);
   if (!body.owned_items.owned_ids.includes('frame_gold')) return bad('owned_ids merge', body.owned_items.owned_ids);
+  if (!/^[a-f0-9]{32}$/.test(String(body.locker_public_key || ''))) return bad('student locker_public_key random hex', body.locker_public_key);
+  if (body.locker_public_key === '20889' || body.locker_public_key === 'lucas') return bad('locker_public_key must not be student id/login', body.locker_public_key);
+  const again = await buildLockerMeResponse(account, { DB: makeDb(state) }, 'https://example.test');
+  if (again.locker_public_key !== body.locker_public_key) return bad('locker_public_key stays stable', again.locker_public_key);
   ok('student locker response shape');
 }
 

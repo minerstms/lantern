@@ -4,6 +4,13 @@ import {
   attachReactionsAndComments,
 } from './feed-handlers.js';
 import { personKeysForAccount, feedIdsRelatedToPersonKeys } from './content-people.js';
+import {
+  archivedRefSet,
+  isOwnerArchivedRef,
+  listArchivedLockerRefs,
+  listLockerItemStatesForOwner,
+  normalizeLockerItemRef,
+} from './locker-item-state.js';
 
 const ATTRIBUTION_KEYS = [
   'photographer',
@@ -140,6 +147,53 @@ export async function buildLockerPersonalFeed(db, origin, account, economyKey, p
   }
 
   scoped = filterFeedItems(scoped, params);
+
+  const archivedRows = await listArchivedLockerRefs(db, [economyKey, ...Array.from(keys)]);
+  const archived = archivedRefSet(archivedRows);
+  const stateRows = await listLockerItemStatesForOwner(db, economyKey);
+  const featuredMap = Object.create(null);
+  (stateRows || []).forEach((s) => {
+    if (s && s.featured) featuredMap[s.item_type + ':' + s.item_id] = s.featured_sort;
+  });
+
+  function lockerTypeFromFeed(it) {
+    const t = String((it && it.type) || '').toLowerCase();
+    if (t === 'news' || t === 'shout_out' || t === 'shoutout') return 'news';
+    if (t === 'mission') return 'mission_submission';
+    if (t === 'poll') return 'poll';
+    return 'feed_item';
+  }
+
+  scoped = scoped.filter((it) => {
+    if (!isSubmittedByIdentity(it, keys, username)) return true;
+    const ref = normalizeLockerItemRef(lockerTypeFromFeed(it), it.id);
+    return !isOwnerArchivedRef(archived, ref.item_type, ref.item_id);
+  });
+
+  scoped = scoped.map((it) => {
+    if (!isSubmittedByIdentity(it, keys, username)) return it;
+    const ref = normalizeLockerItemRef(lockerTypeFromFeed(it), it.id);
+    const fk = ref.item_type + ':' + ref.item_id;
+    const next = { ...it, lockerOwned: true };
+    if (Object.prototype.hasOwnProperty.call(featuredMap, fk)) {
+      next.featured = 1;
+      next.featured_sort = featuredMap[fk];
+    }
+    return next;
+  });
+
+  scoped.sort((a, b) => {
+    const af = a.featured ? 1 : 0;
+    const bf = b.featured ? 1 : 0;
+    if (af !== bf) return bf - af;
+    if (af && bf) {
+      const as = a.featured_sort == null ? 999 : a.featured_sort;
+      const bs = b.featured_sort == null ? 999 : b.featured_sort;
+      if (as !== bs) return as - bs;
+    }
+    return 0;
+  });
+
   scoped = await attachReactionsAndComments(db, scoped, viewer);
 
   return {

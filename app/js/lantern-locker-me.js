@@ -235,11 +235,80 @@
   function callUnlockAchievement(achievementId, source, meta) {
     return Promise.resolve({ ok: false, error: 'achievement_unlock_client_forbidden' });
   }
+
+  function callItemState(action, itemType, itemId) {
+    var base = lockerApiBase();
+    var url = (base || '') + '/api/locker/item-state';
+    return global
+      .fetch(url, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: action || '',
+          item_type: itemType || '',
+          item_id: itemId || '',
+        }),
+      })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          if (redirectIfPasswordChangeRequired(res, body)) {
+            return { ok: false, error: 'must_change_password', redirecting: true };
+          }
+          if (!res.ok || !body || !body.ok) {
+            return body || { ok: false, error: 'item_state_failed', httpStatus: res.status };
+          }
+          invalidateLockerMe();
+          return fetchLockerMe().then(function () {
+            return body;
+          });
+        });
+      })
+      .catch(function () {
+        return { ok: false, error: 'network' };
+      });
+  }
+
+  function fetchLockerShowcase(publicKey) {
+    var key = String(publicKey || '').trim();
+    if (!key) return Promise.resolve({ ok: false, error: 'missing_key' });
+    var base = lockerApiBase();
+    var url = (base || '') + '/api/locker/showcase/' + encodeURIComponent(key);
+    return global
+      .fetch(url, { method: 'GET', credentials: 'include', cache: 'no-store' })
+      .then(function (res) {
+        return res.text().then(function (t) {
+          var body;
+          try {
+            body = t ? JSON.parse(t) : { ok: false, error: 'empty' };
+          } catch (e) {
+            body = { ok: false, error: 'invalid_json', httpStatus: res.status };
+          }
+          if (redirectIfPasswordChangeRequired(res, body)) {
+            return { ok: false, error: 'must_change_password', redirecting: true };
+          }
+          if (res.status === 401 || (body && body.error === 'not_authenticated')) {
+            global.location.replace(loginUrlWithReturn());
+            return { ok: false, error: 'not_authenticated', redirecting: true };
+          }
+          if (!res.ok || !body || !body.ok) {
+            return body || { ok: false, error: 'showcase_failed', httpStatus: res.status };
+          }
+          return body;
+        });
+      })
+      .catch(function () {
+        return { ok: false, error: 'network' };
+      });
+  }
+
   global.LanternLockerMe = {
     fetchLockerMe: fetchLockerMe,
     invalidateLockerMe: invalidateLockerMe,
     callEquipCosmetic: callEquipCosmetic,
     callUpdateBio: callUpdateBio,
+    callItemState: callItemState,
+    fetchLockerShowcase: fetchLockerShowcase,
     getLockerMe: getLockerMe,
     lockerCategoryItems: lockerCategoryItems,
     lockerCategoryAvailable: lockerCategoryAvailable,

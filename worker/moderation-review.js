@@ -33,6 +33,7 @@ import { isAdminRole, isTeacherLike, sessionTeacherId, teacherOwnsMission, revie
 import { canManageLanternAvatars } from './avatar-media-gate.js';
 import { finalizePollContributionPublish } from './poll-publish.js';
 import { resolveStoredMissionPayout } from './nugget-economy-settings.js';
+import { archivedRefSet, isOwnerArchivedRef, listArchivedLockerRefs } from './locker-item-state.js';
 
 export const QUEUE_STATES = Object.freeze({
   PENDING_REVIEW: 'PENDING_REVIEW',
@@ -55,6 +56,8 @@ const STUDENT_HISTORY_EVENT_TYPES = Object.freeze([
   'resubmitted',
   'approved',
   'rejected',
+  'owner_archived',
+  'owner_reopened',
 ]);
 
 function clipNote(raw) {
@@ -529,7 +532,27 @@ export async function countStudentRevisions(db, account, deps) {
     `SELECT COUNT(*) AS c FROM lantern_feed_items WHERE LOWER(TRIM(status)) = 'returned' AND (author_display_name IN (${ph}) OR author_id IN (${ph}))`,
     keys.concat(keys)
   );
-  return news + polls + missions + feed;
+  const raw = news + polls + missions + feed;
+  if (!raw) return 0;
+  let archived = [];
+  try {
+    archived = await listArchivedLockerRefs(db, keys);
+  } catch (_) {
+    archived = [];
+  }
+  if (!archived.length) return raw;
+  const seen = archivedRefSet(archived);
+  let subtract = 0;
+  for (let i = 0; i < archived.length; i++) {
+    const ref = archived[i];
+    if (!isOwnerArchivedRef(seen, ref.item_type, ref.item_id)) continue;
+    const loaded = await loadOwnedContent(db, ref.item_type, ref.item_id);
+    if (!loaded.row) continue;
+    if (String(loaded.row.status || '').trim().toLowerCase() !== 'returned') continue;
+    if (!studentOwnsRow(loaded.type, loaded.row, keys)) continue;
+    subtract += 1;
+  }
+  return Math.max(0, raw - subtract);
 }
 
 export async function countStaffReviewItems(db, account) {
