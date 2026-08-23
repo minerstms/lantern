@@ -30,6 +30,10 @@ import {
   missionRequiresImage,
   validateMissionSubmissionPayload,
 } from './missions-auth.js';
+import {
+  applyMissionSubmissionSidecar,
+  buildMissionResubmitContent,
+} from './mission-resubmit-media.js';
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
 import { resolveTeacherMissionReward, resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import {
@@ -1746,7 +1750,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const id = (body.id || '').trim();
     if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
     const row = await db
-      .prepare('SELECT id, character_name, status, submission_type FROM lantern_mission_submissions WHERE id = ?')
+      .prepare(
+        'SELECT id, mission_id, character_name, status, submission_type, submission_content FROM lantern_mission_submissions WHERE id = ?'
+      )
       .bind(id)
       .first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
@@ -1756,9 +1762,17 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     if ((row.status || '') !== 'returned') {
       return jsonResponse({ ok: false, error: 'Can only resubmit returned submissions' }, 400, cors);
     }
-    const stRes = row.submission_type ? String(row.submission_type).trim() : '';
-    const contentMaxRes = stRes === 'poll' || stRes === 'bug_report' ? 4000 : 2000;
-    const content = String(body.submission_content || '').trim().slice(0, contentMaxRes);
+    const mission = await db.prepare('SELECT * FROM lantern_missions WHERE id = ?').bind(row.mission_id).first();
+    if (!mission) return jsonResponse({ ok: false, error: 'Mission not found' }, 404, cors);
+    const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
+    const origin = url.origin || '';
+    const built = await buildMissionResubmitContent(body, row, origin, bucket);
+    if (!built.ok) return jsonResponse({ ok: false, error: built.error }, built.status || 400, cors);
+    const validated = validateMissionSubmissionPayload(mission, row.submission_type, built.content);
+    if (!validated.ok) {
+      return jsonResponse({ ok: false, error: validated.error }, 400, cors);
+    }
+    const content = validated.content;
     try {
       await recordEventForAccount(db, auth.account, {
         itemType: 'mission_submission',
@@ -1780,6 +1794,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       )
       .bind(content, 'pending', null, null, null, id, 'returned')
       .run();
+    await applyMissionSubmissionSidecar(db, id, content, built.sidecarTouchKey, built.sidecarClear);
     return jsonResponse({ ok: true }, 200, cors);
   }
 

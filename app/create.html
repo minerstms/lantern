@@ -16,6 +16,15 @@
   <style>
     body { margin: 0; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
     .createWrap { padding: 0 16px 32px; max-width: 640px; }
+    #createMediaMount { margin: 12px 0 16px; }
+    .createFormActions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .createFormActions button { font-size: 22px; padding: 12px 18px; border-radius: 12px; cursor: pointer; font-family: inherit; font-weight: 800; }
+    .createForm label { display: block; margin-top: 14px; font-weight: 800; }
+    .createForm input[type="text"], .createForm textarea, .createForm select {
+      width: 100%; box-sizing: border-box; font-size: 22px; padding: 12px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.25); color: #eaf0ff; font-family: inherit;
+    }
+    .createForm textarea { min-height: 120px; resize: vertical; }
   </style>
 </head>
 <body class="page-has-ticker">
@@ -54,8 +63,8 @@
       <input id="createTitle" type="text" required maxlength="200">
       <label for="createBody">Body or summary</label>
       <textarea id="createBody" required maxlength="5000"></textarea>
-      <label for="createImage">Image (optional)</label>
-      <input id="createImage" type="file" accept="image/*">
+      <label>Image (optional)</label>
+      <div id="createMediaMount"></div>
       <div class="createFormActions">
         <button type="button" id="saveDraftBtn">Save draft</button>
         <button type="button" id="submitReviewBtn">Submit for teacher review</button>
@@ -89,16 +98,103 @@
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-route-help.js"></script>
   <script src="js/lantern-help.js"></script>
+  <script src="js/lantern-unified-media-field.js"></script>
   <script src="js/lantern-feed-api.js"></script>
   <script>
   (function () {
     var feed = window.LANTERN_FEED;
     var draftId = null;
     var triviaId = null;
-    var imageKey = null;
     var isFeedResubmit = false;
+    var createUnifiedField = null;
+    var createMediaEdit = (window.LanternMediaEdit && window.LanternMediaEdit.create) ? window.LanternMediaEdit.create() : { existing: null, local: null, intent: 'keep' };
+    var createLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
     var statusEl = document.getElementById('createStatus');
     var triviaStatus = document.getElementById('triviaStatus');
+
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ''; }
+    function setTriviaStatus(msg) { if (triviaStatus) triviaStatus.textContent = msg || ''; }
+
+    function refreshCreateMediaPreview() {
+      if (!createUnifiedField || !window.LanternMediaEdit) return;
+      var html = window.LanternMediaEdit.buildPreviewHTML(createMediaEdit);
+      if (html) {
+        createUnifiedField.setPreviewHTML(html);
+      } else {
+        createUnifiedField.clearPreview();
+      }
+    }
+
+    function mountCreateMediaField() {
+      var host = document.getElementById('createMediaMount');
+      if (!host || !window.LanternUnifiedMediaField) return;
+      host.innerHTML = '';
+      createUnifiedField = window.LanternUnifiedMediaField.mount(host, {
+        allowImage: true,
+        allowVideo: false,
+        allowLink: false,
+        emptyHelper: 'Add an optional photo for your post.',
+        chooseLabel: 'Choose photo',
+        onImageFile: function (file) {
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            createLocalImage.dataUrl = reader.result;
+            createLocalImage.mime = file.type || 'image/png';
+            createLocalImage.fileName = file.name || 'image.png';
+            if (window.LanternMediaEdit) {
+              window.LanternMediaEdit.setLocal(createMediaEdit, { kind: 'image', previewUrl: createLocalImage.dataUrl });
+            }
+            refreshCreateMediaPreview();
+          };
+          reader.readAsDataURL(file);
+        },
+        onClear: function () {
+          createLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+          if (window.LanternMediaEdit) window.LanternMediaEdit.clear(createMediaEdit);
+          refreshCreateMediaPreview();
+        }
+      });
+      host.addEventListener('click', function (e) {
+        var action = e.target && e.target.getAttribute && e.target.getAttribute('data-media-edit');
+        if (!window.LanternMediaEdit) return;
+        if (action === 'remove') {
+          window.LanternMediaEdit.setRemove(createMediaEdit);
+          createLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+          refreshCreateMediaPreview();
+        } else if (action === 'replace') {
+          if (createUnifiedField && createUnifiedField.openFilePicker) createUnifiedField.openFilePicker();
+        } else if (action === 'undo') {
+          window.LanternMediaEdit.cancel(createMediaEdit);
+          createLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+          refreshCreateMediaPreview();
+        } else if (action === 'use') {
+          if (createUnifiedField && createUnifiedField.openFilePicker) createUnifiedField.openFilePicker();
+        }
+      });
+      refreshCreateMediaPreview();
+    }
+
+    function applyFeedRevisionHydrate(item) {
+      if (!item) return;
+      if (item.type && document.getElementById('createType')) document.getElementById('createType').value = item.type;
+      if (item.title && document.getElementById('createTitle')) document.getElementById('createTitle').value = item.title;
+      if ((item.body || item.summary) && document.getElementById('createBody')) {
+        document.getElementById('createBody').value = item.body || item.summary;
+      }
+      var note = item.private_feedback || '';
+      if (note) setStatus('Teacher feedback: ' + note);
+      if (window.LanternMediaEdit && item.image_url) {
+        window.LanternMediaEdit.setExisting(createMediaEdit, {
+          kind: 'image',
+          previewUrl: item.image_url,
+          deliveryUrl: item.image_url,
+          objectKey: item.image_r2_key || ''
+        });
+        refreshCreateMediaPreview();
+      }
+    }
+
     try {
       var typeParam = new URLSearchParams(location.search || '').get('type');
       var typeEl = document.getElementById('createType');
@@ -107,6 +203,9 @@
         if (allowed[typeParam]) typeEl.value = typeParam;
       }
     } catch (e) {}
+
+    mountCreateMediaField();
+
     (function bootFeedResubmit() {
       var rid = '';
       var stored = null;
@@ -120,50 +219,34 @@
       isFeedResubmit = true;
       draftId = rid;
       if (stored) {
-        if (stored.type && document.getElementById('createType')) document.getElementById('createType').value = stored.type;
-        if (stored.title && document.getElementById('createTitle')) document.getElementById('createTitle').value = stored.title;
-        if (stored.body && document.getElementById('createBody')) document.getElementById('createBody').value = stored.body;
-        if (stored.image_r2_key) imageKey = stored.image_r2_key;
-        if (stored.private_feedback) setStatus('Teacher feedback: ' + stored.private_feedback);
+        applyFeedRevisionHydrate(stored);
       }
-      if (feed && typeof feed.getMine === 'function') {
-        feed.getMine().then(function (res) {
-          var rows = (res && res.items) || [];
-          var row = rows.filter(function (r) { return String(r.id) === String(rid); })[0];
-          if (!row) return;
-          if (row.type && document.getElementById('createType')) document.getElementById('createType').value = row.type;
-          if (row.title && document.getElementById('createTitle')) document.getElementById('createTitle').value = row.title;
-          if ((row.body || row.summary) && document.getElementById('createBody')) document.getElementById('createBody').value = row.body || row.summary;
-          if (row.image_r2_key) imageKey = row.image_r2_key;
-          var note = row.privateFeedback || row.private_feedback || '';
-          if (note) setStatus('Teacher feedback: ' + note);
+      if (feed && typeof feed.getRevision === 'function') {
+        feed.getRevision(rid).then(function (res) {
+          if (res && res.ok && res.item) applyFeedRevisionHydrate(res.item);
         }).catch(function () {});
       }
+      var subBtn = document.getElementById('submitReviewBtn');
+      if (subBtn) subBtn.textContent = 'Resubmit for teacher review';
     })();
 
-    function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ''; }
-    function setTriviaStatus(msg) { if (triviaStatus) triviaStatus.textContent = msg || ''; }
-
-    document.getElementById('createImage').addEventListener('change', function (e) {
-      var file = e.target.files && e.target.files[0];
-      if (!file || !feed) return;
-      var reader = new FileReader();
-      reader.onload = function () {
-        feed.uploadImage(reader.result, file.type).then(function (res) {
-          if (res && res.ok) imageKey = res.image_r2_key;
-          else setStatus('Image upload failed.');
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+    function mediaFieldsForPayload() {
+      var intent = (createMediaEdit && createMediaEdit.intent) || 'keep';
+      var out = { media_action: intent };
+      if (intent === 'replace' && createLocalImage.dataUrl) {
+        out.image = createLocalImage.dataUrl;
+        out.mime_type = createLocalImage.mime;
+        out.file_name = createLocalImage.fileName;
+      }
+      return out;
+    }
 
     function payload() {
-      return {
+      return Object.assign({
         type: document.getElementById('createType').value,
         title: document.getElementById('createTitle').value.trim(),
-        body: document.getElementById('createBody').value.trim(),
-        image_r2_key: imageKey,
-      };
+        body: document.getElementById('createBody').value.trim()
+      }, mediaFieldsForPayload());
     }
 
     document.getElementById('saveDraftBtn').addEventListener('click', function () {
@@ -174,6 +257,17 @@
       req.then(function (res) {
         if (!res || !res.ok) { setStatus((res && res.error) || 'Save failed.'); return; }
         draftId = res.id || draftId;
+        if (window.LanternMediaEdit && createMediaEdit.intent === 'replace' && res.image_r2_key) {
+          window.LanternMediaEdit.setExisting(createMediaEdit, {
+            kind: 'image',
+            previewUrl: '/api/news/image?key=' + encodeURIComponent(res.image_r2_key),
+            deliveryUrl: '/api/news/image?key=' + encodeURIComponent(res.image_r2_key),
+            objectKey: res.image_r2_key
+          });
+          createLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+          createMediaEdit.intent = 'keep';
+          refreshCreateMediaPreview();
+        }
         setStatus('Draft saved.');
       });
     });
@@ -204,7 +298,7 @@
         correct_answer: document.getElementById('triviaCorrect').value.trim(),
         wrong_answer_1: document.getElementById('triviaWrong1').value.trim(),
         wrong_answer_2: document.getElementById('triviaWrong2').value.trim(),
-        wrong_answer_3: document.getElementById('triviaWrong3').value.trim(),
+        wrong_answer_3: document.getElementById('triviaWrong3').value.trim()
       };
       feed.triviaCreate(body).then(function (res) {
         if (!res || !res.ok) { setTriviaStatus((res && res.error) || 'Failed.'); return; }

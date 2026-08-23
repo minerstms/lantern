@@ -100,6 +100,9 @@
       return fetchJson('/api/feed/slideshow?limit=' + (limit || 30));
     },
     getMine: function () { return fetchJson('/api/feed/mine'); },
+    getRevision: function (id) {
+      return fetchJson('/api/feed/revision/' + encodeURIComponent(id));
+    },
     getLockerPersonalFeed: function (params) {
       var q = Object.assign({}, params || {});
       return fetchJson(
