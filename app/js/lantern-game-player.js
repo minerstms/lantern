@@ -188,11 +188,11 @@
     var costLine =
       econ && typeof econ.formatPregameCost === 'function'
         ? econ.formatPregameCost(gameName || (state.gameMeta && state.gameMeta.title) || '')
-        : '1 Nugget = 1 Play';
+        : 'Play cost loading…';
     var needMsg =
       econ && typeof econ.formatInsufficient === 'function'
         ? econ.formatInsufficient(gameName || (state.gameMeta && state.gameMeta.title) || '')
-        : 'You need 1 Nugget to play.';
+        : 'Not enough Nuggets to play.';
     var debit =
       global.LanternGamesPaidStart && typeof global.LanternGamesPaidStart.nuggetDebitRequired === 'function'
         ? global.LanternGamesPaidStart.nuggetDebitRequired(gameName || (state.gameMeta && state.gameMeta.title) || '')
@@ -229,35 +229,45 @@
     }
     var name = gameName || (state.gameMeta && state.gameMeta.title) || '';
     var econ = global.LanternGameEconomy;
-    var line =
-      econ && typeof econ.formatPregameCost === 'function' ? econ.formatPregameCost(name) : '1 Nugget = 1 Play';
-    setPregameCost(line);
-    if (global.LanternWallet && typeof global.LanternWallet.subscribe === 'function') {
-      if (pregameUnsub) {
-        pregameUnsub();
-        pregameUnsub = null;
-      }
-      pregameUnsub = global.LanternWallet.subscribe(function (snap) {
-        applyPregameBalance(name, snap);
-      });
-      if (typeof global.LanternWallet.refreshBalance === 'function') {
-        global.LanternWallet.refreshBalance();
-      }
-      return;
-    }
-    if (!paid || typeof paid.checkAffordable !== 'function') return;
-    paid.checkAffordable(gameName || (state.gameMeta && state.gameMeta.title) || '').then(function (info) {
+    var afterLoad = econ && typeof econ.load === 'function' ? econ.load() : Promise.resolve();
+    Promise.resolve(afterLoad).then(function () {
       if (!state.open || state.phase !== 'pregame') return;
-      if (!info || !info.ok || info.available == null) {
-        setPregameCost(cost + ' Nugget = 1 Play');
+      var line =
+        econ && typeof econ.formatPregameCost === 'function' ? econ.formatPregameCost(name) : 'Play cost loading…';
+      setPregameCost(line);
+      if (global.LanternWallet && typeof global.LanternWallet.subscribe === 'function') {
+        if (pregameUnsub) {
+          pregameUnsub();
+          pregameUnsub = null;
+        }
+        pregameUnsub = global.LanternWallet.subscribe(function (snap) {
+          applyPregameBalance(name, snap);
+        });
+        if (typeof global.LanternWallet.refreshBalance === 'function') {
+          global.LanternWallet.refreshBalance();
+        }
         return;
       }
-      var avail = Number(info.available);
-      setPregameCost(cost + ' Nugget = 1 Play. You currently have ' + avail + ' Nugget' + (avail === 1 ? '' : 's') + '.');
-      if (info.affordable === false) {
-        setPregameStatus('You need 1 Nugget to play.', 'insufficient');
-      }
-    }).catch(function () {});
+      if (!paid || typeof paid.checkAffordable !== 'function') return;
+      paid.checkAffordable(name).then(function (info) {
+        if (!state.open || state.phase !== 'pregame') return;
+        var costLine =
+          econ && typeof econ.formatPregameCost === 'function' ? econ.formatPregameCost(name) : 'Play cost loading…';
+        var needMsg =
+          econ && typeof econ.formatInsufficient === 'function' ? econ.formatInsufficient(name) : 'Not enough Nuggets to play.';
+        if (!info || !info.ok || info.available == null) {
+          setPregameCost(costLine);
+          return;
+        }
+        var avail = Number(info.available);
+        setPregameCost(
+          costLine + '. You currently have ' + avail + ' Nugget' + (avail === 1 ? '' : 's') + '.'
+        );
+        if (info.affordable === false) {
+          setPregameStatus(needMsg, 'insufficient');
+        }
+      }).catch(function () {});
+    });
   }
 
   function setPregameVisible(show) {
@@ -423,7 +433,12 @@
     var err = String(detail.error || '').trim();
     var available = detail.available;
     if (err === 'insufficient') {
-      var msg = 'You need 1 Nugget to play.';
+      var econ = global.LanternGameEconomy;
+      var gameName = state.gameMeta && (state.gameMeta.title || (state.gameMeta.game && state.gameMeta.game.name)) || '';
+      var msg =
+        econ && typeof econ.formatInsufficient === 'function'
+          ? econ.formatInsufficient(gameName)
+          : 'Not enough Nuggets to play.';
       if (available != null && Number.isFinite(Number(available))) {
         msg += ' You currently have ' + Number(available) + ' Nugget' + (Number(available) === 1 ? '' : 's') + '.';
       }

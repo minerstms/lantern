@@ -260,14 +260,14 @@
     if (global.LanternGameEconomy && typeof global.LanternGameEconomy.formatCardMeta === 'function') {
       return global.LanternGameEconomy.formatCardMeta(gameOrId);
     }
-    return '1 Nugget = 1 Play';
+    return 'Play cost loading…';
   }
 
   function playActionLabel(gameOrId) {
     if (global.LanternGameEconomy && typeof global.LanternGameEconomy.formatPlayAction === 'function') {
       return global.LanternGameEconomy.formatPlayAction(gameOrId);
     }
-    return 'Play for 1 Nugget';
+    return 'Play for Nuggets';
   }
 
   /** Canonical artwork URL for cards + selected-game hero (same field). */

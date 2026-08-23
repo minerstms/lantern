@@ -2618,23 +2618,34 @@
           runState = null;
           var avail = AM.modeAvailability(characters.length);
           setScore(avail.eligibleCount + ' eligible');
-          var html = '<div class="avatarMatchShell avatarMatchModeShell">';
-          html += '<p class="avatarMatchPrompt">Choose a game length</p>';
-          html += '<p class="avatarMatchModeHint">1 Nugget = 1 Play. Learn student and staff names. No Nugget rewards.</p>';
-          html += '<div class="avatarMatchModeGrid">';
-          avail.modes.forEach(function(mode){
-            var reason = AM.disabledReason(mode, avail.eligibleCount);
-            html += '<button type="button" class="avatarMatchModeBtn' + (mode.enabled ? '' : ' is-disabled') + '" data-mode="' + esc(mode.id) + '"' + (mode.enabled ? '' : ' disabled aria-disabled="true"') + '>';
-            html += '<span class="avatarMatchModeTitle">' + esc(mode.id === 'full' ? 'Full Roster' : mode.label) + '</span>';
-            if (mode.id === 'full') html += '<span class="avatarMatchModeMeta">' + esc(String(mode.questions)) + ' Questions</span>';
-            if (!mode.enabled) html += '<span class="avatarMatchModeWhy">' + esc(reason) + '</span>';
-            html += '</button>';
-          });
-          html += '</div></div>';
-          gameBody.innerHTML = html;
-          gameBody.querySelectorAll('.avatarMatchModeBtn:not([disabled])').forEach(function(btn){
-            btn.addEventListener('click', function(){ confirmMode(btn.getAttribute('data-mode')); });
-          });
+          var render = function () {
+            var html = '<div class="avatarMatchShell avatarMatchModeShell">';
+            html += '<p class="avatarMatchPrompt">Choose a game length</p>';
+            var amCost =
+              window.LanternGameEconomy && typeof window.LanternGameEconomy.formatPregameCost === 'function'
+                ? window.LanternGameEconomy.formatPregameCost('avatar-match')
+                : 'Play cost loading…';
+            html += '<p class="avatarMatchModeHint">' + esc(amCost) + '. Learn student and staff names. No Nugget rewards.</p>';
+            html += '<div class="avatarMatchModeGrid">';
+            avail.modes.forEach(function(mode){
+              var reason = AM.disabledReason(mode, avail.eligibleCount);
+              html += '<button type="button" class="avatarMatchModeBtn' + (mode.enabled ? '' : ' is-disabled') + '" data-mode="' + esc(mode.id) + '"' + (mode.enabled ? '' : ' disabled aria-disabled="true"') + '>';
+              html += '<span class="avatarMatchModeTitle">' + esc(mode.id === 'full' ? 'Full Roster' : mode.label) + '</span>';
+              if (mode.id === 'full') html += '<span class="avatarMatchModeMeta">' + esc(String(mode.questions)) + ' Questions</span>';
+              if (!mode.enabled) html += '<span class="avatarMatchModeWhy">' + esc(reason) + '</span>';
+              html += '</button>';
+            });
+            html += '</div></div>';
+            gameBody.innerHTML = html;
+            gameBody.querySelectorAll('.avatarMatchModeBtn:not([disabled])').forEach(function(btn){
+              btn.addEventListener('click', function(){ confirmMode(btn.getAttribute('data-mode')); });
+            });
+          };
+          var loadEcon =
+            window.LanternGameEconomy && typeof window.LanternGameEconomy.load === 'function'
+              ? window.LanternGameEconomy.load()
+              : Promise.resolve();
+          Promise.resolve(loadEcon).then(render);
         }
         function confirmMode(modeId){
           var avail = AM.modeAvailability(characters.length);
