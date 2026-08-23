@@ -90,11 +90,9 @@ function makeMissionDb(initialMissions) {
           return null;
         },
         async all() {
-          if (s.includes("FROM lantern_missions") && s.includes("LIKE 'perm_%'")) {
+          if (s.includes('FROM lantern_missions') && s.includes('school_mission')) {
             return {
-              results: Object.values(missions)
-                .filter((m) => String(m.id).startsWith('perm_'))
-                .sort((a, b) => String(a.title).localeCompare(String(b.title))),
+              results: Object.values(missions).filter((m) => String(m.audience || 'school_mission') === 'school_mission' || !m.audience),
             };
           }
           return { results: [] };

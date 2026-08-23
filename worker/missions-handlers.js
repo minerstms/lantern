@@ -41,6 +41,8 @@ import {
   formatMissionStudentPreview,
   validateOrdinaryMissionMinCharacters,
 } from './mission-reward-bands.js';
+import { classifyMissionEvidenceKind } from './global-mission-eligibility.js';
+import { registryForMissionId } from './activity-admin.js';
 import {
   WAVE2_MISSION_IDS,
   claimDailyCheckInForCharacter,
@@ -1009,8 +1011,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     }
     if (body.min_characters !== undefined) {
       const rowFull = await loadFullMission(db, id);
-      const kind = (rowFull && rowFull.submission_type) === 'confirmation' ? 'event' : 'submission';
-      const minValidated = validateOrdinaryMissionMinCharacters(body.min_characters, kind);
+      const reg = registryForMissionId(id);
+      const evidenceKind = classifyMissionEvidenceKind(rowFull, reg ? reg.kind : null);
+      const minValidated = validateOrdinaryMissionMinCharacters(body.min_characters, evidenceKind);
       if (!minValidated.ok) {
         return jsonResponse(minValidated, 400, cors);
       }

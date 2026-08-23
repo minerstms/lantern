@@ -32,10 +32,10 @@ export function clampMissionRewardAmount(raw, opts) {
   return n;
 }
 
-/** Ordinary authored/submission missions require min_characters > 0 on create/edit. */
-export function validateOrdinaryMissionMinCharacters(minCharacters, missionKind) {
-  const kind = String(missionKind || 'submission').trim();
-  if (kind === 'event' || kind === 'trivia' || kind === 'progressive') {
+/** Submission missions require min_characters > 0 on create/edit. Verified-activity missions exempt. */
+export function validateOrdinaryMissionMinCharacters(minCharacters, missionKindOrEvidence) {
+  const k = String(missionKindOrEvidence || 'submission').trim();
+  if (k === 'verified_activity' || k === 'event' || k === 'trivia' || k === 'progressive') {
     return { ok: true, value: Math.max(0, Math.floor(Number(minCharacters)) || 0) };
   }
   const n = Math.floor(Number(minCharacters));

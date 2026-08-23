@@ -4358,14 +4358,18 @@
         }
         html += '<div class="teacherField" data-activity-mission="' + it.id + '" style="margin-bottom:14px;border:1px solid #2a3544;border-radius:10px;padding:12px;">';
         html += '<strong>' + it.title + '</strong>';
-        html += '<p class="pendingMeta">' + (it.placement === 'game' ? 'Game' : 'Mission') + ' · ' + (it.active ? 'Active' : 'Inactive') + (it.kind === 'trivia' ? ' · Trivia' : '') + '</p>';
+        html += '<p class="pendingMeta">Mission · ' + (it.provenance && it.provenance.label ? it.provenance.label : 'Global') + ' · ' + (it.active ? 'Active' : 'Inactive') + (it.evidence_kind === 'verified_activity' ? ' · Verified activity' : '') + '</p>';
         html += '<label><input type="checkbox" data-field="active"' + (it.active ? ' checked' : '') + ' /> Active</label>';
-        html += '<div style="margin-top:8px;"><label>Minimum response</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">';
-        [100, 200, 500, 1000].forEach(function (p) {
-          html += '<button type="button" class="btn" data-min-preset="' + p + '">' + p + '</button>';
-        });
-        html += '<input type="number" class="teacherInput teacherInput--sm" data-field="min_characters" min="1" max="10000" value="' + (it.min_characters || 100) + '" style="width:100px;" /></div>';
-        html += '<div data-char-example-mount="' + it.id + '"></div></div>';
+        if (it.evidence_kind === 'verified_activity') {
+          html += '<p class="teacherFieldHint" style="margin-top:8px;">Verified activity — completion uses server/game evidence, not a writing minimum.</p>';
+        } else {
+          html += '<div style="margin-top:8px;"><label>Minimum response</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">';
+          [100, 200, 500, 1000].forEach(function (p) {
+            html += '<button type="button" class="btn" data-min-preset="' + p + '">' + p + '</button>';
+          });
+          html += '<input type="number" class="teacherInput teacherInput--sm" data-field="min_characters" min="1" max="10000" value="' + (it.min_characters || 100) + '" style="width:100px;" /></div>';
+          html += '<div data-char-example-mount="' + it.id + '"></div></div>';
+        }
         html += '<label style="display:block;margin-top:8px;"><input type="checkbox" data-field="require_image"' + (it.require_image ? ' checked' : '') + ' /> Require Image</label>';
         html += '<div style="margin-top:8px;"><label>Suggested reward</label><span class="pendingMeta" data-suggested-reward>' + (it.suggested_reward || 1) + ' Nugget</span></div>';
         html += '<div style="margin-top:8px;max-width:160px;"><label>Completion reward</label><input type="number" class="teacherInput teacherInput--sm" data-field="reward_amount" min="1" max="10" value="' + (it.reward_amount || 1) + '" /></div>';
@@ -4426,10 +4430,11 @@
       if (!wrap) return;
       var body = {
         active: !!(wrap.querySelector('[data-field="active"]') && wrap.querySelector('[data-field="active"]').checked),
-        min_characters: Number(wrap.querySelector('[data-field="min_characters"]').value),
         require_image: !!(wrap.querySelector('[data-field="require_image"]') && wrap.querySelector('[data-field="require_image"]').checked),
         reward_amount: Number(wrap.querySelector('[data-field="reward_amount"]').value),
       };
+      var minInput = wrap.querySelector('[data-field="min_characters"]');
+      if (minInput) body.min_characters = Number(minInput.value);
       patchAdminJson('/api/admin/activities/mission/' + encodeURIComponent(id), body).then(function (res) {
         if (res && res.body && res.body.ok) {
           showLanternActivitiesMsg('Saved ' + id + '.', '');

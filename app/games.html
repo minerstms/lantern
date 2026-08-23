@@ -2242,8 +2242,8 @@
         if (resultScore) resultScore.textContent = String(score) + ' pts';
         if (resultMsg) {
           resultMsg.textContent = won
-            ? ('You reached ' + floors + ' floors. +1 Nugget!')
-            : ('Stacked ' + floors + ' floor' + (floors === 1 ? '' : 's') + '. Reach ' + QUALIFYING_FLOORS + ' floors to earn +1 Nugget.');
+            ? ('You reached ' + floors + ' floors. Qualifying win recorded!')
+            : ('Stacked ' + floors + ' floor' + (floors === 1 ? '' : 's') + '. Reach ' + QUALIFYING_FLOORS + ' floors for a qualifying win.');
         }
         if (resultEl) {
           resultEl.hidden = false;

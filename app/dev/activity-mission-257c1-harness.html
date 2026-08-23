@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#257C1 Activity Mission harness</title>
+  <link rel="stylesheet" href="../css/lantern-character-example.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; max-width: 720px; line-height: 1.4; }
+    .card { border: 1px solid #2a3544; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .meta { color: #8899aa; font-size: 14px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .btn { font-size: 16px; padding: 8px 12px; cursor: pointer; }
+    input[type="number"] { font-size: 16px; padding: 6px; width: 100px; }
+    #harnessOverflowProbe { width: 200vw; height: 1px; position: absolute; left: -9999px; }
+  </style>
+</head>
+<body>
+  <h1>Lantern Activities #257C1 harness</h1>
+  <div id="harnessOverflowProbe"></div>
+  <div id="adminList"></div>
+  <div class="card" id="studentCopyCard">
+    <h2 id="studentMissionTitle">Mission</h2>
+    <p class="meta" id="studentMissionMeta"></p>
+    <div id="studentExampleMount"></div>
+    <label>Write <textarea id="studentText" rows="4" style="width:100%;font-size:18px;"></textarea></label>
+    <p class="meta" id="studentCounter"></p>
+  </div>
+  <script src="../js/lantern-mission-copy.js"></script>
+  <script src="../js/lantern-character-example.js"></script>
+  <script>
+    window.__HARNESS_MISSIONS__ = [
+      { id: 'perm_thank_you', title: 'Thank a Teacher', provenance: { label: 'System / Global' }, evidence_kind: 'verified_activity', active: true, min_characters: 100, require_image: false, reward_amount: 3, student_preview: '100+ characters · +3 Nuggets' },
+      { id: 'tmission_stem', title: 'STEM Today', provenance: { label: 'Created by Mr. Radle' }, evidence_kind: 'submission', active: true, min_characters: 500, require_image: true, reward_amount: 5, student_preview: '📷 Image required · 500+ characters · +5 Nuggets' },
+      { id: 'tmission_long', title: 'Long Form', provenance: { label: 'Created by Mr. Radle' }, evidence_kind: 'submission', active: true, min_characters: 1000, require_image: false, reward_amount: 10, student_preview: '1000+ characters · +10 Nuggets' },
+      { id: 'tmission_200', title: 'Reflection 200', provenance: { label: 'Created by Teacher' }, evidence_kind: 'submission', active: true, min_characters: 200, require_image: false, reward_amount: 2, student_preview: '200+ characters · +2 Nuggets' }
+    ];
+
+    function renderAdmin() {
+      var host = document.getElementById('adminList');
+      var html = '';
+      window.__HARNESS_MISSIONS__.forEach(function (it) {
+        html += '<div class="card" data-mission-id="' + it.id + '">';
+        html += '<strong>' + it.title + '</strong>';
+        html += '<p class="meta">Mission · ' + it.provenance.label + ' · Active</p>';
+        if (it.evidence_kind !== 'verified_activity') {
+          html += '<div class="row">';
+          [100, 200, 500, 1000].forEach(function (p) {
+            html += '<button type="button" class="btn" data-preset="' + p + '">' + p + '</button>';
+          });
+          html += '<input type="number" data-min value="' + it.min_characters + '" min="1" /></div>';
+          html += '<div data-example-mount="' + it.id + '"></div>';
+        }
+        html += '<p class="meta" data-preview>' + it.student_preview + '</p></div>';
+      });
+      host.innerHTML = html;
+      host.querySelectorAll('[data-example-mount]').forEach(function (mount) {
+        var card = mount.closest('.card');
+        window.LanternCharacterExample.wireExampleLink(mount, function () {
+          return Number(card.querySelector('[data-min]').value) || 100;
+        });
+      });
+    }
+
+    function showStudent(m) {
+      document.getElementById('studentMissionTitle').textContent = m.title;
+      document.getElementById('studentMissionMeta').textContent = window.LanternMissionCopy.formatMissionStudentCopy(m);
+      var mount = document.getElementById('studentExampleMount');
+      mount.innerHTML = '';
+      if (m.evidence_kind === 'submission' && m.min_characters > 0) {
+        window.LanternCharacterExample.wireExampleLink(mount, function () { return m.min_characters; });
+      }
+      window.__HARNESS_ACTIVE__ = m;
+      updateCounter();
+    }
+
+    function updateCounter() {
+      var m = window.__HARNESS_ACTIVE__;
+      if (!m || m.evidence_kind === 'verified_activity') return;
+      var len = (document.getElementById('studentText').value || '').trim().length;
+      var st = window.LanternCharacterExample.counterState(len, m.min_characters);
+      document.getElementById('studentCounter').textContent = st.label + ' · ' + st.needLabel;
+    }
+    document.getElementById('studentText').addEventListener('input', updateCounter);
+    renderAdmin();
+    showStudent(window.__HARNESS_MISSIONS__.find(function (m) { return m.min_characters === 200; }));
+    window.__HARNESS_READY__ = true;
+    window.__HARNESS_HAS_STEM__ = window.__HARNESS_MISSIONS__.some(function (m) { return m.title === 'STEM Today'; });
+    window.__HARNESS_OVERFLOW__ = document.documentElement.scrollWidth > window.innerWidth + 2;
+  </script>
+</body>
+</html>
