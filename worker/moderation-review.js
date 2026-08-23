@@ -705,10 +705,12 @@ async function performApprove(db, account, itemType, itemId, now, deps) {
     if (deps && typeof deps.finalizePollContributionPublish === 'function') {
       const pub = await deps.finalizePollContributionPublish(db, (deps.origin || ''), row, { now, reviewedBy: staffName });
       if (!pub.ok) return { ok: false, error: pub.error || 'poll_publish_failed', code: 503 };
+      if (pub.pollId) await clearReportHideIfPresent(db, 'poll', pub.pollId);
     } else {
       try {
         const pub = await finalizePollContributionPublish(db, (deps && deps.origin) || '', row, { now, reviewedBy: staffName });
         if (pub && pub.ok === false) return { ok: false, error: pub.error || 'poll_publish_failed', code: 503 };
+        if (pub && pub.pollId) await clearReportHideIfPresent(db, 'poll', pub.pollId);
       } catch (_) {
         await db
           .prepare('UPDATE lantern_poll_contributions SET status = ?, reviewed_at = ?, reviewed_by = ?, decision_note = ? WHERE id = ?')
