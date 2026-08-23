@@ -11,8 +11,15 @@ import {
   FEATURE_MAX,
   normalizeLockerItemRef,
 } from '../locker-item-state.js';
-import { lockerPublicKeyFromDurableKey, normalizeLockerPublicKey } from '../locker-public-key.js';
+import {
+  attachLockerPublicKeys,
+  generateLockerPublicKey,
+  getOrCreateLockerPublicKey,
+  normalizeLockerPublicKey,
+  readLockerPublicKey,
+} from '../locker-public-key.js';
 import { countStudentRevisions } from '../moderation-review.js';
+import { createHash } from 'node:crypto';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -37,9 +44,21 @@ function read(rel) {
 
 const migration = read('worker/migrations/078_lantern_locker_item_state.sql');
 assert(/CREATE TABLE IF NOT EXISTS lantern_locker_item_state/.test(migration), '078 creates locker item state');
+assert(/CREATE TABLE IF NOT EXISTS lantern_locker_public_keys/.test(migration), '078 creates random public-key table');
+assert(/public_key TEXT NOT NULL UNIQUE/.test(migration), '078 public_key is UNIQUE');
+assert(!fs.existsSync(path.join(root, 'worker/migrations/079_lantern_locker_public_keys.sql')), 'does not add migration 079');
 assert(/owner_archived_at/.test(migration) && /featured/.test(migration), '078 has feature + archive columns');
 assert(!/ADD COLUMN hidden_at/.test(migration) && /Does not alter hidden_at/.test(migration), '078 does not add hidden_at');
 assert(/DO NOT apply/.test(migration) && /wrangler d1 migrations apply/.test(migration), '078 says do not apply');
+
+const pubKeySrc = read('worker/locker-public-key.js');
+assert(/getOrCreateLockerPublicKey/.test(pubKeySrc) && /getRandomValues/.test(pubKeySrc), 'random getOrCreate helper');
+assert(/isUniqueConstraint\(err, 'public_key'\)/.test(pubKeySrc), 'retries on public_key collision');
+assert(!/sha256|subtle\.digest|lantern-locker-v1|Math\.random/.test(pubKeySrc), 'deterministic hash derivation removed');
+assert(/getOrCreateLockerPublicKey/.test(read('worker/locker-handlers.js')), 'owner locker/me provisions persisted key');
+assert(!/lockerPublicKeyFromDurableKey/.test(read('worker/locker-handlers.js') + read('worker/locker-showcase.js') + pubKeySrc), 'no durable-key hash callers');
+assert(/isEligibleStudentAuthor/.test(read('app/js/lantern-locker-org.js')) && /item\.lockerPublicKey/.test(read('app/js/lantern-locker-org.js')), 'Explore links only when persisted lockerPublicKey exists');
+assert(!/sha256|lantern-locker-v1|lockerPublicKeyFromDurableKey/.test(read('app/js/lantern-locker-org.js') + read('app/js/lantern-feed-card.js')), 'client never derives Locker public key');
 
 const itemStateSrc = read('worker/locker-item-state.js');
 assert(/pending_not_archivable/.test(itemStateSrc), 'pending cannot be archived');
@@ -87,6 +106,7 @@ function makeDb(state) {
   state.events = state.events || [];
   state.accounts = state.accounts || [];
   state.cosmeticOwnership = state.cosmeticOwnership || {};
+  state.publicKeys = state.publicKeys || [];
 
   function matches(sql, table) {
     return String(sql).includes(table);
@@ -156,6 +176,12 @@ function makeDb(state) {
           if (s.includes('FROM lantern_cosmetic_ownership')) {
             return state.cosmeticOwnership[binds[0]] || { owned: '[]', equipped: '{}' };
           }
+          if (s.includes('FROM lantern_locker_public_keys') && s.includes('public_key = ?')) {
+            return state.publicKeys.find((r) => r.public_key === binds[0]) || null;
+          }
+          if (s.includes('FROM lantern_locker_public_keys') && s.includes('character_name = ?')) {
+            return state.publicKeys.find((r) => r.character_name === binds[0]) || null;
+          }
           return null;
         },
         async all() {
@@ -167,6 +193,9 @@ function makeDb(state) {
           }
           if (s.includes('FROM lantern_locker_item_state')) {
             return { results: state.itemState.filter((r) => r.character_name === binds[0]) };
+          }
+          if (s.includes('FROM lantern_locker_public_keys')) {
+            return { results: state.publicKeys.slice() };
           }
           if (s.includes('FROM lantern_pilot_accounts') && s.includes('student')) {
             return { results: state.accounts.filter((a) => String(a.role).toLowerCase() === 'student') };
@@ -190,6 +219,17 @@ function makeDb(state) {
             );
             if (idx >= 0) state.itemState[idx] = row;
             else state.itemState.push(row);
+            return { success: true };
+          }
+          if (s.includes('INSERT INTO lantern_locker_public_keys')) {
+            const row = { character_name: binds[0], public_key: binds[1], created_at: binds[2] };
+            if (state.publicKeys.some((r) => r.character_name === row.character_name)) {
+              throw new Error('UNIQUE constraint failed: lantern_locker_public_keys.character_name');
+            }
+            if (state.publicKeys.some((r) => r.public_key === row.public_key)) {
+              throw new Error('UNIQUE constraint failed: lantern_locker_public_keys.public_key');
+            }
+            state.publicKeys.push(row);
             return { success: true };
           }
           if (s.includes('INSERT INTO lantern_moderation_events')) {
@@ -235,10 +275,37 @@ const deps = {
   pilotAccountRequiresChangePassword: () => false,
 };
 
+function legacyDeterministicHash(id) {
+  return createHash('sha256')
+    .update('lantern-locker-v1:' + id, 'utf8')
+    .digest('hex')
+    .slice(0, 32);
+}
+
 {
-  const pub = await lockerPublicKeyFromDurableKey('SID-999');
-  assert(normalizeLockerPublicKey(pub) === pub, 'public key is 32 hex');
-  assert(pub !== 'SID-999' && pub !== 'lucas', 'public key is not login or student id');
+  const a = generateLockerPublicKey();
+  const b = generateLockerPublicKey();
+  assert(normalizeLockerPublicKey(a) === a && a.length === 32, 'generated key is 32 hex');
+  assert(a !== b, 'two generated keys differ');
+  assert(a !== 'SID-999' && a !== 'lucas', 'generated key is not student id/login');
+}
+
+{
+  const db = makeDb({ accounts: [OWNER, PEER] });
+  const first = await getOrCreateLockerPublicKey(db, 'SID-999');
+  const second = await getOrCreateLockerPublicKey(db, 'SID-999');
+  const peer = await getOrCreateLockerPublicKey(db, 'SID-111');
+  assert(first && first === second, 'same owner key persists');
+  assert(peer && peer !== first, 'two students get different random keys');
+  assert(first !== 'SID-999' && first !== 'lucas' && first !== 'Lucas', 'persisted key is not student id/login');
+  assert(
+    first !== legacyDeterministicHash('SID-999') &&
+      first !== legacyDeterministicHash('lucas') &&
+      first !== legacyDeterministicHash('Lucas'),
+    'public key is not a deterministic hash of owner identifier'
+  );
+  const again = await readLockerPublicKey(db, 'SID-999');
+  assert(again === first, 'read matches persisted key');
 }
 
 {
@@ -295,7 +362,32 @@ const deps = {
 }
 
 {
-  const pub = await lockerPublicKeyFromDurableKey('SID-999');
+  const db = makeDb({
+    news: [{ id: 'n1', title: 'Hello', status: 'approved', author_name: 'Lucas', actor_id: 'lucas' }],
+    accounts: [OWNER, PEER],
+  });
+  const choose = await handleLockerRoutes(
+    new Request('https://lantern.test/api/locker/item-state', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'feature',
+        item_type: 'news',
+        item_id: 'n1',
+        locker_public_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      }),
+    }),
+    new URL('https://lantern.test/api/locker/item-state'),
+    '/api/locker/item-state',
+    { DB: db },
+    {},
+    deps
+  );
+  const chooseBody = await choose.json();
+  assert(chooseBody.error === 'identity_params_not_allowed', 'client cannot choose locker_public_key');
+}
+
+{
   const db = makeDb({
     accounts: [OWNER, PEER],
     news: [
@@ -306,18 +398,60 @@ const deps = {
       'SID-999': { owned_json: JSON.stringify(['bg_stars']), equipped_json: JSON.stringify({ background: 'bg_stars' }) },
     },
   });
+  const pub = await getOrCreateLockerPublicKey(db, 'SID-999');
   const peerDeps = { ...deps, getPilotAccountFromRequest: async () => PEER };
   const req = new Request('https://lantern.test/api/locker/showcase/' + pub, { method: 'GET' });
   const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/showcase/' + pub, { DB: db }, {}, peerDeps);
   const body = await res.json();
-  assert(body.ok === false || body.items, 'showcase route responds for peer');
-  if (body.ok) {
-    assert(!body.profile || body.profile.bio == null, 'showcase omits bio');
-    assert(!body.wallet && !body.owned_items && !body.purchases, 'showcase omits economy');
-    assert(body.equipped && body.equipped.background === 'bg_stars', 'showcase exposes equipped tokens only');
-    const ids = (body.items || []).map((it) => it.id);
-    assert(ids.indexOf('n-hid') < 0, 'hidden never in showcase');
-  }
+  assert(body.ok, 'showcase resolves persisted random key');
+  assert(body.locker_public_key === pub, 'showcase returns persisted key');
+  const dumped = JSON.stringify(body);
+  assert(dumped.indexOf('SID-999') < 0, 'peer payload omits raw student id');
+  assert(!body.identity || (!body.identity.username && !body.identity.mtss_student_id), 'peer identity omits username and student id');
+  assert(!body.account, 'peer payload omits account login object');
+  assert(!body.profile || body.profile.bio == null, 'showcase omits bio');
+  assert(!body.wallet && !body.owned_items && !body.purchases, 'showcase omits economy');
+  assert(body.equipped && body.equipped.background === 'bg_stars', 'showcase exposes equipped tokens only');
+  const ids = (body.items || []).map((it) => it.id);
+  assert(ids.indexOf('n-hid') < 0, 'hidden never in showcase');
+
+  const unknown = await handleLockerRoutes(
+    new Request('https://lantern.test/api/locker/showcase/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', { method: 'GET' }),
+    new URL('https://lantern.test/api/locker/showcase/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+    '/api/locker/showcase/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    { DB: db },
+    {},
+    peerDeps
+  );
+  const unknownBody = await unknown.json();
+  assert(unknown.status === 404 && unknownBody.error === 'not_found', 'unknown random key → 404');
+  assert(JSON.stringify(unknownBody).indexOf('SID-999') < 0, '404 does not reveal student id');
+
+  const hashGuess = await handleLockerRoutes(
+    new Request('https://lantern.test/api/locker/showcase/SID-999', { method: 'GET' }),
+    new URL('https://lantern.test/api/locker/showcase/SID-999'),
+    '/api/locker/showcase/SID-999',
+    { DB: db },
+    {},
+    peerDeps
+  );
+  assert(hashGuess.status === 400 || hashGuess.status === 404, 'raw student id is not a valid showcase key');
+}
+
+{
+  const emptyIndex = { byDurable: {}, byPublic: {} };
+  const items = [{ type: 'news', authorRole: 'student', authorAvatarKey: 'SID-999', authorId: 'lucas' }];
+  attachLockerPublicKeys(items, emptyIndex);
+  assert(!items[0].lockerPublicKey, 'Explore omits Locker link when no persisted key');
+  const hashed = legacyDeterministicHash('SID-999');
+  assert(items[0].lockerPublicKey !== hashed && items[0].authorAvatarKey === 'SID-999', 'missing key never falls back to hash or raw id as lockerPublicKey');
+  const db = makeDb({ accounts: [OWNER] });
+  const pub = await getOrCreateLockerPublicKey(db, 'SID-999');
+  attachLockerPublicKeys(items, {
+    byDurable: { 'sid-999': { publicKey: pub }, lucas: { publicKey: pub } },
+    byPublic: { [pub]: { publicKey: pub } },
+  });
+  assert(items[0].lockerPublicKey === pub, 'Explore links only with persisted key');
 }
 
 {

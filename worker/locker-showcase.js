@@ -20,10 +20,7 @@ import {
   listLockerItemStatesForOwner,
   normalizeLockerItemRef,
 } from './locker-item-state.js';
-import {
-  lockerPublicKeyFromDurableKey,
-  resolveLockerPublicKey,
-} from './locker-public-key.js';
+import { resolveLockerPublicKey } from './locker-public-key.js';
 
 function trimStr(v) {
   return v == null ? '' : String(v).trim();
@@ -144,7 +141,7 @@ export async function buildLockerShowcase(db, origin, publicKey, viewerAccount, 
   return {
     ok: true,
     viewer_is_owner: viewerIsOwner,
-    locker_public_key: hit.publicKey || (await lockerPublicKeyFromDurableKey(durable)),
+    locker_public_key: hit.publicKey || null,
     identity: {
       display_name: displayName,
       role: 'student',

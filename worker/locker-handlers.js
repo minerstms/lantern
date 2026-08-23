@@ -32,7 +32,7 @@ import {
   LockerItemStateSchemaError,
   ownerItemTypeFromSubmission,
 } from './locker-item-state.js';
-import { lockerPublicKeyFromDurableKey } from './locker-public-key.js';
+import { getOrCreateLockerPublicKey } from './locker-public-key.js';
 import { buildLockerShowcase } from './locker-showcase.js';
 import { recordEventForAccount } from './moderation-review.js';
 
@@ -45,6 +45,8 @@ const LOCKER_FORBIDDEN_QUERY_PARAMS = [
   'author_name',
   'target',
   'simStudent',
+  'public_key',
+  'locker_public_key',
 ];
 
 const LOCKER_FORBIDDEN_BODY_IDENTITY_KEYS = [
@@ -58,6 +60,8 @@ const LOCKER_FORBIDDEN_BODY_IDENTITY_KEYS = [
   'display_name',
   'author_name',
   'target',
+  'public_key',
+  'locker_public_key',
 ];
 
 /** Structured category: distinguishes empty real data vs unsupported storage. */
@@ -579,7 +583,7 @@ export async function buildLockerMeResponse(account, env, origin) {
     economyKey ? fetchAchievementRows(db, economyKey) : Promise.resolve([]),
     economyKey ? fetchCosmeticOwnershipRow(db, economyKey) : Promise.resolve({ owned: [], equipped: {} }),
     economyKey ? listLockerItemStatesForOwner(db, economyKey) : Promise.resolve([]),
-    role === 'student' && avatarKey ? lockerPublicKeyFromDurableKey(avatarKey) : Promise.resolve(''),
+    role === 'student' && avatarKey ? getOrCreateLockerPublicKey(db, avatarKey) : Promise.resolve(''),
   ]);
 
   const profile = {

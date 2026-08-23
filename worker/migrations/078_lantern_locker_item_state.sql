@@ -25,3 +25,11 @@ CREATE INDEX IF NOT EXISTS idx_lantern_locker_item_state_owner_archived
 
 CREATE INDEX IF NOT EXISTS idx_lantern_locker_item_state_featured
   ON lantern_locker_item_state (character_name, featured, featured_sort);
+
+-- Prompt #252A1 — random opaque peer-Locker routing key.
+-- Not derived from student id / username / character_name / any identity value.
+CREATE TABLE IF NOT EXISTS lantern_locker_public_keys (
+  character_name TEXT PRIMARY KEY,
+  public_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
