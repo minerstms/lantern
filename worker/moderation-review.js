@@ -26,12 +26,14 @@ import {
 import {
   isReportQuarantineLabel,
   normalizeReportItemType,
+  quarantineReportedContent,
+  reportQuarantineAuditLabel,
   restoreReportCreatedHide,
   clearReportHideIfPresent,
 } from './content-report-quarantine.js';
 import { isAdminRole, isTeacherLike, sessionTeacherId, teacherOwnsMission, reviewerLabelFromAccount } from './missions-auth.js';
 import { canManageLanternAvatars } from './avatar-media-gate.js';
-import { finalizePollContributionPublish } from './poll-publish.js';
+import { finalizePollContributionPublish, parsePollChoices, resolvePollContributionIdFromLivePoll } from './poll-publish.js';
 import { resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import { archivedRefSet, isOwnerArchivedRef, listArchivedLockerRefs } from './locker-item-state.js';
 
@@ -47,7 +49,7 @@ const REVISION_CAPABLE = Object.freeze({
   mission_submission: true,
   feed_item: true,
   avatar: false,
-  poll: false,
+  poll: true,
 });
 
 const STUDENT_HISTORY_EVENT_TYPES = Object.freeze([
@@ -89,10 +91,10 @@ export function studentIdentityKeys(account, deps) {
 }
 
 export function queueItemKey(itemType, itemId) {
-  return canonicalItemType(itemType) + ':' + String(itemId || '').trim();
+  return flagCanonicalType(itemType) + ':' + String(itemId || '').trim();
 }
 
-function flagCanonicalType(raw) {
+export function flagCanonicalType(raw) {
   const norm = normalizeReportItemType(raw);
   if (norm) {
     if (norm.canonical === 'poll') return 'poll';
@@ -102,9 +104,9 @@ function flagCanonicalType(raw) {
 }
 
 function hideKindForItemType(itemType) {
-  const t = canonicalItemType(itemType);
+  const t = flagCanonicalType(itemType);
   if (t === 'news') return 'news';
-  if (t === 'poll' || t === 'poll_contribution') return t === 'poll_contribution' ? null : 'poll';
+  if (t === 'poll') return 'poll';
   if (t === 'mission_submission') return 'mission';
   if (t === 'feed_item') return 'feed';
   const norm = normalizeReportItemType(itemType);
@@ -206,6 +208,11 @@ export async function resolveOpenFlags(db, itemType, itemId, resolution, actor, 
   storedTypes.push(canon);
   const norm = normalizeReportItemType(itemType);
   if (norm && storedTypes.indexOf(norm.canonical) < 0) storedTypes.push(norm.canonical);
+  // Legacy queue sent poll_contribution for live poll ids; flags remain item_type poll.
+  if (canon === 'poll_contribution' || canon === 'poll') {
+    if (storedTypes.indexOf('poll') < 0) storedTypes.push('poll');
+    if (storedTypes.indexOf('poll_contribution') < 0) storedTypes.push('poll_contribution');
+  }
   const resolvedBy = (actor && (actor.actor_key || actor.actor_label)) || '';
   try {
     for (let i = 0; i < storedTypes.length; i++) {
@@ -287,12 +294,24 @@ async function attachTitles(db, card) {
         card.status = row.status || card.status;
       }
     } else if (t === 'poll') {
-      const row = await db.prepare('SELECT question, hidden_at, hidden_by FROM lantern_polls WHERE id = ?').bind(id).first();
+      const row = await db
+        .prepare(
+          'SELECT question, hidden_at, hidden_by, character_name, created_by_character, choices_json, image_url, mission_submission_id FROM lantern_polls WHERE id = ?'
+        )
+        .bind(id)
+        .first();
       if (row) {
         card.title = row.question || card.title;
+        card.submitter = row.character_name || row.created_by_character || card.submitter;
         card.hidden_at = row.hidden_at || null;
         card.hidden_by = row.hidden_by || null;
+        card.poll_choices = parsePollChoices(row.choices_json);
+        if (row.image_url) card.preview_url = row.image_url;
+        const contribId = await resolvePollContributionIdFromLivePoll(db, id);
+        if (contribId) card.contribution_id = contribId;
       }
+      if (!card.title) card.title = 'Legacy Poll';
+      if (!card.submitter) card.legacy_author_unavailable = true;
     } else if (t === 'mission_submission') {
       const row = await db
         .prepare(
@@ -366,7 +385,7 @@ export async function buildReviewQueue(db, account, opts) {
     if (!cards[key]) {
       cards[key] = {
         queue_key: key,
-        item_type: canonicalItemType(partial.item_type),
+        item_type: flagCanonicalType(partial.item_type),
         item_id: String(partial.item_id),
         queue_state: partial.queue_state || QUEUE_STATES.PENDING_REVIEW,
         status: partial.status || '',
@@ -561,7 +580,7 @@ export async function countStaffReviewItems(db, account) {
 }
 
 async function loadOwnedContent(db, itemType, itemId) {
-  const t = canonicalItemType(itemType);
+  const t = flagCanonicalType(itemType);
   const id = String(itemId || '').trim();
   if (t === 'news') {
     return { type: t, row: await db.prepare('SELECT * FROM lantern_news_submissions WHERE id = ?').bind(id).first() };
@@ -752,11 +771,34 @@ async function performApprove(db, account, itemType, itemId, now, deps) {
 }
 
 async function performReturn(db, account, itemType, itemId, note, now, fromReport) {
-  const t = canonicalItemType(itemType);
+  const t = flagCanonicalType(itemType);
   if (!REVISION_CAPABLE[t]) return { ok: false, error: 'not_revision_capable', code: 400 };
   const staffName = reviewerLabelFromAccount(account);
   const staffId = sessionTeacherId(account);
-  if (t === 'news') {
+  if (t === 'poll') {
+    const contribId = await resolvePollContributionIdFromLivePoll(db, itemId);
+    if (!contribId) return { ok: false, error: 'poll_contribution_link_missing', code: 400 };
+    const returned = await performReturn(db, account, 'poll_contribution', contribId, note, now, fromReport);
+    if (!returned.ok) return returned;
+    const pollRow = await db.prepare('SELECT * FROM lantern_polls WHERE id = ?').bind(itemId).first();
+    if (pollRow && fromReport) {
+      await recordEventForAccount(db, account, {
+        itemType: 'poll',
+        itemId,
+        eventType: 'report_returned',
+        note,
+        snapshot: {
+          content_type: 'poll',
+          title: pollRow.question,
+          status: pollRow.hidden_at ? 'hidden' : 'published',
+        },
+        now,
+      });
+    }
+    return Object.assign({ ok: true, status: 'returned', contribution_id: contribId }, returned);
+  }
+  const canon = canonicalItemType(itemType);
+  if (canon === 'news') {
     const row = await db.prepare('SELECT * FROM lantern_news_submissions WHERE id = ?').bind(itemId).first();
     if (!row) return { ok: false, error: 'Not found', code: 404 };
     await recordEventForAccount(db, account, { itemType: 'news', itemId, eventType: 'returned', note, snapshot: snapshotFromNews(row), now });
@@ -892,12 +934,41 @@ async function openFlagsForItem(db, itemType, itemId) {
   const flags = await loadUnresolvedFlags(db);
   const want = flagCanonicalType(itemType);
   const id = String(itemId || '').trim();
-  return flags.filter((f) => String(f.item_id) === id && flagCanonicalType(f.item_type) === want);
+  return flags.filter((f) => {
+    if (String(f.item_id) !== id) return false;
+    const ft = flagCanonicalType(f.item_type);
+    if (ft === want) return true;
+    if ((want === 'poll_contribution' || want === 'poll') && (ft === 'poll' || ft === 'poll_contribution')) return true;
+    return false;
+  });
+}
+
+async function ensureReportedContentHidden(db, account, itemType, itemId, now) {
+  const hideKind = hideKindForItemType(itemType);
+  if (!hideKind) return { ok: true };
+  const id = String(itemId || '').trim();
+  let alreadyHidden = false;
+  if (hideKind === 'poll') {
+    const row = await db.prepare('SELECT hidden_at FROM lantern_polls WHERE id = ?').bind(id).first();
+    alreadyHidden = !!(row && row.hidden_at && String(row.hidden_at).trim());
+  } else if (hideKind === 'news') {
+    const row = await db.prepare('SELECT hidden_at FROM lantern_news_submissions WHERE id = ?').bind(id).first();
+    alreadyHidden = !!(row && row.hidden_at && String(row.hidden_at).trim());
+  } else if (hideKind === 'mission') {
+    const row = await db.prepare('SELECT hidden_at FROM lantern_mission_submissions WHERE id = ?').bind(id).first();
+    alreadyHidden = !!(row && row.hidden_at && String(row.hidden_at).trim());
+  } else if (hideKind === 'feed') {
+    const row = await db.prepare('SELECT hidden_at, status FROM lantern_feed_items WHERE id = ?').bind(id).first();
+    alreadyHidden = !!(row && ((row.hidden_at && String(row.hidden_at).trim()) || String(row.status || '').toLowerCase() === 'hidden'));
+  }
+  if (alreadyHidden) return { ok: true, already_hidden: true };
+  const audit = reportQuarantineAuditLabel(account);
+  return quarantineReportedContent(db, hideKind, id, audit, now);
 }
 
 export async function performReviewAction(db, account, body, deps) {
   const action = String((body && body.action) || '').trim().toLowerCase();
-  const itemType = canonicalItemType((body && (body.item_type || body.type)) || '');
+  const itemType = flagCanonicalType((body && (body.item_type || body.type)) || '');
   const itemId = String((body && (body.item_id || body.id)) || '').trim();
   const note = clipNote((body && (body.note || body.decision_note || body.reason || body.private_feedback || body.feedback)) || '');
   const now = (body && body.now) || new Date().toISOString();
@@ -919,7 +990,7 @@ export async function performReviewAction(db, account, body, deps) {
   }
   if (action === 'report_dismiss') {
     const flags = await openFlagsForItem(db, itemType, itemId);
-    if (!flags.length) return { ok: false, error: 'no_open_report', code: 404 };
+    if (!flags.length) return { ok: false, error: 'already_resolved', code: 409 };
     const hideKind = hideKindForItemType(itemType);
     if (hideKind) {
       const restored = await restoreReportCreatedHide(db, hideKind, itemId);
@@ -942,7 +1013,9 @@ export async function performReviewAction(db, account, body, deps) {
             ? snapshotFromFeed(loaded.row)
             : itemType === 'mission_submission'
               ? snapshotFromMission(loaded.row)
-              : null
+              : itemType === 'poll'
+                ? { content_type: 'poll', title: loaded.row.question }
+                : null
         : null,
       now,
     });
@@ -952,7 +1025,7 @@ export async function performReviewAction(db, account, body, deps) {
   if (action === 'report_return') {
     if (isBlankNote(note)) return { ok: false, error: 'feedback_required', code: 400 };
     const flags = await openFlagsForItem(db, itemType, itemId);
-    if (!flags.length) return { ok: false, error: 'no_open_report', code: 404 };
+    if (!flags.length) return { ok: false, error: 'already_resolved', code: 409 };
     if (!REVISION_CAPABLE[itemType]) return { ok: false, error: 'not_revision_capable', code: 400 };
     const returned = await performReturn(db, account, itemType, itemId, note, now, true);
     if (!returned.ok) return returned;
@@ -961,10 +1034,11 @@ export async function performReviewAction(db, account, body, deps) {
   }
   if (action === 'report_remove') {
     const flags = await openFlagsForItem(db, itemType, itemId);
-    if (!flags.length) return { ok: false, error: 'no_open_report', code: 404 };
+    if (!flags.length) return { ok: false, error: 'already_resolved', code: 409 };
     const isAdmin = isAdminRole(account.role);
     const resolution = isAdmin && String((body && body.resolution) || '').toLowerCase() === 'removed' ? 'removed' : 'hidden';
     if (resolution === 'removed' && !isAdmin) return { ok: false, error: 'forbidden', code: 403 };
+    await ensureReportedContentHidden(db, account, itemType, itemId, now);
     await resolveOpenFlags(db, itemType, itemId, resolution, actor, note, now);
     const loaded = await loadOwnedContent(db, itemType, itemId);
     await recordEventForAccount(db, account, {
@@ -972,7 +1046,12 @@ export async function performReviewAction(db, account, body, deps) {
       itemId,
       eventType: 'report_removed',
       note,
-      snapshot: loaded.row && itemType === 'news' ? snapshotFromNews(loaded.row) : null,
+      snapshot:
+        loaded.row && itemType === 'news'
+          ? snapshotFromNews(loaded.row)
+          : loaded.row && itemType === 'poll'
+            ? { content_type: 'poll', title: loaded.row.question }
+            : null,
       now,
     });
     return { ok: true, resolution };

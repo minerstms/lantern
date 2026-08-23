@@ -55,6 +55,16 @@ export function resolvePollImageUrl(pc, origin) {
  * Publish a poll contribution into lantern_polls (approved/visible).
  * @returns {{ ok: boolean, pollId?: string, created?: boolean, error?: string }}
  */
+/** Live poll id → owning poll_contribution id (mission_submission_id = contrib:<id>). */
+export async function resolvePollContributionIdFromLivePoll(db, pollId) {
+  const id = String(pollId || '').trim();
+  if (!id || !db) return null;
+  const row = await db.prepare('SELECT mission_submission_id FROM lantern_polls WHERE id = ?').bind(id).first();
+  if (!row || !row.mission_submission_id) return null;
+  const m = String(row.mission_submission_id).match(/^contrib:(.+)$/i);
+  return m && m[1] ? String(m[1]).trim() : null;
+}
+
 export async function finalizePollContributionPublish(db, origin, pc, opts) {
   opts = opts || {};
   if (!db || !pc || !pc.id) return { ok: false, error: 'missing_contribution' };
