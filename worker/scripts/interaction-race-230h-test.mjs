@@ -73,7 +73,7 @@ assert(
   overlayRx && overlayRx[0].lastIndexOf('border-top:') > overlayRx[0].lastIndexOf('border:'),
   'opened-post reaction top border stays removed after the border shorthand'
 );
-assert(/rxrace255/.test(explore), 'Explore cache-busts cards + reaction CSS for #255');
+assert(/rxanchor255a|rxrace255/.test(explore), 'Explore cache-busts cards + reaction CSS for #255');
 
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 assert(/data-race-kind', 'poll-minecart'/.test(pollFn), 'poll race kind unchanged');

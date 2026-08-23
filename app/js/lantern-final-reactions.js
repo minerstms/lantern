@@ -342,7 +342,6 @@
     var host = panel.querySelector('.lanternFinalRxRaceArena') || panel;
     api.mountRevealResultsControl(host, {
       onReveal: function (isReplay) {
-        if (api.ensureRaceAreaVisibleOnce) api.ensureRaceAreaVisibleOnce(panel);
         var hnApi = global.LANTERN_HIDDEN_NUGGET;
         var claimPromise = null;
         if (!isReplay && hnApi && typeof hnApi.claimReveal === 'function') {

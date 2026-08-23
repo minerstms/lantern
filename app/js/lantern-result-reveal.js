@@ -10,6 +10,9 @@
   var MAX_MS = 3000;
   /* Prompt #255 — reserved upward race field. Linear 0–100% of this desktop max. */
   var MAX_BAR_PX = 330;
+  /* Prompt #255A — compact-to-reserved entry. Bars do not run during this window. */
+  var ENTRY_MS = 220;
+  var STAGE_LABEL_PAD_PX = 22;
   var raceSeq = 0;
 
   function raceMaxBarPx(stage) {
@@ -469,6 +472,155 @@
     }
   }
 
+  function raceScrollOwner(from) {
+    if (!from || typeof from.closest !== 'function') return null;
+    var overlay = from.closest('#lanternCardDetailOverlay, .lanternCardDetailOverlay, .lanternSurfaceShell');
+    if (overlay) return overlay;
+    var n = from.parentNode;
+    while (n && n !== global.document.body && n !== global.document.documentElement) {
+      if (n.nodeType === 1) {
+        try {
+          var st = global.getComputedStyle(n);
+          if (st && (st.overflowY === 'auto' || st.overflowY === 'scroll')) return n;
+        } catch (e) {}
+      }
+      n = n.parentNode;
+    }
+    return null;
+  }
+
+  function reservedStageOuterPx(stage) {
+    return Math.round(raceMaxBarPx(stage) + STAGE_LABEL_PAD_PX);
+  }
+
+  function iconRowViewportTop(iconRow) {
+    if (!iconRow || typeof iconRow.getBoundingClientRect !== 'function') return 0;
+    return iconRow.getBoundingClientRect().top;
+  }
+
+  function safeIconTargetY(iconY, scroller) {
+    if (!scroller || typeof scroller.getBoundingClientRect !== 'function') return iconY;
+    var box = scroller.getBoundingClientRect();
+    var vis = scroller.clientHeight || box.height || 0;
+    if (vis < 80) return iconY;
+    if (iconY > box.top + vis * 0.78) return box.top + vis * 0.72;
+    return iconY;
+  }
+
+  function pageZoomFactor() {
+    try {
+      var z = global.document && global.document.body && global.document.body.style && global.document.body.style.zoom;
+      var n = z && z !== 'normal' ? parseFloat(z) : 1;
+      return n > 0 ? n : 1;
+    } catch (e) {
+      return 1;
+    }
+  }
+
+  function writeScrollerTop(scroller, next) {
+    if (!scroller) return 0;
+    var max = Math.max(0, (scroller.scrollHeight || 0) - (scroller.clientHeight || 0));
+    var v = next;
+    if (v < 0) v = 0;
+    if (v > max) v = max;
+    scroller.scrollTop = v;
+    return scroller.scrollTop;
+  }
+
+  function compensateIconDrift(scroller, iconRow, targetTop) {
+    if (!scroller) return 0;
+    var drift = iconRowViewportTop(iconRow) - targetTop;
+    return writeScrollerTop(scroller, scroller.scrollTop + drift / pageZoomFactor());
+  }
+
+  /**
+   * Prompt #255A — scroll-compensated reserved-stage open.
+   * Runs BEFORE the bar race. Does not write scrollTop after done().
+   */
+  function openReservedRaceStage(stage, iconRow, opts, done) {
+    opts = opts || {};
+    function finish() {
+      if (stage) {
+        stage.classList.remove('lanternRxRaceStage--opening');
+        stage.classList.add('lanternRxRaceStage--reserved');
+        stage.style.height = '';
+        stage.style.minHeight = '';
+      }
+      if (typeof done === 'function') done();
+    }
+    if (!stage) {
+      finish();
+      return;
+    }
+    var curH = 0;
+    try {
+      curH = stage.getBoundingClientRect().height;
+    } catch (eH) {}
+    if (stage.classList.contains('lanternRxRaceStage--reserved') && curH >= 80) {
+      finish();
+      return;
+    }
+
+    var targetH = reservedStageOuterPx(stage);
+    var startH = curH;
+    var scroller = raceScrollOwner(stage || iconRow);
+    var targetTop = safeIconTargetY(iconRowViewportTop(iconRow), scroller);
+    var ms = prefersReducedMotion() || opts.immediate === true ? 0 : ENTRY_MS;
+
+    stage.classList.add('lanternRxRaceStage--opening');
+    stage.style.height = startH + 'px';
+    stage.style.minHeight = startH + 'px';
+
+    function snapAndFinish() {
+      stage.style.height = targetH + 'px';
+      stage.style.minHeight = targetH + 'px';
+      if (scroller) compensateIconDrift(scroller, iconRow, targetTop);
+      finish();
+    }
+
+    if (ms <= 0 || typeof global.requestAnimationFrame !== 'function') {
+      snapAndFinish();
+      return;
+    }
+
+    var yielded = false;
+    var lastWrite = scroller ? scroller.scrollTop : 0;
+    function yieldIfUser() {
+      yielded = true;
+    }
+    if (scroller && scroller.addEventListener) {
+      scroller.addEventListener('wheel', yieldIfUser, { passive: true });
+      scroller.addEventListener('touchmove', yieldIfUser, { passive: true });
+    }
+    function stopYieldListen() {
+      if (!scroller || !scroller.removeEventListener) return;
+      scroller.removeEventListener('wheel', yieldIfUser);
+      scroller.removeEventListener('touchmove', yieldIfUser);
+    }
+
+    var t0 = 0;
+    function frame(now) {
+      if (!t0) t0 = now;
+      if (yielded || (scroller && Math.abs((scroller.scrollTop || 0) - lastWrite) > 3)) {
+        stopYieldListen();
+        finish();
+        return;
+      }
+      var t = Math.min(1, (now - t0) / ms);
+      var eased = 1 - Math.pow(1 - t, 3);
+      var h = Math.round(startH + (targetH - startH) * eased);
+      stage.style.height = h + 'px';
+      stage.style.minHeight = h + 'px';
+      if (scroller) lastWrite = compensateIconDrift(scroller, iconRow, targetTop);
+      if (t < 1) global.requestAnimationFrame(frame);
+      else {
+        stopYieldListen();
+        finish();
+      }
+    }
+    global.requestAnimationFrame(frame);
+  }
+
   /**
    * Horizontal poll mine-cart race. Choice order is preserved.
    * Preferred path reuses the original option-row nodes in place.
@@ -600,6 +752,7 @@
    * Prompt #255 — reserved stage ABOVE the icon baseline.
    * Icons stay put. Bars grow upward inside a fixed-height stage.
    * Stage height is established once before animation; no in-flow growth.
+   * Prompt #255A — open the reserved field with scroll compensation first.
    */
   function mountReactionSpatialRace(root, items, opts) {
     if (!root) return;
@@ -665,7 +818,9 @@
       stage.setAttribute('data-rx-race-stage', '');
       stage.setAttribute('aria-hidden', 'true');
     }
-    stage.className = 'lanternRxRaceStage lanternRxRaceStage--reserved';
+    var keepReserved = stage.classList.contains('lanternRxRaceStage--reserved');
+    stage.className = 'lanternRxRaceStage';
+    if (keepReserved) stage.classList.add('lanternRxRaceStage--reserved');
     if (arena && parentChoices && parentChoices.parentNode === arena) {
       if (stage.parentNode !== arena || stage.nextSibling !== parentChoices) {
         arena.insertBefore(stage, parentChoices);
@@ -767,7 +922,7 @@
       });
     }
 
-    var reservedMaxPx = raceMaxBarPx(stage);
+    var reservedMaxPx = 0;
 
     var live = root.querySelector('[data-race-live]') || attachLive(panel, token);
 
@@ -805,36 +960,45 @@
       if (typeof opts.onAllDone === 'function') opts.onAllDone();
     }
 
-    if (prefersReducedMotion() || maxPct <= 0) {
-      lanes.forEach(finishVisual);
-      finishRaceCallbacks();
-      return;
+    function startBarRace() {
+      reservedMaxPx = raceMaxBarPx(stage);
+      root.setAttribute('data-rx-entry', 'racing');
+      if (prefersReducedMotion() || maxPct <= 0) {
+        lanes.forEach(finishVisual);
+        finishRaceCallbacks();
+        return;
+      }
+      whenVisible(root, function () {
+        if (!stillCurrent()) return;
+        animateRace(
+          lanes.map(function (part) {
+            return {
+              percentage: part.row.percentage,
+              setProgress: function (grown) {
+                applyVert(part, grown);
+              },
+              onFinish: function () {
+                if (!stillCurrent()) return;
+                finishVisual(part);
+              },
+            };
+          }),
+          {
+            isCurrent: stillCurrent,
+            playAudio: opts.playAudio !== false,
+            onAllDone: function () {
+              if (!stillCurrent()) return;
+              announce(live, rows);
+            },
+          }
+        );
+      });
     }
 
-    whenVisible(root, function () {
+    root.setAttribute('data-rx-entry', 'opening');
+    openReservedRaceStage(stage, parentChoices || buttons[0], { immediate: opts.skipEntryTransition === true }, function () {
       if (!stillCurrent()) return;
-      animateRace(
-        lanes.map(function (part) {
-          return {
-            percentage: part.row.percentage,
-            setProgress: function (grown) {
-              applyVert(part, grown);
-            },
-            onFinish: function () {
-              if (!stillCurrent()) return;
-              finishVisual(part);
-            },
-          };
-        }),
-        {
-          isCurrent: stillCurrent,
-          playAudio: opts.playAudio !== false,
-          onAllDone: function () {
-            if (!stillCurrent()) return;
-            announce(live, rows);
-          },
-        }
-      );
+      startBarRace();
     });
   }
 
@@ -1019,6 +1183,9 @@
   global.LANTERN_RESULT_REVEAL = {
     MAX_MS: MAX_MS,
     MAX_BAR_PX: MAX_BAR_PX,
+    ENTRY_MS: ENTRY_MS,
+    raceScrollOwner: raceScrollOwner,
+    openReservedRaceStage: openReservedRaceStage,
     prefersReducedMotion: prefersReducedMotion,
     durationForPct: durationForPct,
     clampPct: clampPct,

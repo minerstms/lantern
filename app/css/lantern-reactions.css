@@ -198,6 +198,7 @@
   align-items: stretch;
 }
 .lanternRxRaceStage{
+  --lantern-rx-race-max: 330px;
   display: block;
   width: 100%;
   height: 0;
@@ -212,9 +213,23 @@
   border-radius: 0;
   box-shadow: none;
 }
-.lanternRxRaceStage.lanternRxRaceStage--reserved,
-.lanternRxRaceLive .lanternRxRaceStage{
-  --lantern-rx-race-max: 330px;
+@media (max-width: 640px){
+  .lanternRxRaceStage{
+    --lantern-rx-race-max: 250px;
+  }
+}
+@media (max-width: 380px){
+  .lanternRxRaceStage{
+    --lantern-rx-race-max: 230px;
+  }
+}
+.lanternRxRaceStage.lanternRxRaceStage--opening{
+  display: grid;
+  overflow: hidden;
+  align-items: stretch;
+  justify-items: center;
+}
+.lanternRxRaceStage.lanternRxRaceStage--reserved{
   display: grid;
   padding-top: 22px;
   height: calc(var(--lantern-rx-race-max) + 22px);
@@ -222,18 +237,6 @@
   overflow: visible;
   align-items: stretch;
   justify-items: center;
-}
-@media (max-width: 640px){
-  .lanternRxRaceStage.lanternRxRaceStage--reserved,
-  .lanternRxRaceLive .lanternRxRaceStage{
-    --lantern-rx-race-max: 250px;
-  }
-}
-@media (max-width: 380px){
-  .lanternRxRaceStage.lanternRxRaceStage--reserved,
-  .lanternRxRaceLive .lanternRxRaceStage{
-    --lantern-rx-race-max: 230px;
-  }
 }
 .lanternFinalRxPanel.lanternRxRaceLive,
 .lanternFinalRxPanel.lanternRxRaceLive .lanternFinalRxRaceArena,

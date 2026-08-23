@@ -245,11 +245,24 @@
         });
       }
 
+      function waitForEntry(state, timeout) {
+        return new Promise(function (resolve) {
+          var t0 = Date.now();
+          (function tick() {
+            var root = document.querySelector('#exploreRxHost .lanternFinalRxPanel');
+            if (root && root.getAttribute('data-rx-entry') === (state || 'racing')) return resolve(true);
+            if (Date.now() - t0 > (timeout || 900)) return resolve(false);
+            requestAnimationFrame(tick);
+          })();
+        });
+      }
+
       function runRace(percents, selectedIndex, name) {
         paintDraft(percents.length);
         var compact = capture('compact');
         var items = fixturesFrom(percents, selectedIndex == null ? 2 : selectedIndex);
         startRace(items);
+        return waitForEntry('racing').then(function () {
         var before = capture('before');
         return new Promise(function (resolve) {
           setTimeout(function () {
@@ -269,6 +282,7 @@
               resolve(report);
             }, 2200);
           }, 1200);
+        });
         });
       }
 
@@ -302,6 +316,7 @@
       window.__LANTERN_RACE_255 = {
         paintDraft: paintDraft,
         capture: capture,
+        waitForEntry: waitForEntry,
         runRace: runRace,
         replay: replay,
         fixturesFrom: fixturesFrom

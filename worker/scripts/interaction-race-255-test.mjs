@@ -40,6 +40,8 @@ assert(/lanternRxRaceStage--reserved/.test(rxFn), 'reserved class applied once b
 assert(!/applyStageHeight/.test(rxFn) && !/syncRaceStage/.test(rxFn), 'no incremental stage growth');
 assert(!/ensureScrollRoom/.test(rxFn) && !/paddingBottom/.test(rxFn), 'no padding push during the race');
 assert(!/scrollIntoView/.test(rxFn) && !/\.scrollTo\s*\(/.test(rxFn) && !/scrollTop\s*=/.test(rxFn), 'race loop does not own scroll');
+assert(/function openReservedRaceStage/.test(revealSrc) && /ENTRY_MS = 220/.test(revealSrc), 'entry transition helper is 220ms');
+assert(/data-rx-entry', 'opening'/.test(rxFn) && /openReservedRaceStage/.test(rxFn) && /startBarRace/.test(rxFn), 'race waits for the reserved-stage entry');
 assert(!/position:\s*fixed/.test(rxFn) && !/position:\s*fixed/.test(rxCss), 'no viewport-fixed race overlay');
 assert(/bar\.style\.height = h \+ 'px'/.test(rxFn), 'bars still grow by linear height');
 assert(/clampPct\(grownPct\) \/ 100\) \* reservedMaxPx/.test(rxFn.replace(/\s+/g, ' ')), 'percentage mapping is linear against reserved max');
@@ -48,7 +50,7 @@ assert(/position:\s*absolute/.test(rxCss) && /bottom:\s*0/.test(rxCss), 'bars gr
 assert(/lanternRxRaceStage\{[\s\S]*?height:\s*0/.test(rxCss), 'idle stage is collapsed');
 assert(/lanternRxRaceStage[\s\S]+lanternFinalRxChoice/.test(finalRx), 'production markup is stage then icons');
 assert(/pctEl\.parentNode !== bar/.test(rxFn), 'percent label rides the top of its bar');
-assert(/rxrace255/.test(explore), 'Explore cache-busts #255 assets');
+assert(/rxanchor255a|rxrace255/.test(explore), 'Explore cache-busts race assets');
 assert(!/lanternRxRaceStage|applyStageHeight|raceMaxBarPx/.test(pollFn), 'poll mine-cart race unchanged');
 assert(/MAX_MS = 3000/.test(revealSrc), 'race timing unchanged');
 assert(/--lantern-rx-race-max/.test(revealSrc), 'bar max reads the reserved CSS race field');
