@@ -375,6 +375,25 @@ export async function touchSidecarForOriginal(db, sourceKind, sourceId, original
   }
 }
 
+/**
+ * Prompt #254A — media removed: drop the sidecar row so Explore cannot treat
+ * an old thumbnail as current. Does not delete R2 originals or old thumb objects.
+ */
+export async function clearSidecarForSource(db, sourceKind, sourceId) {
+  const kind = normalizeSourceKind(sourceKind);
+  const id = normalizeSourceId(sourceId);
+  if (!db || !isSupportedSourceKind(kind) || !id) return { ok: false, reason: 'invalid' };
+  try {
+    await db
+      .prepare('DELETE FROM lantern_image_thumbnails WHERE source_kind = ? AND source_id = ?')
+      .bind(kind, id)
+      .run();
+    return { ok: true, cleared: true };
+  } catch (_) {
+    return { ok: false, reason: 'clear_failed' };
+  }
+}
+
 export function validateThumbnailBytes(bytes, width, height) {
   if (!bytes || !(bytes.byteLength > 0)) return { error: 'Thumbnail is empty.', status: 400 };
   if (bytes.byteLength > THUMBNAIL_UPLOAD_MAX_BYTES) return { error: 'Thumbnail is too large.', status: 413 };

@@ -275,7 +275,7 @@ async function fetchNewsSubmissions(db, origin, authorNames) {
   const placeholders = names.map(() => '?').join(',');
   const rows = await db
     .prepare(
-      `SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, category, status, created_at, reviewed_at, decision_note FROM lantern_news_submissions WHERE author_name IN (${placeholders}) ORDER BY created_at DESC`
+      `SELECT id, title, body, actor_id, author_name, author_type, image_r2_key, full_image_r2_key, video_r2_key, link_url, photo_credit, category, status, created_at, reviewed_at, decision_note FROM lantern_news_submissions WHERE author_name IN (${placeholders}) ORDER BY created_at DESC`
     )
     .bind(...names)
     .all();
@@ -291,6 +291,10 @@ async function fetchNewsSubmissions(db, origin, authorNames) {
     created_at: r.created_at,
     reviewed_at: r.reviewed_at,
     decision_note: r.decision_note,
+    image_r2_key: r.image_r2_key || null,
+    full_image_r2_key: r.full_image_r2_key || null,
+    video_r2_key: r.video_r2_key || null,
+    photo_credit: r.photo_credit || '',
     image_url: r.image_r2_key ? origin + '/api/news/image?key=' + encodeURIComponent(r.image_r2_key) : null,
     full_image_url:
       r.full_image_r2_key && String(r.full_image_r2_key).trim()

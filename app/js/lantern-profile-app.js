@@ -750,13 +750,25 @@
             btn.style.marginTop = '10px';
             btn.addEventListener('click', function (){
               try {
+                var shout = String(n.category || '').toLowerCase() === 'student spotlight' || /^shout-out!/i.test(String(n.title || ''));
                 sessionStorage.setItem('LANTERN_NEWS_ARTICLE_RESUBMIT', JSON.stringify({
                   id: n.id,
                   title: n.title || '',
-                  body: n.body || ''
+                  body: n.body || '',
+                  category: n.category || '',
+                  contribute_type: shout ? 'shoutout' : 'post',
+                  image_r2_key: n.image_r2_key || '',
+                  full_image_r2_key: n.full_image_r2_key || '',
+                  video_r2_key: n.video_r2_key || '',
+                  image_url: n.image_url || '',
+                  full_image_url: n.full_image_url || '',
+                  video_url: n.video_url || '',
+                  link_url: n.link_url || '',
+                  photo_credit: n.photo_credit || '',
+                  decision_note: n.decision_note || n.returned_reason || ''
                 }));
               } catch (e) {}
-              window.location.href = 'contribute.html?type=post';
+              window.location.href = shout ? 'contribute.html?type=shoutout' : 'contribute.html?type=post';
             });
             actions.appendChild(btn);
           }

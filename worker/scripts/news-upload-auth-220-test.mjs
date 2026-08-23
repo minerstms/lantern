@@ -90,6 +90,7 @@ async function postUpload(env, pathName, cookie, body) {
 }
 
 const indexSrc = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
+const uploadSrc = fs.readFileSync(path.join(root, 'worker/news-media-upload.js'), 'utf8');
 if (/requireAuthenticatedNewsUpload/.test(indexSrc)) ok('news upload auth helper present');
 else bad('news upload auth helper');
 if (
@@ -98,7 +99,7 @@ if (
 ) {
   ok('image and video routes authorize before payload/R2');
 } else bad('auth-before-payload wiring');
-if (/Image too large \(max 5MB\)/.test(indexSrc) && /Video too large \(max 25MB\)/.test(indexSrc)) {
+if (/Image too large \(max 5MB\)/.test(uploadSrc) && /Video too large \(max 25MB\)/.test(uploadSrc)) {
   ok('existing size limits remain');
 } else bad('size limits');
 

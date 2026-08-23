@@ -180,6 +180,8 @@ import {
 import { authorizeNewsMediaDelivery } from './news-media-delivery.js';
 import { handleNewsThumbnailRoutes } from './image-thumbnail-routes.js';
 import { extractNewsObjectKeyFromUrl, touchSidecarForOriginal } from './image-thumbnails.js';
+import { putNewsImageBytes, putNewsVideoBytes } from './news-media-upload.js';
+import { handleNewsResubmit, handleNewsRevisionGet } from './news-resubmit.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
 import {
   ACCESS_DEVICE_COOKIE_NAME,
@@ -7450,34 +7452,12 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const imageData = body.image;
-    if (!imageData || typeof imageData !== 'string') return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
-    const base64 = stripBase64Payload(imageData);
-    if (!base64) return jsonResponse({ ok: false, error: 'Missing image payload' }, 400, cors);
-    let bytes;
-    try { bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0)); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid base64 image' }, 400, cors); }
-    const maxSize = 5 * 1024 * 1024;
-    if (bytes.length > maxSize) return jsonResponse({ ok: false, error: 'Image too large (max 5MB)' }, 400, cors);
-    const mime = (body.mime_type || 'image/png').trim().toLowerCase();
-    const allowedMime = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
-    if (!allowedMime.includes(mime)) return jsonResponse({ ok: false, error: 'Invalid mime type' }, 400, cors);
-    const ext = mime === 'image/jpeg' || mime === 'image/jpg' ? 'jpg' : mime === 'image/webp' ? 'webp' : mime === 'image/gif' ? 'gif' : 'png';
-    const fileName = (body.file_name || '').trim() || 'image.' + ext;
-    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-    const id = 'news-' + crypto.randomUUID();
-    const key = 'news/' + id + (safeName.includes('.') ? '' : '.' + ext);
-    await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
-    return jsonResponse({
-      ok: true,
-      image_r2_key: key,
-      image_file_name: safeName,
-      image_mime_type: mime,
-      image_file_size: bytes.length,
-    }, 200, cors);
+    if (!body.image || typeof body.image !== 'string') return jsonResponse({ ok: false, error: 'Missing image' }, 400, cors);
+    const uploaded = await putNewsImageBytes(bucket, body);
+    if (!uploaded.ok) return jsonResponse({ ok: false, error: uploaded.error }, uploaded.status || 400, cors);
+    return jsonResponse(uploaded, 200, cors);
   }
 
-  const VIDEO_MAX_BYTES = 25 * 1024 * 1024;
-  const VIDEO_ALLOWED_MIME = ['video/mp4', 'video/webm'];
   if (request.method === 'POST' && path === '/api/news/upload-video') {
     const uploadAuth = await requireAuthenticatedNewsUpload(request, env, cors);
     if (uploadAuth.response) return uploadAuth.response;
@@ -7485,28 +7465,10 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     const text = await request.text();
     let body;
     try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const videoData = body.video;
-    if (!videoData || typeof videoData !== 'string') return jsonResponse({ ok: false, error: 'Missing video' }, 400, cors);
-    const base64 = stripBase64Payload(videoData);
-    if (!base64) return jsonResponse({ ok: false, error: 'Missing video payload' }, 400, cors);
-    let bytes;
-    try { bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0)); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid base64 video' }, 400, cors); }
-    if (bytes.length > VIDEO_MAX_BYTES) return jsonResponse({ ok: false, error: 'Video too large (max 25MB)' }, 400, cors);
-    const mime = (body.mime_type || 'video/mp4').trim().toLowerCase();
-    if (!VIDEO_ALLOWED_MIME.includes(mime)) return jsonResponse({ ok: false, error: 'Only MP4 and WebM are supported' }, 400, cors);
-    const ext = mime === 'video/webm' ? 'webm' : 'mp4';
-    const fileName = (body.file_name || '').trim() || 'video.' + ext;
-    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-    const id = 'news-' + crypto.randomUUID();
-    const key = 'news/video/' + id + (safeName.includes('.') ? '' : '.' + ext);
-    await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
-    return jsonResponse({
-      ok: true,
-      video_r2_key: key,
-      video_file_name: safeName,
-      video_mime_type: mime,
-      video_file_size: bytes.length,
-    }, 200, cors);
+    if (!body.video || typeof body.video !== 'string') return jsonResponse({ ok: false, error: 'Missing video' }, 400, cors);
+    const uploaded = await putNewsVideoBytes(bucket, body);
+    if (!uploaded.ok) return jsonResponse({ ok: false, error: uploaded.error }, uploaded.status || 400, cors);
+    return jsonResponse(uploaded, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/news/create') {
@@ -7606,59 +7568,26 @@ async function handleNewsRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true, id, status, created_at: now }, 200, cors);
   }
 
+  if (request.method === 'GET' && path.startsWith('/api/news/revision/')) {
+    return handleNewsRevisionGet(request, url, path, env, cors, {
+      jsonResponse,
+      getPilotAccountFromRequest,
+      pilotAccountRequiresChangePassword,
+      pilotEconomyCharacterName,
+    });
+  }
+
   if (request.method === 'POST' && path === '/api/news/resubmit') {
-    const text = await request.text();
-    let body;
-    try { body = JSON.parse(text || '{}'); } catch (_) { return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors); }
-    const id = (body.id || '').trim();
-    if (!id) return jsonResponse({ ok: false, error: 'Missing id' }, 400, cors);
-    const row = await db.prepare('SELECT id, status, category FROM lantern_news_submissions WHERE id = ?').bind(id).first();
-    if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
-    if ((row.status || '') !== 'returned') return jsonResponse({ ok: false, error: 'Can only resubmit returned articles' }, 400, cors);
-    const title = (body.title || '').trim();
-    const articleBody = (body.body || '').trim();
-    const now = new Date().toISOString();
-    let categoryNext = row.category != null ? String(row.category).trim().slice(0, 200) || null : null;
-    if (Object.prototype.hasOwnProperty.call(body, 'category')) {
-      categoryNext = String(body.category || '').trim().slice(0, 200) || null;
-    }
-    const account = await getPilotAccountFromRequest(request, env);
-    const prior = await db.prepare('SELECT * FROM lantern_news_submissions WHERE id = ?').bind(id).first();
-    try {
-      await recordEventForAccount(db, account, {
-        itemType: 'news',
-        itemId: id,
-        eventType: 'resubmitted',
-        snapshot: snapshotFromNews(
-          Object.assign({}, prior || row, {
-            title: title || (prior && prior.title),
-            body: articleBody || (prior && prior.body),
-            category: categoryNext,
-            status: 'pending',
-          })
-        ),
-        now,
-      });
-    } catch (err) {
-      if (isModerationSchemaError(err)) return schemaErrorResponse(jsonResponse, cors);
-      throw err;
-    }
-    if (title && articleBody) {
-      await db.prepare(
-        'UPDATE lantern_news_submissions SET title = ?, body = ?, category = ?, status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
-      ).bind(title, articleBody, categoryNext, 'pending', null, null, null, null, id).run();
-    } else {
-      await db.prepare(
-        'UPDATE lantern_news_submissions SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?'
-      ).bind('pending', null, null, null, null, id).run();
-    }
-    const approvalRow = await db.prepare('SELECT id FROM lantern_approvals WHERE item_type = ? AND item_id = ?').bind('news', id).first();
-    if (approvalRow) {
-      await db.prepare(
-        'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ?, assigned_to_staff_id = ?, assigned_to_staff_name = ? WHERE id = ?'
-      ).bind('pending', null, null, null, null, null, null, approvalRow.id).run();
-    }
-    return jsonResponse({ ok: true, id, status: 'pending' }, 200, cors);
+    return handleNewsResubmit(request, env, cors, {
+      jsonResponse,
+      getPilotAccountFromRequest,
+      pilotAccountRequiresChangePassword,
+      pilotEconomyCharacterName,
+      recordEventForAccount,
+      snapshotFromNews,
+      isModerationSchemaError,
+      schemaErrorResponse,
+    });
   }
 
   if (request.method === 'GET' && path === '/api/news/approved') {

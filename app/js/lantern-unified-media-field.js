@@ -47,6 +47,8 @@
       '.lanternUnifiedMediaActions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;}',
       '.lanternUnifiedMediaSecondary{margin-top:10px;text-align:center;}',
       '.lanternUnifiedMediaSecondary button{font-size:20px;font-weight:800;padding:8px 14px;border-radius:10px;border:1px solid rgba(90,167,255,.4);background:rgba(90,167,255,.12);color:#eaf0ff;cursor:pointer;font-family:inherit;}',
+      '.lanternUnifiedMediaCurrentLabel{font-size:20px;font-weight:900;letter-spacing:.04em;margin:0 0 10px;color:#eaf0ff;}',
+      '.lanternUnifiedMediaRemovedCopy{font-size:22px;font-weight:800;line-height:1.35;margin:8px 0 12px;}',
     ].join('');
     (document.head || document.documentElement).appendChild(s);
   }
@@ -366,7 +368,151 @@
     };
   }
 
+  /**
+   * Prompt #254A — shared keep / replace / remove edit state.
+   * Used by Contribute revision and later Feed/Mission/Poll (#254B).
+   */
+  function createMediaEditState() {
+    return {
+      existing: null,
+      local: null,
+      intent: 'keep',
+    };
+  }
+
+  function setExistingMedia(state, media) {
+    state.existing = media && media.kind ? media : null;
+    state.local = null;
+    state.intent = state.existing ? 'keep' : 'keep';
+    return state;
+  }
+
+  function setLocalMedia(state, local) {
+    state.local = local && local.kind ? local : null;
+    state.intent = state.local ? 'replace' : state.existing ? 'keep' : 'keep';
+    return state;
+  }
+
+  function setRemoveIntent(state) {
+    state.local = null;
+    state.intent = state.existing ? 'remove' : 'keep';
+    return state;
+  }
+
+  function cancelChange(state) {
+    state.local = null;
+    state.intent = 'keep';
+    return state;
+  }
+
+  function clearAllMedia(state) {
+    state.existing = null;
+    state.local = null;
+    state.intent = 'keep';
+    return state;
+  }
+
+  function mediaNoun(kind) {
+    if (kind === 'video') return 'Video';
+    if (kind === 'link') return 'Link';
+    return 'Image';
+  }
+
+  function escAttr(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;';
+    });
+  }
+
+  function previewInner(media) {
+    if (!media) return '';
+    if (media.kind === 'video') {
+      var src = media.previewUrl || media.deliveryUrl || '';
+      return (
+        '<div class="lanternUnifiedMediaPreviewInner"><p class="lanternUnifiedMediaCurrentLabel">CURRENT VIDEO</p>' +
+        (src
+          ? '<video controls preload="metadata" src="' + escAttr(src) + '"></video>'
+          : '<p>Current video attached.</p>') +
+        '</div>'
+      );
+    }
+    if (media.kind === 'link') {
+      var href = media.previewUrl || media.deliveryUrl || media.objectKey || '';
+      return (
+        '<div class="lanternUnifiedMediaLinkCard"><p class="lanternUnifiedMediaCurrentLabel">CURRENT LINK</p>' +
+        (href
+          ? '<a href="' + escAttr(href) + '" target="_blank" rel="noopener noreferrer">' + escAttr(href) + '</a>'
+          : 'Current link attached.') +
+        '</div>'
+      );
+    }
+    var img = media.previewUrl || media.deliveryUrl || '';
+    return (
+      '<div class="lanternUnifiedMediaPreviewInner"><p class="lanternUnifiedMediaCurrentLabel">CURRENT IMAGE</p>' +
+      (img ? '<img src="' + escAttr(img) + '" alt="Current image" />' : '<p>Current image attached.</p>') +
+      '</div>'
+    );
+  }
+
+  function buildEditPreviewHTML(state) {
+    var st = state || createMediaEditState();
+    if (st.intent === 'remove' && st.existing) {
+      return (
+        '<div class="lanternUnifiedMediaRemoved">' +
+        '<p class="lanternUnifiedMediaRemovedCopy">' +
+        mediaNoun(st.existing.kind) +
+        ' will be removed when you resubmit.</p>' +
+        '<div class="lanternUnifiedMediaActions">' +
+        '<button type="button" class="btn small" data-media-edit="undo">Undo</button>' +
+        '</div></div>'
+      );
+    }
+    if (st.intent === 'replace' && st.local) {
+      var localLabel = st.existing ? 'New ' + mediaNoun(st.local.kind).toLowerCase() : 'Preview';
+      var inner = previewInner(Object.assign({}, st.local, { kind: st.local.kind }));
+      inner = inner.replace('CURRENT IMAGE', localLabel.toUpperCase()).replace('CURRENT VIDEO', localLabel.toUpperCase()).replace('CURRENT LINK', localLabel.toUpperCase());
+      return (
+        inner +
+        '<div class="lanternUnifiedMediaActions">' +
+        '<button type="button" class="btn small" data-media-edit="use-this">Use this</button>' +
+        '<button type="button" class="btn small" data-media-edit="choose-another">Choose another</button>' +
+        '<button type="button" class="btn small" data-media-edit="cancel">Cancel change</button>' +
+        '</div>'
+      );
+    }
+    if (st.existing && st.intent === 'keep') {
+      return (
+        previewInner(st.existing) +
+        '<div class="lanternUnifiedMediaActions">' +
+        '<button type="button" class="btn small" data-media-edit="replace">Replace</button>' +
+        '<button type="button" class="btn small bad" data-media-edit="remove">Remove</button>' +
+        '</div>'
+      );
+    }
+    if (st.local) {
+      var mid = previewInner(st.local).replace(/CURRENT /g, '');
+      return (
+        mid +
+        '<div class="lanternUnifiedMediaActions">' +
+        '<button type="button" class="btn small" data-media-edit="replace">Replace</button>' +
+        '<button type="button" class="btn small bad" data-media-edit="remove">Remove</button>' +
+        '</div>'
+      );
+    }
+    return '';
+  }
+
   global.LanternUnifiedMediaField = {
     mount: mount,
+  };
+  global.LanternMediaEdit = {
+    create: createMediaEditState,
+    setExisting: setExistingMedia,
+    setLocal: setLocalMedia,
+    setRemove: setRemoveIntent,
+    cancel: cancelChange,
+    clear: clearAllMedia,
+    buildPreviewHTML: buildEditPreviewHTML,
+    noun: mediaNoun,
   };
 })(typeof window !== 'undefined' ? window : this);
