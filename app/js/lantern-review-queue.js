@@ -101,6 +101,11 @@
             reporters: it.reporters,
             hidden_at: it.hidden_at,
             hidden_by: it.hidden_by,
+            poll_choices: it.poll_choices,
+            poll_question: it.title,
+            preview_url: it.preview_url,
+            contribution_id: it.contribution_id,
+            legacy_author_unavailable: it.legacy_author_unavailable,
           },
         });
       }

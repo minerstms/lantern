@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#251C Moderation Report Control Harness</title>
+  <link rel="stylesheet" href="../css/lantern-cards.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #0b1220; color: #e8eef7; font-size: 22px; }
+    .h { font-size: 28px; font-weight: 800; margin: 0 0 12px; }
+    .row { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    .title { font-weight: 800; font-size: 24px; }
+    .meta { color: #9fb0c8; font-size: 20px; margin-top: 4px; }
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(255,90,90,.2); font-size: 18px; margin-right: 8px; }
+    details { margin-top: 12px; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <p class="h" id="harnessTitle">Reported Poll Review</p>
+  <div id="cardHost"></div>
+  <details><summary>Technical Details</summary><div id="techDetails"></div></details>
+  <script>
+    (function () {
+      var item = window.__HARNESS_ITEM__ || {
+        item_type: 'poll',
+        item_id: 'poll_1787340945479_ps5j',
+        queue_state: 'REPORTED',
+        title: 'Favorite lunch?',
+        submitter: 'Lucas R.',
+        report_count: 4,
+        reasons: ['offensive', 'spam'],
+        poll_choices: ['Pizza', 'Salad'],
+      };
+      document.getElementById('harnessTitle').textContent = item.submitter + ' · ' + item.title;
+      document.getElementById('techDetails').textContent = item.item_type + ' · ' + item.item_id;
+      var host = document.getElementById('cardHost');
+      host.innerHTML =
+        '<div class="row" data-test="reported-row">' +
+        '<span class="chip">REPORTED</span><span class="chip">Poll</span>' +
+        '<div class="title">' + item.title + '</div>' +
+        '<div class="meta">' + item.submitter + ' · ' + item.report_count + ' reports</div>' +
+        '</div>';
+      window.__HARNESS_READY__ = true;
+    })();
+  </script>
+</body>
+</html>

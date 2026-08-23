@@ -8571,7 +8571,8 @@ async function handleModerationRoutes(request, url, path, env, cors) {
           }
         } catch (_) {}
       }
-      const pendingReview = !!(hiddenAt && String(hiddenAt).trim());
+      const pendingReview =
+        !!(hiddenAt && String(hiddenAt).trim()) && !(r.resolved_at != null && String(r.resolved_at).trim() !== '');
       const flagOut = stripFlaggedReporter(
         {
           id: r.id,

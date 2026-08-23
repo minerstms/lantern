@@ -254,6 +254,7 @@
       var tk = typeKeyFromFlag(f.item_type);
       var id = f.item_id;
       if (!id) return;
+      var resolved = !!(f.resolved_at && String(f.resolved_at).trim());
       var it = ensure(tk, id);
       it.flagId = f.id || it.flagId;
       it.reason = f.reason || it.reason || '';
@@ -268,6 +269,18 @@
       if (f.hidden_at) {
         it.hiddenAt = f.hidden_at;
         it.hiddenBy = f.hidden_by || it.hiddenBy;
+      }
+      if (resolved) {
+        it.quarantinePending = false;
+        if (it.statusKey === 'quarantine' || it.statusKey === 'reported') {
+          it.statusKey = it.hiddenAt ? 'hidden' : 'live';
+          it.statusLabel = it.hiddenAt ? 'Hidden' : 'Live';
+          if (f.resolution) {
+            it.statusLabel = 'Resolved (' + String(f.resolution) + ')';
+            it.statusKey = 'resolved';
+          }
+        }
+        return;
       }
       var pending = !!(f.quarantine_pending || f.report_quarantine);
       it.quarantinePending = pending || it.quarantinePending;
@@ -341,7 +354,8 @@
           label: 'Status',
           options: [
             { value: 'all', label: 'All statuses' },
-            { value: 'reported', label: 'Reported' },
+            { value: 'reported', label: 'Unresolved reported' },
+            { value: 'resolved', label: 'Resolved' },
             { value: 'hidden', label: 'Hidden' },
             { value: 'live', label: 'Live' },
           ],
@@ -385,7 +399,8 @@
       matchFilter: function (item, filterId, value) {
         if (filterId === 'status') {
           if (value === 'live') return item.statusKey === 'live';
-          if (value === 'hidden') return item.statusKey === 'hidden' || item.statusKey === 'quarantine';
+          if (value === 'hidden') return item.statusKey === 'hidden';
+          if (value === 'resolved') return item.statusKey === 'resolved';
           if (value === 'reported') return item.statusKey === 'reported' || item.statusKey === 'quarantine';
           return true;
         }

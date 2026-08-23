@@ -55,6 +55,16 @@ export function resolvePollImageUrl(pc, origin) {
  * Publish a poll contribution into lantern_polls (approved/visible).
  * @returns {{ ok: boolean, pollId?: string, created?: boolean, error?: string }}
  */
+/** Live poll id → owning poll_contribution id (mission_submission_id = contrib:<id>). */
+export async function resolvePollContributionIdFromLivePoll(db, pollId) {
+  const id = String(pollId || '').trim();
+  if (!id || !db) return null;
+  const row = await db.prepare('SELECT mission_submission_id FROM lantern_polls WHERE id = ?').bind(id).first();
+  if (!row || !row.mission_submission_id) return null;
+  const m = String(row.mission_submission_id).match(/^contrib:(.+)$/i);
+  return m && m[1] ? String(m[1]).trim() : null;
+}
+
 export async function finalizePollContributionPublish(db, origin, pc, opts) {
   opts = opts || {};
   if (!db || !pc || !pc.id) return { ok: false, error: 'missing_contribution' };
@@ -81,13 +91,37 @@ export async function finalizePollContributionPublish(db, origin, pc, opts) {
   let created = false;
 
   if (existing) {
-    // Ensure Explore gate fields are set (approved_at) without unhiding intentional archives
-    // unless caller opts into clearHidden.
-    if (!existing.approved_at) {
+    pollId = String(existing.id);
+    try {
       await db
-        .prepare(`UPDATE lantern_polls SET approved_at = ?, character_name = ?, created_by_character = COALESCE(NULLIF(created_by_character, ''), ?) WHERE id = ?`)
-        .bind(now, characterName, characterName, existing.id)
+        .prepare(
+          `UPDATE lantern_polls
+           SET question = ?, choices_json = ?, image_url = ?, character_name = ?,
+               created_by_character = COALESCE(NULLIF(created_by_character, ''), ?),
+               approved_at = COALESCE(approved_at, ?)
+           WHERE id = ?`
+        )
+        .bind(question, choicesJson, pollImageUrl, characterName, characterName, now, existing.id)
         .run();
+    } catch (e1) {
+      try {
+        await db
+          .prepare(
+            `UPDATE lantern_polls
+             SET question = ?, choices_json = ?, character_name = ?,
+                 created_by_character = COALESCE(NULLIF(created_by_character, ''), ?),
+                 approved_at = COALESCE(approved_at, ?)
+             WHERE id = ?`
+          )
+          .bind(question, choicesJson, characterName, characterName, now, existing.id)
+          .run();
+      } catch (e2) {
+        return {
+          ok: false,
+          error: 'poll_update_failed',
+          detail: String((e2 && e2.message) || (e1 && e1.message) || e2 || e1 || ''),
+        };
+      }
     }
     if (opts.clearHidden && existing.hidden_at) {
       await db
