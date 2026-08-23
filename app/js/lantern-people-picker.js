@@ -353,11 +353,41 @@
       }
     });
 
+    function setPeople(list, flags) {
+      selected = [];
+      (Array.isArray(list) ? list : []).forEach(function (p) {
+        if (!p) return;
+        var token = p.token || '';
+        var label = p.label || p.display_label || '';
+        if (!token && p.person_kind && p.person_key) {
+          if (p.person_kind === 'student') token = 'student:' + p.person_key;
+          else if (String(p.person_key).indexOf('lantern_staff:') === 0) token = 'staff_lantern:' + String(p.person_key).slice('lantern_staff:'.length);
+          else token = 'staff_tms:' + p.person_key;
+        }
+        if (!token) return;
+        selected.push({ token: token, label: label || token, kind: p.person_kind || p.kind || '' });
+      });
+      if (selected.length > max) selected = selected.slice(0, max);
+      renderChips();
+      if (input) input.value = '';
+      if (!(flags && flags.silent)) notify();
+    }
+
+    function setRecognitionLabel(label, flags) {
+      selected = [];
+      renderChips();
+      if (input) input.value = String(label || '').trim().slice(0, freeTextMax);
+      updateFreeTextStatus();
+      if (!(flags && flags.silent)) notify();
+    }
+
     return {
       getPeoplePayload: getPeoplePayload,
       getSelected: getSelected,
       getRecognitionState: getRecognitionState,
       getRecognitionLabel: getRecognitionLabel,
+      setPeople: setPeople,
+      setRecognitionLabel: setRecognitionLabel,
       clear: clear,
       setMax: function (n) {
         max = Math.max(1, Number(n) || 1);

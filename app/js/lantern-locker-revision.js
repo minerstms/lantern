@@ -59,7 +59,15 @@
     return r.returned_at || r.reviewed_at || item.returnedAt || '';
   }
 
+  function isShoutOutRaw(raw) {
+    var cat = String((raw && raw.category) || '').trim().toLowerCase();
+    if (cat === 'student spotlight') return true;
+    var title = String((raw && raw.title) || '');
+    return /^shout-out!/i.test(title);
+  }
+
   function openNewsRevise(raw) {
+    var shout = isShoutOutRaw(raw);
     try {
       sessionStorage.setItem(
         'LANTERN_NEWS_ARTICLE_RESUBMIT',
@@ -68,10 +76,20 @@
           title: raw.title || '',
           body: raw.body || '',
           category: raw.category || '',
+          contribute_type: shout ? 'shoutout' : 'post',
+          image_r2_key: raw.image_r2_key || '',
+          full_image_r2_key: raw.full_image_r2_key || '',
+          video_r2_key: raw.video_r2_key || '',
+          image_url: raw.image_url || '',
+          full_image_url: raw.full_image_url || '',
+          video_url: raw.video_url || '',
+          link_url: raw.link_url || '',
+          photo_credit: raw.photo_credit || '',
+          decision_note: raw.decision_note || raw.returned_reason || '',
         })
       );
     } catch (_) {}
-    global.location.href = 'contribute.html?type=post';
+    global.location.href = shout ? 'contribute.html?type=shoutout' : 'contribute.html?type=post';
   }
 
   function openPollRevise(raw) {
