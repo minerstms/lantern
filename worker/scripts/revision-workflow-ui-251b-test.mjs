@@ -67,9 +67,10 @@ assert(/path: '\/locker\.html'/.test(staffNav), '15. locker path contract unchan
 assert(/hrefFor\('teacher'/.test(read('worker/scripts/navigation-contract-251-test.mjs')) || true, '16. hrefFor teacher contract test still present');
 
 assert(/id="profileNeedsAttention"/.test(lockerHtml) && /Needs Revision/.test(lockerHtml), '17. Locker Needs Revision section');
+assert(/lockerNeedsRevisionHint/.test(lockerHtml) && /Fix these and send them back/.test(lockerHtml), '17b. Needs Revision inbox helper copy');
 assert(/lockerNeedsRevisionList/.test(lockerHtml) && /No revisions needed/.test(lockerHtml), '18. Needs Revision empty state');
 assert(/lantern-locker-revision\.js/.test(lockerHtml) && /lantern-action-counts\.js/.test(lockerHtml), '19. locker loads revision + action-count clients');
-assert(/Returned for Revision/.test(lockerRev) && /Teacher feedback/.test(lockerRev) && /Revise &amp; Resubmit/.test(lockerRev), '20. Needs Revision card contents');
+assert(/Teacher feedback:/.test(lockerRev) && /Current response:/.test(lockerRev) && /lockerNeedsCardIdentity/.test(lockerRev) && /Revise &amp; Resubmit/.test(lockerRev), '20. Needs Revision card contents');
 assert(!/You were reported/.test(lockerRev) && !/reporter/.test(lockerRev), '21. locker revision never mentions report identity');
 assert(/contribute\.html\?type=post/.test(lockerRev) && /LANTERN_NEWS_ARTICLE_RESUBMIT/.test(lockerRev), '22. news/shout-out revise path');
 assert(/contribute\.html\?type=poll&resubmit=/.test(lockerRev), '23. poll revise path');

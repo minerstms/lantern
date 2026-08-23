@@ -130,56 +130,81 @@
     global.location.href = 'create.html?resubmit=' + encodeURIComponent(raw.id);
   }
 
+  function formatShortDate(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.getMonth() + 1 + '/' + d.getDate();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function compactDates(submittedIso, returnedIso) {
+    var parts = [];
+    var sub = formatShortDate(submittedIso);
+    var ret = formatShortDate(returnedIso);
+    if (sub) parts.push('Submitted ' + sub);
+    if (ret) parts.push('Returned ' + ret);
+    return parts.join(' · ');
+  }
+
+  function needsClampToggle(text, maxLen) {
+    return text && String(text).length > (maxLen || 120);
+  }
+
   function cardHtml(item) {
     var raw = item.raw || item;
     var thumb = thumbFor(item);
     var note = feedbackFor(item);
-    var when = formatWhen(returnedAtFor(item));
-    var submitted = formatWhen(item.createdAt || raw.created_at);
+    var returnedIso = returnedAtFor(item);
+    var submittedIso = item.createdAt || raw.created_at;
+    var datesLine = compactDates(submittedIso, returnedIso);
     var preview = item.previewText || raw.body || raw.submission_content || raw.question || '';
-    var longFeedback = note && String(note).length > 180;
-    var shownNote = longFeedback ? String(note).slice(0, 180) + '…' : note;
+    var longFeedback = needsClampToggle(note, 120);
+    var longPreview = needsClampToggle(preview, 100);
+    var toggleBtn =
+      '<button type="button" class="lockerNeedsToggleMore" aria-expanded="false">Show more</button>';
     return (
       '<article class="lockerNeedsCard" data-revision-type="' +
       esc(item.contentType) +
       '" data-revision-id="' +
       esc(raw.id) +
       '">' +
-      '<div class="lockerNeedsCardMain">' +
       '<div class="lockerNeedsCardMedia">' +
       (thumb
-        ? '<img src="' + esc(thumb) + '" alt="" loading="lazy">'
+        ? '<img src="' + esc(thumb) + '" alt="" loading="lazy" decoding="async">'
         : '<div class="lockerNeedsCardFallback" aria-hidden="true">📝</div>') +
       '</div>' +
+      '<div class="lockerNeedsCardIdentity">' +
       '<p class="lockerNeedsCardType">' +
       esc(typeLabel(item.contentType)) +
       '</p>' +
       '<h3 class="lockerNeedsCardTitle">' +
       esc(item.title || 'Untitled') +
       '</h3>' +
-      (submitted ? '<p class="lockerNeedsCardMeta">Submitted ' + esc(submitted) + '</p>' : '') +
-      (when ? '<p class="lockerNeedsCardMeta">Returned ' + esc(when) + '</p>' : '') +
+      (datesLine ? '<p class="lockerNeedsCardDates">' + esc(datesLine) + '</p>' : '') +
       '</div>' +
       '<div class="lockerNeedsCardAside">' +
-      '<p class="lockerNeedsCardStatus">Returned for Revision</p>' +
       (note
-        ? '<div class="lockerNeedsCardFeedback" data-full-feedback="' +
+        ? '<div class="lockerNeedsCardFeedback"><strong>Teacher feedback:</strong> <span class="lockerNeedsCardFeedbackText">' +
           esc(note) +
-          '"><strong>Teacher feedback:</strong> <span class="lockerNeedsCardFeedbackText">' +
-          esc(shownNote) +
           '</span>' +
-          (longFeedback
-            ? ' <button type="button" class="lockerNeedsShowMore">Show more</button>'
-            : '') +
+          (longFeedback ? ' ' + toggleBtn : '') +
           '</div>'
-        : '<div class="lockerNeedsCardFeedback">Please revise and resubmit.</div>') +
+        : '<div class="lockerNeedsCardFeedback"><strong>Teacher feedback:</strong> Please revise and resubmit.</div>') +
       (preview
-        ? '<p class="lockerNeedsCardPreview lockerNeedsCardPreview--clamp">' + esc(String(preview).slice(0, 140)) + (String(preview).length > 140 ? '…' : '') + '</p>'
+        ? '<p class="lockerNeedsCardPreview"><strong>Current response:</strong> <span class="lockerNeedsCardPreviewText">' +
+          esc(preview) +
+          '</span>' +
+          (!longFeedback && longPreview ? ' ' + toggleBtn : '') +
+          '</p>'
         : '') +
+      '</div>' +
       '<div class="lockerNeedsCardActions">' +
       '<button type="button" class="btn primary lockerNeedsReviseBtn">Revise &amp; Resubmit</button>' +
       '<button type="button" class="btn lockerNeedsArchiveBtn">Archive for Later</button>' +
-      '</div>' +
       '</div></article>'
     );
   }
@@ -193,13 +218,13 @@
   }
 
   function wireCards(root, items) {
-    Array.prototype.forEach.call(root.querySelectorAll('.lockerNeedsShowMore'), function (btn) {
+    Array.prototype.forEach.call(root.querySelectorAll('.lockerNeedsToggleMore'), function (btn) {
       btn.addEventListener('click', function () {
-        var box = btn.closest('.lockerNeedsCardFeedback');
-        if (!box) return;
-        var text = box.querySelector('.lockerNeedsCardFeedbackText');
-        if (text) text.textContent = box.getAttribute('data-full-feedback') || text.textContent;
-        btn.remove();
+        var art = btn.closest('.lockerNeedsCard');
+        if (!art) return;
+        var expanded = art.classList.toggle('is-expanded');
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        btn.textContent = expanded ? 'Show less' : 'Show more';
       });
     });
     Array.prototype.forEach.call(root.querySelectorAll('.lockerNeedsReviseBtn'), function (btn) {
