@@ -103,7 +103,7 @@
 <body>
   <p class="banner">DEVELOPMENT-ONLY visual harness. Mounts the production opened-post DOM. Fixture percentages only. Does not write D1 or create users.</p>
   <h1>Race harness #230C</h1>
-  <p>Acceptance #247: reaction icons stay on the original row. Bars grow <strong>below</strong> the icons in normal flow. Following content is pushed down. Bars must not overlay the photo/text above.</p>
+  <p>Acceptance #255: reaction icons stay on the original row. Bars grow <strong>up</strong> from the icon baseline inside a reserved stage. Following content must not move during the race.</p>
 
   <h2>Explore opened-post modal (production chrome)</h2>
   <div class="lanternCardDetailOverlay lanternSurfaceShell show harnessOverlay" id="lanternCardDetailOverlay">
@@ -200,12 +200,12 @@
       var overlapHits = 0;
 
       function rxHtml() {
-        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + FIXTURES.length + ',minmax(0,1fr))">';
+        var html = '<div class="lanternFinalRxRaceArena"><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + FIXTURES.length + ',minmax(0,1fr))">';
         FIXTURES.forEach(function (v) {
           html +=
             '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>';
         });
-        return html + '</div><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div></div>';
+        return html + '</div></div>';
       }
 
       function paintExploreDraft() {
@@ -236,11 +236,6 @@
       function tapExploreInPlace() {
         var root = document.querySelector('#exploreRxHost .lanternFinalRxPanel');
         if (!root) return;
-        startTops = [];
-        root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
-          startTops.push(overlayY(btn));
-        });
-        captureContentAnchors();
         maxDownPx = 0;
         maxUpPx = 0;
         firstFrameDownPx = 0;
@@ -253,6 +248,11 @@
           typeAttr: 'data-rx-type',
           playAudio: false
         });
+        startTops = [];
+        root.querySelectorAll('.lanternFinalRxChoice').forEach(function (btn) {
+          startTops.push(overlayY(btn));
+        });
+        captureContentAnchors();
       }
 
       function mountPoll() {
@@ -293,15 +293,16 @@
         var stageRect = stage ? stage.getBoundingClientRect() : null;
         var stageH = stage ? Math.round(stage.getBoundingClientRect().height) : 0;
         if (stageH > maxStageH) maxStageH = stageH;
+        var iconBtns = document.querySelectorAll('#exploreRxHost .lanternFinalRxChoice');
         document.querySelectorAll('#exploreRxHost .lanternRxLane').forEach(function (lane, i) {
           var bar = lane.querySelector('[data-race-fill]');
-          var btn = lane.querySelector('.lanternFinalRxChoice');
+          var btn = iconBtns[i];
           var pctEl = lane.querySelector('[data-race-pct]');
           if (!bar || !btn) return;
           var br = bar.getBoundingClientRect();
           var ir = btn.getBoundingClientRect();
           var shown = Number(bar.getAttribute('data-race-shown') || 0);
-          var attach = gap(ir.bottom, br.top);
+          var attach = gap(ir.top, br.bottom);
           var delta = startTops[i] != null ? Math.round(overlayY(btn) - startTops[i]) : 0;
           var down = Math.max(0, delta);
           var up = Math.max(0, -delta);
@@ -310,7 +311,7 @@
           if (sampledFrames === 0 && startTops.length) firstFrameDownPx = down;
           if (shown > 8 && attach > 14) rxOk = false;
           if (down > 2 || up > 2) rxOk = false;
-          if (shown > 8 && br.top + 1 < ir.bottom) rxOk = false;
+          if (shown > 8 && br.bottom > ir.top + 2) rxOk = false;
           if (shown > 8 && (rectsOverlap(br, bodyRect) || rectsOverlap(br, photoRect) || rectsOverlap(br, followRect))) {
             overlapHits += 1;
             rxOk = false;
@@ -367,8 +368,8 @@
         lines.push('following content down px: ' + followDown);
         lines.push('bar/content overlap hits: ' + overlapHits);
         lines.push('icons stay put: ' + (maxDownPx <= 2 && maxUpPx <= 2 ? 'YES' : 'NO'));
-        lines.push('bars grow below icons: ' + (rxOk ? 'YES' : 'NO'));
-        lines.push('following content pushed down: ' + (followDown >= 8 ? 'YES' : 'NO'));
+        lines.push('bars grow above icons: ' + (rxOk ? 'YES' : 'NO'));
+        lines.push('following content stays put: ' + (Math.abs(followDown) <= 2 ? 'YES' : 'NO'));
         lines.push('cart rides fill: ' + (pollOk ? 'YES' : 'NO'));
         hud.textContent = lines.join('\n');
         samples.push({

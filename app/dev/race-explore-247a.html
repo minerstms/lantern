@@ -67,7 +67,7 @@
 <body>
   <p class="banner">DEVELOPMENT-ONLY. Uses LanternCardUI.ensureOverlay + fillFeedItemDetailModal, then the production reaction race. Fixture percentages only. No D1 writes.</p>
   <h1>Explore overlay reaction layout #247A</h1>
-  <p>Icons must stay put. The result stage must grow in document flow and push the following sibling down.</p>
+  <p>Icons must stay put. The reserved stage sits above the icon row. Following content must not move while bars animate.</p>
   <button type="button" class="run" id="openAndRace">Open Explore post and run reaction race</button>
   <button type="button" class="run" id="replayRace">Replay Results</button>
   <button type="button" class="run" id="runPoll">Poll mine-cart regression</button>
@@ -123,11 +123,11 @@
           ? window.LANTERN_FINAL_REACTIONS.VOCAB
           : FIXTURES;
         var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--locked"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
-        html += '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
+        html += '<div class="lanternFinalRxRaceArena"><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
         vocab.forEach(function (v) {
           html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>';
         });
-        html += '</div><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div></div>';
+        html += '</div></div>';
         html += '<p class="lanternFinalRxYour">Your response: ⭐</p></div>';
         host.innerHTML = html;
       }
@@ -155,7 +155,7 @@
         if (follow) {
           follow.style.display = 'block';
           follow.setAttribute('data-247a-follow', '1');
-          follow.innerHTML = '<div style="padding:12px;border:1px dashed rgba(255,255,255,.3);border-radius:12px;">Following poll / admin / modal content. Must move down as the result stage grows.</div>';
+          follow.innerHTML = '<div style="padding:12px;border:1px dashed rgba(255,255,255,.3);border-radius:12px;">Following poll / admin / modal content. Must stay put while bars animate.</div>';
         }
         return overlay;
       }
@@ -205,8 +205,10 @@
           Math.abs((after && after.iconSectionY) - before.iconSectionY)
         );
         var followDown = Math.round((after && after.followDocY) - before.followDocY);
+        var midFollow = during ? Math.round(during.followDocY - before.followDocY) : followDown;
         var stageGrew = after && after.stageH > 8;
-        var ok = iconDrift <= 2 && followDown >= 80 && stageGrew && after.barInStage && !after.iconInStage;
+        var stageStable = during ? Math.abs(during.stageH - after.stageH) <= 1 : true;
+        var ok = iconDrift <= 1 && Math.abs(followDown) <= 1 && Math.abs(midFollow) <= 1 && stageGrew && stageStable && after.barInStage && !after.iconInStage;
         lastReport = {
           ok: ok,
           iconDrift: iconDrift,
@@ -223,8 +225,8 @@
 
       function runReactionRace() {
         openExplorePost();
-        var before = capture('before');
         startRace();
+        var before = capture('before');
         var during = null;
         var started = Date.now();
         return new Promise(function (resolve) {

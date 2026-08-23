@@ -8,8 +8,22 @@
   'use strict';
 
   var MAX_MS = 3000;
-  var MAX_BAR_PX = 168;
+  /* Prompt #255 — reserved upward race field. Linear 0–100% of this desktop max. */
+  var MAX_BAR_PX = 330;
   var raceSeq = 0;
+
+  function raceMaxBarPx(stage) {
+    if (stage && global.getComputedStyle) {
+      try {
+        var cs = global.getComputedStyle(stage);
+        var maxVar = parseFloat(cs.getPropertyValue('--lantern-rx-race-max'));
+        if (maxVar >= 80) return Math.round(maxVar);
+        var h = parseFloat(cs.height);
+        if (h >= 80) return Math.round(h);
+      } catch (e) {}
+    }
+    return MAX_BAR_PX;
+  }
 
   function esc(s) {
     return String(s || '')
@@ -583,8 +597,9 @@
   }
 
   /**
-   * Reaction icons stay on a stable row. Bars/percents grow in a sibling
-   * result stage so that band consumes real document-flow height.
+   * Prompt #255 — reserved stage ABOVE the icon baseline.
+   * Icons stay put. Bars grow upward inside a fixed-height stage.
+   * Stage height is established once before animation; no in-flow growth.
    */
   function mountReactionSpatialRace(root, items, opts) {
     if (!root) return;
@@ -643,8 +658,6 @@
     var overlay = root.closest('.lanternCardDetailOverlay, .lanternSurfaceShell');
     if (overlay) overlay.classList.add('lanternCardDetailOverlay--rx-racing');
 
-    var raceStageHeight = 0;
-    var scrollPad = 0;
     var arena = panel.querySelector('.lanternFinalRxRaceArena');
     var stage = panel.querySelector('[data-rx-race-stage]');
     if (!stage) {
@@ -652,18 +665,17 @@
       stage.setAttribute('data-rx-race-stage', '');
       stage.setAttribute('aria-hidden', 'true');
     }
-    stage.className = 'lanternRxRaceStage';
+    stage.className = 'lanternRxRaceStage lanternRxRaceStage--reserved';
     if (arena && parentChoices && parentChoices.parentNode === arena) {
-      if (stage.parentNode !== arena || parentChoices.nextSibling !== stage) {
-        if (parentChoices.nextSibling) arena.insertBefore(stage, parentChoices.nextSibling);
-        else arena.appendChild(stage);
+      if (stage.parentNode !== arena || stage.nextSibling !== parentChoices) {
+        arena.insertBefore(stage, parentChoices);
       }
     } else if (parentChoices && parentChoices.parentNode) {
-      if (stage.parentNode !== parentChoices.parentNode || parentChoices.nextSibling !== stage) {
-        parentChoices.parentNode.insertBefore(stage, parentChoices.nextSibling);
+      if (stage.parentNode !== parentChoices.parentNode || stage.nextSibling !== parentChoices) {
+        parentChoices.parentNode.insertBefore(stage, parentChoices);
       }
     } else if (!stage.parentNode) {
-      panel.appendChild(stage);
+      panel.insertBefore(stage, parentChoices || panel.firstChild);
     }
     stage.style.height = '';
     var copiedCols = parentChoices && parentChoices.style ? parentChoices.style.gridTemplateColumns : '';
@@ -721,7 +733,7 @@
         bar.setAttribute('aria-hidden', 'true');
       }
       bar.className = 'lanternRxRaceBar';
-      if (bar.parentNode !== lane) lane.insertBefore(bar, lane.firstChild);
+      if (bar.parentNode !== lane) lane.appendChild(bar);
 
       var pctEl = lane.querySelector('[data-race-pct]');
       if (!pctEl && btn.nextElementSibling && btn.nextElementSibling.getAttribute('data-race-pct') != null) {
@@ -733,13 +745,17 @@
         pctEl.setAttribute('aria-hidden', 'true');
       }
       pctEl.className = 'lanternRxRacePct lanternResultRacePct is-pending';
-      if (pctEl.parentNode !== lane) lane.appendChild(pctEl);
+      if (pctEl.parentNode !== bar) bar.appendChild(pctEl);
       pctEl.classList.add('is-pending');
       pctEl.textContent = '';
       bar.style.height = '0px';
       bar.style.transform = '';
       btn.style.transition = 'none';
       btn.style.transform = '';
+      if (row.selected) {
+        btn.classList.add('lanternFinalRxChoice--on');
+        btn.classList.add('is-mine');
+      }
       btn.disabled = true;
       btn.setAttribute('aria-disabled', 'true');
       lanes.push({
@@ -751,75 +767,7 @@
       });
     }
 
-    function findRaceScrollParent(el) {
-      var n = el;
-      while (n && n !== global.document.body && n !== global.document.documentElement) {
-        if (
-          n.id === 'lanternCardDetailOverlay' ||
-          (n.classList &&
-            (n.classList.contains('lanternCardDetailOverlay') || n.classList.contains('lanternSurfaceShell')))
-        ) {
-          return n;
-        }
-        n = n.parentElement;
-      }
-      n = el;
-      while (n && n !== global.document.body && n !== global.document.documentElement) {
-        try {
-          var st = global.getComputedStyle ? global.getComputedStyle(n) : null;
-          if (
-            st &&
-            (st.overflowY === 'auto' || st.overflowY === 'scroll') &&
-            n.scrollHeight > n.clientHeight + 1
-          ) {
-            return n;
-          }
-        } catch (err) {}
-        n = n.parentElement;
-      }
-      return global.document.scrollingElement || global.document.documentElement;
-    }
-
-    function ensureScrollRoom(scroller, extra) {
-      if (!scroller || !(extra > 0)) return;
-      var maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-      var room = maxScroll - scroller.scrollTop;
-      if (room >= extra - 1) return;
-      var add = Math.ceil(extra - room);
-      scrollPad += add;
-      var padTarget =
-        (modal && modal.querySelector('.lanternSurfaceContent')) ||
-        (overlay && overlay.querySelector('.lanternSurfaceContent')) ||
-        modal ||
-        panel;
-      if (padTarget && padTarget.style) {
-        padTarget.style.paddingBottom = scrollPad + 'px';
-      }
-    }
-
-    function applyStageHeight(targetH) {
-      var next = Math.max(0, Math.min(MAX_BAR_PX, Math.round(targetH || 0)));
-      if (next !== raceStageHeight) {
-        var grew = next - raceStageHeight;
-        raceStageHeight = next;
-        if (stage) stage.style.height = '';
-        if (grew > 0) {
-          ensureScrollRoom(findRaceScrollParent(panel), grew);
-        }
-      }
-    }
-
-    function syncRaceStage() {
-      var maxH = 0;
-      for (var si = 0; si < lanes.length; si++) {
-        var shownH = Number((lanes[si].bar && lanes[si].bar.getAttribute('data-race-shown')) || 0);
-        var px = Math.round((clampPct(shownH) / 100) * MAX_BAR_PX);
-        if (px > maxH) maxH = px;
-      }
-      applyStageHeight(maxH);
-    }
-
-    applyStageHeight(0);
+    var reservedMaxPx = raceMaxBarPx(stage);
 
     var live = root.querySelector('[data-race-live]') || attachLive(panel, token);
 
@@ -828,7 +776,7 @@
     }
 
     function applyVert(part, grownPct) {
-      var h = Math.round((clampPct(grownPct) / 100) * MAX_BAR_PX);
+      var h = Math.round((clampPct(grownPct) / 100) * reservedMaxPx);
       if (part.bar) {
         part.bar.style.height = h + 'px';
         part.bar.setAttribute('data-race-shown', String(clampPct(grownPct)));
@@ -837,7 +785,6 @@
         part.btn.style.transition = 'none';
         part.btn.style.transform = '';
       }
-      syncRaceStage();
     }
 
     function finishVisual(part) {

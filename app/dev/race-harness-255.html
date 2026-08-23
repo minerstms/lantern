@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Reaction race #255</title>
+  <link rel="stylesheet" href="/css/lantern-header.css">
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-cards.css">
+  <link rel="stylesheet" href="/css/lantern-reactions.css">
+  <style>
+    :root { --bg: #0b1220; --ink: #eaf0ff; --muted: #b9c6ea; --line: rgba(255,255,255,.12); }
+    html, body { margin: 0; min-height: 100%; background: #0b1220; color: var(--ink); }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 22px;
+      padding: 16px 12px 48px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    p { font-size: 22px; line-height: 1.35; }
+    .banner {
+      background: #5a1d1d;
+      border: 2px solid #ff8080;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-weight: 800;
+    }
+    button.run {
+      width: 100%;
+      min-height: 52px;
+      font-size: 22px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(90,167,255,.22);
+      color: inherit;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+    #hud, #report {
+      font-size: 16px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      background: #071018;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+    #lanternCardDetailOverlay.harnessOverlay {
+      position: relative;
+      inset: auto;
+      display: flex;
+      height: 78vh;
+      z-index: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    .harnessPhoto {
+      width: 100%;
+      height: 180px;
+      display: block;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0b1220 55%, #16324d 100%);
+    }
+  </style>
+  <script>
+    (function () {
+      var orig = window.matchMedia;
+      window.matchMedia = function (q) {
+        if (String(q || '').indexOf('prefers-reduced-motion') !== -1) {
+          return { matches: false, media: q, addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {} };
+        }
+        return orig ? orig.call(window, q) : { matches: false, media: q };
+      };
+    })();
+  </script>
+</head>
+<body>
+  <p class="banner">DEVELOPMENT-ONLY. Production reaction markup + mountReactionSpatialRace. Fixture percentages only. No D1 writes.</p>
+  <h1>Reaction race #255</h1>
+  <p>Icons stay on the baseline. Bars grow straight up inside a reserved stage. Content below must not move during the race.</p>
+  <div class="lanternCardDetailOverlay lanternSurfaceShell show harnessOverlay" id="lanternCardDetailOverlay">
+    <div class="lanternCardDetailModal lanternSurface" role="dialog" aria-modal="true" aria-labelledby="lanternCardDetailTitle">
+      <div class="lanternSurfaceContent">
+        <div class="lanternCardDetailStage">
+          <div class="harnessPhoto" id="lanternCardDetailVisual"></div>
+          <h2 class="lanternCardDetailTitle" id="lanternCardDetailTitle">Opened Explore post</h2>
+          <div class="lanternCardDetailBody" id="lanternCardDetailBody">
+            <div class="lanternCardDetailBodyRead">Body copy above the reaction row. The reserved stage may appear once; it must not keep growing while bars animate.</div>
+          </div>
+          <div class="lanternCardDetailReactions" id="lanternCardDetailReactions">
+            <div class="lanternFinalRxHost" id="exploreRxHost"></div>
+          </div>
+          <div class="lanternCardDetailBody" id="lanternFollowingAnchor" style="margin-top:12px;padding:12px;border:1px dashed rgba(255,255,255,.28);border-radius:12px;">
+            BELOW-RACE ANCHOR — must not move during animation.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="run" id="runCluster">Run 18 / 19 / 20 / 21 / 22</button>
+  <button type="button" class="run" id="runEven">Run 20 / 20 / 20 / 20 / 20</button>
+  <button type="button" class="run" id="runHundred">Run 0 / 0 / 0 / 0 / 100</button>
+  <button type="button" class="run" id="runSweep">Run 5 / 10 / 15 / 30 / 40</button>
+  <button type="button" class="run" id="replay">Replay (presentation only)</button>
+  <div id="hud">Waiting…</div>
+  <div id="report"></div>
+  <script src="/js/lantern-race-audio.js"></script>
+  <script src="/js/lantern-result-reveal.js"></script>
+  <script>
+    (function () {
+      var TYPES = [
+        { label: 'Love', emoji: '❤️', type: 'heart' },
+        { label: 'Star', emoji: '⭐', type: 'star' },
+        { label: 'Idea', emoji: '💡', type: 'lightbulb' },
+        { label: 'Handshake', emoji: '🤝', type: 'teamwork' },
+        { label: 'Fire', emoji: '🔥', type: 'fire' }
+      ];
+      var lastItems = null;
+      var lastReport = null;
+
+      function fixturesFrom(percents, selectedIndex) {
+        return TYPES.slice(0, percents.length).map(function (v, i) {
+          return {
+            label: v.label,
+            emoji: v.emoji,
+            type: v.type,
+            percentage: percents[i],
+            selected: i === selectedIndex
+          };
+        });
+      }
+
+      function paintDraft(count) {
+        count = count || 5;
+        var vocab = TYPES.slice(0, count);
+        var html = '<div class="lanternFinalRxPanel lanternFinalRxPanel--draft"><h3 class="lanternFinalRxHeading">Leave a reaction!</h3>';
+        html += '<div class="lanternFinalRxRaceArena"><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div>';
+        html += '<div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
+        vocab.forEach(function (v) {
+          html += '<button type="button" class="lanternFinalRxChoice" data-rx-type="' + v.type + '" aria-label="' + v.label + '">' + v.emoji + '</button>';
+        });
+        html += '</div></div></div>';
+        document.getElementById('exploreRxHost').innerHTML = html;
+      }
+
+      function overlayY(el) {
+        if (!el) return 0;
+        var overlay = document.getElementById('lanternCardDetailOverlay');
+        var r = el.getBoundingClientRect();
+        var o = overlay ? overlay.getBoundingClientRect() : { top: 0 };
+        var st = overlay ? overlay.scrollTop : (window.scrollY || 0);
+        return r.top - o.top + st;
+      }
+
+      function capture(label) {
+        var icons = document.querySelectorAll('#exploreRxHost .lanternFinalRxChoice');
+        var stage = document.querySelector('#exploreRxHost [data-rx-race-stage]');
+        var anchor = document.getElementById('lanternFollowingAnchor');
+        var bars = document.querySelectorAll('#exploreRxHost [data-race-fill]');
+        var sr = stage ? stage.getBoundingClientRect() : null;
+        var rec = {
+          label: label,
+          scrollTop: document.getElementById('lanternCardDetailOverlay').scrollTop,
+          stageTop: sr ? Math.round(sr.top) : 0,
+          stageBottom: sr ? Math.round(sr.bottom) : 0,
+          stageH: sr ? Math.round(sr.height) : 0,
+          anchorY: overlayY(anchor),
+          compact: !document.querySelector('#exploreRxHost .lanternRxRaceStage--reserved'),
+          icons: [],
+          bars: []
+        };
+        icons.forEach(function (btn, i) {
+          var r = btn.getBoundingClientRect();
+          rec.icons.push({ i: i, x: Math.round(r.left * 10) / 10, y: Math.round(r.top * 10) / 10, docY: overlayY(btn) });
+        });
+        bars.forEach(function (bar, i) {
+          var r = bar.getBoundingClientRect();
+          rec.bars.push({
+            i: i,
+            h: Math.round(r.height),
+            top: Math.round(r.top),
+            bottom: Math.round(r.bottom),
+            shown: Number(bar.getAttribute('data-race-shown') || 0)
+          });
+        });
+        return rec;
+      }
+
+      function drift(a, b) {
+        if (a == null || b == null) return 0;
+        return Math.abs(a - b);
+      }
+
+      function summarize(name, compact, before, mid, after) {
+        var iconY = 0;
+        var iconX = 0;
+        (before.icons || []).forEach(function (ic, i) {
+          var m = mid.icons[i] || ic;
+          var a = after.icons[i] || ic;
+          iconY = Math.max(iconY, drift(ic.y, m.y), drift(ic.y, a.y));
+          iconX = Math.max(iconX, drift(ic.x, m.x), drift(ic.x, a.x));
+        });
+        var anchorDrift = Math.max(drift(before.anchorY, mid.anchorY), drift(before.anchorY, after.anchorY));
+        var stageDrift = Math.max(drift(before.stageH, mid.stageH), drift(before.stageH, after.stageH));
+        var growUp = true;
+        (after.bars || []).forEach(function (bar, i) {
+          var icon = after.icons[i];
+          if (bar.h <= 0) return;
+          if (Math.abs(bar.bottom - after.stageBottom) > 4) growUp = false;
+          if (icon && bar.bottom > icon.y + 2) growUp = false;
+        });
+        var tallest = 0;
+        (after.bars || []).forEach(function (b) { tallest = Math.max(tallest, b.h); });
+        var ok = iconY <= 1 && iconX <= 1 && anchorDrift <= 1 && stageDrift <= 1 && before.stageH >= 220 && growUp;
+        lastReport = {
+          ok: ok,
+          name: name,
+          compactH: compact && compact.stageH,
+          iconYDrift: iconY,
+          iconXDrift: iconX,
+          anchorDrift: anchorDrift,
+          stageHDrift: stageDrift,
+          growUp: growUp,
+          tallestBar: tallest,
+          before: before,
+          mid: mid,
+          after: after
+        };
+        document.getElementById('report').textContent = JSON.stringify(lastReport, null, 2);
+        window.__LANTERN_255 = lastReport;
+        return lastReport;
+      }
+
+      function startRace(items) {
+        lastItems = items;
+        var root = document.querySelector('#exploreRxHost .lanternFinalRxPanel');
+        window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(root, items, {
+          choiceSelector: '.lanternFinalRxChoice',
+          typeAttr: 'data-rx-type',
+          playAudio: false
+        });
+      }
+
+      function runRace(percents, selectedIndex, name) {
+        paintDraft(percents.length);
+        var compact = capture('compact');
+        var items = fixturesFrom(percents, selectedIndex == null ? 2 : selectedIndex);
+        startRace(items);
+        var before = capture('before');
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            var mid = capture('mid');
+            setTimeout(function () {
+              var after = capture('after');
+              var report = summarize(name || percents.join('/'), compact, before, mid, after);
+              document.getElementById('hud').textContent =
+                (report.ok ? 'PASS' : 'FAIL') + ' ' + report.name +
+                '\niconY=' + report.iconYDrift +
+                ' iconX=' + report.iconXDrift +
+                ' anchor=' + report.anchorDrift +
+                ' stageHΔ=' + report.stageHDrift +
+                ' stageH=' + after.stageH +
+                ' tallest=' + report.tallestBar +
+                ' growUp=' + report.growUp;
+              resolve(report);
+            }, 2200);
+          }, 1200);
+        });
+      }
+
+      function replay() {
+        if (!lastItems) return Promise.resolve({ ok: false, reason: 'no prior race' });
+        var scrollBefore = document.getElementById('lanternCardDetailOverlay').scrollTop;
+        startRace(lastItems);
+        return new Promise(function (resolve) {
+          setTimeout(function () {
+            var after = capture('replay-after');
+            var tallest = 0;
+            (after.bars || []).forEach(function (b) { tallest = Math.max(tallest, b.h); });
+            resolve({
+              ok: Math.abs(document.getElementById('lanternCardDetailOverlay').scrollTop - scrollBefore) <= 1 && tallest > 0,
+              scrollBefore: scrollBefore,
+              scrollAfter: document.getElementById('lanternCardDetailOverlay').scrollTop,
+              tallestBar: tallest,
+              after: after
+            });
+          }, 3200);
+        });
+      }
+
+      document.getElementById('runCluster').addEventListener('click', function () { runRace([18, 19, 20, 21, 22], 2, '18/19/20/21/22'); });
+      document.getElementById('runEven').addEventListener('click', function () { runRace([20, 20, 20, 20, 20], 1, '20/20/20/20/20'); });
+      document.getElementById('runHundred').addEventListener('click', function () { runRace([0, 0, 0, 0, 100], 4, '0/0/0/0/100'); });
+      document.getElementById('runSweep').addEventListener('click', function () { runRace([5, 10, 15, 30, 40], 3, '5/10/15/30/40'); });
+      document.getElementById('replay').addEventListener('click', function () { replay(); });
+
+      paintDraft(5);
+      window.__LANTERN_RACE_255 = {
+        paintDraft: paintDraft,
+        capture: capture,
+        runRace: runRace,
+        replay: replay,
+        fixturesFrom: fixturesFrom
+      };
+      document.getElementById('hud').textContent = 'Ready.';
+    })();
+  </script>
+</body>
+</html>

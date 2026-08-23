@@ -1,5 +1,5 @@
 /**
- * Prompt #247 — reaction icons stay put; bars grow in-flow and push following content down.
+ * Prompt #247 / #255 — reaction icons stay put; bars grow upward inside a reserved stage.
  * Usage: node worker/scripts/interaction-race-247-test.mjs
  */
 import fs from 'fs';
@@ -39,28 +39,27 @@ assert(!/hold - h/.test(rxFn), 'reaction race no longer uses hold - h');
 assert(!/captureLayoutHold/.test(rxFn) && !/layoutHold/.test(rxFn), 'icon layoutHold ride removed');
 assert(!/btn\.style\.transform = 'translateY/.test(rxFn), 'icons are not translated with bar height');
 assert(/bar\.style\.height = h \+ 'px'/.test(rxFn), 'bars still grow by height');
-assert(/parentChoices\.nextSibling/.test(rxFn), 'any reserved stage sits after the icon row');
-assert(!/insertBefore\(stage, parentChoices\)/.test(rxFn), 'stage is not inserted above the icon row');
+assert(/insertBefore\(stage, parentChoices\)/.test(rxFn), 'reserved stage sits above the icon row');
+assert(!/parentChoices\.nextSibling/.test(rxFn), 'stage is not placed after the icon row');
 assert(/stage\.appendChild\(lane\)/.test(rxFn) || /lane\.parentNode !== stage/.test(rxFn), 'result lanes live in the stage, not under the icons');
 assert(/insertBefore\(unwrapBtn, wrapLane\)/.test(rxFn), 'leftover icon+bar lanes are unwrapped so icons stay in the row');
 assert(!/scrollTop\s*=/.test(rxFn) && !/scrollTop\s*\+=/.test(rxFn), 'no race-loop scrollTop writes');
 assert(!/\.scrollTo\s*\(/.test(rxFn) && !/scrollIntoView/.test(rxFn), 'race loop does not call scrollTo/scrollIntoView');
 assert(!/position:\s*fixed/.test(rxFn), 'race JS does not pin a fixed container');
 
-const laneBlock = /justify-content:\s*flex-start/.test(rxCss) && /flex-direction:\s*column/.test(rxCss);
+const laneBlock = /\.lanternRxLane\{/.test(rxCss) && /height:\s*100%/.test(rxCss);
 const barBlock = rxCss.match(/\.lanternRxRaceBar\{[^}]+\}/);
 const choicesBlock = rxCss.match(/\.lanternFinalRxChoices \{[^}]+\}/);
 const stageBlock = rxCss.match(/\.lanternRxRaceStage\{[^}]+\}/);
-assert(laneBlock, 'result lanes stack from the top');
-assert(!!choicesBlock && /align-items:\s*start/.test(choicesBlock[0]), 'icon row stays the shared top baseline');
-assert(!!barBlock && /position:\s*relative/.test(barBlock[0]), 'bars occupy in-flow height in the result stage');
-assert(barBlock && !/position:\s*absolute/.test(barBlock[0]) && !/bottom:\s*8px/.test(barBlock[0]), 'bars are not absolutely pinned to a moving floor');
-assert(!!stageBlock && /display:\s*grid/.test(stageBlock[0]) && /height:\s*auto/.test(stageBlock[0]), 'result stage is an in-flow grid');
-assert(!!stageBlock && /overflow:\s*visible/.test(stageBlock[0]), 'result stage is not a zero-height clip box');
+assert(laneBlock, 'result lanes stack from the reserved-stage baseline');
+assert(!!choicesBlock && /align-items:\s*start/.test(choicesBlock[0]), 'icon row stays the shared baseline');
+assert(!!barBlock && /position:\s*absolute/.test(barBlock[0]) && /bottom:\s*0/.test(barBlock[0]), 'bars grow upward from the icon baseline');
+assert(/lanternRxRaceStage--reserved/.test(rxCss) && /--lantern-rx-race-max:\s*330px/.test(rxCss), 'result stage reserves a fixed race field');
+assert(!!stageBlock && /height:\s*0/.test(stageBlock[0]), 'idle stage does not reserve a blank hole');
 assert(!/position:\s*fixed/.test(rxCss), 'reaction CSS does not use position:fixed');
 assert(/align-self:\s*start/.test(rxCss), 'reaction icons do not self-center as a row grows');
 
-assert(/lanternFinalRxChoice[\s\S]+lanternRxRaceStage/.test(finalRx), 'draft/locked markup is icon row then empty result stage');
+assert(/lanternRxRaceStage[\s\S]+lanternFinalRxChoice/.test(finalRx), 'draft/locked markup is empty result stage above the icon row');
 assert(!/<div class="lanternRxLane">/.test(finalRx), 'icons are not pre-wrapped with bars in the same cell');
 
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
