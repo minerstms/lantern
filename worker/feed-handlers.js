@@ -17,6 +17,12 @@ import { loadContentPeopleIndex } from './content-people.js';
 import { isStaffEconomyKey, parseStaffEconomyKey } from './staff-economy.js';
 import { applyFirstPageHiddenNugget } from './hidden-nugget.js';
 import { attachStoredThumbnails, extractNewsObjectKeyFromUrl, isStudentOriginalObjectKey, touchSidecarForOriginal } from './image-thumbnails.js';
+import {
+  applyFeedSidecar,
+  feedRevisionPayload,
+  rejectClientMediaKeys,
+  resolveFeedImageFromMediaAction,
+} from './feed-media-revision.js';
 import { isModerationSchemaError } from './moderation-events.js';
 import { recordEventForAccount, snapshotFromFeed } from './moderation-review.js';
 import { attachLockerPublicKeys, buildLockerPublicKeyIndex } from './locker-public-key.js';
@@ -961,6 +967,22 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     return feedJson({ ok: true, items }, 200, cors);
   }
 
+  if (request.method === 'GET' && path.startsWith('/api/feed/revision/')) {
+    const auth = await requireAuth(request, env, cors, deps);
+    if (auth.response) return auth.response;
+    const id = decodeURIComponent(path.slice('/api/feed/revision/'.length).split('/')[0] || '').trim();
+    if (!id) return feedJson({ ok: false, error: 'Missing id' }, 400, cors);
+    const row = await db.prepare('SELECT * FROM lantern_feed_items WHERE id = ?').bind(id).first();
+    if (!row) return feedJson({ ok: false, error: 'Not found' }, 404, cors);
+    const authorKey = authorKeyFromAccount(auth.account, deps.pilotEconomyCharacterName);
+    const isOwner = row.author_display_name === authorKey || row.author_id === String(auth.account.username);
+    if (!isOwner) return feedJson({ ok: false, error: 'forbidden' }, 403, cors);
+    if (String(row.status || '').toLowerCase() !== 'returned') {
+      return feedJson({ ok: false, error: 'Can only load returned feed items' }, 400, cors);
+    }
+    return feedJson({ ok: true, item: feedRevisionPayload(row, origin) }, 200, cors);
+  }
+
   if (request.method === 'POST' && path === '/api/feed/create') {
     const auth = await requireAuth(request, env, cors, deps);
     if (auth.response) return auth.response;
@@ -970,6 +992,11 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     if (!validateFeedType(type)) return feedJson({ ok: false, error: 'Invalid type' }, 400, cors);
     const title = String(body.title || '').trim();
     if (!title) return feedJson({ ok: false, error: 'Missing title' }, 400, cors);
+    const keyReject = rejectClientMediaKeys(body);
+    if (!keyReject.ok) return feedJson({ ok: false, error: keyReject.error, param: keyReject.param }, 400, cors);
+    const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
+    const mediaResolved = await resolveFeedImageFromMediaAction(body, null, bucket);
+    if (!mediaResolved.ok) return feedJson({ ok: false, error: mediaResolved.error }, mediaResolved.status || 400, cors);
     const authorKey = authorKeyFromAccount(auth.account, deps.pilotEconomyCharacterName);
     const now = new Date().toISOString();
     const id = 'feed-' + crypto.randomUUID();
@@ -987,9 +1014,9 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       String(auth.account.username || ''),
       authorKey,
       role,
-      body.image_r2_key || null,
-      body.video_r2_key || null,
-      body.link_url || null,
+      mediaResolved.imageKey,
+      null,
+      null,
       body.tags ? JSON.stringify(body.tags) : '[]',
       status,
       now,
@@ -997,7 +1024,10 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
       status === 'approved' ? String(auth.account.display_name || auth.account.username) : null,
       body.extra_json ? (typeof body.extra_json === 'string' ? body.extra_json : JSON.stringify(body.extra_json)) : null
     ).run();
-    return feedJson({ ok: true, id, status }, 200, cors);
+    if (mediaResolved.sidecarTouchKey) {
+      await applyFeedSidecar(db, id, mediaResolved.sidecarTouchKey, false);
+    }
+    return feedJson({ ok: true, id, status, image_r2_key: mediaResolved.imageKey || null }, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/feed/update') {
@@ -1005,6 +1035,8 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     if (auth.response) return auth.response;
     const body = await parseJsonBody(request);
     if (!body) return feedJson({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    const keyReject = rejectClientMediaKeys(body);
+    if (!keyReject.ok) return feedJson({ ok: false, error: keyReject.error, param: keyReject.param }, 400, cors);
     const id = String(body.id || '').trim();
     if (!id) return feedJson({ ok: false, error: 'Missing id' }, 400, cors);
     const row = await db.prepare('SELECT * FROM lantern_feed_items WHERE id = ?').bind(id).first();
@@ -1020,27 +1052,19 @@ export async function handleFeedRoutes(request, url, path, env, cors, deps) {
     if (body.status && String(body.status).toLowerCase() !== st) {
       return feedJson({ ok: false, error: 'Status changes must use submit/review endpoints' }, 400, cors);
     }
+    const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
+    const mediaResolved = await resolveFeedImageFromMediaAction(body, row.image_r2_key, bucket);
+    if (!mediaResolved.ok) return feedJson({ ok: false, error: mediaResolved.error }, mediaResolved.status || 400, cors);
     const title = body.title != null ? String(body.title).trim() : row.title;
     const articleBody = body.body != null ? String(body.body).trim() : row.body;
     const summary = body.summary != null ? String(body.summary).trim() : row.summary;
     const type = body.type && validateFeedType(body.type) ? body.type : row.type;
+    const tagsJson = body.tags != null ? JSON.stringify(body.tags) : row.tags;
     await db.prepare(
-      'UPDATE lantern_feed_items SET title = ?, body = ?, summary = ?, type = ?, image_r2_key = COALESCE(?, image_r2_key), tags = COALESCE(?, tags) WHERE id = ?'
-    ).bind(
-      title,
-      articleBody,
-      summary,
-      type,
-      body.image_r2_key != null ? body.image_r2_key : null,
-      body.tags ? JSON.stringify(body.tags) : null,
-      id
-    ).run();
-    if (body.image_r2_key != null && String(body.image_r2_key).trim()) {
-      try {
-        await touchSidecarForOriginal(db, 'feed', id, String(body.image_r2_key).trim());
-      } catch (_) {}
-    }
-    return feedJson({ ok: true, id }, 200, cors);
+      'UPDATE lantern_feed_items SET title = ?, body = ?, summary = ?, type = ?, image_r2_key = ?, tags = ? WHERE id = ?'
+    ).bind(title, articleBody, summary, type, mediaResolved.imageKey, tagsJson, id).run();
+    await applyFeedSidecar(db, id, mediaResolved.sidecarTouchKey, mediaResolved.sidecarClear);
+    return feedJson({ ok: true, id, image_r2_key: mediaResolved.imageKey || null }, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/feed/submit') {

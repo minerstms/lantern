@@ -528,13 +528,14 @@
         run.withSuccessHandler(function(r){ resolve(r); }).withFailureHandler(function(err){ resolve({ ok: false, error: String(err && err.message || err) }); }).submitMissionCompletion({ mission_id: missionId, character_name: characterName, submission_type: submissionType, submission_content: submissionContent });
       });
     }
-    function callResubmitMissionSubmission(id, submissionContent){
+    function callResubmitMissionSubmission(id, submissionContent, resubmitOpts){
+      var body = Object.assign({ id: id, submission_content: submissionContent || '' }, resubmitOpts || {});
       if (missionsApiBase != null && id) {
         return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id, submission_content: submissionContent || '' })
+          body: JSON.stringify(body)
         }).then(function(r){ return r.json(); }).catch(function(){ return { ok: false, error: 'Network error' }; });
       }
       var run = createRun ? createRun() : null;
@@ -806,6 +807,8 @@
 
     var missionApiBase = (typeof window !== 'undefined' && typeof window.LANTERN_AVATAR_API !== 'undefined' && window.LANTERN_AVATAR_API !== null) ? String(window.LANTERN_AVATAR_API).replace(/\/$/, '') : null;
     var missionUnifiedField = null;
+    var missionMediaEdit = (window.LanternMediaEdit && window.LanternMediaEdit.create) ? window.LanternMediaEdit.create() : { existing: null, local: null, intent: 'keep' };
+    var missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
     function destroyMissionUnifiedField(){
       if (missionUnifiedField) {
         try { missionUnifiedField.destroy(); } catch (e) {}
@@ -814,6 +817,13 @@
     }
     function syncMissionUnifiedPreview(){
       if (!missionUnifiedField) return;
+      if (currentResubmitId && window.LanternMediaEdit && missionMediaEdit) {
+        var editHtml = window.LanternMediaEdit.buildPreviewHTML(missionMediaEdit);
+        if (editHtml) {
+          missionUnifiedField.setPreviewHTML(editHtml);
+          return;
+        }
+      }
       var imgU = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
       var upImg = el('missionSubmitImageUploadPreviewImg');
       if (!imgU && upImg && upImg.src && (upImg.src.indexOf('data:') === 0 || upImg.src.indexOf('http') === 0)) imgU = upImg.src;
@@ -998,6 +1008,15 @@
       }
       modal.style.display = 'none';
       if (!dataUrlToUpload){ toast('Could not crop image'); return; }
+      if (currentResubmitId && window.LanternMediaEdit) {
+        missionLocalImage = { dataUrl: dataUrlToUpload, mime: 'image/png', fileName: 'image.png' };
+        window.LanternMediaEdit.setLocal(missionMediaEdit, { kind: 'image', previewUrl: dataUrlToUpload });
+        if (uploadPreviewImg) uploadPreviewImg.src = dataUrlToUpload;
+        if (imageUrlEl) imageUrlEl.value = '';
+        syncMissionUnifiedPreview();
+        updateMissionSubmitPreview();
+        return;
+      }
       var mime = 'image/png';
       var name = 'image.png';
       callUploadMissionImage(dataUrlToUpload, mime, name).then(function(res){
@@ -1917,6 +1936,14 @@
           : { isEnvelope: false, text: '', image_url: '' };
         if (contentEl) contentEl.value = allowsText ? (pfEnvelope.isEnvelope ? pfEnvelope.text : pf) : '';
         if (imageUrlEl) imageUrlEl.value = pfEnvelope.isEnvelope ? pfEnvelope.image_url : (m.submission_type === 'image_url' ? pf : '');
+        if (window.LanternMediaEdit && currentResubmitId) {
+          missionMediaEdit = window.LanternMediaEdit.create();
+          missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+          var existingImg = (imageUrlEl && imageUrlEl.value) || '';
+          if (existingImg) {
+            window.LanternMediaEdit.setExisting(missionMediaEdit, { kind: 'image', previewUrl: existingImg, deliveryUrl: existingImg });
+          }
+        }
         var minRaw = Number(m.min_characters);
         var minChars = Number.isFinite(minRaw) && minRaw >= 0 ? Math.floor(minRaw) : 0;
         var enforceMin = allowsText && minChars > 0;
@@ -1997,6 +2024,38 @@
         el('missionCropperModal').style.display = 'none';
       });
       if (el('missionSubmitPollLibraryBtn')) el('missionSubmitPollLibraryBtn').addEventListener('click', function(){ openLibraryPicker('poll'); });
+      var missionUmMount = el('missionUnifiedMediaMount');
+      if (missionUmMount && !missionUmMount._mediaEditWired) {
+        missionUmMount._mediaEditWired = true;
+        missionUmMount.addEventListener('click', function(e){
+          var action = e.target && e.target.getAttribute && e.target.getAttribute('data-media-edit');
+          if (!window.LanternMediaEdit || !currentResubmitId) {
+            if (e.target.id === 'missionUmRemove' && missionUnifiedField) {
+              missionUnifiedField.clearPreview();
+              clearMissionImageUpload();
+              syncMissionUnifiedPreview();
+            }
+            if (e.target.id === 'missionUmReplace' && missionUnifiedField) {
+              missionUnifiedField.clearPreview();
+              missionUnifiedField.openFilePicker();
+            }
+            return;
+          }
+          if (action === 'remove' || e.target.id === 'missionUmRemove') {
+            window.LanternMediaEdit.setRemove(missionMediaEdit);
+            missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+            clearMissionImageUpload();
+            syncMissionUnifiedPreview();
+          } else if (action === 'undo') {
+            window.LanternMediaEdit.cancel(missionMediaEdit);
+            missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+            syncMissionUnifiedPreview();
+          } else if (action === 'replace' || action === 'use' || e.target.id === 'missionUmReplace') {
+            if (missionUnifiedField && missionUnifiedField.openFilePicker) missionUnifiedField.openFilePicker();
+          }
+        });
+      }
       if (el('missionSubmitLibraryCloseBtn')) el('missionSubmitLibraryCloseBtn').addEventListener('click', function(){
         var lm = el('missionSubmitLibraryModal');
         if (lm){ lm.style.display = 'none'; lm.classList.remove('show'); }
@@ -2141,8 +2200,23 @@
       else if (allowsLink && linkVal){ type = 'link'; content = linkVal; }
       if (m.submission_type === 'confirmation') type = 'confirmation';
       setMissionSubmitBusy(true);
+      var resubmitOpts = null;
+      var resubmitContent = content;
+      if (currentResubmitId) {
+        resubmitOpts = { media_action: (missionMediaEdit && missionMediaEdit.intent) || 'keep' };
+        if (allowsText && (validText || textVal)) resubmitContent = textVal;
+        else if (type === 'image_url') resubmitContent = '';
+        if (resubmitOpts.media_action === 'replace' && missionLocalImage.dataUrl) {
+          resubmitOpts.media_kind = 'image';
+          resubmitOpts.image = missionLocalImage.dataUrl;
+          resubmitOpts.mime_type = missionLocalImage.mime;
+          resubmitOpts.file_name = missionLocalImage.fileName;
+        } else if (resubmitOpts.media_action === 'replace' && !missionLocalImage.dataUrl) {
+          resubmitOpts.media_action = 'keep';
+        }
+      }
       Promise.resolve(currentResubmitId
-        ? callResubmitMissionSubmission(currentResubmitId, content)
+        ? callResubmitMissionSubmission(currentResubmitId, resubmitContent, resubmitOpts)
         : callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, type, content)
       ).then(function(res){
         setMissionSubmitBusy(false);

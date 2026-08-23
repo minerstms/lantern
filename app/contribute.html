@@ -1679,24 +1679,26 @@
           if (!act || !newsUnifiedField) return;
           ev.preventDefault();
           ev.stopPropagation();
+          var ctClick = getContributeType();
+          var mediaState = (ctClick === 'poll' && resubmitPollContribId && pollMediaEdit) ? pollMediaEdit : newsMediaEdit;
           if (act === 'remove') {
-            if (newsMediaEdit.existing && window.LanternMediaEdit) window.LanternMediaEdit.setRemove(newsMediaEdit);
+            if (mediaState.existing && window.LanternMediaEdit) window.LanternMediaEdit.setRemove(mediaState);
             else if (newsUnifiedField.clearPreview) newsUnifiedField.clearPreview();
             croppedNewsImageDataUrl = null;
             fullNewsImageDataUrl = null;
             newsLinkUrl = null;
             newsVideoFile = null;
-            if (newsMediaEdit.existing && el('newsPhotoCredit')) el('newsPhotoCredit').value = '';
+            if (mediaState === newsMediaEdit && newsMediaEdit.existing && el('newsPhotoCredit')) el('newsPhotoCredit').value = '';
             refreshContributeUnifiedPreview();
           } else if (act === 'replace' || act === 'choose-another') {
             newsUnifiedField.openFilePicker();
           } else if (act === 'undo' || act === 'cancel') {
-            if (window.LanternMediaEdit) window.LanternMediaEdit.cancel(newsMediaEdit);
+            if (window.LanternMediaEdit) window.LanternMediaEdit.cancel(mediaState);
             croppedNewsImageDataUrl = null;
             fullNewsImageDataUrl = null;
             newsLinkUrl = null;
             newsVideoFile = null;
-            if (el('newsPhotoCredit')) el('newsPhotoCredit').value = newsRevisionPhotoCredit;
+            if (mediaState === newsMediaEdit && el('newsPhotoCredit')) el('newsPhotoCredit').value = newsRevisionPhotoCredit;
             refreshContributeUnifiedPreview();
           } else if (act === 'use-this') {
             refreshContributeUnifiedPreview();
@@ -1825,6 +1827,7 @@
     var newsLinkUrl = null;
     var newsUnifiedField = null;
     var newsMediaEdit = (window.LanternMediaEdit && window.LanternMediaEdit.create) ? window.LanternMediaEdit.create() : { existing: null, local: null, intent: 'keep' };
+    var pollMediaEdit = (window.LanternMediaEdit && window.LanternMediaEdit.create) ? window.LanternMediaEdit.create() : { existing: null, local: null, intent: 'keep' };
     var newsRevisionPhotoCredit = '';
     var newsRevisionDecisionNote = '';
     var newsRevisionPeopleHydrating = false;
@@ -1937,6 +1940,16 @@
         var editHtml = window.LanternMediaEdit.buildPreviewHTML(newsMediaEdit);
         if (editHtml) {
           newsUnifiedField.setPreviewHTML(editHtml);
+          return;
+        }
+      }
+      if (ctUm === 'poll' && resubmitPollContribId && window.LanternMediaEdit && pollMediaEdit) {
+        if (croppedNewsImageDataUrl) {
+          window.LanternMediaEdit.setLocal(pollMediaEdit, { kind: 'image', previewUrl: croppedNewsImageDataUrl });
+        }
+        var pollEditHtml = window.LanternMediaEdit.buildPreviewHTML(pollMediaEdit);
+        if (pollEditHtml) {
+          newsUnifiedField.setPreviewHTML(pollEditHtml);
           return;
         }
       }
@@ -2160,7 +2173,13 @@
             var inputs = (el('pollOptionsWrap') || {}).querySelectorAll ? el('pollOptionsWrap').querySelectorAll('.pollOptInput') : [];
             for (var i = 0; i < choices.length && i < inputs.length; i++) inputs[i].value = choices[i] || '';
           }
-          if (c.image_url) newsLinkUrl = c.image_url;
+          if (c.image_url) {
+            newsLinkUrl = c.image_url;
+            if (window.LanternMediaEdit) {
+              pollMediaEdit = window.LanternMediaEdit.create();
+              window.LanternMediaEdit.setExisting(pollMediaEdit, { kind: 'image', previewUrl: c.image_url, deliveryUrl: c.image_url });
+            }
+          }
           if (el('pollFallbackSelect')) el('pollFallbackSelect').value = (c.fallback_key || 'poll');
           var subBtn = el('submitNewsBtn');
           if (subBtn) subBtn.textContent = 'Resubmit for approval';
@@ -2535,37 +2554,55 @@
         var pch = getPollChoices();
         if (!pq){ toast('Enter your poll question.'); return; }
         if (pch.length < 2 || pch.length > 5){ toast('Enter 2 to 5 answer choices.'); return; }
-        var imgOut = null;
-        var pollImageKey = '';
-        if (croppedNewsImageDataUrl){
-          var tr = await callUploadNewsImage(croppedNewsImageDataUrl, 'image/png', 'poll.png');
-          if (!tr || !tr.ok){ toast(tr && tr.error ? tr.error : 'Image upload failed'); return; }
-          pollImageKey = tr.image_r2_key || '';
-          imgOut = newsApiBase + '/api/news/image?key=' + encodeURIComponent(tr.image_r2_key);
-        } else if (newsLinkUrl && (/\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(newsLinkUrl) || /\/api\/(media\/image|news\/image)\?/i.test(newsLinkUrl))){
-          imgOut = newsLinkUrl.trim().slice(0, 500);
-        }
-        var fbk = (el('pollFallbackSelect') && el('pollFallbackSelect').value) || 'poll';
-        if (!imgOut) fbk = 'poll';
-        if (!imgOut && !fbk){ toast('Add a poll image (or submit with default Poll art).'); return; }
-        var btnP = el('submitNewsBtn');
-        btnP.disabled = true;
-        var isResubmit = !!resubmitPollContribId;
-        var url = isResubmit ? (newsApiBase + '/api/polls/resubmit') : (newsApiBase + '/api/polls/contribute');
         var characterNameForApi = isStaffPoll
           ? String(resolveSessionAuthorName(authorTypePoll) || '').trim()
           : (getCharacterNameForApi() || (adPoll && adPoll.name) || '');
-        var body = {
-          character_name: characterNameForApi,
-          question: pq.slice(0, 500),
-          choices: pch,
-          image_url: imgOut || null,
-          fallback_key: imgOut ? null : 'poll'
-        };
+        var imgOut = null;
+        var pollImageKey = '';
+        var isResubmit = !!resubmitPollContribId;
+        var body;
+        if (isResubmit) {
+          var pollMediaAction = (pollMediaEdit && pollMediaEdit.intent) || 'keep';
+          body = {
+            character_name: characterNameForApi,
+            question: pq.slice(0, 500),
+            choices: pch,
+            media_action: pollMediaAction,
+            id: resubmitPollContribId
+          };
+          if (pollMediaAction === 'replace' && croppedNewsImageDataUrl) {
+            body.image = croppedNewsImageDataUrl;
+            body.mime_type = 'image/png';
+            body.file_name = 'poll.png';
+          } else if (pollMediaAction === 'remove') {
+            body.fallback_key = (el('pollFallbackSelect') && el('pollFallbackSelect').value) || 'poll';
+          }
+        } else {
+          if (croppedNewsImageDataUrl){
+            var tr = await callUploadNewsImage(croppedNewsImageDataUrl, 'image/png', 'poll.png');
+            if (!tr || !tr.ok){ toast(tr && tr.error ? tr.error : 'Image upload failed'); return; }
+            pollImageKey = tr.image_r2_key || '';
+            imgOut = newsApiBase + '/api/news/image?key=' + encodeURIComponent(tr.image_r2_key);
+          } else if (newsLinkUrl && (/\.(png|jpe?g|webp|gif)([\?#]|$)/i.test(newsLinkUrl) || /\/api\/(media\/image|news\/image)\?/i.test(newsLinkUrl))){
+            imgOut = newsLinkUrl.trim().slice(0, 500);
+          }
+          var fbk = (el('pollFallbackSelect') && el('pollFallbackSelect').value) || 'poll';
+          if (!imgOut) fbk = 'poll';
+          if (!imgOut && !fbk){ toast('Add a poll image (or submit with default Poll art).'); return; }
+          body = {
+            character_name: characterNameForApi,
+            question: pq.slice(0, 500),
+            choices: pch,
+            image_url: imgOut || null,
+            fallback_key: imgOut ? null : 'poll'
+          };
+        }
         if (window.__lanternPeoplePicker && typeof window.__lanternPeoplePicker.getPeoplePayload === 'function') {
           body.people = window.__lanternPeoplePicker.getPeoplePayload();
         }
-        if (isResubmit) body.id = resubmitPollContribId;
+        var btnP = el('submitNewsBtn');
+        btnP.disabled = true;
+        var url = isResubmit ? (newsApiBase + '/api/polls/resubmit') : (newsApiBase + '/api/polls/contribute');
         var pres = await fetch(url, {
           method: 'POST',
           credentials: 'include',
@@ -2832,12 +2869,21 @@
     var missionCropperInstance = null;
     var missionCropperSourceDataUrl = null;
     var missionUnifiedField = null;
+    var missionMediaEdit = (window.LanternMediaEdit && window.LanternMediaEdit.create) ? window.LanternMediaEdit.create() : { existing: null, local: null, intent: 'keep' };
+    var missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
     function escM(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
     function destroyContributeMissionUnified(){
       if (missionUnifiedField){ try { missionUnifiedField.destroy(); } catch(e){} missionUnifiedField = null; }
     }
     function syncContributeMissionUnifiedPreview(){
       if (!missionUnifiedField) return;
+      if (currentMissionResubmitId && window.LanternMediaEdit && missionMediaEdit) {
+        var editHtml = window.LanternMediaEdit.buildPreviewHTML(missionMediaEdit);
+        if (editHtml) {
+          missionUnifiedField.setPreviewHTML(editHtml);
+          return;
+        }
+      }
       var imgU = (el('missionSubmitImageUrl') && el('missionSubmitImageUrl').value || '').trim();
       var upImg = el('missionSubmitImageUploadPreviewImg');
       if (!imgU && upImg && upImg.src && (upImg.src.indexOf('data:') === 0 || upImg.src.indexOf('http') === 0)) imgU = upImg.src;
@@ -2995,12 +3041,13 @@
       }
       return Promise.resolve({ ok: false, error: 'API not configured' });
     }
-    function callResubmitMissionSubmission(subId, submissionContent){
+    function callResubmitMissionSubmission(subId, submissionContent, resubmitOpts){
+      var body = Object.assign({ id: subId, submission_content: submissionContent || '' }, resubmitOpts || {});
       if (missionsApiBase != null && subId) {
         return fetch(missionsApiBase + '/api/missions/submissions/resubmit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: subId, submission_content: submissionContent || '' })
+          body: JSON.stringify(body)
         }).then(function(r){
           return r.text().then(function(text){
             var data = {};
@@ -3194,6 +3241,15 @@
       modal.style.display = 'none';
       missionCropperSourceDataUrl = null;
       if (!dataUrlToUpload){ toast('Could not crop image'); return; }
+      if (currentMissionResubmitId && window.LanternMediaEdit) {
+        missionLocalImage = { dataUrl: dataUrlToUpload, mime: 'image/png', fileName: 'image.png' };
+        window.LanternMediaEdit.setLocal(missionMediaEdit, { kind: 'image', previewUrl: dataUrlToUpload });
+        if (uploadPreviewImg) uploadPreviewImg.src = dataUrlToUpload;
+        if (imageUrlEl) imageUrlEl.value = '';
+        syncContributeMissionUnifiedPreview();
+        updateMissionSubmitPreview();
+        return;
+      }
       callUploadMissionImage(dataUrlToUpload, 'image/png', 'image.png').then(function(res){
         if (res && res.ok && res.image_r2_key) {
           imageUrlEl.value = missionsApiBase + '/api/news/image?key=' + encodeURIComponent(res.image_r2_key);
@@ -3395,8 +3451,19 @@
         syncMissionCenterFlow();
         return;
       }
-      if (contentEl) contentEl.value = (m.submission_type === 'text' || m.submission_type === 'confirmation' || allowsText) ? pf : '';
-      if (imageUrlEl) imageUrlEl.value = m.submission_type === 'image_url' ? pf : '';
+      var pfEnvelope = (m.submission_type === 'text' && pf && window.LanternMedia && window.LanternMedia.parseTextEnvelope)
+        ? window.LanternMedia.parseTextEnvelope(pf)
+        : { isEnvelope: false, text: '', image_url: '' };
+      if (contentEl) contentEl.value = allowsText ? (pfEnvelope.isEnvelope ? pfEnvelope.text : ((m.submission_type === 'text' || m.submission_type === 'confirmation') ? pf : '')) : '';
+      if (imageUrlEl) imageUrlEl.value = pfEnvelope.isEnvelope ? pfEnvelope.image_url : (m.submission_type === 'image_url' ? pf : '');
+      if (window.LanternMediaEdit && currentMissionResubmitId) {
+        missionMediaEdit = window.LanternMediaEdit.create();
+        missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+        var existingImgM = (imageUrlEl && imageUrlEl.value) || '';
+        if (existingImgM) {
+          window.LanternMediaEdit.setExisting(missionMediaEdit, { kind: 'image', previewUrl: existingImgM, deliveryUrl: existingImgM });
+        }
+      }
       missionVideoUploadedUrl = '';
       if (videoUrlEl) videoUrlEl.value = '';
       if (m.submission_type === 'video' && pf && pf.trim().indexOf('http') === 0) {
@@ -3458,6 +3525,28 @@
     var missionUmMount = el('missionUnifiedMediaMount');
     if (missionUmMount) {
       missionUmMount.addEventListener('click', function(e){
+        var action = e.target && e.target.getAttribute && e.target.getAttribute('data-media-edit');
+        if (window.LanternMediaEdit && currentMissionResubmitId) {
+          if (action === 'remove' || e.target.id === 'missionUmRemove') {
+            window.LanternMediaEdit.setRemove(missionMediaEdit);
+            missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+            if (el('missionSubmitImageUrl')) el('missionSubmitImageUrl').value = '';
+            syncContributeMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return;
+          }
+          if (action === 'undo') {
+            window.LanternMediaEdit.cancel(missionMediaEdit);
+            missionLocalImage = { dataUrl: '', mime: 'image/png', fileName: 'image.png' };
+            syncContributeMissionUnifiedPreview();
+            updateMissionSubmitPreview();
+            return;
+          }
+          if (action === 'replace' || action === 'use' || e.target.id === 'missionUmReplace') {
+            if (missionUnifiedField && missionUnifiedField.openFilePicker) missionUnifiedField.openFilePicker();
+            return;
+          }
+        }
         if (e.target.id === 'missionUmRemove' && missionUnifiedField) {
           missionUnifiedField.clearPreview();
           updateMissionSubmitPreview();
@@ -3577,7 +3666,17 @@
       btnM.disabled = true;
       var res;
       if (currentMissionResubmitId) {
-        res = await callResubmitMissionSubmission(currentMissionResubmitId, content);
+        var resubmitOpts = { media_action: (missionMediaEdit && missionMediaEdit.intent) || 'keep' };
+        var resubmitContent = (allowsText && textVal) ? textVal : (type === 'image_url' ? '' : content);
+        if (resubmitOpts.media_action === 'replace' && missionLocalImage.dataUrl) {
+          resubmitOpts.media_kind = 'image';
+          resubmitOpts.image = missionLocalImage.dataUrl;
+          resubmitOpts.mime_type = missionLocalImage.mime;
+          resubmitOpts.file_name = missionLocalImage.fileName;
+        } else if (resubmitOpts.media_action === 'replace' && !missionLocalImage.dataUrl) {
+          resubmitOpts.media_action = 'keep';
+        }
+        res = await callResubmitMissionSubmission(currentMissionResubmitId, resubmitContent, resubmitOpts);
       } else {
         res = await callSubmitMissionCompletion(m.id, getCharacterNameForApi() || adopted.name, type, content);
       }

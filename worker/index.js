@@ -180,6 +180,7 @@ import {
 import { authorizeNewsMediaDelivery } from './news-media-delivery.js';
 import { handleNewsThumbnailRoutes } from './image-thumbnail-routes.js';
 import { extractNewsObjectKeyFromUrl, touchSidecarForOriginal } from './image-thumbnails.js';
+import { applyPollContributionSidecar, resolvePollContributionMedia } from './poll-resubmit-media.js';
 import { putNewsImageBytes, putNewsVideoBytes } from './news-media-upload.js';
 import { handleNewsResubmit, handleNewsRevisionGet } from './news-resubmit.js';
 import { authorKeyFromAccount as feedAuthorKeyFromAccount } from './feed-handlers.js';
@@ -8843,24 +8844,23 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     const question = (body.question || '').trim().slice(0, 500);
     let choices = Array.isArray(body.choices) ? body.choices.map(c => String(c).trim().slice(0, 200)).filter(Boolean) : [];
     choices = choices.slice(0, 5);
-    const imageUrl = (body.image_url || '').trim().slice(0, 500) || null;
     const fallbackKeyRaw = (body.fallback_key || '').trim();
     const ALLOWED_FB = ['poll', 'news', 'creation', 'generic', 'shoutout', 'explain'];
     if (!contribId || !characterName) return jsonResponse({ ok: false, error: 'id and character_name required' }, 400, cors);
     if (!question) return jsonResponse({ ok: false, error: 'question required' }, 400, cors);
     if (choices.length < 2 || choices.length > 5) return jsonResponse({ ok: false, error: 'Provide 2–5 answer choices' }, 400, cors);
-    // Prompt #186 — canonical Poll fallback when no image on resubmit.
-    const fallbackResolved = imageUrl
-      ? null
-      : (ALLOWED_FB.includes(fallbackKeyRaw) ? fallbackKeyRaw : 'poll');
     const peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: false });
     if (!peopleNorm.ok) return jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
-    const row = await db.prepare('SELECT id, status FROM lantern_poll_contributions WHERE id = ? AND character_name = ?').bind(contribId, characterName).first();
-    if (!row) return jsonResponse({ ok: false, error: 'Contribution not found' }, 404, cors);
-    if ((row.status || '') !== 'returned') return jsonResponse({ ok: false, error: 'Can only resubmit returned polls' }, 400, cors);
+    const priorRow = await db.prepare('SELECT * FROM lantern_poll_contributions WHERE id = ? AND character_name = ?').bind(contribId, characterName).first();
+    if (!priorRow) return jsonResponse({ ok: false, error: 'Contribution not found' }, 404, cors);
+    if ((priorRow.status || '') !== 'returned') return jsonResponse({ ok: false, error: 'Can only resubmit returned polls' }, 400, cors);
+    const bucket = env.NEWS_BUCKET || env.AVATAR_BUCKET;
+    const mediaResolved = await resolvePollContributionMedia(body, priorRow, origin, bucket);
+    if (!mediaResolved.ok) return jsonResponse({ ok: false, error: mediaResolved.error }, mediaResolved.status || 400, cors);
+    const imageUrl = mediaResolved.imageUrl;
+    const fb = mediaResolved.fallbackKey;
     const now = new Date().toISOString();
     const choicesJson = JSON.stringify(choices);
-    const fb = fallbackResolved;
     const pollAccount = await getPilotAccountFromRequest(request, env);
     try {
       await recordEventForAccount(db, pollAccount, {
@@ -8882,6 +8882,7 @@ async function handlePollsRoutes(request, url, path, env, cors) {
     await db.prepare(
       'UPDATE lantern_poll_contributions SET question = ?, choices_json = ?, image_url = ?, fallback_key = ?, status = ?, decision_note = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?'
     ).bind(question, choicesJson, imageUrl, fb, 'pending', null, null, null, contribId).run();
+    await applyPollContributionSidecar(db, contribId, mediaResolved.sidecarTouchKey, mediaResolved.sidecarClear);
     try {
       await replaceContentPeople(db, 'poll_contribution', contribId, peopleNorm.people, characterName);
     } catch (_) {
