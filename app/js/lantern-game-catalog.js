@@ -21,7 +21,7 @@
       status: 'playable',
       scoring: { lowerIsBetter: false },
       leaderboard: true,
-      description: 'Learn student and staff names. Match each avatar. 1 Nugget = 1 Play. No Nugget rewards.',
+      description: 'Learn student and staff names. Match each avatar.',
     },
     {
       id: 'lantern-live-trivia',
@@ -249,22 +249,25 @@
   }
 
   function playCostLabel(cost) {
+    if (global.LanternGameEconomy && typeof global.LanternGameEconomy.formatPlayAction === 'function') {
+      return global.LanternGameEconomy.formatPlayAction(cost);
+    }
     var n = Math.max(1, Math.floor(Number(cost) || 1));
     return n === 1 ? '1 Nugget' : n + ' Nuggets';
   }
 
-  /**
-   * Prompt #114 — Games library card face overlay ONLY. Exact playable copy; no emoji/icon.
-   * Does not change play_cost, ledger, or paid-start labels (see playActionLabel).
-   */
-  function playCostCardMeta(cost) {
-    var n = Math.max(1, Math.floor(Number(cost) || 1));
-    return n === 1 ? '1 Nugget = 1 Play' : n + ' Nuggets = 1 Play';
+  function playCostCardMeta(gameOrId) {
+    if (global.LanternGameEconomy && typeof global.LanternGameEconomy.formatCardMeta === 'function') {
+      return global.LanternGameEconomy.formatCardMeta(gameOrId);
+    }
+    return 'Play cost loading…';
   }
 
-  function playActionLabel(cost) {
-    var n = Math.max(1, Math.floor(Number(cost) || 1));
-    return n === 1 ? 'Play for 1 Nugget' : 'Play for ' + n + ' Nuggets';
+  function playActionLabel(gameOrId) {
+    if (global.LanternGameEconomy && typeof global.LanternGameEconomy.formatPlayAction === 'function') {
+      return global.LanternGameEconomy.formatPlayAction(gameOrId);
+    }
+    return 'Play for Nuggets';
   }
 
   /** Canonical artwork URL for cards + selected-game hero (same field). */

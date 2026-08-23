@@ -375,8 +375,15 @@ else bad('resolveTeacherMissionReward');
     {},
     makeDeps(true)
   );
-  if (getRes.status === 200 && getRes.body.ok && getRes.body.values.poll_response === 0 && getRes.body.rows.length === 10) {
-    ok('System Admin can read economy settings (fallbacks)');
+  if (
+    getRes.status === 200 &&
+    getRes.body.ok &&
+    getRes.body.values.poll_response === 0 &&
+    getRes.body.rows.length === 8 &&
+    getRes.body.values.game_play === -1 &&
+    !getRes.body.rows.some((r) => r.id === 'game_play')
+  ) {
+    ok('System Admin can read economy settings (fallbacks; legacy game_play hidden from rows)');
   } else bad('GET economy', getRes);
 }
 
@@ -529,7 +536,7 @@ await withMockedBridge((call) => {
 
 await withMockedBridge(() => ({ body: { ok: true, delta: -1 } }), async (getCalls) => {
   const student = studentAccount();
-  const state = { accounts: { '20889': student }, settings: { 'economy.game_play': '0' } };
+  const state = { accounts: { '20889': student }, settings: { 'economy.game.memory.play_mode': 'free' } };
   const env = makeWorkerEnv(state);
   const cookie = await cookieFor(student);
   const free = await jsonFetch(env, 'POST', '/api/economy/transact', cookie, {
