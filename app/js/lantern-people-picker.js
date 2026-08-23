@@ -353,7 +353,7 @@
       }
     });
 
-    function setPeople(list) {
+    function setPeople(list, flags) {
       selected = [];
       (Array.isArray(list) ? list : []).forEach(function (p) {
         if (!p) return;
@@ -370,15 +370,15 @@
       if (selected.length > max) selected = selected.slice(0, max);
       renderChips();
       if (input) input.value = '';
-      notify();
+      if (!(flags && flags.silent)) notify();
     }
 
-    function setRecognitionLabel(label) {
+    function setRecognitionLabel(label, flags) {
       selected = [];
       renderChips();
       if (input) input.value = String(label || '').trim().slice(0, freeTextMax);
       updateFreeTextStatus();
-      notify();
+      if (!(flags && flags.silent)) notify();
     }
 
     return {

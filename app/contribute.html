@@ -1827,6 +1827,9 @@
     var newsMediaEdit = (window.LanternMediaEdit && window.LanternMediaEdit.create) ? window.LanternMediaEdit.create() : { existing: null, local: null, intent: 'keep' };
     var newsRevisionPhotoCredit = '';
     var newsRevisionDecisionNote = '';
+    var newsRevisionPeopleHydrating = false;
+    var newsRevisionPeopleDirty = false;
+    var newsRevisionRecognizingDirty = false;
     function escNews(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':c==='"'?'&quot;':'&#39;'; }); }
 
     function parseJsonResponse(r, okPredicate, fallbackError){
@@ -2020,19 +2023,23 @@
       fullNewsImageDataUrl = null;
       newsVideoFile = null;
       newsLinkUrl = null;
+      newsRevisionPeopleHydrating = true;
       if (item.people && item.people.length) {
         if (shout && window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.setPeople) {
-          window.__lanternShoutPeoplePicker.setPeople(item.people);
+          window.__lanternShoutPeoplePicker.setPeople(item.people, { silent: true });
         } else if (window.__lanternPeoplePicker && window.__lanternPeoplePicker.setPeople) {
-          window.__lanternPeoplePicker.setPeople(item.people);
+          window.__lanternPeoplePicker.setPeople(item.people, { silent: true });
         }
       }
       if (shout && item.recognition_label && window.__lanternShoutPeoplePicker && window.__lanternShoutPeoplePicker.setRecognitionLabel) {
         var recState = window.__lanternShoutPeoplePicker.getRecognitionState ? window.__lanternShoutPeoplePicker.getRecognitionState() : null;
         if (!recState || recState.mode === 'empty' || !String(recState.label || '').trim()) {
-          window.__lanternShoutPeoplePicker.setRecognitionLabel(item.recognition_label);
+          window.__lanternShoutPeoplePicker.setRecognitionLabel(item.recognition_label, { silent: true });
         }
       }
+      newsRevisionPeopleHydrating = false;
+      newsRevisionPeopleDirty = false;
+      newsRevisionRecognizingDirty = false;
       mountNewsUnifiedForType();
       syncContributeTypeUI();
       refreshContributeUnifiedPreview();
@@ -2097,7 +2104,10 @@
           allowFreeText: true,
           freeTextMax: 100,
           inputId: 'contributeShoutPeopleSearch',
-          onChange: function(){ updateStudioAll(); }
+          onChange: function(){
+            if (!newsRevisionPeopleHydrating && newsArticleResubmitId) newsRevisionRecognizingDirty = true;
+            updateStudioAll();
+          }
         });
       }
       if (window.LanternPeoplePicker && peopleMount) {
@@ -2107,7 +2117,10 @@
           relationship: 'tagged',
           max: (window.LanternPeoplePicker && window.LanternPeoplePicker.MAX_TAGS) || 40,
           inputId: 'contributePeopleSearch',
-          onChange: function(){ updateStudioAll(); }
+          onChange: function(){
+            if (!newsRevisionPeopleHydrating && newsArticleResubmitId) newsRevisionPeopleDirty = true;
+            updateStudioAll();
+          }
         });
       }
     })();
@@ -2722,8 +2735,14 @@
           media_action: mediaAction,
           photo_credit: photoCredit
         };
-        if (peoplePayload && peoplePayload.length) resubmitBody.people = peoplePayload;
-        if (ct === 'shoutout' && recognitionLabelPayload) resubmitBody.recognition_label = recognitionLabelPayload;
+        if (ct === 'shoutout') {
+          if (newsRevisionRecognizingDirty) {
+            resubmitBody.people = peoplePayload || [];
+            if (recognitionLabelPayload) resubmitBody.recognition_label = recognitionLabelPayload;
+          }
+        } else if (newsRevisionPeopleDirty) {
+          resubmitBody.people = peoplePayload || [];
+        }
         if (mediaAction === 'replace') {
           if (newsVideoFile) {
             if (isPostFlow) btn.textContent = 'Preparing video…';

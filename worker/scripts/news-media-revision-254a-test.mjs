@@ -31,7 +31,9 @@ assert(/CURRENT IMAGE/.test(um) && /data-media-edit="undo"/.test(um), 'current-m
 assert(/Use this/.test(um) && /Cancel change/.test(um), 'replace confirm actions');
 assert(/applyNewsRevisionHydrate/.test(contrib) && /media_action/.test(contrib), 'contribute hydrates and sends media_action');
 assert(/contributeRevisionFeedback/.test(contrib) && /Teacher feedback/.test(contrib), 'revision editor shows teacher feedback');
-assert(/if \(peoplePayload && peoplePayload.length\) resubmitBody\.people/.test(contrib), 'resubmit omits empty people (keep)');
+assert(/newsRevisionPeopleDirty/.test(contrib) && /silent:\s*true/.test(contrib), 'revision People dirty-state ignores hydrate');
+assert(/newsRevisionPeopleDirty\) \{\s*resubmitBody\.people = peoplePayload \|\| \[\]/.test(contrib), 'dirty People sends exact array including []');
+assert(/peopleFieldPresent/.test(newsResubmitSrc) && /body\.people \|\| \[\]/.test(newsResubmitSrc), 'server treats omitted People as keep and [] as clear');
 assert(!/newsUnifiedField\.clearPreview\(\)/.test(contrib.split('function handleImageFile')[1].split('function handleVideoFile')[0]), 'replace does not clearPreview (preserves existing + Cropper)');
 assert(/openCropperFromDataUrl/.test(contrib) && /cropperUseBtn/.test(contrib), 'Cropper remains for News/Shout-Out');
 assert(/contribute_type/.test(rev) && /shoutout/.test(rev), 'locker revise preserves Shout-Out type');
@@ -151,6 +153,14 @@ function makeEnv(state) {
       async first() {
         if (s.includes('FROM lantern_pilot_accounts WHERE lower(trim(username))')) {
           return state.accounts[String(binds[0] || '').trim().toLowerCase()] || null;
+        }
+        if (s.includes('FROM lantern_pilot_accounts p') && s.includes('mtss_student_id')) {
+          const want = String(binds[0] || '').trim().toLowerCase();
+          const accs = Object.keys(state.accounts || {}).map((k) => state.accounts[k]);
+          for (let i = 0; i < accs.length; i++) {
+            if (String(accs[i].mtss_student_id || '').trim().toLowerCase() === want) return accs[i];
+          }
+          return null;
         }
         if (s.includes('FROM lantern_news_submissions WHERE id')) {
           return state.news[binds[0]] || null;
@@ -474,20 +484,153 @@ async function call(env, path, opts) {
   assert(!approved.body.ok, 'approved work cannot be owner-edited');
 }
 
+function seedPeopleAB() {
+  return [
+    { content_id: 'news-1', person_kind: 'student', person_key: 'SID-A', relationship: 'tagged', display_label: 'Lucas' },
+    { content_id: 'news-1', person_kind: 'student', person_key: 'SID-B', relationship: 'tagged', display_label: 'Mia' },
+  ];
+}
+
 {
-  const state = {
-    news: { 'news-1': baseNews() },
-    people: [{ content_id: 'news-1', person_kind: 'student', person_key: 'SID-B', relationship: 'tagged', display_label: 'Mia' }],
-  };
+  const state = { news: { 'news-1': baseNews() }, people: seedPeopleAB() };
   const env = makeEnv(state);
-  const cookie = await cookieFor(STUDENT_A);
   const keepPeople = await call(env, '/api/news/resubmit', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({ id: 'news-1', title: 'Hello edited', body: 'Story edited', media_action: 'keep' }),
+  });
+  assert(keepPeople.body.ok && state.peopleReplaced === 0, 'omitted People keeps A+B');
+  assert(state.people.length === 2, 'untouched People remain A+B');
+}
+
+{
+  const state = { news: { 'news-1': baseNews() }, people: seedPeopleAB() };
+  const env = makeEnv(state);
+  const onlyA = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({
+      id: 'news-1',
+      title: 'Hello',
+      body: 'Story',
+      media_action: 'keep',
+      people: [{ token: 'student:SID-A', relationship: 'tagged' }],
+    }),
+  });
+  assert(onlyA.body.ok && state.peopleReplaced >= 1, 'removing B replaces People');
+  assert(state.people.length === 1 && state.people[0].person_key === 'SID-A', 'only A remains after removing B');
+}
+
+{
+  const state = { news: { 'news-1': baseNews() }, people: seedPeopleAB() };
+  const env = makeEnv(state);
+  const cleared = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
     body: JSON.stringify({ id: 'news-1', title: 'Hello', body: 'Story', media_action: 'keep', people: [] }),
   });
-  assert(keepPeople.body.ok && state.peopleReplaced === 0, 'empty people array on keep does not clear tags');
-  assert(state.people.length === 1 && state.people[0].person_key === 'SID-B', 'people remain preloaded unless edited');
+  assert(cleared.body.ok && state.peopleReplaced >= 1 && state.people.length === 0, 'explicit [] clears all People');
+}
+
+{
+  const state = { news: { 'news-1': baseNews() }, people: [] };
+  const env = makeEnv(state);
+  const none = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({ id: 'news-1', title: 'Hello', body: 'Story', media_action: 'keep' }),
+  });
+  assert(none.body.ok && state.peopleReplaced === 0 && state.people.length === 0, 'no People + omitted stays none');
+}
+
+{
+  const state = {
+    news: { 'news-1': baseNews({ category: 'Student Spotlight', body: 'Recognizing: Lucas\n\nGreat job' }) },
+    people: [{ content_id: 'news-1', person_kind: 'student', person_key: 'SID-A', relationship: 'recognized', display_label: 'Lucas' }],
+  };
+  const env = makeEnv(state);
+  const keepShout = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({ id: 'news-1', title: 'Shout-Out!: Lucas', body: 'Great job edited', media_action: 'keep' }),
+  });
+  assert(keepShout.body.ok && state.peopleReplaced === 0, 'Shout-Out omitted Recognizing keeps A');
+  assert(state.people[0] && state.people[0].person_key === 'SID-A', 'Recognizing A unchanged');
+  assert(/Recognizing:\s*Lucas/.test(state.news['news-1'].body), 'unchanged Shout-Out keeps Recognizing prefix');
+}
+
+{
+  const state = {
+    news: { 'news-1': baseNews({ category: 'Student Spotlight', body: 'Recognizing: Lucas\n\nGreat job' }) },
+    people: [{ content_id: 'news-1', person_kind: 'student', person_key: 'SID-A', relationship: 'recognized', display_label: 'Lucas' }],
+  };
+  const env = makeEnv(state);
+  const changeShout = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({
+      id: 'news-1',
+      title: 'Shout-Out!: Mia',
+      body: 'Great job',
+      category: 'Student Spotlight',
+      media_action: 'keep',
+      people: [{ token: 'student:SID-B', relationship: 'recognized' }],
+      recognition_label: 'Mia',
+    }),
+  });
+  assert(changeShout.body.ok, 'Shout-Out Recognizing change accepted');
+  assert(state.people.length === 1 && state.people[0].person_key === 'SID-B', 'Recognizing updates to B');
+}
+
+{
+  const state = {
+    news: { 'news-1': baseNews({ category: 'Student Spotlight', body: 'Recognizing: Lucas\n\nGreat job' }) },
+    people: [{ content_id: 'news-1', person_kind: 'student', person_key: 'SID-A', relationship: 'recognized', display_label: 'Lucas' }],
+  };
+  const env = makeEnv(state);
+  const clearShout = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({
+      id: 'news-1',
+      title: 'Shout-Out!: Lucas',
+      body: 'Great job',
+      category: 'Student Spotlight',
+      media_action: 'keep',
+      people: [],
+    }),
+  });
+  assert(!clearShout.body.ok && state.peopleReplaced === 0, 'clearing required Recognizing is rejected');
+  assert(state.people.length === 1 && state.people[0].person_key === 'SID-A', 'authoritative Recognizing A unchanged after clear attempt');
+  assert(state.news['news-1'].status === 'returned', 'failed Recognizing clear does not resubmit');
+}
+
+{
+  const state = { news: { 'news-1': baseNews() }, people: seedPeopleAB() };
+  const env = makeEnv(state);
+  const stealPeople = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_B) },
+    body: JSON.stringify({
+      id: 'news-1',
+      title: 'Hacked',
+      body: 'Nope',
+      media_action: 'keep',
+      people: [{ token: 'student:SID-B', relationship: 'tagged' }],
+    }),
+  });
+  assert(stealPeople.status === 403 && state.peopleReplaced === 0 && state.people.length === 2, 'student B cannot mutate A People');
+}
+
+{
+  const state = { news: { 'news-1': baseNews({ photo_credit: 'Photog A' }) } };
+  const env = makeEnv(state);
+  const clearCredit = await call(env, '/api/news/resubmit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: await cookieFor(STUDENT_A) },
+    body: JSON.stringify({ id: 'news-1', title: 'Hello', body: 'Story', media_action: 'keep', photo_credit: '' }),
+  });
+  assert(clearCredit.body.ok && state.news['news-1'].photo_credit == null, 'explicit empty photo_credit clears on keep');
 }
 
 {

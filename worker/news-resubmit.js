@@ -319,20 +319,32 @@ export async function handleNewsResubmit(request, env, cors, ctx) {
 
   let articleBodyFinal = articleBody;
   let peopleNorm;
-  const recognitionProvided = Object.prototype.hasOwnProperty.call(body, 'recognition_label') && !!trimStr(body.recognition_label);
-  const peopleProvided =
-    recognitionProvided || (Array.isArray(body.people) && body.people.length > 0);
+  const peopleFieldPresent = Object.prototype.hasOwnProperty.call(body, 'people');
+  const recognitionFieldPresent = Object.prototype.hasOwnProperty.call(body, 'recognition_label');
+  if (peopleFieldPresent && body.people != null && !Array.isArray(body.people)) {
+    return ctx.jsonResponse({ ok: false, error: 'Invalid people' }, 400, cors);
+  }
   if (shout) {
-    if (peopleProvided) {
-      const shoutRec = await normalizeShoutOutRecognition(db, body.people, body.recognition_label);
+    const shoutPeopleEdit = peopleFieldPresent || recognitionFieldPresent;
+    if (shoutPeopleEdit) {
+      const shoutRec = await normalizeShoutOutRecognition(
+        db,
+        peopleFieldPresent ? body.people : [],
+        recognitionFieldPresent ? body.recognition_label : ''
+      );
       if (!shoutRec.ok) return ctx.jsonResponse({ ok: false, error: shoutRec.error }, 400, cors);
       peopleNorm = { ok: true, people: shoutRec.people };
       if (shoutRec.recognition_label && !/^Recognizing:\s*/i.test(articleBodyFinal)) {
         articleBodyFinal = 'Recognizing: ' + shoutRec.recognition_label + '\n\n' + articleBodyFinal;
       }
+    } else {
+      const priorLabel = recognitionLabelFromBody(prior.body);
+      if (priorLabel && !/^Recognizing:\s*/i.test(articleBodyFinal)) {
+        articleBodyFinal = 'Recognizing: ' + priorLabel + '\n\n' + articleBodyFinal;
+      }
     }
-  } else if (peopleProvided) {
-    peopleNorm = await normalizePeoplePayload(db, body.people, { requireRecognizedOne: false });
+  } else if (peopleFieldPresent) {
+    peopleNorm = await normalizePeoplePayload(db, body.people || [], { requireRecognizedOne: false });
     if (!peopleNorm.ok) return ctx.jsonResponse({ ok: false, error: peopleNorm.error }, 400, cors);
   }
 
