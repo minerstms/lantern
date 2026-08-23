@@ -1143,46 +1143,46 @@
 
   <details class="card teacherCollapsibleList" id="writingQualityCard">
     <summary class="cardHd teacherCollapsibleListHd">
-      <div class="teacherCollapsibleListTitle"><div class="h">Writing &amp; Submission Quality</div></div>
+      <div class="teacherCollapsibleListTitle"><div class="h">Writing Integrity + Polish Check</div></div>
       <div class="teacherCollapsibleListMeta"><span class="pill accent" id="writingQualitySummaryPill">ON</span></div>
     </summary>
     <div class="cardBd teacherCollapsibleListBd">
-      <p class="acctPanelHint">Help students polish their own writing before submission. Blocks importing finished text into student writing fields when enabled; runs a positive pre-submit check — not auto-rewrite or AI writing.</p>
+      <p class="acctPanelHint">Help students write and polish their own work before sharing. Lantern blocks importing finished text where the browser allows, runs a positive pre-submit check, and separates soft suggestions from a hard quality floor — not auto-rewrite or AI writing.</p>
       <div id="writingQualityMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
 
       <h3 class="teacherSectionLabel" style="margin-top:0;">Master</h3>
       <label class="visibleWatermarkToggle" for="wqEnabled">
         <input type="checkbox" id="wqEnabled" checked />
-        <span>Enable Writing Quality checks globally</span>
+        <span>Writing Quality ON/OFF</span>
         <strong class="visibleWatermarkState" id="wqEnabledState">ON</strong>
       </label>
 
-      <h3 class="teacherSectionLabel">Authorship / import</h3>
-      <label class="visibleWatermarkToggle" for="wqBlockPaste"><input type="checkbox" id="wqBlockPaste" checked /><span>Block paste into student writing fields</span></label>
-      <label class="visibleWatermarkToggle" for="wqBlockDragDrop"><input type="checkbox" id="wqBlockDragDrop" checked /><span>Block drag/drop text into student writing fields</span></label>
-      <label class="visibleWatermarkToggle" for="wqPreserveSpellcheck"><input type="checkbox" id="wqPreserveSpellcheck" checked /><span>Preserve normal browser spellcheck</span></label>
-      <label class="visibleWatermarkToggle" for="wqPreserveSingleWord"><input type="checkbox" id="wqPreserveSingleWord" checked /><span>Preserve single-word spelling suggestions</span></label>
-      <p class="pendingMeta">Dictation, IME, and normal composition are always preserved.</p>
+      <h3 class="teacherSectionLabel">Authorship</h3>
+      <label class="visibleWatermarkToggle" for="wqBlockPaste"><input type="checkbox" id="wqBlockPaste" checked /><span>Block Paste</span></label>
+      <label class="visibleWatermarkToggle" for="wqBlockDragDrop"><input type="checkbox" id="wqBlockDragDrop" checked /><span>Block Text Drag/Drop</span></label>
+      <label class="visibleWatermarkToggle" for="wqPreserveSpellcheck"><input type="checkbox" id="wqPreserveSpellcheck" checked /><span>Browser Spellcheck</span></label>
+      <label class="visibleWatermarkToggle" for="wqLimitPhrase"><input type="checkbox" id="wqLimitPhrase" checked /><span>Limit Browser Phrase/Sentence Suggestions</span></label>
+      <p class="pendingMeta">Lantern disables supported browser phrase/sentence suggestions while preserving ordinary spelling assistance where possible. Dictation, IME, and normal composition are always preserved. Paste/drop blocking uses browser events only — see limitation note in docs.</p>
 
-      <h3 class="teacherSectionLabel">Pre-submit Polish Check</h3>
-      <label class="visibleWatermarkToggle" for="wqRequireCheck"><input type="checkbox" id="wqRequireCheck" checked /><span>Require pre-submit writing check</span></label>
-      <label class="visibleWatermarkToggle" for="wqAllowAnyway"><input type="checkbox" id="wqAllowAnyway" checked /><span>Allow “Submit anyway” after suggestions</span></label>
-      <label class="visibleWatermarkToggle" for="wqShowCount"><input type="checkbox" id="wqShowCount" checked /><span>Show suggestion count before final submit</span></label>
+      <h3 class="teacherSectionLabel">Pre-submission Polish</h3>
+      <label class="visibleWatermarkToggle" for="wqRequireCheck"><input type="checkbox" id="wqRequireCheck" checked /><span>Require Polish Check</span></label>
+      <label class="visibleWatermarkToggle" for="wqAllowAnyway"><input type="checkbox" id="wqAllowAnyway" checked /><span>Allow Submit with Soft Suggestions</span></label>
+      <label class="visibleWatermarkToggle" for="wqShowCount"><input type="checkbox" id="wqShowCount" checked /><span>Show Suggestion Count</span></label>
 
-      <h3 class="teacherSectionLabel">Suggestion categories</h3>
+      <h3 class="teacherSectionLabel">Checks</h3>
       <div id="writingQualityCategories" class="writingQualityGrid"></div>
 
-      <h3 class="teacherSectionLabel">Quality floor</h3>
-      <label class="visibleWatermarkToggle" for="wqFloorEnabled"><input type="checkbox" id="wqFloorEnabled" checked /><span>Minimum quality enforcement enabled</span></label>
+      <h3 class="teacherSectionLabel">Quality Floor</h3>
+      <label class="visibleWatermarkToggle" for="wqFloorEnabled"><input type="checkbox" id="wqFloorEnabled" checked /><span>Enable quality floor (hard block — no Submit Anyway)</span></label>
       <label for="wqRepeatedChar">Repeated-character threshold</label>
       <input type="number" id="wqRepeatedChar" min="3" max="20" step="1" value="5" />
-      <label for="wqRepeatedPunct">Repeated-punctuation threshold</label>
+      <label for="wqRepeatedPunct">Repeated-punctuation threshold (hard)</label>
       <input type="number" id="wqRepeatedPunct" min="2" max="10" step="1" value="3" />
-      <label for="wqCapsRatio">Max ALL CAPS ratio warning (%)</label>
+      <label for="wqCapsRatio">ALL CAPS warning threshold (%)</label>
       <input type="number" id="wqCapsRatio" min="10" max="90" step="1" value="40" />
-      <label for="wqMinTextLength">Too short to review — minimum text length</label>
+      <label for="wqMinTextLength">Minimum text length before evaluator runs</label>
       <input type="number" id="wqMinTextLength" min="0" max="500" step="1" value="12" />
-      <p class="pendingMeta">Polish check skips very short text below this length.</p>
+      <p class="pendingMeta">Quality floor blocks keyboard mash and excessive repeated characters/punctuation. Soft suggestions (spelling, capitalization, etc.) may still allow Submit with Soft Suggestions when enabled above.</p>
 
       <div class="acctPanelActions" style="margin-top:14px;">
         <button type="button" class="btn good" id="writingQualitySave">Save Writing Quality</button>
@@ -4561,15 +4561,15 @@
     }
 
     var WQ_CATEGORY_LABELS = {
-      spelling: 'Spelling',
+      spelling: 'Spelling / high-confidence typo',
       capitalization: 'Capitalization',
-      ending_punctuation: 'Ending punctuation',
+      ending_punctuation: 'Ending punctuation (long-form only)',
       repeated_punctuation: 'Repeated punctuation',
       repeated_spaces: 'Repeated spaces',
-      duplicate_words: 'Duplicate adjacent words',
-      lowercase_i: 'Lowercase standalone “i”',
+      duplicate_words: 'Duplicate words',
+      lowercase_i: 'Lowercase standalone “i” (long-form only)',
       excessive_caps: 'Excessive ALL CAPS',
-      low_effort: 'Low-effort / nonsense patterns',
+      low_effort: 'Low-effort patterns (quality floor)',
     };
 
     function showWritingQualityMsg(text, kind) {
@@ -4602,7 +4602,7 @@
         block_paste: !!(document.getElementById('wqBlockPaste') && document.getElementById('wqBlockPaste').checked),
         block_drag_drop: !!(document.getElementById('wqBlockDragDrop') && document.getElementById('wqBlockDragDrop').checked),
         preserve_spellcheck: !!(document.getElementById('wqPreserveSpellcheck') && document.getElementById('wqPreserveSpellcheck').checked),
-        preserve_single_word_suggestions: !!(document.getElementById('wqPreserveSingleWord') && document.getElementById('wqPreserveSingleWord').checked),
+        limit_phrase_suggestions: !!(document.getElementById('wqLimitPhrase') && document.getElementById('wqLimitPhrase').checked),
         require_pre_submit_check: !!(document.getElementById('wqRequireCheck') && document.getElementById('wqRequireCheck').checked),
         allow_submit_anyway: !!(document.getElementById('wqAllowAnyway') && document.getElementById('wqAllowAnyway').checked),
         show_suggestion_count: !!(document.getElementById('wqShowCount') && document.getElementById('wqShowCount').checked),
@@ -4635,7 +4635,7 @@
       setCheckbox('wqBlockPaste', settings.block_paste !== false);
       setCheckbox('wqBlockDragDrop', settings.block_drag_drop !== false);
       setCheckbox('wqPreserveSpellcheck', settings.preserve_spellcheck !== false);
-      setCheckbox('wqPreserveSingleWord', settings.preserve_single_word_suggestions !== false);
+      setCheckbox('wqLimitPhrase', settings.limit_phrase_suggestions != null ? settings.limit_phrase_suggestions !== false : settings.preserve_single_word_suggestions !== false);
       setCheckbox('wqRequireCheck', settings.require_pre_submit_check !== false);
       setCheckbox('wqAllowAnyway', settings.allow_submit_anyway !== false);
       setCheckbox('wqShowCount', settings.show_suggestion_count !== false);

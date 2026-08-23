@@ -1,0 +1,366 @@
+{
+  "1366x768": {
+    "admin": {
+      "cardWidth": 1319,
+      "cardHeight": 991,
+      "horizontalOverflow": false,
+      "viewportWidth": 1366,
+      "scrollWidth": 1351
+    },
+    "scroll": {
+      "ok": true,
+      "fitsViewport": true,
+      "scrollHeight": 1910,
+      "clientHeight": 768
+    },
+    "polish": {
+      "allOk": true,
+      "rows": [
+        {
+          "name": "good_sentence",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "lower_i",
+          "ok": true,
+          "soft": 3,
+          "hard": false
+        },
+        {
+          "name": "dup_word",
+          "ok": true,
+          "soft": 1,
+          "hard": false
+        },
+        {
+          "name": "all_caps",
+          "ok": true,
+          "soft": 2,
+          "hard": false
+        },
+        {
+          "name": "keyboard_mash",
+          "ok": true,
+          "soft": 1,
+          "hard": true
+        },
+        {
+          "name": "rep_punct_hard",
+          "ok": true,
+          "soft": 0,
+          "hard": true
+        },
+        {
+          "name": "name_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "trinidad_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "poll_title_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        }
+      ]
+    },
+    "paste": {
+      "defaultPrevented": true
+    },
+    "burst": {
+      "valueLength": 70,
+      "allowed": true
+    },
+    "comp": {
+      "value": "nihao",
+      "ok": true
+    },
+    "attrs": {
+      "spellcheck": true,
+      "autocomplete": true,
+      "writingsuggestions": true,
+      "shortCap": true
+    }
+  },
+  "390x844": {
+    "admin": {
+      "cardWidth": 358,
+      "cardHeight": 1258,
+      "horizontalOverflow": false,
+      "viewportWidth": 390,
+      "scrollWidth": 390
+    },
+    "scroll": {
+      "ok": true,
+      "fitsViewport": true,
+      "scrollHeight": 2214,
+      "clientHeight": 844
+    },
+    "polish": {
+      "allOk": true,
+      "rows": [
+        {
+          "name": "good_sentence",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "lower_i",
+          "ok": true,
+          "soft": 3,
+          "hard": false
+        },
+        {
+          "name": "dup_word",
+          "ok": true,
+          "soft": 1,
+          "hard": false
+        },
+        {
+          "name": "all_caps",
+          "ok": true,
+          "soft": 2,
+          "hard": false
+        },
+        {
+          "name": "keyboard_mash",
+          "ok": true,
+          "soft": 1,
+          "hard": true
+        },
+        {
+          "name": "rep_punct_hard",
+          "ok": true,
+          "soft": 0,
+          "hard": true
+        },
+        {
+          "name": "name_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "trinidad_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "poll_title_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        }
+      ]
+    },
+    "paste": {
+      "defaultPrevented": true
+    },
+    "burst": {
+      "valueLength": 70,
+      "allowed": true
+    },
+    "comp": {
+      "value": "nihao",
+      "ok": true
+    },
+    "attrs": {
+      "spellcheck": true,
+      "autocomplete": true,
+      "writingsuggestions": true,
+      "shortCap": true
+    }
+  },
+  "360x800": {
+    "admin": {
+      "cardWidth": 328,
+      "cardHeight": 1293,
+      "horizontalOverflow": false,
+      "viewportWidth": 360,
+      "scrollWidth": 360
+    },
+    "scroll": {
+      "ok": true,
+      "fitsViewport": true,
+      "scrollHeight": 2249,
+      "clientHeight": 800
+    },
+    "polish": {
+      "allOk": true,
+      "rows": [
+        {
+          "name": "good_sentence",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "lower_i",
+          "ok": true,
+          "soft": 3,
+          "hard": false
+        },
+        {
+          "name": "dup_word",
+          "ok": true,
+          "soft": 1,
+          "hard": false
+        },
+        {
+          "name": "all_caps",
+          "ok": true,
+          "soft": 2,
+          "hard": false
+        },
+        {
+          "name": "keyboard_mash",
+          "ok": true,
+          "soft": 1,
+          "hard": true
+        },
+        {
+          "name": "rep_punct_hard",
+          "ok": true,
+          "soft": 0,
+          "hard": true
+        },
+        {
+          "name": "name_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "trinidad_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "poll_title_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        }
+      ]
+    },
+    "paste": {
+      "defaultPrevented": true
+    },
+    "burst": {
+      "valueLength": 70,
+      "allowed": true
+    },
+    "comp": {
+      "value": "nihao",
+      "ok": true
+    },
+    "attrs": {
+      "spellcheck": true,
+      "autocomplete": true,
+      "writingsuggestions": true,
+      "shortCap": true
+    }
+  },
+  "320x568": {
+    "admin": {
+      "cardWidth": 288,
+      "cardHeight": 1325,
+      "horizontalOverflow": false,
+      "viewportWidth": 320,
+      "scrollWidth": 320
+    },
+    "scroll": {
+      "ok": true,
+      "fitsViewport": true,
+      "scrollHeight": 2281,
+      "clientHeight": 568
+    },
+    "polish": {
+      "allOk": true,
+      "rows": [
+        {
+          "name": "good_sentence",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "lower_i",
+          "ok": true,
+          "soft": 3,
+          "hard": false
+        },
+        {
+          "name": "dup_word",
+          "ok": true,
+          "soft": 1,
+          "hard": false
+        },
+        {
+          "name": "all_caps",
+          "ok": true,
+          "soft": 2,
+          "hard": false
+        },
+        {
+          "name": "keyboard_mash",
+          "ok": true,
+          "soft": 1,
+          "hard": true
+        },
+        {
+          "name": "rep_punct_hard",
+          "ok": true,
+          "soft": 0,
+          "hard": true
+        },
+        {
+          "name": "name_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "trinidad_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        },
+        {
+          "name": "poll_title_ok",
+          "ok": true,
+          "soft": 0,
+          "hard": false
+        }
+      ]
+    },
+    "paste": {
+      "defaultPrevented": true
+    },
+    "burst": {
+      "valueLength": 70,
+      "allowed": true
+    },
+    "comp": {
+      "value": "nihao",
+      "ok": true
+    },
+    "attrs": {
+      "spellcheck": true,
+      "autocomplete": true,
+      "writingsuggestions": true,
+      "shortCap": true
+    }
+  }
+}

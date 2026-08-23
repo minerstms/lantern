@@ -10,7 +10,7 @@ export const WRITING_QUALITY_DEFAULTS = {
   block_paste: true,
   block_drag_drop: true,
   preserve_spellcheck: true,
-  preserve_single_word_suggestions: true,
+  limit_phrase_suggestions: true,
   require_pre_submit_check: true,
   allow_submit_anyway: true,
   show_suggestion_count: true,
@@ -39,7 +39,7 @@ const BOOL_KEYS = [
   'block_paste',
   'block_drag_drop',
   'preserve_spellcheck',
-  'preserve_single_word_suggestions',
+  'limit_phrase_suggestions',
   'require_pre_submit_check',
   'allow_submit_anyway',
   'show_suggestion_count',
@@ -71,6 +71,10 @@ export function mergeWritingQualitySettings(partial) {
   BOOL_KEYS.forEach(function (k) {
     if (partial[k] != null) base[k] = parseBool(partial[k], base[k]);
   });
+
+  if (partial.preserve_single_word_suggestions != null && partial.limit_phrase_suggestions == null) {
+    base.limit_phrase_suggestions = parseBool(partial.preserve_single_word_suggestions, base.limit_phrase_suggestions);
+  }
 
   if (partial.categories && typeof partial.categories === 'object') {
     CATEGORY_KEYS.forEach(function (k) {

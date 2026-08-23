@@ -739,7 +739,9 @@
         }
         if (window.LanternWritingQuality) {
           window.LanternWritingQuality.loadSettings().then(function () {
-            window.LanternWritingQuality.runBeforeSubmit(String(message || '').trim(), doSendThankYou, { focusEl: thankTa });
+            window.LanternWritingQuality.runBeforeSubmitFields([
+              { text: String(message || '').trim(), profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM, label: 'Thank-you' },
+            ], doSendThankYou, { focusEl: thankTa });
           });
           return;
         }
@@ -1929,10 +1931,9 @@
       }
       if (labelEl) labelEl.textContent = m.submission_type === 'confirmation' ? 'Optional note' : 'Your response';
       if (textWrap) textWrap.style.display = (!isPollMission && !isBugMission && allowsText) ? 'block' : 'none';
-      if (contentEl && window.LanternWritingQuality && allowsText && !contentEl._lwqAttached) {
-        contentEl._lwqAttached = true;
+      if (contentEl && window.LanternWritingQuality && allowsText) {
         window.LanternWritingQuality.loadSettings().then(function () {
-          window.LanternWritingQuality.attachField(contentEl);
+          window.LanternWritingQuality.attachField(contentEl, { profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM });
         });
       }
       if (pollWrap) pollWrap.style.display = isPollMission ? 'block' : 'none';
@@ -2263,7 +2264,9 @@
       }
       if (validText && textVal && window.LanternWritingQuality) {
         window.LanternWritingQuality.loadSettings().then(function () {
-          window.LanternWritingQuality.runBeforeSubmit(textVal, finishMissionTextSubmit, { focusEl: el('missionSubmitContent') });
+          window.LanternWritingQuality.runBeforeSubmitFields([
+            { text: textVal, profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM, label: 'Response' },
+          ], finishMissionTextSubmit, { focusEl: el('missionSubmitContent') });
         });
         return;
       }

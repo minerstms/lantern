@@ -1393,15 +1393,25 @@
     var el = function(id){ return document.getElementById(id); };
     var toastEl = el('toast');
 
-    if (window.LanternWritingQuality && el('newsBody')) {
-      window.LanternWritingQuality.loadSettings().then(function () {
-        window.LanternWritingQuality.attachField(el('newsBody'));
-      });
-    }
-    if (window.LanternWritingQuality && el('missionSubmitContent') && !el('missionSubmitContent')._lwqAttached) {
-      el('missionSubmitContent')._lwqAttached = true;
-      window.LanternWritingQuality.loadSettings().then(function () {
-        window.LanternWritingQuality.attachField(el('missionSubmitContent'));
+    if (window.LanternWritingQuality) {
+      var LWQ = window.LanternWritingQuality;
+      var P = LWQ.FIELD_PROFILES;
+      LWQ.loadSettings().then(function () {
+        LWQ.attachFields([
+          { el: el('newsTitle'), profile: P.SHORT_FORM },
+          { el: el('newsBody'), profile: P.LONG_FORM },
+          { el: el('newsPhotoCredit'), profile: P.SHORT_FORM },
+          { el: el('pollQuestion'), profile: P.SHORT_FORM },
+          { el: el('missionSubmitContent'), profile: P.LONG_FORM },
+        ]);
+        if (el('pollOptionsWrap')) {
+          LWQ.attachPollChoiceContainer(el('pollOptionsWrap'));
+          var pollWrap = el('pollOptionsWrap');
+          if (pollWrap && !pollWrap._lwqPollObserver) {
+            pollWrap._lwqPollObserver = true;
+            pollWrap.addEventListener('input', function () { LWQ.attachPollChoiceContainer(pollWrap); });
+          }
+        }
       });
     }
 
@@ -1587,6 +1597,9 @@
         inp.maxLength = 200;
         inp.style.marginBottom = '6px';
         w.appendChild(inp);
+      }
+      if (window.LanternWritingQuality && window.LanternWritingQuality.attachPollChoiceContainer) {
+        window.LanternWritingQuality.attachPollChoiceContainer(w);
       }
     }
     /** Snapshot current choice field values (including blanks) before a count change. */
@@ -2568,6 +2581,7 @@
         var pch = getPollChoices();
         if (!pq){ toast('Enter your poll question.'); return; }
         if (pch.length < 2 || pch.length > 5){ toast('Enter 2 to 5 answer choices.'); return; }
+        async function continuePollSubmit(){
         var characterNameForApi = isStaffPoll
           ? String(resolveSessionAuthorName(authorTypePoll) || '').trim()
           : (getCharacterNameForApi() || (adPoll && adPoll.name) || '');
@@ -2652,6 +2666,18 @@
         resetContributeFormPartial();
         syncContributeTypeUI();
         return;
+        }
+        if (!isStaffPoll && window.LanternWritingQuality) {
+          var pollFields = [{ text: pq, profile: window.LanternWritingQuality.FIELD_PROFILES.SHORT_FORM, label: 'Question' }];
+          pch.forEach(function (choice, idx) {
+            pollFields.push({ text: choice, profile: window.LanternWritingQuality.FIELD_PROFILES.SHORT_FORM, label: 'Choice ' + (idx + 1) });
+          });
+          window.LanternWritingQuality.loadSettings().then(function () {
+            window.LanternWritingQuality.runBeforeSubmitFields(pollFields, continuePollSubmit, { focusEl: el('pollQuestion') });
+          });
+          return;
+        }
+        continuePollSubmit();
       }
       if (ct === 'profile_post'){
         /* Prompt #117 ARCHIVE: unreachable while profile_post is removed from the selector and
@@ -2875,8 +2901,13 @@
       }
       }
       if (authorType === 'student' && window.LanternWritingQuality && (ct === 'post' || ct === 'shoutout')) {
+        var newsFields = [
+          { text: titleRaw, profile: window.LanternWritingQuality.FIELD_PROFILES.SHORT_FORM, label: 'Title' },
+          { text: bodyRaw, profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM, label: ct === 'shoutout' ? 'Message' : 'Story' },
+        ];
+        if (photoCredit) newsFields.push({ text: photoCredit, profile: window.LanternWritingQuality.FIELD_PROFILES.SHORT_FORM, label: 'Photo credit' });
         window.LanternWritingQuality.loadSettings().then(function () {
-          window.LanternWritingQuality.runBeforeSubmit(bodyRaw, continueNewsSubmit, { focusEl: el('newsBody') });
+          window.LanternWritingQuality.runBeforeSubmitFields(newsFields, continueNewsSubmit, { focusEl: el('newsBody') });
         });
         return;
       }
@@ -3728,7 +3759,9 @@
       }
       if (validText && textVal && window.LanternWritingQuality) {
         window.LanternWritingQuality.loadSettings().then(function () {
-          window.LanternWritingQuality.runBeforeSubmit(textVal, finishContributeMissionSubmit, { focusEl: el('missionSubmitContent') });
+          window.LanternWritingQuality.runBeforeSubmitFields([
+            { text: textVal, profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM, label: 'Response' },
+          ], finishContributeMissionSubmit, { focusEl: el('missionSubmitContent') });
         });
         return;
       }

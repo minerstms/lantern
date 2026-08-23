@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Writing Integrity #258 harness</title>
+  <link rel="stylesheet" href="../css/lantern-writing-quality.css" />
+  <style>
+    body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; font-size: 22px; background: #0b1220; color: #eaf0ff; max-width: 100%; overflow-x: hidden; }
+    .harnessSection { margin-bottom: 24px; padding: 16px; border: 1px solid rgba(255,255,255,.12); border-radius: 18px; }
+    input, textarea { width: 100%; box-sizing: border-box; font-size: 22px; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.25); color: #eaf0ff; font-family: inherit; }
+    textarea { min-height: 100px; }
+    .teacherSectionLabel { font-size: 24px; font-weight: 900; margin: 16px 0 8px; }
+    .visibleWatermarkToggle { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 22px; }
+    .acctPanelHint, .pendingMeta { font-size: 20px; color: #b9c6ea; line-height: 1.4; }
+    .btn { font-size: 22px; padding: 12px 16px; border-radius: 12px; margin-right: 8px; cursor: pointer; }
+    #harnessResults { white-space: pre-wrap; font-size: 18px; color: #38d07c; }
+  </style>
+</head>
+<body>
+  <h1 style="font-size:28px;">Writing Integrity #258 harness</h1>
+
+  <div class="harnessSection" id="writingQualityCard">
+    <h2 style="font-size:26px;margin:0 0 12px;">Writing Integrity + Polish Check (admin replica)</h2>
+    <p class="acctPanelHint">Admin card layout probe for viewport QA.</p>
+    <h3 class="teacherSectionLabel">Master</h3>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqEnabled" checked /> Writing Quality ON/OFF</label>
+    <h3 class="teacherSectionLabel">Authorship</h3>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqBlockPaste" checked /> Block Paste</label>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqBlockDragDrop" checked /> Block Text Drag/Drop</label>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqPreserveSpellcheck" checked /> Browser Spellcheck</label>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqLimitPhrase" checked /> Limit Browser Phrase/Sentence Suggestions</label>
+    <h3 class="teacherSectionLabel">Pre-submission Polish</h3>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqRequireCheck" checked /> Require Polish Check</label>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqAllowAnyway" checked /> Allow Submit with Soft Suggestions</label>
+    <div id="writingQualityCategories"></div>
+    <h3 class="teacherSectionLabel">Quality Floor</h3>
+    <label class="visibleWatermarkToggle"><input type="checkbox" id="wqFloorEnabled" checked /> Enable quality floor</label>
+    <input type="number" id="wqRepeatedChar" value="5" min="3" max="20" />
+    <button type="button" class="btn" id="writingQualitySave">Save Writing Quality</button>
+    <button type="button" class="btn" id="writingQualityRefresh">Reload current</button>
+    <div id="writingQualityMsg" role="status"></div>
+  </div>
+
+  <div class="harnessSection">
+    <h2 style="font-size:26px;">Student fields</h2>
+    <label>News title (short)</label>
+    <input id="newsTitle" type="text" />
+    <label>News body (long)</label>
+    <textarea id="newsBody"></textarea>
+    <label>Poll question (short)</label>
+    <input id="pollQuestion" type="text" />
+    <div id="pollOptionsWrap">
+      <input class="pollOptInput" type="text" placeholder="Choice 1" />
+      <input class="pollOptInput" type="text" placeholder="Choice 2" />
+    </div>
+    <label>Mission response (long)</label>
+    <textarea id="missionSubmitContent"></textarea>
+  </div>
+
+  <pre id="harnessResults"></pre>
+
+  <script src="../js/lantern-writing-quality.js"></script>
+  <script>
+  (function () {
+    var LWQ = window.LanternWritingQuality;
+    var P = LWQ.FIELD_PROFILES;
+    var settingsStore = null;
+
+    window.fetch = function (url) {
+      if (String(url).indexOf('/api/settings/writing-quality') >= 0) {
+        return Promise.resolve({
+          json: function () {
+            return Promise.resolve({
+              ok: true,
+              settings: settingsStore || LWQ.DEFAULTS,
+            });
+          },
+        });
+      }
+      return Promise.reject(new Error('unexpected fetch'));
+    };
+
+    LWQ.loadSettings(true).then(function () {
+      LWQ.attachFields([
+        { el: document.getElementById('newsTitle'), profile: P.SHORT_FORM },
+        { el: document.getElementById('newsBody'), profile: P.LONG_FORM },
+        { el: document.getElementById('pollQuestion'), profile: P.SHORT_FORM },
+        { el: document.getElementById('missionSubmitContent'), profile: P.LONG_FORM },
+      ]);
+      LWQ.attachPollChoiceContainer(document.getElementById('pollOptionsWrap'));
+      window.__LANTERN_258_READY = true;
+    });
+
+    function naturalScrollCheck() {
+      var doc = document.documentElement;
+      return {
+        ok: doc.scrollHeight > window.innerHeight * 0.5,
+        fitsViewport: doc.scrollWidth <= window.innerWidth + 1,
+        scrollHeight: doc.scrollHeight,
+        clientHeight: window.innerHeight,
+      };
+    }
+
+    function measureAdminCard() {
+      var card = document.getElementById('writingQualityCard');
+      var rect = card ? card.getBoundingClientRect() : { width: 0, height: 0 };
+      var docW = document.documentElement.scrollWidth;
+      var viewW = window.innerWidth;
+      return {
+        cardWidth: rect.width,
+        cardHeight: rect.height,
+        horizontalOverflow: docW > viewW + 2,
+        viewportWidth: viewW,
+        scrollWidth: docW,
+      };
+    }
+
+    function runPolishCases() {
+      var s = LWQ.getSettings();
+      var cases = [
+        { name: 'good_sentence', text: 'I like this because it was fun.', profile: P.LONG_FORM, expectSoft: 0 },
+        { name: 'lower_i', text: 'i like this because it was fun', profile: P.LONG_FORM, expectSoftMin: 1 },
+        { name: 'dup_word', text: 'I like the the project.', profile: P.LONG_FORM, expectSoftMin: 1 },
+        { name: 'all_caps', text: 'I REALLY LIKE THIS PROJECT TODAY', profile: P.LONG_FORM, expectSoftMin: 1 },
+        { name: 'keyboard_mash', text: 'asdfasdfasdfasdf', profile: P.LONG_FORM, expectHard: true },
+        { name: 'rep_punct_hard', text: '!!!!!!!!!!!!', profile: P.LONG_FORM, expectHard: true },
+        { name: 'name_ok', text: 'Phay Son did great.', profile: P.LONG_FORM, expectSoft: 0 },
+        { name: 'trinidad_ok', text: 'Trinidad is my hometown.', profile: P.LONG_FORM, expectSoft: 0 },
+        { name: 'poll_title_ok', text: 'Favorite Color?', profile: P.SHORT_FORM, expectSoft: 0, noEndPunct: true },
+      ];
+      var out = [];
+      cases.forEach(function (c) {
+        var soft = LWQ.evaluatePolish(c.text, s, c.profile);
+        var hard = LWQ.evaluateQualityFloor(c.text, s);
+        var endPunct = soft.some(function (x) { return x.category === 'ending_punctuation'; });
+        var ok = true;
+        if (c.expectSoft != null && soft.length !== c.expectSoft) ok = false;
+        if (c.expectSoftMin != null && soft.length < c.expectSoftMin) ok = false;
+        if (c.expectHard && !hard.failed) ok = false;
+        if (!c.expectHard && c.name.indexOf('ok') >= 0 && hard.failed) ok = false;
+        if (c.noEndPunct && endPunct) ok = false;
+        out.push({ name: c.name, ok: ok, soft: soft.length, hard: hard.failed });
+      });
+      return { allOk: out.every(function (r) { return r.ok; }), rows: out };
+    }
+
+    function testPasteBlocked() {
+      var ta = document.getElementById('newsBody');
+      var prevented = false;
+      function handler(e) { e.preventDefault(); prevented = true; }
+      ta.addEventListener('paste', handler);
+      var ev = new Event('paste', { bubbles: true, cancelable: true });
+      ta.dispatchEvent(ev);
+      ta.removeEventListener('paste', handler);
+      return { pasteHandlerInstalled: true, defaultPreventedSim: prevented || ev.defaultPrevented };
+    }
+
+    function testBurstInsertAllowed() {
+      var ta = document.getElementById('newsBody');
+      ta.value = 'start ';
+      var longInsert = 'this is a long dictation style insert that should not be blocked';
+      ta.value = ta.value + longInsert;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      return { valueLength: ta.value.length, allowed: ta.value.indexOf(longInsert) >= 0 };
+    }
+
+    function testCompositionPreserved() {
+      var ta = document.getElementById('newsBody');
+      ta.value = '';
+      ta.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      ta.value = 'nihao';
+      ta.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+      return { value: ta.value, ok: ta.value === 'nihao' };
+    }
+
+    function testAuthorshipAttrs() {
+      var ta = document.getElementById('newsBody');
+      var inp = document.getElementById('pollQuestion');
+      return {
+        spellcheck: ta.getAttribute('spellcheck') === 'true',
+        autocomplete: ta.getAttribute('autocomplete') === 'off',
+        writingsuggestions: ta.getAttribute('writingsuggestions') === 'false',
+        shortCap: inp.getAttribute('autocapitalize') === 'words',
+      };
+    }
+
+    document.getElementById('writingQualitySave').addEventListener('click', function () {
+      settingsStore = Object.assign({}, LWQ.DEFAULTS, { enabled: document.getElementById('wqEnabled').checked });
+      document.getElementById('writingQualityMsg').textContent = 'Saved (mock).';
+    });
+    document.getElementById('writingQualityRefresh').addEventListener('click', function () {
+      document.getElementById('wqEnabled').checked = (settingsStore || LWQ.DEFAULTS).enabled !== false;
+      document.getElementById('writingQualityMsg').textContent = 'Reloaded (mock).';
+    });
+
+    window.__LANTERN_258_RUN = {
+      measureAdminCard: measureAdminCard,
+      naturalScrollCheck: naturalScrollCheck,
+      runPolishCases: runPolishCases,
+      testPasteBlocked: testPasteBlocked,
+      testBurstInsertAllowed: testBurstInsertAllowed,
+      testCompositionPreserved: testCompositionPreserved,
+      testAuthorshipAttrs: testAuthorshipAttrs,
+    };
+  })();
+  </script>
+</body>
+</html>
