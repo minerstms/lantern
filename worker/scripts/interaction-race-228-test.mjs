@@ -53,8 +53,8 @@ assert(/data-race-kind', 'reaction-spatial'/.test(revealSrc) || /reaction-spatia
 assert(!/hold - h/.test(revealSrc) && !/layoutHold/.test(revealSrc), 'icons no longer translate with bar height');
 assert(!/function measureRide/.test(revealSrc) && !/barFromBottom/.test(revealSrc), 'bars no longer pin to a moving icon floor');
 assert(/lanternRxRaceStage/.test(revealSrc) && /data-rx-race-stage/.test(revealSrc), 'race stage marker still present');
-assert(/parentChoices\.nextSibling/.test(revealSrc), 'allocated growth sits after the icon row');
-assert(/raceStageHeight/.test(revealSrc) && /applyStageHeight/.test(revealSrc) && /syncRaceStage/.test(revealSrc), 'tallest bar still tracked as the race grows');
+assert(/insertBefore\(stage, parentChoices\)/.test(revealSrc), 'allocated growth sits above the icon row');
+assert(/lanternRxRaceStage--reserved/.test(revealSrc) && /raceMaxBarPx/.test(revealSrc), 'reaction race reserves a fixed upward stage');
 assert(!/lockIconFloor/.test(revealSrc) && !/scrollTop\s*\+=/.test(revealSrc), 'race loop does not write overlay scrollTop');
 assert(/cart\.style\.left = p \+ '%'/.test(revealSrc), 'cart left follows leading edge');
 assert(!/min-height:\s*252px/.test(rxCss), 'racing CSS does not drop icons to a 252px baseline');

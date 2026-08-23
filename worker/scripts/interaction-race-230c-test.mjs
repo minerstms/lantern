@@ -37,11 +37,11 @@ assert(!!rxFn, 'reaction spatial race function present');
 assert(!!pollFn, 'poll mine-cart function present');
 
 assert(/data-rx-race-stage/.test(rxFn) && /lanternRxRaceStage/.test(rxFn), 'stage node inserted in reaction race only');
-assert(/parentChoices\.nextSibling/.test(rxFn), 'allocated growth sits after the reaction icon row');
-assert(/raceStageHeight/.test(rxFn) && /applyStageHeight/.test(rxFn), 'tallest bar height is still tracked');
-assert(/applyStageHeight\(0\)/.test(rxFn), 'tracked height starts at 0 before the race grows');
+assert(/insertBefore\(stage, parentChoices\)/.test(rxFn), 'reserved stage sits above the reaction icon row');
+assert(/lanternRxRaceStage--reserved/.test(rxFn) && /raceMaxBarPx/.test(rxFn), 'stage height is reserved once before bars animate');
+assert(!/applyStageHeight/.test(rxFn) && !/syncRaceStage/.test(rxFn), 'stage no longer grows with the tallest bar');
 assert(!/lockIconFloor/.test(rxFn) && !/scrollTop\s*\+=/.test(rxFn), 'no per-frame scroll compensation');
-assert(/ensureScrollRoom/.test(rxFn) && /paddingBottom/.test(rxFn), 'modal can scroll when reserved height exceeds the viewport');
+assert(!/ensureScrollRoom/.test(rxFn) && !/paddingBottom/.test(rxFn), 'race does not pad the modal as bars grow');
 assert(!/hold - h/.test(rxFn) && !/layoutHold/.test(rxFn) && !/captureLayoutHold/.test(rxFn), 'icons stay on the original row while bars grow');
 assert(/bar\.style\.height = h \+ 'px'/.test(rxFn) && !/btn\.style\.transform = 'translateY/.test(rxFn), 'only bars change height; icons are not translated');
 assert(!/min-height:\s*252px/.test(rxCss), 'does not revive the flex-end 252px drop bug');

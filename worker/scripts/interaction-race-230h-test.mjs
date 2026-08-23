@@ -41,12 +41,12 @@ assert(!/function lockIconFloor/.test(rxFn), 'lockIconFloor race-loop owner remo
 assert(!/scrollTop\s*\+=/.test(rxFn), 'no animation-loop scrollTop +=');
 assert(!/scrollTop\s*=/.test(rxFn), 'no animation-loop scrollTop assignment');
 assert(!/\.scrollTo\s*\(/.test(rxFn) && !/scrollIntoView/.test(rxFn), 'race does not call scrollTo/scrollIntoView');
-assert(/ensureScrollRoom/.test(rxFn) && /paddingBottom/.test(rxFn), 'tall races may add bottom padding without moving scrollTop');
-assert(/applyStageHeight/.test(rxFn) && /syncRaceStage/.test(rxFn), 'in-flow stage height still reserved as bars grow');
+assert(!/ensureScrollRoom/.test(rxFn) && !/paddingBottom/.test(rxFn), 'race does not pad the modal as bars grow');
+assert(/lanternRxRaceStage--reserved/.test(rxFn) && /raceMaxBarPx/.test(rxFn), 'stage height is reserved once, not grown during the race');
 
 assert(!/hold - h/.test(rxFn) && !/layoutHold/.test(rxFn) && !/captureLayoutHold/.test(rxFn), 'icons stay put; no hold - h ride');
 assert(/bar\.style\.height = h \+ 'px'/.test(rxFn) && !/btn\.style\.transform = 'translateY/.test(rxFn), 'bars grow by measured height; icons are not translated');
-assert(/parentChoices\.nextSibling/.test(rxFn), 'growth is allocated after the tapped icon row');
+assert(/insertBefore\(stage, parentChoices\)/.test(rxFn), 'growth is allocated above the tapped icon row');
 assert(!/min-height:\s*252px/.test(rxCss), 'does not revive the 252px icon-drop baseline');
 
 assert(/lanternRaceToolbar--rx/.test(rxFn) && /data-rx-sound-float/.test(rxFn), 'Sound still marked floating');
@@ -73,7 +73,7 @@ assert(
   overlayRx && overlayRx[0].lastIndexOf('border-top:') > overlayRx[0].lastIndexOf('border:'),
   'opened-post reaction top border stays removed after the border shorthand'
 );
-assert(/rxlayout247a/.test(explore), 'Explore cache-busts cards + reaction CSS for #247A');
+assert(/rxrace255/.test(explore), 'Explore cache-busts cards + reaction CSS for #255');
 
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 assert(/data-race-kind', 'poll-minecart'/.test(pollFn), 'poll race kind unchanged');

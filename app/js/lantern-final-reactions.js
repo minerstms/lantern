@@ -220,7 +220,7 @@
   }
 
   function choicesHtml(vocab, extraClass) {
-    var html = '<div class="lanternFinalRxRaceArena"><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
+    var html = '<div class="lanternFinalRxRaceArena"><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div><div class="lanternFinalRxChoices" data-final-rx-choices="1" style="grid-template-columns:repeat(' + vocab.length + ',minmax(0,1fr))">';
     vocab.forEach(function (v) {
       html +=
         '<button type="button" class="lanternFinalRxChoice' +
@@ -233,7 +233,7 @@
         v.emoji +
         '</button>';
     });
-    html += '</div><div class="lanternRxRaceStage" data-rx-race-stage aria-hidden="true"></div></div>';
+    html += '</div></div>';
     return html;
   }
 

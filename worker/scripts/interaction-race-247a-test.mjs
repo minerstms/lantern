@@ -39,7 +39,7 @@ assert(!!rxFn && !!pollFn, 'reaction + poll functions present');
 assert(!/hold - h/.test(rxFn) && !/layoutHold/.test(rxFn) && !/captureLayoutHold/.test(rxFn), 'no icon ride leftover');
 assert(!/btn\.style\.transform = 'translateY/.test(rxFn), 'icons are not translated with bar height');
 assert(/bar\.style\.height = h \+ 'px'/.test(rxFn), 'bars still grow by height');
-assert(/parentChoices\.nextSibling/.test(rxFn), 'result stage is placed after the icon row');
+assert(/insertBefore\(stage, parentChoices\)/.test(rxFn), 'result stage is placed above the icon row');
 assert(/insertBefore\(unwrapBtn, wrapLane\)/.test(rxFn), 'icons are lifted out of leftover icon+bar lanes');
 assert(/stage\.appendChild\(lane\)/.test(rxFn) || /lane\.parentNode !== stage/.test(rxFn), 'result lanes are children of the stage');
 assert(!/scrollTop\s*=/.test(rxFn) && !/scrollTop\s*\+=/.test(rxFn), 'no race-loop scrollTop writes');
@@ -50,9 +50,9 @@ assert(!/style\.top = /.test(rxFn.replace(/existingTb\.style\.top/g, '')), 'race
 const stageBlock = rxCss.match(/\.lanternRxRaceStage\{[^}]+\}/);
 const barBlock = rxCss.match(/\.lanternRxRaceBar\{[^}]+\}/);
 const choicesBlock = rxCss.match(/\.lanternFinalRxChoices \{[^}]+\}/);
-assert(!!stageBlock && /display:\s*grid/.test(stageBlock[0]), 'result stage is a grid in normal flow');
-assert(!!stageBlock && /height:\s*auto/.test(stageBlock[0]) && /overflow:\s*visible/.test(stageBlock[0]), 'stage height comes from its children');
-assert(!!barBlock && /position:\s*relative/.test(barBlock[0]) && !/position:\s*absolute/.test(barBlock[0]), 'bars are in-flow');
+assert(/lanternRxRaceStage--reserved/.test(rxCss) && /--lantern-rx-race-max:\s*330px/.test(rxCss), 'reserved stage uses a ~2x desktop race field');
+assert(!!stageBlock && /height:\s*0/.test(stageBlock[0]), 'idle stage does not reserve a blank hole');
+assert(!!barBlock && /position:\s*absolute/.test(barBlock[0]) && /bottom:\s*0/.test(barBlock[0]), 'bars are absolutely anchored to the icon baseline');
 assert(!!choicesBlock && /align-items:\s*start/.test(choicesBlock[0]), 'icon row baseline is the grid start');
 assert(/align-self:\s*start/.test(rxCss), 'icons do not vertically center when a parent grows');
 assert(/lanternReactionBar\.lanternRxChoices--racing\{[\s\S]*?align-items:\s*flex-start/.test(rxCss), 'news reaction bar keeps icons at the top');
@@ -63,7 +63,7 @@ assert(!/<div class="lanternRxLane">/.test(finalRx), 'production markup does not
 assert(/fillFeedItemDetailModal/.test(cardUi) && /lanternCardDetailReactions/.test(cardUi), 'Explore still mounts reactions in the opened-post overlay');
 assert(/lanternCardDetailBody[\s\S]*lanternCardDetailReactions/.test(cardUi), 'canonical overlay keeps body then reactions');
 assert(/overflow-y:\s*auto/.test(cardsCss) && /lanternInteractiveSurface/.test(surfaceCss), 'PR #38 overlay/surface scroll model remains');
-assert(/rxlayout247a/.test(explore), 'Explore cache-busts #247A assets');
+assert(/rxrace255/.test(explore), 'Explore cache-busts #255 race assets');
 assert(/cart\.style\.left = p \+ '%'/.test(pollFn), 'poll carts still follow fill leading edge');
 assert(!/applyStageHeight|lanternRxRaceStage|unwrapBtn/.test(pollFn), 'poll race was not given reaction layout logic');
 

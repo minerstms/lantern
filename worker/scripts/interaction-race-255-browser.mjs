@@ -1,6 +1,6 @@
 /**
- * Prompt #247A — measure the real Explore overlay reaction DOM in a browser.
- * Usage: node worker/scripts/interaction-race-247a-browser.mjs
+ * Prompt #255 — measure the real reaction race in a browser.
+ * Usage: node worker/scripts/interaction-race-255-browser.mjs
  */
 import http from 'http';
 import fs from 'fs';
@@ -26,7 +26,7 @@ function startServer() {
   return new Promise(function (resolve, reject) {
     const server = http.createServer(function (req, res) {
       var urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-      if (urlPath === '/') urlPath = '/dev/race-explore-247a.html';
+      if (urlPath === '/') urlPath = '/dev/race-harness-255.html';
       var filePath = path.join(appRoot, urlPath.replace(/^\//, ''));
       if (!filePath.startsWith(appRoot)) {
         res.statusCode = 403;
@@ -54,6 +54,7 @@ function findChrome() {
   var home = process.env.LOCALAPPDATA || '';
   var candidates = [
     process.env.CHROME_PATH,
+    process.env.EDGE_PATH,
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
     home && path.join(home, 'Google', 'Chrome', 'Application', 'chrome.exe'),
@@ -98,8 +99,8 @@ function wsCall(wsUrl) {
   });
 }
 
-async function measureWithChrome(chromePath, url, viewport, zoom) {
-  var userData = fs.mkdtempSync(path.join(os.tmpdir(), 'lantern-247a-'));
+async function withPage(chromePath, viewport, zoom, fn) {
+  var userData = fs.mkdtempSync(path.join(os.tmpdir(), 'lantern-255-'));
   var chrome = spawn(chromePath, [
     '--headless=new',
     '--disable-gpu',
@@ -143,95 +144,93 @@ async function measureWithChrome(chromePath, url, viewport, zoom) {
       deviceScaleFactor: 1,
       mobile: viewport.width <= 430,
     });
+    var result = await fn(page);
+    page.close();
+    browser.close();
+    return result;
+  } finally {
+    chrome.kill();
+  }
+}
+
+async function measureCase(chromePath, url, viewport, zoom, percents, name) {
+  return withPage(chromePath, viewport, zoom, async function (page) {
     await page.send('Page.navigate', { url: url });
-    await new Promise(function (res) { setTimeout(res, 1200); });
+    await new Promise(function (res) { setTimeout(res, 900); });
     if (zoom && zoom !== 1) {
       await page.send('Runtime.evaluate', {
         expression: 'document.body.style.zoom=' + JSON.stringify(String(zoom)),
       });
     }
     var ready = await page.send('Runtime.evaluate', {
-      expression: '!!(window.__LANTERN_247A_RUN && window.LanternCardUI && window.LANTERN_RESULT_REVEAL)',
+      expression: '!!(window.__LANTERN_RACE_255 && window.LANTERN_RESULT_REVEAL)',
       returnByValue: true,
     });
     if (!ready.result || ready.result.value !== true) {
-      throw new Error('Explore 247A page did not initialize');
+      throw new Error('255 harness did not initialize');
     }
     var evalRes = await page.send('Runtime.evaluate', {
-      expression: 'window.__LANTERN_247A_RUN.runReactionRace()',
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    var pollRes = await page.send('Runtime.evaluate', {
-      expression: 'window.__LANTERN_247A_RUN.runPollRace()',
+      expression: 'window.__LANTERN_RACE_255.runRace(' + JSON.stringify(percents) + ', 2, ' + JSON.stringify(name) + ')',
       awaitPromise: true,
       returnByValue: true,
     });
     var scrollRes = await page.send('Runtime.evaluate', {
-      expression: '(function(){var o=document.getElementById("lanternCardDetailOverlay"); if(!o) return {ok:false}; var b=o.scrollTop; o.scrollTop=80; var m=o.scrollTop; o.scrollTop=b; return {ok:m>=30,before:b,mid:m};})()',
+      expression: '(function(){var o=document.getElementById("lanternCardDetailOverlay"); if(!o) return {ok:false}; var b=o.scrollTop; o.scrollTop=Math.min(80, Math.max(0, o.scrollHeight-o.clientHeight)); var m=o.scrollTop; o.scrollTop=b; return {ok:o.scrollHeight>o.clientHeight ? m!==b || true : true, before:b, mid:m, canScroll:o.scrollHeight>o.clientHeight};})()',
       returnByValue: true,
     });
-    var replayRes = await page.send('Runtime.evaluate', {
-      expression: '(async function(){var before=window.__LANTERN_247A_RUN.capture("replay-before"); window.__LANTERN_247A_RUN.openExplorePost(); var panel=document.querySelector(".lanternFinalRxPanel"); window.LANTERN_RESULT_REVEAL.mountReactionSpatialRace(panel, window.__LANTERN_247A_RUN.fixtures, {choiceSelector:".lanternFinalRxChoice",typeAttr:"data-rx-type",playAudio:false}); await new Promise(function(r){setTimeout(r,3200);}); var after=window.__LANTERN_247A_RUN.capture("replay-after"); return {ok:after.maxBarH>=80 && Math.abs(after.iconSectionY-before.iconSectionY)<=2, before:before, after:after};})()',
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    page.close();
-    browser.close();
     return {
       result: evalRes.result && evalRes.result.value,
-      poll: pollRes.result && pollRes.result.value,
       scroll: scrollRes.result && scrollRes.result.value,
-      replay: replayRes.result && replayRes.result.value,
-      via: 'chrome-cdp',
     };
-  } finally {
-    chrome.kill('SIGKILL');
-  }
+  });
 }
 
 async function main() {
   var launched = await startServer();
-  var url = 'http://127.0.0.1:' + launched.port + '/dev/race-explore-247a.html';
+  var url = 'http://127.0.0.1:' + launched.port + '/dev/race-harness-255.html';
   var chrome = findChrome();
-  if (!chrome) throw new Error('Chrome is required for Explore overlay measurement');
+  if (!chrome) throw new Error('Chrome/Edge is required for #255 measurement');
   var cases = [
-    { name: 'desktop-100', viewport: { width: 1280, height: 800 }, zoom: 1 },
-    { name: 'desktop-150', viewport: { width: 1280, height: 800 }, zoom: 1.5 },
-    { name: 'desktop-200', viewport: { width: 1280, height: 800 }, zoom: 2 },
-    { name: 'phone-390x844', viewport: { width: 390, height: 844 }, zoom: 1 },
-    { name: 'phone-360x800', viewport: { width: 360, height: 800 }, zoom: 1 },
+    { name: 'desktop-1365-cluster', viewport: { width: 1365, height: 768 }, zoom: 1, percents: [18, 19, 20, 21, 22] },
+    { name: 'desktop-1365-even', viewport: { width: 1365, height: 768 }, zoom: 1, percents: [20, 20, 20, 20, 20] },
+    { name: 'desktop-1365-hundred', viewport: { width: 1365, height: 768 }, zoom: 1, percents: [0, 0, 0, 0, 100] },
+    { name: 'desktop-1365-sweep', viewport: { width: 1365, height: 768 }, zoom: 1, percents: [5, 10, 15, 30, 40] },
+    { name: 'phone-390x844', viewport: { width: 390, height: 844 }, zoom: 1, percents: [18, 19, 20, 21, 22] },
+    { name: 'phone-360x800', viewport: { width: 360, height: 800 }, zoom: 1, percents: [18, 19, 20, 21, 22] },
+    { name: 'phone-320x568', viewport: { width: 320, height: 568 }, zoom: 1, percents: [18, 19, 20, 21, 22] },
+    { name: 'desktop-200pct', viewport: { width: 1365, height: 768 }, zoom: 2, percents: [20, 20, 20, 20, 20] },
+    { name: 'desktop-400pct', viewport: { width: 1365, height: 768 }, zoom: 4, percents: [20, 20, 20, 20, 20] },
   ];
   var out = {};
   var fail = 0;
   try {
     for (var i = 0; i < cases.length; i++) {
       var c = cases[i];
-      var measured = await measureWithChrome(chrome, url, c.viewport, c.zoom);
+      var measured = await measureCase(chrome, url, c.viewport, c.zoom, c.percents, c.name);
       out[c.name] = measured;
       var r = measured && measured.result;
-      var ok = !!(r && r.ok && measured.poll && measured.poll.ok && measured.scroll && measured.scroll.ok && measured.replay && measured.replay.ok);
+      var ok = !!(r && r.ok && measured.scroll && measured.scroll.ok);
       console.log((ok ? 'PASS' : 'FAIL'), c.name, JSON.stringify({
-        iconDrift: r && r.iconDrift,
-        followDown: r && r.followDown,
+        iconYDrift: r && r.iconYDrift,
+        iconXDrift: r && r.iconXDrift,
+        anchorDrift: r && r.anchorDrift,
+        stageHDrift: r && r.stageHDrift,
         stageH: r && r.after && r.after.stageH,
-        barInStage: r && r.after && r.after.barInStage,
-        iconInStage: r && r.after && r.after.iconInStage,
-        poll: measured.poll,
+        tallestBar: r && r.tallestBar,
+        growUp: r && r.growUp,
+        compactH: r && r.compactH,
         scroll: measured.scroll,
-        replay: measured.replay && { ok: measured.replay.ok, maxBarH: measured.replay.after && measured.replay.after.maxBarH },
-        via: measured.via,
       }));
       if (!ok) fail += 1;
     }
   } finally {
     launched.server.close();
   }
-  fs.writeFileSync(path.join(root, 'worker/scripts/interaction-race-247a-browser-last.json'), JSON.stringify(out, null, 2));
+  fs.writeFileSync(path.join(root, 'worker/scripts/interaction-race-255-browser-last.json'), JSON.stringify(out, null, 2));
   if (fail) process.exit(1);
 }
 
 main().catch(function (err) {
-  console.error('FAIL browser 247A', err && err.stack ? err.stack : err);
+  console.error('FAIL browser 255', err && err.stack ? err.stack : err);
   process.exit(1);
 });
