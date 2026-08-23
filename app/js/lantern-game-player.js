@@ -181,29 +181,44 @@
     setPregameStatus('');
   }
 
-  function applyPregameBalance(cost, snap) {
+  function applyPregameBalance(gameName, snap) {
     if (!state.open || state.phase !== 'pregame') return;
     if (!snap) return;
+    var econ = global.LanternGameEconomy;
+    var costLine =
+      econ && typeof econ.formatPregameCost === 'function'
+        ? econ.formatPregameCost(gameName || (state.gameMeta && state.gameMeta.title) || '')
+        : '1 Nugget = 1 Play';
+    var needMsg =
+      econ && typeof econ.formatInsufficient === 'function'
+        ? econ.formatInsufficient(gameName || (state.gameMeta && state.gameMeta.title) || '')
+        : 'You need 1 Nugget to play.';
+    var debit =
+      global.LanternGamesPaidStart && typeof global.LanternGamesPaidStart.nuggetDebitRequired === 'function'
+        ? global.LanternGamesPaidStart.nuggetDebitRequired(gameName || (state.gameMeta && state.gameMeta.title) || '')
+        : 1;
     if (snap.status === 'needs_link' || snap.needs_linking) {
-      setPregameCost(cost + ' Nugget = 1 Play');
+      setPregameCost(costLine);
       setPregameStatus('Nugget account needs link', 'error');
       return;
     }
     if (snap.status === 'no_nugget_account' || snap.no_nugget_account) {
-      setPregameCost(cost + ' Nugget = 1 Play');
+      setPregameCost(costLine);
       setPregameStatus('No Nugget account', 'error');
       return;
     }
     if (snap.status === 'ok' && snap.available != null) {
       var avail = Number(snap.available);
-      setPregameCost(cost + ' Nugget = 1 Play. You currently have ' + avail + ' Nugget' + (avail === 1 ? '' : 's') + '.');
-      if (Number.isFinite(avail) && avail < cost) {
-        setPregameStatus('You need 1 Nugget to play.', 'insufficient');
+      setPregameCost(
+        costLine + (Number.isFinite(avail) ? '. You currently have ' + avail + ' Nugget' + (avail === 1 ? '' : 's') + '.' : '.')
+      );
+      if (Number.isFinite(avail) && debit > 0 && avail < debit) {
+        setPregameStatus(needMsg, 'insufficient');
       }
       return;
     }
     if (snap.status === 'error' && snap.lastGoodAvailable == null) {
-      setPregameCost(cost + ' Nugget = 1 Play');
+      setPregameCost(costLine);
     }
   }
 
@@ -212,19 +227,18 @@
       setSponsoredMissionPregameCost();
       return;
     }
-    var paid = global.LanternGamesPaidStart;
-    var cost = 1;
-    if (paid && typeof paid.playCostForGame === 'function') {
-      cost = paid.playCostForGame(gameName || (state.gameMeta && state.gameMeta.title) || '') || 1;
-    }
-    setPregameCost(cost + ' Nugget = 1 Play');
+    var name = gameName || (state.gameMeta && state.gameMeta.title) || '';
+    var econ = global.LanternGameEconomy;
+    var line =
+      econ && typeof econ.formatPregameCost === 'function' ? econ.formatPregameCost(name) : '1 Nugget = 1 Play';
+    setPregameCost(line);
     if (global.LanternWallet && typeof global.LanternWallet.subscribe === 'function') {
       if (pregameUnsub) {
         pregameUnsub();
         pregameUnsub = null;
       }
       pregameUnsub = global.LanternWallet.subscribe(function (snap) {
-        applyPregameBalance(cost, snap);
+        applyPregameBalance(name, snap);
       });
       if (typeof global.LanternWallet.refreshBalance === 'function') {
         global.LanternWallet.refreshBalance();

@@ -65,6 +65,7 @@ import {
   sanitizeRunId,
 } from './lantern-game-catalog.js';
 import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun, evaluatePaidRunForWinCredit } from './game-paid-run-proof.js';
+import { resolveGamePlayTransact } from './game-play-economy.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
@@ -714,7 +715,13 @@ export default {
     if (path.startsWith('/api/settings')) {
       try {
         const settingsCors = request.method === 'GET' ? cors : corsForPilot(request);
-        const settingsDeps = { jsonResponse, requireAdminPilotSession, adminAuditLabel };
+        const settingsDeps = {
+          jsonResponse,
+          requireAdminPilotSession,
+          adminAuditLabel,
+          getPilotAccountFromRequest,
+          pilotEconomyCharacterName,
+        };
         return await handleSettingsRoutes(request, url, path, env, settingsCors, settingsDeps);
       } catch (err) {
         const message = err && err.message ? err.message : String(err);
@@ -7195,15 +7202,51 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
     }
     let delta = Math.floor(Number(body.delta));
     if (kind === 'game_play') {
-      const serverCost = await resolveEconomyAmount(db, 'game_play');
-      if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== serverCost) {
+      const runId = sanitizeRunId((meta && meta.run_id) || body.run_id);
+      if (!runId) {
+        return jsonResponse({ ok: false, error: 'invalid_run', message: 'game_play requires run_id' }, 400, cors);
+      }
+      const existingPlay = await findPaidGamePlayByRunId(db, runId);
+      if (existingPlay && String(existingPlay.character_name || '') === characterName) {
         return jsonResponse(
-          { ok: false, error: 'client_delta_rejected', server_delta: serverCost, message: 'game_play cost is server-authoritative' },
+          {
+            ok: true,
+            id: existingPlay.id,
+            character_name: characterName,
+            delta: Math.floor(Number(existingPlay.delta)) || 0,
+            balance_after: null,
+            idempotent: true,
+            economy_authority: 'existing_run',
+          },
+          200,
+          cors
+        );
+      }
+      const gameRef = (meta && meta.game_id) || body.game_id || (meta && meta.game_name) || note;
+      const resolved = await resolveGamePlayTransact(db, characterName, gameRef, runId, meta);
+      if (!resolved.ok) {
+        return jsonResponse({ ok: false, error: resolved.error || 'invalid_game' }, 400, cors);
+      }
+      if (
+        resolved.legacy &&
+        body.delta != null &&
+        body.delta !== '' &&
+        Number.isFinite(Number(body.delta)) &&
+        Math.floor(Number(body.delta)) !== resolved.delta
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: 'client_delta_rejected',
+            server_delta: resolved.delta,
+            message: 'game_play cost is server-authoritative',
+          },
           400,
           cors
         );
       }
-      delta = serverCost;
+      delta = resolved.delta;
+      meta = resolved.meta;
     } else if (kind === 'game_win') {
       const serverWin = await resolveEconomyAmount(db, 'game_win');
       if (body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta)) && Math.floor(Number(body.delta)) !== serverWin) {

@@ -10,6 +10,13 @@
  *   spend-only: −10 … 0
  *   mission teacher range: 0 … 5
  */
+import {
+  buildGameEconomyPublicPayload,
+  formatPlayEconomyCopy,
+  getPlayEntitlementsForCharacter,
+  saveGameEconomySettings,
+} from './game-play-economy.js';
+
 export const ECONOMY_SETTING_DEFS = {
   poll_response: {
     key: 'economy.poll_response',
@@ -313,7 +320,23 @@ export async function handleNuggetEconomySettings(request, path, env, cors, deps
 
   if (request.method === 'GET' && path === '/api/settings/nugget-economy') {
     const bundle = await getEconomySettings(db);
-    return deps.jsonResponse(economyPublicPayload(bundle), 200, cors);
+    const payload = economyPublicPayload(bundle);
+    const gameEconomy = await buildGameEconomyPublicPayload(db);
+    payload.game_economy = Object.assign({}, gameEconomy, {
+      games: (gameEconomy.games || []).map(function (g) {
+        return Object.assign({}, g, { copy: formatPlayEconomyCopy(g) });
+      }),
+    });
+    const pilotAccount = deps.getPilotAccountFromRequest
+      ? await deps.getPilotAccountFromRequest(request, env)
+      : null;
+    if (pilotAccount && deps.pilotEconomyCharacterName) {
+      const characterName = deps.pilotEconomyCharacterName(pilotAccount);
+      if (characterName) {
+        payload.play_entitlements = await getPlayEntitlementsForCharacter(db, characterName);
+      }
+    }
+    return deps.jsonResponse(payload, 200, cors);
   }
 
   if (request.method === 'PATCH' && path === '/api/settings/nugget-economy') {
@@ -325,32 +348,50 @@ export async function handleNuggetEconomySettings(request, path, env, cors, deps
     } catch (_err) {
       return deps.jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
-    const incoming = body && (body.values || body);
-    if (!incoming || typeof incoming !== 'object') {
+    const incoming = body && body.values;
+    const hasGamePatch =
+      body.game_default_play_mode != null || (body.game_overrides && typeof body.game_overrides === 'object');
+    if ((!incoming || typeof incoming !== 'object') && !hasGamePatch) {
       return deps.jsonResponse({ ok: false, error: 'missing_values' }, 400, cors);
     }
     const updatedBy = deps.adminAuditLabel ? deps.adminAuditLabel(gate.account) : '';
     const saved = {};
-    const ids = Object.keys(incoming);
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (!ECONOMY_SETTING_DEFS[id]) continue;
-      const result = await setEconomyValue(db, id, incoming[id], updatedBy);
-      if (!result.ok) {
-        return deps.jsonResponse(
-          { ok: false, error: result.error, setting: id, min: result.min, max: result.max },
-          400,
-          cors
-        );
+    if (incoming && typeof incoming === 'object') {
+      const ids = Object.keys(incoming);
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        if (!ECONOMY_SETTING_DEFS[id]) continue;
+        const result = await setEconomyValue(db, id, incoming[id], updatedBy);
+        if (!result.ok) {
+          return deps.jsonResponse(
+            { ok: false, error: result.error, setting: id, min: result.min, max: result.max },
+            400,
+            cors
+          );
+        }
+        saved[id] = result.value;
       }
-      saved[id] = result.value;
+    }
+    if (body.game_default_play_mode != null || (body.game_overrides && typeof body.game_overrides === 'object')) {
+      const gameSave = await saveGameEconomySettings(
+        db,
+        { game_default_play_mode: body.game_default_play_mode, game_overrides: body.game_overrides },
+        updatedBy
+      );
+      if (!gameSave.ok) {
+        return deps.jsonResponse({ ok: false, error: gameSave.error, setting: gameSave.setting }, 400, cors);
+      }
+      Object.assign(saved, gameSave.saved || {});
     }
     const bundle = await getEconomySettings(db);
-    return deps.jsonResponse(
-      Object.assign(economyPublicPayload(bundle), { saved, updated_by: updatedBy }),
-      200,
-      cors
-    );
+    const payload = economyPublicPayload(bundle);
+    const gameEconomy = await buildGameEconomyPublicPayload(db);
+    payload.game_economy = Object.assign({}, gameEconomy, {
+      games: (gameEconomy.games || []).map(function (g) {
+        return Object.assign({}, g, { copy: formatPlayEconomyCopy(g) });
+      }),
+    });
+    return deps.jsonResponse(Object.assign(payload, { saved, updated_by: updatedBy }), 200, cors);
   }
 
   return null;

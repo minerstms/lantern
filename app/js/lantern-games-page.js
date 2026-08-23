@@ -312,7 +312,7 @@
     } else if (you && youScoreText(you)) {
       youLine = '<p class="gamesLbYou">You: ' + escapeHtml(youScoreText(you)) + '</p>';
     }
-    var playLabel = catalog().playActionLabel(game.play_cost);
+    var playLabel = catalog().playActionLabel(g.id || g.name);
     var artworkAlt = escapeHtml(game.name + ' artwork');
     var artworkAria = escapeHtml(playLabel + ' — ' + game.name);
     return (
@@ -374,7 +374,7 @@
     var LC = cardsApi();
     var cat = catalog();
     if (!LC || !cat) return null;
-    var metaOne = cat.playCostCardMeta(g.play_cost);
+    var metaOne = cat.playCostCardMeta(g.id || g.name);
     if (g.status !== 'playable') metaOne = 'Coming soon';
     return LC.specGameHubRailCard({
       title: g.name,
@@ -394,7 +394,7 @@
       },
       role: g.status === 'playable' ? 'button' : 'group',
       tabIndex: g.status === 'playable' ? 0 : -1,
-      ariaLabel: g.status === 'playable' ? cat.playActionLabel(g.play_cost) + ' — ' + g.name : g.name + ' — coming soon',
+      ariaLabel: g.status === 'playable' ? cat.playActionLabel(g.id || g.name) + ' — ' + g.name : g.name + ' — coming soon',
     });
   }
 
@@ -938,9 +938,15 @@
     wirePeriodTabs();
     wireFilters();
     wireModal();
-    renderGameLibrary();
-    loadAllLeaderboards();
-    refreshWalletDisplay();
+    var econReady =
+      global.LanternGameEconomy && typeof global.LanternGameEconomy.load === 'function'
+        ? global.LanternGameEconomy.load()
+        : Promise.resolve();
+    econReady.finally(function () {
+      renderGameLibrary();
+      loadAllLeaderboards();
+      refreshWalletDisplay();
+    });
   }
 
   global.LanternGamesPage = {

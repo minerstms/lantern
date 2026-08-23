@@ -4214,8 +4214,48 @@
       games: 'Games',
       creation: 'Creation / Community',
       discovery: 'Discovery',
-      missions: 'Missions'
+      missions: 'Missions',
+      game_economy: 'Game Economy'
     };
+
+    var GAME_PLAY_MODE_OPTIONS = [
+      { value: 'global', label: 'Use Global' },
+      { value: '1', label: '1 Nugget = 1 Play' },
+      { value: '2', label: '1 Nugget = 2 Plays' },
+      { value: '3', label: '1 Nugget = 3 Plays' },
+      { value: 'free', label: 'Free Play' }
+    ];
+
+    function renderGameEconomySection(payload) {
+      var ge = payload && payload.game_economy;
+      if (!ge) return '';
+      var defaultMode = ge.default_play_mode || '1';
+      var html = '<div class="teacherFieldGroup" style="margin-top:16px;">' + ECONOMY_GROUP_LABELS.game_economy + '</div>';
+      html +=
+        '<div class="teacherField" style="margin-bottom:12px;">' +
+        '<label for="gameEconomyDefault">Global Game Default</label>' +
+        '<select id="gameEconomyDefault" class="teacherInput teacherInput--sm">';
+      GAME_PLAY_MODE_OPTIONS.filter(function (o) { return o.value !== 'global'; }).forEach(function (opt) {
+        html += '<option value="' + opt.value + '"' + (defaultMode === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
+      });
+      html += '</select>' +
+        '<p class="teacherFieldHint">Default pricing for games set to Use Global.</p></div>';
+      html += '<div class="teacherFieldGroup" style="margin-top:8px;">Per-Game Overrides</div>';
+      (ge.games || []).forEach(function (g) {
+        html +=
+          '<div class="teacherField" style="margin-bottom:10px;" data-game-economy-id="' + g.id + '">' +
+          '<label for="gameEconomy_' + g.id + '">' + g.name + '</label>' +
+          '<select id="gameEconomy_' + g.id + '" class="teacherInput teacherInput--sm" data-game-economy-select="' + g.id + '">';
+        GAME_PLAY_MODE_OPTIONS.forEach(function (opt) {
+          var sel = (g.override_mode || 'global') === opt.value ? ' selected' : '';
+          html += '<option value="' + opt.value + '"' + sel + '>' + opt.label + '</option>';
+        });
+        html += '</select>' +
+          '<p class="pendingMeta">Resolved: ' + ((g.copy && g.copy.card_meta) || '') + '</p>' +
+          '</div>';
+      });
+      return html;
+    }
 
     function showNuggetEconomyMsg(text, kind) {
       var el = document.getElementById('nuggetEconomyMsg');
@@ -4249,7 +4289,7 @@
           '<p class="teacherFieldHint">' + (row.help || '') + ' Range ' + row.min + ' to ' + row.max + '.</p>' +
           '</div>';
       });
-      host.innerHTML = html;
+      host.innerHTML = html + renderGameEconomySection(payload);
     }
 
     function loadNuggetEconomy() {
@@ -4278,8 +4318,18 @@
           var input = document.getElementById('economyVal_' + id);
           if (id && input) values[id] = input.value;
         });
+        var gameDefaultEl = document.getElementById('gameEconomyDefault');
+        var gameOverrides = {};
+        document.querySelectorAll('[data-game-economy-select]').forEach(function (sel) {
+          var gid = sel.getAttribute('data-game-economy-select');
+          if (gid) gameOverrides[gid] = sel.value;
+        });
         nuggetEconomySaveBtn.disabled = true;
-        patchAdminJson('/api/settings/nugget-economy', { values: values }).then(function (res) {
+        patchAdminJson('/api/settings/nugget-economy', {
+          values: values,
+          game_default_play_mode: gameDefaultEl ? gameDefaultEl.value : undefined,
+          game_overrides: gameOverrides
+        }).then(function (res) {
           if (res && res.body && res.body.ok) {
             renderNuggetEconomyRows(res.body);
             showNuggetEconomyMsg('Saved.', '');
