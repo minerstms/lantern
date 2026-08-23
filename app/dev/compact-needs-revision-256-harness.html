@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Compact Needs Revision harness #256</title>
+  <link rel="stylesheet" href="/css/lantern-surface-theme.css">
+  <link rel="stylesheet" href="/css/lantern-profile-page.css">
+  <style>
+    :root { --accent:#5aa7ff; --muted:#b9c6ea; --surface-ink:#eaf0ff; }
+    html, body { margin:0; min-height:100%; background:#0b1220; color:var(--surface-ink); font-family:system-ui,sans-serif; }
+    .devBanner { background:#1a3a5c; border:2px solid var(--accent); border-radius:12px; padding:10px 12px; margin:10px; font-size:18px; font-weight:800; }
+    .lockerHarnessWrap { max-width: 1180px; margin: 0 auto; padding: 0 12px 24px; }
+    #profileNeedsAttention{
+      margin: 0 0 20px;
+      padding: 16px 14px 18px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,204,102,.35);
+      background: rgba(255,204,102,.08);
+    }
+    .lockerNeedsRevisionHd{
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      font-size: 26px; font-weight: 900; color: var(--accent); margin: 0 0 6px;
+    }
+    .lockerNeedsRevisionHint{
+      margin: 0 0 12px; font-size: 20px; font-weight: 700; color: var(--muted); line-height: 1.35;
+    }
+    #lockerNeedsRevisionCount{
+      display: inline-block; min-width: 1.4em; padding: 2px 8px; border-radius: 999px;
+      background: #5aa7ff; color: #0b1220; font-size: 18px; font-weight: 900; line-height: 1.3;
+    }
+    .lockerNeedsRevisionList{ display: flex; flex-direction: column; gap: 8px; }
+    .lockerNeedsCard{
+      display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px 12px;
+      padding: 10px 12px; border-radius: 12px; background: rgba(11,18,32,.45);
+      border: 1px solid rgba(255,255,255,.08); align-items: start;
+    }
+    .lockerNeedsCardMedia{ grid-row: 1 / span 3; }
+    .lockerNeedsCardMedia img, .lockerNeedsCardFallback{
+      width: 88px; height: 88px; max-height: none; object-fit: cover; border-radius: 10px;
+      background: rgba(0,0,0,.25); display: block;
+    }
+    .lockerNeedsCardFallback{
+      min-height: 88px; display: flex; align-items: center; justify-content: center; font-size: 28px;
+    }
+    .lockerNeedsCardIdentity{ min-width: 0; }
+    .lockerNeedsCardType{
+      margin: 0 0 2px; font-size: 18px; font-weight: 800; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .lockerNeedsCardTitle{
+      margin: 0 0 4px; font-size: 22px; font-weight: 900; line-height: 1.2; color: var(--surface-ink);
+    }
+    .lockerNeedsCardDates{ margin: 0; font-size: 18px; font-weight: 700; color: var(--muted); line-height: 1.3; }
+    .lockerNeedsCardAside{ grid-column: 2; min-width: 0; }
+    .lockerNeedsCardFeedback, .lockerNeedsCardPreview{
+      margin: 0 0 4px; font-size: 18px; line-height: 1.35; color: var(--surface-ink);
+    }
+    .lockerNeedsCardFeedback strong, .lockerNeedsCardPreview strong{ font-weight: 800; color: var(--muted); }
+    .lockerNeedsCardFeedbackText{
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    }
+    .lockerNeedsCardPreviewText{
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+    }
+    .lockerNeedsCard.is-expanded .lockerNeedsCardFeedbackText,
+    .lockerNeedsCard.is-expanded .lockerNeedsCardPreviewText{
+      display: block; -webkit-line-clamp: unset; overflow: visible;
+    }
+    .lockerNeedsCardActions{ grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+    .lockerNeedsReviseBtn, .lockerNeedsArchiveBtn{ min-height: 44px; height: 44px; font-size: 20px; width: 100%; box-shadow: none; }
+    .lockerNeedsArchiveBtn{
+      background: transparent; border-color: rgba(255,255,255,.18); color: var(--muted);
+    }
+    .lockerNeedsToggleMore{
+      border: 0; background: none; color: var(--accent); font-size: 18px; font-weight: 800;
+      padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline;
+    }
+    .lockerNeedsToggleMore:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (min-width: 900px){
+      .lockerNeedsCard{
+        grid-template-columns: 88px minmax(140px, 0.85fr) minmax(200px, 1.8fr) auto;
+        align-items: center; gap: 8px 12px; padding: 8px 12px;
+      }
+      .lockerNeedsCardMedia{ grid-row: auto; }
+      .lockerNeedsCardMedia img, .lockerNeedsCardFallback{ width: 88px; height: 88px; }
+      .lockerNeedsCardType{ font-size: 16px; margin: 0; }
+      .lockerNeedsCardTitle{ font-size: 20px; margin: 0 0 2px; }
+      .lockerNeedsCardDates{ font-size: 16px; }
+      .lockerNeedsCardAside{ grid-column: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 10px; align-items: start; }
+      .lockerNeedsCardFeedback{ grid-column: 1; }
+      .lockerNeedsCardAside:not(:has(.lockerNeedsCardPreview)) .lockerNeedsCardFeedback{ grid-column: 1 / -1; }
+      .lockerNeedsCardPreview{ grid-column: 2; margin: 0; }
+      .lockerNeedsToggleMore{ grid-column: 1 / -1; margin-top: 2px; }
+      .lockerNeedsCardFeedback, .lockerNeedsCardPreview{ font-size: 16px; line-height: 1.3; margin: 0 0 2px; }
+      .lockerNeedsCard:not(.is-expanded) .lockerNeedsCardFeedbackText{ -webkit-line-clamp: 1; }
+      .lockerNeedsCardActions{
+        grid-column: auto; flex-direction: column; align-items: stretch; justify-content: center;
+        min-width: 132px; gap: 4px;
+      }
+      .lockerNeedsReviseBtn, .lockerNeedsArchiveBtn{
+        width: 100%; white-space: nowrap; height: 36px; min-height: 36px; font-size: 17px; padding: 0 8px; border-radius: 10px;
+      }
+      .lockerNeedsToggleMore{ font-size: 16px; margin: 0; display: inline-block; }
+    }
+    @media (min-width: 720px) and (max-width: 899px){
+      .lockerNeedsCard{ grid-template-columns: 88px minmax(0, 1fr) auto; align-items: start; }
+      .lockerNeedsCardAside{ grid-column: 2; }
+      .lockerNeedsCardActions{ grid-column: 3; grid-row: 1 / span 3; min-width: 132px; }
+    }
+    @media (max-width: 719px){
+      .lockerNeedsCardMedia{ grid-row: auto; }
+      .lockerNeedsCardMedia img, .lockerNeedsCardFallback{ width: 80px; height: 80px; }
+      .lockerNeedsCard{ grid-template-columns: 80px minmax(0, 1fr); }
+      .lockerNeedsCardAside, .lockerNeedsCardActions{ grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="devBanner">DEV ONLY — #256 compact Needs Revision harness. Mock data; no API.</div>
+  <div class="lockerHarnessWrap">
+    <section id="profileNeedsAttention" class="lockerNeedsRevision" aria-labelledby="lockerNeedsRevisionHd" tabindex="-1">
+      <h2 id="lockerNeedsRevisionHd" class="lockerNeedsRevisionHd">Needs Revision <span id="lockerNeedsRevisionCount"></span></h2>
+      <p class="lockerNeedsRevisionHint">Fix these and send them back to your teacher.</p>
+      <p id="lockerNeedsRevisionEmpty" class="lockerNeedsRevisionEmpty" hidden>No revisions needed</p>
+      <div id="lockerNeedsRevisionList" class="lockerNeedsRevisionList"></div>
+    </section>
+  </div>
+  <script src="/js/lantern-locker-revision.js?v=20260823-compact256"></script>
+  <script>
+  (function () {
+    var thumbSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Crect fill='%23336699' width='96' height='96'/%3E%3Ctext x='12' y='54' fill='%23eaf0ff' font-size='14' font-family='sans-serif'%3EART%3C/text%3E%3C/svg%3E";
+    var longFeedback = 'Please choose a different picture because the background is too busy and distracts from your main subject. Try a simpler backdrop or crop tighter on the cart.';
+    var longResponse = 'I took this picture when we were testing the cart in the hallway and everyone was walking behind me so the background got really crowded with lockers and people.';
+    var FIXTURES = [
+      {
+        contentType: 'news_submission', status: 'returned', title: 'My cart project',
+        previewText: longResponse, decisionNote: longFeedback,
+        createdAt: '2026-08-22T14:00:00Z', returnedAt: '2026-08-23T10:00:00Z',
+        raw: { id: 'news-1', title: 'My cart project', body: longResponse, image_url: thumbSvg,
+          created_at: '2026-08-22T14:00:00Z', returned_at: '2026-08-23T10:00:00Z', decision_note: longFeedback }
+      },
+      {
+        contentType: 'mission_submission', status: 'returned', title: 'STEM Today',
+        previewText: 'We built a bridge from craft sticks.', decisionNote: 'Add a clearer photo of your bridge.',
+        createdAt: '2026-08-21T09:00:00Z', returnedAt: '2026-08-22T16:00:00Z',
+        raw: { id: 'mis-1', mission_id: 'm-stem', mission_title: 'STEM Today', submission_content: 'We built a bridge from craft sticks.',
+          image_url: thumbSvg, created_at: '2026-08-21T09:00:00Z', returned_at: '2026-08-22T16:00:00Z', returned_reason: 'Add a clearer photo of your bridge.' }
+      },
+      {
+        contentType: 'poll_contribution', status: 'returned', title: 'Favorite lunch?',
+        previewText: '', decisionNote: 'Pick a school-appropriate poll image.',
+        createdAt: '2026-08-20T12:00:00Z', returnedAt: '2026-08-21T08:00:00Z',
+        raw: { id: 'poll-1', question: 'Favorite lunch?', created_at: '2026-08-20T12:00:00Z',
+          returned_at: '2026-08-21T08:00:00Z', decision_note: 'Pick a school-appropriate poll image.' }
+      },
+      {
+        contentType: 'feed_item', status: 'returned', title: 'Hallway sketch',
+        previewText: longResponse, decisionNote: 'Shorten your caption and focus on what you learned.',
+        createdAt: '2026-08-19T11:00:00Z', returnedAt: '2026-08-20T15:00:00Z',
+        raw: { id: 'feed-1', title: 'Hallway sketch', body: longResponse, image_url: thumbSvg,
+          created_at: '2026-08-19T11:00:00Z', returned_at: '2026-08-20T15:00:00Z', private_feedback: 'Shorten your caption and focus on what you learned.' }
+      }
+    ];
+
+    window.LanternLockerOrg = { runAction: function () { return Promise.resolve({ ok: true }); } };
+
+    function measureCollapsed() {
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.lockerNeedsCard:not(.is-expanded)'));
+      var heights = cards.map(function (c) { return Math.round(c.getBoundingClientRect().height); });
+      var section = document.getElementById('profileNeedsAttention');
+      var top = section ? section.getBoundingClientRect().top : 0;
+      var viewportH = window.innerHeight || document.documentElement.clientHeight;
+      var visible = cards.filter(function (c) {
+        var r = c.getBoundingClientRect();
+        return r.top >= top && r.bottom <= viewportH + 1;
+      }).length;
+      var docW = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+      var winW = window.innerWidth;
+      return {
+        count: cards.length,
+        heights: heights,
+        avgHeight: heights.length ? Math.round(heights.reduce(function (a, b) { return a + b; }, 0) / heights.length) : 0,
+        maxHeight: heights.length ? Math.max.apply(null, heights) : 0,
+        visibleInViewport: visible,
+        horizontalOverflow: docW > winW + 2,
+        scrollWidth: docW,
+        clientWidth: winW
+      };
+    }
+
+    function toggleFirstMore() {
+      var btn = document.querySelector('.lockerNeedsToggleMore');
+      if (!btn) return { ok: false, reason: 'no toggle' };
+      var card = btn.closest('.lockerNeedsCard');
+      var hBefore = card ? Math.round(card.getBoundingClientRect().height) : 0;
+      btn.click();
+      var expanded = card && card.classList.contains('is-expanded');
+      var hAfter = card ? Math.round(card.getBoundingClientRect().height) : 0;
+      var aria = btn.getAttribute('aria-expanded');
+      btn.click();
+      var collapsed = card && !card.classList.contains('is-expanded');
+      return { ok: expanded && aria === 'true' && hAfter > hBefore && collapsed, hBefore: hBefore, hAfter: hAfter, aria: aria };
+    }
+
+    function naturalScrollCheck() {
+      var docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      var viewH = window.innerHeight || document.documentElement.clientHeight;
+      if (docH <= viewH + 4) return { ok: true, fitsViewport: true };
+      var before = window.scrollY;
+      window.scrollTo(0, document.body.scrollHeight);
+      var moved = window.scrollY > before + 20;
+      window.scrollTo(0, 0);
+      return { ok: moved, scrollY: window.scrollY };
+    }
+
+    window.__LANTERN_256_RUN = {
+      fixtures: FIXTURES,
+      boot: function () {
+        if (window.LanternLockerRevision && typeof window.LanternLockerRevision.render === 'function') {
+          window.LanternLockerRevision.render(FIXTURES);
+        }
+      },
+      measureCollapsed: measureCollapsed,
+      toggleFirstMore: toggleFirstMore,
+      naturalScrollCheck: naturalScrollCheck
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { window.__LANTERN_256_RUN.boot(); });
+    } else {
+      window.__LANTERN_256_RUN.boot();
+    }
+  })();
+  </script>
+</body>
+</html>
