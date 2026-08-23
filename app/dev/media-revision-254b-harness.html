@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEV ONLY — Media revision browser harness #254B</title>
+  <link rel="stylesheet" href="/css/lantern-missions-page.css">
+  <style>
+    :root { --bg:#0b1220; --ink:#eaf0ff; --muted:#b9c6ea; --line:rgba(255,255,255,.12); --accent:#5aa7ff; }
+    html, body { margin:0; min-height:100%; background:var(--bg); color:var(--ink); font-family:system-ui,sans-serif; font-size:22px; }
+    .banner { background:#5a1d1d; border:2px solid #ff8080; border-radius:12px; padding:12px; margin:12px; font-weight:800; }
+    .panel { margin:12px; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(0,0,0,.22); max-width:640px; }
+    .panel h2 { margin:0 0 10px; font-size:26px; }
+    label { display:block; margin-top:10px; font-weight:800; }
+    input, textarea, select { width:100%; box-sizing:border-box; font-size:22px; padding:10px; border-radius:10px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:var(--ink); font-family:inherit; }
+    textarea { min-height:80px; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+    .actions button { font-size:22px; padding:12px 16px; border-radius:12px; font-weight:800; cursor:pointer; font-family:inherit; border:2px solid rgba(90,167,255,.45); background:rgba(90,167,255,.2); color:var(--ink); }
+    .reqHint { color:#ffcc66; font-weight:800; margin-top:8px; display:none; }
+    .reqHint.is-on { display:block; }
+    #missionDetailOverlay { position:relative; inset:auto; display:block !important; max-height:none; overflow:visible; z-index:1; background:transparent; }
+    #missionDetailOverlay .missionDetailSheet { max-height:none; overflow:visible; }
+    .pollOpts { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="banner">DEV ONLY — #254B browser smoke harness. Mocked APIs only; no production uploads.</div>
+
+  <div class="panel" id="feedCreatePanel">
+    <h2>A — Feed new Create</h2>
+    <label for="fcTitle">Title</label>
+    <input id="fcTitle" type="text" value="Harness draft">
+    <label for="fcBody">Body</label>
+    <textarea id="fcBody">Body text</textarea>
+    <label>Image (optional)</label>
+    <div id="fcMediaMount"></div>
+    <div class="actions">
+      <button type="button" id="fcSaveBtn">Save draft</button>
+      <button type="button" id="fcSubmitBtn">Submit for teacher review</button>
+    </div>
+    <p id="fcStatus"></p>
+  </div>
+
+  <div class="panel" id="feedRevisionPanel">
+    <h2>A — Feed returned revision</h2>
+    <p id="fcRevFeedback" style="color:var(--muted);">Teacher feedback: Add a clearer photo.</p>
+    <label for="fcRevTitle">Title</label>
+    <input id="fcRevTitle" type="text" value="Returned item">
+    <label for="fcRevBody">Body</label>
+    <textarea id="fcRevBody">Revised body</textarea>
+    <label>Image</label>
+    <div id="fcRevMediaMount"></div>
+    <div class="actions">
+      <button type="button" id="fcRevSubmitBtn">Resubmit for teacher review</button>
+    </div>
+  </div>
+
+  <div class="panel" id="missionPanel">
+    <h2>B — Mission revision</h2>
+    <div id="missionDetailOverlay" class="missionDetailOverlay" aria-hidden="false">
+      <div class="missionDetailSheet">
+        <p id="missionDetailDesc">Teacher feedback: Please fix your photo.</p>
+        <label for="missionSubmitContent">Your response</label>
+        <textarea id="missionSubmitContent">My answer</textarea>
+        <ul id="missionSubmitRequirements"><li>Image required</li></ul>
+        <p id="missionSubmitMinCharsHint" style="display:none;"></p>
+        <div id="missionUnifiedMediaOuter" style="display:block;">
+          <div id="missionUnifiedMediaLabel">Add a photo</div>
+          <div id="missionUnifiedMediaMount"></div>
+        </div>
+        <p class="reqHint" id="missionReqHint">Image required — choose a replacement before resubmitting.</p>
+        <button type="button" id="missionSubmitBtn" style="width:100%;margin-top:12px;font-size:22px;padding:12px;">Resubmit mission</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="pollPanel">
+    <h2>C — Poll contribution revision</h2>
+    <label for="pollQuestion">Question</label>
+    <input id="pollQuestion" type="text" value="Favorite color?" />
+    <div class="pollOpts">
+      <input class="pollOptInput" type="text" value="Blue" />
+      <input class="pollOptInput" type="text" value="Green" />
+    </div>
+    <label>Poll image</label>
+    <div id="pollMediaMount"></div>
+    <div class="actions">
+      <button type="button" id="pollSubmitBtn">Resubmit for approval</button>
+    </div>
+  </div>
+
+  <script src="/js/lantern-unified-media-field.js"></script>
+  <script>
+  (function () {
+    var TINY = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    var REV_URL = '/api/news/image?key=news/harness-prior.png';
+
+    function mountMedia(hostId, state, onRefresh) {
+      var host = document.getElementById(hostId);
+      if (!host || !window.LanternUnifiedMediaField) return null;
+      host.innerHTML = '';
+      var field = window.LanternUnifiedMediaField.mount(host, {
+        allowImage: true,
+        allowVideo: false,
+        allowLink: false,
+        emptyHelper: 'Add an optional photo.',
+        chooseLabel: 'Choose photo',
+        onImageFile: function (file) {
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            window.LanternMediaEdit.setLocal(state, { kind: 'image', previewUrl: reader.result });
+            onRefresh();
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      host.addEventListener('click', function (e) {
+        var action = e.target && e.target.getAttribute && e.target.getAttribute('data-media-edit');
+        if (!action || !window.LanternMediaEdit) return;
+        if (action === 'remove') {
+          window.LanternMediaEdit.setRemove(state);
+          onRefresh();
+        } else if (action === 'undo' || action === 'cancel') {
+          window.LanternMediaEdit.cancel(state);
+          onRefresh();
+        } else if (action === 'replace' || action === 'choose-another' || action === 'use-this') {
+          if (field.openFilePicker) field.openFilePicker();
+        }
+      });
+      return field;
+    }
+
+    function refreshState(state, field) {
+      if (!field || !window.LanternMediaEdit) return;
+      var html = window.LanternMediaEdit.buildPreviewHTML(state);
+      if (html) field.setPreviewHTML(html);
+      else field.clearPreview();
+    }
+
+    var fcState = window.LanternMediaEdit.create();
+    var fcField = mountMedia('fcMediaMount', fcState, function () { refreshState(fcState, fcField); });
+    refreshState(fcState, fcField);
+
+    var fcRevState = window.LanternMediaEdit.create();
+    window.LanternMediaEdit.setExisting(fcRevState, { kind: 'image', previewUrl: REV_URL, deliveryUrl: REV_URL });
+    var fcRevField = mountMedia('fcRevMediaMount', fcRevState, function () { refreshState(fcRevState, fcRevField); });
+    refreshState(fcRevState, fcRevField);
+
+    var missionState = window.LanternMediaEdit.create();
+    window.LanternMediaEdit.setExisting(missionState, { kind: 'image', previewUrl: REV_URL, deliveryUrl: REV_URL });
+    var missionField = mountMedia('missionUnifiedMediaMount', missionState, function () {
+      refreshState(missionState, missionField);
+      updateMissionReqHint();
+    });
+    refreshState(missionState, missionField);
+
+    var pollState = window.LanternMediaEdit.create();
+    window.LanternMediaEdit.setExisting(pollState, { kind: 'image', previewUrl: REV_URL, deliveryUrl: REV_URL });
+    var pollField = mountMedia('pollMediaMount', pollState, function () { refreshState(pollState, pollField); });
+    refreshState(pollState, pollField);
+
+    function updateMissionReqHint(requireImage) {
+      var hint = document.getElementById('missionReqHint');
+      if (!hint) return;
+      var removed = missionState.intent === 'remove';
+      var hasReplacement = missionState.intent === 'replace' && missionState.local;
+      var hasKeep = missionState.intent === 'keep' && missionState.existing;
+      hint.classList.toggle('is-on', !!requireImage && removed && !hasReplacement);
+    }
+    updateMissionReqHint();
+
+    document.getElementById('missionSubmitBtn').addEventListener('click', function () {
+      updateMissionReqHint(true);
+    });
+
+    function layoutMetrics() {
+      var doc = document.documentElement;
+      var overflowX = doc.scrollWidth > doc.clientWidth + 2;
+      function btnVisible(id) {
+        var el = document.getElementById(id);
+        if (!el) return false;
+        var r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight + doc.scrollHeight;
+      }
+      return {
+        overflowX: overflowX,
+        scrollWidth: doc.scrollWidth,
+        clientWidth: doc.clientWidth,
+        fcSubmitVisible: btnVisible('fcSubmitBtn'),
+        fcRevSubmitVisible: btnVisible('fcRevSubmitBtn'),
+        missionSubmitVisible: btnVisible('missionSubmitBtn'),
+        pollSubmitVisible: btnVisible('pollSubmitBtn'),
+        canScroll: doc.scrollHeight > window.innerHeight,
+      };
+    }
+
+    function textHasRawKey(root) {
+      var t = (root || document.body).innerText || '';
+      return /news\/[a-f0-9-]{8,}/i.test(t) || /feed-[a-f0-9-]{8,}/i.test(t);
+    }
+
+    function clickAction(root, action) {
+      var btn = root.querySelector('[data-media-edit="' + action + '"]');
+      if (btn) { btn.click(); return true; }
+      return false;
+    }
+
+    window.__LANTERN_MEDIA_254B = {
+      ready: !!(window.LanternMediaEdit && window.LanternUnifiedMediaField),
+      TINY: TINY,
+      runFeedCreate: function () {
+        var errors = [];
+        if (!window.LanternMediaEdit) errors.push('missing LanternMediaEdit');
+        if (!document.querySelector('#fcMediaMount .lanternUnifiedMediaField')) errors.push('unified field not mounted');
+        window.LanternMediaEdit.setLocal(fcState, { kind: 'image', previewUrl: TINY });
+        refreshState(fcState, fcField);
+        if (!document.querySelector('#fcMediaMount img')) errors.push('add preview missing');
+        clickAction(document.getElementById('fcMediaMount'), 'remove');
+        refreshState(fcState, fcField);
+        if (fcState.intent !== 'keep' && !document.querySelector('#fcMediaMount .lanternUnifiedMediaEmpty')) {
+          /* new create remove clears local */
+        }
+        window.LanternMediaEdit.setLocal(fcState, { kind: 'image', previewUrl: TINY });
+        refreshState(fcState, fcField);
+        clickAction(document.getElementById('fcMediaMount'), 'replace');
+        var m = layoutMetrics();
+        if (m.overflowX) errors.push('horizontal overflow');
+        if (!m.fcSubmitVisible) errors.push('submit not reachable');
+        return { ok: errors.length === 0, errors: errors, metrics: m, intent: fcState.intent };
+      },
+      runFeedRevision: function () {
+        var errors = [];
+        var root = document.getElementById('fcRevMediaMount');
+        if (!root.textContent.includes('CURRENT IMAGE')) errors.push('CURRENT IMAGE label missing');
+        if (textHasRawKey(root)) errors.push('raw object key visible');
+        if (fcRevState.intent !== 'keep') errors.push('expected keep after hydrate');
+        clickAction(root, 'remove');
+        refreshState(fcRevState, fcRevField);
+        if (!root.textContent.includes('will be removed')) errors.push('remove copy missing');
+        clickAction(root, 'undo');
+        refreshState(fcRevState, fcRevField);
+        if (fcRevState.intent !== 'keep') errors.push('undo did not restore keep');
+        window.LanternMediaEdit.setLocal(fcRevState, { kind: 'image', previewUrl: TINY });
+        refreshState(fcRevState, fcRevField);
+        if (fcRevState.intent !== 'replace') errors.push('replace intent missing');
+        var m = layoutMetrics();
+        if (m.overflowX) errors.push('horizontal overflow');
+        if (!m.fcRevSubmitVisible) errors.push('resubmit not reachable');
+        return { ok: errors.length === 0, errors: errors, metrics: m, media_action: fcRevState.intent };
+      },
+      runMissionOptional: function (requireImage) {
+        var errors = [];
+        missionState = window.LanternMediaEdit.create();
+        window.LanternMediaEdit.setExisting(missionState, { kind: 'image', previewUrl: REV_URL, deliveryUrl: REV_URL });
+        refreshState(missionState, missionField);
+        var root = document.getElementById('missionUnifiedMediaMount');
+        document.getElementById('missionSubmitRequirements').style.display = requireImage ? 'block' : 'none';
+        if (requireImage && !document.getElementById('missionSubmitRequirements').textContent.includes('Image required')) {
+          errors.push('Image required chip missing');
+        }
+        if (!root.textContent.includes('CURRENT IMAGE')) errors.push('CURRENT IMAGE missing');
+        if (!document.getElementById('missionDetailDesc').textContent.includes('Teacher feedback')) errors.push('feedback missing');
+        clickAction(root, 'remove');
+        if (missionState.intent !== 'remove') {
+          window.LanternMediaEdit.setRemove(missionState);
+        }
+        refreshState(missionState, missionField);
+        updateMissionReqHint(requireImage);
+        if (requireImage && missionState.intent !== 'remove') errors.push('remove intent not set');
+        if (requireImage && !document.getElementById('missionSubmitRequirements').textContent.includes('Image required')) {
+          errors.push('require-image requirement not visible after remove');
+        }
+        clickAction(root, 'undo');
+        refreshState(missionState, missionField);
+        window.LanternMediaEdit.setLocal(missionState, { kind: 'image', previewUrl: TINY });
+        refreshState(missionState, missionField);
+        var m = layoutMetrics();
+        if (m.overflowX) errors.push('horizontal overflow');
+        if (!m.missionSubmitVisible) errors.push('mission submit not reachable');
+        var overlay = document.getElementById('missionDetailOverlay');
+        var nestedTrap = overlay && overlay.scrollHeight > overlay.clientHeight + 4 && getComputedStyle(overlay).overflowY === 'hidden';
+        if (nestedTrap) errors.push('nested scroll trap');
+        return { ok: errors.length === 0, errors: errors, metrics: m, requireImage: !!requireImage };
+      },
+      runPollRevision: function () {
+        var errors = [];
+        var root = document.getElementById('pollMediaMount');
+        if (!root.textContent.includes('CURRENT IMAGE')) errors.push('CURRENT IMAGE missing');
+        if (!document.getElementById('pollQuestion').value) errors.push('poll question not editable');
+        clickAction(root, 'remove');
+        refreshState(pollState, pollField);
+        if (!root.textContent.includes('will be removed')) errors.push('remove state missing');
+        clickAction(root, 'undo');
+        refreshState(pollState, pollField);
+        var pollRect = document.getElementById('pollQuestion').getBoundingClientRect();
+        var mediaRect = root.getBoundingClientRect();
+        if (mediaRect.bottom > pollRect.top && pollState.intent === 'remove') {
+          /* stacked layout ok on phone */
+        }
+        var m = layoutMetrics();
+        if (m.overflowX) errors.push('horizontal overflow');
+        if (!m.pollSubmitVisible) errors.push('poll submit not reachable');
+        return { ok: errors.length === 0, errors: errors, metrics: m };
+      },
+      runAll: function () {
+        return {
+          feedCreate: this.runFeedCreate(),
+          feedRevision: this.runFeedRevision(),
+          missionOptional: this.runMissionOptional(false),
+          missionRequireImage: this.runMissionOptional(true),
+          pollRevision: this.runPollRevision(),
+          layout: layoutMetrics(),
+        };
+      }
+    };
+  })();
+  </script>
+</body>
+</html>
