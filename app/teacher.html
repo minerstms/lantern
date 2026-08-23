@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="css/lantern-collapsible-list.css">
   <link rel="stylesheet" href="css/lantern-power-list.css">
   <link rel="stylesheet" href="css/lantern-cards.css?v=20260813-openedmodal148">
+  <link rel="stylesheet" href="css/lantern-character-example.css">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
 
   <style>
@@ -2290,9 +2291,18 @@
             <input type="checkbox" id="missionAllowsText" checked />
             <span class="teacherCheckboxLabel">Written response</span>
           </label>
-          <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:12px;max-width:160px;">
+          <div id="missionMinCharsWrap" style="margin-left:34px;margin-bottom:12px;">
             <label for="missionMinChars">Minimum text characters</label>
-            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="0" max="10000" value="0" />
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;">
+              <button type="button" class="btn missionMinPreset" data-min="100">100</button>
+              <button type="button" class="btn missionMinPreset" data-min="200">200</button>
+              <button type="button" class="btn missionMinPreset" data-min="500">500</button>
+              <button type="button" class="btn missionMinPreset" data-min="1000">1000</button>
+              <button type="button" class="btn missionMinPreset" data-min="custom">Custom</button>
+            </div>
+            <input type="number" id="missionMinChars" class="teacherInput teacherInput--sm" min="1" max="10000" value="100" style="max-width:160px;" />
+            <div id="missionMinCharsExampleMount"></div>
+            <p id="missionCharCounter" class="lanternMissionCharCounter pendingMeta" aria-live="polite"></p>
           </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsImage" />
@@ -2304,8 +2314,9 @@
           </label>
           <div id="missionRewardWrap" style="margin-top:12px;max-width:220px;">
             <label for="missionRewardAmount">Nugget Reward</label>
-            <input type="number" id="missionRewardAmount" class="teacherInput teacherInput--sm" min="0" max="5" value="1" />
-            <p class="teacherFieldHint">Teacher chooses this. It is not calculated from image or character count. Changes apply to future submissions only.</p>
+            <input type="number" id="missionRewardAmount" class="teacherInput teacherInput--sm" min="1" max="10" value="1" />
+            <p class="teacherFieldHint">Suggested reward updates when you change the minimum (unless you override). Legal range 1–10 Nuggets. Changes apply to future submissions only.</p>
+            <button type="button" class="btn" id="missionUseSuggestedReward" type="button">Use suggested reward</button>
           </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsVideo" />
@@ -2654,6 +2665,8 @@
   <script src="js/lantern-data.js"></script>
   <script src="js/lantern-avatar.js"></script>
   <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-mission-copy.js"></script>
+  <script src="js/lantern-character-example.js"></script>
   <script src="js/lantern-broadcast.js"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-media.js"></script>
@@ -3287,17 +3300,48 @@
       });
     }
     function applyMissionEconomyGuardrails(bundle){
-      var vals = bundle && bundle.values ? bundle.values : {};
-      var min = Number.isFinite(Number(vals.mission_min)) ? Number(vals.mission_min) : 0;
-      var max = Number.isFinite(Number(vals.mission_max)) ? Number(vals.mission_max) : 5;
-      var def = Number.isFinite(Number(vals.mission_default)) ? Number(vals.mission_default) : 1;
+      void bundle;
       var createEl = el('missionRewardAmount');
       if (createEl) {
-        createEl.min = String(min);
-        createEl.max = String(max);
-        createEl.value = String(def);
+        createEl.min = '1';
+        createEl.max = '10';
+        if (!createEl.dataset.rewardDirty) createEl.value = String(window.LanternMissionCopy ? window.LanternMissionCopy.suggestedMissionReward(100) : 1);
       }
-      window.LANTERN_MISSION_ECONOMY = { min: min, max: max, default: def };
+      window.LANTERN_MISSION_ECONOMY = { min: 1, max: 10, default: 1 };
+    }
+    function refreshMissionCreateSuggestedReward(){
+      var minEl = el('missionMinChars');
+      var rewardEl = el('missionRewardAmount');
+      if (!minEl || !rewardEl || rewardEl.dataset.rewardDirty === '1') return;
+      var min = Number(minEl.value) || 100;
+      if (window.LanternMissionCopy) rewardEl.value = String(window.LanternMissionCopy.suggestedMissionReward(min));
+    }
+    document.querySelectorAll('.missionMinPreset').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var minEl = el('missionMinChars');
+        if (!minEl) return;
+        if (btn.getAttribute('data-min') === 'custom') { minEl.focus(); return; }
+        minEl.value = btn.getAttribute('data-min');
+        refreshMissionCreateSuggestedReward();
+      });
+    });
+    var missionMinCharsEl = el('missionMinChars');
+    if (missionMinCharsEl) missionMinCharsEl.addEventListener('input', refreshMissionCreateSuggestedReward);
+    var missionUseSuggestedBtn = el('missionUseSuggestedReward');
+    if (missionUseSuggestedBtn) {
+      missionUseSuggestedBtn.addEventListener('click', function(){
+        var rewardEl = el('missionRewardAmount');
+        if (rewardEl) { rewardEl.dataset.rewardDirty = '0'; refreshMissionCreateSuggestedReward(); }
+      });
+    }
+    var missionRewardAmountEl = el('missionRewardAmount');
+    if (missionRewardAmountEl) {
+      missionRewardAmountEl.addEventListener('input', function(){ missionRewardAmountEl.dataset.rewardDirty = '1'; });
+    }
+    if (window.LanternCharacterExample && el('missionMinCharsExampleMount')) {
+      window.LanternCharacterExample.wireExampleLink(el('missionMinCharsExampleMount'), function(){
+        return el('missionMinChars') ? el('missionMinChars').value : 100;
+      });
     }
     function loadMissionEconomyGuardrails(){
       if (avatarApiBase === null) return;
@@ -5238,8 +5282,8 @@
         '<div class="teacherField" data-edit-requirements="1"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
           '<label class="teacherCheckboxField"><input type="checkbox" data-edit="require_image"' + (missionRequireImageOn(m) ? ' checked' : '') + ' /> <span class="teacherCheckboxLabel">Require image</span></label>' +
           '<p class="teacherFieldHint">ON = students must attach an image. OFF = image is not required (uploads stay available).</p>' +
-          '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="0" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
-          '<div style="margin-bottom:12px;max-width:220px;"><label>Nugget Reward</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="0" max="5" value="' + missionRewardAmountValue(m) + '" /></div>' +
+          '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="1" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
+          '<div style="margin-bottom:12px;max-width:220px;"><label>Nugget Reward</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="1" max="10" value="' + missionRewardAmountValue(m) + '" /></div>' +
           '<p class="teacherFieldHint">0 = no minimum / no Nugget. Changes apply to future submissions only. Already-issued rewards are not rewritten.</p>' +
         '</div>'
       );

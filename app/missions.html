@@ -162,6 +162,7 @@
   <link rel="stylesheet" href="css/lantern-feed.css">
   <link rel="stylesheet" href="css/lantern-interactive-surface.css">
   <link rel="stylesheet" href="css/lantern-missions-page.css">
+  <link rel="stylesheet" href="css/lantern-character-example.css">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
 </head>
 <body class="page-has-ticker">
@@ -264,6 +265,7 @@
             <label id="missionSubmitLabel">Your response</label>
             <textarea id="missionSubmitContent" placeholder="Enter your response..." style="min-height:100px;"></textarea>
             <p id="missionSubmitMinCharsHint" class="studioPanelMicro" style="display:none;margin-top:8px;color:var(--warn);font-size:22px;"></p>
+            <div id="missionSubmitCharExampleMount"></div>
             <div id="missionSubmitProgressWrap" class="missionSubmitProgressWrap" style="display:none;">
               <div class="missionSubmitProgressBar" id="missionSubmitProgressBar"><div class="missionSubmitProgressFill neutral" id="missionSubmitProgressFill"></div></div>
               <p class="missionSubmitCountdown neutral" id="missionSubmitCountdown"></p>
@@ -374,6 +376,8 @@
   <script src="js/lantern-data.js"></script>
   <script src="js/class-access.js"></script>
   <script src="js/lantern-api.js"></script>
+  <script src="js/lantern-mission-copy.js"></script>
+  <script src="js/lantern-character-example.js"></script>
   <script src="js/lantern-broadcast.js"></script>
   <script src="js/lantern-ticker.js"></script>
   <script src="js/lantern-media.js"></script>
@@ -1277,7 +1281,11 @@
           var remainingImg = Math.max(0, minReq - len);
           var pctImg = minReq > 0 ? Math.min(100, Math.floor((len / minReq) * 100)) : 100;
           if (fillEl) { fillEl.style.width = pctImg + '%'; fillEl.className = 'missionSubmitProgressFill ' + (pctImg >= 100 ? 'met' : (pctImg >= 75 ? 'amber' : 'neutral')); }
-          if (countdownEl) { countdownEl.textContent = remainingImg + ' / ' + minReq + ' remaining' + (remainingImg <= 0 ? ' ✓' : ''); countdownEl.className = 'missionSubmitCountdown ' + (pctImg >= 100 ? 'met' : (pctImg >= 75 ? 'amber' : 'neutral')); }
+          if (countdownEl) {
+            var counterImg = window.LanternCharacterExample ? window.LanternCharacterExample.counterState(len, minReq) : null;
+            countdownEl.textContent = counterImg ? (counterImg.label + ' · ' + counterImg.needLabel) : (remainingImg + ' / ' + minReq + ' remaining' + (remainingImg <= 0 ? ' ✓' : ''));
+            countdownEl.className = 'missionSubmitCountdown ' + (pctImg >= 100 ? 'met' : (pctImg >= 75 ? 'amber' : 'neutral'));
+          }
         }
         return;
       }
@@ -1294,7 +1302,8 @@
       }
       if (countdownEl) {
         var mediaHint = (!textMet && (hasImage || hasVideo || hasLink)) ? ' (or use media)' : '';
-        countdownEl.textContent = remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : '') + mediaHint;
+        var counterText = window.LanternCharacterExample ? window.LanternCharacterExample.counterState(len, minReq) : null;
+        countdownEl.textContent = counterText ? (counterText.label + ' · ' + counterText.needLabel + mediaHint) : (remaining + ' / ' + minReq + ' remaining' + (remaining <= 0 ? ' ✓' : '') + mediaHint);
         countdownEl.className = 'missionSubmitCountdown ' + (pct >= 100 || hasImage || hasVideo || hasLink ? 'met' : (pct >= 75 ? 'amber' : 'neutral'));
       }
     }
@@ -1901,7 +1910,9 @@
       var rewLabel = formatSavedMissionReward(m);
       if (titleEl) titleEl.textContent = missionSubmitTitlePrefix() + (m.title || 'Mission');
       if (metaEl) {
-        metaEl.textContent = typeBadgeForTeacher(m) + (rewLabel ? ' · ' + rewLabel : '');
+        var studentCopy = window.LanternMissionCopy ? window.LanternMissionCopy.formatMissionStudentCopy(m) : '';
+        metaEl.textContent = typeBadgeForTeacher(m) + (studentCopy ? ' · ' + studentCopy : (rewLabel ? ' · ' + rewLabel : ''));
+      }
         if (currentMissionIsRedo) metaEl.textContent += ' · Reward already earned (redo allowed)';
       }
       if (descEl) {
@@ -1952,8 +1963,13 @@
         var minCharsHint = el('missionSubmitMinCharsHint');
         if (minCharsHint) {
           if (allowsText && minChars > 0) {
-            minCharsHint.textContent = 'Minimum ' + minChars + ' characters';
+            minCharsHint.textContent = minChars + '+ characters';
             minCharsHint.style.display = 'block';
+            var exMount = el('missionSubmitCharExampleMount');
+            if (exMount && window.LanternCharacterExample) {
+              exMount.innerHTML = '';
+              window.LanternCharacterExample.wireExampleLink(exMount, function(){ return minChars; });
+            }
           } else minCharsHint.style.display = 'none';
         }
         var reqList = el('missionSubmitRequirements');

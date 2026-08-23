@@ -37,6 +37,11 @@ import {
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
 import { resolveTeacherMissionReward, resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import {
+  suggestedMissionReward,
+  formatMissionStudentPreview,
+  validateOrdinaryMissionMinCharacters,
+} from './mission-reward-bands.js';
+import {
   WAVE2_MISSION_IDS,
   claimDailyCheckInForCharacter,
   ensureContentApprovedMissionCompletion,
@@ -123,6 +128,14 @@ function missionRowToJson(r, origin) {
       const n = Number(r.min_characters);
       return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
     })(),
+    suggested_reward: suggestedMissionReward(
+      r.min_characters != null ? Math.max(0, Math.floor(Number(r.min_characters)) || 0) : 0
+    ),
+    student_preview: formatMissionStudentPreview(
+      r.min_characters,
+      r.reward_amount,
+      missionRequiresImage(r)
+    ),
     // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
     card_image_r2_key: cardKey || null,
     card_image_url: cardKey ? missionCardImageUrl(origin, cardKey) : null,
@@ -775,9 +788,20 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const requiresImage = allowsImageVal >= 2;
     const allowsVideo = !!(body.allows_video);
     const allowsLink = !!(body.allows_link);
-    let minChars = Math.max(0, Math.floor(Number(body.min_characters)));
-    if (!Number.isFinite(minChars)) {
-      minChars = 0;
+    let minChars = 0;
+    if (allowsText && submissionType !== 'confirmation') {
+      if (body.min_characters == null || body.min_characters === '') {
+        minChars = 100;
+      } else {
+        minChars = Math.floor(Number(body.min_characters));
+      }
+      const minValidated = validateOrdinaryMissionMinCharacters(minChars, 'submission');
+      if (!minValidated.ok) {
+        return jsonResponse(minValidated, 400, cors);
+      }
+      minChars = minValidated.value;
+    } else {
+      minChars = Math.max(0, Math.floor(Number(body.min_characters)) || 0);
     }
     // Prompt #210 — optional Mission Card Image key (must be missions/card/… from upload endpoint).
     let cardImageKey = null;
@@ -984,9 +1008,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       bindings.push(body.allows_link ? 1 : 0);
     }
     if (body.min_characters !== undefined) {
-      const mc = Math.max(0, Math.floor(Number(body.min_characters)));
+      const rowFull = await loadFullMission(db, id);
+      const kind = (rowFull && rowFull.submission_type) === 'confirmation' ? 'event' : 'submission';
+      const minValidated = validateOrdinaryMissionMinCharacters(body.min_characters, kind);
+      if (!minValidated.ok) {
+        return jsonResponse(minValidated, 400, cors);
+      }
       updates.push('min_characters = ?');
-      bindings.push(Number.isFinite(mc) ? mc : 0);
+      bindings.push(minValidated.value);
     }
     // Prompt #210 — set / clear Mission Card Image (null or '' clears). Editable anytime (definition art).
     if (Object.prototype.hasOwnProperty.call(body, 'card_image_r2_key')) {

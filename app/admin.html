@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/lantern-power-list.css">
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-avatar-cropper.css">
+  <link rel="stylesheet" href="css/lantern-character-example.css">
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -1099,6 +1100,32 @@
     </div>
   </details>
 
+  <details class="card teacherCollapsibleList" id="lanternActivitiesCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Lantern Activities</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="lanternActivitiesSummaryPill">Missions + Games</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Configure each global Mission (reward, writing minimum, Require Image, active state). Games use per-game pricing from Game Economy above. Changes apply to future submissions only.</p>
+      <div id="lanternActivitiesMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+      <div class="teacherFieldRow teacherFieldRow--2" style="margin-bottom:12px;">
+        <div class="teacherField">
+          <label for="lanternActivitiesFilter">Show</label>
+          <select id="lanternActivitiesFilter" class="teacherInput teacherInput--sm">
+            <option value="all">All</option>
+            <option value="missions">Missions</option>
+            <option value="games">Games</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div id="lanternActivitiesList"></div>
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn" id="lanternActivitiesRefresh">Reload activities</button>
+      </div>
+    </div>
+  </details>
+
   <details class="card teacherCollapsibleList" id="marqueeSpeedCard">
     <summary class="cardHd teacherCollapsibleListHd">
       <div class="teacherCollapsibleListTitle"><div class="h">Marquee (ticker) speed</div></div>
@@ -1177,7 +1204,8 @@
   <script src="js/lantern-collapsible-list.js"></script>
   <script src="js/lantern-power-list.js"></script>
   <script src="js/lantern-staff-power-list.js"></script>
-  <script src="js/lantern-admin-bl-system.js"></script>
+  <script src="js/lantern-character-example.js"></script>
+  <script src="js/lantern-mission-copy.js"></script>
   <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="js/lantern-avatar-cropper.js"></script>
   <script>
@@ -4295,6 +4323,154 @@
       host.innerHTML = html + renderGameEconomySection(payload);
     }
 
+    var lanternActivitiesCache = null;
+
+    function showLanternActivitiesMsg(text, kind) {
+      var el = document.getElementById('lanternActivitiesMsg');
+      if (!el) return;
+      if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
+      el.style.display = 'block';
+      el.textContent = text;
+      el.className = 'usersMsg' + (kind === 'err' ? ' err' : '');
+    }
+
+    function renderLanternActivities(payload) {
+      lanternActivitiesCache = payload;
+      var host = document.getElementById('lanternActivitiesList');
+      if (!host) return;
+      var filter = (document.getElementById('lanternActivitiesFilter') || {}).value || 'all';
+      var missions = (payload && payload.missions) || [];
+      var games = (payload && payload.games) || [];
+      var items = missions.map(function (m) { return m; }).concat(games.map(function (g) { return g; }));
+      items = items.filter(function (it) {
+        if (filter === 'missions') return it.type === 'mission';
+        if (filter === 'games') return it.type === 'game';
+        if (filter === 'inactive') return it.status === 'inactive' || it.archived;
+        return true;
+      });
+      var html = '';
+      items.forEach(function (it) {
+        if (it.type === 'game') {
+          html += '<div class="teacherField" style="margin-bottom:14px;border:1px solid #2a3544;border-radius:10px;padding:12px;">';
+          html += '<strong>' + it.title + '</strong> <span class="pendingMeta">· Game · ' + ((it.copy && it.copy.card_meta) || '') + '</span>';
+          html += '<p class="teacherFieldHint">Game pricing is configured in Game Economy above.</p></div>';
+          return;
+        }
+        html += '<div class="teacherField" data-activity-mission="' + it.id + '" style="margin-bottom:14px;border:1px solid #2a3544;border-radius:10px;padding:12px;">';
+        html += '<strong>' + it.title + '</strong>';
+        html += '<p class="pendingMeta">' + (it.placement === 'game' ? 'Game' : 'Mission') + ' · ' + (it.active ? 'Active' : 'Inactive') + (it.kind === 'trivia' ? ' · Trivia' : '') + '</p>';
+        html += '<label><input type="checkbox" data-field="active"' + (it.active ? ' checked' : '') + ' /> Active</label>';
+        html += '<div style="margin-top:8px;"><label>Minimum response</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">';
+        [100, 200, 500, 1000].forEach(function (p) {
+          html += '<button type="button" class="btn" data-min-preset="' + p + '">' + p + '</button>';
+        });
+        html += '<input type="number" class="teacherInput teacherInput--sm" data-field="min_characters" min="1" max="10000" value="' + (it.min_characters || 100) + '" style="width:100px;" /></div>';
+        html += '<div data-char-example-mount="' + it.id + '"></div></div>';
+        html += '<label style="display:block;margin-top:8px;"><input type="checkbox" data-field="require_image"' + (it.require_image ? ' checked' : '') + ' /> Require Image</label>';
+        html += '<div style="margin-top:8px;"><label>Suggested reward</label><span class="pendingMeta" data-suggested-reward>' + (it.suggested_reward || 1) + ' Nugget</span></div>';
+        html += '<div style="margin-top:8px;max-width:160px;"><label>Completion reward</label><input type="number" class="teacherInput teacherInput--sm" data-field="reward_amount" min="1" max="10" value="' + (it.reward_amount || 1) + '" /></div>';
+        html += '<p class="pendingMeta" data-student-preview>' + (it.student_preview || '') + '</p>';
+        html += '<button type="button" class="btn good" data-save-mission="' + it.id + '" style="margin-top:8px;">Save Mission</button></div>';
+      });
+      host.innerHTML = html || '<p class="pendingMeta">No activities match this filter.</p>';
+      host.querySelectorAll('[data-min-preset]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var wrap = btn.closest('[data-activity-mission]');
+          var input = wrap && wrap.querySelector('[data-field="min_characters"]');
+          if (input) input.value = btn.getAttribute('data-min-preset');
+          updateActivitySuggested(wrap);
+        });
+      });
+      host.querySelectorAll('[data-field="min_characters"]').forEach(function (input) {
+        input.addEventListener('input', function () {
+          updateActivitySuggested(input.closest('[data-activity-mission]'));
+        });
+      });
+      host.querySelectorAll('[data-save-mission]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          saveLanternActivityMission(btn.getAttribute('data-save-mission'));
+        });
+      });
+      host.querySelectorAll('[data-char-example-mount]').forEach(function (mount) {
+        var wrap = mount.closest('[data-activity-mission]');
+        if (window.LanternCharacterExample && wrap) {
+          window.LanternCharacterExample.wireExampleLink(mount, function () {
+            var input = wrap.querySelector('[data-field="min_characters"]');
+            return input ? input.value : 100;
+          });
+        }
+      });
+    }
+
+    function updateActivitySuggested(wrap) {
+      if (!wrap || !window.LanternMissionCopy) return;
+      var input = wrap.querySelector('[data-field="min_characters"]');
+      var suggested = wrap.querySelector('[data-suggested-reward]');
+      var preview = wrap.querySelector('[data-student-preview]');
+      var min = input ? Number(input.value) : 100;
+      var sug = window.LanternMissionCopy.suggestedMissionReward(min);
+      if (suggested) suggested.textContent = sug + (sug === 1 ? ' Nugget' : ' Nuggets');
+      var rewardInput = wrap.querySelector('[data-field="reward_amount"]');
+      var reqImg = wrap.querySelector('[data-field="require_image"]');
+      if (preview) {
+        preview.textContent = window.LanternMissionCopy.formatMissionStudentCopy({
+          min_characters: min,
+          reward_amount: rewardInput ? rewardInput.value : sug,
+          require_image: reqImg && reqImg.checked,
+        });
+      }
+    }
+
+    function saveLanternActivityMission(id) {
+      var wrap = document.querySelector('[data-activity-mission="' + id + '"]');
+      if (!wrap) return;
+      var body = {
+        active: !!(wrap.querySelector('[data-field="active"]') && wrap.querySelector('[data-field="active"]').checked),
+        min_characters: Number(wrap.querySelector('[data-field="min_characters"]').value),
+        require_image: !!(wrap.querySelector('[data-field="require_image"]') && wrap.querySelector('[data-field="require_image"]').checked),
+        reward_amount: Number(wrap.querySelector('[data-field="reward_amount"]').value),
+      };
+      patchAdminJson('/api/admin/activities/mission/' + encodeURIComponent(id), body).then(function (res) {
+        if (res && res.body && res.body.ok) {
+          showLanternActivitiesMsg('Saved ' + id + '.', '');
+          if (res.body.activity) {
+            var idx = (lanternActivitiesCache.missions || []).findIndex(function (m) { return m.id === id; });
+            if (idx >= 0) lanternActivitiesCache.missions[idx] = res.body.activity;
+            renderLanternActivities(lanternActivitiesCache);
+          }
+        } else {
+          showLanternActivitiesMsg((res && res.body && res.body.error) || 'Could not save.', 'err');
+        }
+      });
+    }
+
+    function loadLanternActivities() {
+      fetch(api + '/api/admin/activities', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok) {
+            renderLanternActivities(res);
+            showLanternActivitiesMsg('', '');
+            var pill = document.getElementById('lanternActivitiesSummaryPill');
+            if (pill) pill.textContent = ((res.missions && res.missions.length) || 0) + ' missions · ' + ((res.games && res.games.length) || 0) + ' games';
+          } else {
+            showLanternActivitiesMsg('Could not load Lantern Activities.', 'err');
+          }
+        })
+        .catch(function () {
+          showLanternActivitiesMsg('Could not load Lantern Activities (network).', 'err');
+        });
+    }
+
+    var lanternActivitiesRefreshBtn = document.getElementById('lanternActivitiesRefresh');
+    if (lanternActivitiesRefreshBtn) lanternActivitiesRefreshBtn.addEventListener('click', loadLanternActivities);
+    var lanternActivitiesFilterEl = document.getElementById('lanternActivitiesFilter');
+    if (lanternActivitiesFilterEl) {
+      lanternActivitiesFilterEl.addEventListener('change', function () {
+        if (lanternActivitiesCache) renderLanternActivities(lanternActivitiesCache);
+      });
+    }
+
     function loadNuggetEconomy() {
       fetch(api + '/api/settings/nugget-economy', { credentials: 'include' })
         .then(function (r) { return r.json(); })
@@ -6712,6 +6888,7 @@
     loadMarqueeSpeed();
     loadVisibleWatermark();
     loadNuggetEconomy();
+    loadLanternActivities();
     setInterval(loadPending, 60000);
     setInterval(loadFeedModeration, 120000);
   })();
