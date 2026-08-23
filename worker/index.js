@@ -65,7 +65,7 @@ import {
   sanitizeRunId,
 } from './lantern-game-catalog.js';
 import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun, evaluatePaidRunForWinCredit } from './game-paid-run-proof.js';
-import { resolveGamePlayTransact } from './game-play-economy.js';
+import { resolveGamePlayTransact, persistAuthoritativeGamePlayProof } from './game-play-economy.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
@@ -7223,27 +7223,66 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
         );
       }
       const gameRef = (meta && meta.game_id) || body.game_id || (meta && meta.game_name) || note;
-      const resolved = await resolveGamePlayTransact(db, characterName, gameRef, runId, meta);
-      if (!resolved.ok) {
-        return jsonResponse({ ok: false, error: resolved.error || 'invalid_game' }, 400, cors);
+      let resolved = null;
+      for (let gamePlayAttempt = 0; gamePlayAttempt < 4; gamePlayAttempt++) {
+        resolved = await resolveGamePlayTransact(db, characterName, gameRef, runId);
+        if (!resolved.ok) {
+          return jsonResponse({ ok: false, error: resolved.error || 'invalid_game' }, 400, cors);
+        }
+        const clientDelta =
+          body.delta != null && body.delta !== '' && Number.isFinite(Number(body.delta))
+            ? Math.floor(Number(body.delta))
+            : null;
+        if (clientDelta != null && clientDelta !== resolved.delta) {
+          return jsonResponse(
+            {
+              ok: false,
+              error: 'client_delta_rejected',
+              server_delta: resolved.delta,
+              message: 'game_play cost is server-authoritative',
+            },
+            400,
+            cors
+          );
+        }
+        if (resolved.delta !== 0) break;
+        const persistNow = new Date().toISOString();
+        const persisted = await persistAuthoritativeGamePlayProof(db, {
+          characterName,
+          runId,
+          meta: resolved.meta,
+          delta: 0,
+          source,
+          note,
+          now: persistNow,
+        });
+        if (persisted.ok) {
+          try {
+            await ensureFirstGameMissionCompletion(db, env, characterName, persisted.id);
+          } catch (_) {}
+          return jsonResponse(
+            {
+              ok: true,
+              id: persisted.id,
+              character_name: characterName,
+              delta: 0,
+              balance_after: null,
+              skipped: true,
+              idempotent: !!persisted.idempotent,
+              economy_authority: 'server_game_start',
+              meta: persisted.meta,
+              bundle: resolved.bundle || null,
+            },
+            200,
+            cors
+          );
+        }
+        if (persisted.error !== 'bundle_slot_taken') {
+          return jsonResponse({ ok: false, error: persisted.error || 'proof_failed' }, 409, cors);
+        }
       }
-      if (
-        resolved.legacy &&
-        body.delta != null &&
-        body.delta !== '' &&
-        Number.isFinite(Number(body.delta)) &&
-        Math.floor(Number(body.delta)) !== resolved.delta
-      ) {
-        return jsonResponse(
-          {
-            ok: false,
-            error: 'client_delta_rejected',
-            server_delta: resolved.delta,
-            message: 'game_play cost is server-authoritative',
-          },
-          400,
-          cors
-        );
+      if (!resolved) {
+        return jsonResponse({ ok: false, error: 'proof_failed' }, 409, cors);
       }
       delta = resolved.delta;
       meta = resolved.meta;
@@ -7287,7 +7326,7 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
       }
       delta = serverAvatar;
     }
-    const allowZeroLedger = (kind === 'game_play' || kind === 'game_win' || kind === 'avatar_upload') && delta === 0;
+    const allowZeroLedger = (kind === 'game_win' || kind === 'avatar_upload') && delta === 0;
     if (delta === 0 && !allowZeroLedger) return jsonResponse({ ok: false, error: 'delta must be non-zero' }, 400, cors);
     const now = new Date().toISOString();
     const displayName = String(body.display_name ?? '').trim();
@@ -7315,11 +7354,6 @@ async function handleEconomyRoutes(request, url, path, env, cors) {
           'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         ).bind(txId, characterName, 0, kind, source, note, now, JSON.stringify({ ...meta, tms_skipped: true, reason: 'configured_zero' })).run();
       } catch (_) {}
-      if (kind === 'game_play') {
-        try {
-          await ensureFirstGameMissionCompletion(db, env, characterName, txId);
-        } catch (_) {}
-      }
       return jsonResponse({
         ok: true,
         id: txId,

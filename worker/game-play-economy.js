@@ -2,16 +2,28 @@
  * Prompt #257B — per-game play pricing (server-authoritative).
  *
  * Config in lantern_settings:
- *   economy.game_default_play_mode  → global | 1 | 2 | 3 | free
+ *   economy.game_default_play_mode  → 1 | 2 | 3 | free
  *   economy.game.<game_id>.play_mode → global | 1 | 2 | 3 | free
+ *
+ * Authority (modern): per-game override → global game default. Legacy economy.game_play
+ * applies ONLY when game_play transact has no canonical game_id (backward compatibility).
  *
  * Multi-play bundles persist in lantern_transactions (kind game_play):
  *   purchase row: delta -1, meta.bundle_id, bundle_plays_total, bundle_play_index
  *   consume row:  delta  0, same bundle_id, next bundle_play_index
+ *   Atomic consume: deterministic row id bundle-slot-{bundle_id}-{play_index}
  */
 import { LANTERN_LEADERBOARD_GAMES, resolveRegisteredLeaderboardGame } from './lantern-game-catalog.js';
-import { parseTransactionMeta } from './game-paid-run-proof.js';
+import { parseTransactionMeta, findPaidGamePlayByRunId } from './game-paid-run-proof.js';
 import { resolveEconomyAmount } from './nugget-economy-settings.js';
+
+/** Games registered but hidden from the Play hub (mission-primary starts). */
+const MISSION_PRIMARY_GAME_IDS = new Set([
+  'handbook-trivia',
+  'local-history-trivia',
+  'srp-safety-trivia',
+  'seven-habits-trivia',
+]);
 
 export const GAME_DEFAULT_PLAY_MODE_KEY = 'economy.game_default_play_mode';
 
@@ -87,27 +99,12 @@ export async function resolveGamePlayEconomy(db, gameId) {
     effective = await readGameDefaultPlayMode(db);
   }
   const resolved = resolvedPlayEconomyFromMode(effective);
-  if (!resolved.free && (override === 'global' || effective === '1')) {
-    const legacyDelta = await resolveEconomyAmount(db, 'game_play');
-    if (legacyDelta === 0) {
-      return {
-        id: game.id,
-        name: game.name,
-        override_mode: override,
-        effective_mode: 'free',
-        mode: 'free',
-        playsPerNugget: 0,
-        free: true,
-        nuggetDebit: 0,
-        legacy_global_free: true,
-      };
-    }
-  }
   return {
     id: game.id,
     name: game.name,
     override_mode: override,
     effective_mode: effective,
+    pricing_surface: MISSION_PRIMARY_GAME_IDS.has(game.id) ? 'mission_primary' : 'play_hub',
     ...resolved,
   };
 }
@@ -238,17 +235,89 @@ export async function getPlayEntitlementsForCharacter(db, characterName) {
 }
 
 /**
- * Resolve authoritative game_play debit + meta for a new run.
- * @returns {Promise<{ ok: true, delta: number, meta: object, bundle?: object } | { ok: false, error: string }>}
+ * Deterministic proof row id — bundle slots are unique per (bundle_id, play_index).
  */
-export async function resolveGamePlayTransact(db, characterName, gameIdOrName, runId, baseMeta) {
+export function gamePlayProofRowId(meta, runId) {
+  const m = meta || {};
+  const bundleId = String(m.bundle_id || '').trim();
+  const playIndex = Math.floor(Number(m.bundle_play_index));
+  if (bundleId && Number.isFinite(playIndex) && playIndex > 0) {
+    return `bundle-slot-${bundleId}-${playIndex}`;
+  }
+  return `game-play-${String(runId || '').trim()}`;
+}
+
+/**
+ * Atomically persist a zero-debit game_play proof (free play or bundle consume).
+ * Uses PRIMARY KEY on deterministic row id to prevent double-consuming one bundle slot.
+ */
+export async function persistAuthoritativeGamePlayProof(db, opts) {
+  const characterName = String((opts && opts.characterName) || '');
+  const runId = String((opts && opts.runId) || '').trim();
+  const meta = Object.assign({}, opts && opts.meta);
+  const delta = Math.floor(Number(opts && opts.delta)) || 0;
+  const source = String((opts && opts.source) || 'GAME');
+  const note = String((opts && opts.note) || 'Game');
+  const now = (opts && opts.now) || new Date().toISOString();
+
+  if (!db || !characterName || !runId) return { ok: false, error: 'invalid_run' };
+
+  const existingRun = await findPaidGamePlayByRunId(db, runId);
+  if (existingRun && String(existingRun.character_name || '') === characterName) {
+    return {
+      ok: true,
+      idempotent: true,
+      id: existingRun.id,
+      delta: Math.floor(Number(existingRun.delta)) || 0,
+      meta: parseTransactionMeta(existingRun.meta_json),
+    };
+  }
+
+  const rowId = gamePlayProofRowId(meta, runId);
+  const metaJson = JSON.stringify(
+    Object.assign({}, meta, {
+      run_id: runId,
+      economy_authority: 'server_game_start',
+    })
+  );
+
+  try {
+    await db
+      .prepare(
+        'INSERT INTO lantern_transactions (id, character_name, delta, kind, source, note, created_at, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      )
+      .bind(rowId, characterName, delta, 'game_play', source, note, now, metaJson)
+      .run();
+    return { ok: true, id: rowId, delta, meta: parseTransactionMeta(metaJson) };
+  } catch (_err) {
+    const slotRow = await db
+      .prepare('SELECT id, character_name, meta_json FROM lantern_transactions WHERE id = ?')
+      .bind(rowId)
+      .first();
+    if (slotRow) {
+      const slotMeta = parseTransactionMeta(slotRow.meta_json);
+      if (slotMeta.run_id === runId && String(slotRow.character_name || '') === characterName) {
+        return { ok: true, idempotent: true, id: rowId, delta, meta: slotMeta };
+      }
+      return { ok: false, error: 'bundle_slot_taken' };
+    }
+    return { ok: false, error: 'insert_failed' };
+  }
+}
+
+/**
+ * Resolve authoritative game_play debit + meta for a new run.
+ * Client-supplied meta is ignored — only run_id + game_id/name are accepted from the caller.
+ * @returns {Promise<{ ok: true, delta: number, meta: object, bundle?: object, legacy?: boolean } | { ok: false, error: string }>}
+ */
+export async function resolveGamePlayTransact(db, characterName, gameIdOrName, runId) {
   const rid = String(runId || '').trim();
   if (!rid) return { ok: false, error: 'invalid_run' };
 
   const gameRef = String(gameIdOrName || '').trim();
   if (!gameRef) {
     const legacyDelta = await resolveEconomyAmount(db, 'game_play');
-    const meta = Object.assign({}, baseMeta || {}, { run_id: rid, legacy_global: true });
+    const meta = { run_id: rid, legacy_global: true };
     return { ok: true, delta: legacyDelta, meta, economy: null, legacy: true };
   }
 
@@ -258,11 +327,11 @@ export async function resolveGamePlayTransact(db, characterName, gameIdOrName, r
   const economy = await resolveGamePlayEconomy(db, game.id);
   if (!economy) return { ok: false, error: 'invalid_game' };
 
-  const meta = Object.assign({}, baseMeta || {}, {
+  const meta = {
     run_id: rid,
     game_id: game.id,
     game_name: game.name,
-  });
+  };
 
   if (economy.free) {
     meta.free_play = true;

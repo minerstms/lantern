@@ -4251,7 +4251,9 @@
           html += '<option value="' + opt.value + '"' + sel + '>' + opt.label + '</option>';
         });
         html += '</select>' +
-          '<p class="pendingMeta">Resolved: ' + ((g.copy && g.copy.card_meta) || '') + '</p>' +
+          '<p class="pendingMeta">Resolved: ' + ((g.copy && g.copy.card_meta) || '') +
+          (g.pricing_surface === 'mission_primary' ? ' · Mission-primary (hidden from Play hub)' : '') +
+          '</p>' +
           '</div>';
       });
       return html;
@@ -4273,6 +4275,7 @@
       var html = '';
       var lastGroup = '';
       rows.forEach(function (row) {
+        if (row.dormant) return;
         if (row.group !== lastGroup) {
           lastGroup = row.group;
           html += '<div class="teacherFieldGroup" style="margin-top:16px;">' + (ECONOMY_GROUP_LABELS[row.group] || row.group) + '</div>';

@@ -153,13 +153,13 @@ async function insertPlay(db, characterName, resolved) {
   await saveGameEconomySettings(db, { game_default_play_mode: '2' }, 'admin');
   const char = 'student-1';
   const game = resolveRegisteredLeaderboardGame('tower');
-  const r1 = await resolveGamePlayTransact(db, char, 'tower', 'run-a', {});
+  const r1 = await resolveGamePlayTransact(db, char, 'tower', 'run-a');
   assert(r1.ok && r1.delta === -1 && r1.meta.bundle_plays_total === 2, '6. first play debits 1');
   await insertPlay(db, char, r1);
-  const r2 = await resolveGamePlayTransact(db, char, 'tower', 'run-b', {});
+  const r2 = await resolveGamePlayTransact(db, char, 'tower', 'run-b');
   assert(r2.ok && r2.delta === 0 && r2.meta.bundle_play_index === 2, '7. second play consumes bundle');
   await insertPlay(db, char, r2);
-  const r3 = await resolveGamePlayTransact(db, char, 'tower', 'run-c', {});
+  const r3 = await resolveGamePlayTransact(db, char, 'tower', 'run-c');
   assert(r3.ok && r3.delta === -1, '8. third play debits again');
 }
 
@@ -170,7 +170,7 @@ async function insertPlay(db, characterName, resolved) {
   const runs = ['r1', 'r2', 'r3', 'r4'];
   const deltas = [];
   for (let i = 0; i < runs.length; i++) {
-    const r = await resolveGamePlayTransact(db, char, 'avatar-match', runs[i], {});
+    const r = await resolveGamePlayTransact(db, char, 'avatar-match', runs[i]);
     deltas.push(r.delta);
     await insertPlay(db, char, r);
   }
@@ -180,7 +180,7 @@ async function insertPlay(db, characterName, resolved) {
 {
   const db = makeDb({});
   await saveGameEconomySettings(db, { game_overrides: { memory: 'free' } }, 'admin');
-  const r = await resolveGamePlayTransact(db, 's3', 'memory', 'free-run', {});
+  const r = await resolveGamePlayTransact(db, 's3', 'memory', 'free-run');
   assert(r.ok && r.delta === 0 && r.meta.free_play, '10. free play zero debit');
   await insertPlay(db, 's3', r);
   const game = resolveRegisteredLeaderboardGame('memory');
@@ -194,7 +194,7 @@ async function insertPlay(db, characterName, resolved) {
 {
   const db = makeDb({});
   await saveGameEconomySettings(db, { game_default_play_mode: '2' }, 'admin');
-  const r1 = await resolveGamePlayTransact(db, 'alice', 'tower', 'x1', {});
+  const r1 = await resolveGamePlayTransact(db, 'alice', 'tower', 'x1');
   await insertPlay(db, 'alice', r1);
   const activeBob = await findActivePlayBundle(db, 'bob', 'tower');
   assert(!activeBob, '12. cross-student isolation');

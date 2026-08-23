@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#257B1 Game Economy harness</title>
+  <link rel="stylesheet" href="../css/lantern-teacher.css" />
+  <style>
+    body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; background: #0f1419; color: #e8eef4; }
+    .harnessSection { max-width: 720px; margin: 0 auto 24px; }
+    .gameCardGrid { display: grid; gap: 12px; }
+    .gameCard { border: 1px solid #2a3544; border-radius: 12px; padding: 12px; }
+    .gameCard h3 { margin: 0 0 6px; font-size: 1.1rem; }
+    .gameCard .meta { opacity: 0.85; font-size: 0.95rem; }
+    .gameCard button { margin-top: 8px; width: 100%; padding: 10px; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="harnessSection">
+    <h1 id="harnessTitle">Nugget Economy</h1>
+    <div id="nuggetEconomyRows"></div>
+    <p id="harnessMsg" class="pendingMeta"></p>
+  </div>
+  <div class="harnessSection">
+    <h2>Game copy preview</h2>
+    <div id="gameCopyGrid" class="gameCardGrid"></div>
+  </div>
+  <script src="../js/lantern-game-economy.js"></script>
+  <script>
+    window.__HARNESS_READY__ = false;
+    var ECONOMY_GROUP_LABELS = {
+      participation: 'Participation',
+      games: 'Games',
+      creation: 'Creation / Community',
+      discovery: 'Discovery',
+      missions: 'Missions',
+      game_economy: 'Game Economy'
+    };
+    var GAME_PLAY_MODE_OPTIONS = [
+      { value: 'global', label: 'Use Global' },
+      { value: '1', label: '1 Nugget = 1 Play' },
+      { value: '2', label: '1 Nugget = 2 Plays' },
+      { value: '3', label: '1 Nugget = 3 Plays' },
+      { value: 'free', label: 'Free Play' }
+    ];
+    function renderGameEconomySection(payload) {
+      var ge = payload && payload.game_economy;
+      if (!ge) return '';
+      var defaultMode = ge.default_play_mode || '1';
+      var html = '<div class="teacherFieldGroup" style="margin-top:16px;">' + ECONOMY_GROUP_LABELS.game_economy + '</div>';
+      html += '<div class="teacherField" style="margin-bottom:12px;"><label for="gameEconomyDefault">Global Game Default</label>';
+      html += '<select id="gameEconomyDefault" class="teacherInput teacherInput--sm">';
+      GAME_PLAY_MODE_OPTIONS.filter(function (o) { return o.value !== 'global'; }).forEach(function (opt) {
+        html += '<option value="' + opt.value + '"' + (defaultMode === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="teacherFieldGroup" style="margin-top:8px;">Per-Game Overrides</div>';
+      (ge.games || []).forEach(function (g) {
+        html += '<div class="teacherField" data-game-economy-id="' + g.id + '"><label>' + g.name + '</label>';
+        html += '<select class="teacherInput teacherInput--sm" data-game-economy-select="' + g.id + '">';
+        GAME_PLAY_MODE_OPTIONS.forEach(function (opt) {
+          html += '<option value="' + opt.value + '"' + ((g.override_mode || 'global') === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
+        });
+        html += '</select><p class="pendingMeta">' + (g.copy && g.copy.card_meta) + (g.pricing_surface === 'mission_primary' ? ' · Mission-primary' : '') + '</p></div>';
+      });
+      return html;
+    }
+    function renderNuggetEconomyRows(payload) {
+      var host = document.getElementById('nuggetEconomyRows');
+      var rows = (payload && payload.rows) || [];
+      var html = '';
+      rows.forEach(function (row) {
+        if (row.dormant) return;
+        html += '<div class="teacherField" data-economy-id="' + row.id + '"><label>' + row.label + '</label>';
+        html += '<input type="number" class="teacherInput teacherInput--sm" value="' + row.value + '" /></div>';
+      });
+      host.innerHTML = html + renderGameEconomySection(payload);
+    }
+    function renderGameCards(payload) {
+      var grid = document.getElementById('gameCopyGrid');
+      var ge = payload && payload.game_economy;
+      if (!ge) return;
+      grid.innerHTML = (ge.games || []).slice(0, 4).map(function (g) {
+        return '<article class="gameCard" data-game-id="' + g.id + '"><h3>' + g.name + '</h3>' +
+          '<p class="meta card-meta">' + (g.copy && g.copy.card_meta) + '</p>' +
+          '<p class="meta pregame">' + (g.copy && g.copy.pregame_cost) + '</p>' +
+          '<button type="button" class="play-action">' + (g.copy && g.copy.play_action) + '</button></article>';
+      }).join('');
+    }
+    var mockPayload = {
+      ok: true,
+      rows: [
+        { id: 'game_win', label: 'Game win', value: 1, dormant: false },
+        { id: 'game_play', label: 'Game play (legacy)', value: -1, dormant: true }
+      ],
+      game_economy: {
+        default_play_mode: '2',
+        games: [
+          { id: 'tower', name: 'Stack Lab', override_mode: 'global', copy: { card_meta: '1 Nugget = 2 Plays', pregame_cost: '1 Nugget = 2 Plays', play_action: 'Buy 2 Plays — 1 Nugget' } },
+          { id: 'reaction', name: 'Reaction Tap', override_mode: 'free', copy: { card_meta: 'Free Play', pregame_cost: 'Free Play', play_action: 'Play Free' } },
+          { id: 'memory', name: 'Memory Match', override_mode: '3', copy: { card_meta: '1 Nugget = 3 Plays', pregame_cost: '1 Nugget = 3 Plays', play_action: 'Buy 3 Plays — 1 Nugget' } },
+          { id: 'avatar-match', name: 'Avatar Match', override_mode: '1', copy: { card_meta: '1 Nugget = 1 Play', pregame_cost: '1 Nugget = 1 Play', play_action: 'Play for 1 Nugget' } },
+          { id: 'local-history-trivia', name: 'Local History Trivia', override_mode: 'global', pricing_surface: 'mission_primary', copy: { card_meta: '1 Nugget = 2 Plays', pregame_cost: '1 Nugget = 2 Plays', play_action: 'Buy 2 Plays — 1 Nugget' } }
+        ]
+      }
+    };
+    renderNuggetEconomyRows(mockPayload);
+    renderGameCards(mockPayload);
+    window.__HARNESS_READY__ = true;
+    window.__HARNESS_HAS_LEGACY_GAME_PLAY_ROW__ = !!document.querySelector('[data-economy-id="game_play"]');
+    window.__HARNESS_HAS_GLOBAL_DEFAULT__ = !!document.getElementById('gameEconomyDefault');
+    window.__HARNESS_GAME_ROW_COUNT__ = document.querySelectorAll('[data-game-economy-id]').length;
+  </script>
+</body>
+</html>

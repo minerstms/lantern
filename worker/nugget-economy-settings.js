@@ -43,14 +43,16 @@ export const ECONOMY_SETTING_DEFS = {
   },
   game_play: {
     key: 'economy.game_play',
-    label: 'Game play',
+    label: 'Game play (legacy)',
     group: 'games',
     kind: 'game_play',
     default: -1,
     min: -10,
     max: 0,
     sign: 'spend',
-    help: 'Ordinary paid game start. 0 = free play. Negative = spend that many Nuggets.',
+    dormant: true,
+    help:
+      'Legacy numeric debit used only when a game_play request has no canonical game_id. Modern game pricing is configured in Game Economy (Global Game Default + per-game overrides).',
   },
   game_win: {
     key: 'economy.game_win',
@@ -297,7 +299,7 @@ export function economyPublicPayload(bundle) {
       help: def.help,
       dormant: !!def.dormant,
     };
-  });
+  }).filter((row) => !row.dormant);
   return {
     ok: true,
     values: bundle.values,

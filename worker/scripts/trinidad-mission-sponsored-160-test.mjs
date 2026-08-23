@@ -92,7 +92,7 @@ if (
   playerJs.includes('formatSponsoredRewardCopy') &&
   playerJs.includes("'+' + n + ' Nugget'") &&
   playerJs.includes('setSponsoredMissionPregameCost') &&
-  playerJs.includes("cost + ' Nugget = 1 Play'")
+  (playerJs.includes('formatPregameCost') || playerJs.includes('LanternGameEconomy'))
 ) {
   ok('12/13/14/15. mission pregame FREE + icon reward; direct pregame keeps paid copy');
 } else bad('12-15 pregame');
@@ -159,7 +159,7 @@ if (
   ok('Trinidad in-game replay keeps Mission context');
 } else bad('in-game replay query');
 
-if (playerJs.includes('1 Nugget = 1 Play') || playerJs.includes("cost + ' Nugget = 1 Play'")) {
+if (playerJs.includes('formatPregameCost') && playerJs.includes('LanternGameEconomy')) {
   ok('direct pregame paid copy still in Game Player');
 } else bad('direct paid copy');
 

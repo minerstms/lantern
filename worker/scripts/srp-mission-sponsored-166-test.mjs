@@ -84,7 +84,7 @@ if (
   playerJs.includes('assets/icons/nugget.png') &&
   playerJs.includes('formatSponsoredRewardCopy') &&
   playerJs.includes("'+' + n + ' Nugget'") &&
-  playerJs.includes("cost + ' Nugget = 1 Play'")
+  (playerJs.includes('formatPregameCost') || playerJs.includes('LanternGameEconomy'))
 ) {
   ok('39. Mission pregame FREE; direct keeps paid copy');
 } else bad('39 pregame');
