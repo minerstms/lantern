@@ -181,7 +181,7 @@ async function testReadAccountBio() {
     wallets: { '20889': { balance: 5 } },
   });
   const body = await buildLockerMeResponse(studentA, { DB: db }, 'https://lantern.test');
-  if (body.profile && body.profile.bio === 'Account-level bio.') ok('student reads account bio');
+  if (body.profile && body.profile.bio == null) ok('student profile omits bio from API');
   else bad('student read account bio', body.profile);
 }
 
@@ -194,7 +194,7 @@ async function testReadLegacyFallback() {
     wallets: { '20889': { balance: 5 } },
   });
   const body = await buildLockerMeResponse(studentA, { DB: db }, 'https://lantern.test');
-  if (body.profile && body.profile.bio === 'I like science.') ok('legacy avatar bio fallback read');
+  if (body.profile && body.profile.bio == null) ok('legacy avatar bio not exposed to student');
   else bad('legacy fallback read', body.profile);
 }
 
@@ -233,11 +233,13 @@ async function testPatchOwnBioWithoutAvatarRow() {
   });
   const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
   const body = await res.json();
-  if (res.status === 200 && body.ok && body.profile.bio === 'My real bio.') ok('student saves bio without avatar profile row');
-  else bad('student patch bio without avatar row', body);
-  if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio === 'My real bio.') {
-    ok('bio persisted on pilot account row');
-  } else bad('bio persisted on account', state.pilotAccounts);
+  if (res.status === 403 && body.error === 'student_bio_not_allowed') ok('student bio PATCH rejected');
+  else bad('student patch bio', { status: res.status, body });
+  if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio == null) {
+    ok('bio not persisted for student');
+  } else if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio === 'My real bio.') {
+    bad('student bio was written despite rejection', state.pilotAccounts);
+  } else ok('bio persisted on pilot account row unchanged');
   if (!state.avatarProfiles['20889']) ok('save did not create avatar profile row');
   else bad('avatar row created', state.avatarProfiles);
 }
@@ -297,26 +299,26 @@ async function testMustChangePassword() {
 }
 
 async function testRejectBodyIdentity() {
-  const db = makeDb({ wallets: { '20889': { balance: 0 } }, pilotAccounts: { '20889': { username: '20889' } } });
+  const db = makeDb({ wallets: { teacher1: { balance: 0 } }, pilotAccounts: { teacher1: { username: 'teacher1' } } });
   const req = new Request('https://lantern.test/api/locker/me/bio', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bio: 'hack', username: '99999' }),
   });
-  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
+  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(teacherA));
   const body = await res.json();
   if (res.status === 400 && body.error === 'identity_params_not_allowed') ok('client username rejected in body');
   else bad('body username rejected', body);
 }
 
 async function testRejectQueryIdentity() {
-  const db = makeDb({ wallets: { '20889': { balance: 0 } }, pilotAccounts: { '20889': { username: '20889' } } });
+  const db = makeDb({ wallets: { teacher1: { balance: 0 } }, pilotAccounts: { teacher1: { username: 'teacher1' } } });
   const req = new Request('https://lantern.test/api/locker/me/bio?character_name=99999', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bio: 'hack' }),
   });
-  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
+  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(teacherA));
   const body = await res.json();
   if (res.status === 400 && body.error === 'identity_params_not_allowed') ok('query character_name rejected');
   else bad('query identity rejected', body);
@@ -338,7 +340,7 @@ async function testSessionIsolation() {
     body: JSON.stringify({ bio: 'Student A bio' }),
   });
   await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
-  if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio === 'Student A bio') ok('session writes own account row only');
+  if (state.pilotAccounts['20889'] && state.pilotAccounts['20889'].bio == null) ok('student session cannot write bio');
   else bad('session isolation write', state.pilotAccounts);
   if (state.pilotAccounts['99999'].bio === 'Other bio') ok('other account bio untouched');
   else bad('other account untouched', state.pilotAccounts);
@@ -346,9 +348,9 @@ async function testSessionIsolation() {
 
 async function testClearBio() {
   const state = {
-    pilotAccounts: { '20889': { username: '20889', bio: 'Old bio' } },
+    pilotAccounts: { teacher1: { username: 'teacher1', bio: 'Old bio' } },
     avatarProfiles: {},
-    wallets: { '20889': { balance: 0 } },
+    wallets: { teacher1: { balance: 0 } },
   };
   const db = makeDb(state);
   const req = new Request('https://lantern.test/api/locker/me/bio', {
@@ -356,7 +358,7 @@ async function testClearBio() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bio: '   ' }),
   });
-  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(studentA));
+  const res = await handleLockerRoutes(req, new URL(req.url), '/api/locker/me/bio', { DB: db }, {}, depsFor(teacherA));
   const body = await res.json();
   if (body.ok && body.profile.bio === null) ok('empty value clears bio');
   else bad('clear bio response', body);
@@ -380,11 +382,11 @@ else bad('resolveProfileBio in handlers');
 // UI static checks
 const shellJs = fs.readFileSync(path.join(root, 'app/js/lantern-locker-shell.js'), 'utf8');
 const exploreHtml = fs.readFileSync(path.join(root, 'app/explore.html'), 'utf8');
-if (shellJs.includes('Add a short bio.') && shellJs.includes('openAboutBioEditor') && shellJs.includes('textContent')) {
-  ok('UI empty/add bio + textContent display (via Locker Options → Edit About)');
-} else bad('UI shell bio');
-if (shellJs.includes('callUpdateBio') && shellJs.includes('getFeedController')) ok('bio save avoids feed rerender path');
-else bad('UI no feed rerender');
+if (shellJs.includes('My Lantern Stats') && shellJs.includes('Creations Shared')) {
+  ok('UI My Lantern Stats block');
+} else bad('UI shell stats');
+if (!shellJs.includes('lockerHeaderAbout') && shellJs.includes('lanternStatsBlockHtml')) ok('About section replaced by stats');
+else bad('UI shell layout');
 if (!exploreHtml.includes('lockerHeaderBio')) ok('Explore does not display personal bio');
 else bad('Explore bio leak');
 

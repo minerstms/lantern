@@ -21,6 +21,7 @@ import {
   normalizeLockerItemRef,
 } from './locker-item-state.js';
 import { resolveLockerPublicKey } from './locker-public-key.js';
+import { fetchLockerLanternStats } from './locker-stats.js';
 
 function trimStr(v) {
   return v == null ? '' : String(v).trim();
@@ -95,12 +96,13 @@ export async function buildLockerShowcase(db, origin, publicKey, viewerAccount, 
     if (identityKeys.has(k)) viewerIsOwner = true;
   });
 
-  const [feed, stateRows, archivedRows, cosmeticRow, avatarUrl] = await Promise.all([
+  const [feed, stateRows, archivedRows, cosmeticRow, avatarUrl, lanternStats] = await Promise.all([
     collectApprovedFeed(db, origin, { limit: 300 }),
     listLockerItemStatesForOwner(db, economyKey),
     listArchivedLockerRefs(db, [economyKey, ...Array.from(identityKeys)]),
     fetchCosmeticOwnershipRow(db, economyKey),
     approvedAvatarUrl(db, origin, account, durable),
+    fetchLockerLanternStats(db, account, economyKey),
   ]);
 
   const archived = archivedRefSet(archivedRows);
@@ -148,6 +150,11 @@ export async function buildLockerShowcase(db, origin, publicKey, viewerAccount, 
     },
     profile: {
       avatar: avatarUrl,
+    },
+    lantern_stats: {
+      creations_shared: lanternStats.creations_shared,
+      games_played: lanternStats.games_played,
+      reactions_given: lanternStats.reactions_given,
     },
     equipped: equipped,
     featured: visible.filter((it) => it.featured),

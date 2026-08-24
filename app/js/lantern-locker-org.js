@@ -326,12 +326,28 @@
     if (!host) return;
     var name = (showcase.identity && showcase.identity.display_name) || 'Student';
     var avatar = (showcase.profile && showcase.profile.avatar) || '';
+    var stats = showcase.lantern_stats || {};
+    function statVal(key) {
+      return String(stats[key] != null ? stats[key] : 0);
+    }
     var fb =
       global.LanternAvatar && global.LanternAvatar.canonicalFallbackAvatarUrl
         ? global.LanternAvatar.canonicalFallbackAvatarUrl()
         : '/assets/fallback-avatar.png';
     host.innerHTML =
       '<div class="lockerHeaderGrid lockerHeaderGrid--peer">' +
+      '<section class="lockerHeaderStats" aria-label="Lantern stats">' +
+      '<h2 class="lockerHeaderTitle">Lantern Stats</h2>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">✨ Creations Shared</span><span class="lockerHeaderMetricValue">' +
+      esc(statVal('creations_shared')) +
+      '</span></div>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">🎮 Games Played</span><span class="lockerHeaderMetricValue">' +
+      esc(statVal('games_played')) +
+      '</span></div>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">🤝 Reactions Given</span><span class="lockerHeaderMetricValue">' +
+      esc(statVal('reactions_given')) +
+      '</span></div>' +
+      '</section>' +
       '<section class="lockerHeaderIdentity" aria-label="Profile">' +
       '<div class="lockerHeaderAvatarWrap">' +
       '<img class="lockerHeaderAvatar" src="' +

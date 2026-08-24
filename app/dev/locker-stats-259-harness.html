@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#259 Locker stats harness</title>
+  <link rel="stylesheet" href="../css/lantern-surface-theme.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; background: #0f1520; color: #eaf0ff; }
+    #lockerProfileHeader { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div id="lockerProfileHeader"></div>
+  <script src="../js/lantern-locker-shell.js"></script>
+  <script>
+    window.__HARNESS_LOCKER__ = {
+      ok: true,
+      account: { username: '20889', display_name: 'Alex', role: 'student' },
+      profile: { avatar: '/assets/fallback-avatar.png' },
+      progress: { missions_completed: 4 },
+      lantern_stats: {
+        available: true,
+        creations_shared: 7,
+        games_played: 23,
+        reactions_given: 54,
+      },
+    };
+    if (window.LANTERN_LOCKER_SHELL && window.LANTERN_LOCKER_SHELL.renderProfileHeader) {
+      window.LANTERN_LOCKER_SHELL.renderProfileHeader(window.__HARNESS_LOCKER__);
+    }
+    window.__HARNESS_READY__ = true;
+    window.__HARNESS_HAS_STATS__ = !!document.querySelector('.lockerHeaderStats');
+    window.__HARNESS_HAS_BIO__ = !!document.querySelector('.lockerHeaderBio');
+    window.__HARNESS_OVERFLOW__ = document.documentElement.scrollWidth > window.innerWidth + 2;
+    window.__HARNESS_TEXT__ = document.body.innerText || '';
+  </script>
+</body>
+</html>

@@ -202,6 +202,23 @@
   margin-left: auto;
 }
 
+.lockerHeaderStatsHd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.lockerHeaderStatsHd .lockerHeaderTitle {
+  margin-bottom: 0;
+}
+
+.lockerHeaderStatsHd .lockerOptions {
+  margin-left: auto;
+}
+
 .lockerHeaderBioEditBtn {
   position: absolute;
   width: 1px;
