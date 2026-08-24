@@ -2318,6 +2318,14 @@
             <p class="teacherFieldHint">Suggested reward updates when you change the minimum (unless you override). Legal range 1–10 Nuggets. Changes apply to future submissions only.</p>
             <button type="button" class="btn" id="missionUseSuggestedReward" type="button">Use suggested reward</button>
           </div>
+          <div style="margin-top:12px;">
+            <label>Reward mode</label>
+            <div class="lanternRewardModeSeg" role="radiogroup" aria-label="Reward mode" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+              <label class="btn good" style="cursor:pointer;"><input type="radio" name="missionRewardModeCreate" id="missionRewardModeOnce" value="once" checked style="position:absolute;opacity:0;width:0;height:0;" /> Once</label>
+              <label class="btn" style="cursor:pointer;"><input type="radio" name="missionRewardModeCreate" id="missionRewardModeEvery" value="every_completion" style="position:absolute;opacity:0;width:0;height:0;" /> Every completion</label>
+            </div>
+            <p class="teacherFieldHint" id="missionRewardModeHint">Earn this Mission's Nugget reward once.</p>
+          </div>
           <label class="teacherCheckboxField">
             <input type="checkbox" id="missionAllowsVideo" />
             <span class="teacherCheckboxLabel">Video upload</span>
@@ -3338,6 +3346,27 @@
     if (missionRewardAmountEl) {
       missionRewardAmountEl.addEventListener('input', function(){ missionRewardAmountEl.dataset.rewardDirty = '1'; });
     }
+    function refreshMissionRewardModeHint(){
+      var hint = el('missionRewardModeHint');
+      var every = el('missionRewardModeEvery');
+      if (!hint) return;
+      hint.textContent = every && every.checked
+        ? 'Earn this Mission\'s Nugget reward after every valid completion. Practice is unlimited.'
+        : 'Earn this Mission\'s Nugget reward once.';
+    }
+    ['missionRewardModeOnce', 'missionRewardModeEvery'].forEach(function(id){
+      var radio = el(id);
+      if (!radio) return;
+      radio.addEventListener('change', function(){
+        var seg = radio.closest('.lanternRewardModeSeg');
+        if (seg) {
+          seg.querySelectorAll('label.btn').forEach(function(lbl){ lbl.classList.remove('good'); });
+          var lbl = radio.closest('label');
+          if (lbl) lbl.classList.add('good');
+        }
+        refreshMissionRewardModeHint();
+      });
+    });
     if (window.LanternCharacterExample && el('missionMinCharsExampleMount')) {
       window.LanternCharacterExample.wireExampleLink(el('missionMinCharsExampleMount'), function(){
         return el('missionMinChars') ? el('missionMinChars').value : 100;
@@ -5277,6 +5306,22 @@
     function missionRequireImageOn(m){
       return !!(m && (m.require_image || Number(m.allows_image) >= 2));
     }
+    function missionRewardModeValue(m){
+      var mode = m && m.reward_mode;
+      return String(mode || 'once').trim().toLowerCase() === 'every_completion' ? 'every_completion' : 'once';
+    }
+    function missionRewardModeControlsHtml(m){
+      var mode = missionRewardModeValue(m);
+      return (
+        '<div style="margin-top:12px;"><label>Reward mode</label>' +
+          '<div class="lanternRewardModeSeg" role="radiogroup" aria-label="Reward mode" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">' +
+            '<label class="btn' + (mode === 'once' ? ' good' : '') + '" style="cursor:pointer;"><input type="radio" name="reward_mode_edit_' + esc(m.id || '') + '" data-edit="reward_mode" value="once"' + (mode === 'once' ? ' checked' : '') + ' style="position:absolute;opacity:0;width:0;height:0;" /> Once</label>' +
+            '<label class="btn' + (mode === 'every_completion' ? ' good' : '') + '" style="cursor:pointer;"><input type="radio" name="reward_mode_edit_' + esc(m.id || '') + '" data-edit="reward_mode" value="every_completion"' + (mode === 'every_completion' ? ' checked' : '') + ' style="position:absolute;opacity:0;width:0;height:0;" /> Every completion</label>' +
+          '</div>' +
+          '<p class="teacherFieldHint">' + (mode === 'every_completion' ? 'Earn after every valid completion. Practice is unlimited.' : 'Earn once per student.') + '</p>' +
+        '</div>'
+      );
+    }
     function missionEditRequirementControlsHtml(m){
       return (
         '<div class="teacherField" data-edit-requirements="1"><div class="missionRequirementsLabel" style="font-weight:900;font-size:20px;margin-bottom:8px;">Submission requirements</div>' +
@@ -5284,7 +5329,8 @@
           '<p class="teacherFieldHint">ON = students must attach an image. OFF = image is not required (uploads stay available).</p>' +
           '<div style="margin-bottom:12px;max-width:220px;"><label>Minimum text characters</label><input type="number" class="teacherInput teacherInput--sm" data-edit="min_characters" min="1" max="10000" value="' + missionMinCharactersValue(m) + '" /></div>' +
           '<div style="margin-bottom:12px;max-width:220px;"><label>Nugget Reward</label><input type="number" class="teacherInput teacherInput--sm" data-edit="reward_amount" min="1" max="10" value="' + missionRewardAmountValue(m) + '" /></div>' +
-          '<p class="teacherFieldHint">0 = no minimum / no Nugget. Changes apply to future submissions only. Already-issued rewards are not rewritten.</p>' +
+          missionRewardModeControlsHtml(m) +
+          '<p class="teacherFieldHint">Changes apply to future submissions only. Already-issued rewards are not rewritten.</p>' +
         '</div>'
       );
     }
@@ -5382,6 +5428,8 @@
           var rewardEditRaw = parseInt(rewardEl.value, 10);
           updates.reward_amount = Number.isFinite(rewardEditRaw) ? rewardEditRaw : undefined;
         }
+        var modeEl = wrap.querySelector('[data-edit="reward_mode"]:checked');
+        if (modeEl) updates.reward_mode = modeEl.value;
         if (!hasSubmissions) {
           updates.allows_text = !!wrap.querySelector('[data-edit="allows_text"]').checked;
           updates.allows_video = !!wrap.querySelector('[data-edit="allows_video"]').checked;
@@ -6232,7 +6280,7 @@
         var rewardRaw = parseInt(el('missionRewardAmount') && el('missionRewardAmount').value, 10);
         var rewardAmount = Number.isFinite(rewardRaw) ? rewardRaw : undefined;
         // Prompt #10/#78 — site_eligible archived; audience/participant_scope normalized server-side to school-wide/everyone.
-        var opts = { title: title, description: desc, reward_amount: rewardAmount, submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
+        var opts = { title: title, description: desc, reward_amount: rewardAmount, reward_mode: (el('missionRewardModeEvery') && el('missionRewardModeEvery').checked) ? 'every_completion' : 'once', submission_type: type, created_by_teacher_id: approvalStaffId, created_by_teacher_name: 'Teacher', audience: 'school_mission', participant_scope: 'everyone', featured: featured, allows_text: allowsText, allows_image: allowsImage, require_image: requireImage, allows_video: allowsVideo, allows_link: allowsLink, min_characters: minChars };
         var cardKeyCreate = (el('missionCardImageKey') && el('missionCardImageKey').value || '').trim();
         if (cardKeyCreate) opts.card_image_r2_key = cardKeyCreate;
         var res = await callCreateTeacherMission(opts);

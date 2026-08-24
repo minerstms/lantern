@@ -1391,6 +1391,18 @@
       if (!(n > 0)) return fallback || 'Completed.';
       return 'You earned +' + n + ' Nugget' + (n === 1 ? '' : 's') + '.';
     }
+    function missionEveryCompletion(m){
+      if (window.LanternMissionCopy && typeof window.LanternMissionCopy.isEveryCompletionMode === 'function') {
+        return window.LanternMissionCopy.isEveryCompletionMode(m);
+      }
+      var mode = m && m.reward_mode;
+      return String(mode || '').trim().toLowerCase() === 'every_completion';
+    }
+    function repeatableCompletedDesc(m, st){
+      if (missionEveryCompletion(m)) return 'Completed before · Practice again';
+      if (st === 'accepted') return 'Completed before · Redo available · Reward already earned';
+      return 'Not accepted · Redo available';
+    }
 
     function buildUnifiedMissionItems(missions, teacherMissions, submissions, progress){
       missions = missions || {};
@@ -1578,26 +1590,30 @@
               : mid === WAVE2_MISSION.sevenHabits
                 ? sevenHabitsDone
                 : localHistoryTriviaDone) || st === 'accepted';
+          var triviaEvery = missionEveryCompletion(m);
           var triviaTitle = (triviaDef && triviaDef.title) || m.title || 'Trivia Challenge';
           var triviaRew = savedMissionReward(m);
           var triviaDesc = triviaDone
-            ? (triviaRew > 0 ? ('Completed\n+' + triviaRew + ' Nugget' + (triviaRew === 1 ? '' : 's') + ' earned') : 'Completed')
+            ? (triviaEvery
+              ? 'Completed before · Practice again'
+              : (triviaRew > 0 ? ('Completed\n+' + triviaRew + ' Nugget' + (triviaRew === 1 ? '' : 's') + ' earned') : 'Completed'))
             : ((m.description || '').trim() || (triviaDef && triviaDef.description) || 'Get 10 questions correct in one game session.');
           var triviaUrl = (window.LANTERN_EDU_TRIVIA && typeof window.LANTERN_EDU_TRIVIA.launchUrl === 'function')
-            ? window.LANTERN_EDU_TRIVIA.launchUrl(mid, { replay: triviaDone })
-            : ('games.html?game=' + encodeURIComponent((triviaDef && triviaDef.game_id) || '') + (triviaDone ? '' : ('&mission=' + encodeURIComponent(mid))));
+            ? window.LANTERN_EDU_TRIVIA.launchUrl(mid, { replay: triviaDone || triviaEvery })
+            : ('games.html?game=' + encodeURIComponent((triviaDef && triviaDef.game_id) || '') + ((triviaDone && !triviaEvery) ? '' : ('&mission=' + encodeURIComponent(mid))));
           items.push({
             id: m.id,
             kind: 'teacher',
             typeFilter: 'quick',
             typeBadge: '',
-            stateBadge: triviaDone ? 'COMPLETED' : '',
+            stateBadge: (triviaDone && !triviaEvery) ? 'COMPLETED' : '',
             icon: (triviaDef && triviaDef.game_id === 'local-history-trivia') ? '🏛️' : ((triviaDef && triviaDef.game_id === 'srp-safety-trivia') ? '🛡️' : ((triviaDef && triviaDef.game_id === 'seven-habits-trivia') ? '🌱' : '📖')),
             title: triviaTitle,
             description: triviaDesc,
             reward: savedMissionReward(m),
-            status: triviaDone ? 'completed' : 'available',
-            statusLabel: triviaDone ? 'Play Again' : 'Play Trivia',
+            reward_mode: m.reward_mode,
+            status: (triviaDone && !triviaEvery) ? 'completed' : 'available',
+            statusLabel: triviaDone ? (triviaEvery ? 'Practice again' : 'Play Again') : 'Play Trivia',
             audience: m.audience || '',
             featured: !!m.featured,
             created_at: m.created_at || '',
@@ -1732,9 +1748,9 @@
         }
 
         if (st === 'accepted' || photoDone || pollDone || shoutDone) {
-          status = 'completed';
-          statusLabel = 'Redo Mission';
-          stateBadge = 'COMPLETED';
+          status = missionEveryCompletion(m) ? 'available' : 'completed';
+          statusLabel = missionEveryCompletion(m) ? 'Practice again' : 'Redo Mission';
+          stateBadge = missionEveryCompletion(m) ? '' : 'COMPLETED';
         } else if (st === 'rejected') {
           status = 'completed';
           statusLabel = 'Redo Mission';
@@ -1760,7 +1776,9 @@
         var mmForCard = (sub && typeof window !== 'undefined' && window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia) ? window.LanternMedia.normalizeMissionItemForMedia(sub) : {};
         var completedDesc = (m.description || '').trim();
         if (status === 'completed' && st === 'accepted') {
-          completedDesc = 'Completed before · Redo available · Reward already earned';
+          completedDesc = repeatableCompletedDesc(m, st);
+        } else if (status === 'available' && st === 'accepted' && missionEveryCompletion(m)) {
+          completedDesc = repeatableCompletedDesc(m, st);
         } else if (status === 'completed' && st === 'rejected') {
           completedDesc = 'Not accepted · Redo available';
         }
@@ -1772,8 +1790,9 @@
           stateBadge: stateBadge,
           icon: '🧠',
           title: m.title || 'Mission',
-          description: status === 'completed' ? completedDesc : (m.description || '').trim(),
+          description: (status === 'completed' || (status === 'available' && st === 'accepted' && missionEveryCompletion(m))) ? completedDesc : (m.description || '').trim(),
           reward: savedMissionReward(m),
+          reward_mode: m.reward_mode,
           status: status,
           statusLabel: statusLabel,
           audience: m.audience || '',

@@ -80,6 +80,7 @@
         min_characters: item.min_characters,
         require_image: item.require_image,
         reward_amount: item.reward,
+        reward_mode: item.reward_mode || (item.raw && item.raw.reward_mode),
       });
     }
     return { primary: reqCopy, reward: rewardMeta(item.reward, item) };

@@ -12,6 +12,7 @@ import {
   SEVEN_HABITS_NAMES,
 } from './educational-trivia-banks.js';
 import { completeMissionByEvent } from './mission-event-completions.js';
+import { isEveryCompletionMode, resolveMissionRewardMode } from './mission-reward-mode.js';
 import { sanitizeRunId } from './lantern-game-catalog.js';
 
 export const GAME_CORRECT_TARGET_TYPE = 'game_correct_target';
@@ -160,6 +161,16 @@ export function eventKeyEducationalTrivia(missionId, characterName) {
   const def = resolveEducationalTriviaMission(missionId);
   if (!def) return '';
   return `${def.trigger_type}:${String(characterName || '').trim()}`;
+}
+
+/** Per-run event key for every-completion reward mode (distinct legitimate runs pay once each). */
+export function eventKeyEducationalTriviaRun(missionId, characterName, runId) {
+  const def = resolveEducationalTriviaMission(missionId);
+  if (!def) return '';
+  const run = sanitizeRunId(runId);
+  const key = String(characterName || '').trim();
+  if (run) return `${def.trigger_type}:${key}:${run}`;
+  return `${def.trigger_type}:${key}`;
 }
 
 export function triviaRunSubmissionId(runId) {
@@ -402,6 +413,9 @@ export async function startEducationalTriviaRun(db, env, opts) {
 
   await ensureEducationalTriviaMissions(db);
 
+  const rewardMode = await resolveMissionRewardMode(db, def.id);
+  const everyMode = isEveryCompletionMode(rewardMode);
+
   const eventKey = eventKeyEducationalTrivia(def.id, characterName);
   const existingComplete = await db
     .prepare(
@@ -409,7 +423,7 @@ export async function startEducationalTriviaRun(db, env, opts) {
     )
     .bind(def.id, characterName)
     .first();
-  if (existingComplete && !def.allow_practice_after_complete) {
+  if (existingComplete && !def.allow_practice_after_complete && !everyMode) {
     return {
       ok: true,
       already_completed: true,
@@ -580,13 +594,19 @@ export async function answerEducationalTriviaRun(db, env, opts) {
 
   let rewardResult = null;
   if (completed) {
+    const rewardMode = await resolveMissionRewardMode(db, def.id);
+    const everyMode = isEveryCompletionMode(rewardMode);
+    const completionEventKey = everyMode
+      ? eventKeyEducationalTriviaRun(def.id, characterName, runId)
+      : eventKeyEducationalTrivia(def.id, characterName);
     rewardResult = await completeMissionByEvent(db, env, {
       missionId: def.id,
       characterName,
       triggerType: def.trigger_type,
-      eventKey: eventKeyEducationalTrivia(def.id, characterName),
+      eventKey: completionEventKey,
       sourceRef: runId,
       cadence: 'once',
+      rewardMode,
       note: def.title,
       content: JSON.stringify({
         type: GAME_CORRECT_TARGET_TYPE,

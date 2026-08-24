@@ -46,14 +46,23 @@ export function validateOrdinaryMissionMinCharacters(minCharacters, missionKindO
   return { ok: true, value: n };
 }
 
-export function formatMissionStudentPreview(minCharacters, rewardAmount, requireImage) {
+export function formatMissionStudentPreview(minCharacters, rewardAmount, requireImage, rewardMode) {
   const parts = [];
   if (requireImage) parts.push('📷 Image required');
   const min = Math.max(0, Math.floor(Number(minCharacters)) || 0);
   if (min > 0) parts.push(min + '+ characters');
   const reward = clampMissionRewardAmount(rewardAmount);
   if (reward > 0) {
-    parts.push('+' + reward + (reward === 1 ? ' Nugget' : ' Nuggets'));
+    const mode = String(rewardMode || 'once')
+      .trim()
+      .toLowerCase();
+    const every = mode === 'every_completion' || mode === 'every';
+    if (every) {
+      parts.push('+' + reward + (reward === 1 ? ' Nugget' : ' Nuggets') + ' every completion');
+    } else {
+      parts.push('+' + reward + (reward === 1 ? ' Nugget' : ' Nuggets'));
+      parts.push('Earn once');
+    }
   }
   return parts.join(' · ');
 }

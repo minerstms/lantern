@@ -1,6 +1,7 @@
 import { tmsEconomyTransact, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { isStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
 import { clampMissionRewardAmount } from './mission-reward-bands.js';
+import { isEveryCompletionMode, resolveMissionRewardMode } from './mission-reward-mode.js';
 
 /**
  * Server-authoritative mission approval rewards — exactly-once (Prompt #66).
@@ -216,8 +217,11 @@ export async function approveMissionWithReward(db, opts) {
   const missionId = String(row.mission_id || '').trim();
   let rewardSkipped = !!skipReward;
   if (!rewardSkipped && missionId && characterKey) {
-    const prior = await findPriorAcceptedMissionSubmission(db, missionId, characterKey, id);
-    if (prior) rewardSkipped = true;
+    const rewardMode = await resolveMissionRewardMode(db, missionId);
+    if (!isEveryCompletionMode(rewardMode)) {
+      const prior = await findPriorAcceptedMissionSubmission(db, missionId, characterKey, id);
+      if (prior) rewardSkipped = true;
+    }
   }
 
   const status = String(row.status || '').trim();

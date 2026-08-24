@@ -41,6 +41,11 @@ import {
   formatMissionStudentPreview,
   validateOrdinaryMissionMinCharacters,
 } from './mission-reward-bands.js';
+import {
+  attachRewardModesToMissions,
+  getMissionRewardMode,
+  setMissionRewardMode,
+} from './mission-reward-mode.js';
 import { classifyMissionEvidenceKind } from './global-mission-eligibility.js';
 import { registryForMissionId } from './activity-admin.js';
 import {
@@ -136,7 +141,8 @@ function missionRowToJson(r, origin) {
     student_preview: formatMissionStudentPreview(
       r.min_characters,
       r.reward_amount,
-      missionRequiresImage(r)
+      missionRequiresImage(r),
+      'once'
     ),
     // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
     card_image_r2_key: cardKey || null,
@@ -481,6 +487,16 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     list = overlayEducationalTriviaMissions(list);
     list = overlayFightSongMission(list);
     list = list.filter((m) => missionInCatalogForParticipant(m, identity));
+    await attachRewardModesToMissions(db, list);
+    for (const m of list) {
+      if (!m) continue;
+      m.student_preview = formatMissionStudentPreview(
+        m.min_characters,
+        m.reward_amount,
+        m.require_image,
+        m.reward_mode
+      );
+    }
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -749,6 +765,16 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       (countRows.results || []).forEach((c) => { countsByMission[c.mission_id] = Number(c.n) || 0; });
     }
     const list = (rows.results || []).map((r) => missionRowToJson({ ...r, submission_count: countsByMission[r.id] || 0 }, origin));
+    await attachRewardModesToMissions(db, list);
+    for (const m of list) {
+      if (!m) continue;
+      m.student_preview = formatMissionStudentPreview(
+        m.min_characters,
+        m.reward_amount,
+        m.require_image,
+        m.reward_mode
+      );
+    }
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -875,11 +901,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         )
         .run();
     }
+    await setMissionRewardMode(db, id, body.reward_mode || 'once', teacherName);
+    const rewardMode = await getMissionRewardMode(db, id);
     const mission = {
       id,
       title,
       description,
       reward_amount: rewardAmount,
+      reward_mode: rewardMode,
       submission_type: submissionType,
       created_by_teacher_id: teacherId,
       created_by_teacher_name: teacherName,
@@ -899,6 +928,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       card_image_r2_key: cardImageKey,
       card_image_url: cardImageKey ? missionCardImageUrl(origin, cardImageKey) : null,
       created_at: now,
+      student_preview: formatMissionStudentPreview(minChars, rewardAmount, requiresImage, rewardMode),
     };
     return jsonResponse({ ok: true, id, mission }, 200, cors);
   }
@@ -1035,9 +1065,20 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         bindings.push(k);
       }
     }
+    if (body.reward_mode !== undefined) {
+      const saved = await setMissionRewardMode(db, id, body.reward_mode, reviewerLabelFromAccount(auth.account));
+      if (!saved.ok) return jsonResponse(saved, 400, cors);
+    }
     if (updates.length === 0) {
       const m = await loadFullMission(db, id);
-      return jsonResponse({ ok: true, mission: m ? missionRowToJson(m, origin) : null }, 200, cors);
+      if (m) {
+        const mode = await getMissionRewardMode(db, id);
+        const json = missionRowToJson(m, origin);
+        json.reward_mode = mode;
+        json.student_preview = formatMissionStudentPreview(m.min_characters, m.reward_amount, missionRequiresImage(m), mode);
+        return jsonResponse({ ok: true, mission: json }, 200, cors);
+      }
+      return jsonResponse({ ok: true, mission: null }, 200, cors);
     }
     bindings.push(id);
     try {
@@ -1049,7 +1090,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       throw e;
     }
     const m = await loadFullMission(db, id);
-    return jsonResponse({ ok: true, mission: m ? missionRowToJson(m, origin) : null }, 200, cors);
+    if (m) {
+      const mode = await getMissionRewardMode(db, id);
+      const json = missionRowToJson(m, origin);
+      json.reward_mode = mode;
+      json.student_preview = formatMissionStudentPreview(m.min_characters, m.reward_amount, missionRequiresImage(m), mode);
+      return jsonResponse({ ok: true, mission: json }, 200, cors);
+    }
+    return jsonResponse({ ok: true, mission: null }, 200, cors);
   }
 
   if (request.method === 'DELETE' && missionIdMatch) {

@@ -4373,7 +4373,15 @@
         html += '<label style="display:block;margin-top:8px;"><input type="checkbox" data-field="require_image"' + (it.require_image ? ' checked' : '') + ' /> Require Image</label>';
         html += '<div style="margin-top:8px;"><label>Suggested reward</label><span class="pendingMeta" data-suggested-reward>' + (it.suggested_reward || 1) + ' Nugget</span></div>';
         html += '<div style="margin-top:8px;max-width:160px;"><label>Completion reward</label><input type="number" class="teacherInput teacherInput--sm" data-field="reward_amount" min="1" max="10" value="' + (it.reward_amount || 1) + '" /></div>';
+        var rm = (it.reward_mode === 'every_completion') ? 'every_completion' : 'once';
+        html += '<div style="margin-top:10px;"><label>Reward mode</label>';
+        html += '<div class="lanternRewardModeSeg" role="radiogroup" aria-label="Reward mode" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">';
+        html += '<label class="btn' + (rm === 'once' ? ' good' : '') + '" style="cursor:pointer;"><input type="radio" name="reward_mode_' + it.id + '" data-field="reward_mode" value="once"' + (rm === 'once' ? ' checked' : '') + ' style="position:absolute;opacity:0;width:0;height:0;" /> Once</label>';
+        html += '<label class="btn' + (rm === 'every_completion' ? ' good' : '') + '" style="cursor:pointer;"><input type="radio" name="reward_mode_' + it.id + '" data-field="reward_mode" value="every_completion"' + (rm === 'every_completion' ? ' checked' : '') + ' style="position:absolute;opacity:0;width:0;height:0;" /> Every completion</label>';
+        html += '</div>';
+        html += '<p class="teacherFieldHint" data-reward-mode-hint="' + it.id + '">' + (rm === 'every_completion' ? 'Earn this Mission\'s Nugget reward after every valid completion. Practice is unlimited. Each valid completion earns the reward.' : 'Earn this Mission\'s Nugget reward once.') + '</p></div>';
         html += '<p class="pendingMeta" data-student-preview>' + (it.student_preview || '') + '</p>';
+        html += '<p class="pendingMeta" data-economy-preview>' + (it.admin_economy_preview || '') + '</p>';
         html += '<button type="button" class="btn good" data-save-mission="' + it.id + '" style="margin-top:8px;">Save Mission</button></div>';
       });
       host.innerHTML = html || '<p class="pendingMeta">No activities match this filter.</p>';
@@ -4388,6 +4396,24 @@
       host.querySelectorAll('[data-field="min_characters"]').forEach(function (input) {
         input.addEventListener('input', function () {
           updateActivitySuggested(input.closest('[data-activity-mission]'));
+        });
+      });
+      host.querySelectorAll('[data-field="reward_mode"]').forEach(function (radio) {
+        radio.addEventListener('change', function () {
+          var wrap = radio.closest('[data-activity-mission]');
+          if (!wrap) return;
+          wrap.querySelectorAll('.lanternRewardModeSeg label.btn').forEach(function (lbl) {
+            lbl.classList.remove('good');
+          });
+          var lbl = radio.closest('label');
+          if (lbl) lbl.classList.add('good');
+          var hint = wrap.querySelector('[data-reward-mode-hint]');
+          if (hint) {
+            hint.textContent = radio.value === 'every_completion'
+              ? 'Earn this Mission\'s Nugget reward after every valid completion. Practice is unlimited. Each valid completion earns the reward.'
+              : 'Earn this Mission\'s Nugget reward once.';
+          }
+          updateActivitySuggested(wrap);
         });
       });
       host.querySelectorAll('[data-save-mission]').forEach(function (btn) {
@@ -4411,17 +4437,27 @@
       var input = wrap.querySelector('[data-field="min_characters"]');
       var suggested = wrap.querySelector('[data-suggested-reward]');
       var preview = wrap.querySelector('[data-student-preview]');
+      var economyPreview = wrap.querySelector('[data-economy-preview]');
       var min = input ? Number(input.value) : 100;
       var sug = window.LanternMissionCopy.suggestedMissionReward(min);
       if (suggested) suggested.textContent = sug + (sug === 1 ? ' Nugget' : ' Nuggets');
       var rewardInput = wrap.querySelector('[data-field="reward_amount"]');
       var reqImg = wrap.querySelector('[data-field="require_image"]');
+      var modeRadio = wrap.querySelector('[data-field="reward_mode"]:checked');
+      var mode = modeRadio ? modeRadio.value : 'once';
       if (preview) {
         preview.textContent = window.LanternMissionCopy.formatMissionStudentCopy({
           min_characters: min,
           reward_amount: rewardInput ? rewardInput.value : sug,
           require_image: reqImg && reqImg.checked,
+          reward_mode: mode,
         });
+      }
+      if (economyPreview) {
+        economyPreview.textContent = window.LanternMissionCopy.formatAdminEconomyPreview(
+          rewardInput ? rewardInput.value : sug,
+          mode
+        );
       }
     }
 
@@ -4435,6 +4471,8 @@
       };
       var minInput = wrap.querySelector('[data-field="min_characters"]');
       if (minInput) body.min_characters = Number(minInput.value);
+      var modeRadio = wrap.querySelector('[data-field="reward_mode"]:checked');
+      if (modeRadio) body.reward_mode = modeRadio.value;
       patchAdminJson('/api/admin/activities/mission/' + encodeURIComponent(id), body).then(function (res) {
         if (res && res.body && res.body.ok) {
           showLanternActivitiesMsg('Saved ' + id + '.', '');

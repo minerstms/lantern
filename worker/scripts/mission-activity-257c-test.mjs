@@ -48,9 +48,9 @@ if (clampMissionRewardAmount(10) === 10 && clampMissionRewardAmount(11) === 10 &
   ok('clamp 1–10; legacy 0 preserved when stored');
 } else bad('clamp range');
 
-if (formatMissionStudentPreview(100, 3, false) === '100+ characters · +3 Nuggets') ok('student preview 100/+3');
+if (formatMissionStudentPreview(100, 3, false) === '100+ characters · +3 Nuggets · Earn once') ok('student preview 100/+3');
 else bad('preview 100/+3', formatMissionStudentPreview(100, 3, false));
-if (formatMissionStudentPreview(1000, 10, false) === '1000+ characters · +10 Nuggets') ok('student preview 1000/+10');
+if (formatMissionStudentPreview(1000, 10, false) === '1000+ characters · +10 Nuggets · Earn once') ok('student preview 1000/+10');
 else bad('preview 1000/+10');
 
 const minZero = validateOrdinaryMissionMinCharacters(0, 'submission');
