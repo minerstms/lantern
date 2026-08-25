@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-feed.css">
+  <link rel="stylesheet" href="css/lantern-writing-quality.css">
   <style>
     body { margin: 0; color: #eaf0ff; font-family: system-ui, sans-serif; font-size: 22px; }
     .createWrap { padding: 0 16px 32px; max-width: 640px; }
@@ -100,6 +101,7 @@
   <script src="js/lantern-help.js"></script>
   <script src="js/lantern-unified-media-field.js"></script>
   <script src="js/lantern-feed-api.js"></script>
+  <script src="js/lantern-writing-quality.js"></script>
   <script>
   (function () {
     var feed = window.LANTERN_FEED;
@@ -272,7 +274,20 @@
       });
     });
 
-    document.getElementById('submitReviewBtn').addEventListener('click', function () {
+    mountCreateMediaField();
+
+    if (window.LanternWritingQuality) {
+      var createBodyEl = document.getElementById('createBody');
+      var createTitleEl = document.getElementById('createTitle');
+      window.LanternWritingQuality.loadSettings().then(function () {
+        window.LanternWritingQuality.attachFields([
+          { el: createTitleEl, profile: window.LanternWritingQuality.FIELD_PROFILES.SHORT_FORM },
+          { el: createBodyEl, profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM },
+        ]);
+      });
+    }
+
+    function doSubmitReview() {
       if (!feed) return;
       var p = payload();
       if (!p.title || !p.body) { setStatus('Title and body required.'); return; }
@@ -289,6 +304,22 @@
         isFeedResubmit = false;
         if (window.LanternActionCounts) window.LanternActionCounts.refresh({ force: true });
       });
+    }
+
+    document.getElementById('submitReviewBtn').addEventListener('click', function () {
+      if (!feed) return;
+      var p = payload();
+      if (!p.title || !p.body) { setStatus('Title and body required.'); return; }
+      if (window.LanternWritingQuality) {
+        window.LanternWritingQuality.loadSettings().then(function () {
+          window.LanternWritingQuality.runBeforeSubmitFields([
+            { text: p.title, profile: window.LanternWritingQuality.FIELD_PROFILES.SHORT_FORM, label: 'Title' },
+            { text: p.body, profile: window.LanternWritingQuality.FIELD_PROFILES.LONG_FORM, label: 'Body' },
+          ], doSubmitReview, { focusEl: document.getElementById('createBody') });
+        });
+        return;
+      }
+      doSubmitReview();
     });
 
     document.getElementById('triviaDraftBtn').addEventListener('click', function () {
