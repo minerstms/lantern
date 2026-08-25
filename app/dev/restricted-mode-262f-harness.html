@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#262F Restricted Access row harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; font-size: 22px; max-width: 100%; overflow-x: hidden; box-sizing: border-box; background: #07111f; color: #e8f1ff; }
+    * { box-sizing: border-box; }
+    .card { padding: 12px; border: 1px solid #345; border-radius: 12px; margin-bottom: 12px; max-width: 100%; }
+    .btn { padding: 10px 16px; border-radius: 12px; border: 1px solid #567; background: rgba(90,167,255,.2); color: inherit; font-size: 22px; font-weight: 800; cursor: pointer; font-family: inherit; }
+    .btn.small { font-size: 20px; padding: 8px 12px; }
+    .restrictedAccessFilters { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; max-width:100%; }
+    .restrictedAccessFilters .btn[aria-pressed="true"] { border-color: rgba(90,167,255,.55); background: rgba(90,167,255,.16); }
+    .restrictedAccessProtectedRow,
+    .restrictedAccessRow {
+      display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center;
+      justify-content:space-between; margin:8px 0; max-width:100%;
+    }
+    .restrictedAccessRowMain,
+    .restrictedAccessRowState { display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0; max-width:100%; }
+    .restrictedAccessRowName,
+    .restrictedAccessRowRole,
+    .restrictedAccessRowStatus { font-size:22px; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
+    .restrictedAccessRowStatus { font-weight:800; }
+    input { width:100%; max-width:520px; padding:12px; font-size:22px; margin-top:6px; }
+    .usersMsg { display:none; padding:12px; border-radius:12px; margin:8px 0; font-weight:800; }
+    .usersMsg--ok { display:block; background: rgba(56,208,124,.12); }
+  </style>
+</head>
+<body>
+  <h1>Restricted Access row state (#262F)</h1>
+  <div class="card" id="restrictedAccessCard">
+    <p id="restrictedAccessCountsLine">Web Admin: Always allowed · Selected Staff: 0 · Selected Students: 0 · Total allowed: 1</p>
+    <p class="restrictedAccessProtectedRow" id="restrictedAccessWebAdminRow">
+      <span>Web Admin</span>
+      <span>ALWAYS ALLOWED</span>
+      <span>Protected</span>
+    </p>
+    <div class="restrictedAccessFilters">
+      <button type="button" class="btn small" data-restricted-kind="all" aria-pressed="true">All</button>
+      <button type="button" class="btn small" data-restricted-kind="staff" aria-pressed="false">Staff</button>
+      <button type="button" class="btn small" data-restricted-kind="students" aria-pressed="false">Students</button>
+      <button type="button" class="btn small" data-restricted-kind="allowed" aria-pressed="false">Allowed</button>
+    </div>
+    <label for="restrictedAccessSearch">Search staff or students</label>
+    <input type="search" id="restrictedAccessSearch" placeholder="Name, login, or student ID" />
+    <div id="restrictedAccessMsg" class="usersMsg"></div>
+    <div id="restrictedAccessResults"></div>
+  </div>
+  <script>
+    var restrictedAccessKind = 'all';
+    var accounts = [
+      { username: 'deana.pachelli', display_name: 'Deana Pachelli', kind: 'staff', allow_during_restricted: false, is_active: 1 },
+      { username: 'lucas.r', display_name: 'Lucas R.', kind: 'student', student_id: 'L1', allow_during_restricted: false, is_active: 1 }
+    ];
+
+    function restrictedAccessEsc(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    }
+    function restrictedAccountKey(a) {
+      return String(a && a.username ? a.username : '').trim().toLowerCase();
+    }
+    function dedupeRestrictedAccounts(rows) {
+      var seen = {};
+      var out = [];
+      (rows || []).forEach(function (a) {
+        var key = restrictedAccountKey(a);
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        out.push(a);
+      });
+      return out;
+    }
+    function counts() {
+      var staffN = accounts.filter(function (a) { return a.kind === 'staff' && a.allow_during_restricted; }).length;
+      var stuN = accounts.filter(function (a) { return a.kind === 'student' && a.allow_during_restricted; }).length;
+      return 'Web Admin: Always allowed · Selected Staff: ' + staffN + ' · Selected Students: ' + stuN + ' · Total allowed: ' + (staffN + stuN + 1);
+    }
+    function renderRestrictedAccountRow(a) {
+      var allowed = !!(a && a.allow_during_restricted);
+      var name = (a && (a.display_name || a.username)) || '';
+      var extra = a && a.kind === 'student' && a.student_id ? ' · ' + a.student_id : '';
+      var role = a && a.kind === 'staff' ? 'Staff' : 'Student';
+      var status = allowed ? 'Allowed' : 'Not allowed';
+      var action = allowed ? 'Remove' : 'Allow';
+      var username = restrictedAccessEsc(a && a.username);
+      return '<div class="restrictedAccessRow" data-restricted-user="' + username + '">' +
+        '<div class="restrictedAccessRowMain">' +
+          '<span class="restrictedAccessRowName">' + restrictedAccessEsc(name) + restrictedAccessEsc(extra) + '</span>' +
+          '<span class="restrictedAccessRowRole"> · ' + role + '</span>' +
+        '</div>' +
+        '<div class="restrictedAccessRowState">' +
+          '<span class="restrictedAccessRowStatus" data-restricted-status>' + status + '</span>' +
+          '<button type="button" class="btn small" data-restricted-toggle="' + username + '" data-restricted-allowed="' + (allowed ? '0' : '1') + '">' + action + '</button>' +
+        '</div>' +
+      '</div>';
+    }
+    function currentRows() {
+      var q = String((document.getElementById('restrictedAccessSearch') || {}).value || '').trim().toLowerCase();
+      return dedupeRestrictedAccounts(accounts).filter(function (a) {
+        if (restrictedAccessKind === 'staff' && a.kind !== 'staff') return false;
+        if (restrictedAccessKind === 'students' && a.kind !== 'student') return false;
+        if (restrictedAccessKind === 'allowed' && !a.allow_during_restricted) return false;
+        if (!q) return true;
+        return (String(a.display_name || '') + ' ' + String(a.username || '')).toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    var lastPainted = [];
+    function paintFrom(rows) {
+      lastPainted = dedupeRestrictedAccounts(rows);
+      document.getElementById('restrictedAccessCountsLine').textContent = counts();
+      var box = document.getElementById('restrictedAccessResults');
+      box.innerHTML = lastPainted.length ? lastPainted.map(renderRestrictedAccountRow).join('') : '<p>No matching accounts.</p>';
+    }
+    function paint() {
+      paintFrom(currentRows());
+    }
+    function setFilter(kind) {
+      restrictedAccessKind = kind;
+      var btns = document.querySelectorAll('[data-restricted-kind]');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-restricted-kind') === kind ? 'true' : 'false');
+      }
+      paint();
+    }
+    document.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute) return;
+      if (t.getAttribute('data-restricted-kind')) setFilter(t.getAttribute('data-restricted-kind'));
+      var user = t.getAttribute('data-restricted-toggle');
+      if (user) {
+        var allow = t.getAttribute('data-restricted-allowed') === '1';
+        accounts.forEach(function (a) {
+          if (restrictedAccountKey(a) === String(user).toLowerCase()) a.allow_during_restricted = allow;
+        });
+        var msg = document.getElementById('restrictedAccessMsg');
+        msg.className = 'usersMsg usersMsg--ok';
+        msg.textContent = allow ? 'Allowed during Restricted Mode.' : 'Removed from Restricted allowlist.';
+        paintFrom(lastPainted.map(function (row) {
+          return accounts.filter(function (a) { return restrictedAccountKey(a) === restrictedAccountKey(row); })[0] || row;
+        }));
+      }
+    });
+    document.getElementById('restrictedAccessSearch').addEventListener('input', paint);
+    paint();
+    window.__HARNESS_262F__ = true;
+  </script>
+</body>
+</html>

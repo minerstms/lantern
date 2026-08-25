@@ -187,6 +187,27 @@
     .staffReportingToggle[aria-pressed="true"] {
       border-color: rgba(56,208,124,.55); background: rgba(56,208,124,.2); color: #b4ffd4;
     }
+    .restrictedAccessFilters { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; max-width:100%; }
+    .restrictedAccessFilters .btn[aria-pressed="true"] {
+      border-color: rgba(90,167,255,.55); background: rgba(90,167,255,.16);
+    }
+    .restrictedAccessProtectedRow,
+    .restrictedAccessRow {
+      display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center;
+      justify-content:space-between; margin:8px 0; max-width:100%; box-sizing:border-box;
+    }
+    .restrictedAccessRowMain,
+    .restrictedAccessRowState {
+      display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0; max-width:100%;
+    }
+    .restrictedAccessRowName,
+    .restrictedAccessRowRole,
+    .restrictedAccessRowStatus {
+      font-size:22px; line-height:1.35; overflow-wrap:anywhere; word-break:break-word;
+    }
+    .restrictedAccessRowStatus { font-weight:800; }
+    .restrictedAccessRow .btn { margin-top:0; margin-right:0; }
+    #restrictedAccessResults { max-width:100%; }
     .staffReportingToggle:disabled { opacity: .55; cursor: not-allowed; }
     .walletTxList { font-size: 18px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; background: rgba(0,0,0,.2); }
     .walletTxList table { font-size: 18px; }
@@ -1169,18 +1190,21 @@
       <p class="pendingMeta" id="restrictedAccessSchoolLine">School schedule enforcement: shown separately above.</p>
       <div id="restrictedAccessActiveBanner" hidden style="margin:10px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,77,109,.45);background:rgba(255,77,109,.12);color:#ffb4c2;font-weight:800;font-size:22px;line-height:1.4;">RESTRICTED MODE ACTIVE</div>
       <p class="pendingMeta" id="restrictedAccessCountsLine">Web Admin: Always allowed · Selected Staff: 0 · Selected Students: 0 · Total allowed: 1</p>
-      <div class="h" style="font-size:22px;margin:14px 0 8px;">Allowed during Restricted Mode</div>
-      <p class="pendingMeta">Web Admin — ALWAYS ALLOWED — Protected</p>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
-        <button type="button" class="btn small" data-restricted-kind="all">All</button>
-        <button type="button" class="btn small" data-restricted-kind="staff">Staff</button>
-        <button type="button" class="btn small" data-restricted-kind="students">Students</button>
-        <button type="button" class="btn small" data-restricted-kind="allowed">Allowed</button>
+      <div class="h" style="font-size:22px;margin:14px 0 8px;">Who can enter</div>
+      <p class="pendingMeta restrictedAccessProtectedRow" id="restrictedAccessWebAdminRow">
+        <span>Web Admin</span>
+        <span>ALWAYS ALLOWED</span>
+        <span>Protected</span>
+      </p>
+      <div class="restrictedAccessFilters" role="group" aria-label="Account filters">
+        <button type="button" class="btn small" data-restricted-kind="all" aria-pressed="true">All</button>
+        <button type="button" class="btn small" data-restricted-kind="staff" aria-pressed="false">Staff</button>
+        <button type="button" class="btn small" data-restricted-kind="students" aria-pressed="false">Students</button>
+        <button type="button" class="btn small" data-restricted-kind="allowed" aria-pressed="false">Allowed</button>
       </div>
       <label for="restrictedAccessSearch" class="pendingMeta">Search staff or students</label>
-      <input type="search" id="restrictedAccessSearch" class="teacherInput" placeholder="Name, login, or student ID" style="width:100%;max-width:520px;margin-top:6px;" />
+      <input type="search" id="restrictedAccessSearch" class="teacherInput" placeholder="Name, login, or student ID" style="width:100%;max-width:520px;margin-top:6px;box-sizing:border-box;" />
       <div id="restrictedAccessResults" style="margin-top:10px;"></div>
-      <div id="restrictedAccessAllowedList" style="margin-top:12px;"></div>
       <div id="restrictedAccessConfirm" hidden style="margin-top:14px;padding:12px;border:1px solid var(--warn,#ffcc66);border-radius:12px;">
         <p id="restrictedAccessConfirmText" style="font-weight:800;font-size:22px;margin:0 0 10px;">ACTIVATE RESTRICTED ACCESS?</p>
         <p class="pendingMeta" id="restrictedAccessConfirmSummary"></p>
@@ -4813,6 +4837,7 @@
 
     var restrictedAccessKind = 'all';
     var restrictedAccessState = null;
+    var restrictedAccessResultsCache = [];
 
     function showRestrictedAccessMsg(text, kind) {
       var el = document.getElementById('restrictedAccessMsg');
@@ -4829,18 +4854,83 @@
       return 'Web Admin: Always allowed · Selected Staff: ' + staffN + ' · Selected Students: ' + stuN + ' · Total allowed: ' + (staffN + stuN + 1);
     }
 
-    function renderRestrictedAllowed(st) {
-      var box = document.getElementById('restrictedAccessAllowedList');
+    function restrictedAccessEsc(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    }
+
+    function restrictedAccountKey(a) {
+      return String(a && a.username ? a.username : '').trim().toLowerCase();
+    }
+
+    function dedupeRestrictedAccounts(rows) {
+      var seen = {};
+      var out = [];
+      (rows || []).forEach(function (a) {
+        var key = restrictedAccountKey(a);
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        out.push(a);
+      });
+      return out;
+    }
+
+    function restrictedAllowSet(st) {
+      var set = {};
+      [].concat((st && st.selected_staff) || []).concat((st && st.selected_students) || []).forEach(function (a) {
+        var key = restrictedAccountKey(a);
+        if (key) set[key] = true;
+      });
+      return set;
+    }
+
+    function applyRestrictedAllowState(rows, st) {
+      var allowed = restrictedAllowSet(st);
+      return (rows || []).map(function (a) {
+        var key = restrictedAccountKey(a);
+        return Object.assign({}, a, { allow_during_restricted: !!allowed[key] });
+      });
+    }
+
+    function setRestrictedAccessFilter(kind) {
+      restrictedAccessKind = kind || 'all';
+      var btns = document.querySelectorAll('#restrictedAccessCard [data-restricted-kind]');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-restricted-kind') === restrictedAccessKind ? 'true' : 'false');
+      }
+    }
+
+    function renderRestrictedAccountRow(a) {
+      var allowed = !!(a && a.allow_during_restricted);
+      var name = (a && (a.display_name || a.username)) || '';
+      var extra = a && a.kind === 'student' && a.student_id ? ' · ' + a.student_id : '';
+      var role = a && a.kind === 'staff' ? 'Staff' : 'Student';
+      var status = allowed ? 'Allowed' : 'Not allowed';
+      var action = allowed ? 'Remove' : 'Allow';
+      var username = restrictedAccessEsc(a && a.username);
+      return '<div class="restrictedAccessRow" data-restricted-user="' + username + '">' +
+        '<div class="restrictedAccessRowMain">' +
+          '<span class="restrictedAccessRowName">' + restrictedAccessEsc(name) + restrictedAccessEsc(extra) + '</span>' +
+          '<span class="restrictedAccessRowRole"> · ' + role + (a && a.is_active ? '' : ' · inactive') + '</span>' +
+        '</div>' +
+        '<div class="restrictedAccessRowState">' +
+          '<span class="restrictedAccessRowStatus" data-restricted-status>' + status + '</span>' +
+          '<button type="button" class="btn small" data-restricted-toggle="' + username + '" data-restricted-allowed="' + (allowed ? '0' : '1') + '">' + action + '</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderRestrictedResults(rows) {
+      var box = document.getElementById('restrictedAccessResults');
       if (!box) return;
-      var rows = [].concat((st && st.selected_staff) || []).concat((st && st.selected_students) || []);
-      if (!rows.length) {
-        box.innerHTML = '<p class="pendingMeta">No selected bypass users yet. If Restricted Mode is turned on now, only Web Admin can enter.</p>';
+      var unique = applyRestrictedAllowState(dedupeRestrictedAccounts(rows), restrictedAccessState);
+      restrictedAccessResultsCache = unique;
+      if (!unique.length) {
+        box.innerHTML = restrictedAccessKind === 'allowed'
+          ? '<p class="pendingMeta">No selected bypass users yet. If Restricted Mode is turned on now, only Web Admin can enter.</p>'
+          : '<p class="pendingMeta">No matching accounts.</p>';
         return;
       }
-      box.innerHTML = rows.map(function (a) {
-        var label = (a.display_name || a.username) + (a.kind === 'student' && a.student_id ? ' · ' + a.student_id : '');
-        return '<div class="pendingMeta" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0;"><span>' + label + ' · ' + (a.kind === 'staff' ? 'Staff' : 'Student') + (a.is_active ? '' : ' · inactive') + '</span><button type="button" class="btn small" data-restricted-remove="' + String(a.username || '').replace(/"/g, '') + '">Remove</button></div>';
-      }).join('');
+      box.innerHTML = unique.map(renderRestrictedAccountRow).join('');
     }
 
     function setRestrictedAccessControls(st) {
@@ -4865,7 +4955,6 @@
       }
       if (activateBtn) activateBtn.hidden = on;
       if (endBtn) endBtn.hidden = !on;
-      renderRestrictedAllowed(st);
     }
 
     function loadRestrictedAccess() {
@@ -4875,6 +4964,7 @@
           if (res && res.ok) {
             setRestrictedAccessControls(res);
             showRestrictedAccessMsg('', '');
+            renderRestrictedResults(restrictedAccessResultsCache);
           } else {
             showRestrictedAccessMsg((res && res.error) || 'Could not load Restricted Access.', 'err');
           }
@@ -4891,14 +4981,11 @@
         .then(function (r) { return r.json(); })
         .then(function (res) {
           if (!box) return;
-          var rows = (res && res.results) || [];
-          if (!rows.length) { box.innerHTML = '<p class="pendingMeta">No matching accounts.</p>'; return; }
-          box.innerHTML = rows.map(function (a) {
-            var label = (a.display_name || a.username) + (a.student_id ? ' · ' + a.student_id : '');
-            var action = a.allow_during_restricted ? 'remove' : 'add';
-            var btn = a.allow_during_restricted ? 'Not allowed' : 'Allow during Restricted Mode';
-            return '<div class="pendingMeta" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0;"><span>' + label + ' · ' + (a.kind === 'staff' ? 'Staff' : 'Student') + '</span><button type="button" class="btn small" data-restricted-toggle="' + String(a.username || '').replace(/"/g, '') + '" data-restricted-allowed="' + (action === 'add' ? '1' : '0') + '">' + btn + '</button></div>';
-          }).join('');
+          if (!res || res.ok === false) {
+            box.innerHTML = '<p class="pendingMeta">Search failed.</p>';
+            return;
+          }
+          renderRestrictedResults((res && res.results) || []);
         })
         .catch(function () {
           if (box) box.innerHTML = '<p class="pendingMeta">Search failed.</p>';
@@ -4920,6 +5007,12 @@
         if (res && res.okHttp && res.body && res.body.ok) {
           setRestrictedAccessControls(res.body);
           showRestrictedAccessMsg(allowed ? 'Allowed during Restricted Mode.' : 'Removed from Restricted allowlist.', 'ok');
+          var key = String(username || '').trim().toLowerCase();
+          var next = restrictedAccessResultsCache.map(function (a) {
+            if (restrictedAccountKey(a) !== key) return a;
+            return Object.assign({}, a, { allow_during_restricted: !!allowed });
+          });
+          renderRestrictedResults(next);
           searchRestrictedAccess();
         } else {
           showRestrictedAccessMsg((res && res.body && res.body.error) || 'Update failed', 'err');
@@ -4931,13 +5024,11 @@
       var t = ev.target;
       if (!t || !t.getAttribute) return;
       if (t.getAttribute('data-restricted-kind')) {
-        restrictedAccessKind = t.getAttribute('data-restricted-kind');
+        setRestrictedAccessFilter(t.getAttribute('data-restricted-kind'));
         searchRestrictedAccess();
       }
       var addUser = t.getAttribute('data-restricted-toggle');
       if (addUser) postRestrictedBypass(addUser, t.getAttribute('data-restricted-allowed') === '1');
-      var rmUser = t.getAttribute('data-restricted-remove');
-      if (rmUser) postRestrictedBypass(rmUser, false);
     });
     var restrictedSearch = document.getElementById('restrictedAccessSearch');
     if (restrictedSearch) {

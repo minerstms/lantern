@@ -57,6 +57,11 @@ assert(/id="classAccessGroupsList"/.test(teacherHtml) && /id="classJoinCodePanel
 assert(/id="restrictedAccessCard"/.test(adminHtml) && /Restricted Access/.test(adminHtml), 'admin Restricted Access card');
 assert(/Activate Restricted Mode/.test(adminHtml) && /End Restricted Mode/.test(adminHtml), 'activate/end controls');
 assert(/ALWAYS ALLOWED/.test(adminHtml) && /Protected/.test(adminHtml), 'Web Admin protected indicator');
+assert(/id="restrictedAccessWebAdminRow"/.test(adminHtml), 'Web Admin is a protected row');
+assert(!/id="restrictedAccessAllowedList"/.test(adminHtml), 'no second selected-users list');
+assert(/restrictedAccessRowStatus/.test(adminHtml) && /data-restricted-status/.test(adminHtml), 'status is a status node');
+assert(/allowed \? 'Remove' : 'Allow'/.test(adminHtml), 'Allow/Remove are actions');
+assert(!/allow_during_restricted \? 'Not allowed'/.test(adminHtml), 'Not allowed is not an action label');
 assert(/schoolAccessRestrictedBanner/.test(teacherHtml), 'teacher Restricted Mode banner');
 assert(/restricted_mode_locked/.test(classAccessJs), 'class-access handles restricted lock');
 assert(/Request Access/.test(classAccessJs) && /isRestrictedModeLocked/.test(classAccessJs), 'Request Access remains for school lock only');
