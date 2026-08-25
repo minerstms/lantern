@@ -54,6 +54,17 @@
     return pathOnly === '/api/auth/geppetto-student-authorize';
   }
 
+  /** Behavior Logger SSO must resume authorize — never fall through to Teacher Tools. */
+  function isTmsDeviceAuthorizeReturn(pathOrUrl) {
+    var pathOnly = String(pathOrUrl || '').split('?')[0].split('#')[0];
+    return pathOnly === '/api/auth/tms-device-authorize';
+  }
+
+  /** Trusted sibling-app handoff resumes. Not Lantern product pages. */
+  function isTrustedSharedAuthReturn(pathOrUrl) {
+    return isGeppettoStudentAuthorizeReturn(pathOrUrl) || isTmsDeviceAuthorizeReturn(pathOrUrl);
+  }
+
   function isMakeupQueryFlag(raw) {
     try {
       return new URL(String(raw || ''), 'https://mrradle.us').searchParams.get('makeup') === '1';
@@ -474,6 +485,8 @@
     fetchMe: fetchMe,
     normalizeRole: normalizeRole,
     isGeppettoStudentAuthorizeReturn: isGeppettoStudentAuthorizeReturn,
+    isTmsDeviceAuthorizeReturn: isTmsDeviceAuthorizeReturn,
+    isTrustedSharedAuthReturn: isTrustedSharedAuthReturn,
     isGeppettoMakeupReturn: isGeppettoMakeupReturn,
     classWebsiteSsoPurposeFromReturn: classWebsiteSsoPurposeFromReturn,
     classWebsiteSignInSubtitle: classWebsiteSignInSubtitle,

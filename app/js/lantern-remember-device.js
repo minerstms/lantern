@@ -117,13 +117,15 @@
     if (el) el.style.display = 'none';
   }
 
-  function buildAuthorizeUrl(intent, lanternReturn) {
-    var ret =
-      TMS_BEHAVIOR +
-      '?intent=' +
-      encodeURIComponent(intent || 'remember') +
-      '&lantern_return=' +
-      encodeURIComponent(lanternReturn || '/teacher.html');
+  function isTrustedSharedAuthDestination(dest) {
+    var pathOnly = String(dest || '').split('?')[0].split('#')[0];
+    return pathOnly === '/api/auth/tms-device-authorize' || pathOnly === '/api/auth/geppetto-student-authorize';
+  }
+
+  function buildAuthorizeUrl(intent, _lanternReturn) {
+    // Prompt #263 — do not attach lantern_return to Lantern product pages.
+    // Restricted Mode would strand non-allowlisted staff after a successful BL handoff.
+    var ret = TMS_BEHAVIOR + '?intent=' + encodeURIComponent(intent || 'remember');
     return AUTHORIZE + '?return=' + encodeURIComponent(ret);
   }
 
@@ -166,6 +168,7 @@
   function maybeOfferRememberDevice(me, destination) {
     absorbDeviceRememberedQuery();
     var dest = destination || '/teacher.html';
+    if (isTrustedSharedAuthDestination(dest)) return Promise.resolve(false);
     if (!me || !isStaffRole(me.role)) return Promise.resolve(false);
     if (me.must_change_password) return Promise.resolve(false);
     if (hasDeclinedThisSession()) return Promise.resolve(false);

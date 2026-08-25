@@ -104,6 +104,22 @@
           window.LanternAuth.isGeppettoStudentAuthorizeReturn(ret)
         );
       }
+      function isTmsDeviceAuthorizeReturn(ret) {
+        return (
+          window.LanternAuth &&
+          typeof window.LanternAuth.isTmsDeviceAuthorizeReturn === 'function' &&
+          window.LanternAuth.isTmsDeviceAuthorizeReturn(ret)
+        );
+      }
+      function isTrustedSharedAuthReturn(ret) {
+        if (
+          window.LanternAuth &&
+          typeof window.LanternAuth.isTrustedSharedAuthReturn === 'function'
+        ) {
+          return window.LanternAuth.isTrustedSharedAuthReturn(ret);
+        }
+        return isClassWebsiteSsoReturn(ret) || isTmsDeviceAuthorizeReturn(ret);
+      }
       function applyClassWebsiteSignInCopy() {
         var params = new URLSearchParams(location.search);
         var ret = params.get('return') || '';
@@ -128,12 +144,12 @@
         if (linksEl) linksEl.style.display = 'block';
         return true;
       }
-      var classWebsiteSignIn = applyClassWebsiteSignInCopy();
-      if (classWebsiteSignIn && window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
+      applyClassWebsiteSignInCopy();
+      if (window.LanternAuth && typeof window.LanternAuth.fetchMe === 'function') {
         window.LanternAuth.fetchMe().then(function (data) {
           if (!data || !data.ok || !data.authenticated) return;
           var dest = computeRedirectTargetAfterLogin(data);
-          if (isClassWebsiteSsoReturn(dest) && isSafeReturnPath(dest)) {
+          if (isTrustedSharedAuthReturn(dest) && isSafeReturnPath(dest)) {
             location.replace(dest);
           }
         });
@@ -176,9 +192,10 @@
         }
         if (ret) ret = String(ret).trim();
 
-        if (isClassWebsiteSsoReturn(ret) && isSafeReturnPath(ret) && !isLoginReturnTarget(ret)) {
+        if (isTrustedSharedAuthReturn(ret) && isSafeReturnPath(ret) && !isLoginReturnTarget(ret)) {
           if (body && body.must_change_password) {
-            return '/change-password.html?return=' + encodeURIComponent(ret) + '&intent=class-website';
+            return '/change-password.html?return=' + encodeURIComponent(ret) +
+              (isClassWebsiteSsoReturn(ret) ? '&intent=class-website' : '');
           }
           return ret;
         }
@@ -239,12 +256,15 @@
         }
         if (returnTo) returnTo = String(returnTo).trim();
 
-        if (isClassWebsiteSsoReturn(returnTo) && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
+        if (isTrustedSharedAuthReturn(returnTo) && isSafeReturnPath(returnTo) && !isLoginReturnTarget(returnTo)) {
           try {
             sessionStorage.removeItem('lantern_return_to');
           } catch (e) {}
           if (body && body.must_change_password) {
-            location.replace('/change-password.html?return=' + encodeURIComponent(returnTo) + '&intent=class-website');
+            location.replace(
+              '/change-password.html?return=' + encodeURIComponent(returnTo) +
+                (isClassWebsiteSsoReturn(returnTo) ? '&intent=class-website' : '')
+            );
             return;
           }
           location.replace(returnTo);

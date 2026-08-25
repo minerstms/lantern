@@ -28,6 +28,10 @@ import { DEVICE_TOKEN_HEADER } from '../device-enrollment.js';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const teacherHtml = fs.readFileSync(path.join(root, 'app/teacher.html'), 'utf8');
 const adminHtml = fs.readFileSync(path.join(root, 'app/admin.html'), 'utf8');
+const loginHtml = fs.readFileSync(path.join(root, 'app/login.html'), 'utf8');
+const changeHtml = fs.readFileSync(path.join(root, 'app/change-password.html'), 'utf8');
+const authJs = fs.readFileSync(path.join(root, 'app/js/lantern-pilot-auth.js'), 'utf8');
+const rememberJs = fs.readFileSync(path.join(root, 'app/js/lantern-remember-device.js'), 'utf8');
 const classAccessJs = fs.readFileSync(path.join(root, 'app/js/class-access.js'), 'utf8');
 const restrictedJs = fs.readFileSync(path.join(root, 'app/js/lantern-restricted-mode.js'), 'utf8');
 
@@ -47,9 +51,13 @@ assert(isCanonicalWebAdminAccount({ username: 'Admin', role: 'admin' }), 'break-
 assert(!isCanonicalWebAdminAccount({ username: 'other.admin', role: 'admin' }), 'other admin is not break-glass');
 assert(!isCanonicalWebAdminAccount({ username: 'rick.radle', role: 'admin' }), 'display/other login is not break-glass');
 assert(isRestrictedModeExemptPath('/api/auth/me') && isRestrictedModeExemptPath('/api/health'), 'auth/health exempt');
+assert(isRestrictedModeExemptPath('/api/auth/tms-device-authorize'), 'Behavior Logger authorize remains exempt');
+assert(isRestrictedModeExemptPath('/api/auth/geppetto-student-authorize'), 'mrradle.us authorize remains exempt');
+assert(isRestrictedModeExemptPath('/api/auth/tms-bootstrap') && isRestrictedModeExemptPath('/api/auth/tms-exchange'), 'trusted staff handoff remains exempt');
 assert(isRestrictedModeExemptPath('/api/class-access/state'), 'state endpoint remains readable');
 assert(!isRestrictedModeExemptPath('/api/settings') && !isRestrictedModeExemptPath('/api/admin/users'), 'settings/admin not broadly exempt');
 assert(!isRestrictedModeExemptPath('/api/missions'), 'missions not exempt');
+assert(!isRestrictedModeExemptPath('/api/feed') && !isRestrictedModeExemptPath('/api/locker'), 'feed/locker not exempt');
 assert(parseRestrictedModeAllowlist('["lucas.r","admin","lucas.r"]').join(',') === 'lucas.r', 'allowlist stores unique usernames and never admin');
 
 assert(/function reviewStudentDisplayLabel/.test(teacherHtml), '#261 helper still in teacher.html');
@@ -66,6 +74,11 @@ assert(/schoolAccessRestrictedBanner/.test(teacherHtml), 'teacher Restricted Mod
 assert(/restricted_mode_locked/.test(classAccessJs), 'class-access handles restricted lock');
 assert(/Request Access/.test(classAccessJs) && /isRestrictedModeLocked/.test(classAccessJs), 'Request Access remains for school lock only');
 assert(/temporarily unavailable/.test(restrictedJs), 'locked copy');
+assert(/function isTmsDeviceAuthorizeReturn/.test(authJs) && /function isTrustedSharedAuthReturn/.test(authJs), '#263 trusted shared-auth return helpers');
+assert(/isTrustedSharedAuthReturn/.test(loginHtml) && /isTmsDeviceAuthorizeReturn/.test(loginHtml), 'login preserves Behavior Logger authorize return');
+assert(/isTrustedSharedAuthReturn/.test(changeHtml), 'change-password preserves trusted shared-auth return');
+assert(!/lantern_return=\/teacher\.html/.test(rememberJs) && !/lanternReturn \|\| '\/teacher\.html'/.test(rememberJs), 'remember-device must not bounce handoff onto /teacher.html');
+assert(/isTrustedSharedAuthDestination/.test(rememberJs), 'remember-device skips trusted authorize destinations');
 assert(ACCESS_AUDIT_ACTIONS.RESTRICTED_MODE_ENABLED && ACCESS_AUDIT_ACTIONS.RESTRICTED_BYPASS_ADDED, 'audit actions exist');
 
 function makeDb(opts) {
@@ -293,6 +306,15 @@ function workerEnv(opts) {
   const webRes = await worker.fetch(new Request('https://x.test/api/missions/active', { headers: { Cookie: await cookieFor(webAdmin) } }), env);
   const webBody = await webRes.json();
   assert(!(webRes.status === 403 && webBody.error === 'restricted_mode_locked'), 'direct API Web Admin not restricted-locked');
+  const blAuth = await worker.fetch(new Request('https://x.test/api/auth/tms-device-authorize?return=' + encodeURIComponent('https://log.tmslantern.org/index.html'), { headers: { Cookie: await cookieFor(teacher) } }), env);
+  const blAuthBody = await blAuth.text();
+  assert(!(blAuth.status === 403 && /restricted_mode_locked/.test(blAuthBody)), 'Behavior Logger authorize is not Restricted-locked');
+  const geppettoAuth = await worker.fetch(new Request('https://x.test/api/auth/geppetto-student-authorize?return=' + encodeURIComponent('https://mrradle.us/api/stem-daily/student/lantern-callback'), { headers: { Cookie: await cookieFor(student) } }), env);
+  const geppettoAuthBody = await geppettoAuth.text();
+  assert(!(geppettoAuth.status === 403 && /restricted_mode_locked/.test(geppettoAuthBody)), 'mrradle.us authorize is not Restricted-locked');
+  const exploreRes = await worker.fetch(new Request('https://x.test/api/feed', { headers: { Cookie: await cookieFor(teacher) } }), env);
+  const exploreBody = await exploreRes.json().catch(() => ({}));
+  assert(exploreRes.status === 403 && exploreBody.error === 'restricted_mode_locked', 'non-allowlisted teacher Explore API remains Restricted-locked');
 }
 
 console.log('\nrestricted-mode-262c-test:', pass, 'passed,', fail, 'failed');
