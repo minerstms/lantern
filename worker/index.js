@@ -252,6 +252,9 @@ import {
   geppettoStudentAuthorizeFailurePage,
   geppettoStudentAuthorizeSelfHref,
   geppettoStudentAuthorizeLoginLocation,
+  isGeppettoFreshStudentLogin,
+  sanitizeGeppettoStudentLogoutReturn,
+  GEPPETTO_STUDENT_LOGOUT_PATH,
   bearerTokenFromRequest,
   mintGeppettoStudentHandoff,
   redeemGeppettoStudentHandoff,
@@ -2377,11 +2380,24 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     const safeReturn = sanitizeGeppettoStudentReturn(url.searchParams.get('return'));
     if (!safeReturn) return geppettoStudentAuthorizeFailurePage('return_not_allowed', cors);
     const authorizeSelf = geppettoStudentAuthorizeSelfHref(safeReturn);
+    const freshLogin = isGeppettoFreshStudentLogin(url);
     const account = await getPilotAccountFromRequest(request, env);
     const role = account ? String(account.role || '').trim().toLowerCase() : '';
+    const secure = url.protocol === 'https:';
     if (account && role !== 'student') {
       const loginLoc = geppettoStudentAuthorizeLoginLocation(authorizeSelf);
-      const secure = url.protocol === 'https:';
+      return new Response(null, {
+        status: 302,
+        headers: {
+          ...cors,
+          Location: loginLoc || '/login.html',
+          'Set-Cookie': pilotClearCookieHeader(secure),
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+    if (freshLogin && account && role === 'student') {
+      const loginLoc = geppettoStudentAuthorizeLoginLocation(authorizeSelf);
       return new Response(null, {
         status: 302,
         headers: {
@@ -2424,6 +2440,21 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     return new Response(null, {
       status: 302,
       headers: { ...cors, Location: dest, 'Cache-Control': 'no-store' },
+    });
+  }
+
+  if (request.method === 'GET' && path === GEPPETTO_STUDENT_LOGOUT_PATH) {
+    const safeReturn = sanitizeGeppettoStudentLogoutReturn(url.searchParams.get('return'));
+    const dest = safeReturn || 'https://mrradle.us/';
+    const secure = url.protocol === 'https:';
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...cors,
+        Location: dest,
+        'Set-Cookie': pilotClearCookieHeader(secure),
+        'Cache-Control': 'no-store',
+      },
     });
   }
 

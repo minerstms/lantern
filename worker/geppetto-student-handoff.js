@@ -9,6 +9,8 @@ import { generateOpaqueSecret, hashOpaqueSecret } from './device-enrollment.js';
 export const GEPPETTO_STUDENT_AUDIENCE = 'geppetto_student';
 export const GEPPETTO_STUDENT_HANDOFF_TTL_SEC = 90;
 export const GEPPETTO_STUDENT_ROSTER_PATH = '/api/auth/geppetto-student-roster';
+export const GEPPETTO_STUDENT_LOGOUT_PATH = '/api/auth/geppetto-student-logout';
+export const GEPPETTO_STUDENT_FRESH_PARAM = 'fresh';
 export const GEPPETTO_S2S_HEADERS = { 'Cache-Control': 'no-store' };
 
 export const GEPPETTO_STUDENT_CALLBACK_ALLOWLIST = [
@@ -260,6 +262,31 @@ export function geppettoStudentAuthorizeSelfHref(safeReturn) {
   const cleaned = sanitizeGeppettoStudentReturn(safeReturn);
   if (!cleaned) return '';
   return '/api/auth/geppetto-student-authorize?return=' + encodeURIComponent(cleaned);
+}
+
+export function isGeppettoFreshStudentLogin(url) {
+  try {
+    const u = url instanceof URL ? url : new URL(String(url || ''), 'https://tmslantern.org');
+    return u.searchParams.get(GEPPETTO_STUDENT_FRESH_PARAM) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Allow only HTTPS returns to approved Geppetto hosts after coordinated student logout. */
+export function sanitizeGeppettoStudentLogoutReturn(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  let u;
+  try {
+    u = new URL(s);
+  } catch (_) {
+    return '';
+  }
+  if (u.protocol !== 'https:') return '';
+  const host = String(u.hostname || '').toLowerCase();
+  if (ALLOWED_CALLBACK_HOSTS.indexOf(host) === -1) return '';
+  return u.toString();
 }
 
 export function geppettoStudentAuthorizeLoginLocation(authorizeHref) {

@@ -9,9 +9,11 @@ import worker from '../index.js';
 import {
   sanitizeGeppettoStudentReturn,
   redeemGeppettoStudentHandoff,
+  sanitizeGeppettoStudentLogoutReturn,
   classWebsiteSsoPurposeFromReturn,
   isGeppettoMakeupReturn,
   GEPPETTO_STUDENT_AUDIENCE,
+  GEPPETTO_STUDENT_FRESH_PARAM,
 } from '../geppetto-student-handoff.js';
 import { hashOpaqueSecret } from '../device-enrollment.js';
 
@@ -143,9 +145,10 @@ function makeEnv(state) {
   };
 }
 
-async function authorize(env, cookie, returnUrl) {
+async function authorize(env, cookie, returnUrl, fresh) {
   const qs = new URLSearchParams();
   if (returnUrl != null) qs.set('return', returnUrl);
+  if (fresh) qs.set(GEPPETTO_STUDENT_FRESH_PARAM, '1');
   const headers = {};
   if (cookie) headers.Cookie = cookie;
   return worker.fetch(
@@ -500,6 +503,60 @@ async function testIdentitiesDisplayWhenAccountNameIsRosterId() {
   ok('exact mtss_student_id identities display_name is used when account name is numeric');
 }
 
+async function testFreshLoginClearsStaleStudentSession() {
+  const state = {};
+  const env = makeEnv(state);
+  const acc = account();
+  state.accounts[acc.username] = acc;
+  const cookie = await cookieFor(acc);
+  const res = await authorize(env, cookie, SAFE_RETURN, true);
+  const loc = res.headers.get('Location') || '';
+  const cleared = res.headers.get('Set-Cookie') || '';
+  if (res.status !== 302 || !loc.startsWith('/login.html?return=')) {
+    return bad('fresh authorize with stale student session must redirect to login', { status: res.status, loc });
+  }
+  if (!cleared.includes('lantern_pilot=')) return bad('fresh authorize must clear lantern_pilot cookie', cleared);
+  if (loc.includes('fresh=1')) return bad('login return must not preserve fresh=1 loop', loc);
+  ok('fresh=1 blocks silent reuse of stale Lantern student session');
+}
+
+async function testFreshLoginWithoutSessionStillRedirectsToLogin() {
+  const env = makeEnv({});
+  const res = await authorize(env, '', SAFE_RETURN, true);
+  const loc = res.headers.get('Location') || '';
+  if (res.status !== 302 || !loc.startsWith('/login.html?return=')) {
+    return bad('fresh authorize without session must redirect to login', { status: res.status, loc });
+  }
+  ok('fresh authorize without Lantern session still uses login flow');
+}
+
+async function testNonFreshAuthorizeStillMintsForStudent() {
+  const state = {};
+  const env = makeEnv(state);
+  const acc = account();
+  state.accounts[acc.username] = acc;
+  const res = await authorize(env, await cookieFor(acc), SAFE_RETURN, false);
+  const loc = res.headers.get('Location') || '';
+  if (res.status !== 302 || !loc.includes('code=')) return bad('non-fresh authorize may mint for existing student', loc);
+  ok('non-fresh authorize still supports post-login handoff mint');
+}
+
+async function testGeppettoStudentLogoutClearsCookie() {
+  const env = makeEnv({});
+  const res = await worker.fetch(
+    new Request('https://tmslantern.org/api/auth/geppetto-student-logout?return=' + encodeURIComponent('https://mrradle.us/digital-art.html')),
+    env
+  );
+  const loc = res.headers.get('Location') || '';
+  const cleared = res.headers.get('Set-Cookie') || '';
+  if (res.status !== 302 || loc !== 'https://mrradle.us/digital-art.html') {
+    return bad('student logout must redirect to allowlisted Geppetto return', { status: res.status, loc });
+  }
+  if (!cleared.includes('lantern_pilot=')) return bad('student logout must clear lantern_pilot', cleared);
+  if (sanitizeGeppettoStudentLogoutReturn('https://evil.example/')) return bad('logout return allowlist failed');
+  ok('geppetto-student-logout clears Lantern session and returns safely to Geppetto');
+}
+
 await testStudentWithRosterMints();
 await testHumanDisplayNotRosterId();
 await testIdentitiesDisplayWhenAccountNameIsRosterId();
@@ -515,6 +572,10 @@ await testNoSessionRedirectsToLogin();
 await testFailurePageNeutralCopy();
 await testPurposeAwareFailureCopy();
 await testLoginPagesPreserveAuthorize();
+await testFreshLoginClearsStaleStudentSession();
+await testFreshLoginWithoutSessionStillRedirectsToLogin();
+await testNonFreshAuthorizeStillMintsForStudent();
+await testGeppettoStudentLogoutClearsCookie();
 
 console.log(pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);
