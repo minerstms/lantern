@@ -915,15 +915,6 @@
           if (ep) ep.click();
           return;
         }
-        if (action === 'edit-about') {
-          navigateLockerTab('overview');
-          setTimeout(function(){
-            if (window.LANTERN_LOCKER_SHELL && typeof window.LANTERN_LOCKER_SHELL.openAboutBioEditor === 'function') {
-              window.LANTERN_LOCKER_SHELL.openAboutBioEditor();
-            }
-          }, 0);
-          return;
-        }
         if (action === 'install-app') {
           if (item.tagName === 'A' && item.getAttribute('href')) return;
           location.href = 'https://log.tmslantern.org/index.html?intent=install';

@@ -220,11 +220,38 @@
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="items">Items</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="tab" data-locker-tab="store">Store</button>' +
       '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-profile" data-help="edit_profile">Edit Profile</button>' +
-      '<button type="button" role="menuitem" class="lockerOptionsItem" data-locker-action="edit-about">Edit About</button>' +
       '<p class="lockerOptionsGroup" role="presentation">Account / Device</p>' +
       '<a role="menuitem" class="lockerOptionsItem" data-locker-action="install-app" href="https://log.tmslantern.org/index.html?intent=install" target="_blank" rel="noopener noreferrer">Install Lantern App</a>' +
       '</div>' +
       '</div>'
+    );
+  }
+
+  function lanternStatsBlockHtml(stats, title) {
+    var s = stats || {};
+    function val(key) {
+      if (s.available === false && s[key] == null) return '—';
+      return String(s[key] != null ? s[key] : 0);
+    }
+    var heading = title || 'My Lantern Stats';
+    return (
+      '<section class="lockerHeaderStats" aria-labelledby="lockerHeaderStatsTitle">' +
+      '<div class="lockerHeaderStatsHd">' +
+      '<h2 id="lockerHeaderStatsTitle" class="lockerHeaderTitle">' +
+      escapeHtml(heading) +
+      '</h2>' +
+      lockerOptionsMenuHtml() +
+      '</div>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">✨ Creations Shared</span><span class="lockerHeaderMetricValue">' +
+      escapeHtml(val('creations_shared')) +
+      '</span></div>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">🎮 Games Played</span><span class="lockerHeaderMetricValue">' +
+      escapeHtml(val('games_played')) +
+      '</span></div>' +
+      '<div class="lockerHeaderMetric"><span class="lockerHeaderMetricLabel">🤝 Reactions Given</span><span class="lockerHeaderMetricValue">' +
+      escapeHtml(val('reactions_given')) +
+      '</span></div>' +
+      '</section>'
     );
   }
 
@@ -234,12 +261,12 @@
     var account = locker.account || {};
     var profile = locker.profile || {};
     var progress = locker.progress || {};
+    var stats = locker.lantern_stats || {};
     var displayName =
       account.display_name != null && String(account.display_name).trim()
         ? String(account.display_name).trim()
         : account.username || '';
     var avatarUrl = profile.avatar || '';
-    var bio = currentBio(locker);
     var missions = progress.missions_completed != null ? progress.missions_completed : '—';
     host.innerHTML =
       '<div class="lockerHeaderGrid">' +
@@ -264,35 +291,8 @@
       escapeHtml(displayName) +
       '</div>' +
       '</section>' +
-      '<section class="lockerHeaderAbout" aria-labelledby="lockerHeaderAboutTitle">' +
-      '<div class="lockerHeaderAboutHd">' +
-      '<h2 id="lockerHeaderAboutTitle" class="lockerHeaderTitle">About ' +
-      escapeHtml(displayName) +
-      '</h2>' +
-      lockerOptionsMenuHtml() +
-      '<button type="button" class="lockerHeaderBioEditBtn" hidden aria-hidden="true" tabindex="-1">Edit About</button>' +
-      '</div>' +
-      '<p class="lockerHeaderBio"></p>' +
-      '<div class="lockerHeaderBioEditor" hidden>' +
-      '<label class="lockerHeaderBioLabel" for="lockerHeaderBioTextarea">Short bio</label>' +
-      '<textarea id="lockerHeaderBioTextarea" class="lockerHeaderBioTextarea" maxlength="' +
-      BIO_MAX +
-      '" rows="3" aria-describedby="lockerHeaderBioHint lockerHeaderBioCount"></textarea>' +
-      '<p id="lockerHeaderBioHint" class="lockerHeaderBioHint">Keep it short — don\u2019t include private contact information.</p>' +
-      '<p id="lockerHeaderBioCount" class="lockerHeaderBioCount">0 / ' +
-      BIO_MAX +
-      '</p>' +
-      '<p class="lockerHeaderBioError" hidden role="alert"></p>' +
-      '<div class="lockerHeaderBioActions">' +
-      '<button type="button" class="lockerHeaderBioSaveBtn feedToolbarBtn">Save</button>' +
-      '<button type="button" class="lockerHeaderBioCancelBtn feedToolbarBtn">Cancel</button>' +
-      '</div>' +
-      '</div>' +
-      '</section>' +
+      lanternStatsBlockHtml(stats, 'My Lantern Stats') +
       '</div>';
-    var aboutSection = host.querySelector('.lockerHeaderAbout');
-    renderBioDisplay(host.querySelector('.lockerHeaderBio'), bio);
-    bindBioEditor(aboutSection, locker);
     bindLockerOptionsUi(host);
     bindLockerWalletMetrics(host);
     var avatarImg = host.querySelector('img.lockerHeaderAvatar');
@@ -341,15 +341,6 @@
   }
 
   function openAboutBioEditor() {
-    if (typeof aboutBioOpenEditor === 'function') {
-      aboutBioOpenEditor();
-      return true;
-    }
-    var btn = global.document.querySelector('.lockerHeaderBioEditBtn');
-    if (btn) {
-      btn.click();
-      return true;
-    }
     return false;
   }
 

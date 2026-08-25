@@ -14,6 +14,7 @@ import {
 } from './locker-storage.js';
 import { syncDerivedAchievements } from './locker-achievements.js';
 import { fetchLockerProgress } from './locker-progress.js';
+import { fetchLockerLanternStats } from './locker-stats.js';
 import { buildLockerPersonalFeed } from './locker-personal-feed.js';
 import { normalizeBioFromDb, sanitizeBioInput, resolveProfileBio } from './locker-bio.js';
 import { staffEconomyKey } from './economy-balance-auth.js';
@@ -592,7 +593,10 @@ export async function buildLockerMeResponse(account, env, origin) {
 
   const profile = {
     ...profileRaw,
-    bio: resolveProfileBio(accountBioRow ? accountBioRow.bio : null, profileRaw.legacy_avatar_bio),
+    bio:
+      role === 'student'
+        ? null
+        : resolveProfileBio(accountBioRow ? accountBioRow.bio : null, profileRaw.legacy_avatar_bio),
   };
   delete profile.legacy_avatar_bio;
 
@@ -677,6 +681,10 @@ export async function buildLockerMeResponse(account, env, origin) {
         );
 
   const progress = await fetchLockerProgress(db, economyKey, submissionKey, env);
+  const lanternStats =
+    role === 'student' && economyKey
+      ? await fetchLockerLanternStats(db, account, economyKey)
+      : { available: false, creations_shared: 0, games_played: 0, reactions_given: 0 };
 
   return {
     ok: true,
@@ -701,6 +709,7 @@ export async function buildLockerMeResponse(account, env, origin) {
     achievements: achievementsCategory,
     recognitions: recognitionsCategory,
     progress,
+    lantern_stats: lanternStats,
     locker_public_key: role === 'student' ? lockerPublicKey || null : null,
     locker_item_state: lockerCategory(true, null, lockerStateRows || [], {
       featured_count: (lockerStateRows || []).filter((s) => s && s.featured).length,
@@ -774,6 +783,10 @@ export async function handleLockerRoutes(request, url, path, env, cors, deps) {
     }
     const session = await requireLockerSession(request, env, deps);
     if (session.error) return jsonResponse(session.error, session.status, cors);
+    const role = String(session.account.role || '').trim().toLowerCase();
+    if (role === 'student') {
+      return jsonResponse({ ok: false, error: 'student_bio_not_allowed' }, 403, cors);
+    }
     if (!session.economyKey) {
       return jsonResponse({ ok: false, error: 'account_link_missing' }, 400, cors);
     }

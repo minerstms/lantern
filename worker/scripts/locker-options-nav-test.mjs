@@ -60,9 +60,13 @@ if (
   ok('dropdown contains Overview, Items, Store');
 } else bad('section menu items incomplete');
 
-if (/data-locker-action="edit-profile"/.test(shellJs) && /data-locker-action="edit-about"/.test(shellJs)) {
-  ok('distinct Edit Profile + Edit About menu items present');
-} else bad('edit actions missing or not distinct');
+if (/data-locker-action="edit-profile"/.test(shellJs) && !/data-locker-action="edit-about"/.test(shellJs)) {
+  ok('Edit Profile retained; Edit About removed (#259)');
+} else bad('edit menu items');
+
+if (/My Lantern Stats/.test(shellJs) && /Creations Shared/.test(shellJs)) {
+  ok('My Lantern Stats block in shell');
+} else bad('stats block missing');
 
 if (/data-locker-action="install-app"/.test(shellJs) && /Install Lantern App/.test(shellJs) && (shellJs.match(/Install Lantern App/g) || []).length === 1) {
   ok('My Locker menu includes Install Lantern App exactly once');
@@ -80,9 +84,9 @@ if (/wireLockerOptions/.test(lockerHtml) && /navigateLockerTab/.test(lockerHtml)
   ok('locker.html wires My Locker navigation');
 } else bad('locker options wiring missing');
 
-if (/edit-about/.test(lockerHtml) && /openAboutBioEditor/.test(lockerHtml)) {
-  ok('Edit About routes through openAboutBioEditor');
-} else bad('Edit About wiring');
+if (!/edit-about/.test(lockerHtml)) {
+  ok('Edit About removed from locker.html wiring');
+} else bad('Edit About wiring remains');
 
 if (/edit-profile/.test(lockerHtml) && /editProfileBtn/.test(lockerHtml)) {
   ok('Edit Profile menu item clicks existing Profile Studio trigger');
@@ -104,8 +108,8 @@ if (/max-width:\s*min\(280px,\s*calc\(100vw - 24px\)\)/.test(lockerHtml)) {
   ok('mobile menu max-width prevents horizontal overflow');
 } else bad('mobile overflow guard');
 
-if (/lockerHeaderAboutHd \.lockerOptions/.test(surfaceCss)) {
-  ok('My Locker menu styled in About header (former Edit location)');
+if (/lockerHeaderStatsHd \.lockerOptions/.test(surfaceCss) || /lockerHeaderAboutHd \.lockerOptions/.test(surfaceCss)) {
+  ok('My Locker menu styled in stats header');
 } else bad('surface theme placement');
 
 if (!headerFiles.join('\n').includes('Locker Options') && !headerFiles.join('\n').includes('lockerAccountDevice')) {
@@ -116,9 +120,9 @@ if (/editProfileOverlay/.test(lockerHtml) && /wireEditProfile/.test(profileApp))
   ok('Profile Studio edit path preserved');
 } else bad('Profile Studio path');
 
-if (/callUpdateBio/.test(shellJs) && /openAboutBioEditor/.test(shellJs)) {
-  ok('About bio editor path preserved via openAboutBioEditor');
-} else bad('About bio path');
+if (/renderProfileHeader/.test(shellJs) && /lanternStatsBlockHtml/.test(shellJs)) {
+  ok('Locker header renders stats block');
+} else bad('stats render path');
 
 console.log('\n--- locker-options-nav-test: ' + pass + ' passed, ' + fail + ' failed ---');
 process.exit(fail ? 1 : 0);
