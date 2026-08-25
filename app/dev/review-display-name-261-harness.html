@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#261 Review Display Name Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; font-size: 22px; max-width: 100%; overflow-x: hidden; }
+  </style>
+</head>
+<body>
+  <p id="out">Review student label harness</p>
+  <script src="/js/lantern-cards.js"></script>
+  <script>
+    window.__HARNESS_261__ = true;
+    function reviewStudentDisplayLabel(item) {
+      if (!item) return 'Student';
+      if (item.legacy_author_unavailable) return 'Author unavailable';
+      var pub = item.submitter_public_label && String(item.submitter_public_label).trim();
+      if (pub) return pub;
+      if (window.LanternCards && typeof window.LanternCards.formatExploreAuthorLabel === 'function') {
+        var key = item.submitter_key || item.submitter || '';
+        var formatted = window.LanternCards.formatExploreAuthorLabel({ author: key, authorRole: 'student' });
+        if (formatted && formatted !== '—') return formatted;
+      }
+      return 'Student';
+    }
+    var label = reviewStudentDisplayLabel({ submitter_public_label: 'Lucas R.', submitter_key: '121680' });
+    document.getElementById('out').textContent = 'Student: ' + label;
+    window.__HARNESS_LABEL__ = label;
+  </script>
+</body>
+</html>

@@ -2923,6 +2923,27 @@
       if (parts.length >= 2) return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
       return s.length >= 2 ? s.slice(0, 2).toUpperCase() : s.charAt(0).toUpperCase();
     }
+    /** Prompt #261 — staff review identity: display name only, never raw student id as primary label. */
+    function reviewStudentAvatarKey(item) {
+      if (!item) return '';
+      return String(item.submitter_key || item.character_name || item.submitter || item.author_name || '').trim();
+    }
+    function reviewStudentDisplayLabel(item) {
+      if (!item) return 'Student';
+      if (item.legacy_author_unavailable) return 'Author unavailable';
+      var pub = item.submitter_public_label && String(item.submitter_public_label).trim();
+      if (pub) return pub;
+      if (window.LanternCards && typeof window.LanternCards.formatExploreAuthorLabel === 'function') {
+        var key = reviewStudentAvatarKey(item);
+        var formatted = window.LanternCards.formatExploreAuthorLabel({
+          author: key,
+          authorRole: 'student',
+          authorPublicLabel: '',
+        });
+        if (formatted && String(formatted).trim() && formatted !== '—') return formatted;
+      }
+      return 'Student';
+    }
     /* Canonical avatar: approved image URLs + emoji from getCanonicalAvatar warm-up; same standard as Explore/cards. */
     window.teacherAvatarCache = window.teacherAvatarCache || {};
     window.teacherAvatarEmojiCache = window.teacherAvatarEmojiCache || {};
@@ -3646,8 +3667,10 @@
         if (typeLabel === 'news') typeLabel = 'News';
         else if (typeLabel === 'poll_contribution') typeLabel = 'Poll';
         else if (typeLabel === 'avatar') typeLabel = 'Avatar';
-        var histAvatar = smallAvatarHtml(resolveStudentAvatarUrl(it.submitter), it.submitter || '', it.submitter);
-        row.innerHTML = '<div class="approvalQueueLeft" style="display:flex;align-items:flex-start;gap:10px;"><div style="flex-shrink:0;">' + histAvatar + '</div><div><div class="approvalQueueType">' + esc(typeLabel) + '</div><div class="approvalQueueTitle">' + esc(it.title || it.item_id || '') + '</div><div class="approvalQueueMeta">' + esc(it.submitter || '') + ' · ' + esc(it.reviewed_by || '') + ' · ' + esc(it.reviewed_at ? formatNewsDate(it.reviewed_at) : '') + '</div></div></div>';
+        var histStudentLabel = reviewStudentDisplayLabel(it);
+        var histAvatarKey = reviewStudentAvatarKey(it);
+        var histAvatar = smallAvatarHtml(resolveStudentAvatarUrl(histAvatarKey), histStudentLabel, histAvatarKey);
+        row.innerHTML = '<div class="approvalQueueLeft" style="display:flex;align-items:flex-start;gap:10px;"><div style="flex-shrink:0;">' + histAvatar + '</div><div><div class="approvalQueueType">' + esc(typeLabel) + '</div><div class="approvalQueueTitle">' + esc(it.title || it.item_id || '') + '</div><div class="approvalQueueMeta">' + esc(histStudentLabel) + ' · ' + esc(it.reviewed_by || '') + ' · ' + esc(it.reviewed_at ? formatNewsDate(it.reviewed_at) : '') + '</div></div></div>';
         container.appendChild(row);
       });
     }
@@ -4130,59 +4153,67 @@
       var avatarUrl = '';
       var avatarName = '';
       if (entry.type === 'mission') {
-        title = (entry.item.mission_title || '') + ' — ' + (entry.item.character_name || '');
+        var missionStudentLabel = reviewStudentDisplayLabel(entry.item);
+        title = (entry.item.mission_title || '') + ' — ' + missionStudentLabel;
         var mmRowText = window.LanternMedia && window.LanternMedia.normalizeMissionItemForMedia ? window.LanternMedia.normalizeMissionItemForMedia(entry.item) : {};
         // .text is always a string when LanternMedia is present (never the raw media URL) —
         // the defensive fallback below only ever surfaces genuine plain text, never a URL.
         var rowPreviewText = mmRowText.text !== undefined ? mmRowText.text : (entry.item.submission_type === 'text' && entry.item.submission_content ? String(entry.item.submission_content).trim() : (entry.item.caption || ''));
         meta = 'Created by: ' + (entry.item.created_by_teacher_name || 'Teacher') + (rowPreviewText.length ? ' · ' + rowPreviewText.slice(0, 80) + (rowPreviewText.length > 80 ? '…' : '') : '');
-        avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
-        avatarName = entry.item.character_name || '';
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(entry.item));
+        avatarName = missionStudentLabel;
       } else if (entry.type === 'avatar' || (entry.type === 'approval_item' && entry.item.item_type === 'avatar')) {
         var a = entry.item;
-        title = a.character_name || a.submitter || 'Avatar';
+        var avatarStudentLabel = reviewStudentDisplayLabel(a);
+        title = avatarStudentLabel || 'Avatar';
         meta = (a.created_at ? formatNewsDate(a.created_at) : '') || '';
-        avatarUrl = resolveStudentAvatarUrl(a.character_name || a.submitter);
-        avatarName = a.character_name || a.submitter || '';
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(a));
+        avatarName = avatarStudentLabel;
       } else if (entry.type === 'news' || (entry.type === 'approval_item' && entry.item.item_type === 'news')) {
         var n = entry.item;
+        var newsAuthorLabel = reviewStudentDisplayLabel(n);
         title = n.title || n.item_id || 'Untitled';
-        meta = (n.author_name || n.submitter || '') + (n.created_at ? ' · ' + formatNewsDate(n.created_at) : '');
-        avatarUrl = resolveStudentAvatarUrl(n.author_name || n.submitter);
-        avatarName = n.author_name || n.submitter || '';
+        meta = newsAuthorLabel + (n.created_at ? ' · ' + formatNewsDate(n.created_at) : '');
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(n));
+        avatarName = newsAuthorLabel;
       } else if (entry.type === 'post') {
-        title = (entry.item.title || 'Untitled') + ' — ' + (entry.item.character_name || '');
-        meta = entry.item.character_name || '';
-        avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
-        avatarName = entry.item.character_name || '';
+        var postStudentLabel = reviewStudentDisplayLabel(entry.item);
+        title = (entry.item.title || 'Untitled') + ' — ' + postStudentLabel;
+        meta = postStudentLabel;
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(entry.item));
+        avatarName = postStudentLabel;
       } else if (entry.type === 'thanks') {
-        title = (entry.item.character_name || '') + ' → ' + (entry.item.staff_name || '');
+        var thanksStudentLabel = reviewStudentDisplayLabel(entry.item);
+        title = thanksStudentLabel + ' → ' + (entry.item.staff_name || '');
         meta = (entry.item.text || '').slice(0, 80) + ((entry.item.text || '').length > 80 ? '…' : '');
-        avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
-        avatarName = entry.item.character_name || '';
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(entry.item));
+        avatarName = thanksStudentLabel;
       } else if (entry.type === 'grade_reflection') {
-        title = entry.item.character_name || '';
+        var gradeStudentLabel = reviewStudentDisplayLabel(entry.item);
+        title = gradeStudentLabel;
         meta = (entry.item.reflection_text || '').slice(0, 80) + ((entry.item.reflection_text || '').length > 80 ? '…' : '');
-        avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
-        avatarName = entry.item.character_name || '';
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(entry.item));
+        avatarName = gradeStudentLabel;
       } else if (entry.type === 'approval_item' && (entry.item.item_type === 'poll_contribution' || entry.item.item_type === 'poll')) {
         var pp = entry.item;
         title = pp.title || pp.poll_question || 'Poll';
-        var authorLabel = pp.legacy_author_unavailable ? 'Author unavailable' : (pp.submitter || '—');
+        var authorLabel = reviewStudentDisplayLabel(pp);
         meta = authorLabel + (pp.created_at ? ' · ' + formatNewsDate(pp.created_at) : '');
         if (pp.report_count > 1) meta += ' · ' + pp.report_count + ' reports';
-        avatarUrl = resolveStudentAvatarUrl(pp.submitter);
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(pp));
         avatarName = authorLabel;
       } else if (entry.type === 'submission') {
-        title = (entry.item.character_name || '') + ' — ' + (entry.item.submission_type || 'mission');
+        var subStudentLabel = reviewStudentDisplayLabel(entry.item);
+        title = subStudentLabel + ' — ' + (entry.item.submission_type || 'mission');
         meta = entry.item.note || '';
-        avatarUrl = resolveStudentAvatarUrl(entry.item.character_name);
-        avatarName = entry.item.character_name || '';
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(entry.item));
+        avatarName = subStudentLabel;
       } else {
         title = entry.item.title || 'Item';
-        meta = (entry.item.submitter || '') + (entry.item.created_at ? ' · ' + formatNewsDate(entry.item.created_at) : '');
-        avatarUrl = resolveStudentAvatarUrl(entry.item.submitter);
-        avatarName = entry.item.submitter || '';
+        var genericStudentLabel = reviewStudentDisplayLabel(entry.item);
+        meta = genericStudentLabel + (entry.item.created_at ? ' · ' + formatNewsDate(entry.item.created_at) : '');
+        avatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(entry.item));
+        avatarName = genericStudentLabel;
       }
       var avatarHtml = smallAvatarHtml(avatarUrl, avatarName, avatarName);
       var kindKey = approvalKindKey(entry).replace(/_/g, '-');
@@ -4247,17 +4278,8 @@
       var html = '';
       var actionsHtml = '';
       if (type === 'mission') {
-        var missionUserLabel =
-          (item.submitter_public_label && String(item.submitter_public_label).trim()) ||
-          (window.LanternCards && typeof window.LanternCards.formatExploreAuthorLabel === 'function'
-            ? window.LanternCards.formatExploreAuthorLabel({
-                author: item.character_name,
-                authorRole: item.submitter_kind === 'staff' ? 'staff' : 'student',
-                authorPublicLabel: item.submitter_public_label || '',
-              })
-            : '') ||
-          '—';
-        if (/^staff:/i.test(String(missionUserLabel))) missionUserLabel = '—';
+        var missionUserLabel = reviewStudentDisplayLabel(item);
+        if (/^staff:/i.test(String(item.submitter_key || item.character_name || ''))) missionUserLabel = '—';
         var missionCreatorLabel =
           (item.created_by_teacher_public_label && String(item.created_by_teacher_public_label).trim()) ||
           (item.created_by_teacher_name && String(item.created_by_teacher_name).trim()) ||
@@ -4271,7 +4293,7 @@
         metaRows.push(['Type', 'Mission']);
         metaRows.push(['User', missionUserLabel]);
         metaRows.push(['Created by', missionCreatorLabel]);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
         firstMetaName = missionUserLabel;
         metaRows.push(['Mission', item.mission_title || '—']);
         metaRows.push(['Reward', missionRewardLabel]);
@@ -4280,7 +4302,7 @@
           '<div class="reviewPanelMetaBlock">' +
           '<div class="reviewMetaRow"><span class="reviewMetaLabel">Type:</span> Mission</div>' +
           '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' +
-          smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) +
+          smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) +
           '<span><span class="reviewMetaLabel">User:</span> ' +
           esc(missionUserLabel) +
           '</span></div>' +
@@ -4308,21 +4330,23 @@
         html += '</div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (' + missionRewardLabel + ')</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'avatar' || (type === 'approval_item' && item.item_type === 'avatar')) {
+        var avatarStudentLabel = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'Avatar']);
-        metaRows.push(['Student', item.character_name || item.submitter || '—']);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name || item.submitter);
-        firstMetaName = item.character_name || item.submitter || '—';
+        metaRows.push(['Student', avatarStudentLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = avatarStudentLabel;
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name || item.submitter) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(item.character_name || item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(avatarStudentLabel) + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Image</p><img class="reviewLargeImg" src="' + esc(item.preview_url || item.image_url || item.image_data || '') + '" alt="Avatar submission"></div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'approval_item' && item.item_type === 'poll_contribution') {
+        var pollStudentLabel = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'Student poll']);
-        metaRows.push(['Student', item.submitter || '—']);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.submitter);
-        firstMetaName = item.submitter || '—';
+        metaRows.push(['Student', pollStudentLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = pollStudentLabel;
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.submitter) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(pollStudentLabel) + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Question</p><div class="reviewFullText">' + esc(item.poll_question || item.title || '') + '</div>';
         var pch = item.poll_choices || [];
         if (pch.length) {
@@ -4338,13 +4362,13 @@
         html += buildMediaPublicityReviewHtml(item.media_publicity);
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve (publish poll)</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'approval_item' && item.item_type === 'poll') {
-        var pollAuthor = item.legacy_author_unavailable ? 'Author unavailable' : (item.submitter || '—');
+        var pollAuthor = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'Published poll']);
         metaRows.push(['Student', pollAuthor]);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.submitter);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
         firstMetaName = pollAuthor;
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.submitter) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(pollAuthor) + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(pollAuthor) + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Question</p><div class="reviewFullText">' + esc(item.poll_question || item.title || 'Legacy Poll') + '</div>';
         var pubChoices = item.poll_choices || [];
         if (pubChoices.length) {
@@ -4356,12 +4380,13 @@
         html += '</div>';
         actionsHtml = '';
       } else if (type === 'news' || (type === 'approval_item' && item.item_type === 'news')) {
+        var newsAuthorLabel = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'News']);
-        metaRows.push(['Author', item.author_name || item.submitter || '—']);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.author_name || item.submitter);
-        firstMetaName = item.author_name || item.submitter || '—';
+        metaRows.push(['Author', newsAuthorLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = newsAuthorLabel;
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.author_name || item.submitter) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.author_name || item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(newsAuthorLabel) + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Title</p><div class="reviewFullText">' + esc(item.title || '') + '</div>';
         if (item.body) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Body</p><div class="reviewFullText">' + esc(item.body) + '</div>';
         if (item.people && item.people.length) {
@@ -4379,47 +4404,53 @@
         html += buildMediaPublicityReviewHtml(item.media_publicity);
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'post') {
+        var postAuthorLabel = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'Post']);
-        metaRows.push(['Author', item.character_name || '—']);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
-        firstMetaName = item.character_name || '—';
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(item.character_name || '—') + '</span></div>' + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
+        metaRows.push(['Author', postAuthorLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = postAuthorLabel;
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Author:</span> ' + esc(postAuthorLabel) + '</span></div>' + (item.category && String(item.category).trim() ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Category:</span>' + esc(String(item.category).trim()) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Title</p><div class="reviewFullText">' + esc(item.title || 'Untitled') + '</div>';
         if (item.body) html += '<p style="margin:14px 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Body</p><div class="reviewFullText">' + esc(item.body) + '</div>';
         if (item.image_url || item.preview_url) html += '<img class="reviewLargeImg" src="' + esc(item.image_url || item.preview_url || '') + '" alt="">';
         html += '</div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'thanks') {
+        var thanksStudentLabel = reviewStudentDisplayLabel(item);
+        var thanksFromLabel = thanksStudentLabel + ' → ' + (item.staff_name || '');
         metaRows.push(['Type', 'Thanks']);
-        metaRows.push(['From', (item.character_name || '') + ' → ' + (item.staff_name || '')]);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
-        firstMetaName = item.character_name || '';
+        metaRows.push(['From', thanksFromLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = thanksStudentLabel;
         metaRows.push(['Nuggets', '+' + (item.nugget_tier || computeNuggetTier(item.word_count || 0) || 1) + ' nugget(s)']);
-        html = '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">From:</span> ' + esc((item.character_name || '') + ' → ' + (item.staff_name || '')) + '</span></div>' + '<div class="reviewMetaRow"><span class="reviewMetaLabel">Nuggets:</span>+' + (item.nugget_tier || computeNuggetTier(item.word_count || 0) || 1) + ' nugget(s)</div>' + '</div>';
+        html = '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">From:</span> ' + esc(thanksFromLabel) + '</span></div>' + '<div class="reviewMetaRow"><span class="reviewMetaLabel">Nuggets:</span>+' + (item.nugget_tier || computeNuggetTier(item.word_count || 0) || 1) + ' nugget(s)</div>' + '</div>';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Message</p><div class="reviewFullText">' + esc(item.text || '') + '</div></div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewAccept">Accept</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'grade_reflection') {
+        var gradeStudentLabel = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'Grade reflection']);
-        metaRows.push(['Student', item.character_name || '—']);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
-        firstMetaName = item.character_name || '—';
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(item.character_name || '—') + '</span></div>' + '</div>' : '';
+        metaRows.push(['Student', gradeStudentLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = gradeStudentLabel;
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(gradeStudentLabel) + '</span></div>' + '</div>' : '';
         html += '<div class="reviewContentBlock"><p style="margin:0 0 8px 0;font-weight:800;font-size:22px;color:var(--muted);">Reflection</p><div class="reviewFullText">' + esc(item.reflection_text || '') + '</div></div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn" id="reviewReturn" style="border-color:rgba(255,204,102,.5);background:rgba(255,204,102,.15);">Return</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else if (type === 'submission') {
+        var subStudentLabel = reviewStudentDisplayLabel(item);
         metaRows.push(['Type', 'Submission']);
-        metaRows.push(['Student', item.character_name || '—']);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.character_name);
-        firstMetaName = item.character_name || '—';
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.character_name) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(item.character_name || '—') + '</span></div>' + '</div>' : '';
+        metaRows.push(['Student', subStudentLabel]);
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = subStudentLabel;
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Student:</span> ' + esc(subStudentLabel) + '</span></div>' + '</div>' : '';
         html += '<div class="reviewContentBlock"><div class="reviewFullText">' + esc(item.note || '') + '</div></div>';
         actionsHtml = '<button type="button" class="btn good" id="reviewApprove">Approve</button><button type="button" class="btn bad" id="reviewReject">Reject</button>';
       } else {
-        metaRows.push(['Submitter', item.submitter || '—']);
+        var genericStudentLabel = reviewStudentDisplayLabel(item);
+        metaRows.push(['Submitter', genericStudentLabel]);
         if (item.created_at) metaRows.push(['Submitted', formatNewsDate(item.created_at)]);
-        firstMetaAvatarUrl = resolveStudentAvatarUrl(item.submitter);
-        firstMetaName = item.submitter || '—';
-        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, item.submitter) + '<span><span class="reviewMetaLabel">Submitter:</span> ' + esc(item.submitter || '—') + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
+        firstMetaAvatarUrl = resolveStudentAvatarUrl(reviewStudentAvatarKey(item));
+        firstMetaName = genericStudentLabel;
+        html = metaRows.length ? '<div class="reviewPanelMetaBlock">' + '<div class="reviewMetaRow" style="display:flex;align-items:center;gap:10px;">' + smallAvatarHtml(firstMetaAvatarUrl, firstMetaName, reviewStudentAvatarKey(item)) + '<span><span class="reviewMetaLabel">Submitter:</span> ' + esc(genericStudentLabel) + '</span></div>' + (item.created_at ? '<div class="reviewMetaRow"><span class="reviewMetaLabel">Submitted:</span>' + esc(formatNewsDate(item.created_at)) + '</div>' : '') + '</div>' : '';
         html += '<div class="reviewContentBlock"><div class="reviewFullText">' + esc(item.title || '') + '</div>';
         if (item.preview_url) html += '<img class="reviewLargeImg" src="' + esc(item.preview_url) + '" alt="">';
         html += '</div>';
