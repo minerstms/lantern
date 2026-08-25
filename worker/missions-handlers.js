@@ -46,7 +46,7 @@ import {
   getMissionRewardMode,
   setMissionRewardMode,
 } from './mission-reward-mode.js';
-import { classifyMissionEvidenceKind } from './global-mission-eligibility.js';
+import { classifyMissionEvidenceKind, isHumanReviewMissionSubmission } from './global-mission-eligibility.js';
 import { registryForMissionId } from './activity-admin.js';
 import {
   WAVE2_MISSION_IDS,
@@ -63,7 +63,7 @@ import {
   overlayEducationalTriviaMissions,
   startEducationalTriviaRun,
   answerEducationalTriviaRun,
-  isTriviaRunPendingSubmission,
+  isVerifiedActivityRunStateRow,
 } from './educational-trivia-missions.js';
 import {
   FIGHT_SONG_MISSION_ID,
@@ -1383,7 +1383,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       } catch (_) {}
     }
     const studentPending = rawPending.filter(
-      (s) => !isStaffEconomyKey(s.character_name) && !isTriviaRunPendingSubmission(s)
+      (s) => !isStaffEconomyKey(s.character_name) && isHumanReviewMissionSubmission(s)
     );
     const byMission = {};
     (missionRows.results || []).forEach((m) => {
@@ -1641,7 +1641,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       });
     }
     const list = (subRows.results || [])
-      .filter((s) => !isTriviaRunPendingSubmission(s))
+      .filter((s) => !isVerifiedActivityRunStateRow(s))
       .map((s) => mapCharacterSubmissionRow(s, byMission));
     return jsonResponse({ ok: true, submissions: list }, 200, cors);
   }
@@ -1663,6 +1663,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       .bind(id)
       .first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (isVerifiedActivityRunStateRow(row)) {
+      return jsonResponse({ ok: false, error: 'verified_activity_not_reviewable' }, 400, cors);
+    }
     const mission = await db.prepare('SELECT reward_amount, teacher_id FROM lantern_missions WHERE id = ?').bind(row.mission_id).first();
     if (!mission || !teacherOwnsMission(auth.account, mission.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized to approve this submission' }, 403, cors);

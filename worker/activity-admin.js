@@ -34,6 +34,8 @@ import {
 
   missionProvenance,
 
+  missionCompletionModeLabel,
+
   EVIDENCE_SUBMISSION,
 
   EVIDENCE_VERIFIED_ACTIVITY,
@@ -252,6 +254,8 @@ function missionRowToActivity(row, origin, placementOverride, rewardModeOverride
     kind,
 
     evidence_kind: evidenceKind,
+
+    completion_mode_label: missionCompletionModeLabel(evidenceKind),
 
     global: isGlobalStudentFacingMission(row),
 

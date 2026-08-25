@@ -5,7 +5,7 @@
  * regardless of id prefix (perm_* or tmission_*). Scoped missions (selected_students,
  * my_students) are excluded from Activity Admin.
  */
-import { isEducationalTriviaMissionId } from './educational-trivia-missions.js';
+import { isEducationalTriviaMissionId, isVerifiedActivityRunStateRow } from './educational-trivia-missions.js';
 import { FIGHT_SONG_MISSION_ID } from './fight-song-challenge.js';
 import { WAVE2_MISSION_IDS } from './mission-event-completions.js';
 
@@ -63,6 +63,22 @@ export function classifyMissionEvidenceKind(row, registryKind) {
   const st = String((row && row.submission_type) || '').trim();
   if (st === 'confirmation' || st === 'poll' || st === 'bug_report') return EVIDENCE_VERIFIED_ACTIVITY;
   return EVIDENCE_SUBMISSION;
+}
+
+/** Admin/UI label for how a mission completes. */
+export function missionCompletionModeLabel(evidenceKind) {
+  return evidenceKind === EVIDENCE_VERIFIED_ACTIVITY ? 'Verified automatically' : 'Staff review';
+}
+
+/**
+ * True when a lantern_mission_submissions row is awaiting human teacher review.
+ * Excludes verified-activity run-state rows (#257C3).
+ */
+export function isHumanReviewMissionSubmission(row) {
+  if (!row) return false;
+  if (String(row.status || '').trim().toLowerCase() !== 'pending') return false;
+  if (isVerifiedActivityRunStateRow(row)) return false;
+  return true;
 }
 
 export function missionProvenance(row) {

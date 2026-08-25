@@ -9,6 +9,7 @@
  * Current content tables remain authoritative. Events are append-only history.
  */
 
+import { isHumanReviewMissionSubmission } from './global-mission-eligibility.js';
 import {
   actorFromAccount,
   canonicalItemType,
@@ -425,6 +426,7 @@ export async function buildReviewQueue(db, account, opts) {
     });
   }
   pendingMissions.forEach((s) => {
+    if (!isHumanReviewMissionSubmission(s)) return;
     const mission = missionById[s.mission_id];
     if (!mission || !teacherOwnsMission(account, mission.teacher_id)) return;
     upsert({

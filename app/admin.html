@@ -4359,9 +4359,10 @@
         html += '<div class="teacherField" data-activity-mission="' + it.id + '" style="margin-bottom:14px;border:1px solid #2a3544;border-radius:10px;padding:12px;">';
         html += '<strong>' + it.title + '</strong>';
         html += '<p class="pendingMeta">Mission · ' + (it.provenance && it.provenance.label ? it.provenance.label : 'Global') + ' · ' + (it.active ? 'Active' : 'Inactive') + (it.evidence_kind === 'verified_activity' ? ' · Verified activity' : '') + '</p>';
+        html += '<p class="pendingMeta">Completion: ' + esc(it.completion_mode_label || (it.evidence_kind === 'verified_activity' ? 'Verified automatically' : 'Staff review')) + '</p>';
         html += '<label><input type="checkbox" data-field="active"' + (it.active ? ' checked' : '') + ' /> Active</label>';
         if (it.evidence_kind === 'verified_activity') {
-          html += '<p class="teacherFieldHint" style="margin-top:8px;">Verified activity — completion uses server/game evidence, not a writing minimum.</p>';
+          html += '<p class="teacherFieldHint" style="margin-top:8px;">Verified activity — Lantern validates completion automatically. No teacher review queue entry.</p>';
         } else {
           html += '<div style="margin-top:8px;"><label>Minimum response</label><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">';
           [100, 200, 500, 1000].forEach(function (p) {
