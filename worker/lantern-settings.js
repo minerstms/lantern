@@ -14,6 +14,13 @@
  */
 
 import { handleNuggetEconomySettings } from './nugget-economy-settings.js';
+import {
+  ACCESS_ENFORCEMENT_DEFAULT,
+  buildAccessEnforcementStatus,
+  parseAccessEnforcementEnabled,
+  setSchoolScheduleEnforcementEnabled,
+} from './school-access-enforcement.js';
+import { recordAccessAuditEvent, ACCESS_AUDIT_ACTIONS } from './access-audit.js';
 
 export const MARQUEE_SPEED_SETTING_KEY = 'marquee_speed_px_per_second';
 
@@ -224,6 +231,67 @@ export async function handleSettingsRoutes(request, url, path, env, cors, deps) 
     const updatedAt = await setVisibleWatermarkEnabled(db, validated.value, updatedBy);
     return deps.jsonResponse(
       { ok: true, enabled: validated.value, updated_at: updatedAt },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'GET' && path === '/api/settings/access-enforcement') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    const status = await buildAccessEnforcementStatus(db, env, new Date());
+    return deps.jsonResponse(
+      {
+        ok: true,
+        enabled: status.enforcement_enabled,
+        enforcement_enabled: status.enforcement_enabled,
+        enforcement_source: status.enforcement_source,
+        currently_inside_lock_window: status.currently_inside_lock_window,
+        effective_enforcement_active: status.effective_enforcement_active,
+        lock_window: status.lock_window,
+        timezone: status.timezone,
+        schedule: status.schedule,
+        default: ACCESS_ENFORCEMENT_DEFAULT,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'PATCH' && path === '/api/settings/access-enforcement') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_err) {
+      return deps.jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const validated = parseAccessEnforcementEnabled(body && body.enabled);
+    if (!validated.ok) {
+      return deps.jsonResponse({ ok: false, error: validated.error }, 400, cors);
+    }
+    const updatedBy = deps.adminAuditLabel ? deps.adminAuditLabel(gate.account) : '';
+    const updatedAt = await setSchoolScheduleEnforcementEnabled(db, validated.value, updatedBy);
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.ENFORCEMENT_SETTING_CHANGED,
+      staffId: gate.account && gate.account.username,
+      staffName: updatedBy,
+      targetId: 'access.school_schedule_enforcement',
+      detail: { enabled: validated.value },
+    });
+    const status = await buildAccessEnforcementStatus(db, env, new Date());
+    return deps.jsonResponse(
+      {
+        ok: true,
+        enabled: validated.value,
+        enforcement_enabled: status.enforcement_enabled,
+        updated_at: updatedAt,
+        currently_inside_lock_window: status.currently_inside_lock_window,
+        effective_enforcement_active: status.effective_enforcement_active,
+        lock_window: status.lock_window,
+        timezone: status.timezone,
+      },
       200,
       cors
     );

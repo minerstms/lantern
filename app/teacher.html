@@ -1648,19 +1648,18 @@
               <div id="schoolAccessScheduleTypeText" style="font-weight:1000;font-size:28px;line-height:1.25;">Loading…</div>
               <p class="note note-tight" id="schoolAccessScheduleWindowText" style="margin-top:6px;"></p>
               <p class="note note-tight" id="schoolAccessEffectiveStatusText" style="margin-top:8px;font-weight:800;color:var(--ink);"></p>
-              <p style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;">
-                School schedule enforcement: <span id="schoolAccessEnforcementText">OFF</span> — the automatic lock is NOT active in production yet.
-              </p>
+              <p id="schoolAccessEnforcementBanner" style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;"></p>
               <details class="teacherClassAccessSimDetails" style="margin-top:12px;">
-                <summary>Intended final access priority (not active yet)</summary>
+                <summary>Access priority (authoritative server order)</summary>
                 <div style="padding-top:8px;">
                   <ol style="margin:0;padding-left:22px;font-size:20px;line-height:1.55;color:var(--ink);">
                     <li>Teacher / admin / staff → always allowed</li>
                     <li>Active temporary schoolwide override → allowed</li>
-                    <li>Valid enrolled device in an unlocked group → allowed</li>
-                    <li>Active teacher-approved individual grant → allowed</li>
-                    <li>Otherwise, during scheduled school lock → locked / Request Access</li>
-                    <li>Outside scheduled school lock → normal Lantern behavior</li>
+                    <li>Class Access — enrolled device in an unlocked group → allowed</li>
+                    <li>Individual Access — active teacher-approved grant → allowed</li>
+                    <li>Enforcement OFF → normal Lantern access</li>
+                    <li>Outside scheduled school lock → normal Lantern access</li>
+                    <li>Otherwise during active enforcement → locked / Request Access</li>
                   </ol>
                 </div>
               </details>
@@ -5784,7 +5783,7 @@
       var windowEl = el('schoolAccessScheduleWindowText');
       var effectiveEl = el('schoolAccessEffectiveStatusText');
       var enforcementPill = el('schoolAccessEnforcementPill');
-      var enforcementText = el('schoolAccessEnforcementText');
+      var enforcementBanner = el('schoolAccessEnforcementBanner');
       if (!typeEl) return;
       if (avatarApiBase === null) { typeEl.textContent = 'Lantern Access requires the Lantern API.'; return; }
       var res = await fetch(avatarApiBase + '/api/class-access/state', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
@@ -5802,22 +5801,47 @@
         windowText = 'Automatic school-hours lock inactive today.';
       }
       if (windowEl) windowEl.textContent = windowText;
-      var enforcementOn = !!res.scheduleEnforcementEnabled;
+      var enforcementOn = !!(res.enforcement_enabled != null ? res.enforcement_enabled : res.scheduleEnforcementEnabled);
       if (enforcementPill) {
         enforcementPill.textContent = 'Enforcement: ' + (enforcementOn ? 'ON' : 'OFF');
         enforcementPill.style.background = enforcementOn ? 'rgba(255,77,109,.25)' : '';
         enforcementPill.style.color = enforcementOn ? '#ffb4c2' : '';
       }
-      if (enforcementText) enforcementText.textContent = enforcementOn ? 'ON' : 'OFF';
+      if (enforcementBanner) {
+        if (!enforcementOn) {
+          enforcementBanner.style.borderColor = 'rgba(90,167,255,.35)';
+          enforcementBanner.style.background = 'rgba(90,167,255,.08)';
+          enforcementBanner.style.color = 'var(--ink)';
+          enforcementBanner.textContent = 'ENFORCEMENT: OFF — Effective now: Normal open access. Individual and Class Access settings are stored but no school-time lock is enforced.';
+        } else if (res.effective_enforcement_active) {
+          enforcementBanner.style.borderColor = 'rgba(255,77,109,.45)';
+          enforcementBanner.style.background = 'rgba(255,77,109,.12)';
+          enforcementBanner.style.color = '#ffb4c2';
+          enforcementBanner.textContent = 'ENFORCEMENT: ON — SCHOOL DAY — LOCK WINDOW ACTIVE. Effective now: Students need Class Access (device group unlock) or Individual Access unless another override applies.';
+        } else if (s.withinScheduledLock) {
+          enforcementBanner.style.borderColor = 'rgba(255,204,102,.4)';
+          enforcementBanner.style.background = 'rgba(255,204,102,.08)';
+          enforcementBanner.style.color = 'var(--warn)';
+          enforcementBanner.textContent = 'ENFORCEMENT: ON — inside lock window but bypass active on this browser, or evaluating open access.';
+        } else {
+          enforcementBanner.style.borderColor = 'rgba(90,167,255,.35)';
+          enforcementBanner.style.background = 'rgba(90,167,255,.08)';
+          enforcementBanner.style.color = 'var(--ink)';
+          enforcementBanner.textContent = 'ENFORCEMENT: ON — OUTSIDE LOCK WINDOW. Effective now: Normal open access.';
+        }
+      }
       if (effectiveEl) {
         var bits = [];
         if (res.eventOverride && res.eventOverride.qualifyingAccess) bits.push('Schoolwide override active');
-        if (res.deviceGroupAccess && res.deviceGroupAccess.qualifyingAccess) bits.push('Device-group unlock active');
+        if (res.deviceGroupAccess && res.deviceGroupAccess.qualifyingAccess) {
+          bits.push('Class Access active' + (res.deviceGroupAccess.groupName ? ' (' + res.deviceGroupAccess.groupName + ')' : ''));
+        }
         if (res.individualGrant && res.individualGrant.qualifyingAccess) bits.push('Individual grant active on this browser');
         if (!bits.length) {
-          bits.push(enforcementOn
-            ? (s.withinScheduledLock ? 'Within school lock window (enforcement on)' : 'Outside school lock window')
-            : 'Normal open access (schedule enforcement off)');
+          if (!enforcementOn) bits.push('Normal open access');
+          else if (!s.withinScheduledLock) bits.push('Outside school lock window — normal access');
+          else if (res.effective_enforcement_active) bits.push('Lock window active — students need Class or Individual Access');
+          else bits.push('Normal open access');
         }
         effectiveEl.textContent = 'Effective now: ' + bits.join(' · ');
       }

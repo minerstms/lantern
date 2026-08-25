@@ -1126,6 +1126,31 @@
     </div>
   </details>
 
+  <details class="card teacherCollapsibleList" id="accessEnforcementCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Lantern Access Enforcement</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="accessEnforcementSummaryPill">OFF</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Master control for school-time access enforcement. When ON, students need Class Access (device group unlock), Individual Access, or another authorized override during the school lock window. Teachers cannot change this setting.</p>
+      <div id="accessEnforcementMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+      <p class="pendingMeta" id="accessEnforcementStatusLine">Loading server status…</p>
+      <p class="pendingMeta" id="accessEnforcementWindowLine"></p>
+      <p class="pendingMeta" id="accessEnforcementEffectiveLine"></p>
+      <label class="visibleWatermarkToggle" for="accessEnforcementEnabled">
+        <input type="checkbox" id="accessEnforcementEnabled" />
+        <span>Lantern Access Enforcement</span>
+        <strong class="visibleWatermarkState" id="accessEnforcementStateLabel">OFF</strong>
+      </label>
+      <p id="accessEnforcementHelperOff" class="pendingMeta" style="margin-top:8px;">OFF — Lantern remains normally accessible. Individual and Class Access settings are stored but no school-time lock is enforced.</p>
+      <p id="accessEnforcementHelperOn" class="pendingMeta" style="margin-top:8px;display:none;">ON — During the school lock window, students need Class Access, Individual Access, or another authorized override to enter Lantern.</p>
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn good" id="accessEnforcementSave">Save</button>
+        <button type="button" class="btn" id="accessEnforcementRefresh">Reload current</button>
+      </div>
+    </div>
+  </details>
+
   <details class="card teacherCollapsibleList" id="marqueeSpeedCard">
     <summary class="cardHd teacherCollapsibleListHd">
       <div class="teacherCollapsibleListTitle"><div class="h">Marquee (ticker) speed</div></div>
@@ -4637,6 +4662,109 @@
       });
     }
 
+    function fmtAccessHHMM(hhmm) {
+      if (!hhmm) return '';
+      var parts = String(hhmm).split(':');
+      var h = parseInt(parts[0], 10) || 0;
+      var m = parts[1] || '00';
+      var ap = h >= 12 ? 'PM' : 'AM';
+      var h12 = h % 12; if (h12 === 0) h12 = 12;
+      return h12 + ':' + m + ' ' + ap;
+    }
+
+    function showAccessEnforcementMsg(text, kind) {
+      var el = document.getElementById('accessEnforcementMsg');
+      if (!el) return;
+      if (!text) { el.style.display = 'none'; el.textContent = ''; el.className = 'usersMsg'; return; }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function setAccessEnforcementControls(enabled, status) {
+      var on = !!enabled;
+      var cb = document.getElementById('accessEnforcementEnabled');
+      var stateLabel = document.getElementById('accessEnforcementStateLabel');
+      var summaryPill = document.getElementById('accessEnforcementSummaryPill');
+      var helperOff = document.getElementById('accessEnforcementHelperOff');
+      var helperOn = document.getElementById('accessEnforcementHelperOn');
+      var statusLine = document.getElementById('accessEnforcementStatusLine');
+      var windowLine = document.getElementById('accessEnforcementWindowLine');
+      var effectiveLine = document.getElementById('accessEnforcementEffectiveLine');
+      if (cb) cb.checked = on;
+      if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+      if (summaryPill) { summaryPill.textContent = on ? 'ON' : 'OFF'; summaryPill.classList.toggle('bad', on); }
+      if (helperOff) helperOff.style.display = on ? 'none' : 'block';
+      if (helperOn) helperOn.style.display = on ? 'block' : 'none';
+      if (status && statusLine) {
+        statusLine.textContent = 'Current: ' + (on ? 'ON' : 'OFF') + ' · Server: ' + (status.currently_inside_lock_window ? 'Inside lock window' : 'Outside lock window');
+      }
+      if (status && windowLine) {
+        var lw = status.lock_window;
+        windowLine.textContent = lw && lw.start && lw.end
+          ? 'School lock: ' + fmtAccessHHMM(lw.start) + '–' + fmtAccessHHMM(lw.end) + ' Mountain Time'
+          : 'School lock: not active today (weekend, holiday, or outside schedule).';
+      }
+      if (status && effectiveLine) {
+        effectiveLine.textContent = 'Effective result: ' + (status.effective_enforcement_active ? 'Enforcing' : 'Normal access');
+      }
+    }
+
+    function loadAccessEnforcement() {
+      fetch(api + '/api/settings/access-enforcement', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok === true) {
+            setAccessEnforcementControls(!!res.enforcement_enabled, res);
+            showAccessEnforcementMsg('', '');
+          } else {
+            setAccessEnforcementControls(false, null);
+            showAccessEnforcementMsg('Could not load access enforcement (showing OFF).', 'err');
+          }
+        })
+        .catch(function () {
+          setAccessEnforcementControls(false, null);
+          showAccessEnforcementMsg('Could not load access enforcement (network).', 'err');
+        });
+    }
+
+    function saveAccessEnforcement() {
+      var cb = document.getElementById('accessEnforcementEnabled');
+      var enabled = !!(cb && cb.checked);
+      var saveBtn = document.getElementById('accessEnforcementSave');
+      showAccessEnforcementMsg('', '');
+      if (saveBtn) saveBtn.disabled = true;
+      return patchAdminJson('/api/settings/access-enforcement', { enabled: enabled }).then(function (res) {
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          setAccessEnforcementControls(!!res.body.enforcement_enabled, res.body);
+          showAccessEnforcementMsg('Saved. Lantern Access Enforcement is now ' + (res.body.enforcement_enabled ? 'ON' : 'OFF') + '.', 'ok');
+        } else {
+          var err = res && res.body && res.body.error;
+          showAccessEnforcementMsg(err === 'forbidden' ? 'Admin access required.' : (err || 'Save failed'), 'err');
+        }
+      }).catch(function () {
+        showAccessEnforcementMsg('Network error. Try again.', 'err');
+      }).finally(function () {
+        if (saveBtn) saveBtn.disabled = false;
+      });
+    }
+
+    var accessEnforcementCb = document.getElementById('accessEnforcementEnabled');
+    if (accessEnforcementCb) {
+      accessEnforcementCb.addEventListener('change', function () {
+        var on = !!accessEnforcementCb.checked;
+        var stateLabel = document.getElementById('accessEnforcementStateLabel');
+        var summaryPill = document.getElementById('accessEnforcementSummaryPill');
+        if (stateLabel) stateLabel.textContent = on ? 'ON' : 'OFF';
+        if (summaryPill) summaryPill.textContent = on ? 'ON' : 'OFF';
+      });
+    }
+    var accessEnforcementSaveBtn = document.getElementById('accessEnforcementSave');
+    if (accessEnforcementSaveBtn) accessEnforcementSaveBtn.addEventListener('click', function () { saveAccessEnforcement(); });
+    var accessEnforcementRefreshBtn = document.getElementById('accessEnforcementRefresh');
+    if (accessEnforcementRefreshBtn) accessEnforcementRefreshBtn.addEventListener('click', function () { showAccessEnforcementMsg('', ''); loadAccessEnforcement(); });
+
     function showVisibleWatermarkMsg(text, kind) {
       var el = document.getElementById('visibleWatermarkMsg');
       if (!el) return;
@@ -6930,6 +7058,7 @@
     loadFeedModeration();
     loadPending();
     loadMarqueeSpeed();
+    loadAccessEnforcement();
     loadVisibleWatermark();
     loadNuggetEconomy();
     loadLanternActivities();
