@@ -21,13 +21,16 @@ for (const vp of viewports) {
   await page.goto(base + '/dev/access-enforcement-262-harness.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__HARNESS_262__ === true);
   const s = await page.evaluate(() => ({
-    ready: window.__HARNESS_262__,
+    ready: window.__HARNESS_262__ && window.__HARNESS_262A__ && window.__HARNESS_262A__.classAccessUsesGroupUnlock,
     overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
+    scrollOk: document.documentElement.scrollHeight >= document.documentElement.clientHeight,
   }));
-  if (s.ready) ok(vp.name + ' harness ready');
+  if (s.ready) ok(vp.name + ' harness ready (#262A group unlock)');
   else bad(vp.name + ' harness');
   if (!s.overflow) ok(vp.name + ' no overflow');
   else bad(vp.name + ' overflow');
+  if (s.scrollOk) ok(vp.name + ' natural scroll');
+  else bad(vp.name + ' scroll');
   await page.close();
 }
 await browser.close();
