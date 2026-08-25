@@ -37,6 +37,7 @@ import { canManageLanternAvatars } from './avatar-media-gate.js';
 import { finalizePollContributionPublish, parsePollChoices, resolvePollContributionIdFromLivePoll } from './poll-publish.js';
 import { resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import { archivedRefSet, isOwnerArchivedRef, listArchivedLockerRefs } from './locker-item-state.js';
+import { loadStaffPublicNameIndex, resolveMissionSubmitterPublicLabel } from './staff-public-name.js';
 
 export const QUEUE_STATES = Object.freeze({
   PENDING_REVIEW: 'PENDING_REVIEW',
@@ -460,6 +461,63 @@ async function attachTitles(db, card) {
   return card;
 }
 
+async function loadStudentDisplayByKeys(db, keys) {
+  const out = Object.create(null);
+  const uniq = [...new Set((keys || []).map((k) => String(k || '').trim()).filter(Boolean))];
+  if (!uniq.length || !db) return out;
+  try {
+    const ph = uniq.map(() => '?').join(',');
+    const nameRows = await db
+      .prepare(
+        'SELECT mtss_student_id, student_character_name, display_name, username FROM lantern_pilot_accounts WHERE mtss_student_id IN (' +
+          ph +
+          ') OR student_character_name IN (' +
+          ph +
+          ') OR username IN (' +
+          ph +
+          ')'
+      )
+      .bind(...uniq, ...uniq, ...uniq)
+      .all();
+    (nameRows.results || []).forEach((r) => {
+      const dn =
+        (r.display_name && String(r.display_name).trim()) ||
+        (r.student_character_name && String(r.student_character_name).trim()) ||
+        '';
+      if (!dn) return;
+      [r.mtss_student_id, r.student_character_name, r.username].forEach((k) => {
+        const key = k != null ? String(k).trim() : '';
+        if (key) out[key] = dn;
+      });
+    });
+  } catch (_) {}
+  return out;
+}
+
+/** Staff-facing review labels — never promote raw student ids (#261). */
+async function enrichReviewSubmitterLabels(db, cards) {
+  if (!cards || !cards.length) return;
+  const staffIndex = await loadStaffPublicNameIndex(db);
+  const keys = cards.map((c) => c && c.submitter).filter(Boolean);
+  const displayByKey = await loadStudentDisplayByKeys(db, keys);
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    if (!card) continue;
+    if (card.legacy_author_unavailable) {
+      card.submitter_public_label = 'Author unavailable';
+      continue;
+    }
+    const key = String(card.submitter || '').trim();
+    if (!key) {
+      card.submitter_public_label = 'Student';
+      continue;
+    }
+    card.submitter_key = key;
+    const label = resolveMissionSubmitterPublicLabel(staffIndex, key, displayByKey[key] || '');
+    card.submitter_public_label = label || 'Student';
+  }
+}
+
 function redactReporter(card, isAdmin) {
   const out = Object.assign({}, card);
   if (!isAdmin) {
@@ -630,17 +688,34 @@ export async function buildReviewQueue(db, account, opts) {
   });
 
   const out = [];
+  const detailCards = [];
   for (const key of Object.keys(cards)) {
     const card = cards[key];
     if (card.queue_state !== QUEUE_STATES.REPORTED) {
       const evs = eventsByKey[key] || [];
       if (isResubmittedFromEvents(evs)) card.queue_state = QUEUE_STATES.RESUBMITTED;
     }
-    if (includeDetails) await attachTitles(db, card);
+    if (includeDetails) {
+      await attachTitles(db, card);
+      detailCards.push(card);
+    }
     if (card.report_count > 0) {
       card.reporters = card.flags.map((f) => f.reported_by).filter(Boolean);
     }
     out.push(includeDetails ? redactReporter(card, isAdmin) : { queue_key: card.queue_key, item_type: card.item_type, item_id: card.item_id, queue_state: card.queue_state });
+  }
+  if (includeDetails && detailCards.length) {
+    await enrichReviewSubmitterLabels(db, detailCards);
+    const labelByKey = Object.create(null);
+    detailCards.forEach((c) => {
+      if (c && c.queue_key) labelByKey[c.queue_key] = c;
+    });
+    for (let i = 0; i < out.length; i++) {
+      const src = labelByKey[out[i].queue_key];
+      if (!src) continue;
+      out[i].submitter_public_label = src.submitter_public_label;
+      out[i].submitter_key = src.submitter_key;
+    }
   }
   out.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
   return out;
