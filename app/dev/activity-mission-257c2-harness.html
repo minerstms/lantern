@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#257C2 Activity Mission reward mode harness</title>
+  <link rel="stylesheet" href="../css/lantern-character-example.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; max-width: 720px; line-height: 1.4; }
+    .card { border: 1px solid #2a3544; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .meta { color: #8899aa; font-size: 14px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .btn { font-size: 16px; padding: 8px 12px; cursor: pointer; }
+    .btn.good { background: #1a4d2e; color: #fff; border: 1px solid #2ecc71; }
+    input[type="number"] { font-size: 16px; padding: 6px; width: 100px; }
+    #harnessOverflowProbe { width: 200vw; height: 1px; position: absolute; left: -9999px; }
+  </style>
+</head>
+<body>
+  <h1>Lantern Activities #257C2 harness</h1>
+  <div id="harnessOverflowProbe"></div>
+  <div id="adminList"></div>
+  <div class="card" id="studentCopyCard">
+    <h2 id="studentMissionTitle">Mission</h2>
+    <p class="meta" id="studentMissionMeta"></p>
+    <p class="meta" id="studentMissionRepeatable"></p>
+  </div>
+  <script src="../js/lantern-mission-copy.js"></script>
+  <script>
+    window.__HARNESS_MISSIONS__ = [
+      { id: 'perm_thank_you', title: 'Thank a Teacher', provenance: { label: 'System / Global' }, evidence_kind: 'verified_activity', active: true, min_characters: 100, require_image: false, reward_amount: 3, reward_mode: 'once', student_preview: '100+ characters · +3 Nuggets · Earn once' },
+      { id: 'perm_handbook_trivia', title: 'Student Handbook Challenge', provenance: { label: 'System / Global' }, evidence_kind: 'verified_activity', active: true, min_characters: 0, require_image: false, reward_amount: 1, reward_mode: 'every_completion', student_preview: '+1 Nugget every completion', admin_economy_preview: '+1 Nugget every completion' },
+      { id: 'tmission_stem', title: 'STEM Today', provenance: { label: 'Created by Mr. Radle' }, evidence_kind: 'submission', active: true, min_characters: 500, require_image: true, reward_amount: 5, reward_mode: 'once', student_preview: '📷 Image required · 500+ characters · +5 Nuggets · Earn once' }
+    ];
+
+    function renderAdmin() {
+      var host = document.getElementById('adminList');
+      var html = '';
+      window.__HARNESS_MISSIONS__.forEach(function (it) {
+        var rm = it.reward_mode === 'every_completion' ? 'every_completion' : 'once';
+        html += '<div class="card" data-mission-id="' + it.id + '">';
+        html += '<strong>' + it.title + '</strong>';
+        html += '<p class="meta">Mission · ' + it.provenance.label + '</p>';
+        html += '<label>Reward mode</label>';
+        html += '<div class="lanternRewardModeSeg row" role="radiogroup">';
+        html += '<label class="btn' + (rm === 'once' ? ' good' : '') + '"><input type="radio" data-reward-mode value="once"' + (rm === 'once' ? ' checked' : '') + ' style="position:absolute;opacity:0;" /> Once</label>';
+        html += '<label class="btn' + (rm === 'every_completion' ? ' good' : '') + '"><input type="radio" data-reward-mode value="every_completion"' + (rm === 'every_completion' ? ' checked' : '') + ' style="position:absolute;opacity:0;" /> Every completion</label>';
+        html += '</div>';
+        html += '<p class="meta" data-mode-hint>' + (rm === 'every_completion' ? 'Practice is unlimited. Each valid completion earns the reward.' : 'Earn once.') + '</p>';
+        html += '<p class="meta" data-preview>' + it.student_preview + '</p>';
+        html += '<p class="meta" data-economy>' + (it.admin_economy_preview || window.LanternMissionCopy.formatAdminEconomyPreview(it.reward_amount, rm)) + '</p></div>';
+      });
+      host.innerHTML = html;
+    }
+
+    function showStudent(m) {
+      document.getElementById('studentMissionTitle').textContent = m.title;
+      document.getElementById('studentMissionMeta').textContent = window.LanternMissionCopy.formatMissionStudentCopy(m);
+      document.getElementById('studentMissionRepeatable').textContent = window.LanternMissionCopy.isEveryCompletionMode(m)
+        ? 'Completed before · Practice again'
+        : (m.reward_mode === 'once' ? 'Earn once' : '');
+      window.__HARNESS_ACTIVE__ = m;
+    }
+
+    renderAdmin();
+    showStudent(window.__HARNESS_MISSIONS__.find(function (m) { return m.id === 'perm_handbook_trivia'; }));
+    window.__HARNESS_READY__ = true;
+    window.__HARNESS_HAS_REWARD_MODE__ = document.querySelector('[data-reward-mode]') != null;
+    window.__HARNESS_HAS_EVERY__ = !!document.querySelector('input[data-reward-mode][value="every_completion"]');
+    window.__HARNESS_OVERFLOW__ = document.documentElement.scrollWidth > window.innerWidth + 2;
+  </script>
+</body>
+</html>

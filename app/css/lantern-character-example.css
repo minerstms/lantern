@@ -1,0 +1,53 @@
+.lanternCharacterExampleModal[hidden] { display: none !important; }
+.lanternCharacterExampleModal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.lanternCharacterExampleBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+.lanternCharacterExampleDialog {
+  position: relative;
+  max-width: 640px;
+  width: 100%;
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: #101820;
+  color: #eef4fa;
+  border: 1px solid #2a3544;
+  border-radius: 14px;
+  padding: 18px;
+}
+.lanternCharacterExampleTitle {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}
+.lanternCharacterExampleBody {
+  white-space: pre-wrap;
+  line-height: 1.45;
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+.lanternCharacterExampleFoot,
+.lanternCharacterExampleLead {
+  opacity: 0.85;
+  font-size: 0.95rem;
+}
+.lanternCharacterExampleLink {
+  margin-top: 8px;
+  font-size: 0.95rem;
+}
+.lanternMissionCharCounter {
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+.lanternMissionCharCounter.is-ok { color: #7dffb2; }

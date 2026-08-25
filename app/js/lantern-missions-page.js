@@ -74,7 +74,16 @@
   }
 
   function buildFooterMeta(item) {
-    return { primary: '', reward: rewardMeta(item.reward, item) };
+    var reqCopy = '';
+    if (global.LanternMissionCopy && typeof global.LanternMissionCopy.formatMissionStudentCopy === 'function') {
+      reqCopy = global.LanternMissionCopy.formatMissionStudentCopy({
+        min_characters: item.min_characters,
+        require_image: item.require_image,
+        reward_amount: item.reward,
+        reward_mode: item.reward_mode || (item.raw && item.raw.reward_mode),
+      });
+    }
+    return { primary: reqCopy, reward: rewardMeta(item.reward, item) };
   }
 
   function paintSponsoredTrinidadReward(node, amount) {
@@ -212,7 +221,7 @@
         icon: item.icon || '✨',
         // Prompt #121: no category/identity token on the mission face — reward only in LLHC meta.
         hubIdentityLabel: '',
-        metaOne: '',
+        metaOne: footer.primary || '',
         rewardText: footer.reward,
         typeBadge: '',
         stateBadge: stateBadge,

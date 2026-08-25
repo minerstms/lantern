@@ -12,12 +12,16 @@ import {
   SEVEN_HABITS_NAMES,
 } from './educational-trivia-banks.js';
 import { completeMissionByEvent } from './mission-event-completions.js';
+import { isEveryCompletionMode, resolveMissionRewardMode } from './mission-reward-mode.js';
 import { sanitizeRunId } from './lantern-game-catalog.js';
 
 export const GAME_CORRECT_TARGET_TYPE = 'game_correct_target';
 export const EDUCATIONAL_TRIVIA_CORRECT_TARGET = 10;
 export const EDUCATIONAL_TRIVIA_REWARD_NUGGETS = 1;
 export const TRIVIA_RUN_CONTENT_TYPE = 'trivia_run';
+/** Run-state rows are not human-review submissions (#257C3). */
+export const TRIVIA_RUN_STATUS_ACTIVE = 'run_active';
+export const TRIVIA_RUN_STATUS_COMPLETE = 'run_complete';
 
 export const EDUCATIONAL_TRIVIA_MISSIONS = {
   perm_handbook_trivia: {
@@ -162,6 +166,16 @@ export function eventKeyEducationalTrivia(missionId, characterName) {
   return `${def.trigger_type}:${String(characterName || '').trim()}`;
 }
 
+/** Per-run event key for every-completion reward mode (distinct legitimate runs pay once each). */
+export function eventKeyEducationalTriviaRun(missionId, characterName, runId) {
+  const def = resolveEducationalTriviaMission(missionId);
+  if (!def) return '';
+  const run = sanitizeRunId(runId);
+  const key = String(characterName || '').trim();
+  if (run) return `${def.trigger_type}:${key}:${run}`;
+  return `${def.trigger_type}:${key}`;
+}
+
 export function triviaRunSubmissionId(runId) {
   const safe = sanitizeRunId(runId);
   if (!safe) return '';
@@ -178,11 +192,18 @@ export function parseTriviaRunContent(raw) {
   }
 }
 
-export function isTriviaRunPendingSubmission(row) {
+export function isVerifiedActivityRunStateRow(row) {
   if (!row) return false;
-  if (String(row.status || '').trim().toLowerCase() !== 'pending') return false;
-  if (isEducationalTriviaMissionId(row.mission_id) && parseTriviaRunContent(row.submission_content)) return true;
+  const st = String(row.status || '')
+    .trim()
+    .toLowerCase();
+  if (st === TRIVIA_RUN_STATUS_ACTIVE || st === TRIVIA_RUN_STATUS_COMPLETE) return true;
   return !!parseTriviaRunContent(row.submission_content);
+}
+
+/** @deprecated use isVerifiedActivityRunStateRow — kept for existing imports/tests */
+export function isTriviaRunPendingSubmission(row) {
+  return isVerifiedActivityRunStateRow(row);
 }
 
 export function publicQuestionFromItem(item) {
@@ -379,10 +400,18 @@ async function loadTriviaRunRow(db, runId) {
   );
 }
 
-async function writeTriviaRunState(db, row, state) {
+async function writeTriviaRunState(db, row, state, statusUpdate) {
+  const content = JSON.stringify(state);
+  if (statusUpdate) {
+    await db
+      .prepare('UPDATE lantern_mission_submissions SET submission_content = ?, status = ? WHERE id = ?')
+      .bind(content, statusUpdate, row.id)
+      .run();
+    return;
+  }
   await db
     .prepare('UPDATE lantern_mission_submissions SET submission_content = ? WHERE id = ?')
-    .bind(JSON.stringify(state), row.id)
+    .bind(content, row.id)
     .run();
 }
 
@@ -402,6 +431,9 @@ export async function startEducationalTriviaRun(db, env, opts) {
 
   await ensureEducationalTriviaMissions(db);
 
+  const rewardMode = await resolveMissionRewardMode(db, def.id);
+  const everyMode = isEveryCompletionMode(rewardMode);
+
   const eventKey = eventKeyEducationalTrivia(def.id, characterName);
   const existingComplete = await db
     .prepare(
@@ -409,7 +441,7 @@ export async function startEducationalTriviaRun(db, env, opts) {
     )
     .bind(def.id, characterName)
     .first();
-  if (existingComplete && !def.allow_practice_after_complete) {
+  if (existingComplete && !def.allow_practice_after_complete && !everyMode) {
     return {
       ok: true,
       already_completed: true,
@@ -474,7 +506,7 @@ export async function startEducationalTriviaRun(db, env, opts) {
       .prepare(
         'INSERT INTO lantern_mission_submissions (id, mission_id, character_name, submission_type, submission_content, status, created_at, reviewed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .bind(sid, def.id, characterName, 'confirmation', JSON.stringify(state), 'pending', now, 'system')
+      .bind(sid, def.id, characterName, 'confirmation', JSON.stringify(state), TRIVIA_RUN_STATUS_ACTIVE, now, 'system')
       .run();
   } catch (e) {
     const again = await loadTriviaRunRow(db, runId);
@@ -580,13 +612,19 @@ export async function answerEducationalTriviaRun(db, env, opts) {
 
   let rewardResult = null;
   if (completed) {
+    const rewardMode = await resolveMissionRewardMode(db, def.id);
+    const everyMode = isEveryCompletionMode(rewardMode);
+    const completionEventKey = everyMode
+      ? eventKeyEducationalTriviaRun(def.id, characterName, runId)
+      : eventKeyEducationalTrivia(def.id, characterName);
     rewardResult = await completeMissionByEvent(db, env, {
       missionId: def.id,
       characterName,
       triggerType: def.trigger_type,
-      eventKey: eventKeyEducationalTrivia(def.id, characterName),
+      eventKey: completionEventKey,
       sourceRef: runId,
       cadence: 'once',
+      rewardMode,
       note: def.title,
       content: JSON.stringify({
         type: GAME_CORRECT_TARGET_TYPE,
@@ -598,6 +636,7 @@ export async function answerEducationalTriviaRun(db, env, opts) {
     if (!rewardResult.ok) {
       return { ok: false, error: rewardResult.error || 'completion_failed', _httpStatus: 500 };
     }
+    await writeTriviaRunState(db, row, state, TRIVIA_RUN_STATUS_COMPLETE);
   }
 
   return runProgressPayload(state, def, {

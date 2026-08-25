@@ -1,5 +1,7 @@
 import { tmsEconomyTransact, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { isStaffEconomyKey, resolveStaffTmsPrincipal } from './staff-economy.js';
+import { clampMissionRewardAmount } from './mission-reward-bands.js';
+import { isEveryCompletionMode, resolveMissionRewardMode } from './mission-reward-mode.js';
 
 /**
  * Server-authoritative mission approval rewards — exactly-once (Prompt #66).
@@ -37,11 +39,8 @@ export async function findMissionRewardTx(db, submissionId) {
 export async function creditMissionApprovalReward(db, characterName, submissionId, rewardAmount, note, opts) {
   const key = String(characterName || '').trim();
   const sid = String(submissionId || '').trim();
-  // Prompt #229: payout is the saved mission reward (teacher-chosen, server-clamped).
-  // Event missions still pass 1. Historical txs stay on their original delta.
-  let reward = Math.trunc(Number(rewardAmount));
-  if (!Number.isFinite(reward) || reward < 0) reward = 1;
-  if (reward > 5) reward = 5;
+  // Prompt #229 / #257C: payout is the saved mission reward (server-clamped 1–10).
+  let reward = clampMissionRewardAmount(rewardAmount, { allowLegacyZero: true });
   if (!key || !sid) {
     return { ok: false, error: 'missing_identity' };
   }
@@ -218,8 +217,11 @@ export async function approveMissionWithReward(db, opts) {
   const missionId = String(row.mission_id || '').trim();
   let rewardSkipped = !!skipReward;
   if (!rewardSkipped && missionId && characterKey) {
-    const prior = await findPriorAcceptedMissionSubmission(db, missionId, characterKey, id);
-    if (prior) rewardSkipped = true;
+    const rewardMode = await resolveMissionRewardMode(db, missionId);
+    if (!isEveryCompletionMode(rewardMode)) {
+      const prior = await findPriorAcceptedMissionSubmission(db, missionId, characterKey, id);
+      if (prior) rewardSkipped = true;
+    }
   }
 
   const status = String(row.status || '').trim();

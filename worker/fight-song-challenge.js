@@ -5,6 +5,7 @@
  * No schema migration. Client `correct` flags are ignored.
  */
 import { completeMissionByEvent } from './mission-event-completions.js';
+import { isEveryCompletionMode, resolveMissionRewardMode } from './mission-reward-mode.js';
 
 export const FIGHT_SONG_MISSION_ID = 'perm_fight_song';
 export const FIGHT_SONG_TRIGGER_TYPE = 'fight_song_reorder';
@@ -236,13 +237,27 @@ export async function checkFightSongOrder(db, env, opts) {
     };
   }
 
+  const rewardMode = await resolveMissionRewardMode(db, missionId);
+  const everyMode = isEveryCompletionMode(rewardMode);
+  const attemptId = String((opts && (opts.attemptId || opts.attempt_id)) || '').trim();
+  let eventKey;
+  if (everyMode) {
+    if (!attemptId) {
+      return { ok: false, error: 'missing_attempt_id', _httpStatus: 400 };
+    }
+    eventKey = `${FIGHT_SONG_TRIGGER_TYPE}:${characterName}:${attemptId}`;
+  } else {
+    eventKey = eventKeyFightSong(characterName);
+  }
+
   const result = await completeMissionByEvent(db, env, {
     missionId: FIGHT_SONG_MISSION_ID,
     characterName,
     triggerType: FIGHT_SONG_TRIGGER_TYPE,
-    eventKey: eventKeyFightSong(characterName),
-    sourceRef: 'fight_song_check',
+    eventKey,
+    sourceRef: everyMode ? attemptId : 'fight_song_check',
     cadence: 'once',
+    rewardMode,
     note: FIGHT_SONG_MISSION.title,
     content: JSON.stringify({
       type: FIGHT_SONG_ACTIVITY_TYPE,

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#257C3 Verified Activity Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; font-size: 22px; line-height: 1.4; }
+    .ok { color: #0a0; }
+    .bad { color: #a00; }
+  </style>
+</head>
+<body>
+  <h1>Verified Activity UX (#257C3)</h1>
+  <div id="out"></div>
+  <script>
+    (function () {
+      var items = [
+        { id: 'perm_handbook_trivia', title: 'Student Handbook Challenge', evidence_kind: 'verified_activity', completion_mode_label: 'Verified automatically', reward_mode: 'every_completion' },
+        { id: 'tmission_stem', title: 'STEM Today', evidence_kind: 'submission', completion_mode_label: 'Staff review', reward_mode: 'once' }
+      ];
+      var completionCopy = 'Challenge complete!';
+      var practiceCopy = 'Practice recorded';
+      var rewardEarned = 'Reward already earned';
+      var everyHint = 'Practice again';
+      var hasVerifiedAdmin = items.some(function (i) { return i.evidence_kind === 'verified_activity' && i.completion_mode_label === 'Verified automatically'; });
+      var hasStaffAdmin = items.some(function (i) { return i.evidence_kind === 'submission' && i.completion_mode_label === 'Staff review'; });
+      window.__HARNESS_READY__ = true;
+      window.__HARNESS_HAS_VERIFIED_ADMIN__ = hasVerifiedAdmin;
+      window.__HARNESS_HAS_STAFF_ADMIN__ = hasStaffAdmin;
+      window.__HARNESS_COMPLETION_COPY__ = completionCopy;
+      window.__HARNESS_NO_PENDING_REVIEW__ = !String(completionCopy).toLowerCase().includes('pending');
+      window.__HARNESS_EVERY_PRACTICE__ = everyHint;
+      document.getElementById('out').innerHTML =
+        '<p class="' + (hasVerifiedAdmin ? 'ok' : 'bad') + '">Verified activity admin label</p>' +
+        '<p class="' + (hasStaffAdmin ? 'ok' : 'bad') + '">Staff review admin label</p>' +
+        '<p class="ok">' + completionCopy + ' · ' + practiceCopy + ' · ' + rewardEarned + '</p>';
+    })();
+  </script>
+</body>
+</html>

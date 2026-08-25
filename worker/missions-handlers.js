@@ -37,6 +37,18 @@ import {
 import { approveMissionWithReward, missionRewardTxId } from './missions-reward.js';
 import { resolveTeacherMissionReward, resolveStoredMissionPayout } from './nugget-economy-settings.js';
 import {
+  suggestedMissionReward,
+  formatMissionStudentPreview,
+  validateOrdinaryMissionMinCharacters,
+} from './mission-reward-bands.js';
+import {
+  attachRewardModesToMissions,
+  getMissionRewardMode,
+  setMissionRewardMode,
+} from './mission-reward-mode.js';
+import { classifyMissionEvidenceKind, isHumanReviewMissionSubmission } from './global-mission-eligibility.js';
+import { registryForMissionId } from './activity-admin.js';
+import {
   WAVE2_MISSION_IDS,
   claimDailyCheckInForCharacter,
   ensureContentApprovedMissionCompletion,
@@ -51,7 +63,7 @@ import {
   overlayEducationalTriviaMissions,
   startEducationalTriviaRun,
   answerEducationalTriviaRun,
-  isTriviaRunPendingSubmission,
+  isVerifiedActivityRunStateRow,
 } from './educational-trivia-missions.js';
 import {
   FIGHT_SONG_MISSION_ID,
@@ -123,6 +135,15 @@ function missionRowToJson(r, origin) {
       const n = Number(r.min_characters);
       return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
     })(),
+    suggested_reward: suggestedMissionReward(
+      r.min_characters != null ? Math.max(0, Math.floor(Number(r.min_characters)) || 0) : 0
+    ),
+    student_preview: formatMissionStudentPreview(
+      r.min_characters,
+      r.reward_amount,
+      missionRequiresImage(r),
+      'once'
+    ),
     // Prompt #210 — optional Mission Card Image (definition-level; not student evidence).
     card_image_r2_key: cardKey || null,
     card_image_url: cardKey ? missionCardImageUrl(origin, cardKey) : null,
@@ -466,6 +487,16 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     list = overlayEducationalTriviaMissions(list);
     list = overlayFightSongMission(list);
     list = list.filter((m) => missionInCatalogForParticipant(m, identity));
+    await attachRewardModesToMissions(db, list);
+    for (const m of list) {
+      if (!m) continue;
+      m.student_preview = formatMissionStudentPreview(
+        m.min_characters,
+        m.reward_amount,
+        m.require_image,
+        m.reward_mode
+      );
+    }
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -734,6 +765,16 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       (countRows.results || []).forEach((c) => { countsByMission[c.mission_id] = Number(c.n) || 0; });
     }
     const list = (rows.results || []).map((r) => missionRowToJson({ ...r, submission_count: countsByMission[r.id] || 0 }, origin));
+    await attachRewardModesToMissions(db, list);
+    for (const m of list) {
+      if (!m) continue;
+      m.student_preview = formatMissionStudentPreview(
+        m.min_characters,
+        m.reward_amount,
+        m.require_image,
+        m.reward_mode
+      );
+    }
     return jsonResponse({ ok: true, missions: list }, 200, cors);
   }
 
@@ -775,9 +816,20 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
     const requiresImage = allowsImageVal >= 2;
     const allowsVideo = !!(body.allows_video);
     const allowsLink = !!(body.allows_link);
-    let minChars = Math.max(0, Math.floor(Number(body.min_characters)));
-    if (!Number.isFinite(minChars)) {
-      minChars = 0;
+    let minChars = 0;
+    if (allowsText && submissionType !== 'confirmation') {
+      if (body.min_characters == null || body.min_characters === '') {
+        minChars = 100;
+      } else {
+        minChars = Math.floor(Number(body.min_characters));
+      }
+      const minValidated = validateOrdinaryMissionMinCharacters(minChars, 'submission');
+      if (!minValidated.ok) {
+        return jsonResponse(minValidated, 400, cors);
+      }
+      minChars = minValidated.value;
+    } else {
+      minChars = Math.max(0, Math.floor(Number(body.min_characters)) || 0);
     }
     // Prompt #210 — optional Mission Card Image key (must be missions/card/… from upload endpoint).
     let cardImageKey = null;
@@ -849,11 +901,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         )
         .run();
     }
+    await setMissionRewardMode(db, id, body.reward_mode || 'once', teacherName);
+    const rewardMode = await getMissionRewardMode(db, id);
     const mission = {
       id,
       title,
       description,
       reward_amount: rewardAmount,
+      reward_mode: rewardMode,
       submission_type: submissionType,
       created_by_teacher_id: teacherId,
       created_by_teacher_name: teacherName,
@@ -873,6 +928,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       card_image_r2_key: cardImageKey,
       card_image_url: cardImageKey ? missionCardImageUrl(origin, cardImageKey) : null,
       created_at: now,
+      student_preview: formatMissionStudentPreview(minChars, rewardAmount, requiresImage, rewardMode),
     };
     return jsonResponse({ ok: true, id, mission }, 200, cors);
   }
@@ -984,9 +1040,15 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       bindings.push(body.allows_link ? 1 : 0);
     }
     if (body.min_characters !== undefined) {
-      const mc = Math.max(0, Math.floor(Number(body.min_characters)));
+      const rowFull = await loadFullMission(db, id);
+      const reg = registryForMissionId(id);
+      const evidenceKind = classifyMissionEvidenceKind(rowFull, reg ? reg.kind : null);
+      const minValidated = validateOrdinaryMissionMinCharacters(body.min_characters, evidenceKind);
+      if (!minValidated.ok) {
+        return jsonResponse(minValidated, 400, cors);
+      }
       updates.push('min_characters = ?');
-      bindings.push(Number.isFinite(mc) ? mc : 0);
+      bindings.push(minValidated.value);
     }
     // Prompt #210 — set / clear Mission Card Image (null or '' clears). Editable anytime (definition art).
     if (Object.prototype.hasOwnProperty.call(body, 'card_image_r2_key')) {
@@ -1003,9 +1065,20 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
         bindings.push(k);
       }
     }
+    if (body.reward_mode !== undefined) {
+      const saved = await setMissionRewardMode(db, id, body.reward_mode, reviewerLabelFromAccount(auth.account));
+      if (!saved.ok) return jsonResponse(saved, 400, cors);
+    }
     if (updates.length === 0) {
       const m = await loadFullMission(db, id);
-      return jsonResponse({ ok: true, mission: m ? missionRowToJson(m, origin) : null }, 200, cors);
+      if (m) {
+        const mode = await getMissionRewardMode(db, id);
+        const json = missionRowToJson(m, origin);
+        json.reward_mode = mode;
+        json.student_preview = formatMissionStudentPreview(m.min_characters, m.reward_amount, missionRequiresImage(m), mode);
+        return jsonResponse({ ok: true, mission: json }, 200, cors);
+      }
+      return jsonResponse({ ok: true, mission: null }, 200, cors);
     }
     bindings.push(id);
     try {
@@ -1017,7 +1090,14 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       throw e;
     }
     const m = await loadFullMission(db, id);
-    return jsonResponse({ ok: true, mission: m ? missionRowToJson(m, origin) : null }, 200, cors);
+    if (m) {
+      const mode = await getMissionRewardMode(db, id);
+      const json = missionRowToJson(m, origin);
+      json.reward_mode = mode;
+      json.student_preview = formatMissionStudentPreview(m.min_characters, m.reward_amount, missionRequiresImage(m), mode);
+      return jsonResponse({ ok: true, mission: json }, 200, cors);
+    }
+    return jsonResponse({ ok: true, mission: null }, 200, cors);
   }
 
   if (request.method === 'DELETE' && missionIdMatch) {
@@ -1303,7 +1383,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       } catch (_) {}
     }
     const studentPending = rawPending.filter(
-      (s) => !isStaffEconomyKey(s.character_name) && !isTriviaRunPendingSubmission(s)
+      (s) => !isStaffEconomyKey(s.character_name) && isHumanReviewMissionSubmission(s)
     );
     const byMission = {};
     (missionRows.results || []).forEach((m) => {
@@ -1561,7 +1641,7 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       });
     }
     const list = (subRows.results || [])
-      .filter((s) => !isTriviaRunPendingSubmission(s))
+      .filter((s) => !isVerifiedActivityRunStateRow(s))
       .map((s) => mapCharacterSubmissionRow(s, byMission));
     return jsonResponse({ ok: true, submissions: list }, 200, cors);
   }
@@ -1583,6 +1663,9 @@ export async function handleMissionsRoutes(request, url, path, env, cors, deps) 
       .bind(id)
       .first();
     if (!row) return jsonResponse({ ok: false, error: 'Not found' }, 404, cors);
+    if (isVerifiedActivityRunStateRow(row)) {
+      return jsonResponse({ ok: false, error: 'verified_activity_not_reviewable' }, 400, cors);
+    }
     const mission = await db.prepare('SELECT reward_amount, teacher_id FROM lantern_missions WHERE id = ?').bind(row.mission_id).first();
     if (!mission || !teacherOwnsMission(auth.account, mission.teacher_id)) {
       return jsonResponse({ ok: false, error: 'Not authorized to approve this submission' }, 403, cors);

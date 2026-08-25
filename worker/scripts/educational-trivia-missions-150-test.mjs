@@ -17,6 +17,8 @@ import {
   startEducationalTriviaRun,
   answerEducationalTriviaRun,
   overlayEducationalTriviaMissions,
+  TRIVIA_RUN_STATUS_ACTIVE,
+  TRIVIA_RUN_STATUS_COMPLETE,
   isTriviaRunPendingSubmission,
   triviaRunSubmissionId,
 } from '../educational-trivia-missions.js';
@@ -146,6 +148,14 @@ function makeDb() {
                   reviewed_by: binds.length > 8 ? binds[8] : binds[7],
                 });
                 return { meta: { changes: 1 } };
+              }
+              if (s.includes('UPDATE lantern_mission_submissions SET submission_content = ?, status = ? WHERE id = ?')) {
+                const row = submissions.get(binds[2]);
+                if (row) {
+                  row.submission_content = binds[0];
+                  row.status = binds[1];
+                }
+                return { meta: { changes: row ? 1 : 0 } };
               }
               if (s.startsWith('UPDATE lantern_mission_submissions SET submission_content = ? WHERE id = ?')) {
                 const row = submissions.get(binds[1]);
@@ -329,6 +339,11 @@ if (
   const tenth = await playCorrect(db, { characterName: '20889', missionId: hb.id, gameId: hb.game_id, runId: 'run-start-0' }, q);
   if (tenth.ok && tenth.completed && tenth.correct_count === 10 && tenth.rewarded) ok('13. 10th correct completes');
   else bad('13. 10th correct completes', tenth);
+
+  const sid = triviaRunSubmissionId('run-start-0');
+  const runRow = db._submissions.get(sid);
+  if (runRow && runRow.status === TRIVIA_RUN_STATUS_COMPLETE) ok('13b. run row finalized run_complete not pending');
+  else bad('13b. run row finalized', runRow && runRow.status);
 
   const wallet = db._wallets.get('20889');
   const rewardTxs = [...db._txs.values()].filter((t) => t.character_name === '20889' && Number(t.delta) === 1);
@@ -548,18 +563,19 @@ if (WAVE2_MISSION_IDS.HANDBOOK_TRIVIA === hb.id && WAVE2_MISSION_IDS.LOCAL_HISTO
 if (
   overlayEducationalTriviaMissions([]).length === 4 &&
   isTriviaRunPendingSubmission({
-    status: 'pending',
+    status: TRIVIA_RUN_STATUS_ACTIVE,
     mission_id: hb.id,
     submission_content: JSON.stringify({ type: 'trivia_run', run_id: 'x' }),
   }) &&
-  handlersSrc.includes('isTriviaRunPendingSubmission')
+  handlersSrc.includes('isHumanReviewMissionSubmission') &&
+  eduSrc.includes('TRIVIA_RUN_STATUS_ACTIVE')
 ) {
-  ok('32. overlay + pending trivia runs filtered from teacher review');
-} else bad('32. overlay + pending filter');
+  ok('32. overlay + verified run rows excluded from human review');
+} else bad('32. overlay + verified run filter');
 
 if (
   gamesHtml.includes(' / 10 correct') &&
-  gamesHtml.includes('Mission Complete!') &&
+  gamesHtml.includes('Challenge complete!') &&
   gamesHtml.includes('runEducationalTriviaMission') &&
   !/data-correct/.test(gamesHtml.slice(gamesHtml.indexOf('function runEducationalTriviaMission'), gamesHtml.indexOf('function playBtnIdForGameName')))
 ) {

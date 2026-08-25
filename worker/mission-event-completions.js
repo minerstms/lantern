@@ -5,6 +5,7 @@
  */
 import { creditMissionApprovalReward } from './missions-reward.js';
 import { resolveEventMissionPayout } from './nugget-economy-settings.js';
+import { isEveryCompletionMode, resolveMissionRewardMode } from './mission-reward-mode.js';
 import { denverLocalDateYYYYMMDD, SCHOOL_SCHEDULE_TIMEZONE } from './school-schedule.js';
 
 export const WAVE2_MISSION_IDS = {
@@ -201,7 +202,10 @@ export async function completeMissionByEvent(db, env, opts) {
     };
   }
 
-  if (cadence === 'once') {
+  const rewardMode = opts && opts.rewardMode ? opts.rewardMode : await resolveMissionRewardMode(db, missionId);
+  const everyMode = isEveryCompletionMode(rewardMode);
+
+  if (cadence === 'once' && !everyMode) {
     const priorComp = await findOnceCompletion(db, missionId, characterName);
     if (priorComp) {
       return {

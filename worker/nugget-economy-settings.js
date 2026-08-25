@@ -16,6 +16,7 @@ import {
   getPlayEntitlementsForCharacter,
   saveGameEconomySettings,
 } from './game-play-economy.js';
+import { clampMissionRewardAmount, MISSION_REWARD_MIN, MISSION_REWARD_MAX } from './mission-reward-bands.js';
 
 export const ECONOMY_SETTING_DEFS = {
   poll_response: {
@@ -56,14 +57,16 @@ export const ECONOMY_SETTING_DEFS = {
   },
   game_win: {
     key: 'economy.game_win',
-    label: 'Game win',
+    label: 'Game win (legacy)',
     group: 'games',
     kind: 'game_win',
-    default: 1,
+    default: 0,
     min: 0,
     max: 5,
     sign: 'earn',
-    help: 'Verified win credit for a started run. 0 = no win Nugget.',
+    dormant: true,
+    help:
+      'Legacy direct Game win credit. Modern Games spend Nuggets; Missions earn Nuggets. Routine Game win reward is 0 unless legacy compatibility requires otherwise.',
   },
   content_creation: {
     key: 'economy.content_creation',
@@ -101,36 +104,39 @@ export const ECONOMY_SETTING_DEFS = {
   },
   mission_default: {
     key: 'economy.mission_default',
-    label: 'Default Mission Reward',
+    label: 'Default Mission Reward (legacy)',
     group: 'missions',
     kind: 'lantern_mission_reward',
     default: 1,
-    min: 0,
-    max: 5,
+    min: 1,
+    max: 10,
     sign: 'earn',
-    help: 'Pre-filled reward on a new teacher mission. Existing missions keep their saved reward.',
+    dormant: true,
+    help: 'Legacy pre-fill for teacher missions. Each Mission now stores its own final reward (1–10).',
   },
   mission_min: {
     key: 'economy.mission_min',
-    label: 'Minimum Teacher Mission Reward',
+    label: 'Minimum Teacher Mission Reward (legacy)',
     group: 'missions',
     kind: null,
-    default: 0,
-    min: 0,
-    max: 5,
+    default: 1,
+    min: 1,
+    max: 10,
     sign: 'earn',
-    help: 'Teachers cannot save a mission reward below this.',
+    dormant: true,
+    help: 'Legacy clamp removed from routine Admin UI. Legal Mission reward range is 1–10.',
   },
   mission_max: {
     key: 'economy.mission_max',
-    label: 'Maximum Teacher Mission Reward',
+    label: 'Maximum Teacher Mission Reward (legacy)',
     group: 'missions',
     kind: null,
-    default: 5,
-    min: 0,
-    max: 5,
+    default: 10,
+    min: 1,
+    max: 10,
     sign: 'earn',
-    help: 'Teachers cannot save a mission reward above this.',
+    dormant: true,
+    help: 'Legacy clamp removed from routine Admin UI. Legal Mission reward range is 1–10.',
   },
 };
 
@@ -235,30 +241,18 @@ export async function setEconomyValue(db, id, raw, updatedBy) {
 }
 
 export function clampTeacherMissionReward(raw, settingsValues) {
-  const vals = settingsValues || {};
-  const min = Number.isFinite(Number(vals.mission_min)) ? Math.trunc(Number(vals.mission_min)) : 0;
-  const max = Number.isFinite(Number(vals.mission_max)) ? Math.trunc(Number(vals.mission_max)) : 5;
-  const fallback = Number.isFinite(Number(vals.mission_default)) ? Math.trunc(Number(vals.mission_default)) : 1;
-  if (raw == null || raw === '') return fallback;
-  const n = finiteInt(raw);
-  if (n == null) return fallback;
-  if (n < min) return min;
-  if (n > max) return max;
-  return n;
+  void settingsValues;
+  return clampMissionRewardAmount(raw, { allowLegacyZero: true });
 }
 
 export async function resolveTeacherMissionReward(db, raw) {
-  const { values } = await getEconomySettings(db);
-  return clampTeacherMissionReward(raw, values);
+  void db;
+  return clampMissionRewardAmount(raw, { allowLegacyZero: true });
 }
 
 export async function resolveStoredMissionPayout(db, storedReward) {
-  const { values } = await getEconomySettings(db);
-  const n = finiteInt(storedReward);
-  if (n == null) return values.mission_default;
-  if (n < 0) return 0;
-  if (n > 5) return values.mission_max;
-  return n;
+  void db;
+  return clampMissionRewardAmount(storedReward, { allowLegacyZero: true });
 }
 
 /**
@@ -310,8 +304,8 @@ export function economyPublicPayload(bundle) {
       earn_max: 5,
       spend_min: -10,
       spend_max: 0,
-      mission_abs_min: 0,
-      mission_abs_max: 5,
+      mission_abs_min: MISSION_REWARD_MIN,
+      mission_abs_max: MISSION_REWARD_MAX,
     },
   };
 }

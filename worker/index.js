@@ -66,6 +66,7 @@ import {
 } from './lantern-game-catalog.js';
 import { findPaidGamePlayByRunId, evaluatePaidGamePlayRun, evaluatePaidRunForWinCredit } from './game-paid-run-proof.js';
 import { resolveGamePlayTransact, persistAuthoritativeGamePlayProof } from './game-play-economy.js';
+import { handleActivityAdminRoutes } from './activity-admin.js';
 import { serverCosmeticPrice } from './cosmetic-catalog.js';
 import { tmsEconomyBalance, tmsEconomyTransact, tmsStaffEconomyBalance, tmsStaffEconomyTransact } from './tms-economy-bridge.js';
 import { applyAuthoritativeNuggetDelta } from './tms-economy-apply.js';
@@ -2498,6 +2499,14 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   if (pilotAccountRequiresChangePassword(account)) {
     return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
   }
+
+  const activityAdmin = await handleActivityAdminRoutes(request, path, env, cors, {
+    jsonResponse,
+    requireAdminPilotSession: async () => ({ account }),
+    adminAuditLabel: (a) => String((a && (a.display_name || a.username)) || 'admin'),
+    requestOrigin: () => url.origin,
+  });
+  if (activityAdmin) return activityAdmin;
 
   if (request.method === 'GET' && path === '/api/admin/interactions-analytics') {
     return handleInteractionsAnalytics(url, db, cors, jsonResponse);

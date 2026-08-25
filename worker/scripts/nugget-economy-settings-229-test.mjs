@@ -345,21 +345,24 @@ if (saved.ok && after.values.poll_response === 2 && after.sources.poll_response 
 } else bad('setEconomyValue', { saved, after });
 
 if (clampTeacherMissionReward(null, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 1) {
-  ok('new mission with no reward uses Default Mission Reward');
+  ok('new mission with no reward uses suggested default (1)');
 } else bad('default mission reward');
 if (clampTeacherMissionReward(3, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 3) {
   ok('teacher custom mission reward within bounds is kept');
 } else bad('custom mission reward');
-if (clampTeacherMissionReward(9, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 5) {
-  ok('teacher reward above max is clamped');
+if (clampTeacherMissionReward(9, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 9) {
+  ok('teacher reward up to 10 is kept (#257C)');
+} else bad('max keep');
+if (clampTeacherMissionReward(11, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 10) {
+  ok('teacher reward above 10 is clamped');
 } else bad('max clamp');
-if (clampTeacherMissionReward(-2, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 0) {
-  ok('teacher reward below min is clamped (0-Nugget missions allowed)');
+if (clampTeacherMissionReward(-2, { mission_min: 0, mission_max: 5, mission_default: 1 }) === 1) {
+  ok('teacher reward below min is clamped to 1');
 } else bad('min clamp');
 
-const payoutDb = makeSettingsDb({ 'economy.mission_default': { value: '2' }, 'economy.mission_max': { value: '5' } });
-if ((await resolveStoredMissionPayout(payoutDb, 1)) === 1 && (await resolveStoredMissionPayout(payoutDb, null)) === 2) {
-  ok('existing missions keep saved reward; missing stored reward uses current default');
+const payoutDb = makeSettingsDb({ 'economy.mission_default': { value: '2' }, 'economy.mission_max': { value: '10' } });
+if ((await resolveStoredMissionPayout(payoutDb, 1)) === 1 && (await resolveStoredMissionPayout(payoutDb, null)) === 1) {
+  ok('existing missions keep saved reward; missing stored reward uses suggested default (1)');
 } else bad('stored payout');
 
 if ((await resolveTeacherMissionReward(emptyDb, undefined)) === 1) ok('resolveTeacherMissionReward uses fallback default');
@@ -379,7 +382,7 @@ else bad('resolveTeacherMissionReward');
     getRes.status === 200 &&
     getRes.body.ok &&
     getRes.body.values.poll_response === 0 &&
-    getRes.body.rows.length === 8 &&
+    getRes.body.rows.length === 4 &&
     getRes.body.values.game_play === -1 &&
     !getRes.body.rows.some((r) => r.id === 'game_play')
   ) {
@@ -559,18 +562,18 @@ await withMockedBridge(() => ({ body: { ok: true, delta: -1 } }), async (getCall
   const state = { accounts: { ms_carter: teacher }, settings: { 'economy.mission_default': '2', 'economy.mission_min': '0', 'economy.mission_max': '5' } };
   const env = makeWorkerEnv(state);
   const createdDefault = await callMissions(teacher, env, 'POST', 'https://x/api/missions', { title: 'Default reward mission' });
-  if (createdDefault.status === 200 && createdDefault.json.ok && createdDefault.json.mission.reward_amount === 2) {
-    ok('teacher create without reward uses System Admin default');
+  if (createdDefault.status === 200 && createdDefault.json.ok && createdDefault.json.mission.reward_amount === 1) {
+    ok('teacher create without reward uses suggested default (1)');
   } else bad('create default', createdDefault);
 
-  const createdCustom = await callMissions(teacher, env, 'POST', 'https://x/api/missions', { title: 'Custom reward', reward_amount: 3 });
+  const createdCustom = await callMissions(teacher, env, 'POST', 'https://x/api/missions', { title: 'Custom reward', reward_amount: 3, min_characters: 100 });
   if (createdCustom.status === 200 && createdCustom.json.mission.reward_amount === 3) {
     ok('teacher custom mission reward is saved');
   } else bad('create custom', createdCustom);
 
-  const createdOver = await callMissions(teacher, env, 'POST', 'https://x/api/missions', { title: 'Over max', reward_amount: 99 });
-  if (createdOver.status === 200 && createdOver.json.mission.reward_amount === 5) {
-    ok('teacher cannot exceed configured mission max');
+  const createdOver = await callMissions(teacher, env, 'POST', 'https://x/api/missions', { title: 'Over max', reward_amount: 99, min_characters: 100 });
+  if (createdOver.status === 200 && createdOver.json.mission.reward_amount === 10) {
+    ok('teacher cannot exceed mission max (10)');
   } else bad('create over max', createdOver);
 
   const mid = createdCustom.json.mission.id;

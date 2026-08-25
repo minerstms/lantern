@@ -2242,8 +2242,8 @@
         if (resultScore) resultScore.textContent = String(score) + ' pts';
         if (resultMsg) {
           resultMsg.textContent = won
-            ? ('You reached ' + floors + ' floors. +1 Nugget!')
-            : ('Stacked ' + floors + ' floor' + (floors === 1 ? '' : 's') + '. Reach ' + QUALIFYING_FLOORS + ' floors to earn +1 Nugget.');
+            ? ('You reached ' + floors + ' floors. Qualifying win recorded!')
+            : ('Stacked ' + floors + ' floor' + (floors === 1 ? '' : 's') + '. Reach ' + QUALIFYING_FLOORS + ' floors for a qualifying win.');
         }
         if (resultEl) {
           resultEl.hidden = false;
@@ -2913,12 +2913,16 @@
             var n = Number(state && state.correct_count) || target;
             setScore(n + ' / ' + target + ' correct');
             sfxCultureComplete();
-            var html = '<div class="resultMsg win">Mission Complete!</div>';
+            var rew = Number(mission.reward_amount) || 1;
+            var html = '<div class="resultMsg win">Challenge complete!</div>';
             html += '<div class="triviaProgress">' + esc(n + ' / ' + target + ' correct') + '</div>';
             if (state && state.rewarded === false && (state.already_completed || state.reward_idempotent)) {
+              html += '<div class="triviaProgress">Practice recorded</div>';
               html += '<div class="triviaProgress">Reward already earned</div>';
+            } else if (state && state.rewarded) {
+              html += '<div class="triviaProgress">+' + rew + ' Nugget' + (rew === 1 ? '' : 's') + ' earned</div>';
             } else {
-              html += '<div class="triviaProgress">+1 Nugget</div>';
+              html += '<div class="triviaProgress">+' + rew + ' Nugget' + (rew === 1 ? '' : 's') + '</div>';
             }
             html += playAgainHtml('triviaMissionAgain_' + String(mission.game_id || '').replace(/[^a-zA-Z0-9]/g, ''));
             gameBody.innerHTML = html;
