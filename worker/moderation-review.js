@@ -329,6 +329,36 @@ async function loadUnresolvedFlags(db) {
   }
 }
 
+/** Orphan contrib-scoped flag after staff already resolved linked live poll (#260). */
+async function isOrphanResolvedPollContributionFlag(db, flag) {
+  const ft = flagCanonicalType(flag && flag.item_type);
+  const fid = String((flag && flag.item_id) || '').trim();
+  if (ft !== 'poll_contribution' || !fid) return false;
+  const pollRow = await db
+    .prepare('SELECT id FROM lantern_polls WHERE mission_submission_id = ? LIMIT 1')
+    .bind('contrib:' + fid)
+    .first();
+  if (!pollRow || !pollRow.id) return false;
+  const pollId = String(pollRow.id);
+  const allOpen = await loadUnresolvedFlags(db);
+  const openOnPollId = allOpen.some(
+    (f) => flagCanonicalType(f.item_type) === 'poll' && String(f.item_id) === pollId
+  );
+  if (openOnPollId) return false;
+  try {
+    const evt = await db
+      .prepare(
+        "SELECT event_type FROM lantern_moderation_events WHERE item_type IN ('poll','poll_contribution') AND item_id IN (?, ?) AND event_type IN ('report_removed','report_dismissed','report_returned') ORDER BY created_at DESC LIMIT 1"
+      )
+      .bind(pollId, fid)
+      .first();
+    return !!(evt && evt.event_type);
+  } catch (err) {
+    if (isModerationSchemaError(err)) return false;
+    throw err;
+  }
+}
+
 async function reviewerMayActOnReportedItem(db, account, itemType, itemId) {
   const t = flagCanonicalType(itemType);
   if (t === 'mission_submission') {
@@ -553,6 +583,7 @@ export async function buildReviewQueue(db, account, opts) {
 
   const flags = await loadUnresolvedFlags(db);
   for (const f of flags) {
+    if (await isOrphanResolvedPollContributionFlag(db, f)) continue;
     let itemType = flagCanonicalType(f.item_type);
     let itemId = String(f.item_id || '').trim();
     if (!itemType || !itemId) continue;

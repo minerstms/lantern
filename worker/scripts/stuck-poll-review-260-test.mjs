@@ -78,6 +78,17 @@ function makeDb(seed) {
           if (s.includes('mission_submission_id = ?')) {
             return state.polls.find((p) => String(p.mission_submission_id) === String(binds[0])) || null;
           }
+          if (s.includes('lantern_moderation_events') && s.includes('event_type IN')) {
+            const pollId = binds[0];
+            const contribId = binds[1];
+            const hit = state.events.filter(
+              (e) =>
+                (e.item_type === 'poll' || e.item_type === 'poll_contribution') &&
+                (e.item_id === pollId || e.item_id === contribId) &&
+                ['report_removed', 'report_dismissed', 'report_returned'].includes(e.event_type)
+            );
+            return hit.length ? hit[hit.length - 1] : null;
+          }
           if (s.includes('WHERE id = ?') || s.includes('WHERE id=?')) return byId(rowsOf(s), binds[0]);
           if (s.includes('item_type = ? AND item_id = ?')) {
             return state.approvals.find((a) => a.item_type === binds[0] && String(a.item_id) === String(binds[1])) || null;
@@ -87,6 +98,17 @@ function makeDb(seed) {
         async all() {
           if (s.includes('lantern_content_flags') && s.includes('resolved_at IS NULL')) {
             return { results: state.flags.filter((f) => !f.resolved_at) };
+          }
+          if (s.includes('lantern_moderation_events') && s.includes('event_type IN')) {
+            const pollId = binds[0];
+            const contribId = binds[1];
+            const hit = state.events.filter(
+              (e) =>
+                (e.item_type === 'poll' || e.item_type === 'poll_contribution') &&
+                (e.item_id === pollId || e.item_id === contribId) &&
+                ['report_removed', 'report_dismissed', 'report_returned'].includes(e.event_type)
+            );
+            return { results: hit.length ? [hit[hit.length - 1]] : [] };
           }
           if (s.includes('lantern_approvals') && s.includes("'pending'")) {
             return { results: state.approvals.filter((a) => String(a.status).toLowerCase() === 'pending') };
@@ -318,6 +340,35 @@ const aliases = await pollModerationIdentityAliases(
   POLL_ID
 );
 assert(aliases.length === 2 && aliases.some((a) => a.item_type === 'poll_contribution'), 'poll aliases include contribution');
+
+// Orphan contrib flag after staff already resolved linked live poll (production who would win)
+{
+  const db = makeDb({
+    polls: [
+      {
+        id: POLL_ID,
+        question: 'who would win',
+        character_name: 'Lucas',
+        mission_submission_id: 'contrib:' + CONTRIB_REPORTED,
+        hidden_at: 't0',
+        hidden_by: 'report:staff',
+      },
+    ],
+    contrib: [{ id: CONTRIB_REPORTED, question: 'who would win', character_name: 'Lucas', status: 'approved' }],
+    flags: [
+      {
+        id: 'f_orphan',
+        item_type: 'poll_contribution',
+        item_id: CONTRIB_REPORTED,
+        reported_by: 'Sam',
+        reason: 'other',
+        created_at: 't2',
+      },
+    ],
+    events: [{ item_type: 'poll', item_id: POLL_ID, event_type: 'report_removed', created_at: 't3' }],
+  });
+  assert((await buildReviewQueue(db, TEACHER, { includeDetails: false })).length === 0, 'orphan contrib flag honored after staff resolution');
+}
 
 console.log('\nstuck-poll-review-260-test:', pass, 'passed,', fail, 'failed');
 process.exit(fail ? 1 : 0);
