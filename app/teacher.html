@@ -10,6 +10,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
+  <script src="js/lantern-restricted-mode.js"></script>
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>Teacher | Lantern</title>
@@ -1534,6 +1535,11 @@
       }
       window.LANTERN_PILOT_ME = data;
       try {
+        if (window.LanternRestrictedMode && typeof window.LanternRestrictedMode.apply === 'function') {
+          window.LanternRestrictedMode.apply(data);
+        }
+      } catch (eRm) {}
+      try {
         window.dispatchEvent(new CustomEvent('lantern-pilot-me-ready', { detail: data }));
       } catch (e) {}
       try {
@@ -1648,19 +1654,19 @@
               <div id="schoolAccessScheduleTypeText" style="font-weight:1000;font-size:28px;line-height:1.25;">Loading…</div>
               <p class="note note-tight" id="schoolAccessScheduleWindowText" style="margin-top:6px;"></p>
               <p class="note note-tight" id="schoolAccessEffectiveStatusText" style="margin-top:8px;font-weight:800;color:var(--ink);"></p>
-              <p style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;">
-                School schedule enforcement: <span id="schoolAccessEnforcementText">OFF</span> — the automatic lock is NOT active in production yet.
-              </p>
+              <p id="schoolAccessRestrictedBanner" hidden style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,77,109,.45);background:rgba(255,77,109,.12);color:#ffb4c2;font-weight:800;font-size:20px;line-height:1.4;">Restricted Mode: ACTIVE — Your account: Allowed. Restricted Mode overrides Class/Individual Access for users who are not on the Restricted allowlist.</p>
+              <p id="schoolAccessEnforcementBanner" style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;"></p>
               <details class="teacherClassAccessSimDetails" style="margin-top:12px;">
-                <summary>Intended final access priority (not active yet)</summary>
+                <summary>Access priority (authoritative server order)</summary>
                 <div style="padding-top:8px;">
                   <ol style="margin:0;padding-left:22px;font-size:20px;line-height:1.55;color:var(--ink);">
                     <li>Teacher / admin / staff → always allowed</li>
                     <li>Active temporary schoolwide override → allowed</li>
-                    <li>Valid enrolled device in an unlocked group → allowed</li>
-                    <li>Active teacher-approved individual grant → allowed</li>
-                    <li>Otherwise, during scheduled school lock → locked / Request Access</li>
-                    <li>Outside scheduled school lock → normal Lantern behavior</li>
+                    <li>Class Access — enrolled device in an unlocked group → allowed</li>
+                    <li>Individual Access — active teacher-approved grant → allowed</li>
+                    <li>Enforcement OFF → normal Lantern access</li>
+                    <li>Outside scheduled school lock → normal Lantern access</li>
+                    <li>Otherwise during active enforcement → locked / Request Access</li>
                   </ol>
                 </div>
               </details>
@@ -1700,41 +1706,52 @@
               <div class="teacherCollapsibleListMeta"><span class="pill" id="classAccessStatusPill">Inactive</span></div>
             </summary>
             <div class="cardBd teacherCollapsibleListBd">
+              <p class="note note-tight">Unlock an enrolled classroom device group during the school lock window. Shared computers enrolled in that group are allowed on their next request — no logout required. Restricted Mode, when active, overrides Class and Individual Access for anyone not on the Restricted allowlist — unlocking a class does not bypass Restricted Mode.</p>
               <p id="classAccessErrorEl" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:12px;border:1px solid var(--warn);background:rgba(255,204,102,.12);color:var(--warn);font-weight:800;font-size:22px;"></p>
-              <p class="note note-tight">Start a class session to display a board code for your classroom. End the session when class is finished.</p>
-              <div id="classAccessActiveBlock" style="display:none;">
-                <p style="font-weight:800;font-size:22px;margin-bottom:6px;">Status: <span id="classAccessStatusText">Active</span></p>
-                <p style="font-weight:800;font-size:22px;margin-bottom:8px;">Code: <span id="classAccessCodeDisplay" style="font-weight:1000;font-size:36px;line-height:1.2;letter-spacing:.05em;color:var(--ink);background:rgba(0,0,0,.25);padding:16px 20px;border-radius:16px;border:2px solid var(--accent);display:inline-block;margin-left:8px;"></span></p>
-                <p style="font-size:22px;color:var(--muted);margin-bottom:8px;">Expires at: <span id="classAccessExpiresAtText" style="font-weight:800;color:var(--ink);"></span></p>
-                <p style="font-size:22px;color:var(--muted);margin-bottom:14px;">Time remaining: <span id="classAccessExpiresText" style="font-weight:800;color:var(--ink);"></span></p>
-                <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
-                  <button type="button" class="btn accent" id="classAccessShowCodeBtn" style="font-size:22px;padding:12px 20px;">Show Class Code</button>
-                  <a href="class-code.html" target="_blank" rel="noopener" class="btn" style="font-size:22px;padding:12px 20px;text-decoration:none;">Open Class Code Display</a>
-                  <button type="button" class="btn" id="classAccessEndBtn" style="border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">End Access Now</button>
-                </div>
-              </div>
-              <div id="classAccessInactiveBlock">
-                <p class="note" style="margin-bottom:14px;">No active class access session. Start one to display a code for students.</p>
-                <button type="button" class="btn good" id="classAccessStartBtn">Start Class Access</button>
-                <p class="note" style="margin-top:14px;"><a href="class-code.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Class Code Display</a> — for projector or second tab.</p>
-              </div>
-              <details class="teacherClassAccessSimDetails schoolAccessAdminOnly" id="classAccessSimDetails" hidden>
-                <summary>Access control (testing)</summary>
-                <div style="padding-top:8px;">
-                <p class="note note-tight">Admin diagnostic only. Does not change the real school-access gate.</p>
-                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:10px;">
-                  <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="live" checked> Live</label>
-                  <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="simulation"> Simulation</label>
-                </div>
-                <div id="classAccessSimConditionWrap" style="display:none;margin-top:8px;">
-                  <label style="display:block;font-weight:800;font-size:22px;margin-bottom:6px;">Simulated condition</label>
-                  <select id="classAccessSimCondition" style="width:100%;max-width:320px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;">
-                    <option value="locked_no_active_class">Locked — No Active Class Code</option>
-                    <option value="unlocked_valid_session">Unlocked — Valid Student Session</option>
-                    <option value="locked_session_expired">Locked — Session Expired</option>
-                    <option value="locked_session_revoked">Locked — Session Revoked</option>
-                  </select>
-                </div>
+              <div id="classAccessGroupsList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
+              <p class="note" id="classAccessGroupsEmpty" style="display:none;margin-top:8px;">No device groups yet. Create groups under Device Enrollment, enroll classroom computers, then unlock the group here.</p>
+              <details class="teacherCollapsibleList teacherCollapsibleList--nested" id="classJoinCodePanel" style="margin-top:16px;">
+                <summary class="teacherCollapsibleListHd">
+                  <div class="teacherCollapsibleListTitle"><div class="h">Class Join Code</div></div>
+                  <div class="teacherCollapsibleListMeta"><span class="pill" id="classJoinCodeStatusPill">Inactive</span></div>
+                </summary>
+                <div class="teacherCollapsibleListBd">
+                  <p class="note note-tight">Optional phrase code for students to join a session on personal devices. This does <strong>not</strong> bypass school-time enforcement — use group unlock above for enrolled classroom computers.</p>
+                  <div id="classJoinCodeActiveBlock" style="display:none;">
+                    <p style="font-weight:800;font-size:22px;margin-bottom:6px;">Status: <span id="classAccessStatusText">Active</span></p>
+                    <p style="font-weight:800;font-size:22px;margin-bottom:8px;">Code: <span id="classAccessCodeDisplay" style="font-weight:1000;font-size:36px;line-height:1.2;letter-spacing:.05em;color:var(--ink);background:rgba(0,0,0,.25);padding:16px 20px;border-radius:16px;border:2px solid var(--accent);display:inline-block;margin-left:8px;"></span></p>
+                    <p style="font-size:22px;color:var(--muted);margin-bottom:8px;">Expires at: <span id="classAccessExpiresAtText" style="font-weight:800;color:var(--ink);"></span></p>
+                    <p style="font-size:22px;color:var(--muted);margin-bottom:14px;">Time remaining: <span id="classAccessExpiresText" style="font-weight:800;color:var(--ink);"></span></p>
+                    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                      <button type="button" class="btn accent" id="classAccessShowCodeBtn" style="font-size:22px;padding:12px 20px;">Show Join Code</button>
+                      <a href="class-code.html" target="_blank" rel="noopener" class="btn" style="font-size:22px;padding:12px 20px;text-decoration:none;">Open Join Code Display</a>
+                      <button type="button" class="btn" id="classAccessEndBtn" style="border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.15);">End Join Code Session</button>
+                    </div>
+                  </div>
+                  <div id="classJoinCodeInactiveBlock">
+                    <p class="note" style="margin-bottom:14px;">No active join-code session.</p>
+                    <button type="button" class="btn good" id="classAccessStartBtn">Start Join Code Session</button>
+                    <p class="note" style="margin-top:14px;"><a href="class-code.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:800;">Open Join Code Display</a> — for projector or second tab.</p>
+                  </div>
+                  <details class="teacherClassAccessSimDetails schoolAccessAdminOnly" id="classAccessSimDetails" hidden>
+                    <summary>Access control (testing)</summary>
+                    <div style="padding-top:8px;">
+                    <p class="note note-tight">Admin diagnostic only. Does not change the real school-access gate.</p>
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:10px;">
+                      <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="live" checked> Live</label>
+                      <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;"><input type="radio" name="accessControlMode" value="simulation"> Simulation</label>
+                    </div>
+                    <div id="classAccessSimConditionWrap" style="display:none;margin-top:8px;">
+                      <label style="display:block;font-weight:800;font-size:22px;margin-bottom:6px;">Simulated condition</label>
+                      <select id="classAccessSimCondition" style="width:100%;max-width:320px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);font-size:22px;">
+                        <option value="locked_no_active_class">Locked — No Active Class Code</option>
+                        <option value="unlocked_valid_session">Unlocked — Valid Student Session</option>
+                        <option value="locked_session_expired">Locked — Session Expired</option>
+                        <option value="locked_session_revoked">Locked — Session Revoked</option>
+                      </select>
+                    </div>
+                    </div>
+                  </details>
                 </div>
               </details>
             </div>
@@ -2165,9 +2182,9 @@
       </div>
     </div>
 
-    <div id="classAccessProjectorOverlay" class="classAccessProjectorOverlay" role="dialog" aria-modal="true" aria-label="Class Access Code">
+    <div id="classAccessProjectorOverlay" class="classAccessProjectorOverlay" role="dialog" aria-modal="true" aria-label="Class Join Code">
       <div class="classAccessProjectorPanel">
-        <div class="classAccessProjectorTitle">CLASS ACCESS CODE</div>
+        <div class="classAccessProjectorTitle">CLASS JOIN CODE</div>
         <div id="classAccessProjectorCode" class="classAccessProjectorCode">—</div>
         <div id="classAccessProjectorExpiry" class="classAccessProjectorExpiry">Expires in: —</div>
         <button type="button" class="btn classAccessProjectorClose" id="classAccessProjectorClose">Close</button>
@@ -5631,20 +5648,115 @@
     }
 
     var lastKnownClassAccessSession = null;
+    var deviceGroupsCache = [];
 
-    function applySessionToClassAccessUI(session){
+    function callDeviceApi(pathSuffix, method, body){
+      var opts = { method: method || 'GET', credentials: 'include' };
+      if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+      return fetch(avatarApiBase + '/api/class-access/device/' + pathSuffix, opts)
+        .then(function(r){ return r.json().then(function(b){ return { status: r.status, body: b }; }); })
+        .catch(function(){ return { status: 0, body: null }; });
+    }
+
+    function deviceGroupOptionsHtml(selectedId){
+      var html = '<option value="">Ungrouped</option>';
+      deviceGroupsCache.forEach(function(g){
+        html += '<option value="' + esc(g.id) + '"' + (String(selectedId || '') === String(g.id) ? ' selected' : '') + '>' + esc(g.name) + '</option>';
+      });
+      return html;
+    }
+
+    function updateClassAccessStatusPill(groups){
       var pill = el('classAccessStatusPill');
-      var activeBlock = el('classAccessActiveBlock');
-      var inactiveBlock = el('classAccessInactiveBlock');
+      if (!pill) return;
+      var unlocked = (groups || []).filter(function(g){ return g.unlockActive; });
+      pill.classList.remove('good', 'bad');
+      if (!unlocked.length) {
+        pill.textContent = 'Inactive';
+      } else if (unlocked.length === 1) {
+        pill.textContent = 'Active · ' + (unlocked[0].name || 'Group');
+        pill.classList.add('good');
+      } else {
+        pill.textContent = unlocked.length + ' Classes Unlocked';
+        pill.classList.add('good');
+      }
+    }
+
+    function appendGroupUnlockActions(g, actions, onDone){
+      function unlockBtn(label, body){
+        var b = document.createElement('button');
+        b.className = 'btn good small';
+        b.textContent = label;
+        b.addEventListener('click', async function(){
+          b.disabled = true;
+          var res = await callDeviceApi('groups/unlock', 'POST', Object.assign({ group_id: g.id }, body));
+          if (!res.body || !res.body.ok) { toast((res.body && (res.body.reason || res.body.error)) || 'Failed'); b.disabled = false; return; }
+          toast((g.name || 'Group') + ' unlocked');
+          await onDone();
+        });
+        return b;
+      }
+      if (g.unlockActive) {
+        var lockBtn = document.createElement('button');
+        lockBtn.className = 'btn bad small';
+        lockBtn.textContent = 'Lock Now';
+        lockBtn.addEventListener('click', async function(){
+          lockBtn.disabled = true;
+          var res = await callDeviceApi('groups/lock', 'POST', { group_id: g.id });
+          if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); lockBtn.disabled = false; return; }
+          toast((g.name || 'Group') + ' locked');
+          await onDone();
+        });
+        actions.appendChild(lockBtn);
+      } else {
+        actions.appendChild(unlockBtn('Unlock 15 min', { duration_minutes: 15 }));
+        actions.appendChild(unlockBtn('Unlock 30 min', { duration_minutes: 30 }));
+        actions.appendChild(unlockBtn('Unlock 60 min', { duration_minutes: 60 }));
+        actions.appendChild(unlockBtn('Until School Close', { until_school_close: true }));
+      }
+    }
+
+    function renderClassAccessGroupRows(groups){
+      var list = el('classAccessGroupsList');
+      var empty = el('classAccessGroupsEmpty');
+      if (!list) return;
+      list.innerHTML = '';
+      if (empty) empty.style.display = groups.length ? 'none' : 'block';
+      groups.forEach(function(g){
+        var row = document.createElement('div');
+        row.className = 'curatePostRow';
+        var stateLabel = 'LOCKED';
+        var stateColor = 'var(--muted)';
+        if (g.unlockActive) {
+          stateLabel = 'UNLOCKED';
+          stateColor = 'var(--good)';
+          var remainMin = 0;
+          try { remainMin = Math.max(0, Math.round((new Date(g.unlockExpiresAt).getTime() - Date.now()) / 60000)); } catch(e) {}
+          if (g.unlockExpiresAt) stateLabel += ' · ' + remainMin + ' min left';
+          if (g.unlockedBy) stateLabel += ' · by ' + g.unlockedBy;
+        }
+        row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor" style="font-weight:1000;font-size:24px;">' + esc(g.name || 'Group') + '</div>' +
+          '<div style="font-size:20px;color:var(--muted);margin-top:4px;">' + g.deviceCount + (g.deviceCount === 1 ? ' device' : ' devices') + '</div>' +
+          '<div style="font-size:20px;font-weight:800;color:' + stateColor + ';margin-top:6px;">' + esc(stateLabel) + '</div></div><div class="curatePostActions" style="flex-wrap:wrap;gap:6px;"></div>';
+        appendGroupUnlockActions(g, row.querySelector('.curatePostActions'), async function(){
+          await refreshClassAccessUI();
+          if (typeof refreshDeviceEnrollmentUI === 'function') await refreshDeviceEnrollmentUI();
+        });
+        list.appendChild(row);
+      });
+    }
+
+    function applySessionToClassJoinCodeUI(session){
+      var activeBlock = el('classJoinCodeActiveBlock');
+      var inactiveBlock = el('classJoinCodeInactiveBlock');
+      var joinPill = el('classJoinCodeStatusPill');
       var codeDisplay = el('classAccessCodeDisplay');
       var expiresText = el('classAccessExpiresText');
       var statusText = el('classAccessStatusText');
       var expiresAtEl = el('classAccessExpiresAtText');
-      var errEl = el('classAccessErrorEl');
       if (!session || !session.access_code) return;
       lastKnownClassAccessSession = { access_code: session.access_code, expires_at: session.expires_at };
-      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-      if (pill) { pill.textContent = 'Active'; if (pill.classList) pill.classList.remove('bad'); if (pill.classList) pill.classList.add('good'); }
+      if (joinPill) { joinPill.textContent = 'Active'; if (joinPill.classList) joinPill.classList.add('good'); }
       if (activeBlock) activeBlock.style.display = 'block';
       if (inactiveBlock) inactiveBlock.style.display = 'none';
       if (codeDisplay) codeDisplay.textContent = (session.access_code || '').toUpperCase();
@@ -5665,18 +5777,16 @@
       }
     }
 
-    function setInactiveClassAccessUI(){
+    function setInactiveClassJoinCodeUI(){
       lastKnownClassAccessSession = null;
-      var pill = el('classAccessStatusPill');
-      var activeBlock = el('classAccessActiveBlock');
-      var inactiveBlock = el('classAccessInactiveBlock');
+      var activeBlock = el('classJoinCodeActiveBlock');
+      var inactiveBlock = el('classJoinCodeInactiveBlock');
+      var joinPill = el('classJoinCodeStatusPill');
       var codeDisplay = el('classAccessCodeDisplay');
-      var errEl = el('classAccessErrorEl');
-      if (pill) { pill.textContent = 'Inactive'; if (pill.classList) pill.classList.remove('good'); if (pill.classList) pill.classList.remove('bad'); }
+      if (joinPill) { joinPill.textContent = 'Inactive'; if (joinPill.classList) joinPill.classList.remove('good'); }
       if (activeBlock) activeBlock.style.display = 'none';
       if (inactiveBlock) inactiveBlock.style.display = 'block';
       if (codeDisplay) codeDisplay.textContent = '';
-      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       closeClassAccessProjector();
     }
 
@@ -5692,15 +5802,10 @@
       if (overlay) overlay.classList.remove('is-open');
     }
 
-    async function refreshClassAccessUI(){
-      var pill = el('classAccessStatusPill');
-      var activeBlock = el('classAccessActiveBlock');
-      var inactiveBlock = el('classAccessInactiveBlock');
-      var codeDisplay = el('classAccessCodeDisplay');
+    async function refreshClassJoinCodeUI(){
       var simWrap = el('classAccessSimConditionWrap');
       var simSelect = el('classAccessSimCondition');
-      if (!pill) return;
-      if (avatarApiBase === null) { setInactiveClassAccessUI(); return; }
+      if (avatarApiBase === null) { setInactiveClassJoinCodeUI(); return; }
       var statusRes = null;
       var verifyRes = null;
       try {
@@ -5718,14 +5823,37 @@
       var radios = document.querySelectorAll('input[name="accessControlMode"]');
       if (radios.length) radios.forEach(function(r){ r.checked = (r.value === mode); });
       if (statusRes && statusRes.ok && statusRes.active && statusRes.access_code) {
-        applySessionToClassAccessUI(statusRes);
+        applySessionToClassJoinCodeUI(statusRes);
       } else if (statusRes && statusRes.ok && statusRes.active === false) {
-        setInactiveClassAccessUI();
+        setInactiveClassJoinCodeUI();
+      } else if (lastKnownClassAccessSession) {
+        applySessionToClassJoinCodeUI(lastKnownClassAccessSession);
       } else {
-        setClassAccessErrorUI('Could not load class access right now.');
-        if (lastKnownClassAccessSession) applySessionToClassAccessUI(lastKnownClassAccessSession);
-        else setInactiveClassAccessUI();
+        setInactiveClassJoinCodeUI();
       }
+    }
+
+    async function refreshClassAccessUI(){
+      if (avatarApiBase === null) {
+        updateClassAccessStatusPill([]);
+        renderClassAccessGroupRows([]);
+        setClassAccessErrorUI('');
+        await refreshClassJoinCodeUI();
+        return;
+      }
+      setClassAccessErrorUI('');
+      var groupsRes = await callDeviceApi('groups', 'GET');
+      var groups = (groupsRes.body && groupsRes.body.ok && groupsRes.body.groups) || [];
+      deviceGroupsCache = groups;
+      if (!groupsRes.body || !groupsRes.body.ok) {
+        setClassAccessErrorUI('Could not load class access groups right now.');
+        updateClassAccessStatusPill([]);
+        renderClassAccessGroupRows([]);
+      } else {
+        updateClassAccessStatusPill(groups);
+        renderClassAccessGroupRows(groups);
+      }
+      await refreshClassJoinCodeUI();
       refreshAccessRequestsUI();
     }
 
@@ -5784,7 +5912,7 @@
       var windowEl = el('schoolAccessScheduleWindowText');
       var effectiveEl = el('schoolAccessEffectiveStatusText');
       var enforcementPill = el('schoolAccessEnforcementPill');
-      var enforcementText = el('schoolAccessEnforcementText');
+      var enforcementBanner = el('schoolAccessEnforcementBanner');
       if (!typeEl) return;
       if (avatarApiBase === null) { typeEl.textContent = 'Lantern Access requires the Lantern API.'; return; }
       var res = await fetch(avatarApiBase + '/api/class-access/state', { credentials: 'include' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
@@ -5802,22 +5930,50 @@
         windowText = 'Automatic school-hours lock inactive today.';
       }
       if (windowEl) windowEl.textContent = windowText;
-      var enforcementOn = !!res.scheduleEnforcementEnabled;
+      var enforcementOn = !!(res.enforcement_enabled != null ? res.enforcement_enabled : res.scheduleEnforcementEnabled);
       if (enforcementPill) {
         enforcementPill.textContent = 'Enforcement: ' + (enforcementOn ? 'ON' : 'OFF');
         enforcementPill.style.background = enforcementOn ? 'rgba(255,77,109,.25)' : '';
         enforcementPill.style.color = enforcementOn ? '#ffb4c2' : '';
       }
-      if (enforcementText) enforcementText.textContent = enforcementOn ? 'ON' : 'OFF';
+      var restrictedBanner = el('schoolAccessRestrictedBanner');
+      var rm = (res && (res.restrictedMode || res.restricted_mode)) || {};
+      if (restrictedBanner) restrictedBanner.hidden = !(rm.active && rm.allowed);
+      if (enforcementBanner) {
+        if (!enforcementOn) {
+          enforcementBanner.style.borderColor = 'rgba(90,167,255,.35)';
+          enforcementBanner.style.background = 'rgba(90,167,255,.08)';
+          enforcementBanner.style.color = 'var(--ink)';
+          enforcementBanner.textContent = 'ENFORCEMENT: OFF — Effective now: Normal open access. Individual and Class Access settings are stored but no school-time lock is enforced.';
+        } else if (res.effective_enforcement_active) {
+          enforcementBanner.style.borderColor = 'rgba(255,77,109,.45)';
+          enforcementBanner.style.background = 'rgba(255,77,109,.12)';
+          enforcementBanner.style.color = '#ffb4c2';
+          enforcementBanner.textContent = 'ENFORCEMENT: ON — SCHOOL DAY — LOCK WINDOW ACTIVE. Effective now: Students need Class Access (device group unlock) or Individual Access unless another override applies.';
+        } else if (s.withinScheduledLock) {
+          enforcementBanner.style.borderColor = 'rgba(255,204,102,.4)';
+          enforcementBanner.style.background = 'rgba(255,204,102,.08)';
+          enforcementBanner.style.color = 'var(--warn)';
+          enforcementBanner.textContent = 'ENFORCEMENT: ON — inside lock window but bypass active on this browser, or evaluating open access.';
+        } else {
+          enforcementBanner.style.borderColor = 'rgba(90,167,255,.35)';
+          enforcementBanner.style.background = 'rgba(90,167,255,.08)';
+          enforcementBanner.style.color = 'var(--ink)';
+          enforcementBanner.textContent = 'ENFORCEMENT: ON — OUTSIDE LOCK WINDOW. Effective now: Normal open access.';
+        }
+      }
       if (effectiveEl) {
         var bits = [];
         if (res.eventOverride && res.eventOverride.qualifyingAccess) bits.push('Schoolwide override active');
-        if (res.deviceGroupAccess && res.deviceGroupAccess.qualifyingAccess) bits.push('Device-group unlock active');
+        if (res.deviceGroupAccess && res.deviceGroupAccess.qualifyingAccess) {
+          bits.push('Class Access active' + (res.deviceGroupAccess.groupName ? ' (' + res.deviceGroupAccess.groupName + ')' : ''));
+        }
         if (res.individualGrant && res.individualGrant.qualifyingAccess) bits.push('Individual grant active on this browser');
         if (!bits.length) {
-          bits.push(enforcementOn
-            ? (s.withinScheduledLock ? 'Within school lock window (enforcement on)' : 'Outside school lock window')
-            : 'Normal open access (schedule enforcement off)');
+          if (!enforcementOn) bits.push('Normal open access');
+          else if (!s.withinScheduledLock) bits.push('Outside school lock window — normal access');
+          else if (res.effective_enforcement_active) bits.push('Lock window active — students need Class or Individual Access');
+          else bits.push('Normal open access');
         }
         effectiveEl.textContent = 'Effective now: ' + bits.join(' · ');
       }
@@ -5914,6 +6070,7 @@
       function refreshSchoolAccessTopUI(){
         refreshTodayStatusUI();
         refreshEventOverrideUI();
+        if (typeof refreshClassAccessUI === 'function') refreshClassAccessUI();
       }
       function startSchoolAccessPolling(){
         if (schoolAccessPollTimer) clearInterval(schoolAccessPollTimer);
@@ -5929,37 +6086,15 @@
     })();
 
     /**
-     * Phase #32 — enrolled classroom computers + device-group unlock. Renders Pending Device
-     * Pairings / Device Groups / Enrolled Devices inside the Classroom Devices card, using the
-     * same curatePostRow / btn small pattern as the Phase #31 access-requests UI above. No
-     * enrolled browser ever receives a human-shareable group password -- unlocking a group only
-     * ever sets a server-side expiry that valid enrolled devices in that group are checked
-     * against. School-schedule enforcement stays off in production; this remains informational.
+     * Phase #32 — enrolled classroom computers. Device group unlock lives in Class Access above;
+     * this card manages enrollment, group creation, and device assignment only.
      */
-    var deviceGroupsCache = [];
-
-    function deviceGroupOptionsHtml(selectedId){
-      var html = '<option value="">Ungrouped</option>';
-      deviceGroupsCache.forEach(function(g){
-        html += '<option value="' + esc(g.id) + '"' + (String(selectedId || '') === String(g.id) ? ' selected' : '') + '>' + esc(g.name) + '</option>';
-      });
-      return html;
-    }
-
     async function refreshDeviceEnrollmentUI(){
       var pendingList = el('devicePairingsPendingList');
       var groupsList = el('deviceGroupsList');
       var devicesList = el('deviceEnrolledList');
       if (!pendingList && !groupsList && !devicesList) return;
       if (avatarApiBase === null) return;
-
-      function callDeviceApi(pathSuffix, method, body){
-        var opts = { method: method || 'GET', credentials: 'include' };
-        if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
-        return fetch(avatarApiBase + '/api/class-access/device/' + pathSuffix, opts)
-          .then(function(r){ return r.json().then(function(b){ return { status: r.status, body: b }; }); })
-          .catch(function(){ return { status: 0, body: null }; });
-      }
 
       var pendRes = await callDeviceApi('pairings/pending', 'GET');
       var groupsRes = await callDeviceApi('groups', 'GET');
@@ -6026,7 +6161,7 @@
         });
       }
 
-      // -- Device groups --
+      // -- Device groups (management only; unlock in Class Access card) --
       if (groupsList) {
         groupsList.innerHTML = '';
         var groupsEmpty = el('deviceGroupsEmpty');
@@ -6034,45 +6169,9 @@
         groups.forEach(function(g){
           var row = document.createElement('div');
           row.className = 'curatePostRow';
-          var statusText = 'Locked';
-          if (g.unlockActive) {
-            var remainMin = 0;
-            try { remainMin = Math.max(0, Math.round((new Date(g.unlockExpiresAt).getTime() - Date.now()) / 60000)); } catch(e) {}
-            statusText = 'Unlocked · ' + remainMin + ' min left' + (g.unlockedBy ? ' · by ' + g.unlockedBy : '');
-          }
+          var statusText = g.unlockActive ? 'Unlocked (manage in Class Access)' : 'Locked';
           row.innerHTML = '<div class="curatePostInfo"><div class="curatePostAuthor">' + esc(g.name) + '</div>' +
-            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">' + g.deviceCount + (g.deviceCount === 1 ? ' device' : ' devices') + ' · ' + esc(statusText) + '</div></div><div class="curatePostActions" style="flex-wrap:wrap;gap:6px;"></div>';
-          var actions = row.querySelector('.curatePostActions');
-          function unlockBtn(label, body){
-            var b = document.createElement('button');
-            b.className = 'btn small';
-            b.textContent = label;
-            b.addEventListener('click', async function(){
-              b.disabled = true;
-              var res = await callDeviceApi('groups/unlock', 'POST', Object.assign({ group_id: g.id }, body));
-              if (!res.body || !res.body.ok) { toast((res.body && (res.body.reason || res.body.error)) || 'Failed'); b.disabled = false; return; }
-              toast(g.name + ' unlocked');
-              await refreshDeviceEnrollmentUI();
-            });
-            return b;
-          }
-          actions.appendChild(unlockBtn('Unlock 15 min', { duration_minutes: 15 }));
-          actions.appendChild(unlockBtn('Unlock 30 min', { duration_minutes: 30 }));
-          actions.appendChild(unlockBtn('Unlock 60 min', { duration_minutes: 60 }));
-          actions.appendChild(unlockBtn('Until School Close', { until_school_close: true }));
-          if (g.unlockActive) {
-            var lockBtn = document.createElement('button');
-            lockBtn.className = 'btn bad small';
-            lockBtn.textContent = 'Lock Now';
-            lockBtn.addEventListener('click', async function(){
-              lockBtn.disabled = true;
-              var res = await callDeviceApi('groups/lock', 'POST', { group_id: g.id });
-              if (!res.body || !res.body.ok) { toast((res.body && res.body.error) || 'Failed'); lockBtn.disabled = false; return; }
-              toast(g.name + ' locked');
-              await refreshDeviceEnrollmentUI();
-            });
-            actions.appendChild(lockBtn);
-          }
+            '<div style="font-size:18px;color:var(--muted);margin-top:4px;">' + g.deviceCount + (g.deviceCount === 1 ? ' device' : ' devices') + ' · ' + esc(statusText) + '</div></div>';
           groupsList.appendChild(row);
         });
       }
@@ -6387,8 +6486,8 @@
           setClassAccessErrorUI(errMsg);
           return;
         }
-        toast(res.existing ? 'Class access is active' : 'Class access started');
-        if (res.access_code) applySessionToClassAccessUI(res);
+        toast(res.existing ? 'Join code session is active' : 'Join code session started');
+        if (res.access_code) applySessionToClassJoinCodeUI(res);
         await refreshClassAccessUI();
         btn.disabled = false;
         btn.textContent = origText;
@@ -6415,7 +6514,7 @@
         }
         btn.disabled = false;
         btn.textContent = origText;
-        toast('Class access ended — students will need a new code');
+        toast('Join code session ended');
         closeClassAccessProjector();
         await refreshClassAccessUI();
       });
@@ -6438,7 +6537,7 @@
           panelExpiry.textContent = remaining ? ('Expires in: ' + remaining + (atTime ? ' · ' + atTime : '')) : (atTime ? 'Expires at: ' + atTime : '');
         } else {
           panelCode.textContent = 'No active code';
-          if (panelExpiry) panelExpiry.textContent = 'Start class access to display a code.';
+          if (panelExpiry) panelExpiry.textContent = 'Start a join code session to display a code.';
         }
         overlay.classList.add('is-open');
       });

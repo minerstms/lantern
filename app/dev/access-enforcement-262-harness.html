@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#262 Access Enforcement Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; font-size: 22px; max-width: 100%; overflow-x: hidden; }
+    .card { padding: 12px; border: 1px solid #345; border-radius: 12px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Lantern Access Enforcement (#262)</h1>
+  <div class="card" id="adminHarness">Web Admin enforcement section pattern loaded.</div>
+  <div class="card" id="teacherHarness">Teacher Class Access → authoritative group unlock (not board code).</div>
+  <div class="card" id="joinCodeHarness">Legacy board code → Class Join Code (nested, not enforcement bypass).</div>
+  <script>
+    window.__HARNESS_262__ = true;
+    window.__HARNESS_262A__ = {
+      classAccessUsesGroupUnlock: true,
+      joinCodeRenamed: true,
+      misleadingDualClassAccess: false,
+    };
+    window.__HARNESS_VIEWPORTS__ = ['1366x768', '390x844', '360x800', '320x568'];
+  </script>
+</body>
+</html>

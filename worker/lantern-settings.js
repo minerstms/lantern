@@ -14,6 +14,23 @@
  */
 
 import { handleNuggetEconomySettings } from './nugget-economy-settings.js';
+import {
+  ACCESS_ENFORCEMENT_DEFAULT,
+  buildAccessEnforcementStatus,
+  parseAccessEnforcementEnabled,
+  setSchoolScheduleEnforcementEnabled,
+} from './school-access-enforcement.js';
+import { recordAccessAuditEvent, ACCESS_AUDIT_ACTIONS } from './access-audit.js';
+import {
+  addRestrictedBypassUsername,
+  buildRestrictedModeAdminStatus,
+  isCanonicalWebAdminAccount,
+  parseRestrictedModeEnabled,
+  removeRestrictedBypassUsername,
+  RESTRICTED_MODE_DEFAULT,
+  searchRestrictedModeCandidates,
+  setRestrictedModeEnabled,
+} from './restricted-mode.js';
 
 export const MARQUEE_SPEED_SETTING_KEY = 'marquee_speed_px_per_second';
 
@@ -227,6 +244,169 @@ export async function handleSettingsRoutes(request, url, path, env, cors, deps) 
       200,
       cors
     );
+  }
+
+  if (request.method === 'GET' && path === '/api/settings/access-enforcement') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    const status = await buildAccessEnforcementStatus(db, env, new Date());
+    return deps.jsonResponse(
+      {
+        ok: true,
+        enabled: status.enforcement_enabled,
+        enforcement_enabled: status.enforcement_enabled,
+        enforcement_source: status.enforcement_source,
+        currently_inside_lock_window: status.currently_inside_lock_window,
+        effective_enforcement_active: status.effective_enforcement_active,
+        lock_window: status.lock_window,
+        timezone: status.timezone,
+        schedule: status.schedule,
+        default: ACCESS_ENFORCEMENT_DEFAULT,
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'PATCH' && path === '/api/settings/access-enforcement') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_err) {
+      return deps.jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const validated = parseAccessEnforcementEnabled(body && body.enabled);
+    if (!validated.ok) {
+      return deps.jsonResponse({ ok: false, error: validated.error }, 400, cors);
+    }
+    const updatedBy = deps.adminAuditLabel ? deps.adminAuditLabel(gate.account) : '';
+    const updatedAt = await setSchoolScheduleEnforcementEnabled(db, validated.value, updatedBy);
+    await recordAccessAuditEvent(db, {
+      action: ACCESS_AUDIT_ACTIONS.ENFORCEMENT_SETTING_CHANGED,
+      staffId: gate.account && gate.account.username,
+      staffName: updatedBy,
+      targetId: 'access.school_schedule_enforcement',
+      detail: { enabled: validated.value },
+    });
+    const status = await buildAccessEnforcementStatus(db, env, new Date());
+    return deps.jsonResponse(
+      {
+        ok: true,
+        enabled: validated.value,
+        enforcement_enabled: status.enforcement_enabled,
+        updated_at: updatedAt,
+        currently_inside_lock_window: status.currently_inside_lock_window,
+        effective_enforcement_active: status.effective_enforcement_active,
+        lock_window: status.lock_window,
+        timezone: status.timezone,
+      },
+      200,
+      cors
+    );
+  }
+
+  async function requireCanonicalWebAdmin() {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate;
+    if (!isCanonicalWebAdminAccount(gate.account)) {
+      return { response: deps.jsonResponse({ ok: false, error: 'forbidden' }, 403, cors) };
+    }
+    return gate;
+  }
+
+  if (request.method === 'GET' && path === '/api/settings/restricted-mode') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    const restricted = await buildRestrictedModeAdminStatus(db);
+    const school = await buildAccessEnforcementStatus(db, env, new Date());
+    return deps.jsonResponse(
+      {
+        ok: true,
+        ...restricted,
+        school_enforcement: {
+          enabled: school.enforcement_enabled,
+          currently_inside_lock_window: school.currently_inside_lock_window,
+          effective_enforcement_active: school.effective_enforcement_active,
+        },
+      },
+      200,
+      cors
+    );
+  }
+
+  if (request.method === 'GET' && path === '/api/settings/restricted-mode/search') {
+    const gate = await deps.requireAdminPilotSession(request, env, cors);
+    if (gate.response) return gate.response;
+    const q = String(url.searchParams.get('q') || '').trim();
+    const kind = String(url.searchParams.get('kind') || 'all').trim();
+    const status = await buildRestrictedModeAdminStatus(db);
+    const allowlist = []
+      .concat(status.selected_staff || [])
+      .concat(status.selected_students || [])
+      .map((a) => String(a.username || '').trim().toLowerCase());
+    const results = await searchRestrictedModeCandidates(db, q, kind, allowlist);
+    return deps.jsonResponse({ ok: true, results }, 200, cors);
+  }
+
+  if (request.method === 'PATCH' && path === '/api/settings/restricted-mode') {
+    const gate = await requireCanonicalWebAdmin();
+    if (gate.response) return gate.response;
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_err) {
+      return deps.jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const validated = parseRestrictedModeEnabled(body && body.enabled);
+    if (!validated.ok) {
+      return deps.jsonResponse({ ok: false, error: validated.error }, 400, cors);
+    }
+    const updatedBy = deps.adminAuditLabel ? deps.adminAuditLabel(gate.account) : '';
+    const updatedAt = await setRestrictedModeEnabled(db, validated.value, updatedBy);
+    await recordAccessAuditEvent(db, {
+      action: validated.value ? ACCESS_AUDIT_ACTIONS.RESTRICTED_MODE_ENABLED : ACCESS_AUDIT_ACTIONS.RESTRICTED_MODE_DISABLED,
+      staffId: gate.account && gate.account.username,
+      staffName: updatedBy,
+      targetId: 'access.restricted_mode.enabled',
+      detail: { enabled: validated.value },
+    });
+    const restricted = await buildRestrictedModeAdminStatus(db);
+    return deps.jsonResponse({ ok: true, updated_at: updatedAt, ...restricted }, 200, cors);
+  }
+
+  if (request.method === 'POST' && path === '/api/settings/restricted-mode/bypass') {
+    const gate = await requireCanonicalWebAdmin();
+    if (gate.response) return gate.response;
+    let body;
+    try {
+      body = JSON.parse((await request.text()) || '{}');
+    } catch (_err) {
+      return deps.jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const username = body && (body.username || body.student_username);
+    const allowed = body && body.allowed;
+    const parsedAllowed = parseRestrictedModeEnabled(allowed);
+    if (!parsedAllowed.ok) {
+      return deps.jsonResponse({ ok: false, error: parsedAllowed.error }, 400, cors);
+    }
+    const updatedBy = deps.adminAuditLabel ? deps.adminAuditLabel(gate.account) : '';
+    const result = parsedAllowed.value
+      ? await addRestrictedBypassUsername(db, username, updatedBy)
+      : await removeRestrictedBypassUsername(db, username, updatedBy);
+    if (!result.ok) {
+      return deps.jsonResponse({ ok: false, error: result.error }, 400, cors);
+    }
+    await recordAccessAuditEvent(db, {
+      action: parsedAllowed.value ? ACCESS_AUDIT_ACTIONS.RESTRICTED_BYPASS_ADDED : ACCESS_AUDIT_ACTIONS.RESTRICTED_BYPASS_REMOVED,
+      staffId: gate.account && gate.account.username,
+      staffName: updatedBy,
+      targetId: result.username,
+      detail: { username: result.username, allowed: parsedAllowed.value },
+    });
+    const restricted = await buildRestrictedModeAdminStatus(db);
+    return deps.jsonResponse({ ok: true, ...result, ...restricted }, 200, cors);
   }
 
   return deps.jsonResponse({ ok: false, error: 'Not found' }, 404, cors);

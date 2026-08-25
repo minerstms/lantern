@@ -103,7 +103,22 @@ import {
   resolveLeaderboardPublicName,
   viewerLeaderboardIdentityKeys,
 } from './leaderboard-public-identity.js';
-import { evaluateSchoolSchedule, isSchoolScheduleEnforcementEnabled, resolveUntilSchoolCloseInstant } from './school-schedule.js';
+import { evaluateSchoolSchedule, resolveUntilSchoolCloseInstant } from './school-schedule.js';
+import {
+  buildAccessEnforcementStatus,
+} from './school-access-enforcement.js';
+import {
+  computeQualifyingAccessSignals,
+  evaluateCentralSchoolAccess,
+  isSchoolAccessExemptPath,
+} from './school-access-decision.js';
+import {
+  evaluateRestrictedModeForAccount,
+  isRestrictedModeExemptPath,
+  publicRestrictedModeView,
+  resolveRestrictedModeState,
+  RESTRICTED_LOCKED_MESSAGE,
+} from './restricted-mode.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import {
@@ -453,9 +468,17 @@ export default {
     // student cannot bypass a scheduled school-hours lock by calling an API directly instead of
     // going through the frontend gate. No-op (schedule metadata aside) whenever
     // SCHOOL_SCHEDULE_ENFORCEMENT_ENABLED is not "true".
-    if (!isSchoolAccessExemptPath(path)) {
-      const schoolAccessGate = await evaluateCentralSchoolAccess(request, env);
-      if (!schoolAccessGate.allowed) {
+    if (!isRestrictedModeExemptPath(path)) {
+      const schoolAccessGate = await evaluateCentralSchoolAccess(request, env, { getPilotAccountFromRequest });
+      if (!schoolAccessGate.allowed && schoolAccessGate.reason === 'restricted_mode_locked') {
+        return jsonResponse({
+          ok: false,
+          error: 'restricted_mode_locked',
+          reason: 'restricted_mode_locked',
+          message: RESTRICTED_LOCKED_MESSAGE,
+        }, 403, corsForPilot(request));
+      }
+      if (!isSchoolAccessExemptPath(path) && !schoolAccessGate.allowed) {
         // Every route this gate actually guards (missions/feed/locker/economy/approvals/...) is a
         // credentialed pilot surface that normally answers with corsForPilot() headers, not the
         // wildcard-origin corsHeaders used pre-#34 only by the few uncredentialed endpoints. Using
@@ -4823,6 +4846,9 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         teacher_id: row.teacher_id || null,
         must_change_password: mcp,
         capabilities,
+        restricted_mode: publicRestrictedModeView(
+          evaluateRestrictedModeForAccount(row, await resolveRestrictedModeState(db))
+        ),
       },
       200,
       cors
@@ -5061,191 +5087,9 @@ function isLockHours(env) {
 }
 
 /**
- * Phase #34 — the SINGLE authoritative signal set behind every school-access authorization
- * decision (both the informational GET /api/class-access/state endpoint and the real gate in
- * `evaluateCentralSchoolAccess` below). Computed in exactly one place so the informational
- * endpoint students/teachers see can never drift from what actually gates access. Identifies the
- * caller solely by non-transferable, server-issued secrets (the individual-grant device cookie,
- * the device-group pairing token, and the override table itself) — never by anything a student
- * could forward to someone else, and never by a bare login session.
+ * School-access signal computation and central gate live in `./school-access-decision.js`
+ * (Prompt #34 foundation, Prompt #262 precedence + D1 enforcement setting).
  */
-async function computeQualifyingAccessSignals(request, env, db) {
-  let individualGrant = { qualifyingAccess: false, reason: 'no_device_cookie', expiresAt: null };
-  try {
-    const deviceSecretForGrant = getCookieValue(request.headers.get('Cookie') || '', ACCESS_DEVICE_COOKIE_NAME);
-    if (deviceSecretForGrant) {
-      const deviceHashForGrant = await hashOpaqueSecret(deviceSecretForGrant);
-      const grantRow = await db.prepare(
-        'SELECT status, grant_expires_at, revoked_at FROM lantern_access_requests WHERE device_secret_hash = ? ORDER BY created_at DESC LIMIT 1'
-      ).bind(deviceHashForGrant).first();
-      const nowIsoForGrant = new Date().toISOString();
-      if (!grantRow) {
-        individualGrant = { qualifyingAccess: false, reason: 'no_matching_request', expiresAt: null };
-      } else {
-        const derived = derivedRequestStatus(grantRow, nowIsoForGrant);
-        individualGrant = {
-          qualifyingAccess: derived === 'approved',
-          reason: derived === 'approved' ? 'active_individual_grant' : derived,
-          expiresAt: derived === 'approved' ? grantRow.grant_expires_at : null,
-        };
-      }
-    }
-  } catch (_) {
-    individualGrant = { qualifyingAccess: false, reason: 'lookup_error', expiresAt: null };
-  }
-
-  let deviceGroupAccess = { qualifyingAccess: false, reason: 'no_device_token', groupId: null, groupName: null, expiresAt: null };
-  try {
-    const deviceToken = request.headers.get(DEVICE_TOKEN_HEADER) || '';
-    if (deviceToken) {
-      const deviceHash = await hashOpaqueSecret(deviceToken);
-      const deviceRow = await db.prepare(
-        'SELECT id, group_id, revoked_at FROM lantern_access_devices WHERE device_token_hash = ?'
-      ).bind(deviceHash).first();
-      const nowIsoForDevice = new Date().toISOString();
-      if (!deviceRow) {
-        deviceGroupAccess = { qualifyingAccess: false, reason: 'unknown_device', groupId: null, groupName: null, expiresAt: null };
-      } else if (!isDeviceActive(deviceRow)) {
-        deviceGroupAccess = { qualifyingAccess: false, reason: 'device_revoked', groupId: null, groupName: null, expiresAt: null };
-      } else if (!deviceRow.group_id) {
-        deviceGroupAccess = { qualifyingAccess: false, reason: 'device_ungrouped', groupId: null, groupName: null, expiresAt: null };
-      } else {
-        const groupRow = await db.prepare('SELECT id, name FROM lantern_access_device_groups WHERE id = ?').bind(deviceRow.group_id).first();
-        const unlockRow = await db.prepare(
-          'SELECT expires_at, is_active, revoked_at FROM lantern_access_group_unlocks WHERE group_id = ? ORDER BY created_at DESC LIMIT 1'
-        ).bind(deviceRow.group_id).first();
-        const active = isGroupUnlockActive(unlockRow, nowIsoForDevice);
-        deviceGroupAccess = {
-          qualifyingAccess: active,
-          reason: active ? 'active_group_unlock' : 'group_not_unlocked',
-          groupId: deviceRow.group_id,
-          groupName: (groupRow && groupRow.name) || null,
-          expiresAt: active ? unlockRow.expires_at : null,
-        };
-        // Diagnostic-only last-seen bookkeeping (never authorization); throttled to at most once
-        // per minute per device so a short poll loop doesn't write on every single request.
-        const ipForDevice = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
-        const ipHashForDevice = ipForDevice ? await hashOpaqueSecret(ipForDevice) : null;
-        await db.prepare(
-          'UPDATE lantern_access_devices SET last_seen_at = ?, last_seen_ip_hash = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)'
-        ).bind(nowIsoForDevice, ipHashForDevice, deviceRow.id, new Date(Date.now() - 60000).toISOString()).run();
-      }
-    }
-  } catch (_) {
-    deviceGroupAccess = { qualifyingAccess: false, reason: 'lookup_error', groupId: null, groupName: null, expiresAt: null };
-  }
-
-  let eventOverride = { qualifyingAccess: false, reason: 'no_active_override', expiresAt: null };
-  try {
-    const overrideRow = await db.prepare(
-      'SELECT expires_at, is_active, revoked_at FROM lantern_access_overrides ORDER BY created_at DESC LIMIT 1'
-    ).first();
-    const nowIsoForOverride = new Date().toISOString();
-    const active = isGroupUnlockActive(overrideRow, nowIsoForOverride);
-    eventOverride = {
-      qualifyingAccess: active,
-      reason: active ? 'active_event_override' : 'no_active_override',
-      expiresAt: active ? overrideRow.expires_at : null,
-    };
-  } catch (_) {
-    eventOverride = { qualifyingAccess: false, reason: 'lookup_error', expiresAt: null };
-  }
-
-  const qualifyingAccess = !!(individualGrant.qualifyingAccess || deviceGroupAccess.qualifyingAccess || eventOverride.qualifyingAccess);
-  return { individualGrant, deviceGroupAccess, eventOverride, qualifyingAccess };
-}
-
-/**
- * Phase #34 — ONE authoritative, server-side gate for every student-facing protected API surface
- * (wired into the top-level fetch() dispatcher below; never per-route, so a newly added route is
- * protected by default instead of needing to opt in). Effective priority, exactly as specified:
- *   A. authenticated teacher/admin/staff              -> ALLOW, regardless of schedule
- *   B. outside the scheduled school-lock window        -> ALLOW (normal Lantern behavior)
- *   C. active whole-Lantern event override              -> ALLOW
- *   D. valid enrolled device + active group unlock       -> ALLOW
- *   E. active individual teacher-approved device grant    -> ALLOW
- *   F. otherwise, during a scheduled lock                  -> DENY (student must Request Access)
- * Deliberately does NOT treat as authorization: a bare authenticated student session/JWT, or the
- * legacy shareable class-access code/token (`class_access_sessions` / `class_access_tokens`,
- * `/api/class-access/join`, `/api/class-access/validate`) — neither is bound to one browser in a
- * way that resists forwarding, and Prompt #34 requires removing both as bypasses.
- *
- * `now` is accepted only so deterministic tests can pass a fixed instant; every real request
- * path uses the default (`new Date()`) and there is no request-controllable way to change it.
- *
- * @returns {{ allowed: boolean, reason: string, schedule: object, enforcementEnabled: boolean }}
- */
-async function evaluateCentralSchoolAccess(request, env, now) {
-  const db = env.DB;
-  const nowDate = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
-  const schedule = evaluateSchoolSchedule(nowDate);
-  const enforcementEnabled = isSchoolScheduleEnforcementEnabled(env);
-
-  if (!enforcementEnabled) {
-    return { allowed: true, reason: 'enforcement_disabled', schedule, enforcementEnabled };
-  }
-
-  // A. Staff (teacher/admin) always allowed, regardless of schedule.
-  try {
-    const account = await getPilotAccountFromRequest(request, env);
-    if (account && isTeacherLike(account.role)) {
-      return { allowed: true, reason: 'staff', schedule, enforcementEnabled };
-    }
-  } catch (_) {
-    // An auth lookup failure must never itself grant access -- fall through to the schedule check.
-  }
-
-  // B. Outside the scheduled lock window -> normal Lantern behavior.
-  if (!schedule.withinScheduledLock) {
-    return { allowed: true, reason: 'outside_scheduled_lock', schedule, enforcementEnabled };
-  }
-
-  // C/D/E. Active override, enrolled+unlocked device group, or active individual grant.
-  if (!db) {
-    // No DB configured -- fail CLOSED during a scheduled lock; never fail open.
-    return { allowed: false, reason: 'db_unavailable', schedule, enforcementEnabled };
-  }
-  const signals = await computeQualifyingAccessSignals(request, env, db);
-  if (signals.qualifyingAccess) {
-    const reason = signals.eventOverride.qualifyingAccess
-      ? 'event_override'
-      : signals.deviceGroupAccess.qualifyingAccess
-        ? 'device_group_unlock'
-        : 'individual_grant';
-    return { allowed: true, reason, schedule, enforcementEnabled };
-  }
-
-  // F. During a scheduled lock, with none of A-E satisfied -> DENY.
-  return { allowed: false, reason: 'school_lock_active', schedule, enforcementEnabled };
-}
-
-/**
- * API path prefixes that Phase #34's central school-access gate never evaluates: auth/session
- * bootstrapping (a student may always attempt to log in or check `me`/log out; identity is not
- * content), staff-only surfaces (already independently staff-gated, and staff pass rule A of the
- * evaluator anyway), the class-access API itself (the mechanism BY WHICH a student requests/
- * checks access — gating it would make requesting access impossible), and non-browser
- * infrastructure (`/api/health`, `/api/setup`, `/api/integrations` server-to-server bridge,
- * `/api/verify` demo/simulation harness, `/api/settings`). Everything else under `/api/` is
- * DEFAULT-DENIED during a scheduled lock unless the evaluator above says otherwise -- a new route
- * added later is automatically protected instead of needing to opt in.
- */
-const SCHOOL_ACCESS_EXEMPT_PATH_PREFIXES = [
-  '/api/health',
-  '/api/auth',
-  '/api/pilot',
-  '/api/admin',
-  '/api/setup',
-  '/api/verify',
-  '/api/class-access',
-  '/api/settings',
-  '/api/integrations',
-  '/api/tms-nuggets',
-];
-
-function isSchoolAccessExemptPath(path) {
-  return SCHOOL_ACCESS_EXEMPT_PATH_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
-}
 
 async function handleClassAccessRoutes(request, url, path, env, cors) {
   const db = env.DB;
@@ -5389,8 +5233,9 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     // (informational only) and `scheduleEnforcementEnabled` reports the authoritative
     // enforcement switch, which MUST remain false in production until a later phase turns it
     // on deliberately. Neither field changes accessState/tokenValid or any existing behavior.
-    const schedule = evaluateSchoolSchedule(new Date());
-    const scheduleEnforcementEnabled = isSchoolScheduleEnforcementEnabled(env);
+    const accessStatus = await buildAccessEnforcementStatus(db, env, new Date());
+    const schedule = accessStatus.schedule;
+    const scheduleEnforcementEnabled = accessStatus.enforcement_enabled;
 
     // Individual grants (Phase #31), device-group unlocks (Phase #32), and the whole-Lantern
     // event override (Phase #33) all funnel through the one shared signal computation
@@ -5430,6 +5275,13 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
         message: 'Demo Mode: ' + (simCondition.replace(/_/g, ' ') || 'Simulated'),
         schedule,
         scheduleEnforcementEnabled,
+        enforcement_enabled: accessStatus.enforcement_enabled,
+        enforcement_source: accessStatus.enforcement_source,
+        currently_inside_lock_window: accessStatus.currently_inside_lock_window,
+        effective_enforcement_active: accessStatus.effective_enforcement_active,
+        schoolwide_override_active: !!(eventOverride && eventOverride.qualifyingAccess),
+        lock_window: accessStatus.lock_window,
+        timezone: accessStatus.timezone,
         individualGrant,
         deviceGroupAccess,
         eventOverride,
@@ -5468,59 +5320,56 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       // Preauth table missing or claim error must not break the informational state endpoint.
     }
 
-    // Phase #34 (Production Enforcement) — the ACTUAL access decision now comes solely from the
-    // canonical 2026-27 calendar (`schedule.withinScheduledLock`) plus the same staff / event-
-    // override / device-group / individual-grant signals the real gate
-    // (`evaluateCentralSchoolAccess`, wired into every other protected API) uses. The legacy
-    // Mon-Thu `isLockHours()` window, the legacy shareable class-access code/token
-    // (`class_access_sessions` / `class_access_tokens`), and "any authenticated student session
-    // bypasses the gate" are ALL removed as authorization signals here — none of them are bound
-    // to one non-transferable browser/device, which is the whole point of this gate.
-    // `/api/class-access/join` and `/api/class-access/validate` still work exactly as before for
-    // backward compatibility; their output is simply no longer treated as access.
-    let isStaffCaller = false;
-    try {
-      const staffAccountForState = await getPilotAccountFromRequest(request, env);
-      isStaffCaller = !!(staffAccountForState && isTeacherLike(staffAccountForState.role));
-    } catch (_) {
-      isStaffCaller = false;
-    }
+    const gate = await evaluateCentralSchoolAccess(request, env, { getPilotAccountFromRequest });
+    const restrictedMode = gate.restrictedMode || { active: false, allowed: true };
+    const stateMeta = {
+      schedule,
+      scheduleEnforcementEnabled: gate.enforcementEnabled,
+      enforcement_enabled: gate.enforcementEnabled,
+      enforcement_source: accessStatus.enforcement_source,
+      currently_inside_lock_window: gate.currentlyInsideLockWindow,
+      effective_enforcement_active: gate.effectiveEnforcementActive,
+      schoolwide_override_active: !!(eventOverride && eventOverride.qualifyingAccess),
+      lock_window: accessStatus.lock_window,
+      timezone: accessStatus.timezone,
+      individualGrant,
+      deviceGroupAccess,
+      eventOverride,
+      qualifyingAccess,
+      restrictedMode,
+      restricted_mode: restrictedMode,
+    };
 
-    const effectivelyLocked = scheduleEnforcementEnabled && schedule.withinScheduledLock && !isStaffCaller;
-
-    if (!effectivelyLocked) {
+    if (gate.reason === 'restricted_mode_locked') {
       return jsonResponseWithCookies({
         ok: true,
         mode: 'live',
-        accessState: 'live_outside_school_hours',
-        tokenValid: true,
-        schedule,
-        scheduleEnforcementEnabled,
-        individualGrant,
-        deviceGroupAccess,
-        eventOverride,
-        qualifyingAccess,
+        accessState: 'restricted_mode_locked',
+        tokenValid: false,
+        gate_reason: 'restricted_mode_locked',
+        message: RESTRICTED_LOCKED_MESSAGE,
+        ...stateMeta,
       }, 200, cors, stateCookies);
     }
 
-    if (qualifyingAccess) {
+    if (gate.allowed) {
       const grantExpiresAt =
         (individualGrant.qualifyingAccess && individualGrant.expiresAt) ||
         (deviceGroupAccess.qualifyingAccess && deviceGroupAccess.expiresAt) ||
         (eventOverride.qualifyingAccess && eventOverride.expiresAt) ||
         null;
+      const bypassReasons = ['event_override', 'device_group_unlock', 'individual_grant'];
+      const accessState = bypassReasons.indexOf(gate.reason) >= 0
+        ? 'live_student_has_valid_access'
+        : 'live_outside_school_hours';
       return jsonResponseWithCookies({
         ok: true,
         mode: 'live',
-        accessState: 'live_student_has_valid_access',
+        accessState,
         tokenValid: true,
         expires_at: grantExpiresAt,
-        schedule,
-        scheduleEnforcementEnabled,
-        individualGrant,
-        deviceGroupAccess,
-        eventOverride,
-        qualifyingAccess,
+        gate_reason: gate.reason,
+        ...stateMeta,
       }, 200, cors, stateCookies);
     }
 
@@ -5529,12 +5378,9 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       mode: 'live',
       accessState: 'live_locked_no_session',
       tokenValid: false,
-      schedule,
-      scheduleEnforcementEnabled,
-      individualGrant,
-      deviceGroupAccess,
-      eventOverride,
-      qualifyingAccess,
+      gate_reason: gate.reason,
+      message: 'Lantern access is currently limited during the school day.',
+      ...stateMeta,
     }, 200, cors, stateCookies);
   }
 
