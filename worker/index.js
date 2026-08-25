@@ -112,6 +112,13 @@ import {
   evaluateCentralSchoolAccess,
   isSchoolAccessExemptPath,
 } from './school-access-decision.js';
+import {
+  evaluateRestrictedModeForAccount,
+  isRestrictedModeExemptPath,
+  publicRestrictedModeView,
+  resolveRestrictedModeState,
+  RESTRICTED_LOCKED_MESSAGE,
+} from './restricted-mode.js';
 import { ensureFirstGameMissionCompletion, ensureContentApprovedMissionCompletion } from './mission-event-completions.js';
 import { awardStudentDailyContentCreationReward } from './content-creation-reward.js';
 import {
@@ -461,9 +468,17 @@ export default {
     // student cannot bypass a scheduled school-hours lock by calling an API directly instead of
     // going through the frontend gate. No-op (schedule metadata aside) whenever
     // SCHOOL_SCHEDULE_ENFORCEMENT_ENABLED is not "true".
-    if (!isSchoolAccessExemptPath(path)) {
+    if (!isRestrictedModeExemptPath(path)) {
       const schoolAccessGate = await evaluateCentralSchoolAccess(request, env, { getPilotAccountFromRequest });
-      if (!schoolAccessGate.allowed) {
+      if (!schoolAccessGate.allowed && schoolAccessGate.reason === 'restricted_mode_locked') {
+        return jsonResponse({
+          ok: false,
+          error: 'restricted_mode_locked',
+          reason: 'restricted_mode_locked',
+          message: RESTRICTED_LOCKED_MESSAGE,
+        }, 403, corsForPilot(request));
+      }
+      if (!isSchoolAccessExemptPath(path) && !schoolAccessGate.allowed) {
         // Every route this gate actually guards (missions/feed/locker/economy/approvals/...) is a
         // credentialed pilot surface that normally answers with corsForPilot() headers, not the
         // wildcard-origin corsHeaders used pre-#34 only by the few uncredentialed endpoints. Using
@@ -4831,6 +4846,9 @@ async function handlePilotRoutes(request, url, path, env, cors) {
         teacher_id: row.teacher_id || null,
         must_change_password: mcp,
         capabilities,
+        restricted_mode: publicRestrictedModeView(
+          evaluateRestrictedModeForAccount(row, await resolveRestrictedModeState(db))
+        ),
       },
       200,
       cors
@@ -5303,6 +5321,7 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
     }
 
     const gate = await evaluateCentralSchoolAccess(request, env, { getPilotAccountFromRequest });
+    const restrictedMode = gate.restrictedMode || { active: false, allowed: true };
     const stateMeta = {
       schedule,
       scheduleEnforcementEnabled: gate.enforcementEnabled,
@@ -5317,7 +5336,21 @@ async function handleClassAccessRoutes(request, url, path, env, cors) {
       deviceGroupAccess,
       eventOverride,
       qualifyingAccess,
+      restrictedMode,
+      restricted_mode: restrictedMode,
     };
+
+    if (gate.reason === 'restricted_mode_locked') {
+      return jsonResponseWithCookies({
+        ok: true,
+        mode: 'live',
+        accessState: 'restricted_mode_locked',
+        tokenValid: false,
+        gate_reason: 'restricted_mode_locked',
+        message: RESTRICTED_LOCKED_MESSAGE,
+        ...stateMeta,
+      }, 200, cors, stateCookies);
+    }
 
     if (gate.allowed) {
       const grantExpiresAt =

@@ -10,6 +10,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js"></script>
+  <script src="js/lantern-restricted-mode.js"></script>
   <script src="js/lantern-remember-device.js?v=20260810-remember"></script>
   <style>html.lantern-pilot-auth-pending body { visibility: hidden; }</style>
   <title>Teacher | Lantern</title>
@@ -1534,6 +1535,11 @@
       }
       window.LANTERN_PILOT_ME = data;
       try {
+        if (window.LanternRestrictedMode && typeof window.LanternRestrictedMode.apply === 'function') {
+          window.LanternRestrictedMode.apply(data);
+        }
+      } catch (eRm) {}
+      try {
         window.dispatchEvent(new CustomEvent('lantern-pilot-me-ready', { detail: data }));
       } catch (e) {}
       try {
@@ -1648,6 +1654,7 @@
               <div id="schoolAccessScheduleTypeText" style="font-weight:1000;font-size:28px;line-height:1.25;">Loading…</div>
               <p class="note note-tight" id="schoolAccessScheduleWindowText" style="margin-top:6px;"></p>
               <p class="note note-tight" id="schoolAccessEffectiveStatusText" style="margin-top:8px;font-weight:800;color:var(--ink);"></p>
+              <p id="schoolAccessRestrictedBanner" hidden style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,77,109,.45);background:rgba(255,77,109,.12);color:#ffb4c2;font-weight:800;font-size:20px;line-height:1.4;">Restricted Mode: ACTIVE — Your account: Allowed. Restricted Mode overrides Class/Individual Access for users who are not on the Restricted allowlist.</p>
               <p id="schoolAccessEnforcementBanner" style="margin-top:12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,204,102,.4);background:rgba(255,204,102,.08);color:var(--warn);font-weight:800;font-size:20px;line-height:1.4;"></p>
               <details class="teacherClassAccessSimDetails" style="margin-top:12px;">
                 <summary>Access priority (authoritative server order)</summary>
@@ -1699,7 +1706,7 @@
               <div class="teacherCollapsibleListMeta"><span class="pill" id="classAccessStatusPill">Inactive</span></div>
             </summary>
             <div class="cardBd teacherCollapsibleListBd">
-              <p class="note note-tight">Unlock an enrolled classroom device group during the school lock window. Shared computers enrolled in that group are allowed on their next request — no logout required.</p>
+              <p class="note note-tight">Unlock an enrolled classroom device group during the school lock window. Shared computers enrolled in that group are allowed on their next request — no logout required. Restricted Mode, when active, overrides Class and Individual Access for anyone not on the Restricted allowlist — unlocking a class does not bypass Restricted Mode.</p>
               <p id="classAccessErrorEl" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:12px;border:1px solid var(--warn);background:rgba(255,204,102,.12);color:var(--warn);font-weight:800;font-size:22px;"></p>
               <div id="classAccessGroupsList" class="teacherCollapsibleListScroll" style="padding:8px;"></div>
               <p class="note" id="classAccessGroupsEmpty" style="display:none;margin-top:8px;">No device groups yet. Create groups under Device Enrollment, enroll classroom computers, then unlock the group here.</p>
@@ -5929,6 +5936,9 @@
         enforcementPill.style.background = enforcementOn ? 'rgba(255,77,109,.25)' : '';
         enforcementPill.style.color = enforcementOn ? '#ffb4c2' : '';
       }
+      var restrictedBanner = el('schoolAccessRestrictedBanner');
+      var rm = (res && (res.restrictedMode || res.restricted_mode)) || {};
+      if (restrictedBanner) restrictedBanner.hidden = !(rm.active && rm.allowed);
       if (enforcementBanner) {
         if (!enforcementOn) {
           enforcementBanner.style.borderColor = 'rgba(90,167,255,.35)';

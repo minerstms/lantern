@@ -82,7 +82,15 @@
   /**
    * Whether the user must see the gate (locked, no valid access).
    */
+  function isRestrictedModeLocked(state) {
+    if (!state) return false;
+    if (state.accessState === 'restricted_mode_locked' || state.error === 'restricted_mode_locked') return true;
+    var rm = state.restrictedMode || state.restricted_mode;
+    return !!(rm && rm.active && !rm.allowed);
+  }
+
   function shouldShowGate(state) {
+    if (isRestrictedModeLocked(state)) return true;
     if (!state || !state.ok) return true;
     if (state.tokenValid) return false;
     var s = (state.accessState || '').trim();
@@ -355,7 +363,14 @@
         gateWrap.style.display = 'flex';
         gateWrap.style.alignItems = 'center';
         gateWrap.style.justifyContent = 'center';
-        if (!gateWrap.querySelector('.classAccessGate')) renderGate(gateWrap, apiBase, function () { location.reload(); });
+        if (isRestrictedModeLocked(state)) {
+          var restrictedHtml = (global.LanternRestrictedMode && typeof global.LanternRestrictedMode.lockedHtml === 'function')
+            ? global.LanternRestrictedMode.lockedHtml()
+            : '<div class="lanternRestrictedUnavailable" style="max-width:420px;margin:0 auto;padding:28px 20px;text-align:center;"><h2 style="font-weight:1000;font-size:28px;margin:0 0 12px;">Lantern is temporarily unavailable.</h2><p style="color:var(--muted);font-size:22px;margin:0;">Access is currently limited by school staff.<br>Please try again later.</p></div>';
+          gateWrap.innerHTML = restrictedHtml;
+        } else if (!gateWrap.querySelector('.classAccessGate')) {
+          renderGate(gateWrap, apiBase, function () { location.reload(); });
+        }
         if (isAuthenticatedStudent() && !gateWrap._lanternAccessStatePoll) {
           gateWrap._lanternAccessStatePoll = setInterval(function () {
             if (document.visibilityState && document.visibilityState !== 'visible') return;

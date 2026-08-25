@@ -17,6 +17,11 @@ import { getSchoolScheduleEnforcementEnabled } from './school-access-enforcement
 import { hashOpaqueSecret, ACCESS_DEVICE_COOKIE_NAME, derivedRequestStatus } from './access-requests.js';
 import { DEVICE_TOKEN_HEADER, isDeviceActive, isGroupUnlockActive } from './device-enrollment.js';
 import { isStaffSideParticipantRole } from './missions-auth.js';
+import {
+  evaluateRestrictedModeForAccount,
+  publicRestrictedModeView,
+  resolveRestrictedModeState,
+} from './restricted-mode.js';
 
 function getCookieValue(cookieHeader, name) {
   if (!cookieHeader || !name) return '';
@@ -171,16 +176,29 @@ export async function evaluateCentralSchoolAccess(request, env, deps, now) {
   const enforcementEnabled = await getSchoolScheduleEnforcementEnabled(db, env);
   const getAccount = deps && deps.getPilotAccountFromRequest;
 
-  // 1. Staff always allowed.
+  let account = null;
   if (getAccount) {
     try {
-      const account = await getAccount(request, env);
-      if (account && isStaffSideParticipantRole(account.role)) {
-        return decisionResult(true, 'staff', schedule, enforcementEnabled);
-      }
+      account = await getAccount(request, env);
     } catch (_) {
-      // Auth lookup failure must never grant access.
+      account = null;
     }
+  }
+
+  // Restricted Mode (#262C) — after valid identity, before any school-access rule.
+  const restrictedState = await resolveRestrictedModeState(db);
+  const restrictedDecision = evaluateRestrictedModeForAccount(account, restrictedState);
+  const restrictedMode = publicRestrictedModeView(restrictedDecision);
+  if (restrictedState.enabled && account) {
+    if (restrictedDecision.allowed) {
+      return decisionResult(true, restrictedDecision.reason, schedule, enforcementEnabled, { restrictedMode });
+    }
+    return decisionResult(false, 'restricted_mode_locked', schedule, enforcementEnabled, { restrictedMode });
+  }
+
+  // 1. Staff always allowed (only when Restricted Mode is OFF).
+  if (account && isStaffSideParticipantRole(account.role)) {
+    return decisionResult(true, 'staff', schedule, enforcementEnabled, { restrictedMode });
   }
 
   let signals = null;
@@ -190,27 +208,27 @@ export async function evaluateCentralSchoolAccess(request, env, deps, now) {
 
   // 2. Schoolwide override.
   if (signals && signals.eventOverride.qualifyingAccess) {
-    return decisionResult(true, 'event_override', schedule, enforcementEnabled, { signals });
+    return decisionResult(true, 'event_override', schedule, enforcementEnabled, { signals, restrictedMode });
   }
   // 3. Class access — enrolled device in unlocked group.
   if (signals && signals.deviceGroupAccess.qualifyingAccess) {
-    return decisionResult(true, 'device_group_unlock', schedule, enforcementEnabled, { signals });
+    return decisionResult(true, 'device_group_unlock', schedule, enforcementEnabled, { signals, restrictedMode });
   }
   // 4. Individual access grant.
   if (signals && signals.individualGrant.qualifyingAccess) {
-    return decisionResult(true, 'individual_grant', schedule, enforcementEnabled, { signals });
+    return decisionResult(true, 'individual_grant', schedule, enforcementEnabled, { signals, restrictedMode });
   }
   // 5. Enforcement OFF.
   if (!enforcementEnabled) {
-    return decisionResult(true, 'enforcement_disabled', schedule, enforcementEnabled, { signals });
+    return decisionResult(true, 'enforcement_disabled', schedule, enforcementEnabled, { signals, restrictedMode });
   }
   // 6. Outside lock window.
   if (!schedule.withinScheduledLock) {
-    return decisionResult(true, 'outside_scheduled_lock', schedule, enforcementEnabled, { signals });
+    return decisionResult(true, 'outside_scheduled_lock', schedule, enforcementEnabled, { signals, restrictedMode });
   }
   // 7. Locked during active enforcement window.
   if (!db) {
-    return decisionResult(false, 'db_unavailable', schedule, enforcementEnabled, { signals });
+    return decisionResult(false, 'db_unavailable', schedule, enforcementEnabled, { signals, restrictedMode });
   }
-  return decisionResult(false, 'school_lock_active', schedule, enforcementEnabled, { signals });
+  return decisionResult(false, 'school_lock_active', schedule, enforcementEnabled, { signals, restrictedMode });
 }

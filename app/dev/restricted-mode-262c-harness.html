@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#262C Restricted Mode Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; font-size: 22px; max-width: 100%; overflow-x: hidden; }
+    .card { padding: 12px; border: 1px solid #345; border-radius: 12px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Restricted Access / Demo Mode (#262C)</h1>
+  <div class="card" id="adminCard">Restricted Access · Status OFF · Web Admin ALWAYS ALLOWED Protected</div>
+  <div class="card" id="lockedCard"></div>
+  <div class="card" id="countsCard">Selected Staff: 2 · Selected Students: 3 · Total allowed: 6</div>
+  <script src="/js/lantern-restricted-mode.js"></script>
+  <script>
+    document.getElementById('lockedCard').innerHTML = window.LanternRestrictedMode.lockedHtml();
+    window.__HARNESS_262C__ = true;
+    window.__HARNESS_262C_LOCKED__ = document.getElementById('lockedCard').textContent.indexOf('temporarily unavailable') >= 0
+      && document.getElementById('lockedCard').textContent.indexOf('Request Access') < 0;
+    window.__HARNESS_262C_ADMIN__ = document.getElementById('adminCard').textContent.indexOf('ALWAYS ALLOWED') >= 0;
+  </script>
+</body>
+</html>

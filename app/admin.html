@@ -9,6 +9,7 @@
   <title>Admin | Lantern</title>
   <script>window.LANTERN_AVATAR_API = '';</script>
   <script src="js/lantern-pilot-auth.js?v=20260806-session"></script>
+  <script src="js/lantern-restricted-mode.js"></script>
   <link rel="stylesheet" href="css/lantern-ticker.css">
   <link rel="stylesheet" href="css/lantern-header.css">
   <link rel="stylesheet" href="css/lantern-collapsible-list.css">
@@ -254,6 +255,11 @@
           idLine.textContent = 'Signed in as ' + u + (dn ? ' · ' + dn : '');
         }
       } catch (eId) {}
+      try {
+        if (window.LanternRestrictedMode && typeof window.LanternRestrictedMode.apply === 'function') {
+          window.LanternRestrictedMode.apply(data);
+        }
+      } catch (eRm) {}
       try {
         document.documentElement.classList.remove(pendingClass);
       } catch (e2) {}
@@ -1147,6 +1153,46 @@
       <div class="acctPanelActions" style="margin-top:14px;">
         <button type="button" class="btn good" id="accessEnforcementSave">Save</button>
         <button type="button" class="btn" id="accessEnforcementRefresh">Reload current</button>
+      </div>
+    </div>
+  </details>
+
+  <details class="card teacherCollapsibleList" id="restrictedAccessCard">
+    <summary class="cardHd teacherCollapsibleListHd">
+      <div class="teacherCollapsibleListTitle"><div class="h">Restricted Access</div></div>
+      <div class="teacherCollapsibleListMeta"><span class="pill accent" id="restrictedAccessSummaryPill">OFF</span></div>
+    </summary>
+    <div class="cardBd teacherCollapsibleListBd">
+      <p class="acctPanelHint">Restricted Mode temporarily limits Lantern to Web Admin plus selected bypass users. Role, Class Access, Individual Access, and school-schedule rules do not bypass it. Default is OFF. Saved bypass users stay when the mode is turned off.</p>
+      <div id="restrictedAccessMsg" role="status" aria-live="polite" style="display:none;" class="usersMsg"></div>
+      <p class="pendingMeta" id="restrictedAccessStatusLine">Status: OFF</p>
+      <p class="pendingMeta" id="restrictedAccessSchoolLine">School schedule enforcement: shown separately above.</p>
+      <div id="restrictedAccessActiveBanner" hidden style="margin:10px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,77,109,.45);background:rgba(255,77,109,.12);color:#ffb4c2;font-weight:800;font-size:22px;line-height:1.4;">RESTRICTED MODE ACTIVE</div>
+      <p class="pendingMeta" id="restrictedAccessCountsLine">Web Admin: Always allowed · Selected Staff: 0 · Selected Students: 0 · Total allowed: 1</p>
+      <div class="h" style="font-size:22px;margin:14px 0 8px;">Allowed during Restricted Mode</div>
+      <p class="pendingMeta">Web Admin — ALWAYS ALLOWED — Protected</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;">
+        <button type="button" class="btn small" data-restricted-kind="all">All</button>
+        <button type="button" class="btn small" data-restricted-kind="staff">Staff</button>
+        <button type="button" class="btn small" data-restricted-kind="students">Students</button>
+        <button type="button" class="btn small" data-restricted-kind="allowed">Allowed</button>
+      </div>
+      <label for="restrictedAccessSearch" class="pendingMeta">Search staff or students</label>
+      <input type="search" id="restrictedAccessSearch" class="teacherInput" placeholder="Name, login, or student ID" style="width:100%;max-width:520px;margin-top:6px;" />
+      <div id="restrictedAccessResults" style="margin-top:10px;"></div>
+      <div id="restrictedAccessAllowedList" style="margin-top:12px;"></div>
+      <div id="restrictedAccessConfirm" hidden style="margin-top:14px;padding:12px;border:1px solid var(--warn,#ffcc66);border-radius:12px;">
+        <p id="restrictedAccessConfirmText" style="font-weight:800;font-size:22px;margin:0 0 10px;">ACTIVATE RESTRICTED ACCESS?</p>
+        <p class="pendingMeta" id="restrictedAccessConfirmSummary"></p>
+        <div class="acctPanelActions" style="margin-top:10px;">
+          <button type="button" class="btn" id="restrictedAccessConfirmCancel">Cancel</button>
+          <button type="button" class="btn bad" id="restrictedAccessConfirmGo">Activate Restricted Mode</button>
+        </div>
+      </div>
+      <div class="acctPanelActions" style="margin-top:14px;">
+        <button type="button" class="btn bad" id="restrictedAccessActivate">Activate Restricted Mode</button>
+        <button type="button" class="btn good" id="restrictedAccessEnd" hidden>End Restricted Mode</button>
+        <button type="button" class="btn" id="restrictedAccessRefresh">Reload current</button>
       </div>
     </div>
   </details>
@@ -4765,6 +4811,180 @@
     var accessEnforcementRefreshBtn = document.getElementById('accessEnforcementRefresh');
     if (accessEnforcementRefreshBtn) accessEnforcementRefreshBtn.addEventListener('click', function () { showAccessEnforcementMsg('', ''); loadAccessEnforcement(); });
 
+    var restrictedAccessKind = 'all';
+    var restrictedAccessState = null;
+
+    function showRestrictedAccessMsg(text, kind) {
+      var el = document.getElementById('restrictedAccessMsg');
+      if (!el) return;
+      if (!text) { el.style.display = 'none'; el.textContent = ''; el.className = 'usersMsg'; return; }
+      el.style.display = 'block';
+      el.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+      el.textContent = text;
+    }
+
+    function restrictedCountSummary(st) {
+      var staffN = st && st.selected_staff_count != null ? st.selected_staff_count : 0;
+      var stuN = st && st.selected_student_count != null ? st.selected_student_count : 0;
+      return 'Web Admin: Always allowed · Selected Staff: ' + staffN + ' · Selected Students: ' + stuN + ' · Total allowed: ' + (staffN + stuN + 1);
+    }
+
+    function renderRestrictedAllowed(st) {
+      var box = document.getElementById('restrictedAccessAllowedList');
+      if (!box) return;
+      var rows = [].concat((st && st.selected_staff) || []).concat((st && st.selected_students) || []);
+      if (!rows.length) {
+        box.innerHTML = '<p class="pendingMeta">No selected bypass users yet. If Restricted Mode is turned on now, only Web Admin can enter.</p>';
+        return;
+      }
+      box.innerHTML = rows.map(function (a) {
+        var label = (a.display_name || a.username) + (a.kind === 'student' && a.student_id ? ' · ' + a.student_id : '');
+        return '<div class="pendingMeta" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0;"><span>' + label + ' · ' + (a.kind === 'staff' ? 'Staff' : 'Student') + (a.is_active ? '' : ' · inactive') + '</span><button type="button" class="btn small" data-restricted-remove="' + String(a.username || '').replace(/"/g, '') + '">Remove</button></div>';
+      }).join('');
+    }
+
+    function setRestrictedAccessControls(st) {
+      restrictedAccessState = st;
+      var on = !!(st && st.enabled);
+      var pill = document.getElementById('restrictedAccessSummaryPill');
+      var statusLine = document.getElementById('restrictedAccessStatusLine');
+      var counts = document.getElementById('restrictedAccessCountsLine');
+      var banner = document.getElementById('restrictedAccessActiveBanner');
+      var schoolLine = document.getElementById('restrictedAccessSchoolLine');
+      var activateBtn = document.getElementById('restrictedAccessActivate');
+      var endBtn = document.getElementById('restrictedAccessEnd');
+      if (pill) { pill.textContent = on ? 'ACTIVE' : 'OFF'; pill.classList.toggle('bad', on); }
+      if (statusLine) statusLine.textContent = 'Status: ' + (on ? 'ACTIVE' : 'OFF');
+      if (counts) counts.textContent = restrictedCountSummary(st);
+      if (banner) {
+        banner.hidden = !on;
+        if (on) banner.textContent = 'RESTRICTED MODE ACTIVE — ' + ((st.selected_staff_count || 0) + (st.selected_student_count || 0)) + ' selected users + Web Admin can access Lantern. Everyone else is restricted.';
+      }
+      if (schoolLine && st && st.school_enforcement) {
+        schoolLine.textContent = 'School schedule enforcement: ' + (st.school_enforcement.enabled ? 'ON' : 'OFF') + ' (separate control).';
+      }
+      if (activateBtn) activateBtn.hidden = on;
+      if (endBtn) endBtn.hidden = !on;
+      renderRestrictedAllowed(st);
+    }
+
+    function loadRestrictedAccess() {
+      fetch(api + '/api/settings/restricted-mode', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok) {
+            setRestrictedAccessControls(res);
+            showRestrictedAccessMsg('', '');
+          } else {
+            showRestrictedAccessMsg((res && res.error) || 'Could not load Restricted Access.', 'err');
+          }
+        })
+        .catch(function () {
+          showRestrictedAccessMsg('Could not load Restricted Access (network).', 'err');
+        });
+    }
+
+    function searchRestrictedAccess() {
+      var q = (document.getElementById('restrictedAccessSearch') && document.getElementById('restrictedAccessSearch').value) || '';
+      var box = document.getElementById('restrictedAccessResults');
+      fetch(api + '/api/settings/restricted-mode/search?kind=' + encodeURIComponent(restrictedAccessKind) + '&q=' + encodeURIComponent(q), { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!box) return;
+          var rows = (res && res.results) || [];
+          if (!rows.length) { box.innerHTML = '<p class="pendingMeta">No matching accounts.</p>'; return; }
+          box.innerHTML = rows.map(function (a) {
+            var label = (a.display_name || a.username) + (a.student_id ? ' · ' + a.student_id : '');
+            var action = a.allow_during_restricted ? 'remove' : 'add';
+            var btn = a.allow_during_restricted ? 'Not allowed' : 'Allow during Restricted Mode';
+            return '<div class="pendingMeta" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0;"><span>' + label + ' · ' + (a.kind === 'staff' ? 'Staff' : 'Student') + '</span><button type="button" class="btn small" data-restricted-toggle="' + String(a.username || '').replace(/"/g, '') + '" data-restricted-allowed="' + (action === 'add' ? '1' : '0') + '">' + btn + '</button></div>';
+          }).join('');
+        })
+        .catch(function () {
+          if (box) box.innerHTML = '<p class="pendingMeta">Search failed.</p>';
+        });
+    }
+
+    function postRestrictedBypass(username, allowed) {
+      return fetch(api + '/api/settings/restricted-mode/bypass', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, allowed: !!allowed }),
+      }).then(function (r) {
+        return r.json().then(function (j) {
+          return { okHttp: r.ok, status: r.status, body: j, blocked: false };
+        });
+      }).then(function (res) {
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          setRestrictedAccessControls(res.body);
+          showRestrictedAccessMsg(allowed ? 'Allowed during Restricted Mode.' : 'Removed from Restricted allowlist.', 'ok');
+          searchRestrictedAccess();
+        } else {
+          showRestrictedAccessMsg((res && res.body && res.body.error) || 'Update failed', 'err');
+        }
+      });
+    }
+
+    document.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute) return;
+      if (t.getAttribute('data-restricted-kind')) {
+        restrictedAccessKind = t.getAttribute('data-restricted-kind');
+        searchRestrictedAccess();
+      }
+      var addUser = t.getAttribute('data-restricted-toggle');
+      if (addUser) postRestrictedBypass(addUser, t.getAttribute('data-restricted-allowed') === '1');
+      var rmUser = t.getAttribute('data-restricted-remove');
+      if (rmUser) postRestrictedBypass(rmUser, false);
+    });
+    var restrictedSearch = document.getElementById('restrictedAccessSearch');
+    if (restrictedSearch) {
+      restrictedSearch.addEventListener('input', function () { searchRestrictedAccess(); });
+    }
+    var restrictedActivate = document.getElementById('restrictedAccessActivate');
+    var restrictedConfirm = document.getElementById('restrictedAccessConfirm');
+    var restrictedConfirmText = document.getElementById('restrictedAccessConfirmSummary');
+    if (restrictedActivate) restrictedActivate.addEventListener('click', function () {
+      var st = restrictedAccessState || {};
+      if (restrictedConfirmText) {
+        restrictedConfirmText.textContent = 'Web Admin + ' + ((st.selected_staff_count || 0) + (st.selected_student_count || 0)) + ' selected accounts will have access. All other students, teachers, staff, and admins will be temporarily restricted.';
+      }
+      if (restrictedConfirm) restrictedConfirm.hidden = false;
+    });
+    var restrictedCancel = document.getElementById('restrictedAccessConfirmCancel');
+    if (restrictedCancel) restrictedCancel.addEventListener('click', function () {
+      if (restrictedConfirm) restrictedConfirm.hidden = true;
+    });
+    var restrictedGo = document.getElementById('restrictedAccessConfirmGo');
+    if (restrictedGo) restrictedGo.addEventListener('click', function () {
+      if (restrictedConfirm) restrictedConfirm.hidden = true;
+      patchAdminJson('/api/settings/restricted-mode', { enabled: true }).then(function (res) {
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          setRestrictedAccessControls(res.body);
+          showRestrictedAccessMsg('Restricted Mode is now ACTIVE.', 'ok');
+        } else {
+          showRestrictedAccessMsg((res && res.body && res.body.error) || 'Could not activate.', 'err');
+        }
+      });
+    });
+    var restrictedEnd = document.getElementById('restrictedAccessEnd');
+    if (restrictedEnd) restrictedEnd.addEventListener('click', function () {
+      patchAdminJson('/api/settings/restricted-mode', { enabled: false }).then(function (res) {
+        if (res && res.blocked) return;
+        if (res && res.okHttp && res.body && res.body.ok) {
+          setRestrictedAccessControls(res.body);
+          showRestrictedAccessMsg('Restricted Mode is OFF. Saved bypass users were kept.', 'ok');
+        } else {
+          showRestrictedAccessMsg((res && res.body && res.body.error) || 'Could not end Restricted Mode.', 'err');
+        }
+      });
+    });
+    var restrictedRefresh = document.getElementById('restrictedAccessRefresh');
+    if (restrictedRefresh) restrictedRefresh.addEventListener('click', function () { loadRestrictedAccess(); searchRestrictedAccess(); });
+
     function showVisibleWatermarkMsg(text, kind) {
       var el = document.getElementById('visibleWatermarkMsg');
       if (!el) return;
@@ -7059,6 +7279,8 @@
     loadPending();
     loadMarqueeSpeed();
     loadAccessEnforcement();
+    loadRestrictedAccess();
+    searchRestrictedAccess();
     loadVisibleWatermark();
     loadNuggetEconomy();
     loadLanternActivities();
