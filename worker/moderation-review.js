@@ -203,32 +203,107 @@ export async function recordEventForAccount(db, account, fields) {
 export async function resolveOpenFlags(db, itemType, itemId, resolution, actor, staffNote, now) {
   const res = String(resolution || '').trim().toLowerCase();
   if (REPORT_RESOLUTIONS.indexOf(res) < 0) throw new Error('invalid_resolution');
-  const id = String(itemId || '').trim();
-  const storedTypes = [];
-  const canon = flagCanonicalType(itemType);
-  storedTypes.push(canon);
-  const norm = normalizeReportItemType(itemType);
-  if (norm && storedTypes.indexOf(norm.canonical) < 0) storedTypes.push(norm.canonical);
-  // Legacy queue sent poll_contribution for live poll ids; flags remain item_type poll.
-  if (canon === 'poll_contribution' || canon === 'poll') {
-    if (storedTypes.indexOf('poll') < 0) storedTypes.push('poll');
-    if (storedTypes.indexOf('poll_contribution') < 0) storedTypes.push('poll_contribution');
-  }
   const resolvedBy = (actor && (actor.actor_key || actor.actor_label)) || '';
+  const aliases = await pollModerationIdentityAliases(db, itemType, itemId);
+  if (!aliases.length) {
+    const id = String(itemId || '').trim();
+    const canon = flagCanonicalType(itemType);
+    if (id && canon) aliases.push({ item_type: canon, item_id: id });
+  }
   try {
-    for (let i = 0; i < storedTypes.length; i++) {
-      await db
-        .prepare(
-          "UPDATE lantern_content_flags SET resolved_at = ?, resolved_by = ?, resolution = ?, staff_note = ? WHERE item_id = ? AND item_type = ? AND (resolved_at IS NULL OR resolved_at = '')"
-        )
-        .bind(now, resolvedBy || null, res, clipNote(staffNote) || null, id, storedTypes[i])
-        .run();
+    for (let a = 0; a < aliases.length; a++) {
+      const alias = aliases[a];
+      const storedTypes = [alias.item_type];
+      if (alias.item_type === 'poll_contribution' || alias.item_type === 'poll') {
+        if (storedTypes.indexOf('poll') < 0) storedTypes.push('poll');
+        if (storedTypes.indexOf('poll_contribution') < 0) storedTypes.push('poll_contribution');
+      }
+      for (let i = 0; i < storedTypes.length; i++) {
+        await db
+          .prepare(
+            "UPDATE lantern_content_flags SET resolved_at = ?, resolved_by = ?, resolution = ?, staff_note = ? WHERE item_id = ? AND item_type = ? AND (resolved_at IS NULL OR resolved_at = '')"
+          )
+          .bind(now, resolvedBy || null, res, clipNote(staffNote) || null, alias.item_id, storedTypes[i])
+          .run();
+      }
     }
   } catch (err) {
     if (isModerationSchemaError(err)) throw new ModerationSchemaError();
     throw err;
   }
   return { ok: true };
+}
+
+/** Live poll and poll_contribution share moderation identity (#260). */
+export async function pollModerationIdentityAliases(db, itemType, itemId) {
+  const id = String(itemId || '').trim();
+  const t = flagCanonicalType(itemType);
+  if (!id || !t) return [];
+  const out = [];
+  const push = (item_type, item_id) => {
+    const key = item_type + ':' + item_id;
+    if (!item_id || out.some((a) => a.item_type + ':' + a.item_id === key)) return;
+    out.push({ item_type, item_id: String(item_id) });
+  };
+  if (t === 'poll') {
+    push('poll', id);
+    const contribId = await resolvePollContributionIdFromLivePoll(db, id);
+    if (contribId) push('poll_contribution', contribId);
+  } else if (t === 'poll_contribution') {
+    push('poll_contribution', id);
+    const pollRow = await db
+      .prepare('SELECT id FROM lantern_polls WHERE mission_submission_id = ? LIMIT 1')
+      .bind('contrib:' + id)
+      .first();
+    if (pollRow && pollRow.id) push('poll', pollRow.id);
+  } else {
+    push(t, id);
+  }
+  return out;
+}
+
+function flagMatchesModerationAlias(flag, aliases) {
+  if (!flag || !aliases || !aliases.length) return false;
+  const ft = flagCanonicalType(flag.item_type);
+  const fid = String(flag.item_id || '').trim();
+  return aliases.some((a) => a.item_type === ft && a.item_id === fid);
+}
+
+/** Pending approval rows must match still-actionable underlying content (#260). */
+export async function isActionablePendingApproval(db, approval) {
+  if (!approval) return false;
+  const type = String(approval.item_type || '').trim();
+  const id = String(approval.item_id || '').trim();
+  if (!type || !id) return false;
+  if (type === 'poll_contribution') {
+    const row = await db.prepare('SELECT status FROM lantern_poll_contributions WHERE id = ?').bind(id).first();
+    if (!row) return false;
+    return String(row.status || '').trim().toLowerCase() === 'pending';
+  }
+  if (type === 'news') {
+    const row = await db.prepare('SELECT status FROM lantern_news_submissions WHERE id = ?').bind(id).first();
+    if (!row) return false;
+    const st = String(row.status || '').trim().toLowerCase();
+    return st === 'pending' || st === 'submitted';
+  }
+  if (type === 'avatar') {
+    const row = await db.prepare('SELECT status FROM lantern_avatar_submissions WHERE id = ?').bind(id).first();
+    if (!row) return false;
+    return String(row.status || '').trim().toLowerCase() === 'pending';
+  }
+  return true;
+}
+
+async function closePendingApprovalsForItem(db, itemType, itemId, status, now, staffId, staffName, note) {
+  const type = String(itemType || '').trim();
+  const id = String(itemId || '').trim();
+  if (!type || !id) return;
+  await db
+    .prepare(
+      'UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE item_type = ? AND item_id = ? AND LOWER(TRIM(status)) = ?'
+    )
+    .bind(status, now, staffId || null, staffName || null, note != null ? note : null, type, id, 'pending')
+    .run();
 }
 
 function approvalVisibleToReviewer(approval, account, isAdmin) {
@@ -445,9 +520,10 @@ export async function buildReviewQueue(db, account, opts) {
     'SELECT id, item_type, item_id, status, submitted_by_actor_name, assigned_to_staff_id, assigned_to_staff_name, suggested_staff_id, suggested_staff_name, created_at FROM lantern_approvals WHERE LOWER(TRIM(status)) = ?',
     ['pending']
   );
-  pendingApprovals.forEach((a) => {
-    if (a.item_type === 'avatar' && !canManageLanternAvatars(account)) return;
-    if (!approvalVisibleToReviewer(a, account, isAdmin)) return;
+  for (const a of pendingApprovals) {
+    if (a.item_type === 'avatar' && !canManageLanternAvatars(account)) continue;
+    if (!approvalVisibleToReviewer(a, account, isAdmin)) continue;
+    if (!(await isActionablePendingApproval(db, a))) continue;
     upsert({
       item_type: a.item_type,
       item_id: a.item_id,
@@ -457,7 +533,7 @@ export async function buildReviewQueue(db, account, opts) {
       created_at: a.created_at,
       approval_id: a.id,
     });
-  });
+  }
 
   const submittedFeed = await allRows(
     db,
@@ -477,10 +553,20 @@ export async function buildReviewQueue(db, account, opts) {
 
   const flags = await loadUnresolvedFlags(db);
   for (const f of flags) {
-    const itemType = flagCanonicalType(f.item_type);
-    const itemId = String(f.item_id || '').trim();
+    let itemType = flagCanonicalType(f.item_type);
+    let itemId = String(f.item_id || '').trim();
     if (!itemType || !itemId) continue;
-    const allowed = await reviewerMayActOnReportedItem(db, account, f.item_type, itemId);
+    if (itemType === 'poll_contribution') {
+      const live = await db
+        .prepare('SELECT id FROM lantern_polls WHERE mission_submission_id = ? LIMIT 1')
+        .bind('contrib:' + itemId)
+        .first();
+      if (live && live.id) {
+        itemType = 'poll';
+        itemId = String(live.id);
+      }
+    }
+    const allowed = await reviewerMayActOnReportedItem(db, account, itemType, itemId);
     if (!allowed) continue;
     const card = upsert({
       item_type: itemType,
@@ -720,13 +806,7 @@ async function performApprove(db, account, itemType, itemId, now, deps) {
           .run();
       }
     }
-    const appr = await db.prepare('SELECT id FROM lantern_approvals WHERE item_type = ? AND item_id = ?').bind('poll_contribution', itemId).first();
-    if (appr) {
-      await db
-        .prepare('UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?')
-        .bind('approved', now, staffId || null, staffName, null, appr.id)
-        .run();
-    }
+    await closePendingApprovalsForItem(db, 'poll_contribution', itemId, 'approved', now, staffId, staffName, null);
     return { ok: true, status: 'approved' };
   }
   if (t === 'mission_submission') {
@@ -837,13 +917,7 @@ async function performReturn(db, account, itemType, itemId, note, now, fromRepor
       .prepare('UPDATE lantern_poll_contributions SET status = ?, reviewed_at = ?, reviewed_by = ?, decision_note = ? WHERE id = ?')
       .bind('returned', now, staffName, note, itemId)
       .run();
-    const appr = await db.prepare('SELECT id FROM lantern_approvals WHERE item_type = ? AND item_id = ?').bind('poll_contribution', itemId).first();
-    if (appr) {
-      await db
-        .prepare('UPDATE lantern_approvals SET status = ?, reviewed_at = ?, reviewed_by_staff_id = ?, reviewed_by_staff_name = ?, decision_note = ? WHERE id = ?')
-        .bind('returned', now, staffId || null, staffName, note, appr.id)
-        .run();
-    }
+    await closePendingApprovalsForItem(db, 'poll_contribution', itemId, 'returned', now, staffId, staffName, note);
     return { ok: true, status: 'returned' };
   }
   if (t === 'mission_submission') {
@@ -905,6 +979,7 @@ async function performReject(db, account, itemType, itemId, note, now) {
       .prepare('UPDATE lantern_poll_contributions SET status = ?, reviewed_at = ?, reviewed_by = ?, decision_note = ? WHERE id = ?')
       .bind('rejected', now, staffName, note || null, itemId)
       .run();
+    await closePendingApprovalsForItem(db, 'poll_contribution', itemId, 'rejected', now, staffId, staffName, note || null);
     return { ok: true, status: 'rejected' };
   }
   if (t === 'mission_submission') {
@@ -936,15 +1011,19 @@ async function performReject(db, account, itemType, itemId, note, now) {
 
 async function openFlagsForItem(db, itemType, itemId) {
   const flags = await loadUnresolvedFlags(db);
-  const want = flagCanonicalType(itemType);
-  const id = String(itemId || '').trim();
-  return flags.filter((f) => {
-    if (String(f.item_id) !== id) return false;
-    const ft = flagCanonicalType(f.item_type);
-    if (ft === want) return true;
-    if ((want === 'poll_contribution' || want === 'poll') && (ft === 'poll' || ft === 'poll_contribution')) return true;
-    return false;
-  });
+  const aliases = await pollModerationIdentityAliases(db, itemType, itemId);
+  if (!aliases.length) {
+    const want = flagCanonicalType(itemType);
+    const id = String(itemId || '').trim();
+    return flags.filter((f) => {
+      if (String(f.item_id) !== id) return false;
+      const ft = flagCanonicalType(f.item_type);
+      if (ft === want) return true;
+      if ((want === 'poll_contribution' || want === 'poll') && (ft === 'poll' || ft === 'poll_contribution')) return true;
+      return false;
+    });
+  }
+  return flags.filter((f) => flagMatchesModerationAlias(f, aliases));
 }
 
 async function ensureReportedContentHidden(db, account, itemType, itemId, now) {

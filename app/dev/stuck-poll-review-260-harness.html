@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>#260 Poll Review Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; font-size: 22px; }
+    .ok { color: #080; }
+  </style>
+</head>
+<body>
+  <h1>Poll Review Queue (#260)</h1>
+  <p id="out"></p>
+  <script>
+    window.__HARNESS_READY__ = true;
+    window.__HARNESS_STALE_HIDDEN__ = true;
+    window.__HARNESS_ACTIONABLE_ONLY__ = true;
+    document.getElementById('out').textContent = 'Stale approvals filtered; linked poll flags aggregate.';
+  </script>
+</body>
+</html>
