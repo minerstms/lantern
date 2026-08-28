@@ -142,14 +142,16 @@ async function testMinimumPii() {
     const json = await res.json();
     const row = json.students[0];
     const keys = Object.keys(row).sort().join(',');
-    if (keys !== 'display_name,first_name,last_name,student_id') {
-      return bad('roster row must be minimum fields only', keys);
+    // Additive `grade` is approved for Geppetto admin Login Sheet (still S2S-only).
+    if (keys !== 'display_name,first_name,grade,last_name,student_id') {
+      return bad('roster row must be minimum fields only (+ grade)', keys);
     }
+    if (String(row.grade) !== '7') return bad('grade must pass through from TMS', row.grade);
     const blob = JSON.stringify(json);
     if (/password|hash|cookie|nugget|balance|media|lantern_username/i.test(blob)) {
       return bad('roster payload leaked extra fields', blob);
     }
-    ok('6/7. minimum PII only; no Nugget/login/password fields');
+    ok('6/7. minimum PII only (+ grade); no Nugget/login/password fields');
   } finally {
     restore();
   }

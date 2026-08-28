@@ -126,11 +126,15 @@ export function buildGeppettoStudentRosterPayload(tmsStudents) {
     const split = splitGeppettoRosterDisplayName(display);
     const first_name = hasParts ? givenFirst : (givenFirst || split.first_name);
     const last_name = hasParts ? givenLast : (givenLast || split.last_name);
+    // Additive Grade for Geppetto admin tools (Login Sheet). TMS authoritative;
+    // strip grade- prefix if present. Empty string when TMS has no grade.
+    const grade = String(s.grade != null ? s.grade : '').trim().replace(/^grade-/i, '');
     students.push({
       student_id: sid,
       first_name,
       last_name,
       display_name: display || [first_name, last_name].filter(Boolean).join(' '),
+      grade,
     });
   });
 
