@@ -244,6 +244,7 @@ import {
 import { handleSettingsRoutes } from './lantern-settings.js';
 import {
   GEPPETTO_STUDENT_AUDIENCE,
+  GEPPETTO_STUDENT_PREVIEW_AUDIENCE,
   GEPPETTO_STUDENT_ROSTER_PATH,
   GEPPETTO_S2S_HEADERS,
   sanitizeGeppettoStudentReturn,
@@ -259,6 +260,8 @@ import {
   mintGeppettoStudentHandoff,
   redeemGeppettoStudentHandoff,
   buildGeppettoStudentRosterPayload,
+  geppettoBridgeScopeFromSafeReturn,
+  geppettoStudentAudienceForScope,
 } from './geppetto-student-handoff.js';
 import { handleMarqueeRoutes } from './marquee-handlers.js';
 import {
@@ -2431,6 +2434,7 @@ async function handleAuthRoutes(request, url, path, env, cors) {
       lanternUsername: account.username,
       mtssStudentId,
       displayName: await resolveGeppettoStudentDisplayName(db, account),
+      audience: geppettoStudentAudienceForScope(geppettoBridgeScopeFromSafeReturn(safeReturn)),
     });
     if (!minted.ok) {
       if (minted.error === 'missing_roster_id') return geppettoStudentAuthorizeFailurePage('missing_roster_id', cors, authorizeSelf);
@@ -2458,26 +2462,41 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     });
   }
 
-  // Server-to-server redeem. Bearer LANTERN_GEPPETTO_BRIDGE_SECRET only.
+  // Server-to-server redeem. Production secret redeems production-scoped
+  // handoffs only. Preview secret redeems Preview-scoped handoffs only.
   if (request.method === 'POST' && path === '/api/auth/geppetto-student-handoff/redeem') {
-    const configured = String(env.LANTERN_GEPPETTO_BRIDGE_SECRET || '').trim();
-    if (!configured) {
+    const productionSecret = String(env.LANTERN_GEPPETTO_BRIDGE_SECRET || '').trim();
+    const previewSecret = String(env.LANTERN_GEPPETTO_PREVIEW_BRIDGE_SECRET || '').trim();
+    if (!productionSecret) {
       return jsonResponse({ ok: false, error: 'bridge_not_configured' }, 503, cors);
     }
     const provided = bearerTokenFromRequest(request);
-    if (!provided || !timingSafeEqualStrings(configured, provided)) {
+    if (!provided) {
       return jsonResponse({ ok: false, error: 'unauthorized' }, 401, cors);
     }
+    if (previewSecret && timingSafeEqualStrings(productionSecret, previewSecret)) {
+      return jsonResponse({ ok: false, error: 'bridge_misconfigured' }, 503, cors);
+    }
+    const productionMatch = timingSafeEqualStrings(productionSecret, provided);
+    const previewMatch = !!(previewSecret && timingSafeEqualStrings(previewSecret, provided));
+    if (productionMatch === previewMatch) {
+      return jsonResponse({ ok: false, error: 'unauthorized' }, 401, cors);
+    }
+    const secretAudience = productionMatch ? GEPPETTO_STUDENT_AUDIENCE : GEPPETTO_STUDENT_PREVIEW_AUDIENCE;
     let body = {};
     try {
       body = await request.json();
     } catch (_) {
       return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
     }
+    const clientAudience = body && body.audience ? String(body.audience).trim() : GEPPETTO_STUDENT_AUDIENCE;
+    if (clientAudience !== secretAudience) {
+      return jsonResponse({ ok: false, error: 'wrong_audience' }, 403, cors);
+    }
     const redeemed = await redeemGeppettoStudentHandoff(
       db,
       body && body.code,
-      body && body.audience ? body.audience : GEPPETTO_STUDENT_AUDIENCE
+      secretAudience
     );
     if (!redeemed.ok) {
       const status =
