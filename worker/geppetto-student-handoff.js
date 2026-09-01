@@ -18,8 +18,23 @@ export const GEPPETTO_STUDENT_CALLBACK_ALLOWLIST = [
   'https://geppetto-full-deploy-v6.pages.dev/api/stem-daily/student/lantern-callback',
 ];
 
-const ALLOWED_CALLBACK_HOSTS = ['mrradle.us', 'geppetto-full-deploy-v6.pages.dev'];
-const CALLBACK_PATH = '/api/stem-daily/student/lantern-callback';
+export const GEPPETTO_CANONICAL_HOST = 'mrradle.us';
+export const GEPPETTO_PAGES_PROJECT_HOST = 'geppetto-full-deploy-v6.pages.dev';
+export const GEPPETTO_PAGES_PROJECT_SUFFIX = '.geppetto-full-deploy-v6.pages.dev';
+export const GEPPETTO_STUDENT_CALLBACK_PATH = '/api/stem-daily/student/lantern-callback';
+
+const CALLBACK_PATH = GEPPETTO_STUDENT_CALLBACK_PATH;
+
+/** Exact production hosts plus one-label Geppetto Pages Preview. No loose suffix match. */
+export function isAllowedGeppettoCallbackHost(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (host === GEPPETTO_CANONICAL_HOST) return true;
+  if (host === GEPPETTO_PAGES_PROJECT_HOST) return true;
+  if (!host.endsWith(GEPPETTO_PAGES_PROJECT_SUFFIX)) return false;
+  const sub = host.slice(0, -GEPPETTO_PAGES_PROJECT_SUFFIX.length);
+  if (!sub || sub.includes('.') || sub.includes('/') || sub.includes('\\')) return false;
+  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(sub);
+}
 
 export function isSafeGeppettoNextPath(raw) {
   const s = String(raw || '').trim();
@@ -34,7 +49,7 @@ export function isSafeGeppettoNextPath(raw) {
   return true;
 }
 
-/** Allow only the two Geppetto callback URLs. No default redirect. No open redirect. */
+/** Allow only HTTPS Geppetto callback URLs on approved hosts. No default redirect. No open redirect. */
 export function sanitizeGeppettoStudentReturn(raw) {
   const s = String(raw || '').trim();
   if (!s) return '';
@@ -46,7 +61,7 @@ export function sanitizeGeppettoStudentReturn(raw) {
   }
   if (u.protocol !== 'https:') return '';
   const host = String(u.hostname || '').toLowerCase();
-  if (ALLOWED_CALLBACK_HOSTS.indexOf(host) === -1) return '';
+  if (!isAllowedGeppettoCallbackHost(host)) return '';
   if (u.pathname !== CALLBACK_PATH) return '';
   const originPath = 'https://' + host + CALLBACK_PATH;
   const next = String(u.searchParams.get('next') || '').trim();
@@ -289,7 +304,7 @@ export function sanitizeGeppettoStudentLogoutReturn(raw) {
   }
   if (u.protocol !== 'https:') return '';
   const host = String(u.hostname || '').toLowerCase();
-  if (ALLOWED_CALLBACK_HOSTS.indexOf(host) === -1) return '';
+  if (!isAllowedGeppettoCallbackHost(host)) return '';
   return u.toString();
 }
 
