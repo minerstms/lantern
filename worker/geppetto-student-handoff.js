@@ -7,6 +7,7 @@
 import { generateOpaqueSecret, hashOpaqueSecret } from './device-enrollment.js';
 
 export const GEPPETTO_STUDENT_AUDIENCE = 'geppetto_student';
+export const GEPPETTO_STUDENT_PREVIEW_AUDIENCE = 'geppetto_student_preview';
 export const GEPPETTO_STUDENT_HANDOFF_TTL_SEC = 90;
 export const GEPPETTO_STUDENT_ROSTER_PATH = '/api/auth/geppetto-student-roster';
 export const GEPPETTO_STUDENT_LOGOUT_PATH = '/api/auth/geppetto-student-logout';
@@ -34,6 +35,29 @@ export function isAllowedGeppettoCallbackHost(hostname) {
   const sub = host.slice(0, -GEPPETTO_PAGES_PROJECT_SUFFIX.length);
   if (!sub || sub.includes('.') || sub.includes('/') || sub.includes('\\')) return false;
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(sub);
+}
+
+/** Server-side only. Derived from an already-sanitized HTTPS callback URL. */
+export function geppettoBridgeScopeFromSafeReturn(safeReturn) {
+  try {
+    const host = String(new URL(String(safeReturn || '')).hostname || '').toLowerCase();
+    if (host === GEPPETTO_CANONICAL_HOST) return 'production';
+    if (isAllowedGeppettoCallbackHost(host)) return 'preview';
+  } catch (_) {
+    /* invalid */
+  }
+  return '';
+}
+
+export function geppettoStudentAudienceForScope(scope) {
+  if (scope === 'preview') return GEPPETTO_STUDENT_PREVIEW_AUDIENCE;
+  if (scope === 'production') return GEPPETTO_STUDENT_AUDIENCE;
+  return '';
+}
+
+export function isGeppettoStudentAudience(audience) {
+  const a = String(audience || '').trim();
+  return a === GEPPETTO_STUDENT_AUDIENCE || a === GEPPETTO_STUDENT_PREVIEW_AUDIENCE;
 }
 
 export function isSafeGeppettoNextPath(raw) {
@@ -371,6 +395,8 @@ export async function mintGeppettoStudentHandoff(db, identity) {
   if (!mtssStudentId) return { ok: false, error: 'missing_roster_id' };
   const lanternUsername = String((identity && identity.lanternUsername) || '').trim().slice(0, 128);
   const displayName = String((identity && identity.displayName) || '').trim().slice(0, 200);
+  const requestedAudience = String((identity && identity.audience) || GEPPETTO_STUDENT_AUDIENCE).trim();
+  if (!isGeppettoStudentAudience(requestedAudience)) return { ok: false, error: 'wrong_audience' };
   const code = generateOpaqueSecret();
   const codeHash = await hashOpaqueSecret(code);
   const id = crypto.randomUUID();
@@ -391,7 +417,7 @@ export async function mintGeppettoStudentHandoff(db, identity) {
         lanternUsername || null,
         mtssStudentId,
         displayName || null,
-        GEPPETTO_STUDENT_AUDIENCE,
+        requestedAudience,
         createdAt,
         expiresAt
       )
@@ -399,13 +425,14 @@ export async function mintGeppettoStudentHandoff(db, identity) {
   } catch (_) {
     return { ok: false, error: 'mint_failed' };
   }
-  return { ok: true, code, expires_at: expiresAt, ttl_seconds: GEPPETTO_STUDENT_HANDOFF_TTL_SEC };
+  return { ok: true, code, expires_at: expiresAt, ttl_seconds: GEPPETTO_STUDENT_HANDOFF_TTL_SEC, audience: requestedAudience };
 }
 
 export async function redeemGeppettoStudentHandoff(db, code, audience) {
   const raw = String(code || '').trim();
   if (!raw) return { ok: false, error: 'missing_code' };
-  if (String(audience || '').trim() !== GEPPETTO_STUDENT_AUDIENCE) {
+  const requiredAudience = String(audience || '').trim();
+  if (!isGeppettoStudentAudience(requiredAudience)) {
     return { ok: false, error: 'wrong_audience' };
   }
   const codeHash = await hashOpaqueSecret(raw);
@@ -421,7 +448,7 @@ export async function redeemGeppettoStudentHandoff(db, code, audience) {
            AND consumed_at IS NULL
            AND expires_at > ?`
       )
-      .bind(now, codeHash, GEPPETTO_STUDENT_AUDIENCE, now)
+      .bind(now, codeHash, requiredAudience, now)
       .run();
   } catch (_) {
     return { ok: false, error: 'redeem_failed' };
@@ -438,7 +465,7 @@ export async function redeemGeppettoStudentHandoff(db, code, audience) {
       row = null;
     }
     if (!row) return { ok: false, error: 'invalid_or_expired_code' };
-    if (String(row.audience || '') !== GEPPETTO_STUDENT_AUDIENCE) return { ok: false, error: 'wrong_audience' };
+    if (String(row.audience || '') !== requiredAudience) return { ok: false, error: 'wrong_audience' };
     if (row.consumed_at) return { ok: false, error: 'already_consumed' };
     if (String(row.expires_at || '') <= now) return { ok: false, error: 'expired' };
     return { ok: false, error: 'invalid_or_expired_code' };
@@ -453,7 +480,7 @@ export async function redeemGeppettoStudentHandoff(db, code, audience) {
   if (!row || !row.mtss_student_id) return { ok: false, error: 'invalid_or_expired_code' };
   return {
     ok: true,
-    audience: GEPPETTO_STUDENT_AUDIENCE,
+    audience: requiredAudience,
     mtss_student_id: String(row.mtss_student_id),
     lantern_username: row.lantern_username != null ? String(row.lantern_username) : '',
     display_name: row.display_name != null ? String(row.display_name) : '',
