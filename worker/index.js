@@ -2874,6 +2874,72 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     return jsonResponse({ ok: true }, 200, cors);
   }
 
+  if (request.method === 'POST' && path === '/api/admin/users/bulk-set-student-passwords') {
+    const text = await request.text();
+    let body;
+    try {
+      body = JSON.parse(text || '{}');
+    } catch (_) {
+      return jsonResponse({ ok: false, error: 'Invalid JSON' }, 400, cors);
+    }
+    const incoming = Array.isArray(body.students) ? body.students : [];
+    if (!incoming.length) {
+      return jsonResponse({ ok: false, error: 'students_required' }, 400, cors);
+    }
+    if (incoming.length > 400) {
+      return jsonResponse({ ok: false, error: 'batch_too_large', max: 400 }, 400, cors);
+    }
+    const adminUsername = String(account.username || '').trim() || 'admin';
+    const updated = [];
+    const skipped = [];
+    for (let i = 0; i < incoming.length; i++) {
+      const item = incoming[i] || {};
+      const username = String(item.username || '').trim();
+      const password = String(item.password != null ? item.password : '');
+      if (!username || !password || password.length < 8) {
+        skipped.push({ username: username || null, reason: 'username_and_password_required' });
+        continue;
+      }
+      const existing = await db
+        .prepare(
+          `SELECT username, role, is_active FROM lantern_pilot_accounts WHERE lower(trim(username)) = lower(trim(?))`
+        )
+        .bind(username)
+        .first();
+      if (!existing) {
+        skipped.push({ username, reason: 'not_found' });
+        continue;
+      }
+      const role = String(existing.role || '').trim().toLowerCase();
+      const active = existing.is_active != null ? Number(existing.is_active) !== 0 : true;
+      if (role !== 'student' || !active) {
+        skipped.push({ username: String(existing.username), reason: 'inactive_or_not_student' });
+        continue;
+      }
+      const targetUser = String(existing.username);
+      const salt = pilotRandomSaltHex();
+      const hash = await pilotHashPassword(password, salt);
+      await db
+        .prepare(
+          `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 0, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
+        )
+        .bind(hash, salt, adminUsername, targetUser)
+        .run();
+      updated.push(targetUser);
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        updated: updated,
+        skipped: skipped,
+        updated_count: updated.length,
+        skipped_count: skipped.length,
+      },
+      200,
+      cors
+    );
+  }
+
   if (request.method === 'POST' && path === '/api/admin/users/update') {
     const text = await request.text();
     let body;

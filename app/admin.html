@@ -237,6 +237,72 @@
     #marqueeSpeedValue { font-weight: 900; color: var(--accent); min-width: 108px; display: inline-block; }
     #studentsEditStableHost:empty { display: none; }
     #studentsEditSaveProof { font-size: 22px; line-height: 1.35; }
+    #bulkSemesterPanel { max-width: 100%; margin-top: 18px; }
+    .bulkTotals { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; color: var(--muted); font-size: 18px; font-weight: 700; }
+    .bulkTotals strong { color: var(--ink); font-weight: 900; }
+    .bulkPreviewWrap { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 10px; }
+    .bulkPreviewWrap table { font-size: 16px; width: 100%; }
+    .bulkPreviewWrap th, .bulkPreviewWrap td { font-size: 16px; padding: 6px 8px; }
+    .bulkStatus-exact_match { color: var(--good); }
+    .bulkStatus-id_match_name_mismatch, .bulkStatus-inactive_or_not_student { color: #ffb020; }
+    .bulkStatus-student_not_found, .bulkStatus-invalid_dob, .bulkStatus-duplicate_student_number, .bulkStatus-duplicate_input_row { color: var(--bad); }
+    #bulkLoginPrintRoot { display: none; }
+    .loginSimpleCard {
+      background: #fff; color: #111; border: 1px solid #111; padding: 18px 20px;
+      box-sizing: border-box; width: 100%; break-inside: avoid; page-break-inside: avoid;
+      margin: 0 0 12px;
+    }
+    .loginSimpleTitle { font-size: 28px; font-weight: 900; margin: 0 0 14px; color: #111; }
+    .loginSimpleLabel { font-size: 16px; font-weight: 800; margin: 12px 0 6px; color: #111; }
+    .loginSimpleUserRow { display: flex; align-items: stretch; gap: 0; }
+    .loginSimpleIdBox {
+      display: inline-flex; align-items: center; min-height: 42px; min-width: 7.5em;
+      padding: 6px 12px; border: 2px solid #111; font-size: 22px; font-weight: 800;
+      letter-spacing: 0.04em; color: #111; background: #fff;
+    }
+    .loginSimpleDomain { display: inline-flex; align-items: center; padding: 0 0 0 8px; font-size: 20px; font-weight: 800; color: #111; }
+    .loginSimplePwBox {
+      display: flex; align-items: center; min-height: 42px; padding: 6px 12px;
+      border: 2px solid #111; font-size: 22px; font-weight: 800; color: #111; background: #fff;
+    }
+    #bulkLanSchoolSetup { max-width: 100%; margin-top: 16px; }
+    #bulkLanSchoolRows { max-height: 640px; overflow: auto; }
+    .lanschoolToolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+    .lanschoolSearch { flex: 1 1 180px; min-height: 42px; max-width: 100%; }
+    .lanschoolFilterBtn { padding: 8px 12px; font-weight: 800; cursor: pointer; font-family: inherit; }
+    .lanschoolFilterBtn.is-on { outline: 2px solid var(--accent); }
+    .lanschoolProgress { font-weight: 800; color: var(--ink); }
+    .lanschoolRow {
+      border: 1px solid var(--line); border-radius: 12px; padding: 0; margin: 0 0 10px;
+      background: rgba(0,0,0,.2); overflow: hidden;
+    }
+    .lanschoolRow.is-current { outline: 3px solid var(--accent); }
+    .lanschoolRow.is-done { background: rgba(56,208,124,.18); }
+    .lanschoolRowHd {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center; width: 100%;
+      text-align: left; background: transparent; border: 0; color: var(--ink);
+      padding: 12px 14px; cursor: pointer; font: inherit;
+    }
+    .lanschoolName { font-size: 20px; font-weight: 800; flex: 1 1 140px; margin: 0; }
+    .lanschoolId, .lanschoolStatus { font-weight: 800; }
+    .lanschoolRowBd { padding: 0 14px 14px; }
+    .lanschoolLab { font-size: 14px; font-weight: 800; margin: 8px 0 4px; color: var(--muted); }
+    .lanschoolCopyBtn {
+      display: inline-flex; align-items: center; min-height: 42px; min-width: 8em;
+      padding: 8px 14px; border: 2px solid var(--ink); border-radius: 8px;
+      background: #fff; color: #111; font-size: 20px; font-weight: 800; cursor: pointer; font-family: inherit;
+    }
+    .lanschoolCopyBtn.is-copied { background: #38d07c; border-color: #38d07c; }
+    .lanschoolDoneBtn { margin-top: 10px; padding: 8px 12px; font-weight: 800; cursor: pointer; font-family: inherit; }
+    @media print {
+      body * { visibility: hidden; }
+      #bulkLoginPrintRoot, #bulkLoginPrintRoot * { visibility: visible; }
+      #bulkLoginPrintRoot {
+        display: block !important; position: absolute; left: 0; top: 0; width: 100%;
+      }
+      .loginSimpleCard { width: 100%; margin-bottom: 0.35in; }
+    }
+    @page { size: Letter portrait; margin: 0.5in; }
   </style>
 </head>
 <body class="page-has-ticker">
@@ -496,6 +562,37 @@
           <button type="button" class="btn good" id="studentsAddSaveBtn">Add Student</button>
           <button type="button" class="btn" id="studentsAddUseExistingBtn" hidden>Use Existing Student</button>
           <button type="button" class="btn" id="studentsAddCancelBtn">Cancel</button>
+        </div>
+      </div>
+      <div id="bulkSemesterPanel" class="acctInlinePanel">
+        <p class="acctPanelHd">Bulk Semester Credentials</p>
+        <p class="acctPanelHint">CSV only. Columns: Last Name, First Name, Student Number, Date of Birth. Preview does not write passwords. DOB never leaves this browser.</p>
+        <label for="bulkSemesterCsv">Select CSV</label>
+        <input id="bulkSemesterCsv" type="file" accept=".csv,text/csv" />
+        <div id="bulkSemesterMsg" class="usersMsg" style="display:none;" role="status" aria-live="polite"></div>
+        <div id="bulkSemesterTotals" class="bulkTotals" hidden></div>
+        <div id="bulkSemesterPreviewWrap" class="bulkPreviewWrap" hidden>
+          <table>
+            <thead>
+              <tr><th>Row</th><th>Student Number</th><th>Name</th><th>Status</th></tr>
+            </thead>
+            <tbody id="bulkSemesterPreviewBody"></tbody>
+          </table>
+        </div>
+        <label for="bulkSemesterConfirm">Type UPDATE N STUDENTS to apply</label>
+        <input id="bulkSemesterConfirm" type="text" autocomplete="off" spellcheck="false" disabled />
+        <div class="acctPanelActions">
+          <button type="button" class="btn good" id="bulkSemesterApplyBtn" disabled>Apply passwords</button>
+        </div>
+        <div id="bulkExportActions" class="acctPanelActions" hidden>
+          <button type="button" class="btn" id="bulkSemesterPrintBtn">Print All</button>
+          <button type="button" class="btn" id="bulkSemesterPdfBtn">Save Login Sheets PDF</button>
+          <button type="button" class="btn" id="bulkSemesterLanSchoolBtn">Save LanSchool Setup Sheet</button>
+        </div>
+        <div id="bulkLanSchoolSetup" hidden>
+          <p class="acctPanelHd">LanSchool Setup</p>
+          <p class="acctPanelHint">Search, open a row, copy Student ID only (not the email domain), copy the password, then Mark Done. Done rows turn green, collapse, and move below Remaining. Nothing is saved on the server.</p>
+          <div id="bulkLanSchoolRows"></div>
         </div>
       </div>
       <div id="studentsTempPwOnce" class="acctInlinePanel" style="display:none;" aria-hidden="true">
@@ -1301,6 +1398,7 @@
   <script src="js/lantern-staff-power-list.js"></script>
   <script src="js/lantern-character-example.js"></script>
   <script src="js/lantern-mission-copy.js"></script>
+  <script src="js/lantern-semester-credentials.js"></script>
   <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="js/lantern-avatar-cropper.js"></script>
   <script>
@@ -7362,6 +7460,200 @@
     }
 
     bootAdminStudentActions();
+    (function wireBulkSemesterCredentials() {
+      var H = window.LanternSemesterCredentials;
+      var fileEl = document.getElementById('bulkSemesterCsv');
+      var msgEl = document.getElementById('bulkSemesterMsg');
+      var totalsEl = document.getElementById('bulkSemesterTotals');
+      var wrapEl = document.getElementById('bulkSemesterPreviewWrap');
+      var bodyEl = document.getElementById('bulkSemesterPreviewBody');
+      var confirmEl = document.getElementById('bulkSemesterConfirm');
+      var applyBtn = document.getElementById('bulkSemesterApplyBtn');
+      var printBtn = document.getElementById('bulkSemesterPrintBtn');
+      var pdfBtn = document.getElementById('bulkSemesterPdfBtn');
+      var lanSchoolBtn = document.getElementById('bulkSemesterLanSchoolBtn');
+      var exportActions = document.getElementById('bulkExportActions');
+      var setupBox = document.getElementById('bulkLanSchoolSetup');
+      var setupRows = document.getElementById('bulkLanSchoolRows');
+      if (!H || !fileEl || !applyBtn) return;
+
+      var preview = null;
+      var appliedPrintRows = null;
+
+      function showBulkMsg(text, kind) {
+        if (!msgEl) return;
+        if (!text) {
+          msgEl.style.display = 'none';
+          msgEl.textContent = '';
+          return;
+        }
+        msgEl.style.display = 'block';
+        msgEl.className = 'usersMsg ' + (kind === 'err' ? 'usersMsg--err' : 'usersMsg--ok');
+        msgEl.textContent = text;
+      }
+
+      function wipeApplied() {
+        if (appliedPrintRows) {
+          appliedPrintRows.forEach(function(r) { r.password = ''; });
+        }
+        appliedPrintRows = null;
+        var root = document.getElementById('bulkLoginPrintRoot');
+        if (root) root.innerHTML = '';
+        if (exportActions) exportActions.hidden = true;
+        if (setupBox) setupBox.hidden = true;
+        if (setupRows) setupRows.innerHTML = '';
+      }
+
+      function renderLanSchoolSetup(rows) {
+        if (!setupBox || !setupRows || !H.mountLanSchoolResults) return;
+        setupRows.innerHTML = '';
+        if (rows && rows.length) H.mountLanSchoolResults(setupRows, rows);
+        setupBox.hidden = !(rows && rows.length);
+        if (exportActions) exportActions.hidden = !(rows && rows.length);
+      }
+
+      function renderPreview(next) {
+        preview = next;
+        wipeApplied();
+        if (!next) {
+          if (totalsEl) { totalsEl.hidden = true; totalsEl.textContent = ''; }
+          if (wrapEl) wrapEl.hidden = true;
+          if (bodyEl) bodyEl.textContent = '';
+          if (confirmEl) { confirmEl.value = ''; confirmEl.disabled = true; }
+          applyBtn.disabled = true;
+          return;
+        }
+        var t = next.totals;
+        totalsEl.hidden = false;
+        totalsEl.innerHTML =
+          '<span>TOTAL ROWS <strong>' + t.totalRows + '</strong></span>' +
+          '<span>READY <strong>' + t.ready + '</strong></span>' +
+          '<span>MISMATCHED <strong>' + t.mismatched + '</strong></span>' +
+          '<span>MISSING <strong>' + t.missing + '</strong></span>' +
+          '<span>INVALID <strong>' + t.invalid + '</strong></span>' +
+          '<span>DUPLICATES <strong>' + t.duplicates + '</strong></span>' +
+          (t.inactive ? '<span>INACTIVE <strong>' + t.inactive + '</strong></span>' : '') +
+          '<span>WILL UPDATE <strong>' + t.willUpdate + '</strong></span>';
+        bodyEl.textContent = '';
+        next.rows.forEach(function(row) {
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + row.rowNumber + '</td>' +
+            '<td>' + H.escapeHtml(row.studentNumber) + '</td>' +
+            '<td>' + H.escapeHtml((row.lastName || '') + ', ' + (row.firstName || '')) + '</td>' +
+            '<td class="bulkStatus-' + H.escapeHtml(row.status) + '">' + H.escapeHtml(row.statusLabel) + '</td>';
+          bodyEl.appendChild(tr);
+        });
+        wrapEl.hidden = false;
+        confirmEl.disabled = t.willUpdate < 1;
+        confirmEl.value = '';
+        applyBtn.disabled = true;
+        confirmEl.setAttribute('placeholder', t.willUpdate ? H.confirmationPhrase(t.willUpdate) : '');
+      }
+
+      function eligiblePayload() {
+        if (!preview) return [];
+        return preview.rows.filter(function(r) { return r.eligible && r.password; }).map(function(r) {
+          return { username: r.username, password: r.password, lastName: r.lastName, firstName: r.firstName, studentNumber: r.studentNumber };
+        });
+      }
+
+      confirmEl.addEventListener('input', function() {
+        var n = preview && preview.totals ? preview.totals.willUpdate : 0;
+        applyBtn.disabled = !(n > 0 && H.trim(confirmEl.value) === H.confirmationPhrase(n));
+      });
+
+      fileEl.addEventListener('change', function() {
+        var file = fileEl.files && fileEl.files[0];
+        renderPreview(null);
+        showBulkMsg('', '');
+        if (!file) return;
+        var name = String(file.name || '').toLowerCase();
+        if (name && !name.endsWith('.csv')) {
+          showBulkMsg('CSV only. Save the spreadsheet as .csv and try again.', 'err');
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function() {
+          var parsed = H.parseSemesterCsv(String(reader.result || ''));
+          if (!parsed.ok) {
+            showBulkMsg(parsed.error === 'invalid_headers'
+              ? 'CSV must include Last Name, First Name, Student Number, Date of Birth.'
+              : 'Could not read that CSV.', 'err');
+            return;
+          }
+          fetch(api + '/api/admin/users', { credentials: 'include' }).then(function(r) {
+            return r.json().then(function(j) { return { okHttp: r.ok, body: j }; });
+          }).then(function(res) {
+            if (!res.okHttp || !res.body || !res.body.ok) {
+              showBulkMsg((res.body && res.body.error) || 'Could not load Lantern students.', 'err');
+              return;
+            }
+            renderPreview(H.previewSemesterCsv(parsed.rows, res.body.users || []));
+            showBulkMsg('Preview only. Nothing has been written.', 'ok');
+          }).catch(function() {
+            showBulkMsg('Network error while loading Lantern students.', 'err');
+          });
+        };
+        reader.readAsText(file);
+      });
+
+      applyBtn.addEventListener('click', function() {
+        var ready = eligiblePayload();
+        var n = ready.length;
+        if (!n || H.trim(confirmEl.value) !== H.confirmationPhrase(n)) {
+          showBulkMsg('Type the exact confirmation phrase before applying.', 'err');
+          return;
+        }
+        applyBtn.disabled = true;
+        fileEl.disabled = true;
+        var students = ready.map(function(r) { return { username: r.username, password: r.password }; });
+        postAdminJson('/api/admin/users/bulk-set-student-passwords', { students: students }).then(function(res) {
+          if (res && res.blocked) return;
+          if (!res || !res.okHttp || !res.body || !res.body.ok) {
+            showBulkMsg((res && res.body && res.body.error) || 'Apply failed. No print list was kept.', 'err');
+            return;
+          }
+          var updated = {};
+          (res.body.updated || []).forEach(function(u) { updated[String(u).toLowerCase()] = true; });
+          appliedPrintRows = ready.filter(function(r) {
+            return updated[String(r.username || '').toLowerCase()];
+          });
+          var root = document.getElementById('bulkLoginPrintRoot');
+          if (root) root.innerHTML = H.buildBatchPrintHtml(appliedPrintRows);
+          renderLanSchoolSetup(appliedPrintRows);
+          showBulkMsg('Updated ' + appliedPrintRows.length + ' student password' + (appliedPrintRows.length === 1 ? '' : 's') + '. Use Print All, PDF, or LanSchool setup. DOB was not saved.', 'ok');
+          confirmEl.value = '';
+        }).catch(function() {
+          showBulkMsg('Network error during apply. Nothing printed.', 'err');
+        }).finally(function() {
+          fileEl.disabled = false;
+          applyBtn.disabled = true;
+        });
+      });
+
+      if (printBtn) {
+        printBtn.addEventListener('click', function() {
+          if (!appliedPrintRows || !appliedPrintRows.length) return;
+          window.print();
+        });
+      }
+      if (pdfBtn) {
+        pdfBtn.addEventListener('click', function() {
+          if (!appliedPrintRows || !appliedPrintRows.length) return;
+          var bytes = H.buildLoginSheetsPdfBytes(appliedPrintRows);
+          H.downloadBlob('STEM-Login-Sheets.pdf', new Blob([bytes], { type: 'application/pdf' }));
+        });
+      }
+      if (lanSchoolBtn) {
+        lanSchoolBtn.addEventListener('click', function() {
+          if (!appliedPrintRows || !appliedPrintRows.length) return;
+          var html = H.buildLanSchoolSetupFileHtml(appliedPrintRows);
+          H.downloadBlob('STEM-LanSchool-Setup.html', new Blob([html], { type: 'text/html' }));
+        });
+      }
+    })();
+
     loadUsers();
     loadStudentsRoster();
     loadTmsIdentityLinks();
@@ -7379,5 +7671,6 @@
     setInterval(loadFeedModeration, 120000);
   })();
   </script>
+  <div id="bulkLoginPrintRoot" class="loginCardPrintRoot"></div>
 </body>
 </html>

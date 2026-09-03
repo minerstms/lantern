@@ -47,26 +47,57 @@
       background: rgba(90,167,255,.28); color: var(--ink); font-size: 26px; font-weight: 800; cursor: pointer; font-family: inherit;
     }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.secondary {
+      margin-top: 16px; background: transparent; border-color: var(--line); font-size: 20px;
+    }
+    .loginUserRow { display: flex; align-items: stretch; width: 100%; }
+    .loginUserRow #studentUsername {
+      flex: 0 0 7.5em; width: 7.5em; max-width: 7.5em; text-align: center; letter-spacing: 0.04em;
+    }
+    .loginDomain {
+      display: inline-flex; align-items: center; padding: 0 0 0 8px; font-size: 18px; font-weight: 800; color: var(--muted);
+      white-space: nowrap;
+    }
+    .pwRow { display: flex; gap: 8px; align-items: stretch; }
+    .pwRow input { flex: 1; }
+    .pwToggle {
+      margin-top: 0; width: auto; padding: 12px 14px; font-size: 18px; flex: 0 0 auto;
+    }
+    body[data-login-mode="staff"] .studentOnly { display: none; }
+    body[data-login-mode="student"] .staffOnly { display: none; }
     #msg { margin-top: 20px; padding: 14px 16px; border-radius: 12px; font-size: 22px; font-weight: 800; line-height: 1.4; min-height: 0; }
     #msg.success { background: rgba(56,208,124,.12); border: 1px solid rgba(56,208,124,.35); color: #b4ffd4; }
     #msg.error { background: rgba(255,100,100,.12); border: 1px solid rgba(255,100,100,.35); color: #ffb4b4; }
   </style>
 </head>
-<body>
+<body data-login-mode="student">
   <div class="wrap">
     <h1 id="loginTitle">Sign in</h1>
     <p class="sub" id="loginSub">Use the login name your school gave you and your password. After sign-in, your session is enforced by the server (secure cookie).</p>
     <p id="classWebsiteLinks" class="hint" style="display:none;"><a href="https://mrradle.us" style="color:#5aa7ff;font-weight:800;">Back to Class Website</a></p>
     <div id="msg" style="display:none;" role="status" aria-live="polite"></div>
     <form id="loginForm" novalidate>
-      <label for="username">Login ID</label>
-      <p id="username_hint" class="hint">Enter the <strong>Login ID</strong> you were given (for students, this is usually your Student ID—same characters your teacher entered). Teachers and admins: use your account Login ID.</p>
-      <input id="username" name="username" type="text" autocomplete="username" required aria-describedby="username_hint" />
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <div class="studentOnly">
+        <label for="studentUsername">User Name (Lunch Number)</label>
+        <div class="loginUserRow">
+          <input id="studentUsername" name="studentUsername" type="text" inputmode="numeric" maxlength="6" autocomplete="username" />
+          <span class="loginDomain" aria-hidden="true">@trinidad.k12.co.us</span>
+        </div>
+      </div>
+      <div class="staffOnly">
+        <label for="username">Login ID</label>
+        <input id="username" name="username" type="text" autocomplete="username" />
+      </div>
+      <label for="password">Password (Month012013)</label>
+      <div class="pwRow">
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <button type="button" class="btn pwToggle" id="pwToggle" aria-pressed="false">Show</button>
+      </div>
       <button type="submit" class="btn" id="submitBtn">Sign in</button>
     </form>
+    <button type="button" class="btn secondary" id="modeToggle">Staff Sign In</button>
   </div>
+  <script src="js/lantern-semester-credentials.js"></script>
   <script>
     (function () {
       /* Redirects after successful POST /api/auth/login via redirectAfterLogin(body). Invalid ?return= (/, login, empty) falls through to role-based home. */
@@ -77,6 +108,58 @@
       var msgEl = document.getElementById('msg');
       var form = document.getElementById('loginForm');
       var submitBtn = document.getElementById('submitBtn');
+      var modeToggle = document.getElementById('modeToggle');
+      var pwToggle = document.getElementById('pwToggle');
+      var passwordEl = document.getElementById('password');
+      var studentUsernameEl = document.getElementById('studentUsername');
+      var staffUsernameEl = document.getElementById('username');
+
+      function loginMode() {
+        return document.body.getAttribute('data-login-mode') === 'staff' ? 'staff' : 'student';
+      }
+
+      function setLoginMode(mode) {
+        var next = mode === 'staff' ? 'staff' : 'student';
+        document.body.setAttribute('data-login-mode', next);
+        if (modeToggle) modeToggle.textContent = next === 'staff' ? 'Student Sign In' : 'Staff Sign In';
+        if (studentUsernameEl) studentUsernameEl.required = next === 'student';
+        if (staffUsernameEl) staffUsernameEl.required = next === 'staff';
+      }
+
+      function submittedUsername() {
+        if (loginMode() === 'staff') {
+          return (staffUsernameEl && staffUsernameEl.value ? staffUsernameEl.value : '').trim();
+        }
+        var raw = studentUsernameEl && studentUsernameEl.value ? studentUsernameEl.value : '';
+        if (window.LanternSemesterCredentials && window.LanternSemesterCredentials.studentLoginLocalPart) {
+          return window.LanternSemesterCredentials.studentLoginLocalPart(raw);
+        }
+        var s = String(raw || '').trim();
+        var at = s.indexOf('@');
+        if (at >= 0) s = s.slice(0, at);
+        return s.slice(0, 6);
+      }
+
+      if (modeToggle) {
+        modeToggle.addEventListener('click', function () {
+          setLoginMode(loginMode() === 'staff' ? 'student' : 'staff');
+        });
+      }
+      if (pwToggle && passwordEl) {
+        pwToggle.addEventListener('click', function () {
+          var show = passwordEl.type === 'password';
+          passwordEl.type = show ? 'text' : 'password';
+          pwToggle.textContent = show ? 'Hide' : 'Show';
+          pwToggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+        });
+      }
+      if (studentUsernameEl) {
+        studentUsernameEl.addEventListener('input', function () {
+          var cleaned = submittedUsername();
+          if (studentUsernameEl.value !== cleaned) studentUsernameEl.value = cleaned;
+        });
+      }
+      setLoginMode('student');
 
       /** Same-origin path only: leading /, not protocol-relative // */
       function isSafeReturnPath(p) {
@@ -345,13 +428,13 @@
 
       form.addEventListener('submit', function (e) {
         e.preventDefault();
-        var username = (document.getElementById('username').value || '').trim();
-        var password = document.getElementById('password').value || '';
+        var username = submittedUsername();
+        var password = passwordEl ? passwordEl.value || '' : '';
         msgEl.style.display = 'none';
         msgEl.textContent = '';
         msgEl.className = '';
         if (!username || !password) {
-          showError('Please enter Login ID and password.');
+          showError(loginMode() === 'staff' ? 'Please enter Login ID and password.' : 'Please enter lunch number and password.');
           return;
         }
         submitBtn.disabled = true;
