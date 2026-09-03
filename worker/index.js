@@ -2544,6 +2544,40 @@ async function listPendingAvatarRowsForBulkApproval(db) {
   return { pending, restricted };
 }
 
+function getGeppettoOriginUrl(env) {
+  return String((env && env.GEPPETTO_ORIGIN_URL) || 'https://mrradle.us').trim().replace(/\/$/, '');
+}
+
+async function fetchGeppettoLoginSheetGoogle(env) {
+  const secret = String((env && env.LANTERN_GEPPETTO_BRIDGE_SECRET) || '').trim();
+  if (!secret) return { ok: false, error: 'bridge_not_configured', configured: false };
+  let remote;
+  try {
+    const resp = await fetch(getGeppettoOriginUrl(env) + '/api/s2s/login-sheet-google', {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + secret,
+        'cache-control': 'no-store',
+      },
+    });
+    remote = await resp.json();
+    if (!resp.ok || !remote || remote.ok !== true) {
+      return { ok: false, error: 'geppetto_unavailable', configured: false };
+    }
+  } catch (_err) {
+    return { ok: false, error: 'geppetto_unavailable', configured: false };
+  }
+  const username = String(remote.googleUsername || '').trim();
+  const password = String(remote.googlePassword || '').trim();
+  return {
+    ok: true,
+    configured: remote.configured === true && !!(username && password),
+    googleUsername: username,
+    googlePassword: password,
+    location: 'https://mrradle.us/admin/settings/',
+  };
+}
+
 async function handleAdminRoutes(request, url, path, env, cors) {
   const db = env.DB;
   if (!db) return jsonResponse({ ok: false, error: 'DB not configured' }, 503, cors);
@@ -2571,6 +2605,33 @@ async function handleAdminRoutes(request, url, path, env, cors) {
   }
   if (pilotAccountRequiresChangePassword(account)) {
     return jsonResponse({ ok: false, error: 'must_change_password', redirect: '/change-password.html' }, 403, cors);
+  }
+
+  if (request.method === 'GET' && path === '/api/admin/login-sheet-google') {
+    const cred = await fetchGeppettoLoginSheetGoogle(env);
+    if (!cred.ok) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: cred.error,
+          configured: false,
+          location: 'https://mrradle.us/admin/settings/',
+        },
+        cred.error === 'bridge_not_configured' ? 503 : 502,
+        cors
+      );
+    }
+    return jsonResponse(
+      {
+        ok: true,
+        configured: cred.configured,
+        googleUsername: cred.googleUsername,
+        googlePassword: cred.googlePassword,
+        location: cred.location,
+      },
+      200,
+      cors
+    );
   }
 
   const activityAdmin = await handleActivityAdminRoutes(request, path, env, cors, {

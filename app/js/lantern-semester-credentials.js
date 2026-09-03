@@ -8,6 +8,15 @@
     "July", "August", "September", "October", "November", "December"
   ];
   var OFFICE_DOMAIN = "trinidad.k12.co.us";
+  var MICROSOFT_EXAMPLES = "Clipchamp • Outlook • Student Laptop";
+  var GOOGLE_EXAMPLES = "Soundtrap • Gemini • TinkerCAD";
+  var PRIVACY_BANNER = "PRIVATE — STUDENT LOGIN INFORMATION";
+  var WARN_TURN_IN = "If this is not your sheet, stop reading and turn it in to Mr. Radle immediately.";
+  var WARN_NEVER_SHARE = "Never photograph, copy, share, or use another student’s login information.";
+  var GOOGLE_SETTINGS_LOCATION = "https://mrradle.us/admin/settings/";
+  var GOOGLE_MISSING_MESSAGE = "Google login credential has not been configured. Update it in Geppetto Admin → Daily Work Settings (https://mrradle.us/admin/settings/) before generating login sheets.";
+  var savedGoogleUsername = "";
+  var savedGooglePassword = "";
   var REQUIRED_HEADERS = ["last name", "first name", "student number", "date of birth"];
   var STATUS = {
     EXACT: "exact_match",
@@ -313,24 +322,160 @@
     });
   }
 
-  function buildLoginCardHtml(studentId, password) {
+  function formatIndexLabel(name, period) {
+    name = trim(name);
+    period = trim(period);
+    if (!name || !/^[1-7]$/.test(period)) return "";
+    return name.toUpperCase() + " • PERIOD " + period;
+  }
+
+  function setGoogleClassroomCredential(cred) {
+    savedGoogleUsername = trim(cred && (cred.googleUsername != null ? cred.googleUsername : cred.loginSheetGoogleUsername));
+    savedGooglePassword = trim(cred && (cred.googlePassword != null ? cred.googlePassword : cred.loginSheetGooglePassword));
+    return googleClassroomCredential();
+  }
+
+  function googleClassroomCredential() {
+    return {
+      googleUsername: savedGoogleUsername,
+      googlePassword: savedGooglePassword,
+      configured: !!(savedGoogleUsername && savedGooglePassword)
+    };
+  }
+
+  function googleCredentialBlockMessage() {
+    return GOOGLE_MISSING_MESSAGE;
+  }
+
+  function packetStudent(student) {
+    var cred = googleClassroomCredential();
+    return {
+      name: studentDisplayName(student),
+      studentId: usernameCopyValue(student),
+      password: passwordCopyValue(student),
+      grade: trim(student && student.grade),
+      period: trim(student && student.period),
+      googleUsername: trim(student && student.googleUsername) || cred.googleUsername,
+      googlePassword: trim(student && student.googlePassword) || cred.googlePassword
+    };
+  }
+
+  function indexRailHtml(label) {
+    var text = escapeHtml(label || "");
     return (
-      '<article class="loginSimpleCard">' +
-        '<h2 class="loginSimpleTitle">Log In</h2>' +
-        '<div class="loginSimpleLabel">User Name (Lunch Number)</div>' +
-        '<div class="loginSimpleUserRow">' +
-          '<span class="loginSimpleIdBox">' + escapeHtml(studentId) + "</span>" +
-          '<span class="loginSimpleDomain">@' + OFFICE_DOMAIN + "</span>" +
+      '<div class="loginSheetIndexRail" aria-hidden="true">' +
+        '<div class="loginSheetIndexEdge loginSheetIndexEdgeTop">' +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="top" data-index-rot="0">' + text + "</span>" +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="top" data-index-rot="180">' + text + "</span>" +
         "</div>" +
-        '<div class="loginSimpleLabel">Password (Month012013)</div>' +
-        '<div class="loginSimplePwBox">' + escapeHtml(password) + "</div>" +
-      "</article>"
+        '<div class="loginSheetIndexEdge loginSheetIndexEdgeBottom">' +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="bottom" data-index-rot="0">' + text + "</span>" +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="bottom" data-index-rot="180">' + text + "</span>" +
+        "</div>" +
+        '<div class="loginSheetIndexEdge loginSheetIndexEdgeLeft">' +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="left" data-index-rot="90">' + text + "</span>" +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="left" data-index-rot="-90">' + text + "</span>" +
+        "</div>" +
+        '<div class="loginSheetIndexEdge loginSheetIndexEdgeRight">' +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="right" data-index-rot="90">' + text + "</span>" +
+          '<span class="loginSheetIndexLabel js-print-index" data-index-edge="right" data-index-rot="-90">' + text + "</span>" +
+        "</div>" +
+      "</div>"
     );
   }
 
+  function coverHalfHtml(name, grade, extraClass, period) {
+    return (
+      '<div class="loginSheetFoldHalf ' + extraClass + '">' +
+        indexRailHtml(formatIndexLabel(name, period)) +
+        '<div class="loginSheetFoldBlock' + (extraClass.indexOf("Bottom") >= 0 ? " loginSheetFoldBlockRotated" : "") + '">' +
+          '<div class="loginSheetConfidentialHeading">' + escapeHtml(PRIVACY_BANNER) + "</div>" +
+          '<div class="loginSheetRow"><span class="loginSheetLabel">Student Name:</span><span class="loginSheetValue">' + escapeHtml(name) + "</span></div>" +
+          '<div class="loginSheetRow"><span class="loginSheetLabel">Grade:</span><span class="loginSheetValue">' + escapeHtml(grade) + "</span></div>" +
+          '<div class="loginSheetPrivacyLine">' + escapeHtml(WARN_TURN_IN) + "</div>" +
+          '<div class="loginSheetPrivacyLine">' + escapeHtml(WARN_NEVER_SHARE) + "</div>" +
+        "</div>" +
+      "</div>"
+    );
+  }
+
+  function credRow(title, notes, unHtml, password) {
+    return (
+      '<section class="loginSheetSection loginSheetLoginRow">' +
+        '<div class="loginSheetLoginLeft">' +
+          '<h2 class="loginSheetSectionTitle">' + escapeHtml(title) + "</h2>" +
+          notes +
+        "</div>" +
+        '<div class="loginSheetLoginRight">' +
+          '<div class="loginSheetCred"><span class="loginSheetLabel">UN:</span>' + unHtml + "</div>" +
+          '<div class="loginSheetCred"><span class="loginSheetLabel">PW:</span><span class="loginSheetValue">' + escapeHtml(password) + "</span></div>" +
+        "</div>" +
+      "</section>"
+    );
+  }
+
+  function plainUn(value) {
+    return '<span class="loginSheetValue">' + escapeHtml(value) + "</span>";
+  }
+
+  function microsoftUn(studentId) {
+    return (
+      '<span class="loginSheetUserRow">' +
+        '<span class="loginSheetIdBox">' + escapeHtml(studentId) + "</span>" +
+        '<span class="loginSheetDomain">@' + OFFICE_DOMAIN + "</span>" +
+      "</span>"
+    );
+  }
+
+  function siteNotes(lines) {
+    return (lines || []).map(function (line) {
+      return '<div class="loginSheetSiteNote">' + escapeHtml(line) + "</div>";
+    }).join("");
+  }
+
+  function buildLoginPacketHtml(student) {
+    var s = packetStudent(student);
+    var periodRow = /^[1-7]$/.test(s.period)
+      ? '<div class="loginSheetRow"><span class="loginSheetLabel">Period:</span><span class="loginSheetValue">' + escapeHtml(s.period) + "</span></div>"
+      : "";
+    var page1 =
+      '<article class="student-login-sheet loginSheetPage1">' +
+        '<aside class="loginSheetPage1Header" aria-label="Private warning">' +
+          '<div class="loginSheetHeaderBand loginSheetHeaderBandPrivate"><span class="loginSheetHeaderFit">' + escapeHtml(PRIVACY_BANNER) + "</span></div>" +
+          '<div class="loginSheetHeaderBand loginSheetHeaderBandWarn"><span class="loginSheetHeaderFit">' + escapeHtml(WARN_TURN_IN) + "</span></div>" +
+          '<div class="loginSheetHeaderBand loginSheetHeaderBandWarn"><span class="loginSheetHeaderFit">' + escapeHtml(WARN_NEVER_SHARE) + "</span></div>" +
+        "</aside>" +
+        '<section class="loginSheetSection loginSheetInfoSection">' +
+          '<h2 class="loginSheetSectionTitle">STUDENT INFORMATION</h2>' +
+          '<div class="loginSheetRow"><span class="loginSheetLabel">Student Name:</span><span class="loginSheetValue">' + escapeHtml(s.name) + "</span></div>" +
+          '<div class="loginSheetRow"><span class="loginSheetLabel">Grade:</span><span class="loginSheetValue">' + escapeHtml(s.grade) + "</span></div>" +
+          '<div class="loginSheetRow"><span class="loginSheetLabel">Student ID:</span><span class="loginSheetValue">' + escapeHtml(s.studentId) + "</span></div>" +
+          periodRow +
+        "</section>" +
+        credRow("STEM LAB COMPUTER", siteNotes(["Select “Other user” if your account isn’t shown."]), plainUn(s.studentId), s.password) +
+        credRow("STEM WEBSITES", siteNotes(["mrradle.us", "tmslantern.org"]), plainUn(s.studentId), s.password) +
+        credRow("MICROSOFT / SCHOOL ACCOUNT", siteNotes([MICROSOFT_EXAMPLES, "Office.com"]), microsoftUn(s.studentId), s.password) +
+        credRow("GOOGLE / GOOGLE SIGN-IN", siteNotes([GOOGLE_EXAMPLES, "google.com"]), plainUn(s.googleUsername), s.googlePassword) +
+        '<aside class="loginSheetPage1Footer" aria-label="Private reminder">' +
+          '<div class="loginSheetFooterTitle">' + escapeHtml(PRIVACY_BANNER) + "</div>" +
+        "</aside>" +
+      "</article>";
+    var page2 =
+      '<article class="student-login-sheet loginSheetFoldCover" aria-label="Privacy fold cover">' +
+        coverHalfHtml(s.name, s.grade, "loginSheetFoldHalfTop", s.period) +
+        coverHalfHtml(s.name, s.grade, "loginSheetFoldHalfBottom", s.period) +
+      "</article>";
+    return page1 + page2;
+  }
+
+  function buildLoginCardHtml(studentId, password) {
+    return buildLoginPacketHtml({ studentNumber: studentId, username: studentId, password: password, firstName: "", lastName: "" });
+  }
+
   function buildBatchPrintHtml(students) {
+    if (!googleClassroomCredential().configured) return "";
     return sortAppliedStudents(students).map(function (s) {
-      return buildLoginCardHtml(s.studentNumber || s.username, s.password);
+      return buildLoginPacketHtml(s);
     }).join("");
   }
 
@@ -409,46 +554,114 @@
   }
 
   function buildLoginSheetsPdfBytes(students) {
-    var list = exportLanSchoolStudents(students);
+    if (!googleClassroomCredential().configured) return new Uint8Array(0);
+    var list = sortAppliedStudents(students).map(packetStudent);
     var pageW = 612;
     var pageH = 792;
-    var cardsPerPage = 2;
-    var pageCount = Math.max(1, Math.ceil(list.length / cardsPerPage));
     var objects = [];
     objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-    objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+    objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+    objects[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
     var pageRefs = [];
-    var objId = 4;
-    var p;
-    for (p = 0; p < pageCount; p++) {
-      var contentId = objId + 1;
-      var stream = [];
-      var c;
-      for (c = 0; c < cardsPerPage; c++) {
-        var item = list[p * cardsPerPage + c];
-        if (!item) continue;
-        var top = c === 0 ? 700 : 360;
-        stream.push("54 " + (top - 210) + " 504 230 re S");
-        stream.push("BT /F1 22 Tf 72 " + (top - 36) + " Td (Log In) Tj ET");
-        stream.push("BT /F1 12 Tf 72 " + (top - 64) + " Td (User Name \\(Lunch Number\\)) Tj ET");
-        stream.push("72 " + (top - 100) + " 150 28 re S");
-        stream.push("BT /F1 16 Tf 80 " + (top - 92) + " Td (" + pdfEscape(pdfSafe(item.studentId)) + ") Tj ET");
-        stream.push("BT /F1 14 Tf 230 " + (top - 90) + " Td (@trinidad.k12.co.us) Tj ET");
-        stream.push("BT /F1 12 Tf 72 " + (top - 132) + " Td (Password \\(Month012013\\)) Tj ET");
-        stream.push("72 " + (top - 168) + " 280 28 re S");
-        stream.push("BT /F1 16 Tf 80 " + (top - 160) + " Td (" + pdfEscape(pdfSafe(item.password)) + ") Tj ET");
+    var objId = 5;
+    function line(stream, font, size, x, y, text) {
+      stream.push("BT /" + font + " " + size + " Tf " + x + " " + y + " Td (" + pdfEscape(pdfSafe(text)) + ") Tj ET");
+    }
+    function fillRect(stream, r, g, b, x, y, w, h) {
+      stream.push(r + " " + g + " " + b + " rg " + x + " " + y + " " + w + " " + h + " re f");
+    }
+    function strokeRect(stream, r, g, b, x, y, w, h, width) {
+      stream.push((width || 1.5) + " w " + r + " " + g + " " + b + " RG " + x + " " + y + " " + w + " " + h + " re S");
+    }
+    function credBox(stream, y, title, notes, un, pw, boxedId) {
+      strokeRect(stream, 0.184, 0.435, 0.678, 36, y, 540, 86);
+      stream.push("0.5 w 0.478 0.541 0.604 RG 241 " + (y + 8) + " 0 70 m 241 " + (y + 78) + " l S");
+      line(stream, "F1", 12, 48, y + 64, title);
+      var i;
+      for (i = 0; i < notes.length; i++) line(stream, "F2", 9, 48, y + 48 - (i * 12), notes[i]);
+      line(stream, "F1", 11, 252, y + 52, "UN:");
+      if (boxedId) {
+        strokeRect(stream, 0.067, 0.067, 0.067, 278, y + 44, 92, 20, 2);
+        line(stream, "F1", 12, 286, y + 50, boxedId);
+        line(stream, "F1", 11, 376, y + 50, "@trinidad.k12.co.us");
+      } else {
+        line(stream, "F1", 12, 278, y + 50, un);
       }
-      var streamText = stream.join("\n");
-      objects[objId] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + pageW + " " + pageH + "] /Contents " + contentId + " 0 R /Resources << /Font << /F1 3 0 R >> >> >>";
-      objects[contentId] = "<< /Length " + streamText.length + " >>\nstream\n" + streamText + "\nendstream";
-      pageRefs.push(objId + " 0 R");
+      line(stream, "F1", 11, 252, y + 24, "PW:");
+      line(stream, "F1", 12, 278, y + 22, pw);
+    }
+    function page1Stream(item) {
+      var stream = [];
+      fillRect(stream, 0.043, 0.122, 0.267, 36, 736, 540, 32);
+      stream.push("1 1 1 rg");
+      line(stream, "F1", 14, 54, 746, PRIVACY_BANNER);
+      fillRect(stream, 0.459, 0.698, 0.867, 36, 700, 540, 32);
+      stream.push("0 0 0 rg");
+      line(stream, "F2", 8, 48, 720, WARN_TURN_IN);
+      line(stream, "F2", 8, 48, 706, WARN_NEVER_SHARE);
+      strokeRect(stream, 0.184, 0.435, 0.678, 36, 618, 540, 74);
+      line(stream, "F1", 13, 220, 670, "STUDENT INFORMATION");
+      line(stream, "F1", 11, 54, 650, "Student Name: " + item.name);
+      line(stream, "F1", 11, 54, 634, "Grade: " + (item.grade || ""));
+      line(stream, "F1", 11, 300, 650, "Student ID: " + item.studentId);
+      if (/^[1-7]$/.test(item.period)) line(stream, "F1", 11, 300, 634, "Period: " + item.period);
+      credBox(stream, 520, "STEM LAB COMPUTER", ["Select Other user if your account isn't shown."], item.studentId, item.password);
+      credBox(stream, 426, "STEM WEBSITES", ["mrradle.us", "tmslantern.org"], item.studentId, item.password);
+      credBox(stream, 332, "MICROSOFT / SCHOOL ACCOUNT", [MICROSOFT_EXAMPLES, "Office.com"], item.studentId + "@trinidad.k12.co.us", item.password, item.studentId);
+      credBox(stream, 238, "GOOGLE / GOOGLE SIGN-IN", [GOOGLE_EXAMPLES, "google.com"], item.googleUsername, item.googlePassword);
+      fillRect(stream, 0.043, 0.122, 0.267, 36, 36, 540, 28);
+      stream.push("1 1 1 rg");
+      line(stream, "F1", 12, 54, 46, PRIVACY_BANNER);
+      return stream.join("\n");
+    }
+    function privacyBlock(stream, y, item, rotated) {
+      var index = formatIndexLabel(item.name, item.period);
+      strokeRect(stream, 0.067, 0.067, 0.067, 90, y, 432, 150, 2.5);
+      line(stream, "F1", 13, 120, y + 118, PRIVACY_BANNER);
+      line(stream, "F1", 11, 120, y + 96, "Student Name: " + item.name);
+      line(stream, "F1", 11, 120, y + 78, "Grade: " + (item.grade || ""));
+      line(stream, "F2", 8, 120, y + 54, WARN_TURN_IN);
+      line(stream, "F2", 8, 120, y + 40, WARN_NEVER_SHARE);
+      if (index) {
+        line(stream, "F1", 8, 120, y + 16, index);
+        line(stream, "F1", 8, 360, y + 16, index);
+      }
+      return rotated;
+    }
+    function page2Stream(item) {
+      var stream = [];
+      privacyBlock(stream, 420, item, false);
+      stream.push("q");
+      stream.push("1 0 0 1 306 198 cm");
+      stream.push("-1 0 0 -1 0 0 cm");
+      stream.push("1 0 0 1 -306 -198 cm");
+      privacyBlock(stream, 120, item, true);
+      stream.push("Q");
+      return stream.join("\n");
+    }
+    var i;
+    if (!list.length) return new Uint8Array(0);
+    for (i = 0; i < list.length; i++) {
+      var item = list[i];
+      var p1 = objId;
+      var c1 = objId + 1;
+      var s1 = page1Stream(item);
+      objects[p1] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + pageW + " " + pageH + "] /Contents " + c1 + " 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>";
+      objects[c1] = "<< /Length " + s1.length + " >>\nstream\n" + s1 + "\nendstream";
+      pageRefs.push(p1 + " 0 R");
+      objId += 2;
+      var p2 = objId;
+      var c2 = objId + 1;
+      var s2 = page2Stream(item);
+      objects[p2] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + pageW + " " + pageH + "] /Contents " + c2 + " 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>";
+      objects[c2] = "<< /Length " + s2.length + " >>\nstream\n" + s2 + "\nendstream";
+      pageRefs.push(p2 + " 0 R");
       objId += 2;
     }
-    objects[2] = "<< /Type /Pages /Kids [" + pageRefs.join(" ") + "] /Count " + pageCount + " >>";
+    objects[2] = "<< /Type /Pages /Kids [" + pageRefs.join(" ") + "] /Count " + pageRefs.length + " >>";
 
     var chunks = ["%PDF-1.4\n"];
     var offsets = [0];
-    var i;
     for (i = 1; i < objects.length; i++) {
       if (!objects[i]) continue;
       offsets[i] = chunks.join("").length;
@@ -718,6 +931,12 @@
   var api = {
     MONTHS: MONTHS,
     OFFICE_DOMAIN: OFFICE_DOMAIN,
+    GOOGLE_SETTINGS_LOCATION: GOOGLE_SETTINGS_LOCATION,
+    MICROSOFT_EXAMPLES: MICROSOFT_EXAMPLES,
+    GOOGLE_EXAMPLES: GOOGLE_EXAMPLES,
+    PRIVACY_BANNER: PRIVACY_BANNER,
+    WARN_TURN_IN: WARN_TURN_IN,
+    WARN_NEVER_SHARE: WARN_NEVER_SHARE,
     REQUIRED_HEADERS: REQUIRED_HEADERS,
     STATUS: STATUS,
     STATUS_LABELS: STATUS_LABELS,
@@ -730,7 +949,11 @@
     previewSemesterCsv: previewSemesterCsv,
     confirmationPhrase: confirmationPhrase,
     sortAppliedStudents: sortAppliedStudents,
+    setGoogleClassroomCredential: setGoogleClassroomCredential,
+    googleClassroomCredential: googleClassroomCredential,
+    googleCredentialBlockMessage: googleCredentialBlockMessage,
     buildLoginCardHtml: buildLoginCardHtml,
+    buildLoginPacketHtml: buildLoginPacketHtml,
     buildBatchPrintHtml: buildBatchPrintHtml,
     studentLoginLocalPart: studentLoginLocalPart,
     studentDisplayName: studentDisplayName,

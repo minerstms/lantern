@@ -108,7 +108,13 @@ function makeEnv(state) {
     };
     return api;
   }
-  return { DB: { prepare }, PILOT_SESSION_SECRET: TEST_PILOT_SECRET, _state: state };
+  return {
+    DB: { prepare },
+    PILOT_SESSION_SECRET: TEST_PILOT_SECRET,
+    LANTERN_GEPPETTO_BRIDGE_SECRET: 'test-geppetto-bridge-secret-not-real',
+    GEPPETTO_ORIGIN_URL: 'https://mrradle.us',
+    _state: state,
+  };
 }
 
 function req(method, path, body, cookie) {
@@ -204,11 +210,12 @@ function req(method, path, body, cookie) {
   if (preview.totals.ready === 2 && preview.totals.willUpdate === 2) ok('exact matches are ready to update');
   else bad('exact matches are ready to update', JSON.stringify(preview.totals));
   const applied = preview.rows.filter((r) => r.eligible);
+  H.setGoogleClassroomCredential({ googleUsername: 'SheetGoogleUser', googlePassword: 'SheetGoogleOne' });
   const html = H.buildBatchPrintHtml(applied);
   const youngAt = html.indexOf('55555');
   const smithAt = html.indexOf('12345');
-  const cards = html.split('loginSimpleCard').length - 1;
-  if (cards === 2 && smithAt >= 0 && youngAt >= 0 && smithAt < youngAt) {
+  const packets = html.split('class="student-login-sheet loginSheetPage1"').length - 1;
+  if (packets === 2 && smithAt >= 0 && youngAt >= 0 && smithAt < youngAt) {
     ok('batch print contains all successful students in alphabetical order');
   } else {
     bad('batch print contains all successful students in alphabetical order', html.slice(0, 200));
@@ -224,6 +231,9 @@ function req(method, path, body, cookie) {
 if (adminHtml.includes('Bulk Semester Credentials') && adminHtml.includes('bulkSemesterCsv') && adminHtml.includes('lantern-semester-credentials.js')) {
   ok('Admin Students bulk importer present');
 } else bad('Admin Students bulk importer present');
+if (adminHtml.includes('css/lantern-login-packet.css') && adminHtml.includes('buildBatchPrintHtml') && !adminHtml.includes('loginSimpleCard')) {
+  ok('Admin print uses shared formal login packet CSS');
+} else bad('Admin print uses shared formal login packet CSS');
 if (adminHtml.includes('TOTAL ROWS') && adminHtml.includes('WILL UPDATE') && adminHtml.includes('UPDATE N STUDENTS')) {
   ok('preview totals + typed confirmation copy present');
 } else bad('preview totals + typed confirmation copy present');
@@ -277,9 +287,10 @@ if (
 
 {
   const sample = [
-    { firstName: 'Ada', lastName: 'Smith', studentNumber: '12345', username: '12345', password: 'October022013', dobRaw: '10/2/2013' },
-    { firstName: 'Cara', lastName: 'Young', studentNumber: '55555', username: '55555', password: 'February012012' },
+    { firstName: 'Ada', lastName: 'Smith', studentNumber: '12345', username: '12345', password: 'October022013', dobRaw: '10/2/2013', grade: '7', period: '3' },
+    { firstName: 'Cara', lastName: 'Young', studentNumber: '55555', username: '55555', password: 'February012012', grade: '8', period: '2' },
   ];
+  H.setGoogleClassroomCredential({ googleUsername: 'SheetGoogleUser', googlePassword: 'SheetGoogleOne' });
   if (H.usernameCopyValue(sample[0]) === '12345' && H.usernameCopyValue({ studentNumber: '12345@trinidad.k12.co.us' }) === '12345') {
     ok('copy username is Student ID only');
   } else bad('copy username is Student ID only');
@@ -362,22 +373,85 @@ if (
 
   const pdf = H.buildLoginSheetsPdfBytes(sample);
   const pdfText = new TextDecoder().decode(pdf);
-  if (pdf[0] === 0x25 && pdf[1] === 0x50 && pdf[2] === 0x44 && pdf[3] === 0x46 && pdfText.includes('October022013') && pdfText.includes('12345') && pdfText.includes('Log In') && pdfText.includes('User Name') && pdfText.includes('@trinidad.k12.co.us') && pdfText.includes('Month012013')) {
-    ok('login-sheet PDF is a normal PDF with card text');
-  } else bad('login-sheet PDF is a normal PDF with card text');
-  if (!/javascript|clipboard|10\/2\/2013|date_of_birth|STEM Login Sheets/i.test(pdfText)) {
+  const pageCount = (pdfText.match(/\/Type \/Page \/Parent/g) || []).length;
+  if (pdf[0] === 0x25 && pdf[1] === 0x50 && pdf[2] === 0x44 && pdf[3] === 0x46 && pageCount === 4) {
+    ok('Bulk PDF packet is exactly two intended pages per student');
+  } else bad('Bulk PDF packet is exactly two intended pages per student', pageCount);
+  if (pdfText.includes('PRIVATE') && pdfText.includes('STUDENT LOGIN INFORMATION')) {
+    ok('Page 1 has PRIVATE banner');
+  } else bad('Page 1 has PRIVATE banner');
+  if (pdfText.includes('If this is not your sheet') && pdfText.includes('Never photograph')) {
+    ok('Page 2 has privacy warning');
+  } else bad('Page 2 has privacy warning');
+  if (
+    pdfText.includes('STEM LAB COMPUTER') &&
+    pdfText.includes('STEM WEBSITES') &&
+    pdfText.includes('mrradle.us') &&
+    pdfText.includes('tmslantern.org') &&
+    pdfText.includes('MICROSOFT / SCHOOL ACCOUNT') &&
+    pdfText.includes('Clipchamp') &&
+    pdfText.includes('Outlook') &&
+    pdfText.includes('Student Laptop') &&
+    pdfText.includes('GOOGLE / GOOGLE SIGN-IN') &&
+    pdfText.includes('Soundtrap') &&
+    pdfText.includes('Gemini') &&
+    pdfText.includes('TinkerCAD') &&
+    pdfText.includes('SheetGoogleUser') &&
+    pdfText.includes('SheetGoogleOne') &&
+    pdfText.includes('0.043 0.122 0.267') &&
+    pdfText.includes('0.459 0.698 0.867') &&
+    pdfText.includes('October022013') &&
+    pdfText.includes('12345') &&
+    pdfText.includes('@trinidad.k12.co.us')
+  ) {
     ok('PDF has approved login layout and no JS/DOB');
   } else bad('PDF has approved login layout and no JS/DOB');
-  const card = H.buildLoginCardHtml('12345', 'October022013');
-  if (
-    card.includes('loginSimpleCard') &&
-    card.includes('loginSimpleIdBox') &&
-    card.includes('loginSimpleDomain') &&
-    card.indexOf('loginSimpleIdBox') < card.indexOf('loginSimpleDomain') &&
-    card.includes('@trinidad.k12.co.us')
-  ) {
-    ok('print card matches approved login-sheet template');
-  } else bad('print card matches approved login-sheet template');
+  if (!/javascript|clipboard|10\/2\/2013|date_of_birth|Period\\+FirstName|1Ada/i.test(pdfText)) {
+    ok('PDF omits DOB and old personal-password rules');
+  } else bad('PDF omits DOB and old personal-password rules');
+
+  const packet = H.buildLoginPacketHtml(sample[0]);
+  const page1 = packet.split('loginSheetFoldCover')[0];
+  const page2 = packet.split('loginSheetFoldCover')[1] || '';
+  if (page1.includes('PRIVATE') && page1.includes('STUDENT LOGIN INFORMATION') && page1.includes('loginSheetPage1')) {
+    ok('Page 1 has PRIVATE banner');
+  } else bad('print Page 1 has PRIVATE banner');
+  if (page2.includes('If this is not your sheet') && page2.includes('Never photograph')) ok('print Page 2 has privacy warning');
+  else bad('print Page 2 has privacy warning');
+  if (!page2.includes('12345') && !page2.includes('October022013') && !page2.includes('minersmartlab') && !page2.includes('@trinidad.k12.co.us')) {
+    ok('Page 2 contains no credentials');
+  } else bad('Page 2 contains no credentials');
+  if (page1.includes('STEM LAB COMPUTER') && page1.includes('UN:') && page1.includes('12345') && page1.includes('October022013')) {
+    ok('STEM Lab UN = Student ID and PW = MonthDDYYYY');
+  } else bad('STEM Lab UN = Student ID and PW = MonthDDYYYY');
+  if (page1.includes('STEM WEBSITES') && page1.includes('mrradle.us') && page1.includes('tmslantern.org')) {
+    ok('STEM Websites lists both domains');
+  } else bad('STEM Websites lists both domains');
+  if (page1.includes('MICROSOFT / SCHOOL ACCOUNT') && page1.includes('Clipchamp • Outlook • Student Laptop') && page1.includes('loginSheetIdBox') && page1.includes('loginSheetDomain') && page1.indexOf('loginSheetIdBox') < page1.indexOf('loginSheetDomain')) {
+    ok('Microsoft header, examples, and boxed Student ID + domain');
+  } else bad('Microsoft header, examples, and boxed Student ID + domain');
+  if (page1.includes('GOOGLE / GOOGLE SIGN-IN') && page1.includes('Soundtrap • Gemini • TinkerCAD') && page1.includes('SheetGoogleUser') && page1.includes('SheetGoogleOne')) {
+    ok('Google credential comes from Admin-authorized setting');
+  } else bad('Google credential comes from Admin-authorized setting');
+  if (H.MICROSOFT_EXAMPLES === 'Clipchamp • Outlook • Student Laptop') ok('Microsoft examples exactly Clipchamp • Outlook • Student Laptop');
+  else bad('Microsoft examples exactly Clipchamp • Outlook • Student Laptop');
+  if (H.GOOGLE_EXAMPLES === 'Soundtrap • Gemini • TinkerCAD') ok('Google examples exactly Soundtrap • Gemini • TinkerCAD');
+  else bad('Google examples exactly Soundtrap • Gemini • TinkerCAD');
+  H.setGoogleClassroomCredential({ googleUsername: '', googlePassword: '' });
+  if (!H.googleClassroomCredential().configured && H.buildBatchPrintHtml(sample) === '' && H.buildLoginSheetsPdfBytes(sample).length === 0 && H.googleCredentialBlockMessage().includes('https://mrradle.us/admin/settings/')) {
+    ok('missing Google config blocks packet generation clearly');
+  } else bad('missing Google config blocks packet generation clearly');
+  H.setGoogleClassroomCredential({ googleUsername: 'SheetGoogleUser', googlePassword: 'SheetGoogleOne' });
+  const jsSrc = fs.readFileSync(path.join(root, 'app/js/lantern-semester-credentials.js'), 'utf8');
+  if (!jsSrc.includes('Miners1234567') && !jsSrc.includes('GOOGLE_PASSWORD_FALLBACK') && !adminHtml.includes('Miners1234567')) {
+    ok('no hardcoded Google password fallback in public JS');
+  } else bad('no hardcoded Google password fallback in public JS');
+  if (!offline.includes('SheetGoogleOne') && !offline.includes('SheetGoogleUser') && !offline.includes('GOOGLE / GOOGLE SIGN-IN')) {
+    ok('LanSchool HTML contains no Google password');
+  } else bad('LanSchool HTML contains no Google password');
+  if (!page1.includes('STEM COMPUTER LOG IN') && !page1.includes('deriveStemUsername') && !packet.includes('1Ada')) {
+    ok('No old Period+FirstName STEM login remains');
+  } else bad('No old Period+FirstName STEM login remains');
 }
 
 if (!/bulk-set-student-passwords[\s\S]{0,80}pdf|lanschool|STEM-Login-Sheets|STEM-LanSchool-Setup/i.test(workerSrc)) {
@@ -482,7 +556,55 @@ async function runApi() {
     if (res.status === 403) ok('non-admin cannot call bulk route');
     else bad('non-admin cannot call bulk route', res.status);
   }
+
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url || '');
+    if (u.includes('/api/s2s/login-sheet-google')) {
+      const auth = String((init && init.headers && (init.headers.Authorization || init.headers.authorization)) || '');
+      if (!auth.includes('test-geppetto-bridge-secret-not-real')) {
+        return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 });
+      }
+      return new Response(JSON.stringify({
+        ok: true,
+        configured: true,
+        googleUsername: 'SheetGoogleUser',
+        googlePassword: 'SheetGoogleOne',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return origFetch(url, init);
+  };
+  try {
+    const adminGoogle = await worker.fetch(req('GET', '/api/admin/login-sheet-google', undefined, adminCookie), env);
+    const adminGoogleJson = await adminGoogle.json();
+    if (
+      adminGoogle.ok &&
+      adminGoogleJson.configured === true &&
+      adminGoogleJson.googleUsername === 'SheetGoogleUser' &&
+      adminGoogleJson.googlePassword === 'SheetGoogleOne' &&
+      adminGoogleJson.location === 'https://mrradle.us/admin/settings/'
+    ) {
+      ok('admin GET retrieves Geppetto Google credential');
+    } else bad('admin GET retrieves Geppetto Google credential');
+
+    const teacherGoogle = await worker.fetch(req('GET', '/api/admin/login-sheet-google', undefined, teacherCookie), env);
+    if (teacherGoogle.status === 403) ok('non-admin cannot read Google credential');
+    else bad('non-admin cannot read Google credential', teacherGoogle.status);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 }
+
+if (
+  workerSrc.includes("path === '/api/admin/users/bulk-set-student-passwords'") &&
+  !/bulk-set-student-passwords[\s\S]{0,2200}googleUsername|bulk-set-student-passwords[\s\S]{0,2200}googlePassword/.test(workerSrc)
+) {
+  ok('bulk student password route unchanged');
+} else bad('bulk student password route unchanged');
+
+if (adminHtml.includes('/api/admin/login-sheet-google') && adminHtml.includes('requireGoogleForSheets') && adminHtml.includes('googleCredentialBlockMessage')) {
+  ok('Lantern bulk print/PDF uses Admin-authorized Google setting');
+} else bad('Lantern bulk print/PDF uses Admin-authorized Google setting');
 
 await runApi();
 

@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css">
   <link rel="stylesheet" href="css/lantern-avatar-cropper.css">
   <link rel="stylesheet" href="css/lantern-character-example.css">
+  <link rel="stylesheet" href="css/lantern-login-packet.css">
   <style>
     :root { --ink:#eaf0ff; --muted:#b9c6ea; --accent:#5aa7ff; --line:rgba(255,255,255,.12); --panel:#0f1b33; --good:#38d07c; --bad:#ff4d6d; }
     * { box-sizing: border-box; }
@@ -247,24 +248,6 @@
     .bulkStatus-id_match_name_mismatch, .bulkStatus-inactive_or_not_student { color: #ffb020; }
     .bulkStatus-student_not_found, .bulkStatus-invalid_dob, .bulkStatus-duplicate_student_number, .bulkStatus-duplicate_input_row { color: var(--bad); }
     #bulkLoginPrintRoot { display: none; }
-    .loginSimpleCard {
-      background: #fff; color: #111; border: 1px solid #111; padding: 18px 20px;
-      box-sizing: border-box; width: 100%; break-inside: avoid; page-break-inside: avoid;
-      margin: 0 0 12px;
-    }
-    .loginSimpleTitle { font-size: 28px; font-weight: 900; margin: 0 0 14px; color: #111; }
-    .loginSimpleLabel { font-size: 16px; font-weight: 800; margin: 12px 0 6px; color: #111; }
-    .loginSimpleUserRow { display: flex; align-items: stretch; gap: 0; }
-    .loginSimpleIdBox {
-      display: inline-flex; align-items: center; min-height: 42px; min-width: 7.5em;
-      padding: 6px 12px; border: 2px solid #111; font-size: 22px; font-weight: 800;
-      letter-spacing: 0.04em; color: #111; background: #fff;
-    }
-    .loginSimpleDomain { display: inline-flex; align-items: center; padding: 0 0 0 8px; font-size: 20px; font-weight: 800; color: #111; }
-    .loginSimplePwBox {
-      display: flex; align-items: center; min-height: 42px; padding: 6px 12px;
-      border: 2px solid #111; font-size: 22px; font-weight: 800; color: #111; background: #fff;
-    }
     #bulkLanSchoolSetup { max-width: 100%; margin-top: 16px; }
     #bulkLanSchoolRows { max-height: 640px; overflow: auto; }
     .lanschoolToolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
@@ -300,9 +283,8 @@
       #bulkLoginPrintRoot {
         display: block !important; position: absolute; left: 0; top: 0; width: 100%;
       }
-      .loginSimpleCard { width: 100%; margin-bottom: 0.35in; }
     }
-    @page { size: Letter portrait; margin: 0.5in; }
+    @page { size: Letter portrait; margin: 0.45in; }
   </style>
 </head>
 <body class="page-has-ticker">
@@ -7480,6 +7462,29 @@
       var preview = null;
       var appliedPrintRows = null;
 
+      function loadGoogleCredential() {
+        return fetch(api + '/api/admin/login-sheet-google', { credentials: 'include', cache: 'no-store' })
+          .then(function(r) { return r.json().then(function(j) { return { okHttp: r.ok, body: j }; }); })
+          .then(function(res) {
+            if (res && res.okHttp && res.body && res.body.ok) {
+              H.setGoogleClassroomCredential(res.body);
+            } else {
+              H.setGoogleClassroomCredential({ googleUsername: '', googlePassword: '' });
+            }
+            return H.googleClassroomCredential();
+          })
+          .catch(function() {
+            H.setGoogleClassroomCredential({ googleUsername: '', googlePassword: '' });
+            return H.googleClassroomCredential();
+          });
+      }
+
+      function requireGoogleForSheets() {
+        if (H.googleClassroomCredential().configured) return true;
+        showBulkMsg(H.googleCredentialBlockMessage(), 'err');
+        return false;
+      }
+
       function showBulkMsg(text, kind) {
         if (!msgEl) return;
         if (!text) {
@@ -7563,6 +7568,7 @@
         applyBtn.disabled = !(n > 0 && H.trim(confirmEl.value) === H.confirmationPhrase(n));
       });
 
+      loadGoogleCredential();
       fileEl.addEventListener('change', function() {
         var file = fileEl.files && fileEl.files[0];
         renderPreview(null);
@@ -7620,9 +7626,14 @@
             return updated[String(r.username || '').toLowerCase()];
           });
           var root = document.getElementById('bulkLoginPrintRoot');
-          if (root) root.innerHTML = H.buildBatchPrintHtml(appliedPrintRows);
+          if (root) root.innerHTML = H.googleClassroomCredential().configured ? H.buildBatchPrintHtml(appliedPrintRows) : '';
           renderLanSchoolSetup(appliedPrintRows);
-          showBulkMsg('Updated ' + appliedPrintRows.length + ' student password' + (appliedPrintRows.length === 1 ? '' : 's') + '. Use Print All, PDF, or LanSchool setup. DOB was not saved.', 'ok');
+          var applyMsg = 'Updated ' + appliedPrintRows.length + ' student password' + (appliedPrintRows.length === 1 ? '' : 's') + '. Use Print All, PDF, or LanSchool setup. DOB was not saved.';
+          if (!H.googleClassroomCredential().configured) {
+            showBulkMsg(applyMsg + ' ' + H.googleCredentialBlockMessage(), 'err');
+          } else {
+            showBulkMsg(applyMsg, 'ok');
+          }
           confirmEl.value = '';
         }).catch(function() {
           showBulkMsg('Network error during apply. Nothing printed.', 'err');
@@ -7635,13 +7646,21 @@
       if (printBtn) {
         printBtn.addEventListener('click', function() {
           if (!appliedPrintRows || !appliedPrintRows.length) return;
+          if (!requireGoogleForSheets()) return;
+          var root = document.getElementById('bulkLoginPrintRoot');
+          if (root) root.innerHTML = H.buildBatchPrintHtml(appliedPrintRows);
           window.print();
         });
       }
       if (pdfBtn) {
         pdfBtn.addEventListener('click', function() {
           if (!appliedPrintRows || !appliedPrintRows.length) return;
+          if (!requireGoogleForSheets()) return;
           var bytes = H.buildLoginSheetsPdfBytes(appliedPrintRows);
+          if (!bytes || !bytes.length) {
+            showBulkMsg(H.googleCredentialBlockMessage(), 'err');
+            return;
+          }
           H.downloadBlob('STEM-Login-Sheets.pdf', new Blob([bytes], { type: 'application/pdf' }));
         });
       }
