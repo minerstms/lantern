@@ -262,6 +262,7 @@ import {
   buildGeppettoStudentRosterPayload,
   geppettoBridgeScopeFromSafeReturn,
   geppettoStudentAudienceForScope,
+  resolveGeppettoBridgeSecretAudience,
 } from './geppetto-student-handoff.js';
 import { handleMarqueeRoutes } from './marquee-handlers.js';
 import {
@@ -2462,11 +2463,10 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     });
   }
 
-  // Server-to-server redeem. Production secret redeems production-scoped
-  // handoffs only. Preview secret redeems Preview-scoped handoffs only.
+  // Server-to-server redeem. Production, Preview, and Hammer staging secrets
+  // redeem only their own audience-scoped handoffs.
   if (request.method === 'POST' && path === '/api/auth/geppetto-student-handoff/redeem') {
     const productionSecret = String(env.LANTERN_GEPPETTO_BRIDGE_SECRET || '').trim();
-    const previewSecret = String(env.LANTERN_GEPPETTO_PREVIEW_BRIDGE_SECRET || '').trim();
     if (!productionSecret) {
       return jsonResponse({ ok: false, error: 'bridge_not_configured' }, 503, cors);
     }
@@ -2474,15 +2474,12 @@ async function handleAuthRoutes(request, url, path, env, cors) {
     if (!provided) {
       return jsonResponse({ ok: false, error: 'unauthorized' }, 401, cors);
     }
-    if (previewSecret && timingSafeEqualStrings(productionSecret, previewSecret)) {
-      return jsonResponse({ ok: false, error: 'bridge_misconfigured' }, 503, cors);
+    const resolved = resolveGeppettoBridgeSecretAudience(env, provided);
+    if (!resolved.ok) {
+      const status = resolved.error === 'bridge_misconfigured' ? 503 : 401;
+      return jsonResponse({ ok: false, error: resolved.error }, status, cors);
     }
-    const productionMatch = timingSafeEqualStrings(productionSecret, provided);
-    const previewMatch = !!(previewSecret && timingSafeEqualStrings(previewSecret, provided));
-    if (productionMatch === previewMatch) {
-      return jsonResponse({ ok: false, error: 'unauthorized' }, 401, cors);
-    }
-    const secretAudience = productionMatch ? GEPPETTO_STUDENT_AUDIENCE : GEPPETTO_STUDENT_PREVIEW_AUDIENCE;
+    const secretAudience = resolved.audience;
     let body = {};
     try {
       body = await request.json();

@@ -8,28 +8,39 @@ import { generateOpaqueSecret, hashOpaqueSecret } from './device-enrollment.js';
 
 export const GEPPETTO_STUDENT_AUDIENCE = 'geppetto_student';
 export const GEPPETTO_STUDENT_PREVIEW_AUDIENCE = 'geppetto_student_preview';
+export const GEPPETTO_HAMMER_STAGING_AUDIENCE = 'geppetto_hammer_staging';
 export const GEPPETTO_STUDENT_HANDOFF_TTL_SEC = 90;
 export const GEPPETTO_STUDENT_ROSTER_PATH = '/api/auth/geppetto-student-roster';
 export const GEPPETTO_STUDENT_LOGOUT_PATH = '/api/auth/geppetto-student-logout';
 export const GEPPETTO_STUDENT_FRESH_PARAM = 'fresh';
 export const GEPPETTO_S2S_HEADERS = { 'Cache-Control': 'no-store' };
+export const LANTERN_GEPPETTO_HAMMER_STAGING_AUTH_V107 = 'LANTERN_GEPPETTO_HAMMER_STAGING_AUTH_V107';
 
 export const GEPPETTO_STUDENT_CALLBACK_ALLOWLIST = [
   'https://mrradle.us/api/stem-daily/student/lantern-callback',
   'https://geppetto-full-deploy-v6.pages.dev/api/stem-daily/student/lantern-callback',
+  'https://geppetto-hammer-staging.pages.dev/api/stem-daily/student/lantern-callback',
 ];
 
 export const GEPPETTO_CANONICAL_HOST = 'mrradle.us';
+export const GEPPETTO_HAMMER_STAGING_HOST = 'geppetto-hammer-staging.pages.dev';
 export const GEPPETTO_PAGES_PROJECT_HOST = 'geppetto-full-deploy-v6.pages.dev';
 export const GEPPETTO_PAGES_PROJECT_SUFFIX = '.geppetto-full-deploy-v6.pages.dev';
 export const GEPPETTO_STUDENT_CALLBACK_PATH = '/api/stem-daily/student/lantern-callback';
 
 const CALLBACK_PATH = GEPPETTO_STUDENT_CALLBACK_PATH;
 
-/** Exact production hosts plus one-label Geppetto Pages Preview. No loose suffix match. */
-export function isAllowedGeppettoCallbackHost(hostname) {
+function timingSafeEqualStrings(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (left.length !== right.length) return false;
+  let out = 0;
+  for (let i = 0; i < left.length; i++) out |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return out === 0;
+}
+
+export function isGeppettoPagesPreviewCallbackHost(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
-  if (host === GEPPETTO_CANONICAL_HOST) return true;
   if (host === GEPPETTO_PAGES_PROJECT_HOST) return true;
   if (!host.endsWith(GEPPETTO_PAGES_PROJECT_SUFFIX)) return false;
   const sub = host.slice(0, -GEPPETTO_PAGES_PROJECT_SUFFIX.length);
@@ -37,12 +48,21 @@ export function isAllowedGeppettoCallbackHost(hostname) {
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(sub);
 }
 
+/** Exact production, Hammer staging, and one-label Geppetto Pages Preview. No loose suffix match. */
+export function isAllowedGeppettoCallbackHost(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (host === GEPPETTO_CANONICAL_HOST) return true;
+  if (host === GEPPETTO_HAMMER_STAGING_HOST) return true;
+  return isGeppettoPagesPreviewCallbackHost(host);
+}
+
 /** Server-side only. Derived from an already-sanitized HTTPS callback URL. */
 export function geppettoBridgeScopeFromSafeReturn(safeReturn) {
   try {
     const host = String(new URL(String(safeReturn || '')).hostname || '').toLowerCase();
     if (host === GEPPETTO_CANONICAL_HOST) return 'production';
-    if (isAllowedGeppettoCallbackHost(host)) return 'preview';
+    if (host === GEPPETTO_HAMMER_STAGING_HOST) return 'hammer_staging';
+    if (isGeppettoPagesPreviewCallbackHost(host)) return 'preview';
   } catch (_) {
     /* invalid */
   }
@@ -52,12 +72,40 @@ export function geppettoBridgeScopeFromSafeReturn(safeReturn) {
 export function geppettoStudentAudienceForScope(scope) {
   if (scope === 'preview') return GEPPETTO_STUDENT_PREVIEW_AUDIENCE;
   if (scope === 'production') return GEPPETTO_STUDENT_AUDIENCE;
+  if (scope === 'hammer_staging') return GEPPETTO_HAMMER_STAGING_AUDIENCE;
   return '';
 }
 
 export function isGeppettoStudentAudience(audience) {
   const a = String(audience || '').trim();
-  return a === GEPPETTO_STUDENT_AUDIENCE || a === GEPPETTO_STUDENT_PREVIEW_AUDIENCE;
+  return a === GEPPETTO_STUDENT_AUDIENCE
+    || a === GEPPETTO_STUDENT_PREVIEW_AUDIENCE
+    || a === GEPPETTO_HAMMER_STAGING_AUDIENCE;
+}
+
+/** LANTERN_GEPPETTO_HAMMER_STAGING_AUTH_V107 — map Bearer secret to audience tier; fail closed on ambiguity. */
+export function resolveGeppettoBridgeSecretAudience(env, provided) {
+  const productionSecret = String((env && env.LANTERN_GEPPETTO_BRIDGE_SECRET) || '').trim();
+  const previewSecret = String((env && env.LANTERN_GEPPETTO_PREVIEW_BRIDGE_SECRET) || '').trim();
+  const hammerSecret = String((env && env.LANTERN_GEPPETTO_HAMMER_STAGING_BRIDGE_SECRET) || '').trim();
+  const token = String(provided || '').trim();
+  if (!token || !productionSecret) return { ok: false, error: 'unauthorized' };
+  const configured = [productionSecret, previewSecret, hammerSecret].filter(Boolean);
+  for (let i = 0; i < configured.length; i++) {
+    for (let j = i + 1; j < configured.length; j++) {
+      if (timingSafeEqualStrings(configured[i], configured[j])) {
+        return { ok: false, error: 'bridge_misconfigured' };
+      }
+    }
+  }
+  const productionMatch = timingSafeEqualStrings(productionSecret, token);
+  const previewMatch = !!(previewSecret && timingSafeEqualStrings(previewSecret, token));
+  const hammerMatch = !!(hammerSecret && timingSafeEqualStrings(hammerSecret, token));
+  const matchCount = (productionMatch ? 1 : 0) + (previewMatch ? 1 : 0) + (hammerMatch ? 1 : 0);
+  if (matchCount !== 1) return { ok: false, error: 'unauthorized' };
+  if (productionMatch) return { ok: true, audience: GEPPETTO_STUDENT_AUDIENCE };
+  if (previewMatch) return { ok: true, audience: GEPPETTO_STUDENT_PREVIEW_AUDIENCE };
+  return { ok: true, audience: GEPPETTO_HAMMER_STAGING_AUDIENCE };
 }
 
 export function isSafeGeppettoNextPath(raw) {

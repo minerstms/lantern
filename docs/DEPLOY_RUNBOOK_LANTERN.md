@@ -29,6 +29,16 @@ Do **not** deploy Lantern by running Wrangler from an MTSS project folder.
 
 Other secrets (e.g. setup, verify, bootstrap) are documented in `worker/wrangler.toml` comments and system context docs.
 
+### Geppetto student SSO bridge secrets (names only)
+
+| Secret | Audience / scope |
+|--------|------------------|
+| `LANTERN_GEPPETTO_BRIDGE_SECRET` | Production `mrradle.us` |
+| `LANTERN_GEPPETTO_PREVIEW_BRIDGE_SECRET` | Geppetto Pages preview (`*.geppetto-full-deploy-v6.pages.dev`) |
+| `LANTERN_GEPPETTO_HAMMER_STAGING_BRIDGE_SECRET` | Hammer staging only (`geppetto-hammer-staging.pages.dev`) |
+
+Each secret redeems **only** its matching audience. Never reuse values across tiers. Hammer staging uses audience `geppetto_hammer_staging` (#107).
+
 ---
 
 ## Schema and migrations (before expecting auth to work)
