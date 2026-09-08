@@ -79,7 +79,9 @@
     if (!s) return 'class-website';
     var candidate = s;
     try {
-      var base = s.indexOf('://') >= 0 ? s : 'https://tmslantern.org' + (s.charAt(0) === '/' ? s : '/' + s);
+      var base = s.indexOf('://') >= 0
+        ? s
+        : ((global.location && global.location.origin) || 'https://mrradle.us') + (s.charAt(0) === '/' ? s : '/' + s);
       var u = new URL(base);
       if (isGeppettoStudentAuthorizeReturn(u.pathname)) {
         candidate = String(u.searchParams.get('return') || '').trim();
