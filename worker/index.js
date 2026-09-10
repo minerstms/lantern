@@ -2923,13 +2923,22 @@ async function handleAdminRoutes(request, url, path, env, cors) {
     const adminUsername = String(account.username || '').trim() || 'admin';
     const salt = pilotRandomSaltHex();
     const hash = await pilotHashPassword(newPassword, salt);
+    // STAFF_RESET_NO_FORCE_CHANGE_V140 — Prompt #140: a routine staff/admin
+    // password reset makes the chosen password immediately usable. The student is
+    // NOT forced through a password-change screen on next login. The deliberate
+    // "temporary password, must change at next login" workflow is still available
+    // by opting in explicitly, using the same flag names honored by
+    // /api/admin/users/update (must_change_next_login / force_must_change_password).
+    const forceChangeNextLogin =
+      body.must_change_next_login === true || body.force_must_change_password === true;
+    const mustChangeValue = forceChangeNextLogin ? 1 : 0;
     await db
       .prepare(
-        `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = 1, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
+        `UPDATE lantern_pilot_accounts SET password_hash = ?, password_salt = ?, must_change_password = ?, password_reset_at = datetime('now'), password_reset_by = ?, updated_at = datetime('now') WHERE username = ?`
       )
-      .bind(hash, salt, adminUsername, targetUser)
+      .bind(hash, salt, mustChangeValue, adminUsername, targetUser)
       .run();
-    return jsonResponse({ ok: true }, 200, cors);
+    return jsonResponse({ ok: true, must_change_password: mustChangeValue === 1 }, 200, cors);
   }
 
   if (request.method === 'POST' && path === '/api/admin/users/bulk-set-student-passwords') {

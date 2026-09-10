@@ -3188,7 +3188,7 @@
         if (res && res.blocked) return;
         if (res && res.okHttp && res.body && res.body.ok) {
           showUsersMsg(
-            'Temporary password set for ' + username + '. They sign in with it once, then choose their own password before the rest of the app unlocks.',
+            'Password reset for ' + username + '. They can sign in with this password right away — no password change is required.',
             'ok'
           );
           closeTempPwPanel();
